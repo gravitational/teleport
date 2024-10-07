@@ -19,13 +19,11 @@
 import React from "react";
 
 import Image from "design/Image";
-import gravitationalLogo from "design/assets/images/gravitational-logo.svg";
 import kubeLogo from "design/assets/images/kube-logo.svg";
 import sampleLogoLong from "design/assets/images/sample-logo-long.svg";
 import sampleLogoSquire from "design/assets/images/sample-logo-squire.svg";
 import secKeyGraphic from "design/assets/images/sec-key-graphic.svg";
 import teleportLogo from "design/assets/images/enterprise-light.svg";
-import {TeleportLogoII} from "design/assets/images/TeleportLogoII";
 import cloudCity from "design/assets/images/backgrounds/cloud-city.png"
 
 export default {
@@ -43,7 +41,6 @@ export const ImageSVG = () => (
             alignItems: 'stretch',
         }}
     >
-        <Image maxWidth="100px" maxHeight="100px" src={gravitationalLogo} />
         <Image maxWidth="100px" maxHeight="100px" src={kubeLogo} />
         <Image maxWidth="100px" maxHeight="100px" src={sampleLogoLong} />
         <Image maxWidth="100px" maxHeight="100px" src={sampleLogoSquire} />
@@ -51,10 +48,6 @@ export const ImageSVG = () => (
         <Image maxWidth="100px" maxHeight="100px" src={teleportLogo} />
     </div>
 );
-
-export const ReactSVG = () => (
-    <TeleportLogoII/>
-)
 
 export const BackgroundsCloudCity = () => (
     <Image src={cloudCity} />

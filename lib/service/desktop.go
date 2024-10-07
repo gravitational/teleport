@@ -194,10 +194,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return tlsCopy, nil
 	}
 
-	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	connLimiter := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter.MaxConnections)
+
 	var publicAddr string
 	switch {
 	case useTunnel:
@@ -231,6 +229,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		KDCAddr:                      cfg.WindowsDesktop.KDCAddr,
 		PKIDomain:                    cfg.WindowsDesktop.PKIDomain,
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,

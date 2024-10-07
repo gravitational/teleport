@@ -26,20 +26,21 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
 // pollAWSUsers is a function that returns a function that fetches
 // AWS users and their inline and attached policies, and groups.
-func (a *awsFetcher) pollAWSUsers(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *awsFetcher) pollAWSUsers(ctx context.Context, result, existing *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 
 		result.Users, err = a.fetchUsers(ctx)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch users"))
-			return nil
+			result.Users = existing.Users
 		}
 
 		eG, ctx := errgroup.WithContext(ctx)
@@ -57,16 +58,29 @@ func (a *awsFetcher) pollAWSUsers(ctx context.Context, result *Resources, collec
 				userInlinePolicies, err := a.fetchUserInlinePolicies(ctx, user)
 				if err != nil {
 					collectErr(trace.Wrap(err, "failed to fetch user %q inline policies", user.UserName))
+					userInlinePolicies = sliceFilter(existing.UserInlinePolicies, func(inline *accessgraphv1alpha.AWSUserInlinePolicyV1) bool {
+						return inline.User.UserName == user.UserName && inline.AccountId == a.AccountID
+					})
 				}
 
 				userAttachedPolicies, err := a.fetchUserAttachedPolicies(ctx, user)
 				if err != nil {
 					collectErr(trace.Wrap(err, "failed to fetch user %q attached policies", user.UserName))
+					userAttachedPolicies = sliceFilterPickFirst(
+						existing.UserAttachedPolicies,
+						func(attached *accessgraphv1alpha.AWSUserAttachedPolicies) bool {
+							return attached.User.UserName == user.UserName && attached.AccountId == a.AccountID
+						},
+					)
+
 				}
 
 				userGroups, err := a.fetchGroupsForUser(ctx, user)
 				if err != nil {
 					collectErr(trace.Wrap(err, "failed to fetch user %q groups", user.UserName))
+					userGroups = sliceFilterPickFirst(existing.UserGroups, func(groups *accessgraphv1alpha.AWSUserGroupsV1) bool {
+						return groups.User.UserName == user.UserName && groups.User.AccountId == a.AccountID
+					})
 				}
 
 				usersMu.Lock()
@@ -144,6 +158,7 @@ func awsUserToProtoUser(user *iam.User, accountID string) *accessgraphv1alpha.AW
 		PasswordLastUsed:    awsTimeToProtoTime(user.PasswordLastUsed),
 		Tags:                tags,
 		PermissionsBoundary: permissionsBoundary,
+		LastSyncTime:        timestamppb.Now(),
 	}
 }
 
@@ -192,13 +207,15 @@ func awsUserPolicyToProtoUserPolicy(policy *iam.GetUserPolicyOutput, user *acces
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		User:           user,
 		AccountId:      accountID,
+		LastSyncTime:   timestamppb.Now(),
 	}
 }
 
 func (a *awsFetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserAttachedPolicies, error) {
 	rsp := &accessgraphv1alpha.AWSUserAttachedPolicies{
-		User:      user,
-		AccountId: a.AccountID,
+		User:         user,
+		AccountId:    a.AccountID,
+		LastSyncTime: timestamppb.Now(),
 	}
 
 	iamClient, err := a.CloudClients.GetAWSIAMClient(
@@ -235,7 +252,8 @@ func (a *awsFetcher) fetchUserAttachedPolicies(ctx context.Context, user *access
 
 func (a *awsFetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserGroupsV1, error) {
 	userGroups := &accessgraphv1alpha.AWSUserGroupsV1{
-		User: user,
+		User:         user,
+		LastSyncTime: timestamppb.Now(),
 	}
 
 	iamClient, err := a.CloudClients.GetAWSIAMClient(

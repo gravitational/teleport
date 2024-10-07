@@ -1370,7 +1370,7 @@ set to use a TLS certificate issued by a trusted internal CA rather than a publi
 
 You should create the secret in the same namespace as Teleport using a command like this:
 
-```shell
+```code
 kubectl create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
 ```
 
@@ -1400,7 +1400,7 @@ in the pod logs.
 
 You should create the secret in the same namespace as Teleport using a command like this:
 
-```shell
+```code
 kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 

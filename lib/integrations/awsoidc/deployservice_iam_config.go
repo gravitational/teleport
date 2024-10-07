@@ -61,7 +61,6 @@ type DeployServiceIAMConfigureRequest struct {
 	TaskRole string
 
 	// AccountID is the AWS Account ID.
-	// Optional. sts.GetCallerIdentity is used if not provided.
 	AccountID string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
@@ -114,8 +113,7 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // DeployServiceIAMConfigureClient describes the required methods to create the IAM Roles/Policies required for the DeployService action.
 type DeployServiceIAMConfigureClient interface {
-	// GetCallerIdentity returns information about the caller identity.
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	CallerIdentityGetter
 
 	// CreateRole creates a new IAM Role.
 	CreateRole(ctx context.Context, params *iam.CreateRoleInput, optFns ...func(*iam.Options)) (*iam.CreateRoleOutput, error)
@@ -126,7 +124,7 @@ type DeployServiceIAMConfigureClient interface {
 
 type defaultDeployServiceIAMConfigureClient struct {
 	*iam.Client
-	stsClient *sts.Client
+	CallerIdentityGetter
 }
 
 // NewDeployServiceIAMConfigureClient creates a new DeployServiceIAMConfigureClient.
@@ -141,14 +139,9 @@ func NewDeployServiceIAMConfigureClient(ctx context.Context, region string) (Dep
 	}
 
 	return &defaultDeployServiceIAMConfigureClient{
-		Client:    iam.NewFromConfig(cfg),
-		stsClient: sts.NewFromConfig(cfg),
+		Client:               iam.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
-}
-
-// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
-func (d defaultDeployServiceIAMConfigureClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
 // ConfigureDeployServiceIAM set ups the roles required for calling the DeployService action.
@@ -176,6 +169,8 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 			return trace.Wrap(err)
 		}
 		req.AccountID = aws.ToString(callerIdentity.Account)
+	} else if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := createTaskRole(ctx, clt, req); err != nil {
@@ -228,6 +223,7 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForRDSDBConnect(),
+		awslib.StatementForRDSMetadata(),
 		awslib.StatementForWritingLogs(),
 	).Marshal()
 	if err != nil {

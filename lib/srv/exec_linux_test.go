@@ -32,12 +32,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 func TestOSCommandPrep(t *testing.T) {
@@ -56,7 +51,7 @@ func TestOSCommandPrep(t *testing.T) {
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		"TERM=xterm",
-		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTY().Name()),
+		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTYName()),
 		"SSH_SESSION_ID=xxx",
 		"SSH_TELEPORT_HOST_UUID=testID",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
@@ -67,7 +62,7 @@ func TestOSCommandPrep(t *testing.T) {
 	execCmd, err := scx.ExecCommand()
 	require.NoError(t, err)
 
-	cmd, err := buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err := buildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -82,7 +77,7 @@ func TestOSCommandPrep(t *testing.T) {
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
 
-	cmd, err = buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err = buildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -97,7 +92,7 @@ func TestOSCommandPrep(t *testing.T) {
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
 
-	cmd, err = buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err = buildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, "/bin/sh", cmd.Path)
@@ -113,7 +108,7 @@ func TestOSCommandPrep(t *testing.T) {
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
 	expectedEnv[2] = "HOME=/wrong/place"
-	cmd, err = buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err = buildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, root, cmd.Dir)
@@ -135,36 +130,6 @@ func TestConfigureCommand(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.Equal(t, "/proc/self/exe", cmd.Path)
 	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
-}
-
-func TestRootConfigureCommand(t *testing.T) {
-	utils.RequireRoot(t)
-
-	login := utils.GenerateLocalUsername(t)
-	_, err := host.UserAdd(login, nil, "", "", "")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, err := host.UserDel(login)
-		require.NoError(t, err)
-	})
-
-	srv := newMockServer(t)
-	scx := newExecServerContext(t, srv)
-	scx.Identity.Login = login
-	scx.ExecType = teleport.TCPIPForwardRequest
-
-	u, err := user.Lookup(login)
-	require.NoError(t, err)
-	uid, err := strconv.ParseUint(u.Uid, 10, 32)
-	require.NoError(t, err)
-	gid, err := strconv.ParseUint(u.Gid, 10, 32)
-	require.NoError(t, err)
-
-	cmd, err := ConfigureCommand(scx)
-	require.NoError(t, err)
-	// Verify that the configured command will run as the expected user.
-	assert.Equal(t, uint32(uid), cmd.SysProcAttr.Credential.Uid)
-	assert.Equal(t, uint32(gid), cmd.SysProcAttr.Credential.Gid)
 }
 
 // TestContinue tests if the process hangs if a continue signal is not sent

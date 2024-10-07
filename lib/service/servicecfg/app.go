@@ -87,6 +87,42 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string
+
+	// RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredAppNames []string
+
+	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
+	// controlling how resources are shared across different origins.
+	CORS *CORS
+}
+
+// CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
+// settings that control how the app responds to requests from different origins.
+type CORS struct {
+	// AllowedOrigins specifies the list of origins that are allowed to access the app.
+	// Example: "https://client.teleport.example.com:3080"
+	AllowedOrigins []string `yaml:"allowed_origins"`
+
+	// AllowedMethods specifies the HTTP methods that are allowed when accessing the app.
+	// Example: "POST", "GET", "OPTIONS", "PUT", "DELETE"
+	AllowedMethods []string `yaml:"allowed_methods"`
+
+	// AllowedHeaders specifies the HTTP headers that can be used when making requests to the app.
+	// Example: "Content-Type", "Authorization", "X-Custom-Header"
+	AllowedHeaders []string `yaml:"allowed_headers"`
+
+	// ExposedHeaders indicate which response headers should be made available to scripts running in
+	// the browser, in response to a cross-origin request.
+	ExposedHeaders []string `yaml:"exposed_headers"`
+
+	// AllowCredentials indicates whether credentials such as cookies or authorization headers
+	// are allowed to be included in the requests.
+	AllowCredentials bool `yaml:"allow_credentials"`
+
+	// MaxAge specifies how long (in seconds) the results of a preflight request can be cached.
+	// Example: 86400 (which equals 24 hours)
+	MaxAge uint `yaml:"max_age"`
 }
 
 // CheckAndSetDefaults validates an application.

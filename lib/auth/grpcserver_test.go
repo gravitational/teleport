@@ -493,6 +493,22 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
+			name: "succeeds when the user is an SSO user",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				user, err := authServer.GetUser(ctx, username, false)
+				require.NoError(t, err, "GetUser")
+				user.SetCreatedBy(types.CreatedBy{
+					Connector: &types.ConnectorRef{},
+				})
+				_, err = authServer.UpsertUser(ctx, user)
+				require.NoError(t, err, "UpsertUser")
+				_, err = RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.NoError,
+		},
+		{
 			name: "fails even if there is password, but no other MFAs",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
@@ -1333,6 +1349,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
+	fakeClock, ok := clock.(clockwork.FakeClock)
+	require.True(t, ok)
+	fakeClock.Advance(-60 * time.Second)
 
 	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)

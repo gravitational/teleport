@@ -17,13 +17,14 @@
  */
 
 import React, { useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { style, color, ColorProps } from 'styled-system';
 
 import { space, SpaceProps, width, WidthProps } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
 import * as Icon from 'design/Icon';
-import { Text, Button, Box, Flex, ButtonText, ButtonIcon } from 'design';
+import Flex from 'design/Flex';
+import { Text, Button, Box, ButtonIcon } from 'design';
 import { IconProps } from 'design/Icon/Icon';
 import { ButtonFill, ButtonIntent } from 'design/Button';
 
@@ -33,7 +34,7 @@ const linkColor = style({
   key: 'colors',
 });
 
-type Kind =
+type AlertKind =
   | 'neutral'
   | 'danger'
   | 'info'
@@ -43,7 +44,7 @@ type Kind =
   | 'outline-info'
   | 'outline-warn';
 
-const border = (props: ThemedAlertProps) => {
+const alertBorder = (props: ThemedAlertProps) => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
@@ -106,9 +107,8 @@ const backgroundColor = (props: ThemedAlertProps) => {
   }
 };
 
-export interface AlertProps extends SpaceProps, WidthProps, ColorProps {
-  kind?: Kind;
-  linkColor?: string;
+interface Props<K> {
+  kind?: K;
   /** Additional description to be displayed below the main content. */
   details?: React.ReactNode;
   /** Overrides the icon specified by {@link AlertProps.kind}. */
@@ -121,12 +121,27 @@ export interface AlertProps extends SpaceProps, WidthProps, ColorProps {
   dismissible?: boolean;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  onDismiss?: () => void;
 }
 
-/** Specifies parameters of an action button. */
-interface Action {
+/**
+ * Specifies parameters of an action button. If no `href` is specified, the
+ * button is rendered as a regular button; otherwise, a link (with a button
+ * appearance) is used instead, and `href` is used as a link target. A link
+ * button can still have an `onClick` handler, too.
+ */
+export interface Action {
   content: React.ReactNode;
-  onClick: () => void;
+  href?: string;
+  onClick?: () => void;
+}
+
+export interface AlertProps
+  extends Props<AlertKind>,
+    SpaceProps,
+    WidthProps,
+    ColorProps {
+  linkColor?: string;
 }
 
 interface ThemedAlertProps extends AlertProps {
@@ -154,13 +169,16 @@ export const Alert = ({
   secondaryAction,
   dismissible,
   bg,
+  onDismiss,
   ...otherProps
 }: AlertProps) => {
   const alertIconSize = kind === 'neutral' ? 'large' : 'small';
-  const AlertIcon = icon || getAlertIcon(kind);
-  const showActions = !!(primaryAction || secondaryAction || dismissible);
-
   const [dismissed, setDismissed] = useState(false);
+
+  const onDismissClick = () => {
+    setDismissed(true);
+    onDismiss?.();
+  };
 
   if (dismissed) {
     return null;
@@ -170,37 +188,20 @@ export const Alert = ({
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
       <InnerContainer kind={kind}>
         <IconContainer kind={kind}>
-          <AlertIcon size={alertIconSize} />
+          <AlertIcon kind={kind} customIcon={icon} size={alertIconSize} />
         </IconContainer>
         <Box flex="1">
           <Text typography="h3">{children}</Text>
           {details}
         </Box>
-        {showActions && (
-          <Flex ml={5} gap={2}>
-            {primaryAction && (
-              <Button
-                {...primaryButtonProps(kind)}
-                onClick={primaryAction.onClick}
-              >
-                {primaryAction.content}
-              </Button>
-            )}
-            {secondaryAction && (
-              <ButtonText onClick={secondaryAction.onClick}>
-                {secondaryAction.content}
-              </ButtonText>
-            )}
-            {dismissible && !dismissed && (
-              <ButtonIcon
-                aria-label="Dismiss"
-                onClick={() => setDismissed(true)}
-              >
-                <Icon.Cross size="small" color="text.slightlyMuted" />
-              </ButtonIcon>
-            )}
-          </Flex>
-        )}
+        <ActionButtons
+          kind={kind}
+          primaryAction={primaryAction}
+          secondaryAction={secondaryAction}
+          dismissible={dismissible}
+          dismissed={dismissed}
+          onDismiss={onDismissClick}
+        />
       </InnerContainer>
     </OuterContainer>
   );
@@ -210,14 +211,13 @@ export const Alert = ({
 const OuterContainer = styled.div<AlertProps>`
   box-sizing: border-box;
   margin: 0 0 24px 0;
-  min-height: 40px;
 
   border: ${p => p.theme.borders[2]};
   border-radius: ${p => p.theme.radii[3]}px;
 
   ${space}
   ${width}
-  ${border}
+  ${alertBorder}
   ${color}
 
   a {
@@ -237,27 +237,45 @@ const InnerContainer = styled.div<AlertProps>`
   ${backgroundColor}
 `;
 
-const getAlertIcon = (kind: Kind) => {
+const AlertIcon = ({
+  kind,
+  customIcon: CustomIcon,
+  ...otherProps
+}: {
+  kind: AlertKind | BannerKind;
+  customIcon: React.ComponentType<IconProps>;
+} & IconProps) => {
+  const commonProps = { role: 'graphics-symbol', ...otherProps };
+  if (CustomIcon) {
+    return <CustomIcon {...commonProps} />;
+  }
   switch (kind) {
     case 'success':
-      return Icon.Checks;
+      return <Icon.Checks aria-label="Success" {...commonProps} />;
     case 'danger':
     case 'outline-danger':
-      return Icon.Warning;
+      return <Icon.WarningCircle aria-label="Danger" {...commonProps} />;
     case 'info':
     case 'outline-info':
-      return Icon.Info;
+      return <Icon.Info aria-label="Info" {...commonProps} />;
     case 'warning':
     case 'outline-warn':
-      return Icon.Notification;
+      return <Icon.Warning aria-label="Warning" {...commonProps} />;
     case 'neutral':
-      return Icon.Notification;
+    case 'primary':
+      return <Icon.Notification aria-label="Note" {...commonProps} />;
     default:
       kind satisfies never;
   }
 };
 
-const iconContainerStyles = ({ kind, theme }: { kind: Kind; theme: Theme }) => {
+const iconContainerStyles = ({
+  kind,
+  theme,
+}: {
+  kind: AlertKind;
+  theme: Theme;
+}) => {
   switch (kind) {
     case 'success':
       return {
@@ -296,7 +314,7 @@ const iconContainerStyles = ({ kind, theme }: { kind: Kind; theme: Theme }) => {
   }
 };
 
-const IconContainer = styled.div<{ kind: Kind }>`
+const IconContainer = styled.div<{ kind: AlertKind }>`
   border-radius: 50%;
   line-height: 0;
   margin-right: ${p => p.theme.space[3]}px;
@@ -305,12 +323,77 @@ const IconContainer = styled.div<{ kind: Kind }>`
 `;
 
 const primaryButtonProps = (
-  kind: Kind
+  kind: AlertKind | BannerKind
 ): { fill: ButtonFill; intent: ButtonIntent } => {
   return kind === 'neutral'
     ? { fill: 'filled', intent: 'primary' }
     : { fill: 'border', intent: 'neutral' };
 };
+
+const ActionButtons = ({
+  kind,
+  primaryAction,
+  secondaryAction,
+  dismissible,
+  dismissed,
+  onDismiss,
+}: {
+  kind: AlertKind | BannerKind;
+  primaryAction?: Action;
+  secondaryAction?: Action;
+  dismissible?: boolean;
+  dismissed: boolean;
+  onDismiss: () => void;
+}) => {
+  if (!(primaryAction || secondaryAction || dismissible)) return;
+
+  return (
+    <Flex ml={5} gap={2}>
+      {primaryAction && (
+        <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
+      )}
+      {secondaryAction && (
+        <ActionButton
+          fill="minimal"
+          intent="neutral"
+          action={secondaryAction}
+        />
+      )}
+      {dismissible && !dismissed && (
+        <ButtonIcon aria-label="Dismiss" onClick={onDismiss}>
+          <Icon.Cross size="small" color="text.slightlyMuted" />
+        </ButtonIcon>
+      )}
+    </Flex>
+  );
+};
+
+/** Renders either a regular or a link button, depending on the action. */
+export const ActionButton = ({
+  action: { href, content, onClick },
+  fill,
+  intent,
+}: {
+  action: Action;
+  fill?: ButtonFill;
+  intent?: ButtonIntent;
+}) =>
+  href ? (
+    <Button
+      as="a"
+      href={href}
+      target="_blank"
+      fill={fill}
+      intent={intent}
+      onClick={onClick}
+    >
+      {content}
+    </Button>
+  ) : (
+    <Button fill={fill} intent={intent} onClick={onClick}>
+      {content}
+    </Button>
+  );
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
 export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;
@@ -327,3 +410,118 @@ export const OutlineDanger = Danger;
 export const OutlineInfo = Info;
 /** @deprecated Use {@link Warning} */
 export const OutlineWarn = Warning;
+
+type BannerKind =
+  | 'neutral'
+  | 'primary'
+  | 'danger'
+  | 'info'
+  | 'warning'
+  | 'success';
+type BannerProps = Props<BannerKind>;
+
+/**
+ * Renders a page-level banner alert. Use only for product-, cluster-, or
+ * account-level events or states.
+ */
+export const Banner = ({
+  kind = 'danger',
+  children,
+  details,
+  icon,
+  primaryAction,
+  secondaryAction,
+  dismissible,
+  onDismiss,
+}: BannerProps) => {
+  const theme = useTheme();
+  const { backgroundColor, foregroundColor, iconColor } = bannerColors(
+    theme,
+    kind
+  );
+  const [dismissed, setDismissed] = useState(false);
+
+  const onDismissClick = () => {
+    setDismissed(true);
+    onDismiss?.();
+  };
+
+  if (dismissed) {
+    return null;
+  }
+
+  return (
+    <Flex
+      bg={backgroundColor}
+      borderBottom="3px solid"
+      borderColor={foregroundColor}
+      px={4}
+      py={2}
+      gap={3}
+      alignItems="center"
+    >
+      <AlertIcon kind={kind} customIcon={icon} size="large" color={iconColor} />
+      <Box flex="1">
+        <Text typography="h3">{children}</Text>
+        {details}
+      </Box>
+      <ActionButtons
+        kind={kind}
+        primaryAction={primaryAction}
+        secondaryAction={secondaryAction}
+        dismissible={dismissible}
+        dismissed={dismissed}
+        onDismiss={onDismissClick}
+      />
+    </Flex>
+  );
+};
+
+const bannerColors = (theme: Theme, kind: BannerKind) => {
+  switch (kind) {
+    case 'primary':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.primary[2].background,
+        foregroundColor:
+          theme.colors.interactive.solid.primary.default.background,
+        iconColor: theme.colors.text.main,
+      };
+    case 'neutral':
+      return {
+        backgroundColor: theme.colors.levels.elevated,
+        foregroundColor: theme.colors.text.main,
+        iconColor: theme.colors.text.main,
+      };
+    case 'danger':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.danger[2].background,
+        foregroundColor:
+          theme.colors.interactive.solid.danger.default.background,
+        iconColor: theme.colors.interactive.solid.danger.default.background,
+      };
+    case 'warning':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.alert[2].background,
+        foregroundColor:
+          theme.colors.interactive.solid.alert.default.background,
+        iconColor: theme.colors.interactive.solid.alert.default.background,
+      };
+    case 'info':
+      return {
+        backgroundColor:
+          theme.colors.interactive.tonal.informational[2].background,
+        foregroundColor:
+          theme.colors.interactive.solid.accent.default.background,
+        iconColor: theme.colors.interactive.solid.accent.default.background,
+      };
+    case 'success':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.success[2].background,
+        foregroundColor:
+          theme.colors.interactive.solid.success.default.background,
+        iconColor: theme.colors.interactive.solid.success.default.background,
+      };
+    default:
+      kind satisfies never;
+  }
+};

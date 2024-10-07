@@ -618,7 +618,9 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
 	defer observeLatency(tlsConfigTime.With(getLabelsFromDB(server.GetDatabase())))()
 
-	privateKey, err := cryptosuites.GenerateKey(ctx, s.cfg.AccessPoint, cryptosuites.ProxyToDatabaseAgent)
+	privateKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(s.cfg.AccessPoint),
+		cryptosuites.ProxyToDatabaseAgent)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

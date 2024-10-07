@@ -370,7 +370,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+		defer fmt.Fprint(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -504,7 +504,7 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("<- %s (%d)", path, fc.Length)
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+		defer fmt.Fprint(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 
 	if err = sendOK(ch); err != nil {

@@ -20,7 +20,6 @@ package backend
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -30,94 +29,94 @@ import (
 
 func TestSanitize(t *testing.T) {
 	tests := []struct {
-		inKey  []byte
+		inKey  Key
 		assert require.ErrorAssertionFunc
 	}{
 		{
-			inKey:  []byte("a-b/c:d/.e_f/01"),
+			inKey:  NewKey("a-b", "c:d", ".e_f", "01"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  []byte("/namespaces//params"),
+			inKey:  NewKey("namespaces", "", "params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("/namespaces/.."),
+			inKey:  NewKey("namespaces", ".."),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("/namespaces/../params"),
+			inKey:  NewKey("namespaces", "..", "params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("/namespaces/..params"),
+			inKey:  NewKey("namespaces", "..params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  []byte("/namespaces/."),
+			inKey:  NewKey("namespaces", "."),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("/namespaces/./params"),
+			inKey:  NewKey("namespaces", ".", "params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("/namespaces/.params"),
+			inKey:  NewKey("namespaces", ".params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  []byte(".."),
+			inKey:  NewKey(".."),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("..params"),
+			inKey:  NewKey("..params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  []byte("../params"),
+			inKey:  NewKey("..", "params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("."),
+			inKey:  NewKey("."),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte(".params"),
+			inKey:  NewKey(".params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  []byte("./params"),
+			inKey:  NewKey(".", "params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  RangeEnd([]byte("a-b/c:d/.e_f/01")),
+			inKey:  RangeEnd(NewKey("a-b", "c:d", ".e_f", "01")),
 			assert: require.NoError,
 		},
 		{
-			inKey:  RangeEnd([]byte("/")),
+			inKey:  RangeEnd(NewKey("")),
 			assert: require.NoError,
 		},
 		{
-			inKey:  RangeEnd([]byte("Malformed \xf0\x90\x28\xbc UTF8")),
+			inKey:  RangeEnd(NewKey("Malformed \xf0\x90\x28\xbc UTF8")),
 			assert: require.Error,
 		},
 		{
-			inKey:  []byte("test+subaddr@example.com"),
+			inKey:  NewKey("test+subaddr@example.com"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  []byte("xyz"),
+			inKey:  NewKey("xyz"),
 			assert: require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%v", string(tt.inKey)), func(t *testing.T) {
+		t.Run(tt.inKey.String(), func(t *testing.T) {
 			ctx := context.Background()
 			safeBackend := NewSanitizer(&nopBackend{})
 
 			_, err := safeBackend.Get(ctx, tt.inKey)
-			tt.assert(t, err)
+			require.NoError(t, err)
 
 			_, err = safeBackend.Create(ctx, Item{Key: tt.inKey})
 			tt.assert(t, err)
@@ -132,10 +131,10 @@ func TestSanitize(t *testing.T) {
 			tt.assert(t, err)
 
 			err = safeBackend.Delete(ctx, tt.inKey)
-			tt.assert(t, err)
+			require.NoError(t, err)
 
 			err = safeBackend.DeleteRange(ctx, tt.inKey, tt.inKey)
-			tt.assert(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -146,13 +145,13 @@ func (n *nopBackend) GetName() string {
 	return "nop"
 }
 
-func (n *nopBackend) Get(_ context.Context, _ []byte) (*Item, error) {
+func (n *nopBackend) Get(_ context.Context, _ Key) (*Item, error) {
 	return &Item{}, nil
 }
 
-func (n *nopBackend) GetRange(_ context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
+func (n *nopBackend) GetRange(_ context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	return &GetResult{Items: []Item{
-		{Key: []byte("foo"), Value: []byte("bar")},
+		{Key: NewKey("foo"), Value: []byte("bar")},
 	}}, nil
 }
 
@@ -176,15 +175,15 @@ func (n *nopBackend) CompareAndSwap(_ context.Context, _ Item, _ Item) (*Lease, 
 	return &Lease{}, nil
 }
 
-func (n *nopBackend) Delete(_ context.Context, _ []byte) error {
+func (n *nopBackend) Delete(_ context.Context, _ Key) error {
 	return nil
 }
 
-func (n *nopBackend) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+func (n *nopBackend) ConditionalDelete(ctx context.Context, key Key, revision string) error {
 	return nil
 }
 
-func (n *nopBackend) DeleteRange(_ context.Context, _ []byte, _ []byte) error {
+func (n *nopBackend) DeleteRange(_ context.Context, _ Key, _ Key) error {
 	return nil
 }
 

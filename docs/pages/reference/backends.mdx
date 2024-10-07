@@ -578,10 +578,13 @@ teleport:
     conn_string: "postgresql://teleport@localhost:5432/teleport_backend?sslcert=/path/to/certs/client.crt&sslkey=/path/to/certs/client.key&sslrootcert=/path/to/certs/ca.crt&sslmode=verify-full&pool_max_conns=20"
 ```
 
-## S3
+## S3 (Session Recordings)
 
-S3 buckets can only be used as storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state.
+Teleport supports using S3 as a backend for both session recordings
+and audit logs. S3 cannot be used as the cluster state backend.
+This section covers the use of S3 as a session recording backend.
+For information on using S3 for audit logs, see the [Athena](#Athena)
+section.
 
 S3 buckets must have versioning enabled, which ensures that a session log cannot
 be permanently altered or deleted. Teleport will always look at the oldest
@@ -928,7 +931,7 @@ mode. This helps prevent any DynamoDB throttling due to underestimated usage or 
 
 ### Configuring AWS FIPS endpoints
 
-This config option applies to [AWS S3](#s3) and [AWS DynamoDB](#dynamodb).
+This config option applies to [Amazon S3](#s3-session-recordings) and [Amazon DynamoDB](#dynamodb).
 
 Set `use_fips_endpoint` to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used.
 If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used.

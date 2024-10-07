@@ -19,11 +19,15 @@
 package client
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -58,19 +62,20 @@ const (
 
 // KeyStore is a storage interface for client session keys and certificates.
 type KeyStore interface {
-	// AddKey adds the given key to the store.
-	AddKey(key *KeyRing) error
+	// AddKeyRing adds the given key ring to the store.
+	AddKeyRing(*KeyRing) error
 
-	// GetKey returns the user's key including the specified certs. The key's
-	// TrustedCerts will be nil and should be filled in using a TrustedCertsStore.
-	GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error)
+	// GetKeyRing returns the user's key ring including the specified certs. The
+	// key's TrustedCerts will be nil and should be filled in using a
+	// TrustedCertsStore.
+	GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error)
 
-	// DeleteKey deletes the user's key with all its certs.
-	DeleteKey(idx KeyIndex) error
+	// DeleteKeyRing deletes the user's key with all its certs.
+	DeleteKeyRing(idx KeyRingIndex) error
 
 	// DeleteUserCerts deletes only the specified parts of the user's keyring,
 	// keeping the rest intact.
-	DeleteUserCerts(idx KeyIndex, opts ...CertOption) error
+	DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) error
 
 	// DeleteKeys removes all session keys.
 	DeleteKeys() error
@@ -102,134 +107,294 @@ func NewFSKeyStore(dirPath string) *FSKeyStore {
 	}
 }
 
-// userKeyPath returns the private key path for the given KeyIndex.
-func (fs *FSKeyStore) userKeyPath(idx KeyIndex) string {
-	return keypaths.UserKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+// userSSHKeyPath returns the SSH private key path for the given KeyRingIndex.
+func (fs *FSKeyStore) userSSHKeyPath(idx KeyRingIndex) string {
+	return keypaths.UserSSHKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
-// tlsCertPath returns the TLS certificate path given KeyIndex.
-func (fs *FSKeyStore) tlsCertPath(idx KeyIndex) string {
+// userTLSKeyPath returns the TLS private key path for the given KeyRingIndex.
+func (fs *FSKeyStore) userTLSKeyPath(idx KeyRingIndex) string {
+	return keypaths.UserTLSKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// tlsCertPath returns the TLS certificate path given KeyRingIndex.
+func (fs *FSKeyStore) tlsCertPath(idx KeyRingIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
-// sshDir returns the SSH certificate path for the given KeyIndex.
+// sshDir returns the SSH certificate path for the given KeyRingIndex.
 func (fs *FSKeyStore) sshDir(proxy, user string) string {
 	return keypaths.SSHDir(fs.KeyDir, proxy, user)
 }
 
-// sshCertPath returns the SSH certificate path for the given KeyIndex.
-func (fs *FSKeyStore) sshCertPath(idx KeyIndex) string {
+// sshCertPath returns the SSH certificate path for the given KeyRingIndex.
+func (fs *FSKeyStore) sshCertPath(idx KeyRingIndex) string {
 	return keypaths.SSHCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 }
 
-// ppkFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
-func (fs *FSKeyStore) ppkFilePath(idx KeyIndex) string {
+// ppkFilePath returns the PPK (PuTTY-formatted) keypair path for the given
+// KeyRingIndex.
+func (fs *FSKeyStore) ppkFilePath(idx KeyRingIndex) string {
 	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
-// kubeCredLockfilePath returns kube credentials lockfile path for the given KeyIndex.
-func (fs *FSKeyStore) kubeCredLockfilePath(idx KeyIndex) string {
+// kubeCredLockfilePath returns kube credentials lockfile path for the given
+// KeyRingIndex.
+func (fs *FSKeyStore) kubeCredLockfilePath(idx KeyRingIndex) string {
 	return keypaths.KubeCredLockfilePath(fs.KeyDir, idx.ProxyHost)
 }
 
-// publicKeyPath returns the public key path for the given KeyIndex.
-func (fs *FSKeyStore) publicKeyPath(idx KeyIndex) string {
+// publicKeyPath returns the public key path for the given KeyRingIndex.
+func (fs *FSKeyStore) publicKeyPath(idx KeyRingIndex) string {
 	return keypaths.PublicKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
-// appCertPath returns the TLS certificate path for the given KeyIndex and app name.
-func (fs *FSKeyStore) appCertPath(idx KeyIndex, appname string) string {
+// appCertPath returns the TLS certificate path for the given KeyRingIndex and app name.
+func (fs *FSKeyStore) appCertPath(idx KeyRingIndex, appname string) string {
 	return keypaths.AppCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
 }
 
-// appKeyPath returns the private key path for the given KeyIndex and app name.
-func (fs *FSKeyStore) appKeyPath(idx KeyIndex, appname string) string {
+// appKeyPath returns the private key path for the given KeyRingIndex and app name.
+func (fs *FSKeyStore) appKeyPath(idx KeyRingIndex, appname string) string {
 	return keypaths.AppKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
 }
 
-// databaseCertPath returns the TLS certificate path for the given KeyIndex and database name.
-func (fs *FSKeyStore) databaseCertPath(idx KeyIndex, dbname string) string {
+// databaseCertPath returns the TLS certificate path for the given KeyRingIndex and database name.
+func (fs *FSKeyStore) databaseCertPath(idx KeyRingIndex, dbname string) string {
 	return keypaths.DatabaseCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
 }
 
-// kubeCertPath returns the TLS certificate path for the given KeyIndex and kube cluster name.
-func (fs *FSKeyStore) kubeCertPath(idx KeyIndex, kubename string) string {
-	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+// databaseCertPath returns the private key path for the given KeyRingIndex and database name.
+func (fs *FSKeyStore) databaseKeyPath(idx KeyRingIndex, dbname string) string {
+	return keypaths.DatabaseKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, dbname)
 }
 
-// AddKey adds the given key to the store.
-func (fs *FSKeyStore) AddKey(key *KeyRing) error {
-	if err := key.KeyIndex.Check(); err != nil {
+// kubeCredPath returns the TLS credential path for the given KeyRingIndex and kube cluster name.
+func (fs *FSKeyStore) kubeCredPath(idx KeyRingIndex, kubename string) string {
+	return keypaths.KubeCredPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
+}
+
+// AddKeyRing adds the given key ring to the store.
+func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
+	if err := keyRing.KeyRingIndex.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := fs.writeBytes(key.PrivateKey.PrivateKeyPEM(), fs.userKeyPath(key.KeyIndex)); err != nil {
+	// Store TLS key and cert.
+	if err := fs.writeTLSCredential(TLSCredential{
+		PrivateKey: keyRing.TLSPrivateKey,
+		Cert:       keyRing.TLSCert,
+	}, fs.userTLSKeyPath(keyRing.KeyRingIndex), fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := fs.writeBytes(key.PrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(key.KeyIndex)); err != nil {
+	// Store SSH private and public key.
+	sshPrivateKeyPEM, err := keyRing.SSHPrivateKey.MarshalSSHPrivateKey()
+	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Store TLS cert
-	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
+	if err := fs.writeBytes(sshPrivateKeyPEM, fs.userSSHKeyPath(keyRing.KeyRingIndex)); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := fs.writeBytes(keyRing.SSHPrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// We only generate PPK files for use by PuTTY when running tsh on Windows.
 	if runtime.GOOS == constants.WindowsOS {
-		ppkFile, err := key.PrivateKey.PPKFile()
+		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
 		// PPKFile can only be generated from an RSA private key. If the key is in a different
 		// format, a BadParameter error is returned and we can skip PPK generation.
 		if err != nil && !trace.IsBadParameter(err) {
 			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
-			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(key.KeyIndex)); err != nil {
+			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	}
 
-	// Store per-cluster key data.
-	if len(key.Cert) > 0 {
-		if err := fs.writeBytes(key.Cert, fs.sshCertPath(key.KeyIndex)); err != nil {
+	// Store per-cluster SSH cert.
+	if len(keyRing.Cert) > 0 {
+		if err := fs.writeBytes(keyRing.Cert, fs.sshCertPath(keyRing.KeyRingIndex)); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	// TODO(awly): unit test this.
-	for kubeCluster, cert := range key.KubeTLSCerts {
+	for kubeCluster, cred := range keyRing.KubeTLSCredentials {
 		// Prevent directory traversal via a crafted kubernetes cluster name.
 		//
-		// This will confuse cluster cert loading (GetKey will return
+		// This will confuse cluster cert loading (GetKeyRing will return
 		// kubernetes cluster names different from the ones stored here), but I
 		// don't expect any well-meaning user to create bad names.
 		kubeCluster = filepath.Clean(kubeCluster)
 
-		path := fs.kubeCertPath(key.KeyIndex, kubeCluster)
-		if err := fs.writeBytes(cert, path); err != nil {
+		credPath := fs.kubeCredPath(keyRing.KeyRingIndex, kubeCluster)
+		if err := fs.writeKubeCredential(cred, credPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	for db, cert := range key.DBTLSCerts {
-		path := fs.databaseCertPath(key.KeyIndex, filepath.Clean(db))
-		if err := fs.writeBytes(cert, path); err != nil {
+	for db, cred := range keyRing.DBTLSCredentials {
+		db = filepath.Clean(db)
+		keyPath := fs.databaseKeyPath(keyRing.KeyRingIndex, db)
+		certPath := fs.databaseCertPath(keyRing.KeyRingIndex, db)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	for app, cred := range key.AppTLSCredentials {
+	for app, cred := range keyRing.AppTLSCredentials {
 		app = filepath.Clean(app)
-		certPath := fs.appCertPath(key.KeyIndex, app)
-		if err := fs.writeBytes(cred.Cert, certPath); err != nil {
-			return trace.Wrap(err)
-		}
-		keyPath := fs.appKeyPath(key.KeyIndex, app)
-		if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		keyPath := fs.appKeyPath(keyRing.KeyRingIndex, app)
+		certPath := fs.appCertPath(keyRing.KeyRingIndex, app)
+		if err := fs.writeTLSCredential(cred, keyPath, certPath); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	return nil
+}
+
+func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath string) error {
+	if err := os.MkdirAll(filepath.Dir(keyPath), os.ModeDir|profileDirPerms); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// Always lock the key file when reading or writing a TLS credential so
+	// that we can't end up with non-matching key/cert in a race condition.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryWriteLockFile(ctx, keyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock()
+
+	if err := fs.writeBytes(cred.PrivateKey.PrivateKeyPEM(), keyPath); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := fs.writeBytes(cred.Cert, certPath); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func readTLSCredential(keyPath, certPath string) (TLSCredential, error) {
+	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	key, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	return TLSCredential{
+		PrivateKey: key,
+		Cert:       certPEM,
+	}, nil
+}
+
+func readTLSCredentialFiles(keyPath, certPath string) ([]byte, []byte, error) {
+	// Always lock the key file when reading or writing a TLS credential so
+	// that we can't end up with non-matching key/cert in a race condition.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryReadLockFile(ctx, keyPath)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer unlock()
+
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+	if len(keyPEM) == 0 {
+		// Acquiring the read lock can end up creating an empty file.
+		return nil, nil, trace.NotFound("%s is empty", keyPath)
+	}
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+	return keyPEM, certPEM, nil
+}
+
+func tryWriteLockFile(ctx context.Context, path string) (func(), error) {
+	return tryLockFile(ctx, path, utils.FSTryWriteLock)
+}
+
+func tryReadLockFile(ctx context.Context, path string) (func(), error) {
+	return tryLockFile(ctx, path, utils.FSTryReadLock)
+}
+
+func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() error, error)) (func(), error) {
+	unlock, err := lockFn(path)
+	for {
+		switch {
+		case err == nil:
+			return func() {
+				if err := unlock(); err != nil {
+					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
+				}
+			}, nil
+		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
+			select {
+			case <-ctx.Done():
+				return nil, trace.Wrap(ctx.Err(), "timed out trying to acquire lock for TLS credential at %s", path)
+			case <-time.After(50 * time.Millisecond):
+			}
+			unlock, err = lockFn(path)
+		default:
+			return nil, trace.Wrap(err, "could not acquire lock for TLS credential at %s", path)
+		}
+	}
+}
+
+// writeKubeCredential writes a kube key and cert to a single file, both
+// PEM-encoded, with exactly 2 newlines between them. Compared to using separate files
+// it is more efficient for reading/writing and avoids file locks.
+func (fs *FSKeyStore) writeKubeCredential(cred TLSCredential, path string) error {
+	credFileContents := bytes.Join([][]byte{
+		bytes.TrimRight(cred.PrivateKey.PrivateKeyPEM(), "\n"),
+		bytes.TrimLeft(cred.Cert, "\n"),
+	}, []byte("\n\n"))
+	return trace.Wrap(fs.writeBytes(credFileContents, path))
+}
+
+// readKubeCredential reads a kube key and cert from a single file written by
+// [(*FSKeyStore).writeKubeCredential]. Compared to using separate files it is
+// more efficient for reading/writing and avoids file locks.
+func readKubeCredential(path string) (TLSCredential, error) {
+	keyPEM, certPEM, err := readKubeCredentialFile(path)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	privateKey, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return TLSCredential{}, trace.Wrap(err)
+	}
+	return TLSCredential{
+		PrivateKey: privateKey,
+		Cert:       certPEM,
+	}, nil
+}
+
+// readKubeCredentialFile reads kube key and cert PEM blocks from a single
+// file written by [(*FSKeyStore).writeKubeCredential]. Compared to using
+// separate files it is more efficient for reading/writing and avoids file
+// locks.
+func readKubeCredentialFile(path string) (keyPEM, certPEM []byte, err error) {
+	credFileContents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, trace.ConvertSystemError(err)
+	}
+
+	pems := bytes.Split(credFileContents, []byte("\n\n"))
+	if len(pems) != 2 {
+		return nil, nil, trace.BadParameter("expect key and cert PEM blocks separated by two newlines")
+	}
+	keyPEM, certPEM = pems[0], pems[1]
+	return keyPEM, certPEM, nil
 }
 
 func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
@@ -240,10 +405,11 @@ func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
 	return trace.ConvertSystemError(err)
 }
 
-// DeleteKey deletes the user's key with all its certs.
-func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
+// DeleteKeyRing deletes all the user's keys and certs.
+func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	files := []string{
-		fs.userKeyPath(idx),
+		fs.userSSHKeyPath(idx),
+		fs.userTLSKeyPath(idx),
 		fs.publicKeyPath(idx),
 		fs.tlsCertPath(idx),
 	}
@@ -276,7 +442,7 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 //
 // Useful when needing to log out of a specific service, like a particular
 // database proxy.
-func (fs *FSKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
+func (fs *FSKeyStore) DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) error {
 	var pathsToDelete []string
 	for _, o := range opts {
 		pathsToDelete = append(pathsToDelete, o.pathsToDelete(fs.KeyDir, idx)...)
@@ -319,12 +485,12 @@ func (fs *FSKeyStore) DeleteKeys() error {
 	return nil
 }
 
-// GetKey returns the user's key including the specified certs.
+// GetKeyRing returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
-func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error) {
+func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
 	if len(opts) > 0 {
 		if err := idx.Check(); err != nil {
-			return nil, trace.Wrap(err, "GetKey with CertOptions requires a fully specified KeyIndex")
+			return nil, trace.Wrap(err, "GetKeyRing with CertOptions requires a fully specified KeyRingIndex")
 		}
 	}
 
@@ -332,23 +498,22 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error)
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	tlsCertFile := fs.tlsCertPath(idx)
-	tlsCert, err := os.ReadFile(tlsCertFile)
+	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx))
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-
-	key := NewKeyRing(priv)
-	key.KeyIndex = idx
-	key.TLSCert = tlsCert
+	keyRing := NewKeyRing(sshPriv, tlsCred.PrivateKey)
+	keyRing.KeyRingIndex = idx
+	keyRing.TLSCert = tlsCred.Cert
 
 	for _, o := range opts {
-		if err := fs.updateKeyRingWithCerts(o, key); err != nil && !trace.IsNotFound(err) {
+		if err := fs.updateKeyRingWithCerts(o, keyRing); err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -357,11 +522,11 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error)
 	// certificate is expired, it's the responsibility of the TeleportClient to
 	// perform cleanup of the certificates and the profile.
 
-	return key, nil
+	return keyRing, nil
 }
 
 func (fs *FSKeyStore) updateKeyRingWithCerts(o CertOption, keyRing *KeyRing) error {
-	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyIndex, keyRing))
+	return trace.Wrap(o.updateKeyRing(fs.KeyDir, keyRing.KeyRingIndex, keyRing))
 }
 
 // GetSSHCertificates gets all certificates signed for the given user and proxy.
@@ -388,61 +553,45 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	return sshCerts, nil
 }
 
-func getCertsByName(certDir string) (map[string][]byte, error) {
-	certsByName := make(map[string][]byte)
-	certFiles, err := os.ReadDir(certDir)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	for _, certFile := range certFiles {
-		name := keypaths.TrimCertPathSuffix(certFile.Name())
-		if isCert := name != certFile.Name(); isCert {
-			data, err := os.ReadFile(filepath.Join(certDir, certFile.Name()))
-			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			certsByName[name] = data
-		}
-	}
-	return certsByName, nil
-}
-
 func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
-	credsByName := make(map[string]TLSCredential)
 	files, err := os.ReadDir(credentialDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+	credsByName := make(map[string]TLSCredential, len(files)/2)
 	for _, file := range files {
-		if certName := keypaths.TrimCertPathSuffix(file.Name()); certName != file.Name() {
-			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
-			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			cred := credsByName[certName]
-			cred.Cert = data
-			credsByName[certName] = cred
-		}
 		if keyName := keypaths.TrimKeyPathSuffix(file.Name()); keyName != file.Name() {
-			data, err := os.ReadFile(filepath.Join(credentialDir, file.Name()))
+			keyPath := filepath.Join(credentialDir, file.Name())
+			certPath := filepath.Join(credentialDir, keyName+keypaths.FileExtTLSCert)
+			cred, err := readTLSCredential(keyPath, certPath)
 			if err != nil {
-				return nil, trace.ConvertSystemError(err)
-			}
-			privKey, err := keys.ParsePrivateKey(data)
-			if err != nil {
+				if trace.IsNotFound(err) {
+					// Somehow we have a key with no cert, skip it. This should
+					// cause a cert re-issue which should solve the problem.
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
-			cred := credsByName[keyName]
-			cred.PrivateKey = privKey
 			credsByName[keyName] = cred
 		}
 	}
-	for name, creds := range credsByName {
-		if creds.Cert == nil || creds.PrivateKey == nil {
-			// Found a cert with no key or vice-versa, this may have been
-			// written by an older version or partially deleted, treat it as
-			// missing and a cert re-issue should solve it.
-			delete(credsByName, name)
+	return credsByName, nil
+}
+
+func getKubeCredentialsByName(credentialDir string) (map[string]TLSCredential, error) {
+	files, err := os.ReadDir(credentialDir)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	credsByName := make(map[string]TLSCredential, len(files))
+	for _, file := range files {
+		if credName := strings.TrimSuffix(file.Name(), keypaths.FileExtKubeCred); credName != file.Name() {
+			credPath := filepath.Join(credentialDir, file.Name())
+			cred, err := readKubeCredential(credPath)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			credsByName[credName] = cred
 		}
 	}
 	return credsByName, nil
@@ -452,10 +601,10 @@ func getCredentialsByName(credentialDir string) (map[string]TLSCredential, error
 type CertOption interface {
 	// updateKeyRing is used by [FSKeyStore] to add the relevant credentials
 	// loaded from disk to [keyRing].
-	updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error
+	updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error
 	// pathsToDelete is used by [FSKeyStore] to get all the paths (files and/or
 	// directories) that should be deleted by [DeleteUserCerts].
-	pathsToDelete(keyDir string, idx KeyIndex) []string
+	pathsToDelete(keyDir string, idx KeyRingIndex) []string
 	// deleteFromKeyRing deletes the credential data from the [KeyRing].
 	deleteFromKeyRing(*KeyRing)
 }
@@ -466,7 +615,7 @@ var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
 
-func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
+func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
 	certPath := keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 	cert, err := os.ReadFile(certPath)
 	if err != nil {
@@ -476,39 +625,39 @@ func (o WithSSHCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRin
 	return nil
 }
 
-func (o WithSSHCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+func (o WithSSHCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	if idx.ClusterName == "" {
 		return []string{keypaths.SSHDir(keyDir, idx.ProxyHost, idx.Username)}
 	}
 	return []string{keypaths.SSHCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
 }
 
-func (o WithSSHCerts) deleteFromKeyRing(key *KeyRing) {
-	key.Cert = nil
+func (o WithSSHCerts) deleteFromKeyRing(keyRing *KeyRing) {
+	keyRing.Cert = nil
 }
 
 // WithKubeCerts is a CertOption for handling kubernetes certificates.
 type WithKubeCerts struct{}
 
-func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
-	certDir := keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	certsByName, err := getCertsByName(certDir)
+func (o WithKubeCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
+	credentialDir := keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getKubeCredentialsByName(credentialDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keyRing.KubeTLSCerts = certsByName
+	keyRing.KubeTLSCredentials = credsByName
 	return nil
 }
 
-func (o WithKubeCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+func (o WithKubeCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	if idx.ClusterName == "" {
 		return []string{keypaths.KubeDir(keyDir, idx.ProxyHost, idx.Username)}
 	}
-	return []string{keypaths.KubeCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	return []string{keypaths.KubeCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
 }
 
-func (o WithKubeCerts) deleteFromKeyRing(key *KeyRing) {
-	key.KubeTLSCerts = make(map[string][]byte)
+func (o WithKubeCerts) deleteFromKeyRing(keyRing *KeyRing) {
+	keyRing.KubeTLSCredentials = make(map[string]TLSCredential)
 }
 
 // WithDBCerts is a CertOption for handling database access certificates.
@@ -516,28 +665,31 @@ type WithDBCerts struct {
 	dbName string
 }
 
-func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
-	certDir := keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
-	certsByName, err := getCertsByName(certDir)
+func (o WithDBCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
+	credentialDir := keypaths.DatabaseCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getCredentialsByName(credentialDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keyRing.DBTLSCerts = certsByName
+	keyRing.DBTLSCredentials = credsByName
 	return nil
 }
 
-func (o WithDBCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+func (o WithDBCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	if idx.ClusterName == "" {
 		return []string{keypaths.DatabaseDir(keyDir, idx.ProxyHost, idx.Username)}
 	}
 	if o.dbName == "" {
-		return []string{keypaths.DatabaseCertDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+		return []string{keypaths.DatabaseCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
 	}
-	return []string{keypaths.DatabaseCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName)}
+	return []string{
+		keypaths.DatabaseCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName),
+		keypaths.DatabaseKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.dbName),
+	}
 }
 
-func (o WithDBCerts) deleteFromKeyRing(key *KeyRing) {
-	key.DBTLSCerts = make(map[string][]byte)
+func (o WithDBCerts) deleteFromKeyRing(keyRing *KeyRing) {
+	keyRing.DBTLSCredentials = make(map[string]TLSCredential)
 }
 
 // WithAppCerts is a CertOption for handling application access certificates.
@@ -545,7 +697,7 @@ type WithAppCerts struct {
 	appName string
 }
 
-func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRing) error {
+func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing) error {
 	credentialDir := keypaths.AppCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 	credsByName, err := getCredentialsByName(credentialDir)
 	if err != nil {
@@ -555,7 +707,7 @@ func (o WithAppCerts) updateKeyRing(keyDir string, idx KeyIndex, keyRing *KeyRin
 	return nil
 }
 
-func (o WithAppCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
+func (o WithAppCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
 	if idx.ClusterName == "" {
 		return []string{keypaths.AppDir(keyDir, idx.ProxyHost, idx.Username)}
 	}
@@ -568,106 +720,106 @@ func (o WithAppCerts) pathsToDelete(keyDir string, idx KeyIndex) []string {
 	}
 }
 
-func (o WithAppCerts) deleteFromKeyRing(key *KeyRing) {
-	key.AppTLSCredentials = make(map[string]TLSCredential)
+func (o WithAppCerts) deleteFromKeyRing(keyRing *KeyRing) {
+	keyRing.AppTLSCredentials = make(map[string]TLSCredential)
 }
 
 type MemKeyStore struct {
-	// keys is a three-dimensional map indexed by [proxyHost][username][clusterName]
-	keys keyMap
+	// keyRings is a three-dimensional map indexed by [proxyHost][username][clusterName]
+	keyRings keyRingMap
 }
 
-// keyMap is a three-dimensional map indexed by [proxyHost][username][clusterName]
-type keyMap map[string]map[string]map[string]*KeyRing
+// keyRingMap is a three-dimensional map indexed by [proxyHost][username][clusterName]
+type keyRingMap map[string]map[string]map[string]*KeyRing
 
 func NewMemKeyStore() *MemKeyStore {
 	return &MemKeyStore{
-		keys: make(keyMap),
+		keyRings: make(keyRingMap),
 	}
 }
 
-// AddKey writes a key to the underlying key store.
-func (ms *MemKeyStore) AddKey(key *KeyRing) error {
-	if err := key.KeyIndex.Check(); err != nil {
+// AddKeyRing writes a key ring to the underlying key store.
+func (ms *MemKeyStore) AddKeyRing(keyRing *KeyRing) error {
+	if err := keyRing.KeyRingIndex.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, ok := ms.keys[key.ProxyHost]
+	_, ok := ms.keyRings[keyRing.ProxyHost]
 	if !ok {
-		ms.keys[key.ProxyHost] = map[string]map[string]*KeyRing{}
+		ms.keyRings[keyRing.ProxyHost] = map[string]map[string]*KeyRing{}
 	}
-	_, ok = ms.keys[key.ProxyHost][key.Username]
+	_, ok = ms.keyRings[keyRing.ProxyHost][keyRing.Username]
 	if !ok {
-		ms.keys[key.ProxyHost][key.Username] = map[string]*KeyRing{}
+		ms.keyRings[keyRing.ProxyHost][keyRing.Username] = map[string]*KeyRing{}
 	}
-	keyCopy := key.Copy()
+	keyRingCopy := keyRing.Copy()
 
 	// TrustedCA is stored separately in the Memory store so we wipe out
-	// the keys' trusted CA to prevent inconsistencies.
-	keyCopy.TrustedCerts = nil
+	// the keys rings' trusted CA to prevent inconsistencies.
+	keyRingCopy.TrustedCerts = nil
 
-	ms.keys[key.ProxyHost][key.Username][key.ClusterName] = keyCopy
+	ms.keyRings[keyRing.ProxyHost][keyRing.Username][keyRing.ClusterName] = keyRingCopy
 
 	return nil
 }
 
-// GetKey returns the user's key including the specified certs.
-func (ms *MemKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*KeyRing, error) {
+// GetKeyRing returns the user's key ring including the specified certs.
+func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
 	if len(opts) > 0 {
 		if err := idx.Check(); err != nil {
-			return nil, trace.Wrap(err, "GetKey with CertOptions requires a fully specified KeyIndex")
+			return nil, trace.Wrap(err, "GetKeyRing with CertOptions requires a fully specified KeyRingIndex")
 		}
 	}
 
 	// If clusterName is not specified then the cluster-dependent fields
-	// are not considered relevant and we may simply return any key
+	// are not considered relevant and we may simply return any key ring
 	// associated with any cluster name whatsoever.
-	var key *KeyRing
+	var keyRing *KeyRing
 	if idx.ClusterName == "" {
-		for _, k := range ms.keys[idx.ProxyHost][idx.Username] {
-			key = k
+		for _, k := range ms.keyRings[idx.ProxyHost][idx.Username] {
+			keyRing = k
 			break
 		}
 	} else {
-		if k, ok := ms.keys[idx.ProxyHost][idx.Username][idx.ClusterName]; ok {
-			key = k
+		if k, ok := ms.keyRings[idx.ProxyHost][idx.Username][idx.ClusterName]; ok {
+			keyRing = k
 		}
 	}
 
-	if key == nil {
-		return nil, trace.NotFound("key for %+v not found", idx)
+	if keyRing == nil {
+		return nil, trace.NotFound("key ring for %+v not found", idx)
 	}
 
-	retKey := NewKeyRing(key.PrivateKey)
-	retKey.KeyIndex = idx
-	retKey.TLSCert = key.TLSCert
+	retKeyRing := NewKeyRing(keyRing.SSHPrivateKey, keyRing.TLSPrivateKey)
+	retKeyRing.KeyRingIndex = idx
+	retKeyRing.TLSCert = keyRing.TLSCert
 	for _, o := range opts {
 		switch o.(type) {
 		case WithSSHCerts:
-			retKey.Cert = key.Cert
+			retKeyRing.Cert = keyRing.Cert
 		case WithKubeCerts:
-			retKey.KubeTLSCerts = key.KubeTLSCerts
+			retKeyRing.KubeTLSCredentials = keyRing.KubeTLSCredentials
 		case WithDBCerts:
-			retKey.DBTLSCerts = key.DBTLSCerts
+			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
 		case WithAppCerts:
-			retKey.AppTLSCredentials = key.AppTLSCredentials
+			retKeyRing.AppTLSCredentials = keyRing.AppTLSCredentials
 		}
 	}
 
-	return retKey, nil
+	return retKeyRing, nil
 }
 
-// DeleteKey deletes the user's key with all its certs.
-func (ms *MemKeyStore) DeleteKey(idx KeyIndex) error {
-	if _, ok := ms.keys[idx.ProxyHost][idx.Username][idx.ClusterName]; !ok {
-		return trace.NotFound("key for %+v not found", idx)
+// DeleteKeyRing deletes the user's key ring with all its certs.
+func (ms *MemKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
+	if _, ok := ms.keyRings[idx.ProxyHost][idx.Username][idx.ClusterName]; !ok {
+		return trace.NotFound("key ring for %+v not found", idx)
 	}
-	delete(ms.keys[idx.ProxyHost], idx.Username)
+	delete(ms.keyRings[idx.ProxyHost], idx.Username)
 	return nil
 }
 
 // DeleteKeys removes all session keys.
 func (ms *MemKeyStore) DeleteKeys() error {
-	ms.keys = make(keyMap)
+	ms.keyRings = make(keyRingMap)
 	return nil
 }
 
@@ -677,24 +829,24 @@ func (ms *MemKeyStore) DeleteKeys() error {
 //
 // Useful when needing to log out of a specific service, like a particular
 // database proxy.
-func (ms *MemKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
-	var keys []*KeyRing
+func (ms *MemKeyStore) DeleteUserCerts(idx KeyRingIndex, opts ...CertOption) error {
+	var keyRings []*KeyRing
 	if idx.ClusterName != "" {
-		key, ok := ms.keys[idx.ProxyHost][idx.Username][idx.ClusterName]
+		keyRing, ok := ms.keyRings[idx.ProxyHost][idx.Username][idx.ClusterName]
 		if !ok {
 			return nil
 		}
-		keys = []*KeyRing{key}
+		keyRings = []*KeyRing{keyRing}
 	} else {
-		keys = make([]*KeyRing, 0, len(ms.keys[idx.ProxyHost][idx.Username]))
-		for _, key := range ms.keys[idx.ProxyHost][idx.Username] {
-			keys = append(keys, key)
+		keyRings = make([]*KeyRing, 0, len(ms.keyRings[idx.ProxyHost][idx.Username]))
+		for _, keyRing := range ms.keyRings[idx.ProxyHost][idx.Username] {
+			keyRings = append(keyRings, keyRing)
 		}
 	}
 
-	for _, key := range keys {
+	for _, keyRing := range keyRings {
 		for _, o := range opts {
-			o.deleteFromKeyRing(key)
+			o.deleteFromKeyRing(keyRing)
 		}
 	}
 	return nil
@@ -703,8 +855,8 @@ func (ms *MemKeyStore) DeleteUserCerts(idx KeyIndex, opts ...CertOption) error {
 // GetSSHCertificates gets all certificates signed for the given user and proxy.
 func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error) {
 	var sshCerts []*ssh.Certificate
-	for _, key := range ms.keys[proxyHost][username] {
-		sshCert, err := key.SSHCert()
+	for _, keyRing := range ms.keyRings[proxyHost][username] {
+		sshCert, err := keyRing.SSHCert()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

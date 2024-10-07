@@ -466,6 +466,28 @@ func (u *UIDiscoverCreateNodeEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 	}
 }
 
+// UIDiscoverCreateAppServerEvent is emitted when the node is created in Teleport.
+type UIDiscoverCreateAppServerEvent prehogv1a.UIDiscoverCreateAppServerEvent
+
+func (u *UIDiscoverCreateAppServerEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
+}
+
+func (u *UIDiscoverCreateAppServerEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverCreateAppServerEvent{
+			UiDiscoverCreateAppServerEvent: &prehogv1a.UIDiscoverCreateAppServerEvent{
+				Metadata: &prehogv1a.DiscoverMetadata{
+					Id:       u.Metadata.Id,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Resource: u.Resource,
+				Status:   u.Status,
+			},
+		},
+	}
+}
+
 // UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user configured IAM for RDS database
 // and proceeded to the next step.
 type UIDiscoverDatabaseConfigureIAMPolicyEvent prehogv1a.UIDiscoverDatabaseConfigureIAMPolicyEvent

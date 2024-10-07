@@ -17,11 +17,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Box, Text, Link as ExternalLink } from 'design';
+import { Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
-import { Alert, OutlineInfo } from 'design/Alert/Alert';
+import { Alert } from 'design/Alert/Alert';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
@@ -79,8 +79,6 @@ export function AutoEnrollment({
    */
   key: string;
 }) {
-  const hasDatabaseServiceForVpc = !!vpc?.ecsServiceDashboardURL;
-
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
 
@@ -94,13 +92,6 @@ export function AutoEnrollment({
   const [tableData, setTableData] = useState<TableData>();
 
   useEffect(() => {
-    if (hasDatabaseServiceForVpc) {
-      // No need to fetch rds's since in place of rds table
-      // we will render a info banner that a db service
-      // already exists.
-      return;
-    }
-
     if (vpc) {
       // Start with empty table data for new vpc's.
       fetchRdsDatabases(emptyTableData(), vpc);
@@ -217,25 +208,10 @@ export function AutoEnrollment({
   }
 
   const selectedVpc = !!vpc;
-  const showTable =
-    selectedVpc &&
-    !hasDatabaseServiceForVpc &&
-    fetchAttempt.status !== 'failed';
+  const showTable = selectedVpc && fetchAttempt.status !== 'failed';
 
   return (
     <>
-      {hasDatabaseServiceForVpc && (
-        <OutlineInfo mt={3} width="480px" linkColor="buttons.link.default">
-          <Box>
-            There is a database service already deployed for the selected VPC,
-            visit its{' '}
-            <ExternalLink target="_blank" href={vpc.ecsServiceDashboardURL}>
-              dashboard
-            </ExternalLink>{' '}
-            to check it out.
-          </Box>
-        </OutlineInfo>
-      )}
       {showTable && (
         <>
           {tableData?.oneOfError && (
@@ -259,7 +235,7 @@ export function AutoEnrollment({
       )}
       <ActionButtons
         onProceed={handleOnProceed}
-        disableProceed={disableBtns || !showTable || hasDatabaseServiceForVpc}
+        disableProceed={disableBtns || !showTable}
       />
       {createDiscoveryConfigAttempt.status !== '' && (
         <CreatedDiscoveryConfigDialog

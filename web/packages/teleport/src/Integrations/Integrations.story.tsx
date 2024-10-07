@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import {
   IntegrationKind,
@@ -33,7 +34,11 @@ export default {
 };
 
 export function List() {
-  return <IntegrationList list={[...plugins, ...integrations]} />;
+  return (
+    <MemoryRouter>
+      <IntegrationList list={[...plugins, ...integrations]} />
+    </MemoryRouter>
+  );
 }
 
 export function DeleteDialog() {

@@ -111,7 +111,7 @@ export const JoinTokenIAMForm = ({
           />
         </RuleBox>
       ))}
-      <ButtonText onClick={addNewRule}>
+      <ButtonText onClick={addNewRule} compact>
         <Plus size={16} mr={2} />
         Add another AWS Rule
       </ButtonText>
@@ -206,7 +206,7 @@ export const JoinTokenGCPForm = ({
             }
             value={rule.locations}
             label="Add Locations"
-            labelTip="Allows regions and/or zones."
+            helperText="Allows regions and/or zones."
           />
           <FieldSelectCreatable
             placeholder="PROJECT_compute@developer.gserviceaccount.com"
@@ -221,7 +221,7 @@ export const JoinTokenGCPForm = ({
           />
         </RuleBox>
       ))}
-      <ButtonText onClick={addNewRule}>
+      <ButtonText onClick={addNewRule} compact>
         <Plus size={16} mr={2} />
         Add another GCP Rule
       </ButtonText>

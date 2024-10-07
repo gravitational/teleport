@@ -327,7 +327,8 @@ type Server struct {
 
 	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
 
-	awsSyncStatus awsSyncStatus
+	awsSyncStatus         awsSyncStatus
+	awsEC2ResourcesStatus awsResourcesStatus
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -447,7 +448,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.CloudClients)
+	const noDiscoveryConfig = ""
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.CloudClients, noDiscoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -456,6 +458,9 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		s.ctx, s.getAllAWSServerFetchers, s.caRotationCh,
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+		server.WithPreFetchHookFn(func() {
+			s.awsEC2ResourcesStatus.iterationStarted()
+		}),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -465,7 +470,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	if s.ec2Installer == nil {
 		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter: s.Emitter,
+			ReportSSMInstallationResultFunc: s.ReportEC2SSMInstallationResult,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -528,12 +533,12 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 }
 
 // awsServerFetchersFromMatchers converts Matchers into a set of AWS EC2 Fetchers.
-func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher) ([]server.Fetcher, error) {
+func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfig string) ([]server.Fetcher, error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.CloudClients)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.CloudClients, discoveryConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -825,9 +830,17 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// they all need to have the command run on them
 	//
 	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
+	totalInstancesFound := len(instances.Instances)
 	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
 		s.filterExistingEC2Nodes(instances)
 	}
+
+	instancesAlreadyEnrolled := totalInstancesFound - len(instances.Instances)
+	s.awsEC2ResourcesStatus.incrementEnrolled(awsResourceGroup{
+		discoveryConfig: instances.DiscoveryConfig,
+		integration:     instances.Integration,
+	}, instancesAlreadyEnrolled)
+
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
@@ -865,6 +878,11 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		eiceNode, err := common.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
 			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
+
+			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+				discoveryConfig: instances.DiscoveryConfig,
+				integration:     instances.Integration,
+			}, 1)
 			continue
 		}
 
@@ -903,6 +921,10 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
 			instanceID := eiceNode.GetAWSInstanceID()
 			s.Log.WithField("instance_id", instanceID).Warnf("Error upserting EC2 instance: %v", err)
+			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+				discoveryConfig: instances.DiscoveryConfig,
+				integration:     instances.Integration,
+			}, 1)
 		}
 	})
 	if err != nil {
@@ -924,14 +946,20 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
 
 	req := server.SSMRunRequest{
-		DocumentName: instances.DocumentName,
-		SSM:          ec2Client,
-		Instances:    instances.Instances,
-		Params:       instances.Parameters,
-		Region:       instances.Region,
-		AccountID:    instances.AccountID,
+		DocumentName:    instances.DocumentName,
+		SSM:             ec2Client,
+		Instances:       instances.Instances,
+		Params:          instances.Parameters,
+		Region:          instances.Region,
+		AccountID:       instances.AccountID,
+		IntegrationName: instances.Integration,
+		DiscoveryConfig: instances.DiscoveryConfig,
 	}
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
+		s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+			discoveryConfig: instances.DiscoveryConfig,
+			integration:     instances.Integration,
+		}, len(req.Instances))
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1034,9 +1062,16 @@ func (s *Server) handleEC2Discovery() {
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
 				ec2Instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
 
+			s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
+				discoveryConfig: instances.EC2.DiscoveryConfig,
+				integration:     instances.EC2.Integration,
+			}, len(instances.EC2.Instances))
+
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
 				s.logHandleInstancesErr(err)
 			}
+
+			s.updateDiscoveryConfigStatus(instances.EC2.DiscoveryConfig)
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
 			return
@@ -1135,9 +1170,9 @@ func (s *Server) handleAzureDiscovery() {
 func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
 	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
-		_, projectIDOK := labels[types.ProjectIDLabel]
-		_, zoneOK := labels[types.ZoneLabel]
-		_, nameOK := labels[types.NameLabel]
+		_, projectIDOK := labels[types.ProjectIDLabelDiscovery]
+		_, zoneOK := labels[types.ZoneLabelDiscovery]
+		_, nameOK := labels[types.NameLabelDiscovery]
 		return projectIDOK && zoneOK && nameOK
 	})
 	var filtered []*gcpimds.Instance
@@ -1145,9 +1180,9 @@ outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {
 			match := types.MatchLabels(node, map[string]string{
-				types.ProjectIDLabel: inst.ProjectID,
-				types.ZoneLabel:      inst.Zone,
-				types.NameLabel:      inst.Name,
+				types.ProjectIDLabelDiscovery: inst.ProjectID,
+				types.ZoneLabelDiscovery:      inst.Zone,
+				types.NameLabelDiscovery:      inst.Name,
 			})
 			if match {
 				continue outer
@@ -1512,7 +1547,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	}
 	s.discardUnsupportedMatchers(&matchers)
 
-	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS)
+	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}

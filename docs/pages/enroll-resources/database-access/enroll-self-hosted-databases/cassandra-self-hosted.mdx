@@ -110,6 +110,7 @@ Follow the instructions for your database to enable TLS communication with your 
       cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
     ```
     In the configuration above, replace `"password"` with the value generated in the previous step by the `tctl auth sign` command.
+    Restart the Cassandra instance to enable this configuration.
 
   </TabItem>
   <TabItem label="Scylla">
@@ -122,6 +123,7 @@ Follow the instructions for your database to enable TLS communication with your 
       truststore:  /path/to/server.cas
       require_client_auth: True
     ```
+    Restart the Scylla instance to enable this configuration.
   </TabItem>
 </Tabs>
 

@@ -22,7 +22,7 @@ import { Restore } from 'design/Icon';
 
 import { Box } from '..';
 
-import { Alert, AlertProps } from './Alert';
+import { Alert, AlertProps, Banner } from './Alert';
 
 export default {
   title: 'Design/Alerts',
@@ -68,6 +68,50 @@ export const Actionable = () => (
       AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.
     </Alert>
   </Box>
+);
+
+export const Banners = () => (
+  <>
+    <Banner kind="neutral" dismissible>
+      I'm neutral.
+    </Banner>
+    <Banner kind="info" dismissible>
+      This is fine.
+    </Banner>
+    <Banner kind="warning" dismissible>
+      Not good, not terrible.
+    </Banner>
+    <Banner kind="danger" dismissible>
+      We're gonna need a bigger cluster.
+    </Banner>
+    <Banner kind="success" dismissible>
+      Success!
+    </Banner>
+    <Banner
+      kind="primary"
+      details="How about a nice game of chess?"
+      dismissible
+      primaryAction={{
+        content: "Let's play",
+        onClick: () => alert("Let's play"),
+      }}
+      secondaryAction={{
+        content: 'Maybe later',
+        onClick: () => alert('Maybe later'),
+      }}
+    >
+      Greetings, professor Falken.
+    </Banner>
+    <Banner
+      dismissible
+      primaryAction={{
+        content: 'Click me!',
+        href: 'https://goteleport.com/support/',
+      }}
+    >
+      Banner with a link button
+    </Banner>
+  </>
 );
 
 const commonProps: AlertProps = {

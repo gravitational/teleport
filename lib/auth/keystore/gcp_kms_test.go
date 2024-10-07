@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -111,7 +110,7 @@ func (f *fakeGCPKMSServer) CreateCryptoKey(ctx context.Context, req *kmspb.Creat
 	var pem []byte
 	switch cryptoKey.VersionTemplate.Algorithm {
 	case kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512:
-		pem = testRSAPrivateKeyPEM
+		pem = testRSA2048PrivateKeyPEM
 	case kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
@@ -406,7 +405,6 @@ func TestGCPKMSKeystore(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             "test-host-id",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				CloudClients:         &cloud.TestCloudClients{},
 				kmsClient:            kmsClient,
 				faketimeOverride:     clock,
 			})
@@ -499,7 +497,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 			require.NoError(t, err, "unexpected error creating CA")
 
 			// Client private key that will be the basis of test certs to be signed.
-			clientPrivKey, err := keys.ParsePrivateKey(testRSAPrivateKeyPEM)
+			clientPrivKey, err := keys.ParsePrivateKey(testRSA2048PrivateKeyPEM)
 			require.NoError(t, err)
 
 			// Test signing an SSH certificate.
@@ -684,7 +682,6 @@ func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             localHostID,
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				CloudClients:         &cloud.TestCloudClients{},
 				kmsClient:            kmsClient,
 			})
 			require.NoError(t, err, "error while creating test keystore manager")

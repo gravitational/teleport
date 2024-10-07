@@ -136,6 +136,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				Origin:            e.DesktopLabels[types.OriginLabel],
 				WindowsDomain:     e.Domain,
 				AllowUserCreation: e.AllowUserCreation,
+				Nla:               e.NLA,
 			},
 
 			// Note: Unlikely for this to ever be a bot session, but included
@@ -291,6 +292,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			out.NumTablesPermissions += entry.Counts[databaseobjectimportrule.ObjectKindTable]
 		}
 		return out
+	case *apievents.AccessPathChanged:
+		return &AccessGraphAccessPathChangedEvent{
+			AffectedResourceType:   e.AffectedResourceType,
+			AffectedResourceSource: e.AffectedResourceSource,
+		}
+	case *apievents.CrownJewelCreate:
+		return &AccessGraphCrownJewelCreateEvent{}
 	}
 
 	return nil

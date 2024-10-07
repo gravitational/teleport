@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -674,7 +675,10 @@ func (f *fakeConn) Close() error {
 }
 
 func (f *fakeConn) RemoteAddr() net.Addr {
-	return &utils.NetAddr{}
+	return &utils.NetAddr{
+		Addr:        "127.0.0.1:6514",
+		AddrNetwork: "tcp",
+	}
 }
 
 func TestValidateClientVersion(t *testing.T) {
@@ -760,6 +764,88 @@ func TestValidateClientVersion(t *testing.T) {
 	}
 }
 
+func TestRejectedClientClusterAlertContents(t *testing.T) {
+	var alerts []types.ClusterAlert
+	mw := Middleware{
+		OldestSupportedVersion: &teleport.MinClientSemVersion,
+		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
+			alerts = append(alerts, a)
+			return nil
+		},
+	}
+
+	alertVersion := semver.Version{
+		Major: mw.OldestSupportedVersion.Major,
+		Minor: mw.OldestSupportedVersion.Minor,
+		Patch: mw.OldestSupportedVersion.Patch,
+	}.String()
+
+	version := semver.Version{Major: teleport.SemVersion.Major - 5}.String()
+
+	tests := []struct {
+		name      string
+		userAgent string
+		identity  authz.IdentityGetter
+		expected  string
+	}{
+		{
+			name:     "invalid node",
+			identity: TestServerID(types.RoleNode, "1-2-3-4").I,
+			expected: fmt.Sprintf("Connection from Node 1-2-3-4 at 127.0.0.1:6514, running an unsupported version of v%s was rejected. Connections will be allowed after upgrading the agent to v%s or newer", version, alertVersion),
+		},
+		{
+			name:      "invalid tsh",
+			userAgent: "tsh/" + teleport.Version,
+			identity:  TestUser("llama").I,
+			expected:  fmt.Sprintf("Connection from tsh v%s by llama was rejected. Connections will be allowed after upgrading tsh to v%s or newer", version, alertVersion),
+		},
+		{
+			name: "invalid remote node",
+			identity: authz.RemoteBuiltinRole{
+				Role:        types.RoleNode,
+				Username:    string(types.RoleNode),
+				ClusterName: "leaf",
+				Identity: tlsca.Identity{
+					Username: "1-2-3-4",
+				},
+			},
+			expected: fmt.Sprintf("Connection from Node 1-2-3-4 at 127.0.0.1:6514 in cluster leaf, running an unsupported version of v%s was rejected. Connections will be allowed after upgrading the agent to v%s or newer", version, alertVersion),
+		},
+
+		{
+			name:     "invalid tool",
+			identity: TestUser("llama").I,
+			expected: fmt.Sprintf("Connection from tsh, tctl, tbot, or a plugin running v%s by llama was rejected. Connections will be allowed after upgrading to v%s or newer", version, alertVersion),
+		},
+	}
+
+	// Trigger alerts from a variety of identities and validate the content of emitted alerts.
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
+				"version":    version,
+				"user-agent": test.userAgent,
+			}))
+
+			err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: test.identity})
+			assert.Error(t, err)
+
+			// Assert that only an alert was created and the content matches expectations.
+			require.Len(t, alerts, 1)
+			require.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
+			require.Equal(t, test.expected, alerts[0].Spec.Message)
+
+			// Reset the test alerts.
+			alerts = nil
+
+			// Reset the last alert time to a time beyond the rate limit, allowing the next
+			// rejection to trigger another alert.
+			mw.lastRejectedAlertTime.Store(time.Now().Add(-25 * time.Hour).UnixNano())
+		})
+	}
+}
+
 func TestRejectedClientClusterAlert(t *testing.T) {
 	var alerts []types.ClusterAlert
 	mw := Middleware{
@@ -788,7 +874,6 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 	// Assert that only a single alert was created based on the above rejections.
 	require.Len(t, alerts, 1)
 	require.Equal(t, "rejected-unsupported-connection", alerts[0].GetName())
-	require.Contains(t, alerts[0].Spec.Message, "agents")
 	// Assert that the version in the message does not contain any prereleases
 	require.NotContains(t, alerts[0].Spec.Message, "-aa")
 

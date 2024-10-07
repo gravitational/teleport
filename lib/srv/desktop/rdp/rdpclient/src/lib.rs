@@ -43,6 +43,7 @@ use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod network_client;
 mod piv;
 mod rdpdr;
 mod ssl;
@@ -81,7 +82,7 @@ pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
 /// # Safety
 ///
 /// The caller must ensure that cgo_handle is a valid handle and that
-/// go_addr, go_username, cert_der, key_der point to valid buffers.
+/// go_addr, go_domain, go_kdc, cert_der, key_der point to valid buffers.
 #[no_mangle]
 pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOResult {
     trace!("client_run");
@@ -90,12 +91,26 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
+    let kdc = from_c_string(params.go_kdc_addr);
+    let kdc = if kdc.is_empty() { None } else { Some(kdc) };
+
+    let computer_name = from_c_string(params.go_computer_name);
+    let computer_name = if computer_name.is_empty() {
+        None
+    } else {
+        Some(computer_name)
+    };
+
     match Client::run(
         cgo_handle,
         ConnectParams {
+            ad: params.ad,
+            nla: params.nla,
             addr,
+            computer_name,
             cert_der,
             key_der,
+            kdc_addr: kdc,
             screen_width: params.screen_width,
             screen_height: params.screen_height,
             allow_clipboard: params.allow_clipboard,
@@ -451,7 +466,12 @@ pub unsafe extern "C" fn client_write_screen_resize(
 
 #[repr(C)]
 pub struct CGOConnectParams {
+    ad: bool,
+    nla: bool,
     go_addr: *const c_char,
+    go_domain: *const c_char,
+    go_kdc_addr: *const c_char,
+    go_computer_name: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,

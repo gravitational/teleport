@@ -43,7 +43,7 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
   wrapper: (component: React.ReactNode) => (
     <ServerWrapper>{component}</ServerWrapper>
   ),
-  shouldPrompt(currentStep, resourceSpec) {
+  shouldPrompt(currentStep, currentView, resourceSpec) {
     if (resourceSpec?.nodeMeta?.location === ServerLocation.Aws) {
       // Allow user to bypass prompting on this step (Connect AWS Connect)
       // on exit because users might need to change route to setup an
@@ -52,7 +52,7 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
         return false;
       }
     }
-    return true;
+    return currentView?.eventName !== DiscoverEvent.Completed;
   },
 
   views(resource) {

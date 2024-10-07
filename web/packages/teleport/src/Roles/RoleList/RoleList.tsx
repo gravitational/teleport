@@ -54,7 +54,6 @@ export function RoleList({
             updateSearch={onSearchChange}
             updateQuery={null}
             hideAdvancedSearch={true}
-            showSearchBar={true}
             filter={{ search }}
             disableSearch={serversidePagination.attempt.status === 'processing'}
           />

@@ -40,10 +40,10 @@ Currently supported Teleport resources are:
 ### Setting up the operator
 
 If you are self-hosting Teleport using the `teleport-cluster` Helm chart,
-follow [the guide for Helm-deployed clusters](./teleport-operator-helm.mdx).
+follow [the guide for Helm-deployed clusters](teleport-operator/teleport-operator-helm.mdx).
 
 If you are hosting Teleport out of Kubernetes (Teleport Cloud, Terraform, ...),
-follow [the standalone operator guide](./teleport-operator-standalone.mdx).
+follow [the standalone operator guide](teleport-operator/teleport-operator-standalone.mdx).
 
 ### Control reconciliation with annotations
 
@@ -72,11 +72,22 @@ finalizer or remove the ignore annotation.
 
 Possible values are `"true"` or `"false"` (those are strings, as Booleans are not valid label values in Kubernetes).
 
+### Look up values from secrets
+
+Some Teleport resources might contain sensitive values. Select CR fields can reference an existing
+Kubernetes secret and the operator will retrieve the value from the secret when reconciling.
+
+Even when you store sensitive values out of CRs, the CRs must still be considered as critical as
+the Kubernetes secrets themselves. Many CRs configure Teleport RBAC. Someone with CR editing permissions can become a
+Teleport administrator and retrieve the sensitive values from Teleport.
+
+See [the dedicated guide](./teleport-operator/secret-lookup.mdx) for more details.
+
 ### Troubleshooting
 
 (!docs/pages/includes/diagnostics/kubernetes-operator-troubleshooting.mdx!)
 
 ## Next steps
 
-- Follow the ["Managing users and roles with IaC" guide](./user-and-role.mdx).
+- Follow the ["Managing users and roles with IaC" guide](managing-resources/user-and-role.mdx).
 - Check out [access controls documentation](../access-controls/access-controls.mdx).

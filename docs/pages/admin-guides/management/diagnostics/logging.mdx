@@ -1,0 +1,72 @@
+---
+title: Logger Configuration
+description: Explains how to configure the logger on a Teleport instance.
+---
+
+In the configuration file of a Teleport instance, you can configure the logger's behavior by defining the output
+destination, severity level, and output format.
+
+```yaml
+teleport:
+  log:
+    output: stderr
+    severity: INFO
+    format:
+      output: text
+      extra_fields: [caller, level]
+```
+
+If the output parameter is not defined or set as empty, `stderr` (aliases `err` or `2`) is used by default.
+Other available options for defining the output include `stdout` (aliases `out` or `1`), `syslog` for writing
+to the syslog file, or a filepath for direct writing to a log file destination.
+
+Severity has several levels, which are sorted by decreasing priority:
+ - `err`, `error` - used for errors that require action from the user.
+ - `warn`, `warning` - non-critical entries that deserve attention.
+ - `info` or empty value - general operational entries about what's going on inside the application.
+ - `debug` - usually only enabled when debugging, verbose logging.
+ - `trace` - designates more detailed information about actions and events.
+
+When we choose `info` severity level, `warning` and `error` are also applied by priority rule.
+
+The default format for log output is `text`. Another available format is `json`, which may simplify log
+parsing for systems like Logstash, Loki, or other log aggregators.
+
+Format `extra_fields` defines additional fields which must be added to the log output:
+ - `level` is the log field that stores the verbosity.
+ - `component` is the log field that stores the calling component.
+ - `caller` is the log field that stores the calling file and line number.
+ - `timestamp` is the field that stores the timestamp the log was emitted.
+
+On systemd-based distributions you can watch the log output by running the following command:
+
+```code
+$ teleport install systemd -o /etc/systemd/system/teleport.service
+$ systemctl enable teleport
+$ journalctl -fu teleport
+```
+
+## Log rotation support
+
+To store logs as a file, the filepath should be set in the `log.output` configuration.
+
+```yaml
+teleport:
+  log:
+    output: /var/lib/teleport/log/output.log
+```
+
+When Teleport opens or creates a new log file, a filesystem watcher is launched in the background to monitor the file modifications.
+If the log file is renamed, moved, or deleted, Teleport automatically creates a new one.
+This is useful for implementing log rotation without needing to restart or interrupt the main service.
+
+Using `logrotate` as an example, you may define the following config `/etc/logrotate.d/teleport.conf`
+to rotate Teleport log file weekly:
+
+```code
+/var/lib/teleport/log/output.log {
+    weekly
+    compress
+    notifempty
+}
+```

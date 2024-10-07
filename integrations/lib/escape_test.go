@@ -31,3 +31,15 @@ func ExampleMarkdownEscape() {
 	// "```\n`\ufefffoo`\ufeff `\ufeffbar`\ufeff```"
 	// "```\n1234567890``` (truncated)"
 }
+
+func ExampleMarkdownEscapeInLine() {
+	fmt.Printf("%q\n", MarkdownEscapeInLine("     ", 1000))
+	fmt.Printf("%q\n", MarkdownEscapeInLine("abc", 1000))
+	fmt.Printf("%q\n", MarkdownEscapeInLine("`foo` `bar`", 1000))
+	fmt.Printf("%q\n", MarkdownEscapeInLine("  123456789012345  ", 10))
+
+	// Output: "(empty)"
+	// "`abc`"
+	// "``\ufefffoo`\ufeff `\ufeffbar`\ufeff`"
+	// "`1234567890` (truncated)"
+}

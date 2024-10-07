@@ -113,12 +113,12 @@ export type BulkAction = {
    * over if this prop is supplied
    */
   tooltip?: string;
-  action: (
-    selectedResources: {
-      unifiedResourceId: string;
-      resource: SharedUnifiedResource['resource'];
-    }[]
-  ) => void;
+  action: (selectedResources: SelectedResource[]) => void;
+};
+
+export type SelectedResource = {
+  unifiedResourceId: string;
+  resource: SharedUnifiedResource['resource'];
 };
 
 export type FilterKind = {
@@ -139,7 +139,7 @@ export type ResourceAvailabilityFilter =
 export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
-  fetchResources(options?: { force?: boolean }): Promise<void>;
+  fetchResources(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
   Header?: React.ReactElement;
   /**
@@ -506,6 +506,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           );
         }}
         hideViewModeOptions={forceCardView}
+        onRefresh={() => fetchResources({ clear: true })}
         BulkActions={
           <>
             {selectedResources.length > 0 && (

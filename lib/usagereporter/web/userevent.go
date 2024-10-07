@@ -61,6 +61,7 @@ const (
 	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
 	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
 	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
+	uiDiscoverCreateAppServerEvent                    = "tp.ui.discover.createAppServer"
 	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
@@ -70,6 +71,8 @@ const (
 	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
+
+	uiAccessGraphCrownJewelDiffViewEvent = "tp.ui.accessGraph.crownJewelDiffView"
 
 	featureRecommendationEvent = "tp.ui.feature.recommendation"
 )
@@ -94,6 +97,7 @@ var eventsWithDataRequired = []string{
 	uiIntegrationEnrollStartEvent,
 	uiIntegrationEnrollCompleteEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
+	uiAccessGraphCrownJewelDiffViewEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -301,6 +305,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverEC2InstanceSelectionEvent,
 		uiDiscoverDeployEICEEvent,
 		uiDiscoverCreateNodeEvent,
+		uiDiscoverCreateAppServerEvent,
 		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:
 
@@ -374,6 +379,28 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 			}},
 			nil
+	case uiAccessGraphCrownJewelDiffViewEvent:
+		event := struct {
+			AffectedResourceSource string `json:"affected_resource_source,omitempty"`
+			AffectedResourceType   string `json:"affected_resource_type,omitempty"`
+		}{}
+		if err := json.Unmarshal(*req.EventData, &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+		if event.AffectedResourceType == "" {
+			return nil, trace.BadParameter("affected resource type is empty")
+		}
+		if event.AffectedResourceSource == "" {
+			return nil, trace.BadParameter("affected resource source is empty")
+		}
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView{
+				UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
+					AffectedResourceSource: event.AffectedResourceSource,
+					AffectedResourceType:   event.AffectedResourceType,
+				},
+			},
+		}, nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

@@ -118,7 +118,7 @@ type Service struct {
 }
 
 // New creates a BPF service.
-func New(config *servicecfg.BPFConfig) (BPF, error) {
+func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,20 +130,6 @@ func New(config *servicecfg.BPFConfig) (BPF, error) {
 		return &NOP{}, nil
 	}
 
-	// Check if the host can run BPF programs.
-	if err := IsHostCompatible(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create a cgroup controller to add/remote cgroups.
-	cgroup, err := controlgroup.New(&controlgroup.Config{
-		MountPath: config.CgroupPath,
-		RootPath:  config.RootPath,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
@@ -153,9 +139,23 @@ func New(config *servicecfg.BPFConfig) (BPF, error) {
 
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
-
-		cgroup: cgroup,
 	}
+
+	// Create a cgroup controller to add/remote cgroups.
+	s.cgroup, err = controlgroup.New(&controlgroup.Config{
+		MountPath: config.CgroupPath,
+		RootPath:  config.RootPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if err != nil {
+			if err := s.cgroup.Close(true); err != nil {
+				log.WithError(err).Warn("Failed to close cgroup")
+			}
+		}
+	}()
 
 	// Create args cache used by the exec BPF program.
 	s.argsCache, err = ttlmap.New(ArgsCacheSize)

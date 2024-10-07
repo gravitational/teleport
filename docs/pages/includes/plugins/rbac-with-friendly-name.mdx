@@ -24,6 +24,11 @@ spec:
       - resources: ['access_list']
         verbs: ['list', 'read']
 
+      # Optional: To display logins permitted by roles, the plugin also needs
+      # permission to read the role resource.
+      - resources: ['role']
+        verbs: ['read']
+
     # Optional: To display user-friendly names in resource-based Access
     # Requests instead of resource IDs, the plugin also needs permission
     # to list the resources being requested. Include this along with the

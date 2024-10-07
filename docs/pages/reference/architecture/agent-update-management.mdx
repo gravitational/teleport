@@ -8,8 +8,8 @@ mode](../../faq.mdx), agent deployments
 are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
-Starting with version 13, Teleport supports automatic agent updates for systemd-based
-Linux distributions using `apt` or `yum` package managers, and Kubernetes clusters.
+Teleport supports automatic agent updates for systemd-based
+Linux distributions using `apt`, `yum` or `zypper` package managers, and Kubernetes clusters.
 
 ## Update logic and failure modes
 
@@ -41,7 +41,7 @@ applied even if the updater is outside its regular maintenance window.
 ## Security
 
 When updating the agent, the updater will ensure the new version's authenticity
-before deploying it. On Linux distributions using `apt` or `yum`, it relies on
+before deploying it. On Linux distributions using `apt`, `yum` or `zypper`, it relies on
 the existing package signature system. On Kubernetes-based environments, it
 validates the OCI image signature (using [cosign's signature
 ](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md)).
@@ -67,23 +67,27 @@ instances, or use the `stable/rolling` channel.
 
 ### Teleport Cloud
 
-Teleport Cloud users can use Teleport Cloud's version server only if their
-instance is enrolled in automatic updates. This version server will always
+If you are using Teleport Cloud you can use Teleport Cloud's version server
+only if an instance is enrolled in automatic updates. This version server will always
 target the best version from a feature, compatibility, security and stability
 point of view.
 
-Teleport Cloud users whose control plane is not automatically updated must not use
-automatic agent updates. This is because their Teleport instance version might
+If your Teleport Cloud control plane is not automatically updated you must not use
+automatic agent updates. This is because your Teleport instance version might
 differ from the other Teleport Cloud instances and might not yet support the
 latest agent version.
 
 ### Self-hosted Teleport
 
-Self-hosted Teleport users can set up automatic agent updates. They must host
-their version server and choose their target version. They are responsible for
-ensuring the targeted version is compatible with their current auth/proxy
-versions. They must also monitor the agent's health and rollout status to
-ensure every agent is healthy and running the correct version.
+If you are self-hosting Teleport Enterprise you can set up automatic agent updates.
+The updater uses a version channel to retrieve the targeted version for an agent.
+The Teleport Proxy Service provides a default version channel that matches to its current version.
+You can configure the default version and set additional channel versions.
+
+You are responsible for ensuring the version channels are compatible with the
+current Teleport Proxy Service and Teleport Auth Service versions. You must also
+monitor the agent's health and rollout status to ensure every agent is healthy
+and running the correct version.
 
 ## Next steps
 

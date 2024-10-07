@@ -170,11 +170,21 @@ func TestRemoteBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 
 	// re initialize client with trust established.
-	remoteProxy, err = remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
-	require.NoError(t, err)
+	//
+	// not using Eventually(WithT) because almost all the time the first try
+	// will work and Eventually will always wait for the interval to happen, and
+	// there's also no reason to retry if somehow we fail to build the client
+	for range 50 {
+		remoteProxy, err = remoteServer.NewRemoteClient(
+			TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
+		require.NoError(t, err)
 
-	_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
+		_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	require.NoError(t, err)
 
 	// remote auth server will get rejected even with established trust
@@ -428,7 +438,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -448,7 +458,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance((gracePeriod*2)/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -471,7 +481,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// complete rotation - advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
@@ -530,7 +540,7 @@ func TestAutoFallback(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -1350,7 +1360,7 @@ func TestGetCurrentUser(t *testing.T) {
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1409,58 +1419,6 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 		Clock:  clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(t)
-}
-
-func TestRemoteClustersCRUD(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	testSrv := newTestTLSServer(t)
-	clt, err := testSrv.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	clusterName := "example.com"
-	out, err := clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	rc, err := types.NewRemoteCluster(clusterName)
-	require.NoError(t, err)
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
-
-	rc, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
-	require.NoError(t, err)
-
-	out, err = clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc))
-
-	update := rc.Clone()
-	update.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	_, err = clt.UpdateRemoteCluster(ctx, update)
-	require.NoError(t, err)
-	updated, err := clt.GetRemoteCluster(ctx, rc.GetName())
-	require.NoError(t, err)
-	require.Equal(t, teleport.RemoteClusterStatusOnline, updated.GetConnectionStatus())
-	// Ensure other fields unchanged
-	require.Empty(t,
-		cmp.Diff(
-			rc,
-			updated,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
-		),
-	)
-
-	err = clt.DeleteRemoteCluster(ctx, clusterName)
-	require.NoError(t, err)
-	err = clt.DeleteRemoteCluster(ctx, clusterName)
-	require.True(t, trace.IsNotFound(err))
-
-	out, err = clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
 }
 
 func TestServersCRUD(t *testing.T) {
@@ -2915,7 +2873,6 @@ func TestGenerateCerts(t *testing.T) {
 				}
 			})
 		}
-
 	})
 }
 
@@ -3002,15 +2959,6 @@ func TestCertificateFormat(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	// make sure we can parse the private and public key
-	_, err = ssh.ParsePrivateKey(priv)
-	require.NoError(t, err)
-	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
-	require.NoError(t, err)
-
 	// use admin client to create user and role
 	user, userRole, err := CreateUserAndRole(testSrv.Auth(), "user", []string{"user"}, nil)
 	require.NoError(t, err)
@@ -3055,7 +3003,8 @@ func TestCertificateFormat(t *testing.T) {
 				Pass: &authclient.PassCreds{
 					Password: pass,
 				},
-				PublicKey: pub,
+				SSHPublicKey: []byte(sshPubKey),
+				TLSPublicKey: []byte(tlsPubKey),
 			},
 			CompatibilityMode: ts.inClientCertificateFormat,
 			TTL:               apidefaults.CertDuration,
@@ -3387,15 +3336,14 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Make sure access is denied for SSH login.
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
 	_, err = testSrv.Auth().AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: user,
 			Pass: &authclient.PassCreds{
 				Password: pass,
 			},
-			PublicKey: pub,
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 	})
 	require.True(t, trace.IsAccessDenied(err))
@@ -3498,14 +3446,6 @@ func TestRegisterCAPin(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Generate public and private keys for node.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
 	// Calculate what CA pin should be.
 	localCAResponse, err := testSrv.AuthServer.AuthServer.GetClusterCACert(ctx)
 	require.NoError(t, err)
@@ -3524,8 +3464,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{caPin},
 		Clock:                clock,
 	})
@@ -3542,8 +3480,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", caPin},
 		Clock:                clock,
 	})
@@ -3559,8 +3495,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123"},
 		Clock:                clock,
 	})
@@ -3576,8 +3510,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", "sha256:456"},
 		Clock:                clock,
 	})
@@ -3612,8 +3544,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               caPins,
 		Clock:                clock,
 	})
@@ -3639,16 +3569,8 @@ func TestRegisterCAPath(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Generate public and private keys for node.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
 	// Attempt to register with nothing at the CA path, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	_, err := join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3657,8 +3579,6 @@ func TestRegisterCAPath(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		Clock:                clock,
 	})
 	require.NoError(t, err)
@@ -3686,8 +3606,6 @@ func TestRegisterCAPath(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,
 		Clock:                clock,
 	})

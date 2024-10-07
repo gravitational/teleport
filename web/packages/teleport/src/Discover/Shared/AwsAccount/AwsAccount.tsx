@@ -27,7 +27,7 @@ import {
   Alert,
   Flex,
 } from 'design';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { useAsync } from 'shared/hooks/useAsync';
 import { Option as BaseOption } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -261,18 +261,16 @@ export function AwsAccount() {
                   </Text>
                   <Box width="300px" mb={6}>
                     <FieldSelect
-                      disabled
                       label="AWS Integrations"
-                      rule={requiredField('Region is required')}
+                      rule={requiredField<Option>('Region is required')}
                       placeholder="Select the AWS Integration to Use"
                       isSearchable
-                      isSimpleValue
                       value={selectedAwsIntegration}
                       onChange={i => setSelectedAwsIntegration(i as Option)}
                       options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
-                  <ButtonText as={Link} to={locationState} pl={2} pr={2}>
+                  <ButtonText as={Link} to={locationState} compact>
                     Or click here to set up a different AWS account
                   </ButtonText>
                 </>

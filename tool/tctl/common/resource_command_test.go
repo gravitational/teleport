@@ -34,13 +34,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -840,7 +843,7 @@ version: v2`,
 				buf, err := runResourceCommand(t, clt, []string{"get", "cap", "--format=json"})
 				require.NoError(t, err)
 				authPreferences := mustDecodeJSON[[]types.AuthPreferenceV2](t, buf)
-				require.NotZero(t, len(authPreferences))
+				require.NotEmpty(t, authPreferences)
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
 			}
 		})
@@ -1404,6 +1407,18 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindAppServer,
 			create: testCreateAppServer,
 		},
+		{
+			kind:   types.KindStaticHostUser,
+			create: testCreateStaticHostUser,
+		},
+		{
+			kind:   types.KindAutoUpdateConfig,
+			create: testCreateAutoUpdateConfig,
+		},
+		{
+			kind:   types.KindAutoUpdateVersion,
+			create: testCreateAutoUpdateVersion,
+		},
 	}
 
 	for _, test := range tests {
@@ -1411,6 +1426,17 @@ func TestCreateResources(t *testing.T) {
 			test.create(t, rootClient)
 		})
 	}
+
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, rootClient, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	require.NotEmpty(t, s)
+	assert.Contains(t, s, "kind: github")
+	assert.Contains(t, s, "kind: cluster_auth_preference")
+	assert.Contains(t, s, "kind: cluster_networking_config")
+	assert.Contains(t, s, "kind: user")
+	assert.Contains(t, s, "kind: role")
 }
 
 func testCreateGithubConnector(t *testing.T, clt *authclient.Client) {
@@ -2051,6 +2077,13 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		})
 	}
 
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, clt, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	require.NotEmpty(t, s)
+	assert.Contains(t, s, "kind: saml")
+	assert.Contains(t, s, "kind: oidc")
 }
 
 func testCreateOIDCConnector(t *testing.T, clt *authclient.Client) {
@@ -2184,6 +2217,142 @@ spec:
 
 	_, err = runResourceCommand(t, clt, []string{"create", "-f", connectorYAMLPath})
 	require.NoError(t, err)
+}
+
+func testCreateStaticHostUser(t *testing.T, clt *authclient.Client) {
+	// Ensure that our test user does not exist
+	resourceName := "alice"
+	resourceKey := types.KindStaticHostUser + "/" + resourceName
+	_, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "unexpected error: %v", err)
+
+	const userYAML = `kind: static_host_user
+version: v2
+metadata:
+  name: alice
+spec:
+  matchers:
+    - node_labels:
+      - name: foo
+        values: ["bar"]
+      groups:
+        - foo
+        - bar
+      uid: 1234
+      gid: 5678
+    - node_labels_expression: 'labels["foo"] == labels["bar"]'
+      groups:
+        - baz
+        - quux
+      sudoers: ["abc1234"]
+`
+
+	// Create the host user
+	userYAMLPath := filepath.Join(t.TempDir(), "host_user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.NoError(t, err)
+	hostUsers := mustDecodeJSON[[]*userprovisioningpb.StaticHostUser](t, buf)
+	require.Len(t, hostUsers, 1)
+
+	var expected userprovisioningpb.StaticHostUser
+	require.NoError(t, yaml.Unmarshal([]byte(userYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*userprovisioningpb.StaticHostUser{&expected},
+		hostUsers,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.GetMetadata().Revision = uuid.NewString()
+	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err), "unexpected error: %v", err)
+
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", userYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools_autoupdate: true
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateConfig](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected autoupdate.AutoUpdateConfig
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateConfig{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+}
+
+func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools_version: 1.2.3
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateVersion](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected autoupdate.AutoUpdateVersion
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateVersion{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
 }
 
 func TestPluginResourceWrapper(t *testing.T) {

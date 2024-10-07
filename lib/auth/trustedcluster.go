@@ -107,7 +107,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 
-		if err := a.createReverseTunnel(trustedCluster); err != nil {
+		if err := a.createReverseTunnel(ctx, trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case existingCluster != nil && enable == false:
@@ -123,7 +123,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 
-		if err := a.DeleteReverseTunnel(trustedCluster.GetName()); err != nil {
+		if err := a.DeleteReverseTunnel(ctx, trustedCluster.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case existingCluster == nil && enable == true:
@@ -142,7 +142,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 
-		if err := a.createReverseTunnel(trustedCluster); err != nil {
+		if err := a.createReverseTunnel(ctx, trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -234,7 +234,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.DeleteReverseTunnel(name); err != nil {
+	if err := a.DeleteReverseTunnel(ctx, name); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -674,7 +674,7 @@ func (a *Server) deactivateCertAuthority(ctx context.Context, t types.TrustedClu
 
 // createReverseTunnel will create a services.ReverseTunnel givenin the
 // services.TrustedCluster resource.
-func (a *Server) createReverseTunnel(t types.TrustedCluster) error {
+func (a *Server) createReverseTunnel(ctx context.Context, t types.TrustedCluster) error {
 	reverseTunnel, err := types.NewReverseTunnel(
 		t.GetName(),
 		[]string{t.GetReverseTunnelAddress()},
@@ -682,5 +682,5 @@ func (a *Server) createReverseTunnel(t types.TrustedCluster) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.UpsertReverseTunnel(reverseTunnel))
+	return trace.Wrap(a.UpsertReverseTunnel(ctx, reverseTunnel))
 }

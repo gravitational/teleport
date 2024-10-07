@@ -48,10 +48,10 @@ export const logos: Record<TeleportEdition, LogoMap> = {
   },
 };
 
-export const LogoHero = () => {
+export const LogoHero = ({ my = '48px' }: { my?: string }) => {
   const theme = useTheme();
   const src = logos[cfg.edition][theme.type];
   return (
-    <Image src={src} maxHeight="120px" maxWidth="200px" my="48px" mx="auto" />
+    <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
   );
 };

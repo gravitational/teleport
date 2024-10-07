@@ -270,8 +270,8 @@ func (c *websocketALPNClientConn) Read(b []byte) (int, error) {
 }
 
 func (c *websocketALPNClientConn) Write(b []byte) (int, error) {
-	frame := ws.NewFrame(ws.OpBinary, true, b)
-	frame.Header.Masked = true
+	// Remember to use a proper mask on client side.
+	frame := ws.MaskFrame(ws.NewFrame(ws.OpBinary, true, b))
 	if err := ws.WriteFrame(c.Conn, frame); err != nil {
 		return 0, trace.Wrap(err)
 	}

@@ -33,18 +33,27 @@ import { Node } from '../nodes';
  * while "plugin" resource is only supported in enterprise. Plugin
  * type exists in OS for easier typing when combining the resources
  * into one list.
+ *
+ * Generics:
+ *  T is resource type "integration" or "plugin"
+ *  K is the kind of integration (eg: aws-oidc) or plugin (eg: okta)
+ *  SP is the provider-specific spec of integration or plugin
+ *  SD is the provider-specific status containing status details
+ *   - currently only defined for plugin resource
  */
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  S extends Record<string, any> = IntegrationSpecAwsOidc,
+  SP extends Record<string, any> = IntegrationSpecAwsOidc,
+  SD extends Record<string, any> = null,
 > = {
   resourceType: T;
   kind: K;
-  spec?: S;
+  spec?: SP;
   name: string;
   details?: string;
   statusCode: IntegrationStatusCode;
+  status?: SD;
 };
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
@@ -118,12 +127,38 @@ export type ExternalAuditStorageIntegration = Integration<
   ExternalAuditStorage
 >;
 
-export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
+export type Plugin<SP = any, D = any> = Integration<
+  'plugin',
+  PluginKind,
+  SP,
+  PluginStatus<D>
+>;
+
+export type PluginStatus<D = any> = {
+  /**
+   * the status code of the plugin
+   */
+  code: IntegrationStatusCode;
+  /**
+   * the time the plugin was last run
+   */
+  lastRun: Date;
+  /**
+   * the last error message from the plugin
+   */
+  errorMessage: string;
+  /**
+   * contains provider-specific status information
+   */
+  details?: D;
+};
+
 export type PluginSpec =
   | PluginOktaSpec
   | PluginSlackSpec
   | PluginMattermostSpec
-  | PluginOpsgenieSpec;
+  | PluginOpsgenieSpec
+  | PluginDatadogSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -141,7 +176,8 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf'
-  | 'entra-id';
+  | 'entra-id'
+  | 'datadog';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
@@ -160,6 +196,15 @@ export type PluginOktaSpec = {
   // that were deemed not serious enough to fail the plugin installation, but
   // may effect the operation of advanced features like User Sync or SCIM.
   error: string;
+  /**
+   * is the set of usernames that the integration assigns as
+   * owners to any Access Lists that it creates
+   */
+  defaultOwners: string[];
+  /**
+   * the Okta org's base URL
+   */
+  orgUrl: string;
 };
 
 export type PluginSlackSpec = {
@@ -174,6 +219,11 @@ export type PluginMattermostSpec = {
 
 export type PluginOpsgenieSpec = {
   defaultSchedules: string[];
+};
+
+export type PluginDatadogSpec = {
+  apiEndpoint: string;
+  fallbackRecipient: string;
 };
 
 export type IntegrationCreateRequest = {
@@ -318,8 +368,9 @@ export type AwsOidcDeployServiceRequest = {
   region: Regions;
   subnetIds: string[];
   taskRoleArn: string;
-  databaseAgentMatcherLabels: Label[];
   securityGroups?: string[];
+  vpcId: string;
+  accountId: string;
 };
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
@@ -385,7 +436,7 @@ export type EnrollEksClustersResponse = {
   results: {
     clusterName: string;
     resourceId: string;
-    error: { message: string };
+    error: string;
   }[];
 };
 
@@ -544,12 +595,30 @@ export type SecurityGroupRule = {
   toPort: string;
   // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
   cidrs: Cidr[];
+  // Groups is a list of rules that allow another security group referenced
+  // by ID.
+  groups: GroupIdRule[];
 };
 
 export type Cidr = {
-  // CIDR is the IP range using CIDR notation.
+  /**
+   * CIDR is the IP range using CIDR notation.
+   */
   cidr: string;
-  // Description contains a small text describing the CIDR.
+  /**
+   *  Description contains a small text describing the CIDR.
+   */
+  description: string;
+};
+
+export type GroupIdRule = {
+  /**
+   * GroupId is the ID of the security group that is allowed by the rule.
+   */
+  groupId: string;
+  /**
+   * Description contains a small text describing the rule.
+   */
   description: string;
 };
 

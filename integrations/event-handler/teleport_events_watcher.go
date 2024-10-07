@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -304,12 +305,14 @@ func (t *TeleportEventsWatcher) pause(ctx context.Context) error {
 
 // Next returns next event from a batch or requests next batch if it has been ended
 func (t *TeleportEventsWatcher) Events(ctx context.Context) (chan *TeleportEvent, chan error) {
-	ch := make(chan *TeleportEvent)
+	ch := make(chan *TeleportEvent, t.config.BatchSize)
 	e := make(chan error, 1)
 
 	go func() {
 		defer close(ch)
 		defer close(e)
+
+		logLimiter := rate.NewLimiter(rate.Every(time.Minute), 6)
 
 		for {
 			// If there is nothing in the batch, request
@@ -371,6 +374,18 @@ func (t *TeleportEventsWatcher) Events(ctx context.Context) (chan *TeleportEvent
 			event := t.batch[t.pos]
 			t.pos++
 			t.id = event.ID
+
+			// attempt non-blocking send first, falling back to blocking send
+			// if we encounter backpressure.
+			select {
+			case ch <- event:
+				continue
+			default:
+			}
+
+			if logLimiter.Allow() {
+				log.Warn("encountering backpressure from outbound event processing")
+			}
 
 			select {
 			case ch <- event:

@@ -20,7 +20,7 @@ package backend
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -51,17 +51,17 @@ func TestWatcherSimple(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Emit(Event{Item: Item{Key: []byte("/1")}})
+	b.Emit(Event{Item: Item{Key: NewKey("1")}})
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, []byte("/1"), e.Item.Key)
+		require.Equal(t, NewKey("1"), e.Item.Key)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
 
 	b.Close()
-	b.Emit(Event{Item: Item{Key: []byte("/2")}})
+	b.Emit(Event{Item: Item{Key: NewKey("2")}})
 
 	select {
 	case <-w.Done():
@@ -104,12 +104,12 @@ func TestWatcherCapacity(t *testing.T) {
 	// emit and then consume 10 events.  this is much larger than our queue size,
 	// but should succeed since we consume within our grace period.
 	for i := 0; i < 10; i++ {
-		b.Emit(Event{Item: Item{Key: []byte(fmt.Sprintf("/%d", i+1))}})
+		b.Emit(Event{Item: Item{Key: NewKey(strconv.Itoa(i + 1))}})
 	}
 	for i := 0; i < 10; i++ {
 		select {
 		case e := <-w.Events():
-			require.Equal(t, fmt.Sprintf("/%d", i+1), string(e.Item.Key))
+			require.Equal(t, string(Separator)+strconv.Itoa(i+1), e.Item.Key.String())
 		default:
 			t.Fatalf("Expected events to be immediately available")
 		}
@@ -119,7 +119,7 @@ func TestWatcherCapacity(t *testing.T) {
 	clock.Advance(gracePeriod + time.Second)
 
 	// emit another event, which will cause buffer to reevaluate the grace period.
-	b.Emit(Event{Item: Item{Key: []byte("/11")}})
+	b.Emit(Event{Item: Item{Key: NewKey("11")}})
 
 	// ensure that buffer did not close watcher, since previously created backlog
 	// was drained within grace period.
@@ -131,13 +131,13 @@ func TestWatcherCapacity(t *testing.T) {
 
 	// create backlog again, and this time advance past grace period without draining it.
 	for i := 0; i < 10; i++ {
-		b.Emit(Event{Item: Item{Key: []byte(fmt.Sprintf("/%d", i+12))}})
+		b.Emit(Event{Item: Item{Key: NewKey(strconv.Itoa(i + 12))}})
 	}
 	clock.Advance(gracePeriod + time.Second)
 
 	// emit another event, which will cause buffer to realize that watcher is past
 	// its grace period.
-	b.Emit(Event{Item: Item{Key: []byte("/22")}})
+	b.Emit(Event{Item: Item{Key: NewKey("22")}})
 
 	select {
 	case <-w.Done():
@@ -177,7 +177,7 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 
 	// emit enough events to create a backlog
 	for i := 0; i < queueSize*2; i++ {
-		b.Emit(Event{Item: Item{Key: []byte{Separator}}})
+		b.Emit(Event{Item: Item{Key: NewKey("")}})
 	}
 
 	select {
@@ -192,7 +192,7 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 	// advance well past the backlog grace period, but not past the creation grace period
 	clock.Advance(backlogGracePeriod * 2)
 
-	b.Emit(Event{Item: Item{Key: []byte{Separator}}})
+	b.Emit(Event{Item: Item{Key: NewKey("")}})
 
 	select {
 	case <-w.Done():
@@ -203,7 +203,7 @@ func TestWatcherCreationGracePeriod(t *testing.T) {
 	// advance well past creation grace period
 	clock.Advance(creationGracePeriod)
 
-	b.Emit(Event{Item: Item{Key: []byte{Separator}}})
+	b.Emit(Event{Item: Item{Key: NewKey("")}})
 	select {
 	case <-w.Done():
 	default:
@@ -239,33 +239,33 @@ func TestWatcherClose(t *testing.T) {
 // TestRemoveRedundantPrefixes removes redundant prefixes
 func TestRemoveRedundantPrefixes(t *testing.T) {
 	type tc struct {
-		in  [][]byte
-		out [][]byte
+		in  []Key
+		out []Key
 	}
 	tcs := []tc{
 		{
-			in:  [][]byte{},
-			out: [][]byte{},
+			in:  []Key{},
+			out: []Key{},
 		},
 		{
-			in:  [][]byte{[]byte("/a")},
-			out: [][]byte{[]byte("/a")},
+			in:  []Key{NewKey("a")},
+			out: []Key{NewKey("a")},
 		},
 		{
-			in:  [][]byte{[]byte("/a"), []byte("/")},
-			out: [][]byte{[]byte("/")},
+			in:  []Key{NewKey("a"), NewKey("")},
+			out: []Key{NewKey("")},
 		},
 		{
-			in:  [][]byte{[]byte("/b"), []byte("/a")},
-			out: [][]byte{[]byte("/a"), []byte("/b")},
+			in:  []Key{NewKey("b"), NewKey("a")},
+			out: []Key{NewKey("a"), NewKey("b")},
 		},
 		{
-			in:  [][]byte{[]byte("/a/b"), []byte("/a"), []byte("/a/b/c"), []byte("/d")},
-			out: [][]byte{[]byte("/a"), []byte("/d")},
+			in:  []Key{NewKey("a", "b"), NewKey("a"), NewKey("a", "b", "c"), NewKey("d")},
+			out: []Key{NewKey("a"), NewKey("d")},
 		},
 	}
 	for _, tc := range tcs {
-		require.Empty(t, cmp.Diff(RemoveRedundantPrefixes(tc.in), tc.out))
+		require.Empty(t, cmp.Diff(RemoveRedundantPrefixes(tc.in), tc.out, cmp.AllowUnexported(Key{})))
 	}
 }
 
@@ -279,7 +279,7 @@ func TestWatcherMulti(t *testing.T) {
 	defer b.Close()
 	b.SetInit()
 
-	w, err := b.NewWatcher(ctx, Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/b")}})
+	w, err := b.NewWatcher(ctx, Watch{Prefixes: []Key{NewKey("a"), NewKey("a", "b")}})
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -290,11 +290,11 @@ func TestWatcherMulti(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Emit(Event{Item: Item{Key: []byte("/a/b/c")}})
+	b.Emit(Event{Item: Item{Key: NewKey("a", "b", "c")}})
 
 	select {
 	case e := <-w.Events():
-		require.Equal(t, []byte("/a/b/c"), e.Item.Key)
+		require.Equal(t, NewKey("a", "b", "c"), e.Item.Key)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -322,7 +322,7 @@ func TestWatcherReset(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Emit(Event{Item: Item{Key: []byte("/1")}})
+	b.Emit(Event{Item: Item{Key: NewKey("1")}})
 	b.Clear()
 
 	// make sure watcher has been closed
@@ -343,11 +343,11 @@ func TestWatcherReset(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	b.Emit(Event{Item: Item{Key: []byte("/2")}})
+	b.Emit(Event{Item: Item{Key: NewKey("2")}})
 
 	select {
 	case e := <-w2.Events():
-		require.Equal(t, []byte("/2"), e.Item.Key)
+		require.Equal(t, NewKey("2"), e.Item.Key)
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("Timeout waiting for event.")
 	}
@@ -358,10 +358,10 @@ func TestWatcherTree(t *testing.T) {
 	wt := newWatcherTree()
 	require.False(t, wt.rm(nil))
 
-	w1 := &BufferWatcher{Watch: Watch{Prefixes: [][]byte{[]byte("/a"), []byte("/a/a1"), []byte("/c")}}}
+	w1 := &BufferWatcher{Watch: Watch{Prefixes: []Key{NewKey("a"), NewKey("a", "a1"), NewKey("c")}}}
 	require.False(t, wt.rm(w1))
 
-	w2 := &BufferWatcher{Watch: Watch{Prefixes: [][]byte{[]byte("/a")}}}
+	w2 := &BufferWatcher{Watch: Watch{Prefixes: []Key{NewKey("a")}}}
 
 	wt.add(w1)
 	wt.add(w2)

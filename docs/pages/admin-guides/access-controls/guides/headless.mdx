@@ -25,17 +25,17 @@ For example:
 
 ## Prerequisites
 
-- A v12.2+ Teleport cluster with WebAuthn configured.
+- A Teleport cluster with WebAuthn configured.
   See the [Second Factor: WebAuthn](./webauthn.mdx) guide.
 - WebAuthn hardware device, such as YubiKey.
-- Machines for Headless WebAuthn activities have [Linux](../../../installation.mdx), [macOS](../../../installation.mdx) or [Windows](../../../installation.mdx) `tsh` binary v12.2+ installed.
+- Machines for Headless WebAuthn activities have [Linux](../../../installation.mdx), [macOS](../../../installation.mdx) or [Windows](../../../installation.mdx) `tsh` binary installed.
 - Machines used to approve Headless WebAuthn requests have a Web browser with [WebAuthn support](
-  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary v12.2+ installed.
+  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary installed.
 - Optional: Teleport Connect v13.3.1+ for [seamless Headless WebAuthn approval](#optional-teleport-connect).
 
 ## Step 1/3. Configuration
 
-A v12.2+ Teleport cluster capable of WebAuthn is automatically capable of
+A Teleport cluster capable of WebAuthn is automatically capable of
 Headless WebAuthn without any additional configuration.
 
 <Details title="Optional: make Headless WebAuthn the default auth connector">
@@ -99,14 +99,6 @@ $ tctl create -f cap.yaml
 </Details>
 
 ## Step 2/3. Initiate Headless WebAuthn
-
-First open a terminal on the remote machine and confirm the `tsh` binary
-is v12.2+ with `tsh version`.
-
-```code
-$ tsh version
-Teleport v(=teleport.version=) git: go(=teleport.golang=)
-```
 
 Run a headless `tsh` command with the `--headless` flag. This will initiate
 headless authentication, printing a URL and `tsh` command.

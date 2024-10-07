@@ -105,6 +105,7 @@ import eks from './assets/eks.svg';
 import elastic from './assets/elastic.svg';
 import emailDark from './assets/email-dark.svg';
 import emailLight from './assets/email-light.svg';
+import entraid from './assets/entra-id.svg';
 import eventbrite from './assets/eventbrite.svg';
 import excalidraw from './assets/excalidraw.svg';
 import figma from './assets/figma.svg';
@@ -283,6 +284,8 @@ import vercelLight from './assets/vercel-light.svg';
 import weavegitops from './assets/weavegitops.svg';
 import windowsDark from './assets/windows-dark.svg';
 import windowsLight from './assets/windows-light.svg';
+import wizDark from './assets/wiz-dark.svg';
+import wizLight from './assets/wiz-light.svg';
 import workshopDark from './assets/workshop-dark.svg';
 import workshopLight from './assets/workshop-light.svg';
 import youtube from './assets/youtube.svg';
@@ -382,6 +385,7 @@ export {
   elastic,
   emailDark,
   emailLight,
+  entraid,
   eventbrite,
   excalidraw,
   figma,
@@ -560,6 +564,8 @@ export {
   weavegitops,
   windowsDark,
   windowsLight,
+  wizDark,
+  wizLight,
   workshopDark,
   workshopLight,
   youtube,

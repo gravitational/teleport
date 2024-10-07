@@ -24,6 +24,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
+	authntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 )
 
 // AssertDeviceClientStream is the client-side device assertion stream.
@@ -77,12 +78,14 @@ func (c *Ceremony) Run(ctx context.Context, stream AssertDeviceClientStream) err
 	devices := &devicesClientAdapter{
 		stream: stream,
 	}
-	certs := &devicepb.UserCertificates{} // required but unused
 
 	// Implement Assertion in terms of Authentication, so we borrow both the
 	// Secure Enclave and TPM branches from it.
 	// TODO(codingllama): Refactor so we don't need so many adapters?
-	_, err := newAuthn().Run(ctx, devices, certs)
+	_, err := newAuthn().Run(ctx, &authntypes.CeremonyRunParams{
+		DevicesClient: devices,
+		Certs:         &devicepb.UserCertificates{}, // required but not used.
+	})
 	return trace.Wrap(err)
 }
 

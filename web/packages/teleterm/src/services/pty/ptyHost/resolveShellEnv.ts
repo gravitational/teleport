@@ -97,7 +97,8 @@ async function resolveUnixShellEnv(
     const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
     // When bash is run with -c, it is considered a non-interactive shell, and it does not read ~/.bashrc, unless is -i specified.
     // https://unix.stackexchange.com/questions/277312/is-the-shell-created-by-bash-i-c-command-interactive
-    const shellArgs = shell === '/bin/tcsh' ? ['-ic'] : ['-ilc'];
+    const shellArgs =
+      shell === '/bin/tcsh' || shell === '/bin/csh' ? ['-ic'] : ['-ilc'];
 
     logger.info(`Reading shell ${shell} ${shellArgs} ${command}`);
 

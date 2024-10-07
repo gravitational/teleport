@@ -17,9 +17,9 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 
-import { CSSObject } from 'styled-components';
+import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
 
 import {
   space,
@@ -62,6 +62,11 @@ export type ButtonProps<E extends React.ElementType> =
        * button labels.
        */
       inputAlignment?: boolean;
+
+      /**
+       * If set to true, renders a button with the smallest horizontal paddings.
+       */
+      compact?: boolean;
 
       /**
        * Specifies the case transform of the button text. Default is no
@@ -288,6 +293,9 @@ const buttonPalette = <E extends React.ElementType>({
 const horizontalPadding = <E extends React.ElementType>(
   props: ButtonProps<E>
 ) => {
+  if (props.compact) {
+    return 4;
+  }
   if (props.inputAlignment) {
     return 16;
   }
@@ -352,7 +360,10 @@ const block = props =>
 const textTransform = props =>
   props.textTransform ? { textTransform: props.textTransform } : null;
 
-const StyledButton = styled.button`
+const StyledButton = styled.button.withConfig({
+  shouldForwardProp: (prop, target) =>
+    !['compact'].includes(prop) && defaultValidatorFn(prop, target),
+})`
   line-height: 1.5;
   margin: 0;
   display: inline-flex;

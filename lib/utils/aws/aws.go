@@ -21,7 +21,10 @@ package aws
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/textproto"
 	"sort"
@@ -33,7 +36,6 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -68,6 +70,11 @@ const (
 	AmzJSON1_0 = "application/x-amz-json-1.0"
 	// AmzJSON1_1 is an AWS Content-Type header that indicates the media type is JSON.
 	AmzJSON1_1 = "application/x-amz-json-1.1"
+
+	// MaxRoleSessionNameLength is the maximum length of the role session name
+	// used by the AssumeRole call.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	MaxRoleSessionNameLength = 64
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -249,7 +256,7 @@ func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 	for _, roleARN := range arns {
 		parsed, err := ParseRoleARN(roleARN)
 		if err != nil {
-			logrus.Warnf("skipping invalid AWS role ARN: %v", err)
+			slog.WarnContext(context.Background(), "Skipping invalid AWS role ARN.", "error", err)
 			continue
 		}
 		if accountID != "" && parsed.AccountID != accountID {
@@ -483,4 +490,31 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 		AccountID: accountID,
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
 	}.String()
+}
+
+// MaybeHashRoleSessionName truncates the role session name and adds a hash
+// when the original role session name is greater than AWS character limit
+// (64).
+func MaybeHashRoleSessionName(roleSessionName string) (ret string) {
+	if len(roleSessionName) <= MaxRoleSessionNameLength {
+		return roleSessionName
+	}
+
+	const hashLen = 16
+	hash := sha1.New()
+	hash.Write([]byte(roleSessionName))
+	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
+
+	// "1" for the delimiter.
+	keepPrefixIndex := MaxRoleSessionNameLength - len(hex) - 1
+
+	// Sanity check. This should never happen since hash length and
+	// MaxRoleSessionNameLength are both constant.
+	if keepPrefixIndex < 0 {
+		keepPrefixIndex = 0
+	}
+
+	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
+	slog.DebugContext(context.Background(), "AWS role session name is too long. Using a hash instead.", "hashed", ret, "original", roleSessionName)
+	return ret
 }

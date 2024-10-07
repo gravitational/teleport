@@ -57,18 +57,22 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
     const labelTypography = size === 'small' ? 'body2' : 'body1';
     const helperTypography = size === 'small' ? 'body3' : 'body2';
     return (
-      <Box mb={3} {...styles}>
+      <Box mb={3} lineHeight={0} {...styles}>
         <StyledLabel disabled={disabled}>
           <Flex flexDirection="row" gap={2}>
-            <CheckboxInput
-              size={size}
-              ref={ref}
-              checked={checked}
-              defaultChecked={defaultChecked}
-              disabled={disabled}
-              name={name}
-              onChange={onChange}
-            />
+            {/* Nudge the small-size checkbox to better align with the
+                label. */}
+            <Box mt={size === 'small' ? '2px' : '0px'}>
+              <CheckboxInput
+                size={size}
+                ref={ref}
+                checked={checked}
+                defaultChecked={defaultChecked}
+                disabled={disabled}
+                name={name}
+                onChange={onChange}
+              />
+            </Box>
             <Box>
               <Text typography={labelTypography} color={labelColor}>
                 {label}

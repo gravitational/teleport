@@ -20,12 +20,15 @@ package testenv
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/x509"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -33,6 +36,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
@@ -206,4 +210,23 @@ func CreateEnrolledDevice(deviceID string, d FakeDevice) (*devicepb.Device, *ecd
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
 	}
 	return dev, pub, nil
+}
+
+// NewSelfSignedSSHCert returns a self-signed SSH certificate in authorized-keys
+// format, intended to be used as the user SSH certificate in authn tests.
+func NewSelfSignedSSHCert() ([]byte, crypto.Signer, error) {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshCert := &ssh.Certificate{Key: sshSigner.PublicKey(), SignatureKey: sshSigner.PublicKey(), Serial: 1, CertType: ssh.UserCert}
+	if err := sshCert.SignCert(rand.Reader, sshSigner); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshCert)
+	return sshAuthorizedKey, signer, nil
 }
