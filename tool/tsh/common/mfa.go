@@ -350,8 +350,8 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		// of finding out whether it is a Windows prompt or not).
 		const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
 		const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
+		wanwin.SetPromptPlatformMessage(registeredMsg)
 		defer wanwin.ResetPromptPlatformMessage()
-		wanwin.PromptPlatformMessage = registeredMsg
 
 		// Prompt for authentication.
 		// Does nothing if no challenges were issued (aka user has no devices).
@@ -371,7 +371,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		}
 
 		// Prompt for registration.
-		wanwin.PromptPlatformMessage = newMsg
+		wanwin.SetPromptPlatformMessage(newMsg)
 		registerResp, registerCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, registerChallenge)
 		if err != nil {
 			return trace.Wrap(err)
