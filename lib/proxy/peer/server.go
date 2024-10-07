@@ -22,13 +22,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"log/slog"
 	"math"
 	"net"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -49,7 +49,7 @@ const (
 
 // ServerConfig configures a Server instance.
 type ServerConfig struct {
-	Log           logrus.FieldLogger
+	Log           *slog.Logger
 	ClusterDialer ClusterDialer
 
 	CipherSuites   []uint16
@@ -64,9 +64,9 @@ type ServerConfig struct {
 // checkAndSetDefaults checks and sets default values
 func (c *ServerConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.StandardLogger()
+		c.Log = slog.Default()
 	}
-	c.Log = c.Log.WithField(
+	c.Log = c.Log.With(
 		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
@@ -94,7 +94,7 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 
 // Server is a proxy service server using grpc and tls.
 type Server struct {
-	log           logrus.FieldLogger
+	log           *slog.Logger
 	clusterDialer ClusterDialer
 	server        *grpc.Server
 }

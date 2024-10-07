@@ -4710,7 +4710,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		peerAddrString = peerAddr.String()
 
 		peerServer, err = peer.NewServer(peer.ServerConfig{
-			Log:           process.log,
+			Log:           process.logger,
 			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
 			CipherSuites:  cfg.CipherSuites,
 			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
