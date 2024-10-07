@@ -333,7 +333,7 @@ func IsValidUnixUser(u string) bool {
 	// '\t', etc.). Note that using a slash ('/') may break the default algorithm for the
 	// definition of the user's home directory.
 
-	const maxUsernameLen = 32
+	const maxUsernameLen = 128
 	if len(u) > maxUsernameLen || len(u) == 0 || u[0] == '-' {
 		return false
 	}
