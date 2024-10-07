@@ -484,32 +484,47 @@ func filterSVIDRequests(
 	return filtered
 }
 
-func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error) {
-	// The zero value of the attestation is equivalent to no attestation.
-	var att workloadattest.Attestation
-
+func (s *SPIFFEWorkloadAPIService) authenticateClient(
+	ctx context.Context,
+) (*slog.Logger, workloadattest.Attestation, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
-		return nil, att, trace.BadParameter("peer not found in context")
+		return nil, workloadattest.Attestation{}, trace.BadParameter("peer not found in context")
 	}
 	log := s.log
-	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
 
-	if ok && authInfo.Creds != nil {
-		var err error
-		att, err = s.attestor.Attest(ctx, authInfo.Creds.PID)
-		if err != nil {
-			return nil, att, trace.Wrap(err, "performing workload attestation")
-		}
-		log = log.With(
-			"workload", slog.LogValuer(att),
-		)
-	}
 	if p.Addr.String() != "" {
 		log = log.With(
 			slog.String("remote_addr", p.Addr.String()),
 		)
 	}
+
+	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+	if !ok || authInfo.Creds == nil || authInfo.Creds.PID == 0 {
+		// This could be innocent - for example, if they are connecting via TCP
+		// we don't expect to see any UDS credentials.
+		//
+		// This can also occur if the caller is calling from another process
+		// namespace.
+		log.DebugContext(ctx, "Did not detect UDS credentials, will not complete workload attestation")
+		return log, workloadattest.Attestation{}, nil
+	}
+
+	att, err := s.attestor.Attest(ctx, authInfo.Creds.PID)
+	if err != nil {
+		// Fail softly as there may be SVIDs configured that don't require any
+		// workload attestation and we should still issue those.
+		log.ErrorContext(
+			ctx,
+			"Workload attestation failed",
+			"error", err,
+			"pid", authInfo.Creds.PID,
+		)
+		return log, workloadattest.Attestation{}, nil
+	}
+	log = log.With(
+		"workload", slog.LogValuer(att),
+	)
 
 	return log, att, nil
 }
