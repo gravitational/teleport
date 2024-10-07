@@ -18,7 +18,6 @@ package generic
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,7 +36,7 @@ type ServiceWrapperConfig[T types.ResourceMetadata] struct {
 	// PageLimit
 	PageLimit uint
 	// BackendPrefix used when constructing the [backend.Item.Key].
-	BackendPrefix string
+	BackendPrefix backend.Key
 	// MarshlFunc converts the resource to bytes for persistence.
 	MarshalFunc MarshalFunc[T]
 	// UnmarshalFunc converts the bytes read from the backend to the resource.
@@ -110,7 +109,7 @@ func (s ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
 			backend:                     s.service.backend,
 			resourceKind:                s.service.resourceKind,
 			pageLimit:                   s.service.pageLimit,
-			backendPrefix:               strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
+			backendPrefix:               s.service.backendPrefix.AppendKey(backend.NewKey(parts...)),
 			marshalFunc:                 s.service.marshalFunc,
 			unmarshalFunc:               s.service.unmarshalFunc,
 			validateFunc:                s.service.validateFunc,
@@ -158,7 +157,7 @@ func (s ServiceWrapper[T]) DeleteResource(ctx context.Context, name string) erro
 
 // DeleteAllResources removes all resources.
 func (s ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
-	startKey := backend.ExactKey(s.service.backendPrefix)
+	startKey := s.service.backendPrefix.ExactKey()
 	return trace.Wrap(s.service.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 

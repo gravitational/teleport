@@ -190,7 +190,7 @@ func TestEvents(t *testing.T) {
 				return
 			}
 		case err := <-chErr:
-			t.Fatalf("Received unexpected error from error channel: %v", err)
+			require.NoError(t, err)
 			return
 		case <-time.After(2 * time.Second):
 			t.Fatalf("No events received within deadline")
@@ -313,7 +313,7 @@ func TestUpdatePage(t *testing.T) {
 				return
 			}
 		case err := <-chErr:
-			t.Fatalf("Received unexpected error from error channel: %v", err)
+			require.NoError(t, err)
 			return
 		case <-time.After(2 * time.Second):
 			t.Fatalf("No events received within deadline")
@@ -340,7 +340,7 @@ func TestUpdatePage(t *testing.T) {
 				return
 			}
 		case err := <-chErr:
-			t.Fatalf("Received unexpected error from error channel: %v", err)
+			require.NoError(t, err)
 			return
 		case <-time.After(2 * time.Second):
 			t.Fatalf("No events received within deadline")
@@ -367,7 +367,7 @@ func TestUpdatePage(t *testing.T) {
 				return
 			}
 		case err := <-chErr:
-			t.Fatalf("Received unexpected error from error channel: %v", err)
+			require.NoError(t, err)
 			return
 		case <-time.After(2 * time.Second):
 			t.Fatalf("No events received within deadline")
@@ -591,7 +591,7 @@ func TestEventsWithWindowSkip(t *testing.T) {
 				return
 			}
 		case err := <-chErr:
-			t.Fatalf("Received unexpected error from error channel: %v", err)
+			require.NoError(t, err)
 			return
 		case <-time.After(2 * time.Second):
 			t.Fatalf("No events received within deadline")
@@ -607,7 +607,7 @@ func TestEventsWithWindowSkip(t *testing.T) {
 				return
 			}
 		case err := <-chErr:
-			t.Fatalf("Received unexpected error from error channel: %v", err)
+			require.NoError(t, err)
 			return
 		case <-time.After(2 * time.Second):
 			t.Fatalf("No events received within deadline")

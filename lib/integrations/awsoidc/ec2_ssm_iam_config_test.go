@@ -209,7 +209,7 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockEC2SSMIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -228,7 +228,7 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 }
 
 type mockEC2SSMIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 	existingDocs  map[string][]ssmtypes.Tag
 }

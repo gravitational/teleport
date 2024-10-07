@@ -39,6 +39,7 @@ Optional:
 - `google_service_account_uri` (String) GoogleServiceAccountURI is a path to a google service account uri.
 - `issuer_url` (String) IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
 - `max_age` (String)
+- `mfa` (Attributes) MFASettings contains settings to enable SSO MFA checks through this auth connector. (see [below for nested schema](#nested-schema-for-specmfa))
 - `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
 - `provider` (String) Provider is the external identity provider.
 - `redirect_url` (List of String)
@@ -60,6 +61,17 @@ Optional:
 
 - `allowed_https_hostnames` (List of String) a list of hostnames allowed for https client redirect URLs
 - `insecure_allowed_cidr_ranges` (List of String) a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+
+
+### Nested Schema for `spec.mfa`
+
+Optional:
+
+- `acr_values` (String) AcrValues are Authentication Context Class Reference values. The meaning of the ACR value is context-specific and varies for identity providers. Some identity providers support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
+- `client_id` (String) ClientID is the OIDC OAuth app client ID.
+- `client_secret` (String) ClientSecret is the OIDC OAuth app client secret.
+- `enabled` (Boolean) Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.
+- `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
 
 
 

@@ -24,7 +24,7 @@ import (
 	"io"
 	"math/rand"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -62,7 +62,7 @@ func TestMigrateProcessDataObjects(t *testing.T) {
 			Logger:          utils.NewLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
-			CheckpointPath:  path.Join(t.TempDir(), "migration-tests.json"),
+			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
 		},
 	}
 	err := mt.ProcessDataObjects(ctx, &exportInfo{
@@ -133,7 +133,7 @@ func TestLargeEventsParse(t *testing.T) {
 			Logger:          utils.NewLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
-			CheckpointPath:  path.Join(t.TempDir(), "migration-tests.json"),
+			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
 		},
 	}
 	err := mt.ProcessDataObjects(ctx, &exportInfo{
@@ -223,7 +223,7 @@ func TestMigrationCheckpoint(t *testing.T) {
 		Logger:          utils.NewLoggerForTests(),
 		NoOfEmitWorkers: noOfWorkers,
 		bufferSize:      noOfWorkers * 5,
-		CheckpointPath:  path.Join(t.TempDir(), "migration-tests.json"),
+		CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
 	}
 
 	t.Run("no migration checkpoint, emit every event", func(t *testing.T) {

@@ -2131,32 +2131,28 @@ func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
 	return a.authServer.DeleteProxy(ctx, name)
 }
 
-func (a *ServerWithRoles) UpsertReverseTunnel(r types.ReverseTunnel) error {
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
+func (a *ServerWithRoles) UpsertReverseTunnel(ctx context.Context, r types.ReverseTunnel) error {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertReverseTunnel(r)
+	return a.authServer.UpsertReverseTunnel(ctx, r)
 }
 
-func (a *ServerWithRoles) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
-	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetReverseTunnel(name, opts...)
-}
-
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnels(ctx, opts...)
+	return a.authServer.GetReverseTunnels(ctx)
 }
 
-func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
+func (a *ServerWithRoles) DeleteReverseTunnel(ctx context.Context, domainName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteReverseTunnel(domainName)
+	return a.authServer.DeleteReverseTunnel(ctx, domainName)
 }
 
 func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
@@ -4674,6 +4670,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	if err := newAuthPref.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 		FIPS:          a.authServer.fips,
 		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
+		Cloud:         modules.GetModules().Features().Cloud,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

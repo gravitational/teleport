@@ -39,7 +39,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -75,6 +74,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1499,7 +1499,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...mfa.PromptOpt) (*KeyRing, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*KeyRing, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -1513,7 +1513,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
 	return keyRing, trace.Wrap(err)
 }
 
@@ -3674,10 +3674,10 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 	}
 
 	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
-		SSHLogin:  sshLogin,
-		User:      tc.Username,
-		Password:  password,
-		PromptMFA: tc.NewMFAPrompt(),
+		SSHLogin:             sshLogin,
+		User:                 tc.Username,
+		Password:             password,
+		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
 	return clt, session, trace.Wrap(err)
 }
@@ -3919,77 +3919,11 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, secondFactor constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
-	var err error
-	var response *authclient.SSHLoginResponse
-
-	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
-	// (with a nop MFA challenge if no 2nd factor is required). That way we can
-	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		response, err = tc.directLogin(ctx, secondFactor, keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-		response, err = tc.mfaLocalLogin(ctx, keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
-	}
-
-	// Ignore username returned from proxy
-	response.Username = ""
-	return response, nil
-}
-
-// directLogin asks for a password + OTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+// localLogin asks for a password and performs an MFA ceremony.
+func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/directLogin",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	password, err := tc.AskPassword(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Only ask for a second factor if it's enabled.
-	var otpToken string
-	if secondFactorType == constants.SecondFactorOTP {
-		otpToken, err = tc.AskOTP(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sshLogin, err := tc.NewSSHLogin(keyRing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
-		SSHLogin: sshLogin,
-		User:     tc.Username,
-		Password: password,
-		OTPToken: otpToken,
-	})
-
-	return response, trace.Wrap(err)
-}
-
-// mfaLocalLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/mfaLocalLogin",
+		"teleportClient/localLogin",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -4005,12 +3939,11 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:  sshLogin,
-		User:      tc.Username,
-		Password:  password,
-		PromptMFA: tc.NewMFAPrompt(),
+		SSHLogin:             sshLogin,
+		User:                 tc.Username,
+		Password:             password,
+		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
-
 	return response, trace.Wrap(err)
 }
 
@@ -4057,58 +3990,40 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 // SSOLoginFunc is a function used in tests to mock SSO logins.
 type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.SSHLoginResponse, error)
 
-// TODO(atburke): DELETE in v17.0.0
-func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
-	switch proxyVersion.Major {
-	case 15:
-		return !proxyVersion.LessThan(*semver.New("15.2.5"))
-	case 14:
-		return !proxyVersion.LessThan(*semver.New("14.3.17"))
-	case 13:
-		return !proxyVersion.LessThan(*semver.New("13.4.22"))
-	default:
-		return proxyVersion.Major > 15
-	}
-}
-
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success
 // page and the resulting login session will be captured and returned.
-func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, protocol string) SSHLoginFunc {
+func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
 	return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
 		if tc.MockSSOLogin != nil {
 			// sso login response is being mocked for testing purposes
-			return tc.MockSSOLogin(ctx, connectorID, keyRing, protocol)
+			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
 		}
 
-		sshLogin, err := tc.NewSSHLogin(keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+		// Set SAMLSingleLogoutEnabled from server settings.
 		pr, err := tc.Ping(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		proxyVersion := semver.New(pr.ServerVersion)
-
-		if protocol == constants.SAML && pr.Auth.SAML != nil {
+		if connectorType == constants.SAML && pr.Auth.SAML != nil {
 			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
 		}
 
-		// ask the CA (via proxy) to sign our public key:
-		response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-			SSHLogin:                      sshLogin,
-			ConnectorID:                   connectorID,
-			ConnectorName:                 connectorName,
-			Protocol:                      protocol,
-			BindAddr:                      tc.BindAddr,
-			CallbackAddr:                  tc.CallbackAddr,
-			Browser:                       tc.Browser,
-			PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-			ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-		}, nil)
-		return response, trace.Wrap(err)
+		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer rd.Close()
+
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
+
+		resp, err := ssoCeremony.Run(ctx)
+		return resp, trace.Wrap(err)
 	}
 }
 
@@ -4135,7 +4050,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
@@ -5184,10 +5099,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		}
 	}
 
-	chal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
-		},
+	mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
@@ -5196,11 +5108,6 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	resp, err := tc.PromptMFA(ctx, chal)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, mfaResp)
 	return trace.Wrap(err)
 }

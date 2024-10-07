@@ -554,7 +554,7 @@ func (f *Forwarder) handleDeleteCustomResourceCollection(w http.ResponseWriter, 
 	kubeUsers, kubeGroups := fillDefaultKubePrincipalDetails(allowedKubeGroups, allowedKubeUsers, sess.User.GetName())
 	sess.kubeUsers = utils.StringsSet(kubeUsers)
 	sess.kubeGroups = utils.StringsSet(kubeGroups)
-	if err := setupImpersonationHeaders(f.log, sess, req.Header); err != nil {
+	if err := setupImpersonationHeaders(sess, req.Header); err != nil {
 		return 0, trace.Wrap(err)
 	}
 

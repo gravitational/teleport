@@ -142,7 +142,11 @@ func loadConfig(configPath string) (*Bot, *Config, error) {
 
 	fmt.Printf(" - Checking application %v status...\n", c.MSAPI.TeamsAppID)
 
-	b, err := NewBot(c.MSAPI, "local", "")
+	log, err := c.Log.NewSLogLogger()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	b, err := NewBot(c.MSAPI, "local", "", log)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

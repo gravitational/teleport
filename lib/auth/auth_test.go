@@ -1305,7 +1305,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "test")))
 	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "test")))
 
-	err = s.a.createReverseTunnel(tc)
+	err = s.a.createReverseTunnel(ctx, tc)
 	require.NoError(t, err)
 
 	// test create event for switch case: when tc exists but enabled is false
