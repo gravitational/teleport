@@ -506,6 +506,10 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 		//
 		// This can also occur if the caller is calling from another process
 		// namespace.
+		//
+		// TODO(noah): We should probably consider skipping all of this code
+		// if we know that the listener is TCP and not UDS, so we can make this
+		// a bit noisier.
 		log.DebugContext(ctx, "Did not detect UDS credentials, will not complete workload attestation")
 		return log, workloadattest.Attestation{}, nil
 	}
