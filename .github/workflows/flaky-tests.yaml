@@ -2,18 +2,42 @@ name: Flaky Tests Detector
 run-name: Flaky Tests Detector - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
+  merge_group:
   pull_request:
-    paths:
-      - '**.go'
-      - '.github/workflows/flaky-tests.yaml'
 
 permissions:
   pull-requests: read
   issues: read
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '**.go'
+              - '.github/workflows/flaky-tests.yaml'
+
   test:
     name: Flaky Tests Detector
+    needs: changes
+    # We don't run the flaky test detector in the merge queue because
+    # it computes which tests were changed, so the PR run that succeeded
+    # to put the PR in the queue already check for flakiness.
+    if: ${{ needs.changes.outputs.changed == 'true' && github.event_name != 'merge_group' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
