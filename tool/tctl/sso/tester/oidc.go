@@ -85,7 +85,7 @@ func oidcTest(c *authclient.Client, connector types.OIDCConnector) (*AuthRequest
 		return &client.SSOLoginConsoleResponse{RedirectURL: request.RedirectURL}, nil
 	}
 
-	requestInfo.Config = &client.RedirectorConfig{SSOLoginConsoleRequestFn: makeRequest}
+	requestInfo.SSOLoginConsoleRequestFn = makeRequest
 	return requestInfo, nil
 }
 
