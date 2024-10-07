@@ -65,13 +65,13 @@ type AutoUpdateService interface {
 	DeleteAutoUpdateVersion(ctx context.Context) error
 
 	// CreateAutoUpdateAgentPlan creates the AutoUpdateAgentPlan singleton resource.
-	CreateAutoUpdateAgentPlan(ctx context.Context, config *autoupdate.AutoUpdateAgentPlan) (*autoupdate.AutoUpdateAgentPlan, error)
+	CreateAutoUpdateAgentPlan(ctx context.Context, plan *autoupdate.AutoUpdateAgentPlan) (*autoupdate.AutoUpdateAgentPlan, error)
 
 	// UpdateAutoUpdateAgentPlan updates the AutoUpdateAgentPlan singleton resource.
-	UpdateAutoUpdateAgentPlan(ctx context.Context, config *autoupdate.AutoUpdateAgentPlan) (*autoupdate.AutoUpdateAgentPlan, error)
+	UpdateAutoUpdateAgentPlan(ctx context.Context, plan *autoupdate.AutoUpdateAgentPlan) (*autoupdate.AutoUpdateAgentPlan, error)
 
 	// UpsertAutoUpdateAgentPlan sets the AutoUpdateAgentPlan singleton resource.
-	UpsertAutoUpdateAgentPlan(ctx context.Context, c *autoupdate.AutoUpdateAgentPlan) (*autoupdate.AutoUpdateAgentPlan, error)
+	UpsertAutoUpdateAgentPlan(ctx context.Context, plan *autoupdate.AutoUpdateAgentPlan) (*autoupdate.AutoUpdateAgentPlan, error)
 
 	// DeleteAutoUpdateAgentPlan deletes the AutoUpdateAgentPlan singleton resource.
 	DeleteAutoUpdateAgentPlan(ctx context.Context) error

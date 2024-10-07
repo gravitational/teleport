@@ -1358,8 +1358,8 @@ var _ executor[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter] = autoUpd
 type autoUpdateAgentPlanExecutor struct{}
 
 func (autoUpdateAgentPlanExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateAgentPlan, error) {
-	version, err := cache.AutoUpdateService.GetAutoUpdateAgentPlan(ctx)
-	return []*autoupdate.AutoUpdateAgentPlan{version}, trace.Wrap(err)
+	plan, err := cache.AutoUpdateService.GetAutoUpdateAgentPlan(ctx)
+	return []*autoupdate.AutoUpdateAgentPlan{plan}, trace.Wrap(err)
 }
 
 func (autoUpdateAgentPlanExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateAgentPlan) error {

@@ -72,7 +72,7 @@ func ValidateAutoUpdateVersion(v *autoupdate.AutoUpdateVersion) error {
 
 // NewAutoUpdateAgentPlan creates a new auto update version resource.
 func NewAutoUpdateAgentPlan(spec *autoupdate.AutoUpdateAgentPlanSpec) (*autoupdate.AutoUpdateAgentPlan, error) {
-	version := &autoupdate.AutoUpdateAgentPlan{
+	plan := &autoupdate.AutoUpdateAgentPlan{
 		Kind:    types.KindAutoUpdateAgentPlan,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -80,11 +80,11 @@ func NewAutoUpdateAgentPlan(spec *autoupdate.AutoUpdateAgentPlanSpec) (*autoupda
 		},
 		Spec: spec,
 	}
-	if err := ValidateAutoUpdateAgentPlan(version); err != nil {
+	if err := ValidateAutoUpdateAgentPlan(plan); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return version, nil
+	return plan, nil
 }
 
 // ValidateAutoUpdateAgentPlan checks that required parameters are set

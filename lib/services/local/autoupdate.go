@@ -84,7 +84,7 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentPlan],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentPlan],
 			ValidateFunc:  update.ValidateAutoUpdateAgentPlan,
-			KeyFunc: func(version *autoupdate.AutoUpdateAgentPlan) string {
+			KeyFunc: func(_ *autoupdate.AutoUpdateAgentPlan) string {
 				return types.MetaNameAutoUpdateAgentPlan
 			},
 		})
