@@ -57,9 +57,7 @@ func (m *mockLocksGetter) GetLock(ctx context.Context, name string) (types.Lock,
 func (m *mockLocksGetter) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	var locks []types.Lock
 	for _, target := range targets {
-		for _, lock := range m.targets[target.User] {
-			locks = append(locks, lock)
-		}
+		locks = append(locks, m.targets[target.User]...)
 	}
 	return locks, nil
 }
@@ -195,7 +193,7 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	membersGetter.members[acl11.GetName()] = []*accesslist.AccessListMember{acl11m1}
 
 	// After 'creating' the member that links acl6 to acl7, validation should fail as max depth is 11 (acl1 -> acl12).
-	hierarchy, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5, acl6, acl7, acl8, acl9, acl10, acl11, acl12}, membersGetter, locksGetter)
+	_, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5, acl6, acl7, acl8, acl9, acl10, acl11, acl12}, membersGetter, locksGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acl12.Spec.Title, acl11.Spec.Title, accesslist.MaxAllowedDepth))
 }

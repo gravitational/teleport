@@ -98,7 +98,7 @@ func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, mem
 
 	// Avoid non-deterministic order of processing here by iterating over the AccessLists instead of the Nodes map.
 	for _, al := range accessLists {
-		node, _ := h.Nodes[al.GetName()]
+		node := h.Nodes[al.GetName()]
 
 		for _, owner := range al.Spec.Owners {
 			if owner.MembershipKind != accesslist.MembershipKindList {
