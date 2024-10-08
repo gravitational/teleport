@@ -5599,6 +5599,8 @@ message SessionRecordingAccess {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Format is the format the session recording was accessed.
+  string Format = 4 [(gogoproto.jsontag) = "format"];
 }
 
 // KubeClusterMetadata contains common kubernetes cluster information.
