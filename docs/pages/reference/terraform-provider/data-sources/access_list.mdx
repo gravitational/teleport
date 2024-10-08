@@ -39,7 +39,7 @@ Required:
 Optional:
 
 - `description` (String) description is object description.
-- `expires` (String)
+- `expires` (String) expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) labels is a set of labels.
 - `namespace` (String) namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.
 - `revision` (String) revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.
@@ -70,7 +70,7 @@ Required:
 
 Optional:
 
-- `next_audit_date` (String)
+- `next_audit_date` (String) next_audit_date is when the next audit date should be done by.
 - `notifications` (Attributes) notifications is the configuration for notifying users. (see [below for nested schema](#nested-schema-for-specauditnotifications))
 
 ### Nested Schema for `spec.audit.recurrence`
@@ -88,7 +88,7 @@ Optional:
 
 Optional:
 
-- `start` (String)
+- `start` (String) start specifies when to start notifying users that the next audit date is coming up.
 
 
 

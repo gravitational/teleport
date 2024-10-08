@@ -45,13 +45,13 @@ resource "teleport_auth_preference" "example" {
 
 Optional:
 
-- `allow_headless` (Boolean)
-- `allow_local_auth` (Boolean)
-- `allow_passwordless` (Boolean)
+- `allow_headless` (Boolean) AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.
+- `allow_local_auth` (Boolean) AllowLocalAuth is true if local authentication is enabled.
+- `allow_passwordless` (Boolean) AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.
 - `connector_name` (String) ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.
 - `default_session_ttl` (String) DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.
 - `device_trust` (Attributes) DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise. (see [below for nested schema](#nested-schema-for-specdevice_trust))
-- `disconnect_expired_cert` (Boolean)
+- `disconnect_expired_cert` (Boolean) DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected
 - `hardware_key` (Attributes) HardwareKey are the settings for hardware key support. (see [below for nested schema](#nested-schema-for-spechardware_key))
 - `idp` (Attributes) IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise. (see [below for nested schema](#nested-schema-for-specidp))
 - `locking_mode` (String) LockingMode is the cluster-wide locking mode default.
@@ -100,7 +100,7 @@ Optional:
 
 Optional:
 
-- `enabled` (Boolean)
+- `enabled` (Boolean) Enabled is set to true if this option allows access to the Teleport SAML IdP.
 
 
 
