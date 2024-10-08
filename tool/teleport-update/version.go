@@ -42,9 +42,14 @@ const (
 	checksumHexLen = 64
 )
 
+// TeleportVersion manages the creation and removal of installations
+// of Teleport.
 type TeleportVersion struct {
-	VersionsDir    string
-	URLTemplate    string
+	// VersionsDir contains each installation, named by version.
+	VersionsDir string
+	// URLTemplate is the template for the URL to download Teleport from.
+	URLTemplate string
+	// DownloadClient is an HTTP client for downloading Teleport.
 	DownloadClient *http.Client
 }
 
