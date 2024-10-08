@@ -193,7 +193,7 @@ resource "google_storage_bucket_iam_binding" "binding" {
     bucket = google_storage_bucket.demo.name
     role = "roles/storage.admin"
     members = [
-    "principal://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.leaf_cluster.workload_identity_pool_id}/subject/${local.allow_spiffe_id}",
+        "principal://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.leaf_cluster.workload_identity_pool_id}/subject/${local.allow_spiffe_id}",
     ]
 }
 ```
