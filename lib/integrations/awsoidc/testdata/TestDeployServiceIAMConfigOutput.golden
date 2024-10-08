@@ -1,0 +1,105 @@
+"deployservice-iam" will perform the following actions:
+
+1. Create IAM role "taskrole" with a custom trust policy.
+CreateRole: {
+    "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "sts:AssumeRole",
+                "Principal": {
+                    "Service": "ecs-tasks.amazonaws.com"
+                }
+            }
+        ]
+    },
+    "RoleName": "taskrole",
+    "Description": "Used by Teleport Database Service deployed in Amazon ECS.",
+    "MaxSessionDuration": null,
+    "Path": null,
+    "PermissionsBoundary": null,
+    "Tags": [
+        {
+            "Key": "teleport.dev/cluster",
+            "Value": "mycluster"
+        },
+        {
+            "Key": "teleport.dev/integration",
+            "Value": "myintegration"
+        },
+        {
+            "Key": "teleport.dev/origin",
+            "Value": "integration_awsoidc"
+        }
+    ]
+}
+
+2. Attach an inline IAM policy named "taskrole" to IAM role "taskrole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "rds-db:connect",
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "rds:DescribeDBInstances",
+                    "rds:DescribeDBClusters"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents",
+                    "logs:CreateLogGroup"
+                ],
+                "Resource": "*"
+            }
+        ]
+    },
+    "PolicyName": "taskrole",
+    "RoleName": "taskrole"
+}
+
+3. Attach an inline IAM policy named "DeployService" to IAM role "integrationrole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "iam:PassRole",
+                "Resource": "arn:aws:iam::123456789012:role/taskrole"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ecs:DescribeClusters",
+                    "ecs:CreateCluster",
+                    "ecs:PutClusterCapacityProviders",
+                    "ecs:DescribeServices",
+                    "ecs:CreateService",
+                    "ecs:UpdateService",
+                    "ecs:ListServices",
+                    "ecs:RegisterTaskDefinition",
+                    "ecs:DescribeTaskDefinition",
+                    "ecs:DeregisterTaskDefinition",
+                    "ecs:TagResource",
+                    "ec2:DescribeSecurityGroups",
+                    "iam:CreateServiceLinkedRole"
+                ],
+                "Resource": "*"
+            }
+        ]
+    },
+    "PolicyName": "DeployService",
+    "RoleName": "integrationrole"
+}
+
