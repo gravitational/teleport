@@ -222,14 +222,6 @@ func getRouteToApp(
 		ClusterName: botIdentity.ClusterName,
 	}
 
-	// TODO (Joerger): DELETE IN v17.0.0
-	// TODO(noah): When this is deleted, we can begin to cache the routeToApp
-	// rather than regenerating this on each renew in the ApplicationTunnelSvc
-	routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, client, botIdentity.X509Cert.Subject.CommonName, routeToApp)
-	if err != nil {
-		return proto.RouteToApp{}, nil, trace.Wrap(err)
-	}
-
 	return routeToApp, app, nil
 }
 

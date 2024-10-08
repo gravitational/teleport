@@ -804,9 +804,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
-	// TODO(Joerger): DELETE IN 17.0.0
-	c.CheckSetPIVSlot()
-
 	if hk, err := c.GetHardwareKey(); err == nil && hk.PIVSlot != "" {
 		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
 			return trace.Wrap(err)
@@ -835,22 +832,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// CheckSetPIVSlot ensures that the PIVSlot and Hardwarekey.PIVSlot stay in sync so that
-// older versions of Teleport that do not know about Hardwarekey.PIVSlot are able to keep
-// using PIVSlot and newer versions of Teleport can rely solely on Hardwarekey.PIVSlot
-// without causing any service degradation.
-// TODO(Joerger): DELETE IN 17.0.0
-func (c *AuthPreferenceV2) CheckSetPIVSlot() {
-	if c.Spec.PIVSlot != "" {
-		if c.Spec.HardwareKey == nil {
-			c.Spec.HardwareKey = &HardwareKey{}
-		}
-		c.Spec.HardwareKey.PIVSlot = c.Spec.PIVSlot
-	} else if c.Spec.HardwareKey != nil && c.Spec.HardwareKey.PIVSlot != "" {
-		c.Spec.PIVSlot = c.Spec.HardwareKey.PIVSlot
-	}
 }
 
 // String represents a human readable version of authentication settings.

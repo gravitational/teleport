@@ -2088,12 +2088,8 @@ message AuthPreferenceSpecV2 {
   // Requires Teleport Enterprise.
   OktaOptions Okta = 17 [(gogoproto.jsontag) = "okta,omitempty"];
 
-  // TODO(Joerger): DELETE IN 17.0.0
-  // Deprecated, replaced by HardwareKey settings.
-  string PIVSlot = 18 [
-    (gogoproto.jsontag) = "piv_slot,omitempty",
-    deprecated = true
-  ];
+  reserved 18; // PIVSlot replaced by HardwareKey
+  reserved "PIVSlot";
 
   // HardwareKey are the settings for hardware key support.
   HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];

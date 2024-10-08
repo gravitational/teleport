@@ -1189,12 +1189,6 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 			return trace.Wrap(err)
 		}
 
-		// TODO (Joerger): DELETE IN 17.0.0
-		// Set LoadSecrets to true for requests from old proxies.
-		if a.hasBuiltinRole(types.RoleProxy) {
-			kind.LoadSecrets = true
-		}
-
 		// Allow reading Snowflake sessions to DB service.
 		if kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase) {
 			return nil
@@ -3208,64 +3202,38 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	appSessionID := req.RouteToApp.SessionID
+	var appSessionID string
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
-		if req.RouteToApp.SessionID == "" {
-			ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
-				NewWebSessionRequest: NewWebSessionRequest{
-					User:           req.Username,
-					LoginIP:        a.context.Identity.GetIdentity().LoginIP,
-					SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
-					Traits:         accessInfo.Traits,
-					Roles:          accessInfo.Roles,
-					AccessRequests: req.AccessRequests,
-					// App sessions created through generateUserCerts are securely contained
-					// to the Proxy and Auth roles, and thus should pass hardware key requirements
-					// through the "web_session" attestation. User's will be required to provide
-					// MFA instead.
-					AttestWebSession: true,
-				},
-				PublicAddr:        req.RouteToApp.PublicAddr,
-				ClusterName:       req.RouteToApp.ClusterName,
-				AWSRoleARN:        req.RouteToApp.AWSRoleARN,
-				AzureIdentity:     req.RouteToApp.AzureIdentity,
-				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
-				MFAVerified:       verifiedMFADeviceID,
-				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
-				AppName:           req.RouteToApp.Name,
-				AppURI:            req.RouteToApp.URI,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			appSessionID = ws.GetName()
-		} else {
-			// TODO (Joerger): DELETE IN 17.0.0
-			// Old clients will pass a session ID of an existing App session instead of a
-			// single GenerateUserCerts call. This is allowed, but ensure new clients cannot
-			// generate certs for MFA verified app sessions without an additional MFA check.
-			ws, err := a.GetAppSession(ctx, types.GetAppSessionRequest{
-				SessionID: req.RouteToApp.SessionID,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			// If the app session is MFA verified and this request is not MFA verified, deny the request.
-			x509Cert, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			wsIdentity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if wsIdentity.IsMFAVerified() && verifiedMFADeviceID == "" {
-				return nil, trace.BadParameter("mfa verification required to sign app certs for mfa-verified session")
-			}
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+			NewWebSessionRequest: NewWebSessionRequest{
+				User:           req.Username,
+				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
+				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
+				Traits:         accessInfo.Traits,
+				Roles:          accessInfo.Roles,
+				AccessRequests: req.AccessRequests,
+				// App sessions created through generateUserCerts are securely contained
+				// to the Proxy and Auth roles, and thus should pass hardware key requirements
+				// through the "web_session" attestation. User's will be required to provide
+				// MFA instead.
+				AttestWebSession: true,
+			},
+			PublicAddr:        req.RouteToApp.PublicAddr,
+			ClusterName:       req.RouteToApp.ClusterName,
+			AWSRoleARN:        req.RouteToApp.AWSRoleARN,
+			AzureIdentity:     req.RouteToApp.AzureIdentity,
+			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
+			MFAVerified:       verifiedMFADeviceID,
+			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			AppName:           req.RouteToApp.Name,
+			AppURI:            req.RouteToApp.URI,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		appSessionID = ws.GetName()
 	}
 
 	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
@@ -5502,17 +5470,6 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 
 	// Users can fetch their own app sessions without secrets.
 	if err := a.currentUserAction(session.GetUser()); err == nil {
-		// TODO (Joerger): DELETE IN 17.0.0
-		// App Session secrets should not be returned to the user. We only do this
-		// here for backwards compatibility with `tsh proxy azure`, which uses the
-		// app session key to sign JWT tokens with Azure claims. This check means
-		// that `tsh proxy azure` will fail for old clients when used with Per-session
-		// MFA or Hardware Key support, which is planned for release in v16.0.0.
-		identity := a.context.Identity.GetIdentity()
-		if !identity.IsMFAVerified() && identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
-			return session, nil
-		}
-
 		return session.WithoutSecrets(), nil
 	}
 
