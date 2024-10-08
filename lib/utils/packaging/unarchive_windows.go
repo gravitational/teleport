@@ -20,8 +20,11 @@
 
 package packaging
 
-// ReplaceToolsBinaries extracts the package into `extractDir` and replaces the specified
-// applications with symlinks in the tool's directory.
-func ReplaceToolsBinaries(toolsDir string, archivePath string, extractPath string, apps []string) error {
-	return replaceZip(toolsDir, archivePath, extractPath, apps)
+// ReplaceToolsBinaries extracts executables specified by execNames from archivePath into
+// extractDir. After each executable is extracted, it is symlinked from extractDir/[name] to
+// toolsDir/[name].
+//
+// For Windows, archivePath must be a .zip file.
+func ReplaceToolsBinaries(toolsDir string, archivePath string, extractPath string, execNames []string) error {
+	return replaceZip(toolsDir, archivePath, extractPath, execNames)
 }

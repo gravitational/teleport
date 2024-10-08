@@ -60,10 +60,10 @@ func RemoveWithSuffix(extractDir, suffix, skipName string) error {
 }
 
 // replaceZip un-archives the Teleport package in .zip format, iterates through
-// the compressed content, and ignores everything not matching the app binaries specified
-// in the apps argument. The data is extracted to extractDir, and symlinks are created
+// the compressed content, and ignores everything not matching the binaries specified
+// in the execNames argument. The data is extracted to extractDir, and symlinks are created
 // in toolsDir pointing to the extractDir path with binaries.
-func replaceZip(toolsDir string, archivePath string, extractDir string, apps []string) error {
+func replaceZip(toolsDir string, archivePath string, extractDir string, execNames []string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -79,16 +79,27 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, apps []s
 		return trace.Wrap(err)
 	}
 
+	var totalSize uint64 = 0
 	for _, zipFile := range zipReader.File {
-		// Skip over any files in the archive that are not defined apps.
-		if !slices.ContainsFunc(apps, func(s string) bool {
-			return strings.HasSuffix(zipFile.Name, s)
+		// Skip over any files in the archive that are not defined execNames.
+		if !slices.ContainsFunc(execNames, func(s string) bool {
+			return filepath.Base(zipFile.Name) == s
 		}) {
 			continue
 		}
-		// Verify that we have enough space for uncompressed zipFile.
-		if err := checkFreeSpace(extractDir, zipFile.UncompressedSize64); err != nil {
-			return trace.Wrap(err)
+		totalSize += zipFile.UncompressedSize64
+	}
+	// Verify that we have enough space for uncompressed zipFile.
+	if err := checkFreeSpace(extractDir, totalSize); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, zipFile := range zipReader.File {
+		// Skip over any files in the archive that are not defined execNames.
+		if !slices.ContainsFunc(execNames, func(s string) bool {
+			return filepath.Base(zipFile.Name) == s
+		}) {
+			continue
 		}
 
 		if err := func(zipFile *zip.File) error {
