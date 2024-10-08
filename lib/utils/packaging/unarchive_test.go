@@ -21,6 +21,7 @@
 package packaging
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -55,13 +56,18 @@ func TestPackaging(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "tsh"), []byte(script), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "tctl"), []byte(script), 0o755))
 
+	ctx := context.Background()
+
 	t.Run("tar.gz", func(t *testing.T) {
 		archivePath := filepath.Join(toolsDir, "tsh.tar.gz")
-		err = helpers.CompressDirToTarGzFile(sourceDir, archivePath)
+		err = helpers.CompressDirToTarGzFile(ctx, sourceDir, archivePath)
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
+		// For the .tar.gz format we extract app by app to check that content discard is not required.
+		err = replaceTarGz(toolsDir, archivePath, extractDir, []string{"tctl"})
+		require.NoError(t, err)
+		err = replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
@@ -76,7 +82,7 @@ func TestPackaging(t *testing.T) {
 			t.Skip("unsupported platform")
 		}
 		archivePath := filepath.Join(toolsDir, "tsh.pkg")
-		err = helpers.CompressDirToPkgFile(sourceDir, archivePath, "com.example.pkgtest")
+		err = helpers.CompressDirToPkgFile(ctx, sourceDir, archivePath, "com.example.pkgtest")
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
@@ -92,7 +98,7 @@ func TestPackaging(t *testing.T) {
 
 	t.Run("zip", func(t *testing.T) {
 		archivePath := filepath.Join(toolsDir, "tsh.zip")
-		err = helpers.CompressDirToZipFile(sourceDir, archivePath)
+		err = helpers.CompressDirToZipFile(ctx, sourceDir, archivePath)
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 

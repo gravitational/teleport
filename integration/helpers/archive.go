@@ -36,7 +36,7 @@ import (
 
 // CompressDirToZipFile compresses a directory into `.zip` format,
 // preserving the relative file path structure of the source directory.
-func CompressDirToZipFile(sourcePath, destPath string) (err error) {
+func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err error) {
 	archive, err := os.Create(destPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -45,7 +45,7 @@ func CompressDirToZipFile(sourcePath, destPath string) (err error) {
 		_ = archive.Close()
 		if err != nil {
 			if err := os.Remove(destPath); err != nil {
-				slog.ErrorContext(context.Background(), "failed to remove archive", "error", err)
+				slog.ErrorContext(ctx, "failed to remove archive", "error", err)
 			}
 		}
 	}()
@@ -84,7 +84,7 @@ func CompressDirToZipFile(sourcePath, destPath string) (err error) {
 
 // CompressDirToTarGzFile compresses a directory into .tar.gz format,
 // preserving the relative file path structure of the source directory.
-func CompressDirToTarGzFile(sourcePath, destPath string) (err error) {
+func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (err error) {
 	archive, err := os.Create(destPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -93,7 +93,7 @@ func CompressDirToTarGzFile(sourcePath, destPath string) (err error) {
 		_ = archive.Close()
 		if err != nil {
 			if err := os.Remove(destPath); err != nil {
-				slog.ErrorContext(context.Background(), "failed to remove archive", "error", err)
+				slog.ErrorContext(ctx, "failed to remove archive", "error", err)
 			}
 		}
 	}()
@@ -137,11 +137,13 @@ func CompressDirToTarGzFile(sourcePath, destPath string) (err error) {
 }
 
 // CompressDirToPkgFile runs for the macOS `pkgbuild` command to generate a .pkg file from the source.
-func CompressDirToPkgFile(sourcePath, destPath, identifier string) error {
+func CompressDirToPkgFile(ctx context.Context, sourcePath, destPath, identifier string) error {
 	if runtime.GOOS != "darwin" {
 		return trace.BadParameter("only darwin platform is supported for pkg file")
 	}
-	cmd := exec.Command("pkgbuild",
+	cmd := exec.CommandContext(
+		ctx,
+		"pkgbuild",
 		"--root", sourcePath,
 		"--identifier", identifier,
 		"--version", teleport.Version,

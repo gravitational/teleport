@@ -36,8 +36,8 @@ const (
 )
 
 // RemoveWithSuffix removes all files in dir that have the provided suffix, except for files named `skipName`
-func RemoveWithSuffix(dir, suffix, skipName string) error {
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+func RemoveWithSuffix(extractDir, suffix, skipName string) error {
+	err := filepath.Walk(extractDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -59,6 +59,10 @@ func RemoveWithSuffix(dir, suffix, skipName string) error {
 	return trace.Wrap(err)
 }
 
+// replaceZip un-archives the Teleport package in .zip format, iterates through
+// the compressed content, and ignores everything not matching the app binaries specified
+// in the apps argument. The data is extracted to extractDir, and symlinks are created
+// in toolsDir pointing to the extractDir path with binaries.
 func replaceZip(toolsDir string, archivePath string, extractDir string, apps []string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -84,7 +88,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, apps []s
 		}
 		// Verify that we have enough space for uncompressed zipFile.
 		if err := checkFreeSpace(extractDir, zipFile.UncompressedSize64); err != nil {
-			return trace.NewAggregate(err, f.Close())
+			return trace.Wrap(err)
 		}
 
 		if err := func(zipFile *zip.File) error {
@@ -111,7 +115,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, apps []s
 			if err := os.Symlink(dest, appPath); err != nil {
 				return trace.Wrap(err)
 			}
-			return nil
+			return trace.Wrap(destFile.Close())
 		}(zipFile); err != nil {
 			return trace.Wrap(err)
 		}
