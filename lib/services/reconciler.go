@@ -85,7 +85,7 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewGenerocReconciler creates a new GenericReconciler with provided configuration.
+// NewGenericReconciler creates a new GenericReconciler with provided configuration.
 func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]) (*GenericReconciler[K, T], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
