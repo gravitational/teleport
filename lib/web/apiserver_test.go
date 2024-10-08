@@ -140,12 +140,13 @@ import (
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
-	"github.com/gravitational/teleport/lib/web/ui"
+	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -926,7 +927,7 @@ func TestWebSessionsCRUD(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
 
-	var clusters []ui.Cluster
+	var clusters []webui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
 
 	// now delete session
@@ -1132,9 +1133,9 @@ func TestWebSessionsBadInput(t *testing.T) {
 }
 
 type clusterNodesGetResponse struct {
-	Items      []ui.Server `json:"items"`
-	StartKey   string      `json:"startKey"`
-	TotalCount int         `json:"totalCount"`
+	Items      []webui.Server `json:"items"`
+	StartKey   string         `json:"startKey"`
+	TotalCount int            `json:"totalCount"`
 }
 
 func TestClusterNodesGet(t *testing.T) {
@@ -1170,7 +1171,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 2)
 	require.Equal(t, 2, res.TotalCount)
-	require.ElementsMatch(t, res.Items, []ui.Server{
+	require.ElementsMatch(t, res.Items, []webui.Server{
 		{
 			Kind:        types.KindNode,
 			SubKind:     types.SubKindTeleportNode,
@@ -1211,9 +1212,9 @@ func TestUserGroupsGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
-		Items      []ui.UserGroup `json:"items"`
-		StartKey   string         `json:"startKey"`
-		TotalCount int            `json:"totalCount"`
+		Items      []webui.UserGroup `json:"items"`
+		StartKey   string            `json:"startKey"`
+		TotalCount int               `json:"totalCount"`
 	}
 
 	// add a user group
@@ -1258,11 +1259,11 @@ func TestUserGroupsGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
 	require.Equal(t, 1, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.UserGroup{{
+	require.ElementsMatch(t, resp.Items, []webui.UserGroup{{
 		Name:        "ug1",
 		Description: ug.GetMetadata().Description,
 		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
-		Applications: []ui.ApplicationAndFriendlyName{
+		Applications: []webui.ApplicationAndFriendlyName{
 			{Name: "appnameonly", FriendlyName: ""},
 		},
 	}})
@@ -1438,7 +1439,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	listResp := struct {
-		Items []ui.App `json:"Items"`
+		Items []webui.App `json:"Items"`
 	}{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &listResp))
 	require.Len(t, listResp.Items, 1)
@@ -2667,7 +2668,7 @@ func TestLogin(t *testing.T) {
 	re, err := clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
 
-	var clusters []ui.Cluster
+	var clusters []webui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
 
 	// in absence of session cookie or bearer auth the same request fill fail
@@ -3315,7 +3316,7 @@ func TestGetClusterDetails(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, site)
 
-	cluster, err := ui.GetClusterDetails(s.ctx, site)
+	cluster, err := webui.GetClusterDetails(s.ctx, site)
 	require.NoError(t, err)
 	require.Equal(t, s.server.ClusterName(), cluster.Name)
 	require.Equal(t, teleport.Version, cluster.ProxyVersion)
@@ -4034,8 +4035,8 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
 
 	type testResponse struct {
-		Items      []ui.Database `json:"items"`
-		TotalCount int           `json:"totalCount"`
+		Items      []webui.Database `json:"items"`
+		TotalCount int              `json:"totalCount"`
 	}
 
 	// add db
@@ -4068,7 +4069,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.ElementsMatch(t, resp.Items, []ui.Database{{
+	require.ElementsMatch(t, resp.Items, []webui.Database{{
 		Kind:     types.KindDatabase,
 		Name:     "dbdb",
 		Type:     types.DatabaseTypeSelfHosted,
@@ -4085,8 +4086,8 @@ func TestClusterDatabasesGet_WithRole(t *testing.T) {
 	proxy := env.proxies[0]
 
 	type testResponse struct {
-		Items      []ui.Database `json:"items"`
-		TotalCount int           `json:"totalCount"`
+		Items      []webui.Database `json:"items"`
+		TotalCount int              `json:"totalCount"`
 	}
 
 	// Register databases.
@@ -4194,20 +4195,20 @@ func TestClusterKubesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items      []ui.KubeCluster `json:"items"`
-		TotalCount int              `json:"totalCount"`
+		Items      []webui.KubeCluster `json:"items"`
+		TotalCount int                 `json:"totalCount"`
 	}
 
 	tt := []struct {
 		name             string
 		user             string
 		extraRoles       services.RoleSet
-		expectedResponse []ui.KubeCluster
+		expectedResponse []webui.KubeCluster
 	}{
 		{
 			name: "user with no extra roles",
 			user: "test-user@example.com",
-			expectedResponse: []ui.KubeCluster{
+			expectedResponse: []webui.KubeCluster{
 				{
 					Name:       "test-kube1",
 					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -4226,7 +4227,7 @@ func TestClusterKubesGet(t *testing.T) {
 			name:       "user with extra roles",
 			user:       "test-user2@example.com",
 			extraRoles: services.NewRoleSet(extraRole),
-			expectedResponse: []ui.KubeCluster{
+			expectedResponse: []webui.KubeCluster{
 				{
 					Name:       "test-kube1",
 					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -4293,8 +4294,8 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	type testResponse struct {
-		Items      []ui.KubeResource `json:"items"`
-		TotalCount int               `json:"totalCount"`
+		Items      []webui.KubeResource `json:"items"`
+		TotalCount int                  `json:"totalCount"`
 	}
 
 	tt := []struct {
@@ -4302,14 +4303,14 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 		user             string
 		kind             string
 		kubeCluster      string
-		expectedResponse []ui.KubeResource
+		expectedResponse []webui.KubeResource
 		wantErr          bool
 	}{
 		{
 			name:        "get pods from gRPC server",
 			kind:        types.KindKubePod,
 			kubeCluster: kubeClusterName,
-			expectedResponse: []ui.KubeResource{
+			expectedResponse: []webui.KubeResource{
 				{
 					Kind:        types.KindKubePod,
 					Name:        "test-pod",
@@ -4330,7 +4331,7 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 			name:        "get namespaces",
 			kind:        types.KindKubeNamespace,
 			kubeCluster: kubeClusterName,
-			expectedResponse: []ui.KubeResource{
+			expectedResponse: []webui.KubeResource{
 				{
 					Kind:        types.KindKubeNamespace,
 					Name:        "default",
@@ -4405,8 +4406,8 @@ func TestClusterAppsGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
-		Items      []ui.App `json:"items"`
-		TotalCount int      `json:"totalCount"`
+		Items      []webui.App `json:"items"`
+		TotalCount int         `json:"totalCount"`
 	}
 
 	// add a user group
@@ -4464,7 +4465,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.App{{
+	require.ElementsMatch(t, resp.Items, []webui.App{{
 		Kind:        types.KindApp,
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
@@ -4474,7 +4475,7 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
-		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
+		UserGroups:  []webui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
 		Kind:       types.KindApp,
 		Name:       "app2",
@@ -5079,7 +5080,7 @@ func TestGetMFADevicesWithAuth(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	var devices []ui.MFADevice
+	var devices []webui.MFADevice
 	err = json.Unmarshal(re.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
@@ -5122,7 +5123,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
 	require.NoError(t, err)
 
-	var devices []ui.MFADevice
+	var devices []webui.MFADevice
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
@@ -5962,7 +5963,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	var apiRes ui.ChangedUserAuthn
+	var apiRes webui.ChangedUserAuthn
 	require.NoError(t, json.Unmarshal(httpRes.Bytes(), &apiRes))
 	require.Len(t, apiRes.Recovery.Codes, 3)
 	require.NotEmpty(t, apiRes.Recovery.Created)
@@ -6199,8 +6200,8 @@ func TestClusterDesktopsGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
-		Items      []ui.Desktop `json:"items"`
-		TotalCount int          `json:"totalCount"`
+		Items      []webui.Desktop `json:"items"`
+		TotalCount int             `json:"totalCount"`
 	}
 
 	// Add a few desktops.
@@ -6231,7 +6232,7 @@ func TestClusterDesktopsGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+	require.ElementsMatch(t, resp.Items, []webui.Desktop{{
 		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop1",
@@ -6368,7 +6369,7 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 
-	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
+	var receivedConnectionDiagnostic webui.ConnectionDiagnostic
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
@@ -6681,7 +6682,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
 
-			var connectionDiagnostic ui.ConnectionDiagnostic
+			var connectionDiagnostic webui.ConnectionDiagnostic
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 
 			gotFailedTraces := 0
@@ -6751,7 +6752,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 
-	var connectionDiagnostic ui.ConnectionDiagnostic
+	var connectionDiagnostic webui.ConnectionDiagnostic
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 	require.True(t, connectionDiagnostic.Success)
 }
@@ -7170,7 +7171,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
 
-			var connectionDiagnostic ui.ConnectionDiagnostic
+			var connectionDiagnostic webui.ConnectionDiagnostic
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 			gotFailedTraces := 0
 			expectedFailedTraces := 0
@@ -7243,7 +7244,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 
-	var connectionDiagnostic ui.ConnectionDiagnostic
+	var connectionDiagnostic webui.ConnectionDiagnostic
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 	require.True(t, connectionDiagnostic.Success)
 }
@@ -7413,9 +7414,9 @@ func TestCreateDatabase(t *testing.T) {
 
 		// Check response value:
 		if tt.expectedStatus == http.StatusOK {
-			result := ui.Database{}
+			result := webui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
-			expected := ui.Database{
+			expected := webui.Database{
 				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
@@ -7468,7 +7469,7 @@ func TestOverwriteDatabase(t *testing.T) {
 			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req createOrOverwriteDatabaseRequest, err error) {
 				require.NoError(t, err)
 
-				var gotDb ui.Database
+				var gotDb webui.Database
 				require.NoError(t, json.Unmarshal(resp.Bytes(), &gotDb))
 				require.Equal(t, req.URI, gotDb.URI)
 				require.Equal(t, req.Protocol, gotDb.Protocol)
@@ -7477,7 +7478,7 @@ func TestOverwriteDatabase(t *testing.T) {
 
 				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
 				require.NoError(t, err)
-				require.Equal(t, ui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+				require.Equal(t, webui.MakeDatabase(backendDb, nil, nil, false), gotDb)
 			},
 		},
 		{
@@ -7646,7 +7647,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		req            updateDatabaseRequest
-		expectedFields ui.Database
+		expectedFields webui.Database
 		expectedAWSRDS awsRDS
 	}{
 		{
@@ -7654,7 +7655,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: &fakeValidTLSCert,
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7669,7 +7670,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 			req: updateDatabaseRequest{
 				URI: "something-else:3306",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7692,7 +7693,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				AccountID:  "123123123123",
 				ResourceID: "db-1234",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7700,7 +7701,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{requiredOriginLabel},
 				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
-				AWS: &ui.AWS{
+				AWS: &webui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
 						AccountID: "123123123123",
@@ -7721,7 +7722,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				AccountID:  "123123123123",
 				ResourceID: "db-1234",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7729,7 +7730,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
 				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
-				AWS: &ui.AWS{
+				AWS: &webui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
 						AccountID: "123123123123",
@@ -7754,7 +7755,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				AccountID:  "000000000000",
 				ResourceID: "db-0000",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7762,7 +7763,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
 				URI:      "alpaca.cgi8.us-east-1.rds.amazonaws.com:3306",
-				AWS: &ui.AWS{
+				AWS: &webui.AWS{
 					AWS: types.AWS{
 						Region:    "us-east-1",
 						AccountID: "000000000000",
@@ -7779,7 +7780,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
 			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
 			require.NoError(t, err)
-			var dbResp ui.Database
+			var dbResp webui.Database
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &dbResp))
 			require.Equal(t, tt.expectedFields, dbResp)
 
@@ -8725,7 +8726,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Process the JSON response of the request.
-	var userContext ui.UserContext
+	var userContext webui.UserContext
 	err = json.Unmarshal(response.Bytes(), &userContext)
 	require.NoError(t, err)
 
@@ -9405,7 +9406,7 @@ func TestForwardingTraces(t *testing.T) {
 			recorder := httptest.NewRecorder()
 
 			// use the handler directly because there is no easy way to pipe in our tracing
-			// data using the pack client in a format that would match the ui.
+			// data using the pack client in a format that would match the webui.
 			_, err := p.handler.handler.traces(recorder, tt.req(t), nil, nil)
 
 			// if traces weren't uploaded perform the assertion
@@ -9466,7 +9467,7 @@ func TestLogout(t *testing.T) {
 	// ensure the client is authenticated
 	re, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
-	var clusters []ui.Cluster
+	var clusters []webui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
 	require.Len(t, clusters, 1)
 
@@ -9824,7 +9825,7 @@ func TestGetKubeExecClusterData(t *testing.T) {
 // create multiple SessionContext for a user+session. Since only one SessionContext
 // is stored in the sessionCache all previous SessionContext and their underlying
 // auth client get closed, which results in an ugly and unfriendly
-// `grpc: the client connection is closing` error banner on the web UI.
+// `grpc: the client connection is closing` error banner on the web webui.
 func TestSimultaneousAuthenticateRequest(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
@@ -10475,11 +10476,11 @@ func TestGithubConnector(t *testing.T) {
 	})
 	require.NoError(t, err, "creating initial connector resource")
 
-	createPayload := func(connector types.GithubConnector) ui.ResourceItem {
+	createPayload := func(connector types.GithubConnector) webui.ResourceItem {
 		raw, err := services.MarshalGithubConnector(connector, services.PreserveRevision())
 		require.NoError(t, err, "marshaling connector")
 
-		return ui.ResourceItem{
+		return webui.ResourceItem{
 			Kind:    types.KindGithubConnector,
 			Name:    connector.GetName(),
 			Content: string(raw),
@@ -10487,7 +10488,7 @@ func TestGithubConnector(t *testing.T) {
 	}
 
 	unmarshalResponse := func(resp []byte) types.GithubConnector {
-		var item ui.ResourceItem
+		var item webui.ResourceItem
 		require.NoError(t, json.Unmarshal(resp, &item), "response from server contained an invalid resource item")
 
 		var conn types.GithubConnectorV3
@@ -10549,7 +10550,7 @@ func TestGithubConnector(t *testing.T) {
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "github"), nil)
 	assert.NoError(t, err, "unexpected error listing github connectors")
 
-	var item []ui.ResourceItem
+	var item []webui.ResourceItem
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &item), "invalid resource item received")
 
 	assert.Empty(t, item)
