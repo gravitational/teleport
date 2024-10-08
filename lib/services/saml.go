@@ -259,6 +259,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		SPKeyStore:                     keyStore,
 		Clock:                          dsig.NewFakeClock(clock),
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+		ForceAuthn:                     sc.GetForceAuthn(),
 	}
 
 	// Provider specific settings for ADFS and JumpCloud. Specifically these
