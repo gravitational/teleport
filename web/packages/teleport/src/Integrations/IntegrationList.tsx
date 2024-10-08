@@ -21,12 +21,25 @@ import styled from 'styled-components';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 
-import { Box, Flex } from 'design';
+import { Box, Flex, Image } from 'design';
 import { AWSIcon, AzureIcon } from 'design/SVGIcon';
+import slackIcon from 'design/assets/images/icons/slack.svg';
+import openaiIcon from 'design/assets/images/icons/openai.svg';
+import jamfIcon from 'design/assets/images/icons/jamf.svg';
+import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
+import oktaIcon from 'design/assets/images/icons/okta.svg';
+import jiraIcon from 'design/assets/images/icons/jira.svg';
+import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
+import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
+import servicenowIcon from 'design/assets/images/icons/servicenow.svg';
+import discordIcon from 'design/assets/images/icons/discord.svg';
+import emailIcon from 'design/assets/images/icons/email.svg';
+import msteamIcon from 'design/assets/images/icons/msteams.svg';
+import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
+import datadogIcon from 'design/assets/images/icons/datadog.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
-import { ResourceIcon } from 'design/ResourceIcon';
 
 import {
   getStatusCodeDescription,
@@ -290,55 +303,59 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     switch (item.kind) {
       case 'slack':
         formattedText = 'Slack';
-        icon = <IconContainer name="slack" />;
+        icon = <IconContainer src={slackIcon} />;
+        break;
+      case 'openai':
+        formattedText = 'OpenAI';
+        icon = <IconContainer src={openaiIcon} />;
         break;
       case 'jamf':
         formattedText = 'Jamf';
-        icon = <IconContainer name="jamf" />;
+        icon = <IconContainer src={jamfIcon} />;
         break;
       case 'okta':
         formattedText = 'Okta';
-        icon = <IconContainer name="okta" />;
+        icon = <IconContainer src={oktaIcon} />;
         break;
       case 'opsgenie':
         formattedText = 'Opsgenie';
-        icon = <IconContainer name="opsgenie" />;
+        icon = <IconContainer src={opsgenieIcon} />;
         break;
       case 'jira':
         formattedText = 'Jira';
-        icon = <IconContainer name="jira" />;
+        icon = <IconContainer src={jiraIcon} />;
         break;
       case 'mattermost':
         formattedText = 'Mattermost';
-        icon = <IconContainer name="mattermost" />;
+        icon = <IconContainer src={mattermostIcon} />;
         break;
       case 'servicenow':
         formattedText = 'ServiceNow';
-        icon = <IconContainer name="servicenow" />;
+        icon = <IconContainer src={servicenowIcon} />;
         break;
       case 'pagerduty':
         formattedText = 'PagerDuty';
-        icon = <IconContainer name="pagerduty" />;
+        icon = <IconContainer src={pagerdutyIcon} />;
         break;
       case 'discord':
         formattedText = 'Discord';
-        icon = <IconContainer name="discord" />;
+        icon = <IconContainer src={discordIcon} />;
         break;
       case 'email':
         formattedText = 'Email';
-        icon = <IconContainer name="email" />;
+        icon = <IconContainer src={emailIcon} />;
         break;
       case 'msteams':
         formattedText = 'Microsoft Teams';
-        icon = <IconContainer name="microsoftteams" />;
+        icon = <IconContainer src={msteamIcon} />;
         break;
       case 'entra-id':
         formattedText = 'Microsoft Entra ID';
-        icon = <IconContainer name="entraid" />;
+        icon = <IconContainer src={entraIdIcon} />;
         break;
       case 'datadog':
         formattedText = 'Datadog Incident Management';
-        icon = <IconContainer name="datadog" />;
+        icon = <IconContainer src={datadogIcon} />;
         break;
     }
   } else {
@@ -378,7 +395,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
   );
 };
 
-const IconContainer = styled(ResourceIcon)`
+const IconContainer = styled(Image)`
   width: 22px;
   margin-right: 10px;
 `;

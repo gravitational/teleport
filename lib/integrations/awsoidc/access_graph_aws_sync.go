@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"io"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -28,8 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/provisioning"
-	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 )
 
 const (
@@ -48,12 +46,6 @@ type AccessGraphAWSIAMConfigureRequest struct {
 
 	// AccountID is the AWS Account ID.
 	AccountID string
-
-	// AutoConfirm skips user confirmation of the operation plan if true.
-	AutoConfirm bool
-
-	// stdout is used to override stdout output in tests.
-	stdout io.Writer
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -108,20 +100,28 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	policy := awslib.NewPolicyDocument(
+	policyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementAccessGraphAWSSync(),
-	)
-	putRolePolicy, err := awsactions.PutRolePolicy(clt, req.IntegrationRoleTAGPolicy, req.IntegrationRole, policy)
+	).Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
-		Name: "access-graph-aws-iam",
-		Actions: []provisioning.Action{
-			*putRolePolicy,
-		},
-		AutoConfirm: req.AutoConfirm,
-		Output:      req.stdout,
-	}))
+	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
+		PolicyName:     &req.IntegrationRoleTAGPolicy,
+		RoleName:       &req.IntegrationRole,
+		PolicyDocument: &policyDocument,
+	})
+	if err != nil {
+		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
+			return trace.NotFound("role %q not found.", req.IntegrationRole)
+		}
+		return trace.Wrap(err)
+	}
+
+	slog.InfoContext(ctx, "IntegrationRole: IAM Policy added to IAM Role",
+		"policy", req.IntegrationRoleTAGPolicy,
+		"role", req.IntegrationRole,
+	)
+	return nil
 }

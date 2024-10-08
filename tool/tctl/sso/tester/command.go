@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -140,7 +139,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *authclient.Cli
 		}
 
 		// note: loginErr is processed further down.
-		loginResponse, loginErr := cmd.runSSOLoginFlow(ctx, raw.Kind, c, requestInfo.SSOLoginConsoleRequestFn)
+		loginResponse, loginErr := cmd.runSSOLoginFlow(ctx, raw.Kind, c, requestInfo.Config)
 
 		if requestInfo.RequestCreateErr != nil {
 			return trace.BadParameter("Failed to create auth request. Check the auth connector definition for errors. Error: %v", requestInfo.RequestCreateErr)
@@ -166,18 +165,28 @@ func (cmd *SSOTestCommand) TryRun(ctx context.Context, selectedCommand string, c
 
 // AuthRequestInfo is helper type, useful for tying together test handlers of different auth types.
 type AuthRequestInfo struct {
-	// SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
-	SSOLoginConsoleRequestFn func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error)
+	// Config holds *client.RedirectorConfig used for SSO redirect.
+	Config *client.RedirectorConfig
 	// RequestID is ID of auth request created for SSO test.
 	RequestID string
 	// RequestCreateErr holds an error in case auth request creation failed.
 	RequestCreateErr error
 }
 
-// SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
-type SSOLoginConsoleRequestFn func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error)
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c *authclient.Client, config *client.RedirectorConfig) (*authclient.SSHLoginResponse, error) {
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(c))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
 	proxies, err := c.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -187,51 +196,32 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 		return nil, trace.BadParameter("cluster has no proxies.")
 	}
 
-	rdConfig := sso.RedirectorConfig{
-		ProxyAddr: proxies[0].GetPublicAddr(),
-		Browser:   cmd.Browser,
-	}
+	cfg := client.MakeDefaultConfig()
+	cfg.WebProxyAddr = proxies[0].GetPublicAddr()
+	cfg.Browser = cmd.Browser
 
-	rd, err := sso.NewRedirector(rdConfig)
+	tc, err := client.NewClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer rd.Close()
 
-	initSSO := func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
-		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(c))
-		if err != nil {
-			return "nil", trace.Wrap(err)
-		}
-		sshPub, err := ssh.NewPublicKey(sshKey.Public())
-		if err != nil {
-			return "nil", trace.Wrap(err)
-		}
-		tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
-		if err != nil {
-			return "nil", trace.Wrap(err)
-		}
-
-		req := client.SSOLoginConsoleReq{
-			ConnectorID: "-sso-test",
-			RedirectURL: clientCallbackURL,
-			SSOUserPublicKeys: client.SSOUserPublicKeys{
-				SSHPubKey: ssh.MarshalAuthorizedKey(sshPub),
-				TLSPubKey: tlsPub,
-			},
-		}
-
-		initResp, err := initiateSSOLoginFn(req)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		return initResp.RedirectURL, nil
-	}
-	ceremony := sso.NewCLICeremony(rd, initSSO)
-
-	resp, err := ceremony.Run(ctx)
-	return resp, trace.Wrap(err)
+	return client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
+		SSHLogin: client.SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			SSHPubKey:         ssh.MarshalAuthorizedKey(sshPub),
+			TLSPubKey:         tlsPub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              nil,
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		ConnectorID: "-sso-test",
+		Protocol:    protocol,
+		BindAddr:    tc.BindAddr,
+		Browser:     tc.Browser,
+	}, config)
 }
 
 // GetDiagMessage is helper function for preparing message set to be shown to user.

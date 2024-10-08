@@ -45,7 +45,6 @@ import {
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   SecurityGroup,
-  SecurityGroupRule,
   ListEksClustersResponse,
   EnrollEksClustersResponse,
   EnrollEksClustersRequest,
@@ -470,22 +469,8 @@ function makeSecurityGroup(json: any): SecurityGroup {
     name,
     id,
     description,
-    inboundRules: inboundRules?.map(rule => makeSecurityGroupRule(rule)) ?? [],
-    outboundRules:
-      outboundRules?.map(rule => makeSecurityGroupRule(rule)) ?? [],
-  };
-}
-
-function makeSecurityGroupRule(json: any): SecurityGroupRule {
-  json = json ?? {};
-  const { ipProtocol, fromPort, toPort, cidrs, groups } = json;
-
-  return {
-    ipProtocol,
-    fromPort,
-    toPort,
-    cidrs: cidrs ?? [],
-    groups: groups ?? [],
+    inboundRules: inboundRules ?? [],
+    outboundRules: outboundRules ?? [],
   };
 }
 

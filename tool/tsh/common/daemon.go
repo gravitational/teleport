@@ -50,7 +50,6 @@ func onDaemonStart(cf *CLIConf) error {
 		KubeconfigsDir:     cf.DaemonKubeconfigsDir,
 		AgentsDir:          cf.DaemonAgentsDir,
 		InstallationID:     cf.DaemonInstallationID,
-		AddKeysToAgent:     cf.AddKeysToAgent,
 	})
 	if err != nil {
 		return trace.Wrap(err)

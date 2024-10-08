@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"io"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -29,8 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/provisioning"
-	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -51,12 +49,6 @@ type AWSAppAccessConfigureRequest struct {
 
 	// AccountID is the AWS Account ID.
 	AccountID string
-
-	// AutoConfirm skips user confirmation of the operation plan if true.
-	AutoConfirm bool
-
-	// stdout is used to override stdout output in tests.
-	stdout io.Writer
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -128,20 +120,28 @@ func ConfigureAWSAppAccess(ctx context.Context, awsClient AWSAppAccessConfigureC
 		return trace.Wrap(err)
 	}
 
-	policy := awslib.NewPolicyDocument(
+	awsAppAccessPolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForAWSAppAccess(),
-	)
-	putRolePolicy, err := awsactions.PutRolePolicy(awsClient, req.IntegrationRoleAWSAppAccessPolicy, req.IntegrationRole, policy)
+	).Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
-		Name: "aws-app-access-iam",
-		Actions: []provisioning.Action{
-			*putRolePolicy,
-		},
-		AutoConfirm: req.AutoConfirm,
-		Output:      req.stdout,
-	}))
+	_, err = awsClient.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
+		PolicyName:     &req.IntegrationRoleAWSAppAccessPolicy,
+		RoleName:       &req.IntegrationRole,
+		PolicyDocument: &awsAppAccessPolicyDocument,
+	})
+	if err != nil {
+		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
+			return trace.NotFound("role %q not found.", req.IntegrationRole)
+		}
+		return trace.Wrap(err)
+	}
+	slog.InfoContext(ctx, "IAM Inline Policy added to IAM Role",
+		"policy", req.IntegrationRoleAWSAppAccessPolicy,
+		"role", req.IntegrationRole,
+	)
+
+	return nil
 }

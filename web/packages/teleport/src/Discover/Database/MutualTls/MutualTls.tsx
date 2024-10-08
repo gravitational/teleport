@@ -112,6 +112,7 @@ export function MutualTlsView({
                 resizable={true}
                 autoFocus
                 textAreaCss={`
+                font-size: 14px;
                 height: 100px;
                 width: 800px;
                 `}

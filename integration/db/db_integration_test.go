@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -451,7 +452,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
 
-	mkMySQLLeafDBClient := func(t *testing.T) mysql.TestClientConn {
+	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),

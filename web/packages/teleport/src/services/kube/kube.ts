@@ -17,14 +17,11 @@
  */
 
 import api from 'teleport/services/api';
-import cfg, {
-  UrlKubeResourcesParams,
-  UrlResourcesParams,
-} from 'teleport/config';
+import cfg, { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { Kube, KubeResourceResponse } from './types';
-import { makeKube, makeKubeResource } from './makeKube';
+import { Kube } from './types';
+import makeKube from './makeKube';
 
 class KubeService {
   fetchKubernetes(
@@ -39,24 +36,6 @@ class KubeService {
 
         return {
           agents: items.map(makeKube),
-          startKey: json?.startKey,
-          totalCount: json?.totalCount,
-        };
-      });
-  }
-
-  fetchKubernetesResources(
-    clusterId,
-    params: UrlKubeResourcesParams,
-    signal?: AbortSignal
-  ): Promise<KubeResourceResponse> {
-    return api
-      .get(cfg.getKubernetesResourcesUrl(clusterId, params), signal)
-      .then(json => {
-        const items = json?.items || [];
-
-        return {
-          items: items.map(makeKubeResource),
           startKey: json?.startKey,
           totalCount: json?.totalCount,
         };

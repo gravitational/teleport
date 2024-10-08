@@ -19,7 +19,6 @@
 package awsoidc
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -28,8 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
@@ -37,7 +34,6 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 		return AccessGraphAWSIAMConfigureRequest{
 			IntegrationRole: "integrationrole",
 			AccountID:       "123456789012",
-			AutoConfirm:     true,
 		}
 	}
 
@@ -55,7 +51,6 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 				IntegrationRole:          "integrationrole",
 				IntegrationRoleTAGPolicy: "AccessGraphSyncAccess",
 				AccountID:                "123456789012",
-				AutoConfirm:              true,
 			},
 		},
 		{
@@ -78,7 +73,6 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 			expected: AccessGraphAWSIAMConfigureRequest{
 				IntegrationRole:          "integrationrole",
 				IntegrationRoleTAGPolicy: "AccessGraphSyncAccess",
-				AutoConfirm:              true,
 			},
 		},
 	} {
@@ -101,7 +95,6 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 		return AccessGraphAWSIAMConfigureRequest{
 			IntegrationRole: "integrationrole",
 			AccountID:       "123456789012",
-			AutoConfirm:     true,
 		}
 	}
 
@@ -144,27 +137,6 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 			tt.errCheck(t, err)
 		})
 	}
-}
-
-func TestAccessGraphAWSIAMConfigOuput(t *testing.T) {
-	ctx := context.Background()
-	var buf bytes.Buffer
-	req := AccessGraphAWSIAMConfigureRequest{
-		IntegrationRole: "integrationrole",
-		AccountID:       "123456789012",
-		AutoConfirm:     true,
-		stdout:          &buf,
-	}
-	clt := mockAccessGraphAWSAMConfigClient{
-		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
-		existingRoles:        []string{req.IntegrationRole},
-	}
-
-	require.NoError(t, ConfigureAccessGraphSyncIAM(ctx, &clt, req))
-	if golden.ShouldSet() {
-		golden.Set(t, buf.Bytes())
-	}
-	require.Equal(t, string(golden.Get(t)), buf.String())
 }
 
 type mockAccessGraphAWSAMConfigClient struct {

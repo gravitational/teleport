@@ -91,19 +91,6 @@ type SecurityGroupRule struct {
 
 	// CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
 	CIDRs []CIDR `json:"cidrs"`
-
-	// Groups is a list of rules that allow another security group referenced
-	// by ID.
-	Groups []GroupIDRule `json:"groups"`
-}
-
-// GroupIDRule is a security group rule that refers to another security group by
-// ID and has a description.
-type GroupIDRule struct {
-	// GroupId is the ID of the security group that is allowed by the rule.
-	GroupId string `json:"groupId"`
-	// Description contains a small text describing the CIDR.
-	Description string `json:"description"`
 }
 
 // CIDR has a CIDR (IP Range) and a description for the value.
@@ -200,25 +187,11 @@ func convertAWSIPPermissions(permissions []ec2Types.IpPermission) []SecurityGrou
 			ipProtocol = aws.ToString(permission.IpProtocol)
 		}
 
-		var cidrs []CIDR
-		if len(permission.IpRanges) > 0 {
-			cidrs = make([]CIDR, 0, len(permission.IpRanges))
-		}
+		cidrs := make([]CIDR, 0, len(permission.IpRanges))
 		for _, r := range permission.IpRanges {
 			cidrs = append(cidrs, CIDR{
 				CIDR:        aws.ToString(r.CidrIp),
 				Description: aws.ToString(r.Description),
-			})
-		}
-
-		var groupIDs []GroupIDRule
-		if len(permission.UserIdGroupPairs) > 0 {
-			groupIDs = make([]GroupIDRule, 0, len(permission.UserIdGroupPairs))
-		}
-		for _, pair := range permission.UserIdGroupPairs {
-			groupIDs = append(groupIDs, GroupIDRule{
-				GroupId:     aws.ToString(pair.GroupId),
-				Description: aws.ToString(pair.Description),
 			})
 		}
 
@@ -230,7 +203,6 @@ func convertAWSIPPermissions(permissions []ec2Types.IpPermission) []SecurityGrou
 			FromPort:   fromPort,
 			ToPort:     toPort,
 			CIDRs:      cidrs,
-			Groups:     groupIDs,
 		})
 	}
 

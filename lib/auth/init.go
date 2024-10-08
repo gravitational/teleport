@@ -790,7 +790,6 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 					FIPS:          asrv.fips,
 					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-					Cloud:         modules.GetModules().Features().Cloud,
 				})
 			}
 

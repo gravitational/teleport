@@ -32,6 +32,8 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -42,15 +44,18 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -163,36 +168,6 @@ type CreateSSHCertReq struct {
 
 // CheckAndSetDefaults checks and sets default values.
 func (r *CreateSSHCertReq) CheckAndSetDefaults() error {
-	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
-}
-
-// HeadlessLoginReq is a headless login request for /webapi/headless/login.
-type HeadlessLoginReq struct {
-	// User is a teleport username
-	User string `json:"user"`
-	// HeadlessAuthenticationID is a headless authentication resource id.
-	HeadlessAuthenticationID string `json:"headless_id"`
-	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
-	// should be used as the subject of issued certificates, and optional
-	// hardware key attestation statements for each key.
-	UserPublicKeys
-	TTL time.Duration `json:"ttl"`
-	// Compatibility specifies OpenSSH compatibility flags.
-	Compatibility string `json:"compatibility,omitempty"`
-	// RouteToCluster is an optional cluster name to route the response
-	// credentials to.
-	RouteToCluster string
-	// KubernetesCluster is an optional k8s cluster name to route the response
-	// credentials to.
-	KubernetesCluster string
-}
-
-// CheckAndSetDefaults checks and sets default values.
-func (r *HeadlessLoginReq) CheckAndSetDefaults() error {
-	if r.HeadlessAuthenticationID == "" {
-		return trace.BadParameter("missing headless authentication id for headless login")
-	}
-
 	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
 }
 
@@ -386,12 +361,28 @@ type SSHLogin struct {
 // SSHLoginSSO contains SSH login parameters for SSO login.
 type SSHLoginSSO struct {
 	SSHLogin
-	// ConnectorID is the SSO Auth connector ID to use.
+	// ConnectorID is the OIDC or SAML connector ID to use
 	ConnectorID string
-	// ConnectorName is the display name of the SSO Auth connector.
+	// ConnectorName is the display name of the connector.
 	ConnectorName string
-	// ConnectorType is the type of SSO Auth connector.
-	ConnectorType string
+	// Protocol is an optional protocol selection
+	Protocol string
+	// BindAddr is an optional host:port address to bind
+	// to for SSO login flows
+	BindAddr string
+	// CallbackAddr is the optional base URL to give to the user when performing
+	// SSO redirect flows.
+	CallbackAddr string
+	// Browser can be used to pass the name of a browser to override the system
+	// default (not currently implemented), or set to 'none' to suppress
+	// browser opening entirely.
+	Browser string
+	// PrivateKeyPolicy is a key policy to follow during login.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// ProxySupportsKeyPolicyMessage lets the tsh redirector give users more
+	// useful messages in the web UI if the proxy supports them.
+	// TODO(atburke): DELETE in v17.0.0
+	ProxySupportsKeyPolicyMessage bool
 }
 
 // SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
@@ -515,6 +506,65 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 	return clt, u, nil
 }
 
+// SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*authclient.SSHLoginResponse, error) {
+	if login.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
+		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
+			"the remote host. Make sure that you trust the provided callback host " +
+			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
+		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
+			fmt.Sprintf(callbackPrompt, login.CallbackAddr, login.BindAddr),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !ok {
+			return nil, trace.BadParameter("Login canceled.")
+		}
+	}
+	rd, err := NewRedirector(ctx, login, config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := rd.Start(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rd.Close()
+
+	clickableURL := rd.ClickableURL()
+
+	// If a command was found to launch the browser, create and start it.
+	err = OpenURLInBrowser(login.Browser, clickableURL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
+	}
+
+	// Print the URL to the screen, in case the command that launches the browser did not run.
+	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
+	if login.Browser == teleport.BrowserNone {
+		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
+	} else {
+		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
+		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
+	}
+
+	select {
+	case err := <-rd.ErrorC():
+		log.Debugf("Got an error: %v.", err)
+		return nil, trace.Wrap(err)
+	case response := <-rd.ResponseC():
+		log.Debugf("Got response from browser.")
+		return response, nil
+	case <-time.After(defaults.SSOCallbackTimeout):
+		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
+		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
+	case <-rd.Done():
+		log.Debugf("Canceled by user.")
+		return nil, trace.Wrap(ctx.Err(), "canceled by user")
+	}
+}
+
 // SSHAgentLogin is used by tsh to fetch local user credentials.
 func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
@@ -550,6 +600,40 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 	return &out, nil
 }
 
+// OpenURLInBrowser opens a URL in a web browser.
+func OpenURLInBrowser(browser string, URL string) error {
+	var execCmd *exec.Cmd
+	if browser != teleport.BrowserNone {
+		switch runtime.GOOS {
+		// macOS.
+		case constants.DarwinOS:
+			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		// Windows.
+		case constants.WindowsOS:
+			path, err := exec.LookPath(teleport.OpenBrowserWindows)
+			if err == nil {
+				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
+			}
+		// Linux or any other operating system.
+		default:
+			path, err := exec.LookPath(teleport.OpenBrowserLinux)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		}
+	}
+	if execCmd != nil {
+		if err := execCmd.Start(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
 func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
@@ -560,7 +644,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 	// This request will block until the headless login is approved.
 	clt.Client.HTTPClient().Timeout = defaults.HeadlessLoginTimeout
 
-	req := HeadlessLoginReq{
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:                     login.User,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
 		UserPublicKeys: UserPublicKeys{
@@ -573,14 +657,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
-	}
-
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "headless", "login"), req)
-	if trace.IsNotFound(err) {
-		// fallback to deprecated headless login endpoint
-		// TODO(Joerger): DELETE IN v18.0.0
-		re, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), req)
-	}
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -704,7 +781,6 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
 	}
-
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:

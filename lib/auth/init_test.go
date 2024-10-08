@@ -197,7 +197,6 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 	testCases := map[string]struct {
 		fips                  bool
 		hsm                   bool
-		cloud                 bool
 		expectDefaultSuite    types.SignatureAlgorithmSuite
 		expectUnallowedSuites []types.SignatureAlgorithmSuite
 	}{
@@ -228,31 +227,15 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
 			},
 		},
-		"cloud": {
-			cloud:              true,
-			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
-				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			},
-		},
 	}
 
 	// Test the behavior of auth server init. A default signature algorithm
 	// suite should never overwrite a persisted signature algorithm suite for an
 	// existing cluster, even if that was also a default.
 	t.Run("init", func(t *testing.T) {
+		t.Parallel()
 		for desc, tc := range testCases {
 			t.Run(desc, func(t *testing.T) {
-				if tc.cloud {
-					modules.SetTestModules(t, &modules.TestModules{
-						TestFeatures: modules.Features{
-							Cloud: true,
-							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-								entitlements.HSM: {Enabled: true},
-							},
-						},
-					})
-				}
 				// Assert that a fresh cluster gets expected default suite.
 				cfg := setupInitConfig(t, tc.fips, tc.hsm)
 				authServer, err := Init(ctx, cfg)
@@ -311,28 +294,13 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 	// Test that the auth preference cannot be upserted with a signature
 	// algorithm suite incompatible with the cluster FIPS and HSM settings.
 	t.Run("upsert", func(t *testing.T) {
+		t.Parallel()
 		for desc, tc := range testCases {
 			t.Run(desc, func(t *testing.T) {
-				if tc.cloud {
-					modules.SetTestModules(t, &modules.TestModules{
-						TestFeatures: modules.Features{
-							Cloud: true,
-							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-								entitlements.HSM: {Enabled: true},
-							},
-						},
-					})
-				}
+				t.Parallel()
 				cfg := TestAuthServerConfig{
 					Dir:  t.TempDir(),
 					FIPS: tc.fips,
-					AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-						// Cloud requires second factor enabled.
-						SecondFactor: constants.SecondFactorOn,
-						Webauthn: &types.Webauthn{
-							RPID: "teleport.example.com",
-						},
-					},
 				}
 				if tc.hsm {
 					cfg.KeystoreConfig = keystore.HSMTestConfig(t)

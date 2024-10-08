@@ -50,10 +50,9 @@ export function SlideTabs({
               onClick={onClick}
               itemCount={tabs.length}
               key={`${tabName}-${tabIndex}`}
-              className={selected && 'selected'}
+              className={tabIndex === activeIndex && 'selected'}
               processing={isProcessing}
               disabled={disabled}
-              aria-selected={selected}
             >
               <Box>
                 {selected && isProcessing && <Spinner delay="none" size={25} />}

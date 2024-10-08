@@ -248,13 +248,6 @@ const securityGroupsResponse = [
         cidrs: [
           { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
         ],
-        groups: [{ groupId: 'sg-123', description: 'Trusted other group' }],
-      },
-      {
-        ipProtocol: 'tcp',
-        fromPort: '8080',
-        toPort: '8080',
-        groups: [{ groupId: 'sg-456', description: 'Trusted other group' }],
       },
     ],
     outboundRules: [
@@ -272,24 +265,11 @@ const securityGroupsResponse = [
       },
       {
         ipProtocol: 'tcp',
-        fromPort: '8080',
-        toPort: '8080',
-        groups: [
-          {
-            groupId: 'sg-abcdef',
-            description:
-              'a trusted group on port 8080 for some reason and this description rambles a lot so the table better truncate it with ellipses but you should still see the full thing by hovering on it :D',
-          },
-        ],
-      },
-      {
-        ipProtocol: 'tcp',
         fromPort: '2000',
         toPort: '5000',
         cidrs: [
           { cidr: '10.0.0.0/16', description: 'Subnet Mask 255.255.0.0' },
         ],
-        groups: [{ groupId: 'sg-abc', description: 'some other group' }],
       },
     ],
   },

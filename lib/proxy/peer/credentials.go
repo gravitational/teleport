@@ -30,6 +30,45 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// serverCredentials wraps a [crendentials.TransportCredentials] that
+// extends the ServerHandshake to ensure the credentials contain the proxy system role.
+type serverCredentials struct {
+	credentials.TransportCredentials
+}
+
+// newServerCredentials creates new serverCredentials from the given [crendentials.TransportCredentials].
+func newServerCredentials(creds credentials.TransportCredentials) *serverCredentials {
+	return &serverCredentials{
+		TransportCredentials: creds,
+	}
+}
+
+// ServerHandshake performs the TLS handshake and then verifies that the client
+// attempting to connect is a Proxy.
+func (c *serverCredentials) ServerHandshake(conn net.Conn) (_ net.Conn, _ credentials.AuthInfo, err error) {
+	conn, authInfo, err := c.TransportCredentials.ServerHandshake(conn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	defer func() {
+		if err != nil {
+			conn.Close()
+		}
+	}()
+
+	identity, err := getIdentity(authInfo)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if err := checkProxyRole(identity); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return conn, authInfo, nil
+}
+
 // clientCredentials wraps a [crendentials.TransportCredentials] that
 // extends the ClientHandshake to ensure the credentials contain the proxy system role
 // and that connections are established to the expected peer.

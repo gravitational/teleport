@@ -35,38 +35,5 @@ export type Kind =
   | KindAuthConnectors
   | KindJoinToken;
 
-/** Teleport role in a resource format. */
+/** Describes a Teleport role. */
 export type RoleResource = Resource<KindRole>;
-
-/**
- * Teleport role in full format.
- * TODO(bl-nero): Add all fields supported on the UI side.
- */
-export type Role = {
-  kind: KindRole;
-  metadata: {
-    name: string;
-    description?: string;
-    labels?: Record<string, string>;
-    expires?: string;
-    revision?: string;
-  };
-  spec: {
-    allow: RoleConditions;
-    deny: RoleConditions;
-    options: object;
-  };
-  version: string;
-};
-
-type RoleConditions = {
-  node_labels?: Record<string, string[]>;
-};
-
-export type RoleWithYaml = {
-  object: Role;
-  /**
-   * yaml string used with yaml editors.
-   */
-  yaml: string;
-};

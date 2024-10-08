@@ -79,6 +79,5 @@ const sample = {
   },
   fetch: async () => ({ items: roles, startKey: '' }),
   remove: () => null,
-  create: () => null,
-  update: () => null,
+  save: () => null,
 };

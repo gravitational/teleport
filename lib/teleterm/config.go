@@ -21,7 +21,6 @@ package teleterm
 import (
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -47,8 +46,6 @@ type Config struct {
 	AgentsDir string
 	// InstallationID is a unique ID identifying a specific Teleport Connect installation.
 	InstallationID string
-	// AddKeysToAgent is passed to [client.Config].
-	AddKeysToAgent string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -84,10 +81,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.InstallationID == "" {
 		return trace.BadParameter("missing installation ID")
-	}
-
-	if c.AddKeysToAgent == "" {
-		c.AddKeysToAgent = client.AddKeysToAgentAuto
 	}
 
 	return nil

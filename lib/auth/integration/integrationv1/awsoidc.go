@@ -395,25 +395,11 @@ func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integratio
 func convertSecurityGroupRulesToProto(inRules []awsoidc.SecurityGroupRule) []*integrationpb.SecurityGroupRule {
 	out := make([]*integrationpb.SecurityGroupRule, 0, len(inRules))
 	for _, r := range inRules {
-		var cidrs []*integrationpb.SecurityGroupRuleCIDR
-		if len(r.CIDRs) > 0 {
-			cidrs = make([]*integrationpb.SecurityGroupRuleCIDR, 0, len(r.CIDRs))
-		}
+		cidrs := make([]*integrationpb.SecurityGroupRuleCIDR, 0, len(r.CIDRs))
 		for _, cidr := range r.CIDRs {
 			cidrs = append(cidrs, &integrationpb.SecurityGroupRuleCIDR{
 				Cidr:        cidr.CIDR,
 				Description: cidr.Description,
-			})
-		}
-
-		var groupIDs []*integrationpb.SecurityGroupRuleGroupID
-		if len(r.Groups) > 0 {
-			groupIDs = make([]*integrationpb.SecurityGroupRuleGroupID, 0, len(r.Groups))
-		}
-		for _, group := range r.Groups {
-			groupIDs = append(groupIDs, &integrationpb.SecurityGroupRuleGroupID{
-				GroupId:     group.GroupId,
-				Description: group.Description,
 			})
 		}
 		out = append(out, &integrationpb.SecurityGroupRule{
@@ -421,7 +407,6 @@ func convertSecurityGroupRulesToProto(inRules []awsoidc.SecurityGroupRule) []*in
 			FromPort:   int32(r.FromPort),
 			ToPort:     int32(r.ToPort),
 			Cidrs:      cidrs,
-			GroupIds:   groupIDs,
 		})
 	}
 	return out

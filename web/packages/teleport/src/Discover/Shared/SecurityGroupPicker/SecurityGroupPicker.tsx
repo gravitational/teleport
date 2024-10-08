@@ -211,21 +211,12 @@ type ExpandedSecurityGroupRule = {
 function expandSecurityGroupRule(
   rule: SecurityGroupRule
 ): ExpandedSecurityGroupRule[] {
-  return [
-    ...rule.cidrs.map(cidr => ({
-      source: cidr.cidr,
-      description: cidr.description,
-    })),
-    ...rule.groups.map(group => ({
-      source: group.groupId,
-      description: group.description,
-    })),
-  ].map(entry => ({
+  return rule.cidrs.map(source => ({
     ipProtocol: rule.ipProtocol,
     fromPort: rule.fromPort,
     toPort: rule.toPort,
-    source: entry.source,
-    description: entry.description,
+    source: source.cidr,
+    description: source.description,
   }));
 }
 

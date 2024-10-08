@@ -59,7 +59,6 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		TaskRole:        params.TaskRole,
-		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, confReq))
 }
@@ -77,7 +76,6 @@ func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConf
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, clt, confReq))
 }
@@ -99,7 +97,6 @@ func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationCo
 		ClusterName:     params.ClusterName,
 		IntegrationName: params.IntegrationName,
 		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEC2SSM(ctx, awsClt, confReq))
 }
@@ -116,7 +113,6 @@ func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.Integra
 	confReq := awsoidc.AWSAppAccessConfigureRequest{
 		IntegrationRole: params.RoleName,
 		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureAWSAppAccess(ctx, iamClient, confReq))
 }
@@ -134,7 +130,6 @@ func onIntegrationConfEKSIAM(ctx context.Context, params config.IntegrationConfE
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureEKSIAM(ctx, iamClient, confReq))
 }
@@ -176,7 +171,6 @@ func onIntegrationConfListDatabasesIAM(ctx context.Context, params config.Integr
 		Region:          params.Region,
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureListDatabasesIAM(ctx, clt, confReq))
 }
@@ -236,7 +230,6 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 	confReq := awsoidc.AccessGraphAWSIAMConfigureRequest{
 		IntegrationRole: params.Role,
 		AccountID:       params.AccountID,
-		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
 }

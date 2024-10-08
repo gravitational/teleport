@@ -20,7 +20,6 @@ package web
 
 import (
 	"net/http"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -62,35 +61,21 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	}, nil
 }
 
-// clusterKubeResourcesGet returns supported requested kubernetes subresources eg: pods, namespaces, secrets etc.
-func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	kind := r.URL.Query().Get("kind")
-	kubeCluster := r.URL.Query().Get("kubeCluster")
-
-	if kubeCluster == "" {
-		return nil, trace.BadParameter("missing param %q", "kubeCluster")
-	}
-
-	if kind == "" {
-		return nil, trace.BadParameter("missing param %q", "kind")
-	}
-
-	if !slices.Contains(types.KubernetesResourcesKinds, kind) {
-		return nil, trace.BadParameter("kind is not valid, valid kinds %v", types.KubernetesResourcesKinds)
-	}
-
+// clusterKubePodsGet returns a list of Kubernetes Pods in a form the
+// UI can present.
+func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listKubeResources(r.Context(), clt, r.URL.Query(), site.GetName(), kind)
+	resp, err := listKubeResources(r.Context(), clt, r.URL.Query(), site.GetName(), types.KindKubePod)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeResources(resp.Resources, kubeCluster),
+		Items:      ui.MakeKubeResources(resp.Resources, r.URL.Query().Get("kubeCluster")),
 		StartKey:   resp.NextKey,
 		TotalCount: int(resp.TotalCount),
 	}, nil

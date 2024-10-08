@@ -1676,12 +1676,12 @@ func (c *testContext) postgresClientLocalProxy(ctx context.Context, teleportUser
 
 // mysqlClient connects to test MySQL through database access as a specified
 // Teleport user and database account.
-func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (mysql.TestClientConn, error) {
+func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
 	return c.mysqlClientWithAddr(c.mysqlListener.Addr().String(), teleportUser, dbService, dbUser)
 }
 
 // mysqlClientWithAddr is like mysqlClient but allows to override connection address.
-func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (mysql.TestClientConn, error) {
+func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
 	return mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -1697,7 +1697,7 @@ func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUs
 }
 
 // mysqlClientLocalProxy connects to test MySQL through local ALPN proxy.
-func (c *testContext) mysqlClientLocalProxy(ctx context.Context, teleportUser, dbService, dbUser string) (mysql.TestClientConn, *alpnproxy.LocalProxy, error) {
+func (c *testContext) mysqlClientLocalProxy(ctx context.Context, teleportUser, dbService, dbUser string) (*mysqlclient.Conn, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolMySQL,

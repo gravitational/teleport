@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"io"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -28,8 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/provisioning"
-	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 )
 
 const (
@@ -52,12 +50,6 @@ type EICEIAMConfigureRequest struct {
 
 	// AccountID is the AWS Account ID.
 	AccountID string
-
-	// AutoConfirm skips user confirmation of the operation plan if true.
-	AutoConfirm bool
-
-	// stdout is used to override stdout output in tests.
-	stdout io.Writer
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -80,7 +72,8 @@ func (r *EICEIAMConfigureRequest) CheckAndSetDefaults() error {
 // EICEIAMConfigureClient describes the required methods to create the IAM Policies required for accessing EC2 instances usine EICE.
 type EICEIAMConfigureClient interface {
 	CallerIdentityGetter
-	awsactions.RolePolicyPutter
+	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
+	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultEICEIAMConfigureClient struct {
@@ -141,20 +134,28 @@ func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req EICEI
 		return trace.Wrap(err)
 	}
 
-	policy := awslib.NewPolicyDocument(
+	ec2ICEPolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForEC2InstanceConnectEndpoint(),
-	)
-	putRolePolicy, err := awsactions.PutRolePolicy(clt, req.IntegrationRoleEICEPolicy, req.IntegrationRole, policy)
+	).Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
-		Name: "eice-iam",
-		Actions: []provisioning.Action{
-			*putRolePolicy,
-		},
-		AutoConfirm: req.AutoConfirm,
-		Output:      req.stdout,
-	}))
+	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
+		PolicyName:     &req.IntegrationRoleEICEPolicy,
+		RoleName:       &req.IntegrationRole,
+		PolicyDocument: &ec2ICEPolicyDocument,
+	})
+	if err != nil {
+		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
+			return trace.NotFound("role %q not found.", req.IntegrationRole)
+		}
+		return trace.Wrap(err)
+	}
+
+	slog.InfoContext(ctx, "IAM Policy added to Integration Role",
+		"role", req.IntegrationRole,
+		"policy", req.IntegrationRoleEICEPolicy,
+	)
+	return nil
 }

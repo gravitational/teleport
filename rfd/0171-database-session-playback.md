@@ -211,7 +211,7 @@ It will present the session recording events in different text formats:
 Example of player visualization:
 
 ```code
-mydatabase=# SELECT id, name FROM events;
+mydatabse=# SELECT id, name FROM events;
 SUCCESS
 (3 rows returned)
 
@@ -247,7 +247,7 @@ executed, following the same format described earlier.
 Example:
 
 ```code
-mydatabase=# SELECT id, name FROM events;
+mydatabse=# SELECT id, name FROM events;
 
 mydatabase=# INSERT INTO events (name) VALUES ('session.query');
 

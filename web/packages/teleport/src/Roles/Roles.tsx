@@ -18,15 +18,9 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { Alert, Box, Button, Flex, H3, Indicator, Link } from 'design';
+import { Alert, Box, Button, Flex, H3, Link } from 'design';
 
 import { P } from 'design/Text/Text';
-
-import { useAsync } from 'shared/hooks/useAsync';
-
-import { Danger } from 'design/Alert';
-
-import { useTheme } from 'styled-components';
 
 import {
   FeatureBox,
@@ -34,28 +28,15 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
+import useResources from 'teleport/components/useResources';
 import useTeleport from 'teleport/useTeleport';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 
-import { storageService } from 'teleport/services/storageService';
-
-import { RoleWithYaml, Role, RoleResource } from 'teleport/services/resources';
-
-import useResources, {
-  State as ResourcesState,
-} from 'teleport/components/useResources';
-
-import { yamlService } from 'teleport/services/yaml';
-
-import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-
 import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
 import { useRoles, State } from './useRoles';
-
-import { RoleEditor } from './RoleEditor';
 
 import templates from './templates';
 
@@ -65,13 +46,11 @@ export function RolesContainer() {
   return <Roles {...state} />;
 }
 
-const useNewRoleEditor = storageService.getUseNewRoleEditor();
-
 export function Roles(props: State) {
-  const { remove, create, update, fetch } = props;
+  const { remove, save, fetch } = props;
   const [search, setSearch] = useState('');
 
-  const serverSidePagination = useServerSidePagination<RoleResource>({
+  const serverSidePagination = useServerSidePagination({
     pageSize: 20,
     fetchFunc: async (_, params) => {
       const { items, startKey } = await fetch(params);
@@ -89,17 +68,10 @@ export function Roles(props: State) {
   const title =
     resources.status === 'creating' ? 'Create a new role' : 'Edit role';
 
-  async function handleSave(role: Partial<RoleWithYaml>): Promise<void> {
-    const response: RoleResource = await (resources.status === 'creating'
-      ? create(role)
-      : update(resources.item.name, role));
-
-    if (useNewRoleEditor) {
-      // We don't really disregard anything, since we already saved the role;
-      // this is done just to hide the new editor.
-      resources.disregard();
-    }
-
+  async function handleSave(content: string): Promise<void> {
+    const name = resources.item.name;
+    const isNew = resources.status === 'creating';
+    const response = await save(name, content, isNew);
     // We cannot refetch the data right after saving because this backend
     // operation is not atomic.
     // There is a short delay between updating the resource
@@ -136,23 +108,12 @@ export function Roles(props: State) {
     });
   };
 
-  async function handleEdit(id: string) {
-    resources.edit(id);
-  }
-
   async function handleDelete(): Promise<void> {
     await remove(resources.item.name);
     modifyFetchedData(p => ({
       ...p,
       agents: p.agents.filter(r => r.id !== resources.item.id),
     }));
-  }
-
-  function handleRoleEditorDelete() {
-    const id = resources.item?.id;
-    if (id) {
-      resources.remove(id);
-    }
   }
 
   return (
@@ -177,70 +138,55 @@ export function Roles(props: State) {
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />
       )}
-      <Flex flex="1">
+      <Flex>
         <Box width="100%" mr="6" mb="4">
           <RoleList
             serversidePagination={serverSidePagination}
             onSearchChange={setSearch}
             search={search}
-            onEdit={handleEdit}
+            onEdit={resources.edit}
             onDelete={resources.remove}
           />
         </Box>
-
-        {/* New editor or descriptive text, depending on state. */}
-        {useNewRoleEditor &&
-        (resources.status === 'creating' || resources.status === 'editing') ? (
-          <RoleEditorAdapter
-            resources={resources}
-            onSave={handleSave}
-            onDelete={handleRoleEditorDelete}
-          />
-        ) : (
-          <Box
-            ml="auto"
-            width="240px"
-            color="text.main"
-            style={{ flexShrink: 0 }}
-          >
-            <H3 mb={3}>Role-based access control</H3>
-            <P mb={3}>
-              Teleport Role-based access control (RBAC) provides fine-grained
-              control over who can access resources and in which contexts. A
-              Teleport role can be assigned automatically based on user identity
-              when used with single sign-on (SSO).
-            </P>
-            <P>
-              Learn more in{' '}
-              <Link
-                color="text.main"
-                target="_blank"
-                href="https://goteleport.com/docs/access-controls/guides/role-templates/"
-              >
-                the cluster management (RBAC)
-              </Link>{' '}
-              section of online documentation.
-            </P>
-          </Box>
-        )}
+        <Box
+          ml="auto"
+          width="240px"
+          color="text.main"
+          style={{ flexShrink: 0 }}
+        >
+          <H3 mb={3}>Role-based access control</H3>
+          <P mb={3}>
+            Teleport Role-based access control (RBAC) provides fine-grained
+            control over who can access resources and in which contexts. A
+            Teleport role can be assigned automatically based on user identity
+            when used with single sign-on (SSO).
+          </P>
+          <P>
+            Learn more in{' '}
+            <Link
+              color="text.main"
+              target="_blank"
+              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
+            >
+              the cluster management (RBAC)
+            </Link>{' '}
+            section of online documentation.
+          </P>
+        </Box>
       </Flex>
-
-      {/* Old editor. */}
-      {!useNewRoleEditor &&
-        (resources.status === 'creating' || resources.status === 'editing') && (
-          <ResourceEditor
-            docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
-            title={title}
-            text={resources.item.content}
-            name={resources.item.name}
-            isNew={resources.status === 'creating'}
-            onSave={yaml => handleSave({ yaml })}
-            onClose={resources.disregard}
-            directions={<Directions />}
-            kind={resources.item.kind}
-          />
-        )}
-
+      {(resources.status === 'creating' || resources.status === 'editing') && (
+        <ResourceEditor
+          docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+          title={title}
+          text={resources.item.content}
+          name={resources.item.name}
+          isNew={resources.status === 'creating'}
+          onSave={handleSave}
+          onClose={resources.disregard}
+          directions={<Directions />}
+          kind={resources.item.kind}
+        />
+      )}
       {resources.status === 'removing' && (
         <DeleteRole
           name={resources.item.name}
@@ -249,73 +195,6 @@ export function Roles(props: State) {
         />
       )}
     </FeatureBox>
-  );
-}
-
-/**
- * This component is responsible for converting from the `Resource`
- * representation of a role to a more accurate `RoleWithYaml` structure. The
- * conversion is asynchronous and it's performed on the server side.
- */
-function RoleEditorAdapter({
-  resources,
-  onSave,
-  onDelete,
-}: {
-  resources: ResourcesState;
-  onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
-  onDelete: () => void;
-}) {
-  const theme = useTheme();
-  const [convertAttempt, convertToRole] = useAsync(
-    async (yaml: string): Promise<RoleWithYaml | null> => {
-      if (resources.status === 'creating' || !resources.item) {
-        return null;
-      }
-      return {
-        yaml,
-        object: await yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
-          yaml,
-        }),
-      };
-    }
-  );
-
-  const originalContent = resources.item?.content ?? '';
-  useEffect(() => {
-    convertToRole(originalContent);
-  }, [originalContent]);
-
-  return (
-    <Flex
-      flexDirection="column"
-      p={4}
-      borderLeft={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0].background}
-      width="800px"
-    >
-      {convertAttempt.status === 'processing' && (
-        <Flex
-          flexDirection="column"
-          alignItems="center"
-          justifyContent="center"
-          flex="1"
-        >
-          <Indicator />
-        </Flex>
-      )}
-      {convertAttempt.status === 'error' && (
-        <Danger>{convertAttempt.statusText}</Danger>
-      )}
-      {convertAttempt.status === 'success' && (
-        <RoleEditor
-          originalRole={convertAttempt.data}
-          onCancel={resources.disregard}
-          onSave={onSave}
-          onDelete={onDelete}
-        />
-      )}
-    </Flex>
   );
 }
 

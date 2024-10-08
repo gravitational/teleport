@@ -44,7 +44,6 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.LICENSE_ACKNOWLEDGED,
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
-  KeysEnum.USE_NEW_ROLE_EDITOR,
 ];
 
 export const storageService = {
@@ -260,9 +259,5 @@ export const storageService = {
       KeysEnum.EXTERNAL_AUDIT_STORAGE_CTA_DISABLED,
       JSON.stringify(true)
     );
-  },
-
-  getUseNewRoleEditor(): boolean {
-    return this.getParsedJSONValue(KeysEnum.USE_NEW_ROLE_EDITOR, false);
   },
 };

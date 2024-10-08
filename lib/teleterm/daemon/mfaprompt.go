@@ -83,16 +83,16 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
-	// Depending on the run opts, we may spawn an TOTP goroutine, webauth goroutine, or both.
+	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
 		ctx, cancel := context.WithCancelCause(ctx)
 
-		// Fire app Prompt goroutine. Handles client cancellation and TOTP.
+		// Fire App goroutine (TOTP).
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			resp, err := p.promptMFA(ctx, runOpts)
+			resp, err := p.promptMFA(ctx, chal, runOpts)
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
 
 			// If the user closes the modal in the Electron app, we need to be able to cancel the other
@@ -128,7 +128,7 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 	return resp, nil
 }
 
-func (p *mfaPrompt) promptMFA(ctx context.Context, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
+func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
 		ClusterUri: p.resourceURI.GetClusterURI().String(),
 		Reason:     p.cfg.PromptReason,

@@ -344,34 +344,6 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 	return listener, nil
 }
 
-// createPacketConn opens a UDP socket with the given address. UDP sockets are
-// never passed on to a different process, so they're not registered anywhere.
-func (process *TeleportProcess) createPacketConn(typ string, address string) (net.PacketConn, error) {
-	listenersClosed := func() bool {
-		process.Lock()
-		defer process.Unlock()
-		return process.listenersClosed
-	}
-
-	if listenersClosed() {
-		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, not opening packet conn.", "type", typ, "address", address)
-		return nil, trace.BadParameter("listening is blocked")
-	}
-
-	pc, err := net.ListenPacket("udp", address)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if listenersClosed() {
-		_ = pc.Close()
-		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, closing newly-created packet conn.", "type", typ, "address", address)
-		return nil, trace.BadParameter("listening is blocked")
-	}
-
-	return pc, nil
-}
-
 // getListenerNeedsLock tries to get an existing listener that matches the type/addr.
 func (process *TeleportProcess) getListenerNeedsLock(typ ListenerType, address string) (listener net.Listener, ok bool) {
 	for _, l := range process.registeredListeners {

@@ -87,6 +87,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
               />
             </div>
             <Popover
+              id="simple-popper"
               open={showTooltip}
               anchorOrigin={{
                 vertical: 'bottom',

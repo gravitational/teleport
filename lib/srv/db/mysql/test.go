@@ -39,19 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestClientConn defines interface for client.Conn.
-type TestClientConn interface {
-	Execute(command string, args ...interface{}) (*mysql.Result, error)
-	Close() error
-	UseDB(dbName string) error
-	GetServerVersion() string
-	Ping() error
-	WritePacket(data []byte) error
-}
-
 // MakeTestClient returns MySQL client connection according to the provided
 // parameters.
-func MakeTestClient(config common.TestClientConfig) (TestClientConn, error) {
+func MakeTestClient(config common.TestClientConfig) (*client.Conn, error) {
 	tlsConfig, err := common.MakeTestClientTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -60,21 +50,18 @@ func MakeTestClient(config common.TestClientConfig) (TestClientConn, error) {
 		config.RouteToDatabase.Username,
 		"",
 		config.RouteToDatabase.Database,
-		func(conn *client.Conn) error {
+		func(conn *client.Conn) {
 			conn.SetTLSConfig(tlsConfig)
-			return nil
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &clientConn{
-		Conn: conn,
-	}, nil
+	return conn, nil
 }
 
 // MakeTestClientWithoutTLS returns a MySQL client connection without setting
 // TLS config to the MySQL client.
-func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase) (TestClientConn, error) {
+func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase) (*client.Conn, error) {
 	conn, err := client.Connect(addr,
 		routeToDatabase.Username,
 		"",
@@ -83,9 +70,7 @@ func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &clientConn{
-		Conn: conn,
-	}, nil
+	return conn, nil
 }
 
 // UserEvent represents a user activation/deactivation event.

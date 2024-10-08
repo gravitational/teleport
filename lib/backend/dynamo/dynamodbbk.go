@@ -215,10 +215,10 @@ const (
 	hashKeyKey = "HashKey"
 )
 
-const (
+var (
 	// keyPrefix is a prefix that is added to every dynamodb key
 	// for backwards compatibility
-	keyPrefix = "teleport"
+	keyPrefix = backend.KeyFromString("teleport")
 )
 
 // GetName is a part of backend API and it returns DynamoDB backend type
@@ -1000,12 +1000,12 @@ const (
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
 // with previous implementation of DynamoDB backend
 func prependPrefix(key backend.Key) string {
-	return keyPrefix + key.String()
+	return keyPrefix.AppendKey(key).String()
 }
 
 // trimPrefix removes leading 'teleport' from the key
 func trimPrefix(key string) backend.Key {
-	return backend.KeyFromString(key).TrimPrefix(backend.KeyFromString(keyPrefix))
+	return backend.KeyFromString(key).TrimPrefix(keyPrefix)
 }
 
 // create is a helper that writes a key/value pair in Dynamo with a given expiration.

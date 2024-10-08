@@ -19,7 +19,6 @@
 package awsoidc
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -31,8 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
@@ -45,7 +42,6 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 			ClusterName:     "my-cluster",
 			IntegrationName: "my-integration",
 			AccountID:       "123456789012",
-			AutoConfirm:     true,
 		}
 	}
 
@@ -68,7 +64,6 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 				ClusterName:                 "my-cluster",
 				IntegrationName:             "my-integration",
 				AccountID:                   "123456789012",
-				AutoConfirm:                 true,
 			},
 		},
 		{
@@ -141,7 +136,6 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 				ProxyPublicURL:              "https://proxy.example.com",
 				ClusterName:                 "my-cluster",
 				IntegrationName:             "my-integration",
-				AutoConfirm:                 true,
 			},
 		},
 	} {
@@ -169,7 +163,6 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 			ClusterName:     "my-cluster",
 			IntegrationName: "my-integration",
 			AccountID:       "123456789012",
-			AutoConfirm:     true,
 		}
 	}
 
@@ -232,34 +225,6 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestEC2SSMIAMConfigOutput(t *testing.T) {
-	ctx := context.Background()
-	var buf bytes.Buffer
-	req := EC2SSMIAMConfigureRequest{
-		Region:                               "us-east-1",
-		IntegrationRole:                      "integrationrole",
-		SSMDocumentName:                      "MyDoc",
-		ProxyPublicURL:                       "https://proxy.example.com",
-		ClusterName:                          "my-cluster",
-		IntegrationName:                      "my-integration",
-		AccountID:                            "123456789012",
-		AutoConfirm:                          true,
-		stdout:                               &buf,
-		insecureSkipInstallPathRandomization: true,
-	}
-
-	clt := mockEC2SSMIAMConfigClient{
-		CallerIdentityGetter: mockSTSClient{accountID: req.AccountID},
-		existingRoles:        []string{req.IntegrationRole},
-	}
-
-	require.NoError(t, ConfigureEC2SSM(ctx, &clt, req))
-	if golden.ShouldSet() {
-		golden.Set(t, buf.Bytes())
-	}
-	require.Equal(t, string(golden.Get(t)), buf.String())
 }
 
 type mockEC2SSMIAMConfigClient struct {

@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { ButtonSecondary, H2, Text } from 'design';
+import { ButtonSecondary, H2 } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 
@@ -67,11 +67,7 @@ export function SecurityGroupRulesDialog({
               headerText: 'Source',
               render: ({ source }) => {
                 if (source) {
-                  return (
-                    <Cell>
-                      <Text title={source}>{source}</Text>
-                    </Cell>
-                  );
+                  return <Cell>{source}</Cell>;
                 }
                 return null;
               },
@@ -81,11 +77,7 @@ export function SecurityGroupRulesDialog({
               headerText: 'Description',
               render: ({ description }) => {
                 if (description) {
-                  return (
-                    <Cell>
-                      <Text title={description}>{description}</Text>
-                    </Cell>
-                  );
+                  return <Cell>{description}</Cell>;
                 }
                 return null;
               },
@@ -112,8 +104,6 @@ const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: middle;
     text-align: left;
-    max-width: 200px;
-    text-wrap: nowrap;
   }
 
   & > thead > tr > th {

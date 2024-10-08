@@ -40,8 +40,6 @@ type Config struct {
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to wancli.Login.
 	WebauthnLogin client.WebauthnLoginFunc
-	// AddKeysToAgent is passed to [client.Config].
-	AddKeysToAgent string
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
@@ -56,10 +54,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Log == nil {
 		c.Log = logrus.WithField(teleport.ComponentKey, "conn:storage")
-	}
-
-	if c.AddKeysToAgent == "" {
-		c.AddKeysToAgent = client.AddKeysToAgentAuto
 	}
 
 	return nil

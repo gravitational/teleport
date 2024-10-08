@@ -113,7 +113,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := serverConn.Quit()
+		err := serverConn.Close()
 		if err != nil {
 			e.Log.ErrorContext(ctx, "Failed to close connection to MySQL server.", "error", err)
 		}
@@ -222,9 +222,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		return nil, trace.Wrap(err)
 	}
 	user := sessionCtx.DatabaseUser
-	connectOpt := func(conn *client.Conn) error {
+	connectOpt := func(conn *client.Conn) {
 		conn.SetTLSConfig(tlsConfig)
-		return nil
 	}
 
 	var dialer client.Dialer
@@ -267,9 +266,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			connectOpt = func(*client.Conn) error {
-				return nil
-			}
+			connectOpt = func(*client.Conn) {}
 			dialer = newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
@@ -306,12 +303,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	return conn, nil
 }
 
-func withClientCapabilities(caps ...uint32) func(conn *client.Conn) error {
-	return func(conn *client.Conn) error {
+func withClientCapabilities(caps ...uint32) func(conn *client.Conn) {
+	return func(conn *client.Conn) {
 		for _, cap := range caps {
 			conn.SetCapability(cap)
 		}
-		return nil
 	}
 }
 

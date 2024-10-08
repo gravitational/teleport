@@ -110,8 +110,6 @@ type SAMLConnector interface {
 	IsMFAEnabled() bool
 	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
 	WithMFASettings() error
-	// GetForceAuthn returns ForceAuthn
-	GetForceAuthn() bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -422,21 +420,7 @@ func (o *SAMLConnectorV2) WithMFASettings() error {
 
 	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
 	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
-
-	switch o.Spec.MFASettings.ForceAuthn {
-	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
-		// Default to YES.
-		o.Spec.ForceAuthn = SAMLForceAuthn_FORCE_AUTHN_YES
-	default:
-		o.Spec.ForceAuthn = o.Spec.MFASettings.ForceAuthn
-	}
-
 	return nil
-}
-
-// GetForceAuthn returns ForceAuthn
-func (o *SAMLConnectorV2) GetForceAuthn() bool {
-	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
 }
 
 // setStaticFields sets static resource header and metadata fields.

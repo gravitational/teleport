@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgconn"
@@ -41,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -147,7 +147,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 	})
 
 	t.Run("mysql", func(t *testing.T) {
-		dbConns := make([]mysql.TestClientConn, 0)
+		dbConns := make([]*client.Conn, 0)
 		t.Cleanup(func() {
 			// Disconnect all clients.
 			for _, dbConn := range dbConns {

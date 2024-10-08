@@ -4259,7 +4259,7 @@ func TestClusterKubesGet(t *testing.T) {
 	}
 }
 
-func TestClusterKubeResourcesGet(t *testing.T) {
+func TestClusterKubePodsGet(t *testing.T) {
 	t.Parallel()
 	kubeClusterName := "kube_cluster"
 
@@ -4277,10 +4277,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
-					},
-					{
-						Kind: types.KindKubeNamespace,
-						Name: types.Wildcard,
 					},
 				},
 			},
@@ -4300,15 +4296,11 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	tt := []struct {
 		name             string
 		user             string
-		kind             string
-		kubeCluster      string
 		expectedResponse []ui.KubeResource
-		wantErr          bool
 	}{
 		{
-			name:        "get pods from gRPC server",
-			kind:        types.KindKubePod,
-			kubeCluster: kubeClusterName,
+			name: "get pods from gRPC server",
+			user: "test-user@example.com",
 			expectedResponse: []ui.KubeResource{
 				{
 					Kind:        types.KindKubePod,
@@ -4326,38 +4318,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:        "get namespaces",
-			kind:        types.KindKubeNamespace,
-			kubeCluster: kubeClusterName,
-			expectedResponse: []ui.KubeResource{
-				{
-					Kind:        types.KindKubeNamespace,
-					Name:        "default",
-					Namespace:   "",
-					Labels:      []ui.Label{{Name: "app", Value: "test"}},
-					KubeCluster: kubeClusterName,
-				},
-			},
-		},
-		{
-			name:        "missing kind",
-			kind:        "",
-			kubeCluster: kubeClusterName,
-			wantErr:     true,
-		},
-		{
-			name:        "invalid kind",
-			kind:        "invalid-kind",
-			kubeCluster: kubeClusterName,
-			wantErr:     true,
-		},
-		{
-			name:        "missing kube cluster",
-			kind:        types.KindKubeNamespace,
-			kubeCluster: "",
-			wantErr:     true,
-		},
 	}
 	proxy := env.proxies[0]
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -4367,27 +4327,22 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	addr := utils.MustParseAddr(listener.Addr().String())
 	proxy.handler.handler.cfg.ProxyWebAddr = *addr
 
-	user := "test-user@example.com"
-	pack := proxy.authPack(t, user, roleWithFullAccess(user))
-
 	for _, tc := range tt {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
+			pack := proxy.authPack(t, tc.user, roleWithFullAccess(tc.user))
+
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "pods")
 			params := url.Values{}
-			params.Add("kubeCluster", tc.kubeCluster)
-			params.Add("kind", tc.kind)
+			params.Add("kubeCluster", kubeClusterName)
 			re, err := pack.clt.Get(context.Background(), endpoint, params)
+			require.NoError(t, err)
 
-			if tc.wantErr {
-				require.True(t, trace.IsBadParameter(err))
-			} else {
-				require.NoError(t, err)
-				resp := testResponse{}
-				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-				require.ElementsMatch(t, tc.expectedResponse, resp.Items)
-			}
-
+			resp := testResponse{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.Len(t, resp.Items, 2)
+			require.Equal(t, 2, resp.TotalCount)
+			require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 		})
 	}
 }
@@ -9581,59 +9536,35 @@ type fakeKubeService struct {
 }
 
 func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
-	switch req.GetResourceType() {
-	case types.KindKubePod:
-		{
-			return &kubeproto.ListKubernetesResourcesResponse{
-				Resources: []*types.KubernetesResourceV1{
-					{
-						Kind: types.KindKubePod,
-						Metadata: types.Metadata{
-							Name: "test-pod",
-							Labels: map[string]string{
-								"app": "test",
-							},
-						},
-						Spec: types.KubernetesResourceSpecV1{
-							Namespace: "default",
-						},
-					},
-					{
-						Kind: types.KindKubePod,
-						Metadata: types.Metadata{
-							Name: "test-pod2",
-							Labels: map[string]string{
-								"app": "test2",
-							},
-						},
-						Spec: types.KubernetesResourceSpecV1{
-							Namespace: "default",
-						},
+	return &kubeproto.ListKubernetesResourcesResponse{
+		Resources: []*types.KubernetesResourceV1{
+			{
+				Kind: types.KindKubePod,
+				Metadata: types.Metadata{
+					Name: "test-pod",
+					Labels: map[string]string{
+						"app": "test",
 					},
 				},
-				TotalCount: 2,
-			}, nil
-		}
-	case types.KindKubeNamespace:
-		{
-			return &kubeproto.ListKubernetesResourcesResponse{
-				Resources: []*types.KubernetesResourceV1{
-					{
-						Kind: types.KindNamespace,
-						Metadata: types.Metadata{
-							Name: "default",
-							Labels: map[string]string{
-								"app": "test",
-							},
-						},
+				Spec: types.KubernetesResourceSpecV1{
+					Namespace: "default",
+				},
+			},
+			{
+				Kind: types.KindKubePod,
+				Metadata: types.Metadata{
+					Name: "test-pod2",
+					Labels: map[string]string{
+						"app": "test2",
 					},
 				},
-				TotalCount: 1,
-			}, nil
-		}
-	default:
-		return nil, trace.BadParameter("kubernetes resource kind %q is not mocked", req.GetResourceType())
-	}
+				Spec: types.KubernetesResourceSpecV1{
+					Namespace: "default",
+				},
+			},
+		},
+		TotalCount: 2,
+	}, nil
 }
 
 func TestWebSocketAuthenticateRequest(t *testing.T) {

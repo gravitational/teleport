@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"io"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -30,8 +30,6 @@ import (
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/provisioning"
-	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	awslibutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -72,16 +70,10 @@ type DeployServiceIAMConfigureRequest struct {
 	// - teleport.dev/integration: <integrationName>
 	ResourceCreationTags tags.AWSTags
 
-	// AutoConfirm skips user confirmation of the operation plan if true.
-	AutoConfirm bool
-
 	// partitionID is the AWS Partition ID.
 	// Eg, aws, aws-cn, aws-us-gov
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
 	partitionID string
-
-	// stdout is used to override stdout output in tests.
-	stdout io.Writer
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -122,11 +114,12 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 // DeployServiceIAMConfigureClient describes the required methods to create the IAM Roles/Policies required for the DeployService action.
 type DeployServiceIAMConfigureClient interface {
 	CallerIdentityGetter
-	awsactions.AssumeRolePolicyUpdater
-	awsactions.RoleCreator
-	awsactions.RoleGetter
-	awsactions.RolePolicyPutter
-	awsactions.RoleTagger
+
+	// CreateRole creates a new IAM Role.
+	CreateRole(ctx context.Context, params *iam.CreateRoleInput, optFns ...func(*iam.Options)) (*iam.CreateRoleOutput, error)
+
+	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
+	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultDeployServiceIAMConfigureClient struct {
@@ -180,67 +173,107 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	createTaskRole, err := createTaskRoleAction(clt, req)
-	if err != nil {
+	if err := createTaskRole(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
 
-	addPolicyToTaskRole, err := addPolicyToTaskRoleAction(clt, req)
-	if err != nil {
+	if err := addPolicyToTaskRole(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
 
-	addPolicyToIntegrationRole, err := addPolicyToIntegrationRoleAction(clt, req)
-	if err != nil {
+	if err := addPolicyToIntegrationRole(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
-		Name: "deployservice-iam",
-		Actions: []provisioning.Action{
-			*createTaskRole,
-			*addPolicyToTaskRole,
-			*addPolicyToIntegrationRole,
-		},
-		AutoConfirm: req.AutoConfirm,
-		Output:      req.stdout,
-	}))
+	return nil
 }
 
-// createTaskRoleAction returns an action that creates the TaskRole and sets up
-// its permissions and trust relationship.
-func createTaskRoleAction(clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) (*provisioning.Action, error) {
-	trustPolicy := awslib.NewPolicyDocument(
+// createTaskRole creates the TaskRole and sets up its permissions and trust relationship.
+func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
+	taskRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForECSTaskRoleTrustRelationships(),
+	).Marshal()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.CreateRole(ctx, &iam.CreateRoleInput{
+		RoleName:                 &req.TaskRole,
+		Description:              &taskRoleDescription,
+		AssumeRolePolicyDocument: &taskRoleAssumeRoleDocument,
+		Tags:                     req.ResourceCreationTags.ToIAMTags(),
+	})
+	if err != nil {
+		convertedErr := awslib.ConvertIAMv2Error(err)
+		if trace.IsAlreadyExists(convertedErr) {
+			return trace.AlreadyExists("Role %q already exists, please remove it and try again.", req.TaskRole)
+		}
+		return trace.Wrap(convertedErr)
+	}
+
+	slog.InfoContext(ctx, "Task role created",
+		"task_role", req.TaskRole,
 	)
-	return awsactions.CreateRole(clt, req.TaskRole, taskRoleDescription, trustPolicy, req.ResourceCreationTags)
+	return nil
 }
 
-// addPolicyToTaskRoleAction returns an action that updates the TaskRole to
-// allow the service to:
+// addPolicyToTaskRole updates the TaskRole to allow the service to:
 // - manage Policies of the TaskRole
 // - write logs to CloudWatch
-func addPolicyToTaskRoleAction(clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) (*provisioning.Action, error) {
-	policy := awslib.NewPolicyDocument(
+func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
+	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForRDSDBConnect(),
 		awslib.StatementForRDSMetadata(),
 		awslib.StatementForWritingLogs(),
+	).Marshal()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
+		PolicyName:     &req.TaskRole,
+		RoleName:       &req.TaskRole,
+		PolicyDocument: &taskRolePolicyDocument,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	slog.InfoContext(ctx, "IAM Policy added to Task Role",
+		"task_role", req.TaskRole,
+		"policy", req.TaskRole,
 	)
-	policyName := req.TaskRole // we name the inline policy with the role's name
-	return awsactions.PutRolePolicy(clt, policyName, req.TaskRole, policy)
+	return nil
 }
 
-// addPolicyToIntegrationRoleAction returns an action that creates or updates
-// the DeployService Policy in IntegrationRole.
-// It allows the Proxy to call ECS APIs and to pass the TaskRole when deploying
-// a service.
-func addPolicyToIntegrationRoleAction(clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) (*provisioning.Action, error) {
+// addPolicyToIntegrationRole creates or updates the DeployService Policy in IntegrationRole.
+// It allows the Proxy to call ECS APIs and to pass the TaskRole when deploying a service.
+func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
 
-	policy := awslib.NewPolicyDocument(
+	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForIAMPassRole(taskRoleARN),
 		awslib.StatementForECSManageService(),
+	).Marshal()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
+		PolicyName:     &req.IntegrationRoleDeployServicePolicy,
+		RoleName:       &req.IntegrationRole,
+		PolicyDocument: &taskRolePolicyDocument,
+	})
+	if err != nil {
+		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
+			return trace.NotFound("role %q not found.", req.IntegrationRole)
+		}
+		return trace.Wrap(err)
+	}
+
+	slog.InfoContext(ctx, "IAM Policy added to Integration Role",
+		"policy", req.IntegrationRoleDeployServicePolicy,
+		"role", req.TaskRole,
 	)
-	policyName := req.IntegrationRoleDeployServicePolicy
-	return awsactions.PutRolePolicy(clt, policyName, req.IntegrationRole, policy)
+	return nil
 }
