@@ -559,7 +559,6 @@ logins:
    - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
 
-
 In role templates, you can refer to these variables using the following two
 formats, where `trait` is the name of the trait:
 
@@ -571,7 +570,14 @@ attribute or OIDC claim called `trait`.
 
 You can specify an external trait in dot syntax if it begins with a letter and
 contains only letters, numbers, and underscores. Otherwise, you must use bracket
-syntax to specify a trait.
+syntax to specify a trait. 
+
+When using Azure AD or ADFS as your IdP, you must use bracket notation, as these
+IdPs assign attribute keys to URLs such as the following:
+
+```text
+http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname
+```
 
 Common examples of external traits available through an identity provider
 include the following:
