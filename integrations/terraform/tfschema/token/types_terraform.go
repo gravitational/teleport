@@ -302,7 +302,10 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"environment_protected": GenSchemaBoolOptionNullable(ctx),
+								"environment_protected": GenSchemaBoolOptionNullable(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "EnvironmentProtected is true if the Git ref is protected, false otherwise.",
+									Optional:    true,
+								}),
 								"namespace_path": {
 									Description: "NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports simple \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
@@ -328,7 +331,10 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"ref_protected": GenSchemaBoolOptionNullable(ctx),
+								"ref_protected": GenSchemaBoolOptionNullable(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "RefProtected is true if the Git ref is protected, false otherwise.",
+									Optional:    true,
+								}),
 								"ref_type": {
 									Description: "RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`",
 									Optional:    true,
@@ -443,8 +449,14 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "Spacelift allows the configuration of options specific to the \"spacelift\" join method.",
 					Optional:    true,
 				},
-				"suggested_agent_matcher_labels": GenSchemaLabels(ctx),
-				"suggested_labels":               GenSchemaLabels(ctx),
+				"suggested_agent_matcher_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.",
+					Optional:    true,
+				}),
+				"suggested_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.",
+					Optional:    true,
+				}),
 				"terraform_cloud": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {
