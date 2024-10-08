@@ -205,7 +205,8 @@ func deriveTeleportEqual_1(this, that *RDS) bool {
 			this.ResourceID == that.ResourceID &&
 			this.IAMAuth == that.IAMAuth &&
 			deriveTeleportEqual_20(this.Subnets, that.Subnets) &&
-			this.VPCID == that.VPCID
+			this.VPCID == that.VPCID &&
+			deriveTeleportEqual_20(this.SecurityGroups, that.SecurityGroups)
 }
 
 // deriveTeleportEqual_2 returns whether this and that are equal.

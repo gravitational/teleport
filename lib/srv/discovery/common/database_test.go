@@ -294,6 +294,11 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			},
 			VpcId: aws.String("vpc-asd"),
 		},
+		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
+			{VpcSecurityGroupId: aws.String("")},
+			{VpcSecurityGroupId: aws.String("sg-1")},
+			{VpcSecurityGroupId: aws.String("sg-2")},
+		},
 	}
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "instance-1",
@@ -324,6 +329,10 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 					"subnet-1234567890abcdef0",
 					"subnet-1234567890abcdef1",
 					"subnet-1234567890abcdef2",
+				},
+				SecurityGroups: []string{
+					"sg-1",
+					"sg-2",
 				},
 				VPCID: "vpc-asd",
 			},
