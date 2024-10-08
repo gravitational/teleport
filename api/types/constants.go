@@ -1028,6 +1028,11 @@ const (
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 
+	// ProxyPeerQUICLabel is the internal-user label for proxy heartbeats that's
+	// used to signal that the proxy supports receiving proxy peering
+	// connections over QUIC.
+	ProxyPeerQUICLabel = TeleportInternalLabelPrefix + "proxy-peer-quic"
+
 	// OktaAppNameLabel is the individual app name label.
 	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"
 
