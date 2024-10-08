@@ -320,20 +320,20 @@ func (c *AuthPreferenceV2) SetType(s string) {
 
 // GetSecondFactor returns the type of second factor.
 func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
-	if c.Spec.SecondFactor != "" {
-		return c.Spec.SecondFactor
+	// SecondFactors takes priority if set.
+	if c.Spec.SecondFactors != nil {
+		return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
 	}
 
-	// If SecondFactor isn't set, try to convert the new SecondFactors field.
-	return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
+	return c.Spec.SecondFactor
 }
 
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
 
-	// Set SecondFactors from SecondFactor.
-	c.Spec.SecondFactors = secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
+	// Unset SecondFactors so it doesn't take priority over the second factor we are setting.
+	c.Spec.SecondFactors = nil
 }
 
 // GetSecondFactors gets a list of supported second factors.
@@ -349,9 +349,6 @@ func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
 // SetSecondFactors sets the list of supported second factors.
 func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
 	c.Spec.SecondFactors = s
-
-	// Set SecondFactor from SecondFactors.
-	c.Spec.SecondFactor = legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
 }
 
 // GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
@@ -679,9 +676,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
-	if c.Spec.SecondFactor == "" && len(c.Spec.SecondFactors) == 0 {
-		c.Spec.SecondFactor = constants.SecondFactorOTP
-	}
+
 	if c.Spec.AllowLocalAuth == nil {
 		c.Spec.AllowLocalAuth = NewBoolOption(true)
 	}
@@ -708,13 +703,27 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
-	if c.Spec.SecondFactor == constants.SecondFactorU2F {
+	// Validate SecondFactor and SecondFactors.
+	if c.Spec.SecondFactor != "" && c.Spec.SecondFactors != nil {
+		return trace.BadParameter("must set either SecondFactor or SecondFactors, not both")
+	}
+
+	switch c.Spec.SecondFactor {
+	case constants.SecondFactorOff, constants.SecondFactorOTP, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F:
 		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
 			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
+	case "":
+		// default to OTP if SecondFactors is also not set.
+		if len(c.Spec.SecondFactors) == 0 {
+			c.Spec.SecondFactor = constants.SecondFactorOTP
+		}
+	default:
+		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
 	// Validate expected fields for webauthn.
@@ -741,13 +750,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	// Validate SecondFactor if set.
-	switch c.Spec.SecondFactor {
-	case "", constants.SecondFactorOff, constants.SecondFactorOTP, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-	default:
-		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
 	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
