@@ -55,7 +55,7 @@ export function OfflineGateway(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
-      maxWidth="500px"
+      px={4}
       css={`
         top: 11%;
         position: relative;
