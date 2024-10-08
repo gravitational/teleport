@@ -47,7 +47,6 @@ export const YamlEditor = ({
   const handleSave = () => onSave?.(yamlEditorModel.content);
 
   function handleSetYaml(newContent: string) {
-    console.log('new yaml', newContent);
     onChange?.({
       isDirty: originalRole?.yaml !== newContent,
       content: newContent,
