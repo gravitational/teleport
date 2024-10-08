@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/smithy-go/logging"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -109,6 +110,10 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 			config.WithRegion(region),
 			config.WithUseFIPSEndpoint(useFips),
 			config.WithRetryMaxAttempts(10),
+			config.WithLogger(logging.LoggerFunc(func(classification logging.Classification, format string, v ...interface{}) {
+				logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.CredentialsCache.stsClient").WithField("AwsLogClassification", classification).Debugf(format, v...)
+			})),
+			config.WithClientLogMode(aws.LogRetries|aws.LogRequestWithBody|aws.LogResponseWithBody),
 		)
 		if err != nil {
 			return trace.Wrap(err)
