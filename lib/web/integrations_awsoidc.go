@@ -1114,6 +1114,13 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
+	policyPreset := queryParams.Get("policyPreset")
+	if err := awsoidc.ValidatePolicyPreset(awsoidc.PolicyPreset(policyPreset)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if policyPreset != "" {
+		argsList = append(argsList, fmt.Sprintf("--policy-preset=%s", shsprintf.EscapeDefaultContext(policyPreset)))
+	}
 
 	// We have two set up modes:
 	// - use the Proxy HTTP endpoint as Identity Provider

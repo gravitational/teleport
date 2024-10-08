@@ -41,9 +41,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	kubeclient "github.com/gravitational/teleport/lib/client/kube"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -315,7 +315,11 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 
 	// Generate a new private key for the proxy. The client's existing private key may be
 	// a hardware-backed private key, which cannot be added to the local proxy kube config.
-	localClientKey, err := native.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKey(cf.Context, tc.GetCurrentSignatureAlgorithmSuite, cryptosuites.UserTLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	localClientKey, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

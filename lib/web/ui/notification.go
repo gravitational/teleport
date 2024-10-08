@@ -23,21 +23,22 @@ import (
 
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 type Notification struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	SubKind     string    `json:"subKind"`
-	Created     time.Time `json:"created"`
-	Clicked     bool      `json:"clicked"`
-	TextContent string    `json:"textContent,omitempty"`
-	Labels      []Label   `json:"labels"`
+	ID          string     `json:"id"`
+	Title       string     `json:"title"`
+	SubKind     string     `json:"subKind"`
+	Created     time.Time  `json:"created"`
+	Clicked     bool       `json:"clicked"`
+	TextContent string     `json:"textContent,omitempty"`
+	Labels      []ui.Label `json:"labels"`
 }
 
 // MakeNotification creates a notification object for the WebUI.
 func MakeNotification(notification *notificationsv1.Notification) Notification {
-	labels := makeLabels(notification.Metadata.Labels)
+	labels := ui.MakeLabelsWithoutInternalPrefixes(notification.Metadata.Labels)
 
 	clicked := notification.Metadata.GetLabels()[types.NotificationClickedLabel] == "true"
 
