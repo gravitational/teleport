@@ -490,6 +490,11 @@ with the cluster.`
 		toAddr = params.To.String()
 	}
 
+	// Prefer providing the hostname over an address.
+	if params.TargetServer != nil {
+		toAddr = params.TargetServer.GetHostname()
+	}
+
 	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
 }
 
@@ -587,7 +592,8 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	}
 	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
-	if s.tryProxyPeering(params) {
+	peeringEnabled := s.tryProxyPeering(params)
+	if peeringEnabled {
 		s.log.Info("Dialing over peer proxy")
 		conn, peerErr = s.peerClient.DialNode(
 			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
@@ -598,20 +604,28 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		s.log.WithError(peerErr).WithField("address", dreq.Address).Debug("Error occurred while dialing over peer proxy.")
 	}
 
-	err = trace.NewAggregate(tunnelErr, peerErr)
-	tunnelMsg := getTunnelErrorMessage(params, "reverse tunnel", err)
+	// If a connection via tunnel failed directly and via a remote peer,
+	// then update the tunnel message to indicate that tunnels were not
+	// found in either place. Avoid aggregating the local and peer errors
+	// to reduce duplicate data since this message makes its way back to
+	// users and can be confusing.
+	msg := "reverse tunnel"
+	if peeringEnabled {
+		msg = "local and peer reverse tunnels"
+	}
+	tunnelMsg := getTunnelErrorMessage(params, msg, tunnelErr)
 
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
 	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
 	}
 
 	skip, err := s.skipDirectDial(params)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	} else if skip {
-		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
 	}
 
 	// If no tunnel connection was found, dial to the target host.
