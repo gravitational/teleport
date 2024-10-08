@@ -795,9 +795,8 @@ func TestApplyConfig(t *testing.T) {
 			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
-			Type:          constants.Local,
-			SecondFactor:  constants.SecondFactorOptional,
-			SecondFactors: types.SecondFactorsFromLegacySecondFactor(constants.SecondFactorOptional),
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
 			Webauthn: &types.Webauthn{
 				RPID: "goteleport.com",
 				AttestationAllowedCAs: []string{
@@ -4979,9 +4978,9 @@ func TestProxyUntrustedCert(t *testing.T) {
 	certDir := t.TempDir()
 	certPath := filepath.Join(certDir, "leaf.crt")
 	keyPath := filepath.Join(certDir, "leaf.key")
-	err = os.WriteFile(certPath, leafCert, 0600)
+	err = os.WriteFile(certPath, leafCert, 0o600)
 	require.NoError(t, err)
-	err = os.WriteFile(keyPath, leafPrivPem, 0600)
+	err = os.WriteFile(keyPath, leafPrivPem, 0o600)
 	require.NoError(t, err)
 
 	fc := &FileConfig{
@@ -5052,7 +5051,6 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
-
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
