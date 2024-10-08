@@ -128,6 +128,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		Clock:           h.c.Clock,
 		Context:         ctx,
 		CleanupInterval: time.Second,
+		ReloadOnErr:     true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
