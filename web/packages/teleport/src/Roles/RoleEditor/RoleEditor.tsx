@@ -186,7 +186,7 @@ export const RoleEditor = ({
       {selectedEditorTab === EditorTab.Standard && (
         <StandardEditor
           originalRole={originalRole}
-          onSave={async object => void (await handleSave({ object }))}
+          onSave={object => handleSave({ object })}
           onCancel={handleCancel}
           standardEditorModel={standardModel}
           isProcessing={isProcessing}

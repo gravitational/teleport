@@ -101,7 +101,9 @@ func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params h
 		if err := httplib.ReadJSON(r, &req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		req.Resource.CheckAndSetDefaults()
+		if err := req.Resource.CheckAndSetDefaults(); err != nil {
+			return nil, err
+		}
 		resource = req.Resource
 
 	default:
@@ -121,7 +123,7 @@ func yamlToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.A
 		return nil, trace.Wrap(err)
 	}
 	if extractedRes.Kind != types.KindAccessMonitoringRule {
-		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
+		return nil, trace.BadParameter("resource kind %q is invalid, only acces_monitoring_rule is allowed", extractedRes.Kind)
 	}
 	resource, err := services.UnmarshalAccessMonitoringRule(extractedRes.Raw)
 	if err != nil {
@@ -137,7 +139,7 @@ func yamlToRole(yaml string) (types.Role, error) {
 		return nil, trace.Wrap(err)
 	}
 	if extractedRes.Kind != types.KindRole {
-		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
+		return nil, trace.BadParameter("resource kind %q is invalid, only role is allowed", extractedRes.Kind)
 	}
 	resource, err := services.UnmarshalRole(extractedRes.Raw)
 	if err != nil {

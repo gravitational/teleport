@@ -27,14 +27,19 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import cfg from 'teleport/config';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
+import { Access } from 'teleport/services/user';
+
 import { withDefaults } from './withDefaults';
 import { RoleEditor } from './RoleEditor';
 
 export default {
   title: 'Teleport/Roles/Role Editor',
   decorators: [
-    Story => {
+    (Story, { parameters }) => {
       const ctx = createTeleportContext();
+      if (parameters.acl) {
+        ctx.storeUser.getRoleAccess = () => parameters.acl;
+      }
       return (
         <TeleportContextProvider ctx={ctx}>
           <Flex flexDirection="column" width="500px" height="800px">
@@ -234,6 +239,31 @@ export const savingError: StoryObj = {
   },
 };
 
+export const noAccess: StoryObj = {
+  render() {
+    return (
+      <RoleEditor
+        originalRole={{
+          object: withDefaults({ metadata: { name: 'dummy-role' } }),
+          yaml: dummyRoleYaml,
+        }}
+      />
+    );
+  },
+  parameters: {
+    msw: {
+      handlers: [yamlifyHandler, parseHandler],
+    },
+    acl: {
+      list: true,
+      create: false,
+      edit: false,
+      read: true,
+      remove: false,
+    } as Access,
+  },
+};
+
 const dummyRoleYaml = `kind: role
 metadata:
   name: dummy-role
@@ -263,14 +293,15 @@ spec:
 version: v7
 `;
 
+// This role contains an unsupported field. Not that it really matters, since
+// in the story, we mock out the YAML-JSON translation process.
 const dummyUnsupportedRoleYaml = `kind: role
 metadata:
   name: dummy-role
+  unsupportedField: unsupported
 spec:
   allow: {}
-  deny:
-    node_labels:
-      foo: bar
+  deny: {}
   options:
     cert_format: standard
     create_db_user: false
