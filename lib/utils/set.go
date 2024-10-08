@@ -36,7 +36,7 @@ func NewSetWithCapacity[T comparable](n int) Set[T] {
 	return make(map[T]struct{}, n)
 }
 
-// Add expands the set to include the supplied element (if not already included),
+// Add expands the set to include the supplied elements (if not already included),
 // returning a reference to the mutated set.
 func (s Set[T]) Add(elements ...T) Set[T] {
 	for _, element := range elements {
@@ -52,11 +52,13 @@ func (s Set[T]) Union(other Set[T]) {
 	}
 }
 
-// Remove deletes an element from the set, returning a reference to the mutated
+// Remove deletes elements from the set, returning a reference to the mutated
 // set. Attempting to remove a non-existent element from the set is not
 // considered an error.
-func (s Set[T]) Remove(element T) Set[T] {
-	delete(s, element)
+func (s Set[T]) Remove(elements ...T) Set[T] {
+	for _, element := range elements {
+		delete(s, element)
+	}
 	return s
 }
 
