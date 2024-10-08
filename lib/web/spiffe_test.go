@@ -153,8 +153,8 @@ func TestSPIFFEJWTPublicEndpoints(t *testing.T) {
 		Keys: []jwksKey{
 			{
 				Use:     "sig",
-				KeyType: "EC",
-				Alg:     "ES256",
+				KeyType: "RSA",
+				Alg:     "RS256",
 				KeyID:   gotKeys.Keys[0].KeyID,
 			},
 		},
