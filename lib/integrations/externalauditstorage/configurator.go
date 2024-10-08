@@ -21,6 +21,7 @@ package externalauditstorage
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/smithy-go/logging"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -95,7 +97,7 @@ type Options struct {
 	stsClient stscreds.AssumeRoleWithWebIdentityAPIClient
 }
 
-func (o *Options) setDefaults(ctx context.Context, region string) error {
+func (o *Options) setDefaults(ctx context.Context, region, integrationName, roleARN, issuerS3URI string) error {
 	if o.clock == nil {
 		o.clock = clockwork.NewRealClock()
 	}
@@ -109,6 +111,13 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 			config.WithRegion(region),
 			config.WithUseFIPSEndpoint(useFips),
 			config.WithRetryMaxAttempts(10),
+			config.WithLogger(logging.LoggerFunc(awsLoggerFunc(logrus.Fields{
+				teleport.ComponentKey: "ExternalAuditStorage.CredentialsCache.stsClient",
+				"awsRoleArn":          roleARN,
+				"awsIntegrationName":  integrationName,
+				"awsIssuerS3URI":      issuerS3URI,
+			}))),
+			config.WithClientLogMode(aws.LogRetries|aws.LogRequest|aws.LogResponseWithBody),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -116,6 +125,27 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 		o.stsClient = sts.NewFromConfig(cfg)
 	}
 	return nil
+}
+
+func awsLoggerFunc(fields logrus.Fields) func(classification logging.Classification, format string, v ...interface{}) {
+	return func(classification logging.Classification, format string, v ...interface{}) {
+		if strings.HasPrefix(format, "Request") && strings.Contains(v[0].(string), "Amz-Sdk-Request: attempt=1;") {
+			// don't log request headers for the first attempt
+			return
+		}
+		if strings.HasPrefix(format, "Response") && strings.HasPrefix(v[0].(string), "HTTP/1.1 200 OK") {
+			// don't log response body for successful responses
+			return
+		}
+		logger := logrus.WithFields(fields)
+
+		if strings.HasPrefix(format, "Response") {
+			// log response body for unsuccessful requests at error level
+			logger.Errorf(format, v...)
+			return
+		}
+		logger.Debugf(format, v...)
+	}
 }
 
 // WithClock is a functional option to set the clock.
@@ -209,7 +239,7 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 	for _, optFn := range optFns {
 		optFn(options)
 	}
-	if err := options.setDefaults(ctx, spec.Region); err != nil {
+	if err := options.setDefaults(ctx, spec.Region, oidcIntegrationName, awsRoleARN, awsOIDCSpec.IssuerS3URI); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
