@@ -156,3 +156,50 @@ export function pluginTypeToIntegrationEnrollKind(
       return IntegrationEnrollKind.Unspecified;
   }
 }
+
+/**
+ * PluginConfigAwsIcAccounts defines account fields that
+ * are shown in the import resources accounts table.
+ */
+export type PluginConfigAwsIcAccounts = {
+  name: string;
+  arn: string;
+  id: string;
+};
+
+/**
+ * PluginConfigAwsIcUserGroupsWithAssignment defines
+ * AWS identity center user groups with respective account
+ * assignments.
+ */
+export type PluginConfigAwsIcUserGroupsWithAssignment = {
+  groupname: string;
+  assignments: PluginConfigIcAssignments[];
+};
+
+/**
+ * PluginConfigAwsIcUserDirectAssignment defines AWS
+ * identity center users' direct permission assignment.
+ */
+export type PluginConfigAwsIcUserDirectAssignment = {
+  username: string;
+  assignments: PluginConfigIcAssignments[];
+};
+
+/**
+ * Assignments is an AWS identity center account assignment.
+ */
+export type PluginConfigIcAssignments = {
+  permission_set_name: string;
+  account_name: string;
+};
+
+/**
+ * PluginConfigAwsIcPermissionSetsTable is an AWS ideneity
+ * center permission set.
+ */
+export type PluginConfigAwsIcPermissionSetsTable = {
+  name: string;
+  description: string;
+  arn: string;
+};
