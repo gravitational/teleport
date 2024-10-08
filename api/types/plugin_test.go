@@ -1030,14 +1030,20 @@ func TestPluginDatadogValidation(t *testing.T) {
 }
 
 func TestPluginAWSICSettings(t *testing.T) {
-	validSettings := func() *PluginSpecV1_AwsIamIc {
-		return &PluginSpecV1_AwsIamIc{
-			AwsIamIc: &PluginAWSICSettings{
-				IntegrationId:  "some-oidc-integration",
-				InstanceRegion: "ap-southeast-2",
-				InstanceArn:    "arn:aws:sso:::instance/ssoins-1234567890",
-				Provisioning: &PluginAWSICProvisioningSettings{
+	validSettings := func() *PluginSpecV1_AwsIc {
+		return &PluginSpecV1_AwsIc{
+			AwsIc: &PluginAWSICSettings{
+				IntegrationName: "some-oidc-integration",
+				Region:          "ap-southeast-2",
+				Arn:             "arn:aws:sso:::instance/ssoins-1234567890",
+				ProvisioningSpec: &AWSICProvisioningSpec{
 					BaseUrl: "https://example.com/scim/v2",
+					BearerTokenRef: &PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"plugin-id":    "some-guid",
+							"cred-purpose": "aws-ic-scim",
+						},
+					},
 				},
 			},
 		}
@@ -1053,23 +1059,23 @@ func TestPluginAWSICSettings(t *testing.T) {
 			assertErr: require.NoError,
 		}, {
 			name:           "missing oidc integration",
-			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationId = "" },
-			assertErr:      requireNamedBadParameterError("integration ID"),
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationName = "" },
+			assertErr:      requireNamedBadParameterError("integration name"),
 		}, {
 			name:           "missing instance region",
-			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.InstanceRegion = "" },
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Region = "" },
 			assertErr:      requireNamedBadParameterError("region"),
 		}, {
 			name:           "missing instance ARN",
-			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.InstanceArn = "" },
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Arn = "" },
 			assertErr:      requireNamedBadParameterError("ARN"),
 		}, {
 			name:           "missing provisioning block",
-			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Provisioning = nil },
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.ProvisioningSpec = nil },
 			assertErr:      requireNamedBadParameterError("provisioning config"),
 		}, {
 			name:           "missing provisioning base URL",
-			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Provisioning.BaseUrl = "" },
+			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.ProvisioningSpec.BaseUrl = "" },
 			assertErr:      requireNamedBadParameterError("base URL"),
 		},
 	}
@@ -1078,7 +1084,7 @@ func TestPluginAWSICSettings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			settings := validSettings()
 			if tc.mutateSettings != nil {
-				tc.mutateSettings(settings.AwsIamIc)
+				tc.mutateSettings(settings.AwsIc)
 			}
 
 			plugin := NewPluginV1(
