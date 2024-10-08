@@ -5,5 +5,5 @@ resource "aws_ssm_parameter" "license" {
   type      = "SecureString"
   value     = file(var.license_path)
   overwrite = true
-  tier      = "Advanced"
+  tier      = "Intelligent-Tiering"
 }
