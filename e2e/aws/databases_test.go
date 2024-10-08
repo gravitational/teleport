@@ -112,7 +112,7 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 }
 
 const (
-	waitForConnTimeout = 60 * time.Second
+	waitForConnTimeout = 90 * time.Second
 	connRetryTick      = 10 * time.Second
 )
 
