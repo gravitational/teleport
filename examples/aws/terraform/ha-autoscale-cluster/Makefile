@@ -28,7 +28,7 @@ TF_VAR_auth_instance_type ?= m7g.large
 
 # Instance types used for proxy server auto scaling group
 # This should match to the AMI instance architecture type, ARM or x86
-TF_VAR_proxy_instance_type =? m7g.large
+TF_VAR_proxy_instance_type ?= m7g.large
 
 # Instance types used for Teleport node auto scaling group
 # This should match to the AMI instance architecture type, ARM or x86
