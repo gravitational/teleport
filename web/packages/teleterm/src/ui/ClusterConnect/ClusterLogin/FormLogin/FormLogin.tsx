@@ -63,8 +63,8 @@ export default function LoginForm(props: Props) {
     return (
       <FlexBordered p={4} pb={5}>
         {loginAttempt.status === 'error' && (
-          <Alerts.Danger m={5} mb={0}>
-            {loginAttempt.statusText}
+          <Alerts.Danger m={5} mb={0} details={loginAttempt.statusText}>
+            Could not log in
           </Alerts.Danger>
         )}
         <FormSso {...props} />
@@ -88,8 +88,8 @@ export default function LoginForm(props: Props) {
   return (
     <FlexBordered>
       {loginAttempt.status === 'error' && (
-        <Alerts.Danger m={4} mb={0}>
-          {loginAttempt.statusText}
+        <Alerts.Danger m={4} mb={0} details={loginAttempt.statusText}>
+          Could not log in
         </Alerts.Danger>
       )}
       <StepSlider<typeof loginViews>

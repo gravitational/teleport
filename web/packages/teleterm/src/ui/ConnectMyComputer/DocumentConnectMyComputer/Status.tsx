@@ -163,19 +163,23 @@ export function Status(props: { closeDocument?: () => void }) {
           css={`
             display: block;
           `}
+          details={
+            <>
+              {isAgentConfiguredAttempt.statusText} <br />
+              You can try to{' '}
+              <Link
+                onClick={replaceWithSetup}
+                css={`
+                  cursor: pointer;
+                `}
+              >
+                run the setup
+              </Link>{' '}
+              again.
+            </>
+          }
         >
-          An error occurred while reading the agent config file:{' '}
-          {isAgentConfiguredAttempt.statusText}. <br />
-          You can try to{' '}
-          <Link
-            onClick={replaceWithSetup}
-            css={`
-              cursor: pointer;
-            `}
-          >
-            run the setup
-          </Link>{' '}
-          again.
+          An error occurred while reading the agent config file
         </Alert>
       )}
 
