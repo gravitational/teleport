@@ -526,3 +526,49 @@ func newKubeCluster(t *testing.T, name string, labels map[string]string) types.K
 func sortKubeResourceSlice(resources []types.KubernetesResource) {
 	sort.Slice(resources, func(i, j int) bool { return resources[i].Name < resources[j].Name })
 }
+
+func TestAccessCheckerHostUsersShell(t *testing.T) {
+	anyLabels := types.Labels{"*": {"*"}}
+	expectedShell := "bash"
+	secondaryShell := "zsh"
+	localCluster := "cluster"
+
+	roleSet := NewRoleSet(
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("any")
+			rv.SetOptions(types.RoleOptions{
+				CreateHostUserDefaultShell: expectedShell,
+				CreateHostUserMode:         types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+			})
+			rv.SetNodeLabels(types.Allow, anyLabels)
+		}),
+		newRole(func(rv *types.RoleV6) {
+			rv.SetName("any")
+			rv.SetOptions(types.RoleOptions{
+				CreateHostUserDefaultShell: secondaryShell,
+				CreateHostUserMode:         types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+			})
+			rv.SetNodeLabels(types.Allow, anyLabels)
+		}),
+	)
+
+	accessInfo := &AccessInfo{
+		Roles: []string{"default-shell"},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, localCluster, roleSet)
+	hui, err := accessChecker.HostUsers(serverStub{})
+	require.NoError(t, err)
+
+	// the first value for shell encountered while checking roles should be used, which means
+	// secondaryShell should never be the result here
+	require.Equal(t, expectedShell, hui.Shell)
+}
+
+type serverStub struct {
+	types.Server
+}
+
+func (serverStub) GetKind() string {
+	return types.KindNode
+}
