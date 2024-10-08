@@ -499,7 +499,6 @@ func TestAccessRedis(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Execute a query.
 			result := redisClient.Echo(ctx, "ping")
 			require.NoError(t, result.Err())
 			require.Equal(t, "ping", result.Val())
@@ -3207,7 +3206,7 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			URI:           redisServer.Uri(t, ctx),
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
@@ -3379,7 +3378,7 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			URI:           redisServer.Uri(t, ctx),
 			DynamicLabels: dynamicLabels,
 			Azure: types.Azure{
 				Name:       name,
