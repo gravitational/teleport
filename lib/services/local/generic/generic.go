@@ -275,9 +275,9 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 				if matcher(resource) {
 					lastKey = item.Key
 					resources = append(resources, resource)
-				}
-				if len(resources) == pageSize {
-					break
+					if len(resources) == pageSize+1 {
+						return true, nil
+					}
 				}
 			}
 			return limit == len(resources), nil
