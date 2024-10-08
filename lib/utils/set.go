@@ -27,7 +27,7 @@ type Set[T comparable] map[T]struct{}
 // NewSet constructs a set from an arbitrary collection of elements
 func NewSet[T comparable](elements ...T) Set[T] {
 	s := NewSetWithCapacity[T](len(elements))
-	s.AddAll(elements)
+	s.Add(elements...)
 	return s
 }
 
@@ -38,16 +38,11 @@ func NewSetWithCapacity[T comparable](n int) Set[T] {
 
 // Add expands the set to include the supplied element (if not already included),
 // returning a reference to the mutated set.
-func (s Set[T]) Add(element T) Set[T] {
-	s[element] = struct{}{}
-	return s
-}
-
-// AddAll expands the set to include all of the supplied elements.
-func (s Set[T]) AddAll(elements []T) {
+func (s Set[T]) Add(elements ...T) Set[T] {
 	for _, element := range elements {
 		s[element] = struct{}{}
 	}
+	return s
 }
 
 // Union updates the set to be the union of the original set and `other`
