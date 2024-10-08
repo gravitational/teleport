@@ -32,6 +32,7 @@ import * as Icon from 'design/Icon';
 import { pluralize } from 'shared/utils/text';
 
 import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewRequest';
+import { excludeKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
 
 import useAccessRequestCheckout from './useAccessRequestCheckout';
 import { AssumedRolesBar } from './AssumedRolesBar';
@@ -102,6 +103,8 @@ export function AccessRequestCheckout() {
     pendingRequestTtlOptions,
     startTime,
     onStartTimeChange,
+    fetchKubeNamespaces,
+    bulkToggleKubeResources,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = data[0]?.kind === 'role';
@@ -111,12 +114,21 @@ export function AccessRequestCheckout() {
     setShowCheckout(false);
   }
 
+  const filteredData = data?.filter(d =>
+    excludeKubeClusterWithNamespaces(d, data)
+  );
+
+  const numAddedResources = filteredData?.length;
+
   // We should rather detect how much space we have,
   // but for simplicity we only count items.
-  const moreToShow = Math.max(data.length - MAX_RESOURCES_IN_BAR_TO_SHOW, 0);
+  const moreToShow = Math.max(
+    filteredData.length - MAX_RESOURCES_IN_BAR_TO_SHOW,
+    0
+  );
   return (
     <>
-      {data.length > 0 && !isCollapsed() && (
+      {filteredData.length > 0 && !isCollapsed() && (
         <Box
           px={3}
           py={2}
@@ -134,17 +146,22 @@ export function AccessRequestCheckout() {
           >
             <Flex flexDirection="column" minWidth={0}>
               <Text mb={1}>
-                {data.length}{' '}
-                {pluralize(data.length, isRoleRequest ? 'role' : 'resource')}{' '}
+                {numAddedResources}{' '}
+                {pluralize(
+                  numAddedResources,
+                  isRoleRequest ? 'role' : 'resource'
+                )}{' '}
                 added to access request:
               </Text>
               <Flex gap={1} flexWrap="wrap">
-                {data
+                {filteredData
                   .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
                   .map(c => {
                     let resource = {
-                      name: c.name,
-                      key: `${c.clusterName}-${c.kind}-${c.id}`,
+                      name: c.subResourceName
+                        ? `${c.id}/${c.subResourceName}`
+                        : c.name,
+                      key: `${c.clusterName}-${c.kind}-${c.id}-${c.subResourceName}`,
                       Icon: undefined,
                     };
                     switch (c.kind) {
@@ -159,6 +176,7 @@ export function AccessRequestCheckout() {
                         resource.Icon = Icon.Database;
                         break;
                       case 'kube_cluster':
+                      case 'namespace':
                         resource.Icon = Icon.Kubernetes;
                         break;
                       case 'role':
@@ -262,11 +280,8 @@ export function AccessRequestCheckout() {
             setPendingRequestTtl={setPendingRequestTtl}
             startTime={startTime}
             onStartTimeChange={onStartTimeChange}
-            // TODO: these are placeholders to satisy linters.
-            // There is a split PR that handles teleterm support
-            // that will be merged right after this one (once both are approved)
-            bulkToggleKubeResources={() => null}
-            fetchKubeNamespaces={() => null}
+            fetchKubeNamespaces={fetchKubeNamespaces}
+            bulkToggleKubeResources={bulkToggleKubeResources}
           />
         )}
       </Transition>
