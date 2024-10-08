@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -220,10 +220,10 @@ func oidcConfig(conn types.OIDCConnector, redirectURL string) oidc.ClientConfig 
 // given connector have the same values for fields relevant to
 // generating and syncing an oidc.Client.
 func (c *oidcClient) needsRefresh(conn types.OIDCConnector) bool {
-	return !cmp.Equal(conn.GetRedirectURLs(), c.connector.GetRedirectURLs()) ||
+	return !slices.Equal(conn.GetRedirectURLs(), c.connector.GetRedirectURLs()) ||
 		conn.GetClientID() != c.connector.GetClientID() ||
 		conn.GetClientSecret() != c.connector.GetClientSecret() ||
-		!cmp.Equal(conn.GetScope(), c.connector.GetScope()) ||
+		!slices.Equal(conn.GetScope(), c.connector.GetScope()) ||
 		conn.GetIssuerURL() != c.connector.GetIssuerURL()
 }
 
