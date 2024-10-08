@@ -47,7 +47,7 @@ func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Ide
 	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster").StringVar(&c.Cluster)
 
-	// TODO: roles? ssh_config mode?
+	// Note: roles and ssh_config mode are excluded for now.
 
 	return c
 }
