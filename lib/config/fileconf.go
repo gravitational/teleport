@@ -1091,22 +1091,10 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	default:
 	}
 
-	if a.SecondFactor != "" {
-		secondFactors := types.SecondFactorsFromLegacySecondFactor(a.SecondFactor)
-		var secondFactorStrings []string
-		for _, sf := range secondFactors {
-			secondFactorStrings = append(secondFactorStrings, sf.ToString())
-		}
-
-		log.Warnf(``+
-			`The "second_factor" setting is marked for removal in favor of second_factors. `+
-			`Please update your configuration to use second_factors. e.g. "second_factors: %v".`, secondFactorStrings)
-
-		if a.SecondFactors != nil {
-			log.Warnf(`` +
-				`second_factor and second_factors are both set. second_factors will take precedence. ` +
-				`second_factor should be unset to remove this warning.`)
-		}
+	if a.SecondFactor != "" && a.SecondFactors != nil {
+		log.Warn(`` +
+			`second_factor and second_factors are both set. second_factors will take precedence. ` +
+			`second_factor should be unset to remove this warning.`)
 	}
 
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
