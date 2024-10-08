@@ -23,47 +23,6 @@ import (
 )
 
 func TestSet(t *testing.T) {
-	t.Run("create empty", func(t *testing.T) {
-		// GIVEN a set created with no elements
-		s := NewSet[string]()
-		require.NotNil(t, s)
-		require.Empty(t, s)
-	})
-
-	t.Run("add", func(t *testing.T) {
-		testCases := []struct {
-			name     string
-			augend   []string
-			addends  []string
-			expected []string
-		}{
-			{
-				name:     "to empty set",
-				addends:  []string{"alpha", "omega"},
-				expected: []string{"alpha", "omega"},
-			},
-			{
-				name:     "to populated set",
-				augend:   []string{"alpha", "omega"},
-				addends:  []string{"alpha", "beta", "gamma"},
-				expected: []string{"alpha", "beta", "gamma", "omega"},
-			},
-		}
-
-		for _, test := range testCases {
-			t.Run(test.name, func(t *testing.T) {
-				a := NewSet(test.augend...)
-				b := a
-
-				for _, element := range test.addends {
-					b = b.Add(element)
-				}
-
-				// EXPECT that the elements have been added to the target set
-				require.ElementsMatch(t, a.Elements(), test.expected)
-			})
-		}
-	})
 
 	t.Run("create", func(t *testing.T) {
 		testCases := []struct {
@@ -92,6 +51,71 @@ func TestSet(t *testing.T) {
 				require.NotNil(t, s)
 				require.Len(t, s, len(test.expected))
 				require.ElementsMatch(t, s.Elements(), test.expected)
+			})
+		}
+	})
+
+	t.Run("add", func(t *testing.T) {
+		testCases := []struct {
+			name     string
+			augend   []string
+			addends  []string
+			expected []string
+		}{
+			{
+				name:     "to empty set",
+				addends:  []string{"alpha", "omega"},
+				expected: []string{"alpha", "omega"},
+			},
+			{
+				name:     "to populated set",
+				augend:   []string{"alpha", "omega"},
+				addends:  []string{"alpha", "beta", "gamma"},
+				expected: []string{"alpha", "beta", "gamma", "omega"},
+			},
+		}
+
+		for _, test := range testCases {
+			t.Run(test.name, func(t *testing.T) {
+				a := NewSet(test.augend...)
+				a.Add(test.addends...)
+
+				// EXPECT that the elements have been added to the target set
+				require.ElementsMatch(t, a.Elements(), test.expected)
+			})
+		}
+	})
+
+	t.Run("remove", func(t *testing.T) {
+		testCases := []struct {
+			name     string
+			set      []string
+			remove   []string
+			expected []string
+		}{
+			{
+				name:   "from empty set",
+				remove: []string{"banana", "potato"},
+			},
+			{
+				name:     "from populated set (present)",
+				set:      []string{"alpha", "beta", "gamma", "omega"},
+				remove:   []string{"beta", "omega"},
+				expected: []string{"alpha", "gamma"},
+			},
+			{
+				name:     "from populated set (not present)",
+				set:      []string{"alpha", "beta", "gamma", "omega"},
+				remove:   []string{"banana", "potato"},
+				expected: []string{"alpha", "beta", "gamma", "omega"},
+			},
+		}
+
+		for _, test := range testCases {
+			t.Run(test.name, func(t *testing.T) {
+				s := NewSet(test.set...)
+				s.Remove(test.remove...)
+				require.ElementsMatch(t, test.expected, s.Elements())
 			})
 		}
 	})
