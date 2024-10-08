@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -976,6 +977,10 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 	if clientRedirect == "" {
 		// empty redirects are non-functional and harmless, so we allow them as
 		// they're used a lot in test code
+		return nil
+	}
+	if clientRedirect == sso.WebMFARedirect {
+		// If this is a SSO redirect in the WebUI, allow.
 		return nil
 	}
 	u, err := url.Parse(clientRedirect)

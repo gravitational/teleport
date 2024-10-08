@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -615,25 +616,31 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
 			return newMFAPrompt(stream)
 		},
+		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+			return &sso.MFACeremony{
+				ClientCallbackURL: sso.WebMFARedirect,
+			}, nil
+		},
 	}
 }
 
 func newMFAPrompt(stream *terminal.WSStream) mfa.Prompt {
 	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		var challenge *client.MFAAuthenticateChallenge
-		var codec protobufMFACodec
-
 		// Convert from proto to JSON types.
-		switch {
-		case chal.GetWebauthnChallenge() != nil:
-			challenge = &client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
-			}
-		default:
-			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
+		var challenge client.MFAAuthenticateChallenge
+		if chal.WebauthnChallenge != nil {
+			challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
+		}
+		if chal.SSOChallenge != nil {
+			challenge.SSOChallenge = chal.SSOChallenge
 		}
 
-		if err := stream.WriteChallenge(challenge, codec); err != nil {
+		if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
+			return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported on the web terminal, please register a supported mfa method to connect to this server")
+		}
+
+		var codec protobufMFACodec
+		if err := stream.WriteChallenge(&challenge, codec); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
