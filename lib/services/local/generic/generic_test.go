@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ import (
 // testResource for testing the generic service.
 type testResource struct {
 	types.ResourceHeader
-	SpecPropA string
+	Spec testResourceSpec
 }
 
 func newTestResource(name string) *testResource {
@@ -61,6 +62,10 @@ func newTestResource(name string) *testResource {
 	return tr
 }
 
+type testResourceSpec struct {
+	PropA string
+}
+
 func newTestResourceWithSpec(name string, specPropA string) *testResource {
 	tr := &testResource{
 		ResourceHeader: types.ResourceHeader{
@@ -70,7 +75,9 @@ func newTestResourceWithSpec(name string, specPropA string) *testResource {
 			Kind:    "test_resource",
 			Version: types.V1,
 		},
-		SpecPropA: specPropA,
+		Spec: testResourceSpec{
+			PropA: specPropA,
+		},
 	}
 
 	tr.CheckAndSetDefaults()
@@ -484,12 +491,13 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 	var totalResources []*testResource
 	for i := 0; i < totalResourcesPerProp; i++ {
 		for j := 0; j < totalProps; j++ {
-			r := newTestResourceWithSpec(uuid.NewString(), fmt.Sprintf("%d", j))
+			r := newTestResourceWithSpec(uuid.NewString(), strconv.Itoa(j))
 			totalResources = append(totalResources, r)
 		}
 	}
 
-	rand.Shuffle(len(totalResources), func(i, j int) {
+	r := rand.New(rand.NewPCG(uint64(82), uint64(123)))
+	r.Shuffle(len(totalResources), func(i, j int) {
 		totalResources[i], totalResources[j] = totalResources[j], totalResources[i]
 	})
 
@@ -500,14 +508,14 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 
 	pageSizes := []int{1, 2, 3, 5, 7, 100_000}
 	for _, pageSize := range pageSizes {
-		testingProp := fmt.Sprintf("%d", rand.N(totalProps-1))
+		testingProp := strconv.Itoa(r.IntN(totalProps - 1))
 		t.Run(fmt.Sprintf("pageSize=%d,prop=%s", pageSize, testingProp), func(t *testing.T) {
 			var startingKey string
 			var foundResourcesPropAEquals []*testResource
 			for {
 				var totalMatchedElements atomic.Uint64
 				page, nextKey, err := service.ListResourcesWithFilter(ctx, pageSize, startingKey, func(r *testResource) bool {
-					if r.SpecPropA == testingProp {
+					if r.Spec.PropA == testingProp {
 						totalMatchedElements.Add(1)
 						return true
 					}
