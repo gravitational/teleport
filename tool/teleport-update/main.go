@@ -366,7 +366,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Errorf("failed to request version from proxy: %w", err)
 	}
 
-	desiredVersion, _ := "", resp // field not implemented in API yet
+	desiredVersion, _ := "16.3.0", resp // field not implemented in API yet
 	//desiredVersion := resp.AgentVersion
 
 	if v := os.Getenv(updateVersionEnvVar); v != "" {

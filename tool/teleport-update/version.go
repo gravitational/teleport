@@ -30,11 +30,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"text/template"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -189,7 +189,7 @@ func (tv *TeleportVersion) download(ctx context.Context, url string) (r io.ReadS
 	}
 	defer func() {
 		if err != nil {
-			f.Close()
+			_ = f.Close()
 			if err := os.Remove(f.Name()); err != nil {
 				plog.WarnContext(ctx, "Failed to cleanup temporary download after error", "error", err)
 			}
@@ -259,8 +259,8 @@ func (r rmCloser) Close() error {
 const reservedFreeDisk = 10_000_000 // 10 MiB
 
 func freeDisk(dir string) (int64, error) {
-	var stat unix.Statfs_t
-	err := unix.Statfs(dir, &stat)
+	var stat syscall.Statfs_t
+	err := syscall.Statfs(dir, &stat)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
