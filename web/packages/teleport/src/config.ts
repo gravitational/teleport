@@ -376,7 +376,7 @@ const cfg = {
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
     msTeamsAppZipPath:
-      '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app_zip',
+      '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
 
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
