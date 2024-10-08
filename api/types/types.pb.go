@@ -12158,7 +12158,7 @@ type SAMLConnectorSpecV2 struct {
 	SingleLogoutURL string `protobuf:"bytes,16,opt,name=SingleLogoutURL,proto3" json:"single_logout_url,omitempty"`
 	// MFASettings contains settings to enable SSO MFA checks through this auth connector.
 	MFASettings *SAMLConnectorMFASettings `protobuf:"bytes,17,opt,name=MFASettings,proto3" json:"mfa,omitempty"`
-	// ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
+	// ForceAuthn specified whether re-authentication1 should be forced on login. UNSPECIFIED
 	// is treated as NO.
 	ForceAuthn           SAMLForceAuthn `protobuf:"varint,18,opt,name=ForceAuthn,proto3,enum=types.SAMLForceAuthn" json:"force_authn,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
@@ -12208,7 +12208,7 @@ type SAMLConnectorMFASettings struct {
 	EntityDescriptor string `protobuf:"bytes,2,opt,name=entity_descriptor,json=entityDescriptor,proto3" json:"entity_descriptor,omitempty"`
 	// EntityDescriptorUrl is a URL that supplies a configuration XML.
 	EntityDescriptorUrl string `protobuf:"bytes,3,opt,name=entity_descriptor_url,json=entityDescriptorUrl,proto3" json:"entity_descriptor_url,omitempty"`
-	// ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is
+	// ForceAuthn specified whether re-authentication1 should be forced for MFA checks. UNSPECIFIED is
 	// treated as YES to always re-authentication for MFA checks. This should only be set to NO if the
 	// IdP is setup to perform MFA checks on top of active user sessions.
 	ForceAuthn           SAMLForceAuthn `protobuf:"varint,4,opt,name=force_authn,json=forceAuthn,proto3,enum=types.SAMLForceAuthn" json:"force_authn,omitempty"`
