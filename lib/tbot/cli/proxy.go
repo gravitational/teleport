@@ -18,7 +18,11 @@
 
 package cli
 
-import "github.com/alecthomas/kingpin/v2"
+import (
+	"context"
+
+	"github.com/alecthomas/kingpin/v2"
+)
 
 // ProxyCommand supports `tbot proxy`
 type ProxyCommand struct {
@@ -45,7 +49,7 @@ func NewProxyCommand(app *kingpin.Application, action func(*ProxyCommand) error)
 		// Prepend an action to handle --proxy deprecation.
 		if c.LegacyProxyFlag != "" {
 			c.ProxyServer = c.LegacyProxyFlag
-			log.Warn("The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
+			log.WarnContext(context.TODO(), "The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
 		}
 
 		return nil

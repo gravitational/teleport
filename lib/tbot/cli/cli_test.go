@@ -361,6 +361,6 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, legacy.DestinationDir, destImplReal.Path)
-	require.Equal(t, true, cfg.Debug)
+	require.True(t, cfg.Debug)
 	require.Equal(t, legacy.DiagAddr, cfg.DiagAddr)
 }

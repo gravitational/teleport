@@ -18,6 +18,8 @@
 
 package cli
 
+import "context"
+
 // DBCommand contains fields for `tbot db`
 type DBCommand struct {
 	*genericExecutorHandler[DBCommand]
@@ -43,7 +45,7 @@ func NewDBCommand(app KingpinClause, action func(*DBCommand) error) *DBCommand {
 		// Prepend an action to handle --proxy deprecation.
 		if c.LegacyProxyFlag != "" {
 			c.ProxyServer = c.LegacyProxyFlag
-			log.Warn("The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
+			log.WarnContext(context.TODO(), "The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
 		}
 
 		return nil

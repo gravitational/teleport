@@ -431,7 +431,6 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 	defer cancel()
 
 	initables := botConfig.GetInitables()
-	log.Warn("initables", "initables", initables)
 	var target config.Initable
 	// First, resolve the correct output/service. If using a config file with
 	// only 1 destination we can assume we want to init that one; otherwise,
