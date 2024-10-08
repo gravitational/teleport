@@ -328,29 +328,12 @@ func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 	return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
 }
 
-// legacySecondFactorFromSecondFactors returns a suitable legacy second factor for the given list of second factors.
-func legacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) constants.SecondFactorType {
-	hasOTP := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_OTP)
-	hasWebAuthn := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
-
-	switch {
-	case hasOTP && hasWebAuthn:
-		return constants.SecondFactorOn
-	case hasWebAuthn:
-		return constants.SecondFactorWebauthn
-	case hasOTP:
-		return constants.SecondFactorOTP
-	default:
-		return constants.SecondFactorOff
-	}
-}
-
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
 
 	// Set SecondFactors from SecondFactor.
-	c.Spec.SecondFactors = SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
+	c.Spec.SecondFactors = secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
 }
 
 // GetSecondFactors gets a list of supported second factors.
@@ -360,27 +343,7 @@ func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
 	}
 
 	// If SecondFactors isn't set, try to convert the old SecondFactor field.
-	return SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
-}
-
-// SecondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
-func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType) []SecondFactorType {
-	switch sf {
-	case constants.SecondFactorOff:
-		return nil
-	case constants.SecondFactorOptional, constants.SecondFactorOn:
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP}
-	case constants.SecondFactorOTP:
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}
-	case constants.SecondFactorWebauthn:
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN}
-	case "":
-		// default to OTP
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}
-	default:
-		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
-		return nil
-	}
+	return secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
 }
 
 // SetSecondFactors sets the list of supported second factors.
@@ -396,29 +359,27 @@ func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
 // It is empty if there is nothing to suggest.
 func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 	if c.IsSecondFactorWebauthnAllowed() {
-		return SecondFactorTypeWebauthnString
+		return secondFactorTypeWebauthnString
 	}
 
 	if c.IsSecondFactorTOTPAllowed() {
-		return SecondFactorTypeOTPString
+		return secondFactorTypeOTPString
 	}
 
 	return ""
 }
 
 // IsSecondFactorEnforced checks if second factor is enabled.
-//
-// TODO(Joerger): outside of tests, second factor should always be enabled.
-// All calls should be removed and the old off/optional second factors removed.
 func (c *AuthPreferenceV2) IsSecondFactorEnabled() bool {
+	// TODO(Joerger): outside of tests, second factor should always be enabled.
+	// All calls should be removed and the old off/optional second factors removed.
 	return len(c.GetSecondFactors()) > 0
 }
 
 // IsSecondFactorEnforced checks if second factor is enforced.
-//
-// TODO(Joerger): outside of tests, second factor should always be enforced.
-// All calls should be removed and the old off/optional second factors removed.
 func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
+	// TODO(Joerger): outside of tests, second factor should always be enforced.
+	// All calls should be removed and the old off/optional second factors removed.
 	return len(c.GetSecondFactors()) > 0 && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
 
@@ -718,6 +679,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
+	if c.Spec.SecondFactor == "" && len(c.Spec.SecondFactors) == 0 {
+		c.Spec.SecondFactor = constants.SecondFactorOTP
+	}
 	if c.Spec.AllowLocalAuth == nil {
 		c.Spec.AllowLocalAuth = NewBoolOption(true)
 	}
@@ -753,28 +717,23 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	}
 
-	// If U2F is present validate it, we can derive Webauthn from it.
-	if c.Spec.U2F != nil {
-		if err := c.Spec.U2F.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-		if c.Spec.Webauthn == nil {
-			// Not a problem, try to derive from U2F.
-			c.Spec.Webauthn = &Webauthn{}
-		}
-		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	// If SecondFactors isn't set, set from legacy SecondFactor.
-	if len(c.Spec.SecondFactors) == 0 {
-		c.Spec.SecondFactors = SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
-	}
-
 	// Validate expected fields for webauthn.
 	hasWebauthn := c.IsSecondFactorWebauthnAllowed()
 	if hasWebauthn {
+		// If U2F is present validate it, we can derive Webauthn from it.
+		if c.Spec.U2F != nil {
+			if err := c.Spec.U2F.Check(); err != nil {
+				return trace.Wrap(err)
+			}
+			if c.Spec.Webauthn == nil {
+				// Not a problem, try to derive from U2F.
+				c.Spec.Webauthn = &Webauthn{}
+			}
+			if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if c.Spec.Webauthn == nil {
 			return trace.BadParameter("missing required webauthn configuration")
 		}
@@ -782,6 +741,13 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	// Validate SecondFactor if set.
+	switch c.Spec.SecondFactor {
+	case "", constants.SecondFactorOff, constants.SecondFactorOTP, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	default:
+		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
 	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
@@ -1200,118 +1166,5 @@ func (r *RequireMFAType) setFromEnum(val int32) error {
 		return trace.BadParameter("invalid required mfa mode %v", val)
 	}
 	*r = RequireMFAType(val)
-	return nil
-}
-
-// MarshalJSON marshals SecondFactorType to boolean or string.
-func (s *SecondFactorType) MarshalYAML() (interface{}, error) {
-	val, err := s.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return val, nil
-}
-
-// UnmarshalYAML supports parsing SecondFactorType from boolean or alias.
-func (s *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var val interface{}
-	err := unmarshal(&val)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = s.decode(val)
-	return trace.Wrap(err)
-}
-
-// MarshalJSON marshals SecondFactorType to boolean or string.
-func (s *SecondFactorType) MarshalJSON() ([]byte, error) {
-	val, err := s.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := json.Marshal(val)
-	return out, trace.Wrap(err)
-}
-
-// UnmarshalJSON supports parsing SecondFactorType from boolean or alias.
-func (s *SecondFactorType) UnmarshalJSON(data []byte) error {
-	var val interface{}
-	err := json.Unmarshal(data, &val)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = s.decode(val)
-	return trace.Wrap(err)
-}
-
-const (
-	// SecondFactorTypeOTPString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_OTP
-	SecondFactorTypeOTPString = "otp"
-	// SecondFactorTypeWebauthnString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN
-	SecondFactorTypeWebauthnString = "webauthn"
-	// SecondFactorTypeSSOString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_SSO
-	SecondFactorTypeSSOString = "sso"
-)
-
-// ToString returns the user friendly string representation of the second factor type.
-func (s *SecondFactorType) ToString() string {
-	str, _ := s.encode()
-	return str
-}
-
-func (s *SecondFactorType) encode() (string, error) {
-	switch *s {
-	case SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED:
-		return "", nil
-	case SecondFactorType_SECOND_FACTOR_TYPE_OTP:
-		return SecondFactorTypeOTPString, nil
-	case SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN:
-		return SecondFactorTypeWebauthnString, nil
-	case SecondFactorType_SECOND_FACTOR_TYPE_SSO:
-		return SecondFactorTypeSSOString, nil
-	default:
-		return "", trace.BadParameter("SecondFactorType invalid value %v", *s)
-	}
-}
-
-func (s *SecondFactorType) decode(val any) error {
-	switch v := val.(type) {
-	case string:
-		switch v {
-		case SecondFactorTypeOTPString:
-			*s = SecondFactorType_SECOND_FACTOR_TYPE_OTP
-		case SecondFactorTypeWebauthnString:
-			*s = SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN
-		case SecondFactorTypeSSOString:
-			*s = SecondFactorType_SECOND_FACTOR_TYPE_SSO
-		case "":
-			*s = SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED
-		default:
-			return trace.BadParameter("SecondFactorType invalid value %v", val)
-		}
-	case int32:
-		return trace.Wrap(s.setFromEnum(v))
-	case int64:
-		return trace.Wrap(s.setFromEnum(int32(v)))
-	case int:
-		return trace.Wrap(s.setFromEnum(int32(v)))
-	case float64:
-		return trace.Wrap(s.setFromEnum(int32(v)))
-	case float32:
-		return trace.Wrap(s.setFromEnum(int32(v)))
-	default:
-		return trace.BadParameter("RequireMFAType invalid type %T", val)
-	}
-	return nil
-}
-
-// setFromEnum sets the value from enum value as int32.
-func (r *SecondFactorType) setFromEnum(val int32) error {
-	if _, ok := SecondFactorType_name[val]; !ok {
-		return trace.BadParameter("invalid SecondFactorType mode %v", val)
-	}
-	*r = SecondFactorType(val)
 	return nil
 }
