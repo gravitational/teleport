@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
+	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -294,7 +295,7 @@ func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive)
 }
 
 // GetReverseTunnel not implemented: can only be called locally.
-func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
+func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -376,7 +377,7 @@ func (c *Client) DeleteAllCertAuthorities(caType types.CertAuthType) error {
 }
 
 // DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels() error {
+func (c *Client) DeleteAllReverseTunnels(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -670,6 +671,11 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
+// UserTasksClient returns a client for managing User Task resources.
+func (c *Client) UserTasksClient() services.UserTasks {
+	return c.APIClient.UserTasksServiceClient()
+}
+
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
 }
@@ -816,6 +822,11 @@ func (c *Client) UpsertGlobalNotification(ctx context.Context, globalNotificatio
 // UpsertUserNotification not implemented: can only be called locally.
 func (c *Client) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUserNotificationStatesForAllUsers not implemented: can only be called locally.
+func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
 // GetAccessGraphSettings gets the access graph settings from the backend.
@@ -1578,6 +1589,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
+	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
@@ -1612,6 +1624,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// UserTasksServiceClient returns an User Task service client.
+	UserTasksServiceClient() *usertask.Client
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

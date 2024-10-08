@@ -84,12 +84,15 @@ from Teleport Auth Service.
 
 To enable SSH Key Scanning, you need to configure the Teleport cluster to scan for SSH Authorized Keys.
 
-To enable the SSH Key Scanning feature, edit the Teleport Access Graph configuration file and set the
-`spec.secrets_scan_config` field to `enabled` as shown below:
+To enable the SSH Key Scanning feature, edit the Teleport Access Graph configuration file: 
 
-```bash
+```code
 $ tctl edit access_graph_settings
+```
 
+Set the `spec.secrets_scan_config` field to `enabled` as shown below:
+
+```yaml
 kind: access_graph_settings
 metadata:
   name: access-graph-settings

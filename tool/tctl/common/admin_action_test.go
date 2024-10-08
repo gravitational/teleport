@@ -175,6 +175,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 				setup:      createBot,
 				cleanup:    deleteBot,
 			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
 		} {
 			t.Run(name, func(t *testing.T) {
 				s.testCommand(t, ctx, tc)
@@ -1086,7 +1092,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         utils.NewLoggerForTests(),
+		Log:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 

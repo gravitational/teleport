@@ -116,7 +116,11 @@ type AuthClient interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
-	// GetAuthPreference returns the cluster authentication config.
+}
+
+// AccessPoint is an interface that defines a subset of
+// authclient.DatabaseAccessPoint that are required for database auth.
+type AccessPoint interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
@@ -124,6 +128,8 @@ type AuthClient interface {
 type AuthConfig struct {
 	// AuthClient is the cluster auth client.
 	AuthClient AuthClient
+	// AccessPoint is a caching client connected to the Auth Server.
+	AccessPoint AccessPoint
 	// Clients provides interface for obtaining cloud provider clients.
 	Clients cloud.Clients
 	// Clock is the clock implementation.
@@ -136,6 +142,9 @@ type AuthConfig struct {
 func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.AuthClient == nil {
 		return trace.BadParameter("missing AuthClient")
+	}
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing AccessPoint")
 	}
 	if c.Clients == nil {
 		return trace.BadParameter("missing Clients")
@@ -151,10 +160,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 
 func (c *AuthConfig) withLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) AuthConfig {
 	return AuthConfig{
-		AuthClient: c.AuthClient,
-		Clients:    c.Clients,
-		Clock:      c.Clock,
-		Log:        getUpdatedLogger(c.Log),
+		AuthClient:  c.AuthClient,
+		AccessPoint: c.AccessPoint,
+		Clients:     c.Clients,
+		Clock:       c.Clock,
+		Log:         getUpdatedLogger(c.Log),
 	}
 }
 
@@ -1030,7 +1040,7 @@ func (a *dbAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.PrivateKe
 
 // GetAuthPreference returns the cluster authentication config.
 func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	return a.cfg.AuthClient.GetAuthPreference(ctx)
+	return a.cfg.AccessPoint.GetAuthPreference(ctx)
 }
 
 // GetAzureIdentityResourceID returns the Azure identity resource ID attached to

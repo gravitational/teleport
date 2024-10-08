@@ -16,173 +16,125 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Link as InternalRouteLink } from 'react-router-dom';
-import { useLocation } from 'react-router';
-import styled from 'styled-components';
-import { Box, ButtonSecondary, Text, Link, Flex, ButtonPrimary } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { Link as InternalRouteLink } from 'react-router-dom';
 import FieldInput from 'shared/components/FieldInput';
+import Validation from 'shared/components/Validation';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
-import Validation, { Validator } from 'shared/components/Validation';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import styled from 'styled-components';
 
-import { useAsync } from 'shared/hooks/useAsync';
-
-import {
-  IntegrationEnrollEvent,
-  IntegrationEnrollEventData,
-  IntegrationEnrollKind,
-  userEventService,
-} from 'teleport/services/userEvent';
-import { Header } from 'teleport/Discover/Shared';
-import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-
-import {
-  Integration,
-  IntegrationCreateRequest,
-  IntegrationKind,
-  integrationService,
-} from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { Header } from 'teleport/Discover/Shared';
+import {
+  ShowConfigurationScript,
+  RoleArnInput,
+} from 'teleport/Integrations/shared';
+import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
 
 import { FinishDialog } from './FinishDialog';
+import { useAwsOidcIntegration } from './useAwsOidcIntegration';
 
-type integrationConfig = {
-  name: string;
-  roleArn: string;
-};
-
-export function useAwsOidcIntegration() {
-  const [integrationConfig, setIntegrationConfig] = useState<integrationConfig>(
-    {
-      name: '',
-      roleArn: '',
-    }
-  );
-  const [scriptUrl, setScriptUrl] = useState('');
-  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
-  // const { attempt, run } = useAttempt('');
-
-  const location = useLocation<DiscoverUrlLocationState>();
-
-  const [eventData] = useState<IntegrationEnrollEventData>({
-    id: crypto.randomUUID(),
-    kind: IntegrationEnrollKind.AwsOidc,
-  });
-
-  useEffect(() => {
-    // If a user came from the discover wizard,
-    // discover wizard will send of appropriate events.
-    if (location.state?.discover) {
-      return;
-    }
-
-    emitEvent(IntegrationEnrollEvent.Started);
-    // Only send event once on init.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function emitEvent(event: IntegrationEnrollEvent) {
-    userEventService.captureIntegrationEnrollEvent({
-      event,
-      eventData,
-    });
-  }
-
-  const [createIntegrationAttempt, runCreateIntegration] = useAsync(
-    async (req: IntegrationCreateRequest) => {
-      const resp = await integrationService.createIntegration(req);
-      setCreatedIntegration(resp);
-      return resp;
-    }
-  );
-
-  async function handleOnCreate(validator: Validator) {
-    console.log('inside handleOnCreate: ');
-    if (!validator.validate()) {
-      console.log('invalid input');
-      return;
-    }
-
-    const [, err] = await runCreateIntegration({
-      name: integrationConfig.name,
-      subKind: IntegrationKind.AwsOidc,
-      awsoidc: {
-        roleArn: integrationConfig.roleArn,
-      },
-    });
-    if (err) {
-      return;
-    }
-
-    if (location.state?.discover) {
-      return;
-    }
-    emitEvent(IntegrationEnrollEvent.Complete);
-  }
-
-  function generateAwsOidcConfigIdpScript(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-
-    validator.reset();
-
-    const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
-      integrationName: integrationConfig.name,
-      roleName: integrationConfig.name,
-    });
-
-    setScriptUrl(newScriptUrl);
-  }
-
-  return {
-    integrationConfig,
-    setIntegrationConfig,
-    scriptUrl,
-    setScriptUrl,
-    createdIntegration,
-    handleOnCreate,
-    runCreateIntegration,
-    generateAwsOidcConfigIdpScript,
-    attempt: createIntegrationAttempt,
-  };
-}
-
-export function AwsOidcIntegrationScriptGenerator({
-  createIntegration = true,
-}: {
-  createIntegration?: boolean;
-}) {
+export function AwsOidc() {
   const {
     integrationConfig,
     setIntegrationConfig,
     scriptUrl,
     setScriptUrl,
-    createdIntegration,
     handleOnCreate,
-    attempt,
+    createdIntegration,
+    createIntegrationAttempt,
     generateAwsOidcConfigIdpScript,
   } = useAwsOidcIntegration();
+  const { clusterId } = useStickyClusterId();
 
   return (
-    <Box>
+    <Box pt={3}>
+      <Header>Set up your AWS account</Header>
+
+      <Box width="800px" mb={4}>
+        Instead of storing long-lived static credentials, Teleport will become a
+        trusted OIDC provider with AWS to be able to request short lived
+        credentials when performing operations automatically such as when
+        connecting{' '}
+        <RouteLink
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'ec2' },
+          }}
+        >
+          AWS EC2
+        </RouteLink>{' '}
+        or{' '}
+        <RouteLink
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'rds' },
+          }}
+        >
+          AWS RDS
+        </RouteLink>{' '}
+        instances during resource enrollment.
+        <Box mt={3}>
+          AWS Resources created by the integration are tagged so that you can
+          search and export them using the{' '}
+          <Link target="_blank" href={AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK}>
+            AWS Resource Groups / Tag Editor
+          </Link>
+          . The following tags are applied:
+          <TextSelectCopyMulti
+            bash={false}
+            lines={[
+              {
+                text:
+                  `teleport.dev/cluster: ` +
+                  clusterId +
+                  `\n` +
+                  `teleport.dev/origin: integration_awsoidc\n` +
+                  `teleport.dev/integration: ` +
+                  integrationConfig.name,
+              },
+            ]}
+          />
+        </Box>
+      </Box>
+
       <Validation>
         {({ validator }) => (
           <>
-            <Container mb={5}>
-              <Text bold>Step 1: Configure AWS OIDC integraiton name</Text>
-              <Text>
-                The name will be used to as integraiton name and AWS IAM role
-                name.{' '}
-              </Text>
-              <AwdOidcConfigureName
-                integrationConfig={integrationConfig}
-                setIntegrationConfig={setIntegrationConfig}
-                disabled={!!scriptUrl}
-              />
+            <Container mb={5} width={800}>
+              <Text bold>Step 1</Text>
+              <Box width="600px">
+                <FieldInput
+                  autoFocus={true}
+                  value={integrationConfig.name}
+                  label="Give this AWS integration a name"
+                  placeholder="Integration Name"
+                  onChange={e =>
+                    setIntegrationConfig({
+                      ...integrationConfig,
+                      name: e.target.value,
+                    })
+                  }
+                  disabled={!!scriptUrl}
+                />
+                <FieldInput
+                  rule={requiredIamRoleName}
+                  value={integrationConfig.roleName}
+                  placeholder="Integration role name"
+                  label="Give a name for an AWS IAM role this integration will create"
+                  onChange={e =>
+                    setIntegrationConfig({
+                      ...integrationConfig,
+                      roleName: e.target.value,
+                    })
+                  }
+                  disabled={!!scriptUrl}
+                />
+              </Box>
               {scriptUrl ? (
                 <ButtonSecondary
                   mb={3}
@@ -195,7 +147,12 @@ export function AwsOidcIntegrationScriptGenerator({
               ) : (
                 <ButtonSecondary
                   mb={3}
-                  onClick={() => generateAwsOidcConfigIdpScript(validator)}
+                  onClick={() =>
+                    generateAwsOidcConfigIdpScript(
+                      validator,
+                      AwsOidcPolicyPreset.Unspecified
+                    )
+                  }
                 >
                   Generate Command
                 </ButtonSecondary>
@@ -203,47 +160,53 @@ export function AwsOidcIntegrationScriptGenerator({
             </Container>
             {scriptUrl && (
               <>
-                <Container mb={5}>
+                <Container mb={5} width={800}>
                   <Text bold>Step 2</Text>
-                  <AwsOidcShowCommand scriptUrl={scriptUrl} />
+                  <ShowConfigurationScript scriptUrl={scriptUrl} />
                 </Container>
-                <Container mb={5}>
+                <Container mb={5} width={800}>
                   <Text bold>Step 3</Text>
-                  <AwsOidcConfigureRoleArn
-                    integrationConfig={integrationConfig}
-                    setIntegrationConfig={setIntegrationConfig}
-                    disabled={attempt.status === 'processing'}
+                  <RoleArnInput
+                    roleName={integrationConfig.roleName}
+                    roleArn={integrationConfig.roleArn}
+                    setRoleArn={(v: string) =>
+                      setIntegrationConfig({
+                        ...integrationConfig,
+                        roleArn: v,
+                      })
+                    }
+                    disabled={createIntegrationAttempt.status === 'processing'}
                   />
                 </Container>
               </>
             )}
-            {attempt.status === 'error' && (
+            {createIntegrationAttempt.status === 'error' && (
               <Flex>
                 <Icons.Warning mr={2} color="error.main" size="small" />
-                <Text color="error.main">Error: {attempt.statusText}</Text>
+                <Text color="error.main">
+                  Error: {createIntegrationAttempt.statusText}
+                </Text>
               </Flex>
             )}
-            {createIntegration && (
-              <Box mt={6}>
-                <ButtonPrimary
-                  onClick={() => handleOnCreate(validator)}
-                  disabled={
-                    !scriptUrl ||
-                    attempt.status === 'processing' ||
-                    !integrationConfig.roleArn
-                  }
-                >
-                  Create Integration
-                </ButtonPrimary>
-                <ButtonSecondary
-                  ml={3}
-                  as={InternalRouteLink}
-                  to={cfg.getIntegrationEnrollRoute(null)}
-                >
-                  Back
-                </ButtonSecondary>
-              </Box>
-            )}
+            <Box mt={6}>
+              <ButtonPrimary
+                onClick={() => handleOnCreate(validator)}
+                disabled={
+                  !scriptUrl ||
+                  createIntegrationAttempt.status === 'processing' ||
+                  !integrationConfig.roleArn
+                }
+              >
+                Create Integration
+              </ButtonPrimary>
+              <ButtonSecondary
+                ml={3}
+                as={InternalRouteLink}
+                to={cfg.getIntegrationEnrollRoute(null)}
+              >
+                Back
+              </ButtonSecondary>
+            </Box>
           </>
         )}
       </Validation>
@@ -419,24 +382,6 @@ const Container = styled(Box)`
   border-radius: ${p => `${p.theme.space[2]}px`};
   padding: ${p => p.theme.space[3]}px;
 `;
-
-const requiredRoleArn = (roleName: string) => (roleArn: string) => () => {
-  const regex = new RegExp(
-    '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
-  );
-
-  if (regex.test(roleArn)) {
-    return {
-      valid: true,
-    };
-  }
-
-  return {
-    valid: false,
-    message:
-      'invalid role ARN, double check you copied and pasted the correct output',
-  };
-};
 
 const RouteLink = styled(InternalRouteLink)`
   color: ${({ theme }) => theme.colors.buttons.link.default};

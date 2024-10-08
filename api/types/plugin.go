@@ -43,6 +43,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeEntraID,
 	PluginTypeSCIM,
 	PluginTypeAWSIC,
+	PluginTypeDatadog,
 }
 
 const (
@@ -64,7 +65,7 @@ const (
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
 	PluginTypePagerDuty = "pagerduty"
-	// PluginTypeMattermost is the PagerDuty access plugin
+	// PluginTypeMattermost is the Mattermost access plugin
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
@@ -76,6 +77,8 @@ const (
 	PluginTypeSCIM = "scim"
 
 	PluginTypeAWSIC = "aws-ic"
+	// PluginTypeDatadog indicates the Datadog Incident Management plugin
+	PluginTypeDatadog = "datadog"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -335,6 +338,21 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err, "invalid AWS Identity Center plugin configuration")
 		}
 
+	case *PluginSpecV1_Datadog:
+		if settings.Datadog == nil {
+			return trace.BadParameter("missing Datadog settings")
+		}
+		if err := settings.Datadog.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Datadog Incident Management plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	default:
 		return nil
 	}
@@ -499,6 +517,9 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSCIM
 	case *PluginSpecV1_AwsIc:
 		return PluginTypeAWSIC
+	case *PluginSpecV1_Datadog:
+		return PluginTypeDatadog
+
 	default:
 		return PluginTypeUnknown
 	}
@@ -708,6 +729,13 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 		return trace.BadParameter("base URL data must be set")
 	}
 
+func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
+	}
 	return nil
 }
 

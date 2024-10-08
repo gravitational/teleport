@@ -157,7 +157,8 @@ export type PluginSpec =
   | PluginOktaSpec
   | PluginSlackSpec
   | PluginMattermostSpec
-  | PluginOpsgenieSpec;
+  | PluginOpsgenieSpec
+  | PluginDatadogSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -177,6 +178,7 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id'
   | 'aws-ic';
+  | 'datadog';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
@@ -218,6 +220,11 @@ export type PluginMattermostSpec = {
 
 export type PluginOpsgenieSpec = {
   defaultSchedules: string[];
+};
+
+export type PluginDatadogSpec = {
+  apiEndpoint: string;
+  fallbackRecipient: string;
 };
 
 export type IntegrationCreateRequest = {
@@ -366,6 +373,15 @@ export type AwsOidcDeployServiceRequest = {
   vpcId: string;
   accountId: string;
 };
+
+/**
+ * AwsOidcPolicyPreset specifies preset policy to apply
+ * to the AWS IAM role created for the OIDC integration.
+ */
+export enum AwsOidcPolicyPreset {
+  Unspecified = '',
+  AwsIdentityCenter = 'aws-identity-center',
+}
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
 type DeployDatabaseServiceDeployment = {
@@ -589,12 +605,30 @@ export type SecurityGroupRule = {
   toPort: string;
   // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
   cidrs: Cidr[];
+  // Groups is a list of rules that allow another security group referenced
+  // by ID.
+  groups: GroupIdRule[];
 };
 
 export type Cidr = {
-  // CIDR is the IP range using CIDR notation.
+  /**
+   * CIDR is the IP range using CIDR notation.
+   */
   cidr: string;
-  // Description contains a small text describing the CIDR.
+  /**
+   *  Description contains a small text describing the CIDR.
+   */
+  description: string;
+};
+
+export type GroupIdRule = {
+  /**
+   * GroupId is the ID of the security group that is allowed by the rule.
+   */
+  groupId: string;
+  /**
+   * Description contains a small text describing the rule.
+   */
   description: string;
 };
 

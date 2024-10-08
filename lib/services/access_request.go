@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -46,6 +45,7 @@ import (
 
 const (
 	maxAccessRequestReasonSize = 4096
+	maxResourcesPerRequest     = 300
 
 	// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
 	day = 24 * time.Hour
@@ -67,13 +67,16 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 	_, err := uuid.Parse(ar.GetName())
 	if err != nil {
-		return trace.BadParameter("invalid access request id %q", ar.GetName())
+		return trace.BadParameter("invalid access request ID %q", ar.GetName())
 	}
 	if len(ar.GetRequestReason()) > maxAccessRequestReasonSize {
 		return trace.BadParameter("access request reason is too long, max %v bytes", maxAccessRequestReasonSize)
 	}
 	if len(ar.GetResolveReason()) > maxAccessRequestReasonSize {
 		return trace.BadParameter("access request resolve reason is too long, max %v bytes", maxAccessRequestReasonSize)
+	}
+	if l := len(ar.GetRequestedResourceIDs()); l > maxResourcesPerRequest {
+		return trace.BadParameter("access request contains too many resources (%v), max %v", l, maxResourcesPerRequest)
 	}
 	return nil
 }
@@ -1123,7 +1126,6 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	// need to be expanded into a list consisting of all existing roles
 	// that the user does not hold and is allowed to request.
 	if r := req.GetRoles(); len(r) == 1 && r[0] == types.Wildcard {
-
 		if !req.GetState().IsPending() {
 			// expansion is only permitted in pending requests.  once resolved,
 			// a request's role list must be immutable.
@@ -1165,6 +1167,19 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	}
 
 	if m.opts.expandVars {
+		// deduplicate requested resource IDs
+		var deduplicated []types.ResourceID
+		seen := make(map[string]struct{})
+		for _, resource := range req.GetRequestedResourceIDs() {
+			id := types.ResourceIDToString(resource)
+			if _, isDuplicate := seen[id]; isDuplicate {
+				continue
+			}
+			seen[id] = struct{}{}
+			deduplicated = append(deduplicated, resource)
+		}
+		req.SetRequestedResourceIDs(deduplicated)
+
 		// determine the roles which should be requested for a resource access
 		// request, and write them to the request
 		if err := m.setRolesForResourceRequest(ctx, req); err != nil {
@@ -1627,7 +1642,7 @@ func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint3
 
 	// don't bother double-storing equivalent thresholds
 	for i, threshold := range c.Thresholds {
-		if cmp.Equal(t, threshold) {
+		if t.IsEqual(&threshold) {
 			return uint32(i), nil
 		}
 	}

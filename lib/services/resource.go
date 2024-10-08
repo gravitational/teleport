@@ -247,6 +247,12 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindIdentityCenterAccount, nil
 	case types.KindStaticHostUser, types.KindStaticHostUser + "s", "host_user", "host_users":
 		return types.KindStaticHostUser, nil
+	case types.KindUserTask, types.KindUserTask + "s":
+		return types.KindUserTask, nil
+	case types.KindAutoUpdateConfig:
+		return types.KindAutoUpdateConfig, nil
+	case types.KindAutoUpdateVersion:
+		return types.KindAutoUpdateVersion, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

@@ -1034,7 +1034,9 @@ func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults checks validity of all parameters and sets defaults
+// CheckAndSetDefaults checks validity of all parameters and sets defaults.
+// Must be kept in sync with
+// `web/packages/teleport/src/Roles/RoleEditor/withDefaults.ts`.
 func (r *RoleV6) CheckAndSetDefaults() error {
 	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {

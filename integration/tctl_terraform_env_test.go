@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -235,7 +236,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 		TLS:                  tlsConfig,
 		SSH:                  sshConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewLoggerForTests(),
+		Log:                  utils.NewSlogLoggerForTests(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,
@@ -258,7 +259,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          clientConfig.SSH,
-		Log:                   clientConfig.Log,
+		Log:                   slog.Default(),
 		InsecureSkipTLSVerify: clientConfig.Insecure,
 		GetClusterCAs:         client.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
 	})
@@ -288,7 +289,7 @@ func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username strin
 	clientConfig := &authclient.Config{
 		TLS:                  tlsConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewLoggerForTests(),
+		Log:                  utils.NewSlogLoggerForTests(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,
