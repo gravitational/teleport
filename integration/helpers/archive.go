@@ -42,7 +42,10 @@ func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err
 		return trace.Wrap(err)
 	}
 	defer func() {
-		_ = archive.Close()
+		if closeErr := archive.Close(); closeErr != nil {
+			err = closeErr
+			return
+		}
 		if err != nil {
 			if err := os.Remove(destPath); err != nil {
 				slog.ErrorContext(ctx, "failed to remove archive", "error", err)
@@ -63,7 +66,11 @@ func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err
 			return trace.Wrap(err)
 		}
 		defer file.Close()
-		zipFileWriter, err := zipWriter.Create(filepath.Base(path))
+		relPath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		zipFileWriter, err := zipWriter.Create(relPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -79,7 +86,7 @@ func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return
 }
 
 // CompressDirToTarGzFile compresses a directory into .tar.gz format,
@@ -90,7 +97,10 @@ func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (e
 		return trace.Wrap(err)
 	}
 	defer func() {
-		_ = archive.Close()
+		if closeErr := archive.Close(); closeErr != nil {
+			err = closeErr
+			return
+		}
 		if err != nil {
 			if err := os.Remove(destPath); err != nil {
 				slog.ErrorContext(ctx, "failed to remove archive", "error", err)
@@ -115,6 +125,10 @@ func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (e
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		header.Name, err = filepath.Rel(sourcePath, path)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return trace.Wrap(err)
 		}
@@ -133,7 +147,7 @@ func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (e
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return
 }
 
 // CompressDirToPkgFile runs for the macOS `pkgbuild` command to generate a .pkg file from the source.

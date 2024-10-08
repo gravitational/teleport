@@ -77,15 +77,14 @@ func replaceTarGz(toolsDir string, archivePath string, extractDir string, execNa
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		baseName := filepath.Base(header.Name)
 		// Skip over any files in the archive that are not in execNames.
-		if !slices.ContainsFunc(execNames, func(s string) bool {
-			return filepath.Base(header.Name) == s
-		}) {
+		if !slices.Contains(execNames, baseName) {
 			continue
 		}
 
 		if err = func(header *tar.Header) error {
-			tempFile, err := renameio.TempFile(extractDir, filepath.Join(toolsDir, filepath.Base(header.Name)))
+			tempFile, err := renameio.TempFile(extractDir, filepath.Join(toolsDir, baseName))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -130,10 +129,9 @@ func validateFreeSpaceTarGz(archivePath string, extractDir string, execNames []s
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		baseName := filepath.Base(header.Name)
 		// Skip over any files in the archive that are not defined execNames.
-		if !slices.ContainsFunc(execNames, func(s string) bool {
-			return filepath.Base(header.Name) == s
-		}) {
+		if !slices.Contains(execNames, baseName) {
 			continue
 		}
 		totalSize += uint64(header.Size)

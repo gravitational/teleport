@@ -35,14 +35,12 @@ const (
 	reservedFreeDisk = 10 * 1024 * 1024
 )
 
-// RemoveWithSuffix removes all files in dir that have the provided suffix, except for files named `skipName`
-func RemoveWithSuffix(extractDir, suffix, skipName string) error {
-	err := filepath.Walk(extractDir, func(path string, info os.FileInfo, err error) error {
+// RemoveWithSuffix removes all that matches the provided suffix, except for file or directory with `skipName`.
+func RemoveWithSuffix(dir, suffix, skipName string) error {
+	var removePaths []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		if !info.IsDir() {
-			return nil
 		}
 		if skipName == info.Name() {
 			return nil
@@ -50,13 +48,21 @@ func RemoveWithSuffix(extractDir, suffix, skipName string) error {
 		if !strings.HasSuffix(info.Name(), suffix) {
 			return nil
 		}
-		// Found a stale expanded package.
-		if err := os.RemoveAll(path); err != nil {
-			return trace.Wrap(err)
+		removePaths = append(removePaths, path)
+		if info.IsDir() {
+			return filepath.SkipDir
 		}
 		return nil
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, path := range removePaths {
+		if err := os.RemoveAll(path); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // replaceZip un-archives the Teleport package in .zip format, iterates through
@@ -81,9 +87,10 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 
 	var totalSize uint64 = 0
 	for _, zipFile := range zipReader.File {
+		baseName := filepath.Base(zipFile.Name)
 		// Skip over any files in the archive that are not defined execNames.
 		if !slices.ContainsFunc(execNames, func(s string) bool {
-			return filepath.Base(zipFile.Name) == s
+			return baseName == s
 		}) {
 			continue
 		}
@@ -95,10 +102,9 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 	}
 
 	for _, zipFile := range zipReader.File {
+		baseName := filepath.Base(zipFile.Name)
 		// Skip over any files in the archive that are not defined execNames.
-		if !slices.ContainsFunc(execNames, func(s string) bool {
-			return filepath.Base(zipFile.Name) == s
-		}) {
+		if !slices.Contains(execNames, baseName) {
 			continue
 		}
 
@@ -109,7 +115,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			}
 			defer file.Close()
 
-			dest := filepath.Join(extractDir, zipFile.Name)
+			dest := filepath.Join(extractDir, baseName)
 			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 			if err != nil {
 				return trace.Wrap(err)
@@ -119,7 +125,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			if _, err := io.Copy(destFile, file); err != nil {
 				return trace.Wrap(err)
 			}
-			appPath := filepath.Join(toolsDir, zipFile.Name)
+			appPath := filepath.Join(toolsDir, baseName)
 			if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
 				return trace.Wrap(err)
 			}

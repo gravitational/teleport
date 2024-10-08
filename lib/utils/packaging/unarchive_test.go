@@ -52,9 +52,12 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, os.RemoveAll(toolsDir))
 	})
 
-	// Create test script for packaging.
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "tsh"), []byte(script), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "tctl"), []byte(script), 0o755))
+	// Create test script for packaging in relative path `teleport\bin` to ensure that
+	// binaries going to be identified and extracted flatten to `extractDir`.
+	binPath := filepath.Join(sourceDir, "teleport", "bin")
+	require.NoError(t, os.MkdirAll(binPath, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(binPath, "tsh"), []byte(script), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(binPath, "tctl"), []byte(script), 0o755))
 
 	ctx := context.Background()
 
@@ -111,4 +114,39 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, script, string(data))
 	})
+}
+
+// TestDirCleanUp verifies that helper for the cleanup removes directories
+func TestDirCleanup(t *testing.T) {
+	testDir, err := os.MkdirTemp(os.TempDir(), "test")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, os.RemoveAll(testDir))
+	})
+
+	dirForRemove := "test-extract-pkg"
+
+	// Creates directories `test/test-extract-pkg/test-extract-pkg` with exact names
+	// to ensure that only root one going to be removed recursively without any error.
+	path := filepath.Join(testDir, dirForRemove, dirForRemove)
+	require.NoError(t, os.MkdirAll(path, 0o755))
+	// Also we create the directory that needs to be skipped, and it matches the remove
+	// pattern `test/skip-test-extract-pkg/test-extract-pkg`.
+	skipName := "skip-" + dirForRemove
+	skipPath := filepath.Join(testDir, skipName)
+	dirInSkipPath := filepath.Join(skipPath, dirForRemove)
+	require.NoError(t, os.MkdirAll(skipPath, 0o755))
+
+	err = RemoveWithSuffix(testDir, dirForRemove, skipName)
+	require.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(testDir, dirForRemove))
+	assert.True(t, os.IsNotExist(err))
+
+	filePath, err := os.Stat(skipPath)
+	require.NoError(t, err)
+	assert.True(t, filePath.IsDir())
+
+	_, err = os.Stat(dirInSkipPath)
+	assert.True(t, os.IsNotExist(err))
 }
