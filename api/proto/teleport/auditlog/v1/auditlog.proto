@@ -44,8 +44,6 @@ message StreamUnstructuredSessionEventsRequest {
   // start_index is the index of the event to resume the stream after.
   // A start_index of 0 creates a new stream.
   int32 start_index = 2;
-  // format is the format the session recording was accessed.
-  string format = 4;
 }
 
 // Order controls the ordering of objects returned based on the timestamp field.

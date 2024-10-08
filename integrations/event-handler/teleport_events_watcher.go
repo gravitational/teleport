@@ -46,7 +46,7 @@ type TeleportSearchEventsClient interface {
 	// SearchEvents searches for events in the audit log and returns them using their protobuf representation.
 	SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error)
 	// StreamSessionEvents returns session events stream for a given session ID using their protobuf representation.
-	StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error)
+	StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64, format string) (chan events.AuditEvent, chan error)
 	// SearchUnstructuredEvents searches for events in the audit log and returns them using an unstructured representation (structpb.Struct).
 	SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error)
 	// StreamUnstructuredSessionEvents returns session events stream for a given session ID using an unstructured representation (structpb.Struct).
@@ -401,7 +401,7 @@ func (t *TeleportEventsWatcher) Events(ctx context.Context) (chan *TeleportEvent
 
 // StreamSessionEvents returns session event stream, that's the simple delegate to an API function
 func (t *TeleportEventsWatcher) StreamUnstructuredSessionEvents(ctx context.Context, id string, index int64) (chan *auditlogpb.EventUnstructured, chan error) {
-	return t.client.StreamUnstructuredSessionEvents(ctx, id, index)
+	return t.client.StreamUnstructuredSessionEvents(ctx, id, index, "" /* format */)
 }
 
 // UpsertLock upserts user lock
