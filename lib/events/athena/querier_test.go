@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -614,7 +615,7 @@ func TestSearchEvents(t *testing.T) {
 				querierConfig: querierConfig{
 					tablename: tablename,
 					clock:     clockwork.NewRealClock(),
-					logger:    utils.NewLoggerForTests(),
+					logger:    slog.Default(),
 					tracer:    tracing.NoopTracer(teleport.ComponentAthena),
 					// Use something > 0, to avoid default 600ms delay.
 					getQueryResultsInitialDelay:  1 * time.Microsecond,
@@ -844,7 +845,7 @@ func Test_querier_fetchResults(t *testing.T) {
 			q := &querier{
 				querierConfig: querierConfig{
 					tablename: tableName,
-					logger:    utils.NewLoggerForTests(),
+					logger:    slog.Default(),
 					tracer:    tracing.NoopTracer(teleport.ComponentAthena),
 				},
 				athenaClient: &fakeAthenaResultsGetter{

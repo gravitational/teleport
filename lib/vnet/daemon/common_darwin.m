@@ -16,6 +16,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#include "common_darwin.h"
 
 #import <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
@@ -118,3 +119,27 @@ bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {
 
   return true;
 }
+
+@implementation VNEConfig
++ (BOOL)supportsSecureCoding {
+  return YES;
+}
+
+- (void)encodeWithCoder:(nonnull NSCoder *)coder {
+  [coder encodeObject:self.socketPath forKey:@"socketPath"];
+  [coder encodeObject:self.ipv6Prefix forKey:@"ipv6Prefix"];
+  [coder encodeObject:self.dnsAddr forKey:@"dnsAddr"];
+  [coder encodeObject:self.homePath forKey:@"homePath"];
+}
+
+- (nullable instancetype)initWithCoder:(nonnull NSCoder *)coder {
+  if (self = [super init]) {
+    [self setSocketPath:[coder decodeObjectOfClass:[NSString class] forKey:@"socketPath"]];
+    [self setIpv6Prefix:[coder decodeObjectOfClass:[NSString class] forKey:@"ipv6Prefix"]];
+    [self setDnsAddr:[coder decodeObjectOfClass:[NSString class] forKey:@"dnsAddr"]];
+    [self setHomePath:[coder decodeObjectOfClass:[NSString class] forKey:@"homePath"]];
+  }
+  return self;
+}
+
+@end

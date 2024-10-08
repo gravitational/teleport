@@ -73,7 +73,7 @@ class JoinTokenService {
   fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
     return api.get(cfg.getJoinTokensUrl(), signal).then(resp => {
       return {
-        items: resp.items.map(makeJoinToken),
+        items: resp.items?.map(makeJoinToken) || [],
       };
     });
   }

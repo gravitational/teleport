@@ -125,7 +125,11 @@ export enum BackgroundItemStatus {
     /**
      * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_NOT_FOUND = 4;
      */
-    NOT_FOUND = 4
+    NOT_FOUND = 4,
+    /**
+     * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
+     */
+    NOT_SUPPORTED = 5
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {

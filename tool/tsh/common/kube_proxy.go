@@ -27,7 +27,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"text/template"
 	"time"
 
@@ -38,7 +38,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -369,7 +368,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		kubeProxy.kubeConfigPath = os.Getenv(proxyKubeConfigEnvVar)
 		if kubeProxy.kubeConfigPath == "" {
 			_, port, _ := net.SplitHostPort(kubeProxy.forwardProxy.GetAddr())
-			kubeProxy.kubeConfigPath = path.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
+			kubeProxy.kubeConfigPath = filepath.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
 		}
 	}
 
@@ -484,7 +483,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	for _, cluster := range clusters {
 		// Try load from store.
 		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
-			cert, err := kubeCertFromKey(key, cluster.KubeCluster)
+			cert, err := kubeCertFromKeyRing(key, cluster.KubeCluster)
 			if err == nil {
 				log.Debugf("Client cert loaded from keystore for %v.", cluster)
 				certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
@@ -510,24 +509,24 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.KeyRing, error) {
 	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
-		key, err := tc.LocalAgent().GetKey(teleportCluster, client.WithKubeCerts{})
+		keyRing, err := tc.LocalAgent().GetKeyRing(teleportCluster, client.WithKubeCerts{})
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		kubeKeys[teleportCluster] = key
+		kubeKeys[teleportCluster] = keyRing
 	}
 	return kubeKeys, nil
 }
 
-func kubeCertFromKey(key *client.KeyRing, kubeCluster string) (tls.Certificate, error) {
-	x509cert, err := key.KubeX509Cert(kubeCluster)
+func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certificate, error) {
+	x509cert, err := keyRing.KubeX509Cert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	if time.Until(x509cert.NotAfter) <= time.Minute {
 		return tls.Certificate{}, trace.NotFound("TLS cert is expiring in a minute")
 	}
-	cert, err := key.KubeTLSCert(kubeCluster)
+	cert, err := keyRing.KubeTLSCert(kubeCluster)
 	return cert, trace.Wrap(err)
 }
 
@@ -576,14 +575,14 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		requesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
 	}
 
-	key, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(
+	keyRing, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(
 		ctx,
 		client.ReissueParams{
 			RouteToCluster:    teleportCluster,
 			KubernetesCluster: kubeCluster,
 			RequesterName:     requesterName,
+			TTL:               tc.KeyTTL,
 		},
-		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
 	)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -599,7 +598,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
-		key,
+		keyRing,
 		rootClusterName,
 		teleportCluster,
 		kubeCluster); err != nil {
@@ -608,12 +607,12 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 
 	// Save it if MFA was not required.
 	if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-		if err := tc.LocalAgent().AddKubeKey(key); err != nil {
+		if err := tc.LocalAgent().AddKubeKeyRing(keyRing); err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 	}
 
-	cert, err := key.KubeTLSCert(kubeCluster)
+	cert, err := keyRing.KubeTLSCert(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

@@ -58,6 +58,7 @@ func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 		BoolVar(&p.install.okta.scimEnabled)
 	p.install.okta.cmd.
 		Flag("scim-token", "Okta SCIM auth token for the plugin to use").
+		Hidden().
 		StringVar(&p.install.okta.scimToken)
 	p.install.okta.cmd.
 		Flag("users-sync", "Enable user synchronization").

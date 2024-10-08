@@ -16,13 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-const plugins = [
-  '@babel/plugin-proposal-class-properties',
-  '@babel/plugin-proposal-object-rest-spread',
-  '@babel/plugin-proposal-optional-chaining',
-  '@babel/plugin-syntax-dynamic-import',
-];
-
 function makePresets(test = false) {
   if (test) {
     return [
@@ -60,20 +53,17 @@ module.exports = {
     },
     development: {
       plugins: [
-        ...plugins,
         ['babel-plugin-styled-components', { displayName: true, ssr: false }],
       ],
     },
     production: {
       plugins: [
-        ...plugins,
         ['babel-plugin-styled-components', { displayName: false, ssr: false }],
       ],
     },
   },
   presets: makePresets(),
   plugins: [
-    ...plugins,
     ['babel-plugin-styled-components', { displayName: false, ssr: false }],
   ],
 };

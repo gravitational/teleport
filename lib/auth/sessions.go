@@ -21,9 +21,11 @@ package auth
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -36,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -43,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -112,7 +114,7 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 }
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	session, sessionChecker, err := a.newWebSession(ctx, req, nil /* opts */)
+	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,19 +130,6 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionR
 		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	// Assign the TrustedDeviceRequirement to the session, but do not persist it,
-	// so only the initial session gets it.
-	// This avoids persisting a possibly stale value.
-	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		return sessionChecker.Roles(), nil
-	}); err != nil {
-		log.
-			WithError(err).
-			Warnf("Failed to calculate trusted device mode for session")
-	} else {
-		session.SetTrustedDeviceRequirement(tdr)
 	}
 
 	return session, nil
@@ -263,9 +252,17 @@ func (a *Server) newWebSession(
 		}
 		sshKey, tlsKey = req.SSHPrivateKey.Signer, req.TLSPrivateKey.Signer
 	} else {
-		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, a)
+		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(a))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
+		}
+		if _, isRSA := sshKey.Public().(*rsa.PublicKey); isRSA {
+			// Ensure the native package is precomputing RSA keys if we ever
+			// generate one. [native.PrecomputeKeys] is idempotent.
+			// Doing this lazily easily handles changing signature algorithm
+			// suites and won't start precomputing keys if they are never needed
+			// (a major benefit in tests).
+			native.PrecomputeKeys()
 		}
 	}
 
@@ -363,6 +360,24 @@ func (a *Server) newWebSession(
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
+		return checker.Roles(), nil
+	}); err != nil {
+		log.
+			WithError(err).
+			Warn("Failed to calculate trusted device mode for session")
+	} else {
+		sess.SetTrustedDeviceRequirement(tdr)
+
+		if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
+			log.WithFields(logrus.Fields{
+				"user":                       req.User,
+				"trusted_device_requirement": tdr,
+			}).Debug("Calculated trusted device requirement for session")
+		}
+	}
+
 	return sess, checker, nil
 }
 
@@ -523,7 +538,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	// Create certificate for this session.
-	priv, err := cryptosuites.GenerateKey(ctx, a, cryptosuites.UserTLS)
+	priv, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.UserTLS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -681,14 +696,30 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+// SessionCertsRequest is a request for new user session certs.
+type SessionCertsRequest struct {
+	UserState               services.UserState
+	SessionTTL              time.Duration
+	SSHPubKey               []byte
+	TLSPubKey               []byte
+	SSHAttestationStatement *keys.AttestationStatement
+	TLSAttestationStatement *keys.AttestationStatement
+	Compatibility           string
+	RouteToCluster          string
+	KubernetesCluster       string
+	LoginIP                 string
+}
+
+// CreateSessionCerts returns new user certs. The user must already be
+// authenticated.
+func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsRequest) ([]byte, []byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	accessInfo := services.AccessInfoFromUserState(userState)
+	accessInfo := services.AccessInfoFromUserState(req.UserState)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -698,37 +729,23 @@ func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := publicKey
-	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := attestationReq
-	tlsPublicKeyAttestationStatement := attestationReq
-
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                             userState,
-		ttl:                              sessionTTL,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
-		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
-		compatibility:                    compatibility,
+		user:                             req.UserState,
+		ttl:                              req.SessionTTL,
+		sshPublicKey:                     req.SSHPubKey,
+		tlsPublicKey:                     req.TLSPubKey,
+		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
+		compatibility:                    req.Compatibility,
 		checker:                          checker,
-		traits:                           userState.GetTraits(),
-		routeToCluster:                   routeToCluster,
-		kubernetesCluster:                kubernetesCluster,
-		loginIP:                          loginIP,
+		traits:                           req.UserState.GetTraits(),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		loginIP:                          req.LoginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
 	return certs.SSH, certs.TLS, nil
 }
 

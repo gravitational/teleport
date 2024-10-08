@@ -47,7 +47,7 @@ fn main() -> Result<()> {
         };
 
         eprint!(
-            "{pkg_name} (version {version})\n\nusage: {argv0} <path to mux socket> <connection target>\n",
+            "{pkg_name} (version {version})\n\nusage: {argv0} <path to mux socket> <connection target>\n\n Find out more at https://goteleport.com/docs/reference/cli/fdpass-teleport\n",
         );
         process::exit(libc::EXIT_FAILURE);
     }

@@ -45,7 +45,7 @@ type SAMLConnectorGetter interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
 }
 
-const ErrMsgHowToFixMissingPrivateKey = "You must either specify the singing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove singing_key_pair in the resource you're trying to create)."
+const ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
@@ -259,6 +259,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		SPKeyStore:                     keyStore,
 		Clock:                          dsig.NewFakeClock(clock),
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+		ForceAuthn:                     sc.GetForceAuthn(),
 	}
 
 	// Provider specific settings for ADFS and JumpCloud. Specifically these

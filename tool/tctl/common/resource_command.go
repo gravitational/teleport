@@ -42,6 +42,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -50,6 +51,8 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/mfa"
@@ -165,6 +168,11 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindVnetConfig:               rc.createVnetConfig,
 		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
 		types.KindPlugin:                   rc.createPlugin,
+		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
+		types.KindStaticHostUser:           rc.createStaticHostUser,
+		types.KindUserTask:                 rc.createUserTask,
+		types.KindAutoUpdateConfig:         rc.createAutoUpdateConfig,
+		types.KindAutoUpdateVersion:        rc.createAutoUpdateVersion,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -180,6 +188,10 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindVnetConfig:              rc.updateVnetConfig,
 		types.KindAccessGraphSettings:     rc.updateAccessGraphSettings,
 		types.KindPlugin:                  rc.updatePlugin,
+		types.KindStaticHostUser:          rc.updateStaticHostUser,
+		types.KindUserTask:                rc.updateUserTask,
+		types.KindAutoUpdateConfig:        rc.updateAutoUpdateConfig,
+		types.KindAutoUpdateVersion:       rc.updateAutoUpdateVersion,
 	}
 	rc.config = config
 
@@ -294,7 +306,7 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 		}
 		resources = append(resources, collection.resources()...)
 	}
-	if err := utils.WriteYAML(os.Stdout, resources); err != nil {
+	if err := utils.WriteYAML(rc.stdout, resources); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -959,6 +971,45 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
+func (rc *ResourceCommand) createUserTask(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	resource, err := services.UnmarshalUserTask(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.UserTasksServiceClient()
+	if rc.force {
+		if _, err := c.UpsertUserTask(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been updated\n", resource.GetMetadata().GetName())
+	} else {
+		if _, err := c.CreateUserTask(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been created\n", resource.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalSPIFFEFederation(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.SPIFFEFederationServiceClient()
+	if _, err := c.CreateSPIFFEFederation(ctx, &machineidv1pb.CreateSPIFFEFederationRequest{
+		SpiffeFederation: in,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("SPIFFE Federation %q has been created\n", in.GetMetadata().GetName())
+
+	return nil
+}
+
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw)
 	if err != nil {
@@ -968,6 +1019,18 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateUserTask(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	in, err := services.UnmarshalUserTask(resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UserTasksServiceClient().UpdateUserTask(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("user task %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -1401,6 +1464,39 @@ func (rc *ResourceCommand) createServerInfo(ctx context.Context, client *authcli
 	return nil
 }
 
+func (rc *ResourceCommand) createStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c := client.StaticHostUserClient()
+	if rc.force {
+		if _, err := c.UpsertStaticHostUser(ctx, hostUser); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
+	} else {
+		if _, err := c.CreateStaticHostUser(ctx, hostUser); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("static host user %q has been created\n", hostUser.GetMetadata().Name)
+	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	hostUser, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](resource.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.StaticHostUserClient().UpdateStaticHostUser(ctx, hostUser); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	singletonResources := []string{
@@ -1453,7 +1549,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("github connector %q has been deleted\n", rc.ref.Name)
 	case types.KindReverseTunnel:
-		if err := client.DeleteReverseTunnel(rc.ref.Name); err != nil {
+		if err := client.DeleteReverseTunnel(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("reverse tunnel %v has been deleted\n", rc.ref.Name)
@@ -1705,6 +1801,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
 
+	case types.KindUserTask:
+		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("user task %q has been deleted\n", rc.ref.Name)
+
 	case types.KindDiscoveryConfig:
 		remote := client.DiscoveryConfigClient()
 		if err := remote.DeleteDiscoveryConfig(ctx, rc.ref.Name); err != nil {
@@ -1785,6 +1887,20 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
+	case types.KindSPIFFEFederation:
+		if _, err := client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(
+			ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
+				Name: rc.ref.Name,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
+	case types.KindStaticHostUser:
+		if err := client.StaticHostUserClient().DeleteStaticHostUser(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("static host user %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2707,6 +2823,31 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 		}
 		return &integrationCollection{integrations: resources}, nil
+	case types.KindUserTask:
+		userTasksClient := client.UserTasksClient()
+		if rc.ref.Name != "" {
+			uit, err := userTasksClient.GetUserTask(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &userTaskCollection{items: []*usertasksv1.UserTask{uit}}, nil
+		}
+
+		var tasks []*usertasksv1.UserTask
+		nextToken := ""
+		for {
+			resp, token, err := userTasksClient.ListUserTasks(ctx, 0 /* default size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tasks = append(tasks, resp...)
+
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &userTaskCollection{items: tasks}, nil
 	case types.KindDiscoveryConfig:
 		remote := client.DiscoveryConfigClient()
 		if rc.ref.Name != "" {
@@ -2833,6 +2974,36 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &accessGraphSettings{accessGraphSettings: rec}, nil
+	case types.KindSPIFFEFederation:
+		if rc.ref.Name != "" {
+			resource, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &spiffeFederationCollection{items: []*machineidv1pb.SPIFFEFederation{resource}}, nil
+		}
+
+		var resources []*machineidv1pb.SPIFFEFederation
+		pageToken := ""
+		for {
+			resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+				PageToken: pageToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.SpiffeFederations...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &spiffeFederationCollection{items: resources}, nil
 	case types.KindBotInstance:
 		if rc.ref.Name != "" && rc.ref.SubKind != "" {
 			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
@@ -2872,6 +3043,43 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &botInstanceCollection{items: instances}, nil
+	case types.KindStaticHostUser:
+		hostUserClient := client.StaticHostUserClient()
+		if rc.ref.Name != "" {
+			hostUser, err := hostUserClient.GetStaticHostUser(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{hostUser}}, nil
+		}
+
+		var hostUsers []*userprovisioningpb.StaticHostUser
+		var nextToken string
+		for {
+			resp, token, err := hostUserClient.ListStaticHostUsers(ctx, 0, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			hostUsers = append(hostUsers, resp...)
+			if token == "" {
+				break
+			}
+			nextToken = token
+		}
+		return &staticHostUserCollection{items: hostUsers}, nil
+	case types.KindAutoUpdateConfig:
+		config, err := client.GetAutoUpdateConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateConfigCollection{config}, nil
+	case types.KindAutoUpdateVersion:
+		version, err := client.GetAutoUpdateVersion(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateVersionCollection{version}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3215,5 +3423,67 @@ func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Println("access_graph_settings has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateConfig(ctx, config)
+	} else {
+		_, err = client.CreateAutoUpdateConfig(ctx, config)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_config has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_config has been updated")
+	return nil
+}
+
+func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.IsForced() {
+		_, err = client.UpsertAutoUpdateVersion(ctx, version)
+	} else {
+		_, err = client.CreateAutoUpdateVersion(ctx, version)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("autoupdate_version has been created")
+	return nil
+}
+
+func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	version, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateVersion](raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("autoupdate_version has been updated")
 	return nil
 }

@@ -118,7 +118,7 @@ message DatabaseSessionCommandResult {
   DatabaseMetadata Database = 4;
   // Status of the execution.
   Status status = 5;
-  // AfftectedRecords represents the number of records that were affected by the
+  // AffectedRecords represents the number of records that were affected by the
   // user query.
   uint64 AffectedRecords = 6;
 }
@@ -126,7 +126,7 @@ message DatabaseSessionCommandResult {
 
 #### Examples
 
-* Audit event generated for a query that returns data (`SELET id, name FROM events;`):
+* Audit event generated for a query that returns data (`SELECT id, name FROM events;`):
 
 ```json
 {
@@ -211,7 +211,7 @@ It will present the session recording events in different text formats:
 Example of player visualization:
 
 ```code
-mydatabse=# SELECT id, name FROM events;
+mydatabase=# SELECT id, name FROM events;
 SUCCESS
 (3 rows returned)
 
@@ -247,7 +247,7 @@ executed, following the same format described earlier.
 Example:
 
 ```code
-mydatabse=# SELECT id, name FROM events;
+mydatabase=# SELECT id, name FROM events;
 
 mydatabase=# INSERT INTO events (name) VALUES ('session.query');
 

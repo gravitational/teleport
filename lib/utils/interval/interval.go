@@ -21,6 +21,7 @@ package interval
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -38,8 +39,9 @@ import (
 type Interval struct {
 	cfg       Config
 	ch        chan time.Time
-	reset     chan struct{}
+	reset     chan time.Duration
 	fire      chan struct{}
+	lastTick  atomic.Pointer[time.Time]
 	closeOnce sync.Once
 	done      chan struct{}
 }
@@ -88,7 +90,7 @@ func New(cfg Config) *Interval {
 	interval := &Interval{
 		ch:    make(chan time.Time, 1),
 		cfg:   cfg,
-		reset: make(chan struct{}),
+		reset: make(chan time.Duration),
 		fire:  make(chan struct{}),
 		done:  make(chan struct{}),
 	}
@@ -121,7 +123,15 @@ func (i *Interval) Stop() {
 // jitter(duration) regardless of current timer progress).
 func (i *Interval) Reset() {
 	select {
-	case i.reset <- struct{}{}:
+	case i.reset <- time.Duration(0):
+	case <-i.done:
+	}
+}
+
+// ResetTo resets the interval to the target duration for the next tick.
+func (i *Interval) ResetTo(d time.Duration) {
+	select {
+	case i.reset <- d:
 	case <-i.done:
 	}
 }
@@ -138,6 +148,20 @@ func (i *Interval) FireNow() {
 // Next is the channel over which the intervals are delivered.
 func (i *Interval) Next() <-chan time.Time {
 	return i.ch
+}
+
+// LastTick gets the most recent tick if the interval has fired at least once. Note that the
+// tick returned by this method is the last *generated* tick, not necessarily the last tick
+// that was *observed* by the consumer of the interval.
+func (i *Interval) LastTick() (tick time.Time, ok bool) {
+	if t := i.lastTick.Load(); t != nil {
+		return *t, true
+	}
+	return time.Time{}, false
+}
+
+func (i *Interval) setLastTick(tick time.Time) {
+	i.lastTick.Store(&tick)
 }
 
 // duration gets the duration of the interval.  Each call applies the jitter
@@ -163,13 +187,17 @@ func (i *Interval) run(timer clockwork.Timer) {
 			// output channel is set.
 			timer.Reset(i.duration())
 			ch = i.ch
-		case <-i.reset:
+			i.setLastTick(tick)
+		case d := <-i.reset:
 			// stop and drain timer
 			if !timer.Stop() {
 				<-timer.Chan()
 			}
+			if d == 0 {
+				d = i.duration()
+			}
 			// re-set the timer
-			timer.Reset(i.duration())
+			timer.Reset(d)
 			// ensure we don't send any pending ticks
 			ch = nil
 		case <-i.fire:
@@ -182,6 +210,7 @@ func (i *Interval) run(timer clockwork.Timer) {
 			// simulate firing of the timer
 			tick = time.Now()
 			ch = i.ch
+			i.setLastTick(tick)
 		case ch <- tick:
 			// tick has been sent, set ch back to nil to prevent
 			// double-send and wait for next timer firing

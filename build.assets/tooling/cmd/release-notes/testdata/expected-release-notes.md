@@ -15,12 +15,12 @@ Download the current and previous releases of Teleport at https://goteleport.com
 ## Plugins
 
 Download the current release of Teleport plugins from the links below.
-* Slack ([Linux amd64](https://cdn.teleport.dev/teleport-access-slack-v16.0.1-linux-amd64-bin.tar.gz))
-* Mattermost ([Linux amd64](https://cdn.teleport.dev/teleport-access-mattermost-v16.0.1-linux-amd64-bin.tar.gz))
-* Discord ([Linux amd64](https://cdn.teleport.dev/teleport-access-discord-v16.0.1-linux-amd64-bin.tar.gz))
-* Terraform Provider ([Linux amd64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-linux-arm64-bin.tar.gz) | [macOS amd64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-darwin-amd64-bin.tar.gz) | [macOS arm64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-darwin-arm64-bin.tar.gz) | [macOS universal](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-darwin-universal-bin.tar.gz))
-* Event Handler ([Linux amd64](https://cdn.teleport.dev/teleport-event-handler-v16.0.1-linux-amd64-bin.tar.gz) | [macOS amd64](https://cdn.teleport.dev/teleport-event-handler-v16.0.1-darwin-amd64-bin.tar.gz))
-* PagerDuty ([Linux amd64](https://cdn.teleport.dev/teleport-access-pagerduty-v16.0.1-linux-amd64-bin.tar.gz))
-* Jira ([Linux amd64](https://cdn.teleport.dev/teleport-access-jira-v16.0.1-linux-amd64-bin.tar.gz))
-* Email ([Linux amd64](https://cdn.teleport.dev/teleport-access-email-v16.0.1-linux-amd64-bin.tar.gz))
-* Microsoft Teams ([Linux amd64](https://cdn.teleport.dev/teleport-access-msteams-v16.0.1-linux-amd64-bin.tar.gz))
+* Slack [Linux amd64](https://cdn.teleport.dev/teleport-access-slack-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-slack-v16.0.1-linux-arm64-bin.tar.gz) 
+* Mattermost [Linux amd64](https://cdn.teleport.dev/teleport-access-mattermost-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-mattermost-v16.0.1-linux-arm64-bin.tar.gz)
+* Discord [Linux amd64](https://cdn.teleport.dev/teleport-access-discord-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-discord-v16.0.1-linux-arm64-bin.tar.gz)
+* Terraform Provider [Linux amd64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-linux-arm64-bin.tar.gz) | [macOS amd64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-darwin-amd64-bin.tar.gz) | [macOS arm64](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-darwin-arm64-bin.tar.gz) | [macOS universal](https://cdn.teleport.dev/terraform-provider-teleport-v16.0.1-darwin-universal-bin.tar.gz)
+* Event Handler [Linux amd64](https://cdn.teleport.dev/teleport-event-handler-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-event-handler-v16.0.1-linux-arm64-bin.tar.gz) | [macOS amd64](https://cdn.teleport.dev/teleport-event-handler-v16.0.1-darwin-amd64-bin.tar.gz)
+* PagerDuty [Linux amd64](https://cdn.teleport.dev/teleport-access-pagerduty-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-pagerduty-v16.0.1-linux-arm64-bin.tar.gz)
+* Jira [Linux amd64](https://cdn.teleport.dev/teleport-access-jira-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-jira-v16.0.1-linux-arm64-bin.tar.gz)
+* Email [Linux amd64](https://cdn.teleport.dev/teleport-access-email-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-email-v16.0.1-linux-arm64-bin.tar.gz)
+* Microsoft Teams [Linux amd64](https://cdn.teleport.dev/teleport-access-msteams-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-msteams-v16.0.1-linux-arm64-bin.tar.gz)

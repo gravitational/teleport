@@ -104,7 +104,8 @@ jobs:
               .variables.teleport.latest_oss_docker_image |= sub(":.*";":")+$version |
               .variables.teleport.latest_oss_debug_docker_image |= sub(":.*";":")+$version |
               .variables.teleport.latest_ent_docker_image |= sub(":.*";":")+$version |
-              .variables.teleport.latest_ent_debug_docker_image |= sub(":.*";":")+$version' \
+              .variables.teleport.latest_ent_debug_docker_image |= sub(":.*";":")+$version |
+              .variables.teleport.teleport_install_script_url |=  sub("install-v.*.sh"; "install-v"+$version+".sh")' \
               docs/config.json > docs/confignew.json
           cat docs/confignew.json
           mv docs/confignew.json docs/config.json

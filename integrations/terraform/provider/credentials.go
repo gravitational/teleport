@@ -483,6 +483,7 @@ func (CredentialsFromNativeMachineID) IsActive(config providerData) (bool, strin
 func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	joinMethod := stringFromConfigOrEnv(config.JoinMethod, constants.EnvVarTerraformJoinMethod, "")
 	joinToken := stringFromConfigOrEnv(config.JoinToken, constants.EnvVarTerraformJoinToken, "")
+	audienceTag := stringFromConfigOrEnv(config.AudienceTag, constants.EnvVarTerraformCloudJoinAudienceTag, "")
 	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
 
@@ -516,6 +517,9 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
+			Terraform: tbotconfig.TerraformOnboardingConfig{
+				AudienceTag: audienceTag,
+			},
 		},
 		CertificateTTL:  time.Hour,
 		RenewalInterval: 20 * time.Minute,

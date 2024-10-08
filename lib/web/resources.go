@@ -42,6 +42,9 @@ import (
 )
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
+//
+// Deprecated: Use `clusterUnifiedResourcesGet` instead.
+// TODO(kiosion): DELETE in 18.0
 func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of resources.
@@ -50,7 +53,15 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop}
+	resourceKinds := []string{
+		types.KindNode,
+		types.KindDatabaseServer,
+		types.KindAppServer,
+		types.KindKubeServer,
+		types.KindWindowsDesktop,
+		types.KindSAMLIdPServiceProvider,
+	}
+
 	for _, kind := range resourceKinds {
 		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
 			ResourceType: kind,

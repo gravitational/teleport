@@ -159,26 +159,26 @@ func TestCreateGithubUser(t *testing.T) {
 
 type testGithubAPIClient struct{}
 
-func (c *testGithubAPIClient) getUser() (*userResponse, error) {
-	return &userResponse{Login: "octocat"}, nil
+func (c *testGithubAPIClient) getUser() (*GithubUserResponse, error) {
+	return &GithubUserResponse{Login: "octocat"}, nil
 }
 
-func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {
-	return []teamResponse{
+func (c *testGithubAPIClient) getTeams() ([]GithubTeamResponse, error) {
+	return []GithubTeamResponse{
 		{
 			Name: "team1",
 			Slug: "team1",
-			Org:  orgResponse{Login: "org1"},
+			Org:  GithubOrgResponse{Login: "org1"},
 		},
 		{
 			Name: "team2",
 			Slug: "team2",
-			Org:  orgResponse{Login: "org1"},
+			Org:  GithubOrgResponse{Login: "org1"},
 		},
 		{
 			Name: "team1",
 			Slug: "team1",
-			Org:  orgResponse{Login: "org2"},
+			Org:  GithubOrgResponse{Login: "org2"},
 		},
 	}, nil
 }

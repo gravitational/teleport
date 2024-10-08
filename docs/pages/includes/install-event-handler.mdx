@@ -5,8 +5,8 @@ The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloa
 Replace `ARCH` with your required version.
 
 ```code
-$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-<Var name="ARCH" />-bin.tar.gz
 $ sudo ./teleport-event-handler/install
 ```
 
@@ -18,8 +18,8 @@ The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloa
 Replace `ARCH` with your required version.
 
 ```code
-$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.plugin.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
-$ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v(=teleport.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
 $ sudo ./teleport-event-handler/install
 ```
 
@@ -29,7 +29,7 @@ $ sudo ./teleport-event-handler/install
 Ensure that you have Docker installed and running.
 
 ```code
-$ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=)
+$ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=)
 ```
 
 </TabItem>
@@ -58,7 +58,6 @@ Run the following commands on your Universal Forwarder host:
 ```code
 $ git clone https://github.com/gravitational/teleport.git --depth 1 -b branch/v(=teleport.major_version=)
 $ cd teleport/integrations/event-handler
-$ git checkout (=teleport.plugin.version=)
 $ make build
 ```
 

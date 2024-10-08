@@ -41,6 +41,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeDiscord,
 	PluginTypeEntraID,
 	PluginTypeSCIM,
+	PluginTypeDatadog,
 }
 
 const (
@@ -62,7 +63,7 @@ const (
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
 	PluginTypePagerDuty = "pagerduty"
-	// PluginTypeMattermost is the PagerDuty access plugin
+	// PluginTypeMattermost is the Mattermost access plugin
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
@@ -72,6 +73,8 @@ const (
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+	// PluginTypeDatadog indicates the Datadog Incident Management plugin
+	PluginTypeDatadog = "datadog"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -322,12 +325,27 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	case *PluginSpecV1_AwsIamIc:
-		if settings.AwsIamIc == nil {
+	case *PluginSpecV1_Datadog:
+		if settings.Datadog == nil {
+			return trace.BadParameter("missing Datadog settings")
+		}
+		if err := settings.Datadog.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Datadog Incident Management plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_AwsIc:
+		if settings.AwsIc == nil {
 			return trace.BadParameter("Must be used with AWS Identity Center settings")
 		}
 
-		if err := settings.AwsIamIc.CheckAndSetDefaults(); err != nil {
+		if err := settings.AwsIc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -492,6 +510,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
+	case *PluginSpecV1_Datadog:
+		return PluginTypeDatadog
 
 	default:
 		return PluginTypeUnknown
@@ -669,33 +689,47 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
+	}
+	return nil
+}
+
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	if c.IntegrationId == "" {
-		return trace.BadParameter("AWS OIDC integration ID must be set")
+	if c.IntegrationName == "" {
+		return trace.BadParameter("AWS OIDC integration name must be set")
 	}
 
-	if c.InstanceArn == "" {
+	if c.Arn == "" {
 		return trace.BadParameter("AWS Identity Center Instance ARN must be set")
 	}
 
-	if c.InstanceRegion == "" {
+	if c.Region == "" {
 		return trace.BadParameter("AWS Identity Center region must be set")
 	}
 
-	if c.Provisioning == nil {
+	if c.ProvisioningSpec == nil {
 		return trace.BadParameter("provisioning config must be set")
 	}
 
-	if err := c.Provisioning.CheckAndSetDefaults(); err != nil {
+	if err := c.ProvisioningSpec.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "checking provisioning config")
 	}
 
 	return nil
 }
 
-func (c *PluginAWSICProvisioningSettings) CheckAndSetDefaults() error {
+func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 	if c.BaseUrl == "" {
 		return trace.BadParameter("base URL data must be set")
+	}
+
+	if c.BearerTokenRef == nil {
+		return trace.BadParameter("bearer token ref must be set")
 	}
 
 	// TODO(tcsc): work out how validate predicate expressions

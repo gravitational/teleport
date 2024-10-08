@@ -142,7 +142,7 @@ func TestBackend_Get(t *testing.T) {
 	}
 
 	type args struct {
-		key []byte
+		key backend.Key
 	}
 
 	tests := []struct {
@@ -160,7 +160,7 @@ func TestBackend_Get(t *testing.T) {
 				replicaName: "agent-0",
 			},
 			args: args{
-				key: backend.Key("ids", "kube", "current"),
+				key: backend.NewKey("ids", "kube", "current"),
 			},
 			want: nil,
 
@@ -169,7 +169,7 @@ func TestBackend_Get(t *testing.T) {
 		{
 			name: "secret exists and key is present",
 			args: args{
-				key: backend.Key("ids", "kube", "current"),
+				key: backend.NewKey("ids", "kube", "current"),
 			},
 			fields: fields{
 				objects: []runtime.Object{
@@ -177,7 +177,7 @@ func TestBackend_Get(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadTestData,
 						},
 					),
 				},
@@ -189,7 +189,7 @@ func TestBackend_Get(t *testing.T) {
 		{
 			name: "secret exists and key is present but empty",
 			args: args{
-				key: backend.Key("ids", "kube", "current"),
+				key: backend.NewKey("ids", "kube", "current"),
 			},
 			fields: fields{
 				objects: []runtime.Object{
@@ -197,7 +197,7 @@ func TestBackend_Get(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadEmpty,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadEmpty,
 						},
 					),
 				},
@@ -210,7 +210,7 @@ func TestBackend_Get(t *testing.T) {
 		{
 			name: "secret exists but key not present",
 			args: args{
-				key: backend.Key("ids", "kube", "replacement"),
+				key: backend.NewKey("ids", "kube", "replacement"),
 			},
 			fields: fields{
 				objects: []runtime.Object{
@@ -218,7 +218,7 @@ func TestBackend_Get(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadTestData,
 						},
 					),
 				},
@@ -283,7 +283,7 @@ func TestBackend_Put(t *testing.T) {
 			},
 			args: args{
 				item: backend.Item{
-					Key:   backend.Key("ids", "kube", "current"),
+					Key:   backend.NewKey("ids", "kube", "current"),
 					Value: payloadTestData,
 				},
 			},
@@ -291,7 +291,7 @@ func TestBackend_Put(t *testing.T) {
 				"agent-0-state",
 				"test",
 				map[string][]byte{
-					backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
+					backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadTestData,
 				},
 			),
 		},
@@ -299,7 +299,7 @@ func TestBackend_Put(t *testing.T) {
 			name: "secret exists and has keys",
 			args: args{
 				item: backend.Item{
-					Key:   backend.Key("ids", "kube", "current2"),
+					Key:   backend.NewKey("ids", "kube", "current2"),
 					Value: payloadTestData,
 				},
 			},
@@ -309,7 +309,7 @@ func TestBackend_Put(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadTestData,
 						},
 					),
 				},
@@ -320,8 +320,8 @@ func TestBackend_Put(t *testing.T) {
 				"agent-0-state",
 				"test",
 				map[string][]byte{
-					backendKeyToSecret(backend.Key("ids", "kube", "current")):  payloadTestData,
-					backendKeyToSecret(backend.Key("ids", "kube", "current2")): payloadTestData,
+					backendKeyToSecret(backend.NewKey("ids", "kube", "current")):  payloadTestData,
+					backendKeyToSecret(backend.NewKey("ids", "kube", "current2")): payloadTestData,
 				},
 			),
 		},

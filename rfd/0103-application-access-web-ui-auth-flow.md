@@ -39,7 +39,7 @@ The `AppLauncher.tsx` conducts the initial app authn flow and does the following
 OAuth like `state` exchange pattern is used to protect the app route `/x-teleport-auth` from CSRF. The authn flow uses two HTTP methods:
 
 - GET: `begins` the authn flow. Performs two different actions:
-  1. If the request URL does not contain `state` query param, it creates a random token and redirects the user back to the `AppLaunhcer.tsx` with both a `state` query param and a `state` cookie set with the random token value
+  1. If the request URL does not contain `state` query param, it creates a random token and redirects the user back to the `AppLauncher.tsx` with both a `state` query param and a `state` cookie set with the random token value
   2. If the `state` query param is present, it serves a `app redirection HTML` (contains inline JS that runs after page is loaded)
 - POST: `completes` the authn flow. This method is called within the inline JS served by the GET method and does the following:
   - checks that the `state` value passed via request body matches the value found in `state` cookie (double submit cookie method)
@@ -77,7 +77,7 @@ sequenceDiagram
     Browser->>App Handler: GET dumper.localhost/x-teleport-auth<br>Creates state token
     App Handler->>Browser: REDIRECT /web/launch/dumper.localhost/cluster-name/dumper.localhost?state=<TOKEN><br>set cookie with the same <TOKEN>
     Note left of Browser: Back at AppLauncher.tsx
-    Browser->>Web Handler: POST /v1/webapi/sessions/app with body:<br>{fqdn: dumper.localhost, plubic_addr: dumper.localhost, cluster_name: cluster-name}
+    Browser->>Web Handler: POST /v1/webapi/sessions/app with body:<br>{fqdn: dumper.localhost, public_addr: dumper.localhost, cluster_name: cluster-name}
     Web Handler->>Auth Server: CreateAppSession
     Auth Server->>Web Handler: Returns created session
     Web Handler->>Browser: Returns with the app <SESSION_BEARER_TOKEN> and <SESSION_ID> as JSON response

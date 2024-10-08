@@ -171,7 +171,7 @@ export const ManualHelmDialogStory = () => {
       name: 'Eks',
       kind: ResourceKind.Kubernetes,
       icon: 'eks',
-      keywords: '',
+      keywords: [],
       event: DiscoverEventResource.KubernetesEks,
     },
     exitFlow: () => null,

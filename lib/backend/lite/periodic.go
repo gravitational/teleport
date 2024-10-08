@@ -39,7 +39,7 @@ func (l *Backend) runPeriodicOperations() {
 		select {
 		case <-l.ctx.Done():
 			if err := l.closeDatabase(); err != nil {
-				l.Warningf("Error closing database: %v", err)
+				l.logger.WarnContext(l.ctx, "Error closing database", "error", err)
 			}
 			return
 		case <-t.C:
@@ -49,19 +49,19 @@ func (l *Backend) runPeriodicOperations() {
 				// or is closing, downgrade the log to debug
 				// to avoid polluting logs in production
 				if trace.IsConnectionProblem(err) {
-					l.Debugf("Failed to run remove expired keys: %v", err)
+					l.logger.DebugContext(l.ctx, "Failed to run remove expired keys", "error", err)
 				} else {
-					l.Warningf("Failed to run remove expired keys: %v", err)
+					l.logger.DebugContext(l.ctx, "Failed to run remove expired keys", "error", err)
 				}
 			}
 			if !l.EventsOff {
 				err = l.removeOldEvents()
 				if err != nil {
-					l.Warningf("Failed to run remove old events: %v", err)
+					l.logger.WarnContext(l.ctx, "Failed to run remove old events", "error", err)
 				}
 				rowid, err = l.pollEvents(rowid)
 				if err != nil {
-					l.Warningf("Failed to run poll events: %v", err)
+					l.logger.WarnContext(l.ctx, "Failed to run poll events", "error", err)
 				}
 			}
 		}
@@ -83,9 +83,9 @@ func (l *Backend) removeExpiredKeys() error {
 			return trace.Wrap(err)
 		}
 		defer rows.Close()
-		var keys [][]byte
+		var keys []backend.Key
 		for rows.Next() {
-			var key []byte
+			var key backend.Key
 			if err := rows.Scan(&key); err != nil {
 				return trace.Wrap(err)
 			}
@@ -149,7 +149,7 @@ func (l *Backend) pollEvents(rowid int64) (int64, error) {
 		if err != nil {
 			return rowid, trace.Wrap(err)
 		}
-		l.Debugf("Initialized event ID iterator to %v", rowid)
+		l.logger.DebugContext(l.ctx, "Initialized event ID iterator", "event_id", rowid)
 		l.buf.SetInit()
 	}
 

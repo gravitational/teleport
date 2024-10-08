@@ -40,7 +40,7 @@ func TestGetEnvForTSH(t *testing.T) {
 	expected := map[string]string{
 		client.VirtualPathEnvName(client.VirtualPathKey, nil):      filepath.Join(p, identity.PrivateKeyKey),
 		client.VirtualPathEnvName(client.VirtualPathDatabase, nil): filepath.Join(p, identity.TLSCertKey),
-		client.VirtualPathEnvName(client.VirtualPathApp, nil):      filepath.Join(p, identity.TLSCertKey),
+		client.VirtualPathEnvName(client.VirtualPathAppCert, nil):  filepath.Join(p, identity.TLSCertKey),
 
 		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, config.UserCAPath),
 		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, config.HostCAPath),

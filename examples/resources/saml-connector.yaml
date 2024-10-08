@@ -8,8 +8,8 @@ metadata:
   # the name of the connector
   name: okta
 spec:
-  # connector display name that will be appended to the title of "Login with"
-  # button on the cluster login screen so it will say "Login with Okta"
+  # Connector display name that will become the title of an SSO login button on
+  # the cluster login screen.
   display: Okta
   # SAML provider will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at.

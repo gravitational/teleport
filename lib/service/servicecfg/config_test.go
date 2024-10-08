@@ -104,6 +104,9 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Misc levers and dials
 	require.Equal(t, defaults.HighResPollingPeriod, config.RotationConnectionInterval)
+
+	// Debug should always be enabled by default.
+	require.True(t, config.DebugService.Enabled)
 }
 
 // TestCheckApp validates application configuration.
@@ -488,8 +491,6 @@ func TestVerifyEnabledService(t *testing.T) {
 					Spec: &types.JamfSpecV1{
 						Enabled:     true,
 						ApiEndpoint: "https://example.jamfcloud.com",
-						Username:    "llama",
-						Password:    "supersecret!!1!ONE",
 					},
 				},
 			},

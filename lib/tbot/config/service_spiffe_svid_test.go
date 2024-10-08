@@ -39,6 +39,7 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 						IP:  []string{"10.0.0.1", "10.42.0.1"},
 					},
 				},
+				IncludeFederatedTrustBundles: true,
 			},
 		},
 		{

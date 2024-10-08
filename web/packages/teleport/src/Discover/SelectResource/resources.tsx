@@ -40,13 +40,15 @@ import {
   ServerLocation,
 } from './types';
 
-const baseServerKeywords = 'server node';
-const awsKeywords = 'aws amazon ';
+const baseServerKeywords = ['server', 'node', 'ssh'];
+const awsKeywords = ['aws', 'amazon', 'amazon web services'];
+const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
+
 export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'ubuntu linux',
+    keywords: [...baseServerKeywords, 'ubuntu', 'linux'],
     icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -54,7 +56,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Debian 8+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'debian linux',
+    keywords: [...baseServerKeywords, 'debian', 'linux'],
     icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -62,7 +64,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'RHEL/CentOS 7+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'rhel centos linux',
+    keywords: [...baseServerKeywords, 'rhel', 'redhat', 'centos', 'linux'],
     icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -70,7 +72,7 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Amazon Linux 2/2023',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'amazon linux',
+    keywords: [...baseServerKeywords, 'amazon', 'linux'],
     icon: 'aws',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
@@ -78,7 +80,15 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'macOS',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'mac macos intel silicone apple',
+    keywords: [
+      ...baseServerKeywords,
+      'mac',
+      'macos',
+      'osx',
+      'intel',
+      'silicon',
+      'apple',
+    ],
     icon: 'apple',
     event: DiscoverEventResource.Server,
     platform: Platform.macOS,
@@ -86,9 +96,15 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'EC2 Auto Enrollment',
     kind: ResourceKind.Server,
-    keywords:
-      baseServerKeywords +
-      'ec2 instance aws amazon simple systems manager ssm auto enrollment',
+    keywords: [
+      ...baseServerKeywords,
+      ...awsKeywords,
+      'ec2',
+      'instance',
+      'simple systems manager',
+      'ssm',
+      'auto enrollment',
+    ],
     icon: 'aws',
     event: DiscoverEventResource.Ec2Instance,
     nodeMeta: {
@@ -99,7 +115,13 @@ export const SERVERS: ResourceSpec[] = [
   {
     name: 'Connect My Computer',
     kind: ResourceKind.ConnectMyComputer,
-    keywords: baseServerKeywords + 'connect my computer',
+    keywords: [
+      ...baseServerKeywords,
+      'connect my computer',
+      'macos',
+      'osx',
+      'linux',
+    ],
     icon: 'laptop',
     event: DiscoverEventResource.Server,
     supportedPlatforms: [Platform.macOS, Platform.Linux],
@@ -111,7 +133,7 @@ export const APPLICATIONS: ResourceSpec[] = [
   {
     name: 'Application',
     kind: ResourceKind.Application,
-    keywords: 'application',
+    keywords: ['application'],
     icon: 'application',
     isDialog: true,
     event: DiscoverEventResource.ApplicationHttp,
@@ -119,7 +141,7 @@ export const APPLICATIONS: ResourceSpec[] = [
   {
     name: 'AWS CLI/Console Access',
     kind: ResourceKind.Application,
-    keywords: 'application aws cli console access',
+    keywords: [...awsKeywords, 'application', 'cli', 'console access'],
     icon: 'aws',
     event: DiscoverEventResource.ApplicationAwsConsole,
     appMeta: { awsConsole: true },
@@ -130,7 +152,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
     name: 'Active Directory Users',
     kind: ResourceKind.Desktop,
-    keywords: 'windows desktop active directory ad',
+    keywords: ['windows', 'desktop', 'microsoft active directory', 'ad'],
     icon: 'windows',
     event: DiscoverEventResource.WindowsDesktop,
     unguidedLink:
@@ -139,7 +161,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
     name: 'Local Users',
     kind: ResourceKind.Desktop,
-    keywords: 'windows desktop non-ad local',
+    keywords: ['windows', 'desktop', 'non-ad', 'local'],
     icon: 'windows',
     event: DiscoverEventResource.WindowsDesktopNonAD,
     unguidedLink: 'https://goteleport.com/docs/desktop-access/getting-started/',
@@ -150,7 +172,7 @@ export const KUBERNETES: ResourceSpec[] = [
   {
     name: 'Kubernetes',
     kind: ResourceKind.Kubernetes,
-    keywords: 'kubernetes cluster kubes',
+    keywords: [...kubeKeywords],
     icon: 'kube',
     event: DiscoverEventResource.Kubernetes,
     kubeMeta: { location: KubeLocation.SelfHosted },
@@ -158,7 +180,7 @@ export const KUBERNETES: ResourceSpec[] = [
   {
     name: 'EKS',
     kind: ResourceKind.Kubernetes,
-    keywords: awsKeywords + 'kubernetes cluster kubes eks elastic service',
+    keywords: [...awsKeywords, ...kubeKeywords, 'eks', 'elastic', 'service'],
     icon: 'aws',
     event: DiscoverEventResource.KubernetesEks,
     kubeMeta: { location: KubeLocation.Aws },

@@ -252,7 +252,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	status := &client.ProfileStatus{}
 
 	// load profile status if key exists
-	_, err := clusterClient.LocalAgent().GetKey(clusterNameForKey)
+	_, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
@@ -281,6 +281,7 @@ func (s *Storage) makeDefaultClientConfig() *client.Config {
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
+	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
 	// Set AllowStdinHijack to true to enable daemon.mfaPrompt to ask for both TOTP and Webauthn at
 	// the same time if available.

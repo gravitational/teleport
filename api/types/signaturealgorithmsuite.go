@@ -46,7 +46,7 @@ func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
 	}
 	switch v := val.(type) {
 	case string:
-		return trace.Wrap(s.setFromString(v))
+		return trace.Wrap(s.UnmarshalText([]byte(v)))
 	case float64:
 		// json.Unmarshal is documented to unmarshal any JSON number into an
 		// int64 when unmarshaling into an interface.
@@ -56,7 +56,11 @@ func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
 	}
 }
 
-func (s *SignatureAlgorithmSuite) setFromString(str string) error {
+// UnmarshalText unmarshals a SignatureAlgorithmSuite from text and supports the
+// custom string format or the proto enum values. This is used by JSON and YAML
+// unmarshallers.
+func (s *SignatureAlgorithmSuite) UnmarshalText(text []byte) error {
+	str := string(text)
 	switch str {
 	case "":
 		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED

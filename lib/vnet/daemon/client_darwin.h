@@ -38,7 +38,11 @@ void OpenSystemSettingsLoginItems(void);
 
 typedef struct StartVnetRequest {
   const char *bundle_path;
-  VnetConfig *vnet_config;
+
+  const char *socket_path;
+  const char *ipv6_prefix;
+  const char *dns_addr;
+  const char *home_path;
 } StartVnetRequest;
 
 typedef struct StartVnetResult {
@@ -73,7 +77,7 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult);
 void InvalidateDaemonClient(void);
 
 @interface VNEDaemonClient : NSObject
-- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *error))completion;
+- (void)startVnet:(VNEConfig *)config completion:(void (^)(NSError *error))completion;
 // invalidate executes all outstanding reply blocks, error handling blocks,
 // and invalidation blocks and forbids from sending or receiving new messages.
 - (void)invalidate;

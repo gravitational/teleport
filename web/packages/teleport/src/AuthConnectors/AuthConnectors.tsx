@@ -66,7 +66,10 @@ export function AuthConnectors(props: State) {
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
         <MobileDescription>{description}</MobileDescription>
-        <ResponsiveAddButton onClick={() => resources.create('github')}>
+        <ResponsiveAddButton
+          fill="border"
+          onClick={() => resources.create('github')}
+        >
           New GitHub Connector
         </ResponsiveAddButton>
       </ResponsiveFeatureHeader>

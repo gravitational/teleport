@@ -34,8 +34,7 @@ interface CheckboxInputProps {
   disabled?: boolean;
   id?: string;
   name?: string;
-  placeholder?: string;
-  readonly?: boolean;
+  readOnly?: boolean;
   role?: string;
   type?: 'checkbox' | 'radio';
   value?: string;
@@ -73,6 +72,7 @@ export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
 );
 
 const OuterWrapper = styled.span`
+  display: inline-block;
   line-height: 0;
   margin: 3px;
 `;

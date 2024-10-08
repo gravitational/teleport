@@ -73,3 +73,12 @@ func (y *fakeYubiKeyPrivateKey) GetAttestationStatement() *AttestationStatement 
 func (y *fakeYubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	return y.privateKeyPolicy
 }
+
+// IsHardware returns true if [k] is a hardware PIV key.
+func (k *PrivateKey) IsHardware() bool {
+	switch k.Signer.(type) {
+	case *fakeYubiKeyPrivateKey:
+		return true
+	}
+	return false
+}

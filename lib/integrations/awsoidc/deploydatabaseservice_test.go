@@ -439,7 +439,7 @@ func TestDeployDatabaseService(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services", resp.ClusterDashboardURL)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services/database-service-vpc-123", resp.ClusterDashboardURL)
 		require.Equal(t, "ARNcluster-name-teleport", resp.ClusterARN)
 		require.Contains(t, mockClient.clusters, "cluster-name-teleport")
 		require.Contains(t, mockClient.services, "database-service-vpc-123")
@@ -550,7 +550,7 @@ func TestDeployDatabaseService(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services", resp.ClusterDashboardURL)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services/database-service-vpc-123", resp.ClusterDashboardURL)
 		require.Equal(t, "ARNcluster-name-teleport", resp.ClusterARN)
 	})
 }

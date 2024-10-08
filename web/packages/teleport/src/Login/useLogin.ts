@@ -25,6 +25,7 @@ import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import auth, { UserCredentials } from 'teleport/services/auth';
 import { storageService } from 'teleport/services/storageService';
+import { TrustedDeviceRequirement } from 'teleport/DeviceTrust/types';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
@@ -50,10 +51,16 @@ export default function useLogin() {
 
   // onSuccess can receive a device webtoken. If so, it will
   // enable a prompt to allow users to authorize the current
-  function onSuccess({ deviceWebToken }: LoginResponse) {
+  function onSuccess({
+    deviceWebToken,
+    trustedDeviceRequirement,
+  }: LoginResponse) {
     // deviceWebToken will only exist on a login response
     // from enterprise but just in case there is a version mismatch
     // between the webclient and proxy
+    if (trustedDeviceRequirement === TrustedDeviceRequirement.REQUIRED) {
+      session.setDeviceTrustRequired();
+    }
     if (deviceWebToken && cfg.isEnterprise) {
       return authorizeWithDeviceTrust(deviceWebToken);
     }
@@ -123,6 +130,7 @@ type DeviceWebToken = {
 
 type LoginResponse = {
   deviceWebToken?: DeviceWebToken;
+  trustedDeviceRequirement?: TrustedDeviceRequirement;
 };
 
 function authorizeWithDeviceTrust(token: DeviceWebToken) {

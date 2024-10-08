@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -107,19 +108,23 @@ type Presence interface {
 	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(tunnel types.ReverseTunnel) error
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error
 
 	// GetReverseTunnel returns reverse tunnel by name
-	GetReverseTunnel(name string, opts ...MarshalOption) (types.ReverseTunnel, error)
+	GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error)
 
 	// GetReverseTunnels returns a list of registered servers
-	GetReverseTunnels(ctx context.Context, opts ...MarshalOption) ([]types.ReverseTunnel, error)
+	// Deprecated: use ListReverseTunnels
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
-	DeleteReverseTunnel(domainName string) error
+	DeleteReverseTunnel(ctx context.Context, domainName string) error
 
 	// DeleteAllReverseTunnels deletes all reverse tunnels
-	DeleteAllReverseTunnels() error
+	DeleteAllReverseTunnels(ctx context.Context) error
+
+	// ListReverseTunnels returns a page of ReverseTunnels.
+	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
@@ -203,4 +208,8 @@ type Presence interface {
 type PresenceInternal interface {
 	Presence
 	InventoryInternal
+
+	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
+	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
+	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 }

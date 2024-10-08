@@ -59,7 +59,7 @@ func (s *AppService) GetApps(ctx context.Context) ([]types.Application, error) {
 
 // GetApp returns the specified application resource.
 func (s *AppService) GetApp(ctx context.Context, name string) (types.Application, error) {
-	item, err := s.Get(ctx, backend.Key(appPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(appPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("application %q doesn't exist", name)
@@ -84,7 +84,7 @@ func (s *AppService) CreateApp(ctx context.Context, app types.Application) error
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(appPrefix, app.GetName()),
+		Key:     backend.NewKey(appPrefix, app.GetName()),
 		Value:   value,
 		Expires: app.Expiry(),
 	}
@@ -110,7 +110,7 @@ func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(appPrefix, app.GetName()),
+		Key:      backend.NewKey(appPrefix, app.GetName()),
 		Value:    value,
 		Expires:  app.Expiry(),
 		Revision: rev,
@@ -128,7 +128,7 @@ func (s *AppService) UpdateApp(ctx context.Context, app types.Application) error
 
 // DeleteApp removes the specified application resource.
 func (s *AppService) DeleteApp(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(appPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(appPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("application %q doesn't exist", name)

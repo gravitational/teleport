@@ -19,14 +19,16 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -66,10 +68,6 @@ const (
 	PresenceMaxDifference  = time.Minute
 )
 
-// SessionControlsInfoBroadcast is sent in tandem with session creation
-// to inform any joining users about the session controls.
-const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
-
 const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
@@ -86,13 +84,31 @@ var serverSessions = prometheus.NewGauge(
 	},
 )
 
+func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
+	var modeCtrl bytes.Buffer
+	modeCtrl.WriteString(fmt.Sprintf("\r\nTeleport > Joining session with participant mode: %s\r\n", string(m)))
+	modeCtrl.WriteString("Teleport > Controls\r\n")
+	modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
+	if m == types.SessionModeratorMode {
+		modeCtrl.WriteString("Teleport >   - t: Forcefully terminate the session\r\n")
+	}
+	_, err := w.Write(modeCtrl.Bytes())
+	if err != nil {
+		return fmt.Errorf("could not write bytes: %w", err)
+	}
+	return nil
+}
+
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
 type SessionRegistry struct {
 	SessionRegistryConfig
 
-	// log holds the structured logger
+	// deprecated: log holds the legacy logrus structured logger
 	log *log.Entry
+
+	// logger holds the structured logger
+	logger *slog.Logger
 
 	// sessions holds a map between session ID and the session object. Used to
 	// find active sessions as well as close all sessions when the registry
@@ -173,6 +189,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		log: log.WithFields(log.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
+		logger:   slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
 		sudoers:  cfg.Srv.GetHostSudoers(),
@@ -235,65 +252,93 @@ func (sc *sudoersCloser) Close() error {
 	return nil
 }
 
-func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
-	if s.sudoers == nil {
-		return nil
+// WriteSudoersFile tries to write the needed sudoers entry to the sudoers
+// file, if any. If the returned closer is not nil, it must be called at the
+// end of the session to cleanup the sudoers file.
+func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		return nil, nil
 	}
 
-	sudoers, err := ctx.Identity.AccessChecker.HostSudoers(ctx.srv.GetInfo())
+	// Pulling sudoers directly from the Srv so WriteSudoersFile always
+	// respects the invariant that we shouldn't write sudoers on proxy servers.
+	// This might invalidate the cached sudoers field on SessionRegistry, so
+	// we may be able to remove that in a future PR
+	sudoWriter := s.Srv.GetHostSudoers()
+	if sudoWriter == nil {
+		return nil, nil
+	}
+
+	sudoers, err := identityContext.AccessChecker.HostSudoers(s.Srv.GetInfo())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if len(sudoers) == 0 {
 		// not an error, sudoers may not be configured.
-		return nil
+		return nil, nil
 	}
-	if err := s.sudoers.WriteSudoers(ctx.Identity.Login, sudoers); err != nil {
-		return trace.Wrap(err)
+	if err := sudoWriter.WriteSudoers(identityContext.Login, sudoers); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	s.sessionsByUser.add(ctx.Identity.Login)
-	ctx.AddCloser(&sudoersCloser{
-		username:     ctx.Identity.Login,
+	s.sessionsByUser.add(identityContext.Login)
+
+	return &sudoersCloser{
+		username:     identityContext.Login,
 		userSessions: s.sessionsByUser,
-		cleanup:      s.sudoers.RemoveSudoers,
-	})
-
-	return nil
+		cleanup:      sudoWriter.RemoveSudoers,
+	}, nil
 }
 
-func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
-	if !ctx.srv.GetCreateHostUser() || s.users == nil {
-		s.log.Debug("Not creating host user: node has disabled host user creation.")
-		return nil // not an error to not be able to create host users
+// UpsertHostUser attempts to create or update a local user on the host if needed.
+// If the returned closer is not nil, it must be called at the end of the session to
+// clean up the local user.
+func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool, io.Closer, error) {
+	ctx := s.Srv.Context()
+	log := s.logger.With("host_username", identityContext.Login)
+
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		return false, nil, nil
 	}
 
-	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
-	if err != nil {
-		if trace.IsAccessDenied(err) {
-			return nil
+	if !s.Srv.GetCreateHostUser() || s.users == nil {
+		log.DebugContext(ctx, "Not creating host user: node has disabled host user creation.")
+		return false, nil, nil // not an error to not be able to create host users
+	}
+
+	log.DebugContext(ctx, "Attempting to upsert host user")
+	ui, accessErr := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
+	if trace.IsAccessDenied(accessErr) {
+		existsErr := s.users.UserExists(identityContext.Login)
+		if existsErr != nil {
+			if trace.IsNotFound(existsErr) {
+				return false, nil, trace.WrapWithMessage(accessErr, "insufficient permissions for host user creation")
+			}
+
+			return false, nil, trace.Wrap(existsErr)
 		}
-		log.Debug("Error while checking host users creation permission: ", err)
-		return trace.Wrap(err)
 	}
 
-	existsErr := s.users.UserExists(ctx.Identity.Login)
-	if trace.IsAccessDenied(err) && existsErr != nil {
-		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
-	}
-	userCloser, err := s.users.UpsertUser(ctx.Identity.Login, ui)
-	if userCloser != nil {
-		ctx.AddCloser(userCloser)
-	}
-	if err != nil && !trace.IsAlreadyExists(err) {
-		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
-		return trace.Wrap(err)
+	if accessErr != nil {
+		return false, nil, trace.Wrap(accessErr)
 	}
 
-	// Indicate that the user was created by Teleport.
-	ctx.UserCreatedByTeleport = true
+	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
+	if err != nil {
+		log.DebugContext(ctx, "Error creating user", "error", err)
 
-	return nil
+		if errors.Is(err, unmanagedUserErr) {
+			log.WarnContext(ctx, "User is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include 'teleport-keep'. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users")
+			return false, nil, nil
+		}
+
+		if !trace.IsAlreadyExists(err) {
+			return false, nil, trace.Wrap(err)
+		}
+		log.DebugContext(ctx, "Host user already exists")
+	}
+
+	return true, userCloser, nil
 }
 
 // OpenSession either joins an existing active session or starts a new session.
@@ -1268,7 +1313,6 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
-	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.startTerminal(ctx, scx); err != nil {
 		return trace.Wrap(err)
@@ -1333,19 +1377,19 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 			s.log.WithError(err).Error("Received error waiting for the interactive session to finish")
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
 		select {
 		case <-time.After(defaults.WaitCopyTimeout):
-			s.log.Error("Timed out waiting for PTY copy to finish, session data  may be missing.")
+			s.log.Debug("Timed out waiting for PTY copy to finish, session data may be missing.")
 		case <-s.doneCh:
+		}
+
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
 		}
 
 		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
@@ -1514,8 +1558,11 @@ func (s *session) broadcastResult(r ExecResult) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.parties {
-		p.ctx.SendExecResult(r)
+		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {
+			s.log.Infof("Failed to send exit status for %v: %v", r.Command, err)
+		}
 	}
 }
 
@@ -1710,8 +1757,8 @@ func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestPar
 }
 
 func (s *session) expandFileTransferRequestPath(p string) (string, error) {
-	expanded := path.Clean(p)
-	dir := path.Dir(expanded)
+	expanded := filepath.Clean(p)
+	dir := filepath.Dir(expanded)
 
 	var tildePrefixed bool
 	var noBaseDir bool
@@ -1738,11 +1785,11 @@ func (s *session) expandFileTransferRequestPath(p string) (string, error) {
 
 		if tildePrefixed {
 			// expand home dir to make an absolute path
-			expanded = path.Join(homeDir, expanded[2:])
+			expanded = filepath.Join(homeDir, expanded[2:])
 		} else {
 			// if no directories are specified SFTP will assume the file
 			// to be in the user's home dir
-			expanded = path.Join(homeDir, expanded)
+			expanded = filepath.Join(homeDir, expanded)
 		}
 	}
 
@@ -1915,16 +1962,23 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.participants[p.id] = p
 	p.ctx.AddCloser(p)
 
-	// Write last chunk (so the newly joined parties won't stare at a blank
-	// screen).
+	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
 		return trace.Wrap(err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	// Send the participant mode and controls to the additional participant
+	if s.login != p.login {
+		err := MsgParticipantCtrls(p.ch, mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
 	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {

@@ -26,6 +26,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 | TELEPORT_GLOBAL_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
 | TELEPORT_HEADLESS | Use headless authentication | true, false, 1, 0 |
+| TELEPORT_IDENTITY_FILE | File path to identity file | /opt/identity |
 
 ## tsh global flags
 
@@ -38,7 +39,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format. `oldssh` supports older versions of OpenSSH servers that do not allow for custom metadata, which is how Teleport encodes a user's roles in their SSH certificate. |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | Any defined [authentication connector](../authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
+| `--auth` | `local` | Any defined [authentication connector](../access-controls/authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
@@ -309,7 +310,7 @@ $ tsh login [<flags>] [<cluster>]
 
 ### Arguments
 
-- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../management/admin/trustedclusters.mdx) for more information.
+- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../admin-guides/management/admin/trustedclusters.mdx) for more information.
 
 ### Flags
 
@@ -498,22 +499,23 @@ $ tsh mfa rm <device-name>
 Plays back a prior session:
 
 ```code
-$ tsh play [<flags>] <session-id>
+$ tsh play [<flags>] <id-or-file>
 ```
 
 ### Arguments
 
-`<session-id>`
+`<id-or-file>`
 
-- `session-id` The UUID of a past Teleport Session obtained by `teleport status` within
-  the session or from the Web UI.
+- `id-or-file` The UUID of a past Teleport session, or the path to a local recording file.
 
 ### Flags
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--cluster` | none | a cluster_name | Specify the cluster to connect |
-| `--format`  | `pty`  | json, pty | Format for playback |
+| `--cluster` | none   | a cluster_name                 | Specify the cluster to connect |
+| `--format`  | `pty`  | `json`, `yaml`, `pty`, `text`  | Format for playback |
+| `--speed`   | `1x`   | `0.5x`, `1x`, `2x`, `4x`, `8x` | Playback speed |
+| `--skip-idle-time` | `false` | `true, `false` | Skip idle time during playback |
 
 ### Global flags
 
@@ -525,11 +527,17 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 ```code
 $ tsh --proxy proxy.example.com play <session-id>
 
-# Playing back a session using pty format using a downloaded session recording.
-$ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
+# Playing back a session streamed from the server.
+$ tsh play 1fe153d1-ce8b-4ef4-9908-6539457ba4ad
 
-# Playing back a session in json format using jq to filter on events
+# Playing back a local session in JSON format using jq to filter on events
 $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
+
+# Playing back a session at 2x speed while also skipping idle time
+$ tsh play --speed=2x --skip-idle-time 1fe153d1-ce8b-4ef4-9908-6539457ba4ad
+
+# Dump an SSH session recording to standard out, without respecting timing data.
+$ tsh play --format=text 1fe153d1-ce8b-4ef4-9908-6539457ba4ad
 ```
 
 ## tsh proxy app
@@ -749,7 +757,7 @@ $ gsutil ls
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
 This is typically used as part of the SSH client configuration to use `ssh` as a client
-through Teleport.  See the [OpenSSH Guide](../../enroll-resources/server-access/openssh/openssh.mdx) guide
+through Teleport.  See the [OpenSSH Guide](../../enroll-resources/server-access/openssh/openssh-agentless.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
 
@@ -1191,4 +1199,3 @@ Only display the `tsh` binary version:
 $ tsh version --client
 Teleport v(=teleport.version=) git: go(=teleport.golang=)
 ```
-

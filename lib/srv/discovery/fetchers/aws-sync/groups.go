@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -35,6 +36,7 @@ import (
 func (a *awsFetcher) pollAWSGroups(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
+
 		result.Groups, err = a.fetchGroups(ctx)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch groups"))
@@ -48,16 +50,23 @@ func (a *awsFetcher) pollAWSGroups(ctx context.Context, result *Resources, colle
 		// and roles.
 		eG.SetLimit(5)
 		groupsMu := sync.Mutex{}
+		var existing = a.lastResult
 		for _, group := range result.Groups {
 			group := group
 			eG.Go(func() error {
 				groupInlinePolicies, err := a.fetchGroupInlinePolicies(ctx, group)
 				if err != nil {
+					groupInlinePolicies = sliceFilter(existing.GroupInlinePolicies, func(inline *accessgraphv1alpha.AWSGroupInlinePolicyV1) bool {
+						return inline.Group.Name == group.Name && inline.Group.AccountId == group.AccountId
+					})
 					collectErr(trace.Wrap(err, "failed to fetch group %q inline policies", group.Name))
 				}
 
 				groupAttachedPolicies, err := a.fetchGroupAttachedPolicies(ctx, group)
 				if err != nil {
+					groupAttachedPolicies = sliceFilterPickFirst(existing.GroupAttachedPolicies, func(inline *accessgraphv1alpha.AWSGroupAttachedPolicies) bool {
+						return inline.Group.Name == group.Name && inline.Group.AccountId == group.AccountId
+					})
 					collectErr(trace.Wrap(err, "failed to fetch group %q attached policies", group.Name))
 				}
 
@@ -89,7 +98,7 @@ func (a *awsFetcher) fetchGroups(ctx context.Context) ([]*accessgraphv1alpha.AWS
 		a.getAWSOptions()...,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return a.lastResult.Groups, trace.Wrap(err)
 	}
 
 	err = iamClient.ListGroupsPagesWithContext(ctx, &iam.ListGroupsInput{
@@ -109,12 +118,13 @@ func (a *awsFetcher) fetchGroups(ctx context.Context) ([]*accessgraphv1alpha.AWS
 // awsGroupToProtoGroup converts an AWS IAM group to a proto group.
 func awsGroupToProtoGroup(group *iam.Group, accountID string) *accessgraphv1alpha.AWSGroupV1 {
 	return &accessgraphv1alpha.AWSGroupV1{
-		Name:      aws.ToString(group.GroupName),
-		Arn:       aws.ToString(group.Arn),
-		Path:      aws.ToString(group.Path),
-		GroupId:   aws.ToString(group.GroupId),
-		CreatedAt: awsTimeToProtoTime(group.CreateDate),
-		AccountId: accountID,
+		Name:         aws.ToString(group.GroupName),
+		Arn:          aws.ToString(group.Arn),
+		Path:         aws.ToString(group.Path),
+		GroupId:      aws.ToString(group.GroupId),
+		CreatedAt:    awsTimeToProtoTime(group.CreateDate),
+		AccountId:    accountID,
+		LastSyncTime: timestamppb.Now(),
 	}
 }
 
@@ -168,14 +178,16 @@ func awsGroupPolicyToProtoGroupPolicy(policy *iam.GetGroupPolicyOutput, accountI
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		Group:          group,
 		AccountId:      accountID,
+		LastSyncTime:   timestamppb.Now(),
 	}
 }
 
 // fetchGroupAttachedPolicies fetches attached policies for a group.
 func (a *awsFetcher) fetchGroupAttachedPolicies(ctx context.Context, group *accessgraphv1alpha.AWSGroupV1) (*accessgraphv1alpha.AWSGroupAttachedPolicies, error) {
 	rsp := &accessgraphv1alpha.AWSGroupAttachedPolicies{
-		Group:     group,
-		AccountId: a.AccountID,
+		Group:        group,
+		AccountId:    a.AccountID,
+		LastSyncTime: timestamppb.Now(),
 	}
 	iamClient, err := a.CloudClients.GetAWSIAMClient(
 		ctx,

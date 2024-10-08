@@ -42,11 +42,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -173,7 +173,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
-		err = a.GenerateKeys(ctx)
+		err = a.GenerateKeys(ctx, client)
 	case a.authExport.FullCommand():
 		err = a.ExportAuthorities(ctx, client)
 	case a.authSign.FullCommand():
@@ -243,12 +243,22 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Cli
 }
 
 // GenerateKeys generates a new keypair
-func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
-	keygen := keygen.New(ctx)
-	privBytes, pubBytes, err := keygen.GenerateKeyPair()
+func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI certificateSigner) error {
+	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), cryptosuites.UserSSH)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	key, err := keys.NewSoftwarePrivateKey(signer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pubBytes := key.MarshalSSHPublicKey()
+	privBytes, err := key.MarshalSSHPrivateKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = os.WriteFile(a.genPubPath, pubBytes, 0o600)
 	if err != nil {
 		return trace.Wrap(err)
@@ -279,6 +289,7 @@ type certificateSigner interface {
 	GetProxies() ([]types.Server, error)
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
+	Ping(context.Context) (proto.PingResponse, error)
 	// TODO (Joerger): DELETE IN 17.0.0
 	authclient.CreateAppSessionForV15Client
 }
@@ -312,7 +323,7 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI certif
 			return trace.Wrap(err)
 		}
 		a.password = oracleWalletPass
-		return a.generateDBOracleCert(ctx, clusterAPI)
+		return a.generateDatabaseKeys(ctx, clusterAPI)
 
 	}
 	switch {
@@ -363,13 +374,8 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 	}
 
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
-		OutputPath: a.output,
-		Key: &client.KeyRing{
-			// the godocs say the map key is the desktop server name,
-			// but in this case we're just generating a cert that's not
-			// specific to a particular desktop
-			WindowsDesktopCerts: map[string][]byte{a.windowsUser: certDER},
-		},
+		OutputPath:           a.output,
+		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: certDER},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,
@@ -384,7 +390,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 // generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
 // Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
 func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certificateSigner) error {
-	key, err := client.GenerateRSAKey()
+	keyRing, err := generateKeyRing(ctx, clusterAPI, cryptosuites.DatabaseClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -401,11 +407,11 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = []authclient.TrustedCerts{{TLSCertificates: services.GetTLSCerts(dbClientCA)}}
+	keyRing.TrustedCerts = []authclient.TrustedCerts{{TLSCertificates: services.GetTLSCerts(dbClientCA)}}
 
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
-		Key:                  key,
+		KeyRing:              keyRing,
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,
@@ -495,8 +501,12 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	// split up comma separated list
 	principals := strings.Split(a.genHost, ",")
 
-	// generate a keypair
-	key, err := client.GenerateRSAKey()
+	// Generate an SSH key.
+	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), cryptosuites.HostSSH)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	key, err := keys.NewSoftwarePrivateKey(signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -508,7 +518,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	clusterName := cn.GetClusterName()
 
 	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key.PrivateKey.MarshalSSHPublicKey(),
+		Key:         key.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  principals,
@@ -519,13 +529,16 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.Cert = res.SshCertificate
 
 	hostCAs, err := clusterAPI.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	keyRing := &client.KeyRing{
+		SSHPrivateKey: key,
+		Cert:          res.SshCertificate,
+		TrustedCerts:  authclient.AuthoritiesToTrustedCerts(hostCAs),
+	}
 
 	// if no name was given, take the first name on the list of principals
 	filePath := a.output
@@ -535,7 +548,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           filePath,
-		Key:                  key,
+		KeyRing:              keyRing,
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,
@@ -552,16 +565,16 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 // generateDatabaseKeys generates a new unsigned key and signs it with Teleport
 // CA for database access.
 func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI certificateSigner) error {
-	key, err := client.GenerateRSAKey()
+	keyRing, err := generateKeyRing(ctx, clusterAPI, cryptosuites.DatabaseClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.generateDatabaseKeysForKey(ctx, clusterAPI, key)
+	return a.generateDatabaseKeysForKeyRing(ctx, clusterAPI, keyRing)
 }
 
-// generateDatabaseKeysForKey signs the provided unsigned key with Teleport CA
+// generateDatabaseKeysForKeyRing signs the provided unsigned key with Teleport CA
 // for database access.
-func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI certificateSigner, key *client.KeyRing) error {
+func (a *AuthCommand) generateDatabaseKeysForKeyRing(ctx context.Context, clusterAPI certificateSigner, keyRing *client.KeyRing) error {
 	principals := strings.Split(a.genHost, ",")
 
 	dbCertReq := db.GenerateDatabaseCertificatesRequest{
@@ -571,7 +584,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		OutputCanOverwrite: a.signOverwrite,
 		OutputLocation:     a.output,
 		TTL:                a.genTTL,
-		Key:                key,
+		KeyRing:            keyRing,
 		Password:           a.password,
 		IdentityFileWriter: a.identityWriter,
 	}
@@ -840,6 +853,34 @@ client_encryption_options:
 `))
 )
 
+func getCurrentSuiteFromPing(clusterAPI certificateSigner) cryptosuites.GetSuiteFunc {
+	return func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		pr, err := clusterAPI.Ping(ctx)
+		if err != nil {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
+		}
+		return pr.SignatureAlgorithmSuite, nil
+	}
+}
+
+// generateKeyRing generates and returns a keyring using a key algorithm
+// determined by the current cluster signature algorithm suite and [purpose].
+// The returned KeyRing always uses a single private key for both SSH and TLS,
+// this is a deliberate choice for `tctl auth sign` which either only uses a
+// single protocol anyway, or writes to an identity file which only supports a
+// single private key.
+func generateKeyRing(ctx context.Context, clusterAPI certificateSigner, purpose cryptosuites.KeyPurpose) (*client.KeyRing, error) {
+	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := keys.NewSoftwarePrivateKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return client.NewKeyRing(key, key), nil
+}
+
 func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certificateSigner) error {
 	// Validate --proxy flag.
 	if err := a.checkProxyAddr(ctx, clusterAPI); err != nil {
@@ -851,9 +892,18 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		return trace.Wrap(err)
 	}
 
-	// Generate a keypair.
-	// TODO(nklaassen): support configurable key algorithms, split SSH and TLS keys.
-	key, err := client.GenerateRSAKey()
+	// The output here is likely to be written to an identity file which only
+	// supports a single key for SSH and TLS. SSH supports all the TLS key
+	// algorithms but TLS does not support all the SSH key algorithms (Ed25519),
+	// so use the UserTLS key purpose unless we know this is only for SSH.
+	var keyPurpose cryptosuites.KeyPurpose
+	switch a.outputFormat {
+	case identityfile.FormatOpenSSH:
+		keyPurpose = cryptosuites.UserSSH
+	default:
+		keyPurpose = cryptosuites.UserTLS
+	}
+	keyRing, err := generateKeyRing(ctx, clusterAPI, keyPurpose)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -869,7 +919,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		}
 		a.leafCluster = cn.GetClusterName()
 	}
-	key.ClusterName = a.leafCluster
+	keyRing.ClusterName = a.leafCluster
 
 	if err := a.checkKubeCluster(ctx, clusterAPI); err != nil {
 		return trace.Wrap(err)
@@ -922,8 +972,8 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		certUsage = proto.UserCertsRequest_Database
 	}
 
-	sshPublicKey := key.PrivateKey.MarshalSSHPublicKey()
-	tlsPublicKey, err := keys.MarshalPublicKey(key.PrivateKey.Public())
+	sshPublicKey := keyRing.SSHPrivateKey.MarshalSSHPublicKey()
+	tlsPublicKey, err := keys.MarshalPublicKey(keyRing.TLSPrivateKey.Public())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -945,14 +995,14 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
+	keyRing.Cert = certs.SSH
+	keyRing.TLSCert = certs.TLS
 
 	hostCAs, err := clusterAPI.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// Is TLS routing enabled?
 	proxyListenerMode := types.ProxyListenerMode_Separate
@@ -976,7 +1026,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		kubeTLSServerName = client.GetKubeTLSServerName(split[0])
 	}
 
-	expires, err := key.TeleportTLSCertValidBefore()
+	expires, err := keyRing.TeleportTLSCertValidBefore()
 	if err != nil {
 		log.WithError(err).Warn("Failed to check TTL validity")
 		// err swallowed on purpose
@@ -990,7 +1040,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	// write the cert+private key to the output:
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
-		Key:                  key,
+		KeyRing:              keyRing,
 		Format:               a.outputFormat,
 		KubeProxyAddr:        a.proxyAddr,
 		KubeClusterName:      a.kubeCluster,
@@ -1165,14 +1215,6 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI certificate
 	}
 
 	return trace.BadParameter("couldn't find registered public proxies, specify --proxy when using --format=%q", identityfile.FormatKubernetes)
-}
-
-func (a *AuthCommand) generateDBOracleCert(ctx context.Context, api certificateSigner) error {
-	key, err := client.GenerateRSAKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return a.generateDatabaseKeysForKey(ctx, api, key)
 }
 
 func parseURL(rawurl string) (*url.URL, error) {

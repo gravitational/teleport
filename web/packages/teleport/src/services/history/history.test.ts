@@ -118,10 +118,62 @@ describe('services/history', () => {
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
       history.original().location.pathname = '/current-location';
-      history.goToLogin(true);
+      history.goToLogin({ rememberLocation: true });
 
       const expected =
         '/web/login?redirect_uri=http://localhost/current-location';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+    });
+
+    it('should navigate to login with access_changed param and no redirect_uri', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/current-location']);
+      history.original().location.pathname = '/current-location';
+      history.goToLogin({ withAccessChangedMessage: true });
+
+      const expected = '/web/login?access_changed';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+    });
+
+    it('should navigate to login with access_changed param and redirect_uri', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/current-location']);
+      history.original().location.pathname = '/current-location';
+      history.goToLogin({
+        rememberLocation: true,
+        withAccessChangedMessage: true,
+      });
+
+      const expected =
+        '/web/login?access_changed&redirect_uri=http://localhost/current-location';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+    });
+
+    it('should navigate to login with no params', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/current-location']);
+      history.original().location.pathname = '/current-location';
+      history.goToLogin();
+
+      const expected = '/web/login';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+    });
+
+    it('should preserve query params in the redirect_uri', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/current-location']);
+      history.original().location.pathname = '/current-location?test=value';
+      history.goToLogin({
+        rememberLocation: true,
+        withAccessChangedMessage: true,
+      });
+
+      const expected =
+        '/web/login?access_changed&redirect_uri=http://localhost/current-location?test=value';
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
   });

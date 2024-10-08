@@ -36,7 +36,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
@@ -50,9 +49,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kwebsocket "k8s.io/client-go/transport/websocket"
@@ -300,7 +301,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		ctx:            closeCtx,
 		close:          close,
 		sessions:       make(map[uuid.UUID]*session),
-		upgrader: websocket.Upgrader{
+		upgrader: gwebsocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
@@ -372,7 +373,7 @@ type Forwarder struct {
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
 	// upgrades connections to websockets
-	upgrader websocket.Upgrader
+	upgrader gwebsocket.Upgrader
 	// getKubernetesServersForKubeCluster is a function that returns a list of
 	// kubernetes servers for a given kube cluster but uses different methods
 	// depending on the service type.
@@ -1134,14 +1135,14 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	result, err := utils.KubeResourceMatchesRegex(resource, denied, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1204,7 +1205,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			return trace.Wrap(err)
 		}
 
-		client := &websocketClientStreams{stream}
+		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
 		err = session.join(party, true /* emitSessionJoinEvent */)
@@ -1234,7 +1235,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 		return trace.Wrap(err)
 	}(); err != nil {
-		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
+		writeErr := ws.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
 		if writeErr != nil {
 			f.log.WithError(writeErr).Warn("Failed to send early-exit websocket close message.")
 		}
@@ -1280,7 +1281,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dialer := &websocket.Dialer{
+	dialer := &gwebsocket.Dialer{
 		TLSClientConfig: tlsConfig,
 		NetDialContext:  netDialer,
 	}
@@ -1349,26 +1350,26 @@ func (f *Forwarder) getSessionHostID(ctx context.Context, authCtx *authContext, 
 
 // wsProxy proxies a websocket connection between two clusters transparently to allow for
 // remote joins.
-func wsProxy(log logrus.FieldLogger, wsSource *websocket.Conn, wsTarget *websocket.Conn) {
+func wsProxy(log logrus.FieldLogger, wsSource *gwebsocket.Conn, wsTarget *gwebsocket.Conn) {
 	errS := make(chan error, 1)
 	errT := make(chan error, 1)
 	wg := &sync.WaitGroup{}
 
-	forwardConn := func(dst, src *websocket.Conn, errc chan<- error) {
+	forwardConn := func(dst, src *gwebsocket.Conn, errc chan<- error) {
 		defer dst.Close()
 		defer src.Close()
 		for {
 			msgType, msg, err := src.ReadMessage()
 			if err != nil {
-				m := websocket.FormatCloseMessage(websocket.CloseNormalClosure, err.Error())
-				var e *websocket.CloseError
+				m := gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, err.Error())
+				var e *gwebsocket.CloseError
 				if errors.As(err, &e) {
-					if e.Code != websocket.CloseNoStatusReceived {
-						m = websocket.FormatCloseMessage(e.Code, e.Text)
+					if e.Code != gwebsocket.CloseNoStatusReceived {
+						m = gwebsocket.FormatCloseMessage(e.Code, e.Text)
 					}
 				}
 				errc <- err
-				dst.WriteMessage(websocket.CloseMessage, m)
+				dst.WriteMessage(gwebsocket.CloseMessage, m)
 				break
 			}
 
@@ -1401,8 +1402,8 @@ func wsProxy(log logrus.FieldLogger, wsSource *websocket.Conn, wsTarget *websock
 		to = "client"
 	}
 
-	var websocketErr *websocket.CloseError
-	if errors.As(err, &websocketErr) && websocketErr.Code == websocket.CloseAbnormalClosure {
+	var websocketErr *gwebsocket.CloseError
+	if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseAbnormalClosure {
 		log.WithError(err).Debugf("websocket proxy: Error when copying from %s to %s", from, to)
 	}
 	wg.Wait()
@@ -1442,7 +1443,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 }
 
 // execNonInteractive handles all exec sessions without a TTY.
-func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) error {
+func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) error {
 	canStart, err := f.canStartSessionAlone(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1666,11 +1667,11 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 		func(proxy *remoteCommandProxy) error {
 			if sess.noAuditEvents {
 				// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
-				return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
+				return f.remoteExec(req, sess, proxy)
 			}
 
 			if !request.tty {
-				return f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
+				return f.execNonInteractive(authCtx, req, p, request, proxy, sess)
 			}
 
 			client := newKubeProxyClientStreams(proxy)
@@ -1681,9 +1682,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			// When Teleport attaches the original session creator terminal streams to the
-			// session, we don't want to emit session.join event since it won't be required.
-			if err = session.join(party, false /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1699,7 +1698,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 }
 
 // remoteExec forwards an exec request to a remote cluster.
-func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) error {
+func (f *Forwarder) remoteExec(req *http.Request, sess *clusterSession, proxy *remoteCommandProxy) error {
 	executor, err := f.getExecutor(sess, req)
 	if err != nil {
 		f.log.WithError(err).Warning("Failed creating executor.")
@@ -1757,7 +1756,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := f.getSPDYDialer(sess, req)
+	dialer, err := f.getPortForwardDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1816,10 +1815,14 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 // Go client uses SPDY while other clients still require WebSockets.
 // This function will run until the end of the execution of the request.
 func runPortForwarding(req portForwardRequest) error {
-	if wsstream.IsWebSocketRequest(req.httpRequest) {
+	switch {
+	case wsstream.IsWebSocketRequestWithTunnelingProtocol(req.httpRequest):
+		return trace.Wrap(runPortForwardingTunneledHTTPStreams(req))
+	case wsstream.IsWebSocketRequest(req.httpRequest):
 		return trace.Wrap(runPortForwardingWebSocket(req))
+	default:
+		return trace.Wrap(runPortForwardingHTTPStreams(req))
 	}
-	return trace.Wrap(runPortForwardingHTTPStreams(req))
 }
 
 const (
@@ -1836,7 +1839,7 @@ const (
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request, withImpersonationHeaders bool) error {
 	if withImpersonationHeaders {
-		if err := setupImpersonationHeaders(f.log, sess, req.Header); err != nil {
+		if err := setupImpersonationHeaders(sess, req.Header); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1862,7 +1865,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log logrus.FieldLogger, sess *clusterSession, headers http.Header) error {
+func setupImpersonationHeaders(sess *clusterSession, headers http.Header) error {
 	// If the request is remote or this instance is a proxy,
 	// do not set up impersonation headers.
 	if sess.teleportCluster.isRemote || sess.kubeAPICreds == nil {
@@ -2057,9 +2060,9 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	}
 }
 
-func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	f.log.Debugf("Creating websocket remote executor for request %s %s", req.Method, req.RequestURI)
-
+// getWebsocketRestConfig builds a [*rest.Config] configuration to be
+// used when upgrading requests via websocket.
+func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Request) (*rest.Config, error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2098,7 +2101,15 @@ func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request
 			return rt
 		},
 	}
+	return cfg, nil
+}
 
+func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+	f.log.Debugf("Creating websocket remote executor for request %s %s", req.Method, req.RequestURI)
+	cfg, err := f.getWebsocketRestConfig(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to create websocket executor")
+	}
 	return remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
 }
 
@@ -2108,9 +2119,10 @@ func isRelevantWebsocketError(err error) bool {
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	isWSSupported := false
-	if sess.noAuditEvents {
-		// We're forwarding it to another kube_service, check if it supports new protocol.
-		isWSSupported = f.allServersSupportExecSubprotocolV5(sess)
+	if !f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
+		// We're forwarding it to another Teleport kube_service,
+		// which supports the websocket protocol.
+		isWSSupported = true
 	} else {
 		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
 		f.rwMutexDetails.RLock()
@@ -2162,6 +2174,28 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
 
+func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+
+	wsDialer, err := f.getWebsocketDialer(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	spdyDialer, err := f.getSPDYDialer(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
+		result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
+		if result {
+			// If the error is a known upgrade failure, we can retry with the other protocol.
+			sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
+		}
+		return result
+	}), nil
+}
+
 // getSPDYDialer returns a dialer that can be used to upgrade the connection
 // to SPDY protocol.
 // SPDY is a deprecated protocol, but it is still used by kubectl to manage data streams.
@@ -2172,6 +2206,7 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 		return nil, trace.Wrap(err)
 	}
 
+	req = createSPDYRequest(req, PortForwardProtocolV1Name)
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		sess:                  sess,
@@ -2195,6 +2230,36 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
+}
+
+func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+	cfg, err := f.getWebsocketRestConfig(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
+	}
+	dialer, err := portforward.NewSPDYOverWebsocketDialer(req.URL, cfg)
+	return dialer, trace.Wrap(err)
+}
+
+// createSPDYRequest modifies the passed request to remove
+// WebSockets headers and add SPDY upgrade information, including
+// spdy protocols acceptable to the client.
+func createSPDYRequest(req *http.Request, spdyProtocols ...string) *http.Request {
+	clone := req.Clone(req.Context())
+	// Clean up the websocket headers from the http request.
+	clone.Header.Del(wsstream.WebSocketProtocolHeader)
+	clone.Header.Del("Sec-Websocket-Key")
+	clone.Header.Del("Sec-Websocket-Version")
+	clone.Header.Del(httpstream.HeaderUpgrade)
+	// Update the http request for an upstream SPDY upgrade.
+	clone.Method = "POST"
+	clone.Body = nil // Remove the request body which is unused.
+	clone.Header.Set(httpstream.HeaderUpgrade, httpstreamspdy.HeaderSpdy31)
+	clone.Header.Del(httpstream.HeaderProtocolVersion)
+	for i := range spdyProtocols {
+		clone.Header.Add(httpstream.HeaderProtocolVersion, spdyProtocols[i])
+	}
+	return clone
 }
 
 // clusterSession contains authenticated user session to the target cluster:

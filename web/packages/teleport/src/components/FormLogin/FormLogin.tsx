@@ -39,7 +39,7 @@ import {
 import { useAttempt, useRefAutoFocus } from 'shared/hooks';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import {
   requiredToken,
   requiredField,
@@ -50,6 +50,7 @@ import { StepSlider, StepComponentProps } from 'design/StepSlider';
 import { P } from 'design/Text/Text';
 
 import { UserCredentials } from 'teleport/services/auth';
+import history from 'teleport/services/history';
 
 import { PasskeyIcons } from '../Passkeys';
 
@@ -87,6 +88,8 @@ export default function LoginForm(props: Props) {
     errorMessage = attempt.message;
   }
 
+  const showAccessChangedMessage = history.hasAccessChangedParam();
+
   // Everything below requires local auth to be enabled.
   return (
     <Card my="5" mx="auto" width={500} py={4}>
@@ -94,6 +97,11 @@ export default function LoginForm(props: Props) {
         Sign in to Teleport
       </Text>
       {errorMessage && <Alerts.Danger m={4}>{errorMessage}</Alerts.Danger>}
+      {showAccessChangedMessage && (
+        <Alerts.Warning m={4}>
+          Your access has changed. Please re-login.
+        </Alerts.Warning>
+      )}
       {allowedAuthTypes.length > 0 ? (
         <StepSlider<typeof loginViews>
           flows={loginViews}
@@ -119,7 +127,7 @@ const SsoList = ({
   autoFocus = false,
   hasTransitionEnded,
 }: Props & { hasTransitionEnded?: boolean }) => {
-  const ref = useRefAutoFocus<HTMLInputElement>({
+  const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   const { isProcessing } = attempt;
@@ -143,21 +151,8 @@ const Passwordless = ({
   const ref = useRefAutoFocus<HTMLButtonElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
-  // Firefox currently does not support passwordless and when
-  // logging in, it will return an ambiguous error.
-  // We display a soft warning because firefox may provide
-  // support in the near future: https://github.com/gravitational/webapps/pull/876
-  const isFirefox = window.navigator?.userAgent
-    ?.toLowerCase()
-    .includes('firefox');
   return (
     <Box data-testid="passwordless">
-      {isFirefox && (
-        <Alerts.Info mt={3}>
-          Firefox may not support passwordless login. Please try Chrome or
-          Safari.
-        </Alerts.Info>
-      )}
       <Flex
         flexDirection="column"
         border={1}
@@ -264,6 +259,16 @@ const LocalForm = ({
             <FieldInput
               rule={requiredField('Password is required')}
               label="Password"
+              helperText={
+                isRecoveryEnabled && (
+                  <ButtonLink
+                    style={{ padding: '0px', minHeight: 0 }}
+                    onClick={() => onRecover(true)}
+                  >
+                    Forgot Password?
+                  </ButtonLink>
+                )
+              }
               value={pass}
               onChange={e => setPass(e.target.value)}
               type="password"
@@ -272,32 +277,31 @@ const LocalForm = ({
               mb={0}
               width="100%"
             />
-            {isRecoveryEnabled && (
-              <Box textAlign="right">
-                <ButtonLink
-                  style={{ padding: '0px', minHeight: 0 }}
-                  onClick={() => onRecover(true)}
-                >
-                  Forgot Password?
-                </ButtonLink>
-              </Box>
-            )}
           </Box>
           {auth2faType !== 'off' && (
             <Box mb={isRecoveryEnabled ? 2 : 3}>
-              <Flex alignItems="flex-end">
+              <Flex alignItems="flex-start">
                 <FieldSelect
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
                   label="Multi-factor Type"
+                  helperText={
+                    isRecoveryEnabled && (
+                      <ButtonLink
+                        style={{ padding: '0px', minHeight: 0 }}
+                        onClick={() => onRecover(false)}
+                      >
+                        Lost Two-Factor Device?
+                      </ButtonLink>
+                    )
+                  }
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
                   mr={3}
                   mb={0}
                   isDisabled={isProcessing}
-                  menuIsOpen={true}
                   // Needed to prevent the menu from causing scroll bars to
                   // appear.
                   menuPosition="fixed"
@@ -317,14 +321,6 @@ const LocalForm = ({
                   />
                 )}
               </Flex>
-              {isRecoveryEnabled && (
-                <ButtonLink
-                  style={{ padding: '0px', minHeight: 0 }}
-                  onClick={() => onRecover(false)}
-                >
-                  Lost Two-Factor Device?
-                </ButtonLink>
-              )}
             </Box>
           )}
           <ButtonPrimary
@@ -357,6 +353,7 @@ const LoginOptions = ({
         refCallback={refCallback}
         authType={otherProps.primaryAuthType}
         primary
+        autoFocus
       />
       {otherAuthTypes.length > 0 && <Divider />}
       {otherAuthTypes.map(authType => (
@@ -451,7 +448,6 @@ const StyledOr = styled.div`
   width: 32px;
   justify-content: center;
   position: absolute;
-  z-index: 1;
   text-transform: uppercase;
 `;
 

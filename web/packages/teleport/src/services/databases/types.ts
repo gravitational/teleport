@@ -70,6 +70,8 @@ export type CreateDatabaseRequest = {
   labels?: ResourceLabel[];
   awsRds?: AwsRdsDatabase;
   awsRegion?: Regions;
+  awsVpcId?: string;
+  overwrite?: boolean;
 };
 
 export type DatabaseIamPolicyResponse = {

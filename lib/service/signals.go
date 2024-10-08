@@ -154,9 +154,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 			default:
 				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}
-		case <-process.ReloadContext().Done():
-			process.logger.InfoContext(process.ExitContext(), "Exiting signal handler: process has started internal reload.")
-			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
 			process.logger.InfoContext(process.ExitContext(), "Someone else has closed context, exiting.")
 			return nil
@@ -184,10 +181,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 		}
 	}
 }
-
-// ErrTeleportReloading is returned when signal waiter exits
-// because the teleport process has initiaded shutdown
-var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
 
 // ErrTeleportExited means that teleport has exited
 var ErrTeleportExited = &trace.CompareFailedError{Message: "teleport process has shutdown"}
@@ -349,6 +342,34 @@ func (process *TeleportProcess) createListener(typ ListenerType, address string)
 	r := registeredListener{typ: typ, address: address, listener: listener}
 	process.registeredListeners = append(process.registeredListeners, r)
 	return listener, nil
+}
+
+// createPacketConn opens a UDP socket with the given address. UDP sockets are
+// never passed on to a different process, so they're not registered anywhere.
+func (process *TeleportProcess) createPacketConn(typ string, address string) (net.PacketConn, error) {
+	listenersClosed := func() bool {
+		process.Lock()
+		defer process.Unlock()
+		return process.listenersClosed
+	}
+
+	if listenersClosed() {
+		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, not opening packet conn.", "type", typ, "address", address)
+		return nil, trace.BadParameter("listening is blocked")
+	}
+
+	pc, err := net.ListenPacket("udp", address)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if listenersClosed() {
+		_ = pc.Close()
+		process.logger.DebugContext(process.ExitContext(), "Listening is blocked, closing newly-created packet conn.", "type", typ, "address", address)
+		return nil, trace.BadParameter("listening is blocked")
+	}
+
+	return pc, nil
 }
 
 // getListenerNeedsLock tries to get an existing listener that matches the type/addr.

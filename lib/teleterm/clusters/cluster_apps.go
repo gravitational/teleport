@@ -26,7 +26,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -183,17 +182,18 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
 		RouteToApp:     routeToApp,
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", routeToApp.Name)))
+		TTL:            c.clusterClient.KeyTTL,
+	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := key.AppTLSCert(app.GetName())
+	appCert, err := keyRing.AppTLSCert(app.GetName())
 	return appCert, trace.Wrap(err)
 }
 

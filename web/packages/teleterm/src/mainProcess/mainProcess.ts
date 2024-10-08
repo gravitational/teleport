@@ -188,9 +188,6 @@ export default class MainProcess {
         env: {
           ...process.env,
           TELEPORT_HOME: homeDir,
-          VNETDAEMON: this.configService.get('feature.vnetDaemon').value
-            ? 'yes'
-            : undefined,
         },
       }
     );
@@ -225,6 +222,7 @@ export default class MainProcess {
       `--kubeconfigs-dir=${settings.kubeConfigsDir}`,
       `--agents-dir=${agentsDir}`,
       `--installation-id=${settings.installationId}`,
+      `--add-keys-to-agent=${this.configService.get('sshAgent.addKeysToAgent').value}`,
     ];
 
     if (settings.insecure) {
@@ -504,8 +502,11 @@ export default class MainProcess {
       }
     );
 
-    subscribeToTerminalContextMenuEvent();
-    subscribeToTabContextMenuEvent();
+    subscribeToTerminalContextMenuEvent(this.configService);
+    subscribeToTabContextMenuEvent(
+      this.settings.availableShells,
+      this.configService
+    );
     subscribeToConfigServiceEvents(this.configService);
     subscribeToFileStorageEvents(this.appStateFileStorage);
   }

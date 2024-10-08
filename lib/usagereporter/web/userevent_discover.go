@@ -246,6 +246,15 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 			},
 		}}, nil
 
+	case uiDiscoverCreateAppServerEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateAppServerEvent{
+			UiDiscoverCreateAppServerEvent: &usageeventsv1.UIDiscoverCreateAppServerEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
 	case uiDiscoverDatabaseConfigureIAMPolicyEvent:
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent{
 			UiDiscoverDatabaseConfigureIamPolicyEvent: &usageeventsv1.UIDiscoverDatabaseConfigureIAMPolicyEvent{
