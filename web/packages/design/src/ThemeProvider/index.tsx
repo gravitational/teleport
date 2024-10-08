@@ -36,6 +36,48 @@ function themePreferenceToTheme(themePreference: Theme) {
   return themePreference === Theme.LIGHT ? lightTheme : darkTheme;
 }
 
+// because unspecified can exist but only used as a fallback and not an option,
+// we need to get the current/next themes with getPrefersDark in mind.
+// TODO (avatus) when we add user settings page, we can add a Theme.SYSTEM option
+// and remove the checks for unspecified
+export function getCurrentTheme(currentTheme: Theme): Theme {
+  if (currentTheme === Theme.UNSPECIFIED) {
+    return getPrefersDark() ? Theme.DARK : Theme.LIGHT;
+  }
+
+  return currentTheme;
+}
+
+export function getNextTheme(currentTheme: Theme): Theme {
+  return getCurrentTheme(currentTheme) === Theme.LIGHT
+    ? Theme.DARK
+    : Theme.LIGHT;
+}
+
+export function getPrefersDark(): boolean {
+  return (
+    window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+}
+
+export function updateFavicon() {
+  let base = '/web/app/';
+  if (import.meta.env.MODE === 'development') {
+    base = '/app/';
+  }
+  const darkModePreferred = getPrefersDark();
+  const favicon = document.querySelector('link[rel="icon"]');
+
+  if (favicon instanceof HTMLLinkElement) {
+    if (darkModePreferred) {
+      favicon.href = base + 'favicon-dark.png';
+    } else {
+      favicon.href = base + 'favicon-light.png';
+    }
+  }
+}
+
 const ThemeProvider = props => {
   const [themePreference, setThemePreference] = useState<Theme>(
     storageService.getThemePreference()
