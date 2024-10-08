@@ -265,7 +265,7 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 	for _, cluster := range clusters {
 		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
 		if err != nil {
-			slog.Default().WarnContext(cf.Context, "Failed to generate context name.", "error", err)
+			slog.WarnContext(cf.Context, "Failed to generate context name.", "error", err)
 			contextName = kubeconfig.ContextName(cluster.TeleportCluster, cluster.KubeCluster)
 		}
 		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
