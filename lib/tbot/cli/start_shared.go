@@ -114,6 +114,7 @@ type sharedStartArgs struct {
 // newSharedStartArgs initializes shared arguments on the given parent command.
 func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 	args := &sharedStartArgs{}
+	args.AuthProxyArgs = newAuthProxyArgs(cmd)
 
 	joinMethodList := fmt.Sprintf(
 		"(%s)",

@@ -146,6 +146,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Legac
 		cmd:    parentCmd.Command("legacy", "Start with either a config file or a legacy output").Default(),
 	}
 	c.AuthProxyArgs = newAuthProxyArgs(c.cmd)
+	c.LegacyDestinationDirArgs = newLegacyDestinationDirArgs(c.cmd)
 
 	c.cmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&c.DataDir)
 	c.cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&c.Token)
