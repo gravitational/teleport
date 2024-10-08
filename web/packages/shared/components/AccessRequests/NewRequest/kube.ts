@@ -19,6 +19,7 @@
 import { KubeResourceKind } from 'teleport/services/kube';
 
 import { PendingListItem } from './RequestCheckout';
+import { RequestableResourceKind } from './resource';
 
 export type KubeNamespaceRequest = {
   kubeCluster: string;
@@ -77,4 +78,17 @@ export function getKubeResourceRequestMode(
     canRequestKubeNamespace,
     disableCheckoutFromKubeRestrictions,
   };
+}
+
+export function requiresKubeResourceSelection({
+  dryRun,
+  requestMode,
+  kind,
+}: {
+  dryRun: boolean;
+  requestMode: KubeResourceKind[];
+  kind: RequestableResourceKind;
+}) {
+  const requiresKubeResourceSelection = requestMode.length > 0;
+  return dryRun && kind === 'kube_cluster' && requiresKubeResourceSelection;
 }
