@@ -16,26 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { MemoryRouter } from 'react-router';
-
-import cfg from 'teleport/config';
-
-import CardTerminal, { CardTerminalLogin } from './index';
-
-export default {
-  title: 'Design/Card/Terminal',
-};
-
-export const Blank = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminal title="Some Title" />
-  </MemoryRouter>
-);
-
-export const Login = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminalLogin />
-  </MemoryRouter>
-);
+export { CardTerminal } from './CardTerminal';

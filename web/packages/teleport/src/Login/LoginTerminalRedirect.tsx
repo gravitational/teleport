@@ -20,13 +20,13 @@ import React from 'react';
 
 import { LogoHero } from 'teleport/components/LogoHero';
 
-import { CardTerminalLogin } from './CardTerminal';
+import { CardTerminal } from './CardTerminal';
 
 export function LoginTerminalRedirect() {
   return (
     <>
       <LogoHero />
-      <CardTerminalLogin />
+      <CardTerminal />
     </>
   );
 }
