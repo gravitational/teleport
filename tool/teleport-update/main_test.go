@@ -81,20 +81,20 @@ func TestRun_Disable(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			path := filepath.Join(dir, versionsDirName, configFileName)
+			cfgPath := filepath.Join(dir, versionsDirName, configFileName)
+			err := os.MkdirAll(filepath.Dir(cfgPath), 0777)
+			require.NoError(t, err)
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
-				err := os.MkdirAll(filepath.Dir(path), 0777)
-				require.NoError(t, err)
 				b, err := yaml.Marshal(tt.cfg)
 				require.NoError(t, err)
-				err = os.WriteFile(path, b, 0600)
+				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
 			}
 
 			args := append(tt.args, []string{"--data-dir", dir}...)
-			err := Run(args)
+			err = Run(args)
 
 			if tt.errMatch != "" {
 				require.Error(t, err)
@@ -103,7 +103,7 @@ func TestRun_Disable(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			data, err := os.ReadFile(path)
+			data, err := os.ReadFile(cfgPath)
 
 			// If no config is present, disable should not create it
 			if tt.cfg == nil {
