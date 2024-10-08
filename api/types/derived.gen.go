@@ -6,6 +6,16 @@ import (
 	"bytes"
 )
 
+// deriveTeleportEqualAccessReviewThreshold returns whether this and that are equal.
+func deriveTeleportEqualAccessReviewThreshold(this, that *AccessReviewThreshold) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Name == that.Name &&
+			this.Filter == that.Filter &&
+			this.Approve == that.Approve &&
+			this.Deny == that.Deny
+}
+
 // deriveTeleportEqualAppV3 returns whether this and that are equal.
 func deriveTeleportEqualAppV3(this, that *AppV3) bool {
 	return (this == nil && that == nil) ||
