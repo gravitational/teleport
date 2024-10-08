@@ -419,11 +419,11 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	s.proxyTunnel = revTunServer
 
 	router, err := proxy.NewRouter(proxy.RouterConfig{
-		ClusterName:         s.server.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: s.proxyClient,
-		SiteGetter:          revTunServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      s.server.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: s.proxyClient,
+		SiteGetter:       revTunServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -8207,11 +8207,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	clustername := authServer.ClusterName()
 	router, err := proxy.NewRouter(proxy.RouterConfig{
-		ClusterName:         clustername,
-		Log:                 log.WithField(teleport.ComponentKey, "router"),
-		RemoteClusterGetter: client,
-		SiteGetter:          revTunServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      clustername,
+		Log:              log.WithField(teleport.ComponentKey, "router"),
+		LocalAccessPoint: client,
+		SiteGetter:       revTunServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
