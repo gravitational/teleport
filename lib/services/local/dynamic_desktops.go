@@ -38,7 +38,7 @@ func NewDynamicWindowsDesktopService(backend backend.Backend) *DynamicWindowsDes
 
 // GetDynamicWindowsDesktop returns dynamic Windows desktops by name.
 func (s *DynamicWindowsDesktopService) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	item, err := s.Get(ctx, backend.ExactKey(dynamicWindowsDesktopsPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(dynamicWindowsDesktopsPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
