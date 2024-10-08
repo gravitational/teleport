@@ -1,4 +1,4 @@
-.version: &version "16.0.0-dev.gzdunek.20"
+.version: &version "16.0.0-dev.gzdunek.21"
 
 apiVersion: v2
 name: teleport-plugin-mattermost
