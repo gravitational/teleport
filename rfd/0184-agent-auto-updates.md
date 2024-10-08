@@ -106,7 +106,7 @@ We will introduce two user-facing resources:
    ```yaml
    kind: autoupdate_agent_plan
    spec:
-     current_version: v1
+     start_version: v1
      target_version: v2
      schedule: regular
      strategy: grouped
@@ -271,7 +271,7 @@ advertise they have rolled-back. The maintenance is stuck until the canaries are
 ```yaml
 kind: autoupdate_agent_plan
 spec:
-  current_version: v1
+  start_version: v1
   target_version: v2
   schedule: regular
   strategy: grouped
@@ -1283,8 +1283,10 @@ minute will be considered in these formulas.
 
 ### Linux Agents
 
-We will ship a new auto-updater package for Linux servers written in Go that does not interface with the system package manager.
-It will be distributed as a separate package from Teleport, and manage the installation of the correct Teleport agent version manually.
+We will ship a new auto-updater binary for Linux servers written in Go that does not interface with the system package manager.
+It will be distributed within the existing `teleport` packages, and additionally, in a dedicated `teleport-update-vX.Y.Z.tgz` tarball. 
+It will manage the installation of the correct Teleport agent version manually.
+
 It will read the unauthenticated `/v1/webapi/find` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified update plan.
 It will download the correct version of Teleport as a tarball, unpack it in `/var/lib/teleport`, and ensure it is symlinked from `/usr/local/bin`.
 
@@ -1292,9 +1294,19 @@ Source code for the updater will live in the main Teleport repository, with the 
 
 #### Installation
 
+Package-initiated install:
 ```shell
 $ apt-get install teleport
 $ teleport-update enable --proxy example.teleport.sh
+
+# if not enabled already, configure teleport and:
+$ systemctl enable teleport
+```
+
+Packageless install:
+```shell
+$ curl https://cdn.teleport.dev/teleport-update.tgz | tar xzf
+$ ./teleport-update enable --proxy example.teleport.sh
 
 # if not enabled already, configure teleport and:
 $ systemctl enable teleport
@@ -1311,13 +1323,21 @@ $ teleport-update enable --proxy example.teleport.sh --template 'https://example
 ```
 (Checksum will use template path + `.sha256`)
 
-For Teleport installs with custom data directories, the data directory must be specified on each invocation:
+For Teleport installs with custom data directories, the data directory must be specified on each binary invocation:
 ```shell
-$ teleport-update enable --proxy example.teleport.sh  --data-dir /var/lib/teleport
+$ teleport-update enable --proxy example.teleport.sh --data-dir /var/lib/teleport
 ```
+
+For managing multiple Teleport installs, the install suffix must be specified on each binary invocation:
+```shell
+$ teleport-update enable --proxy example.teleport.sh  --install-suffix clusterA
+```
+This will create suffixed directories for binaries (`/usr/local/teleport/clusterA/bin`) and systemd units (`teleport-clusterA`).
+
 
 #### Filesystem
 
+For a default install, without --install-suffix:
 ```
 $ tree /var/lib/teleport
 /var/lib/teleport
@@ -1356,6 +1376,7 @@ $ tree /var/lib/teleport
    │     └── systemd
    │        └── teleport.service
    └── update.yaml
+
 $ ls -l /usr/local/bin/tsh
 /usr/local/bin/tsh -> /var/lib/teleport/versions/15.0.0/bin/tsh
 $ ls -l /usr/local/bin/tbot
@@ -1366,6 +1387,61 @@ $ ls -l /usr/local/bin/teleport-update
 /usr/local/bin/teleport-update -> /var/lib/teleport/versions/15.0.0/bin/teleport-update
 $ ls -l /usr/local/lib/systemd/system/teleport.service
 /usr/local/lib/systemd/system/teleport.service -> /var/lib/teleport/versions/15.0.0/etc/systemd/teleport.service
+```
+
+With --install-suffix clusterA:
+```
+$ tree /var/lib/teleport/install/clusterA
+/var/lib/teleport/install/clusterA
+└── versions
+   ├── 15.0.0
+   │  ├── bin
+   │  │  ├── tsh
+   │  │  ├── tbot
+   │  │  ├── ... # other binaries
+   │  │  ├── teleport-update
+   │  │  └── teleport
+   │  ├── etc
+   │  │  └── systemd
+   │  │     └── teleport.service
+   │  └── backup
+   │     ├── sqlite.db
+   │     └── backup.yaml
+   ├── 15.1.1
+   │  ├── bin
+   │  │  ├── tsh
+   │  │  ├── tbot
+   │  │  ├── ... # other binaries
+   │  │  ├── teleport-update
+   │  │  └── teleport
+   │  └── etc
+   │     └── systemd
+   │        └── teleport.service
+   └── update.yaml
+
+/var/lib/teleport
+└── versions
+   ├── system # if installed via OS package
+      ├── bin
+      │  ├── tsh
+      │  ├── tbot
+      │  ├── ... # other binaries
+      │  ├── teleport-update
+      │  └── teleport
+      └── etc
+         └── systemd
+            └── teleport.service
+
+$ ls -l /usr/local/bin/tsh
+/usr/local/teleport/clusterA/bin/tsh -> /var/lib/teleport/install/clusterA/versions/15.0.0/bin/tsh
+$ ls -l /usr/local/bin/tbot
+/usr/local/teleport/clusterA/bin/tbot -> /var/lib/teleport/install/clusterA/versions/15.0.0/bin/tbot
+$ ls -l /usr/local/bin/teleport
+/usr/local/teleport/clusterA/bin/teleport -> /var/lib/teleport/install/clusterA/versions/15.0.0/bin/teleport
+$ ls -l /usr/local/bin/teleport-update
+/usr/local/teleport/clusterA/bin/teleport-update -> /var/lib/teleport/install/clusterA/versions/15.0.0/bin/teleport-update
+$ ls -l /usr/local/lib/systemd/system/teleport-clusterA.service
+/usr/local/lib/systemd/system/teleport-clutserA.service -> /var/lib/teleport/install/clusterA/versions/15.0.0/etc/systemd/teleport.service
 ```
 
 ##### update.yaml
