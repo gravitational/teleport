@@ -533,6 +533,8 @@ func IsAccessListOwner(ctx context.Context, identity tlsca.Identity, clock clock
 }
 
 // UserMeetsRequirements is a helper which will return whether the tlsca.Identity meets the AccessList Ownership/MembershipRequires.
+//
+// TODO(kiosion): Refactor to accept types.User instead of an Identity, and remove from Hierarchy.
 func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}

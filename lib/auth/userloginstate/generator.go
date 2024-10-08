@@ -179,7 +179,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessListHierarchy, err := accesslists.NewHierarchy(ctx, accessLists, g.accessLists, g.accessLists)
+	accessListHierarchy, err := accesslists.NewHierarchy(ctx, accessLists, g.accessLists, g.accessLists, g.clock)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

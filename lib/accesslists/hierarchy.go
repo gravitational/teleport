@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -54,11 +55,11 @@ type HierarchyNode struct {
 	// AccessList is the Underlying AccessList object.
 	AccessList *accesslist.AccessList
 	// MemberUsers are users who are direct members of this list.
-	MemberUsers map[string]struct{}
+	MemberUsers map[string]*accesslist.AccessListMember
 	// MemberLists are AccessLists that are direct members of this list.
 	MemberLists map[string]*HierarchyNode
 	// OwnerUsers are users who are direct Owners of this list.
-	OwnerUsers map[string]struct{}
+	OwnerUsers map[string]*accesslist.Owner
 	// OwnerLists are AccessLists that are direct Owners of this list.
 	OwnerLists map[string]*HierarchyNode
 	// MemberParents are AccessLists that have this list as a member.
@@ -67,29 +68,53 @@ type HierarchyNode struct {
 	OwnerParents map[string]*HierarchyNode
 }
 
-type Hierarchy struct {
+type hierarchy struct {
 	Nodes map[string]*HierarchyNode
 	Locks services.LockGetter
+	Clock clockwork.Clock
+}
+
+type Hierarchy interface {
+	// IsDescendant determines if a maybeChild AccessList is a descendant of a parent AccessList.
+	IsDescendant(parentListName, maybeChildListName string, kind RelationshipKind) (bool, error)
+	// ValidateAccessListMember validates the addition of an AccessListMember to an existing AccessList.
+	ValidateAccessListMember(parentListName string, member *accesslist.AccessListMember) error
+	// ValidateAccessListOwner validates the addition of an existing AccessList as an Owner to another existing AccessList.
+	ValidateAccessListOwner(parentListName string, owner *accesslist.Owner) error
+	// ValidateAccessListWithMembers validates the addition of a new or existing AccessList with a list of AccessListMembers.
+	ValidateAccessListWithMembers(accessList *accesslist.AccessList, members []*accesslist.AccessListMember) error
+	// GetOwners returns a flattened list of Owners for an Access List, including inherited Owners.
+	//
+	// Returned Owners are not validated for expiration or other requirements – use IsAccessListOwner
+	// to validate an Owner's ownership status.
+	GetOwners(accessListName string) ([]*accesslist.Owner, error)
+	// IsAccessListOwner determines if a User is a valid Owner of an existing or new AccessList,
+	// including via inheritance. If User has any inForce Locks, it will return an error.
+	IsAccessListOwner(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error)
+	// IsAccessListMember determines if a User is a valid Member of an existing AccessList,
+	// including via inheritance. If User has any inForce Locks, it will return an error.
+	IsAccessListMember(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error)
 }
 
 // NewHierarchy creates a new tree-like structure of AccessLists and their relationships, including Members and Owners.
-// It validates the relationships between AccessLists and ensures that no cyclic references are created, or that the depth of a
+// It validates the relationships between AccessLists and ensures that no cyclic references are created and that the depth of a
 // branch does not exceed the maximum allowed depth.
 //
-// It returns a Hierarchy struct, useful for querying the validity of Membership and Ownership changes, and for determining
+// It returns a Hierarchy interface, useful for querying the validity of Membership and Ownership changes, and for determining
 // a User's Membership or Ownership status for an AccessList, including inherited relationships.
-func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, membersGetter MembersAndLocksGetter, locksGetter services.LockGetter) (*Hierarchy, error) {
-	h := &Hierarchy{
+func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, membersGetter MembersAndLocksGetter, locksGetter services.LockGetter, clock clockwork.Clock) (Hierarchy, error) {
+	h := &hierarchy{
 		Nodes: make(map[string]*HierarchyNode),
 		Locks: locksGetter,
+		Clock: clock,
 	}
 
 	for _, al := range accessLists {
 		h.Nodes[al.GetName()] = &HierarchyNode{
 			AccessList:    al,
-			MemberUsers:   make(map[string]struct{}),
+			MemberUsers:   make(map[string]*accesslist.AccessListMember),
 			MemberLists:   make(map[string]*HierarchyNode),
-			OwnerUsers:    make(map[string]struct{}),
+			OwnerUsers:    make(map[string]*accesslist.Owner),
 			OwnerLists:    make(map[string]*HierarchyNode),
 			MemberParents: make(map[string]*HierarchyNode),
 			OwnerParents:  make(map[string]*HierarchyNode),
@@ -102,7 +127,7 @@ func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, mem
 
 		for _, owner := range al.Spec.Owners {
 			if owner.MembershipKind != accesslist.MembershipKindList {
-				node.OwnerUsers[owner.Name] = struct{}{}
+				node.OwnerUsers[owner.Name] = &owner
 				continue
 			}
 			ownerNode, exists := h.Nodes[owner.Name]
@@ -122,7 +147,7 @@ func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, mem
 		}
 		for _, member := range members {
 			if member.Spec.MembershipKind != accesslist.MembershipKindList {
-				node.MemberUsers[member.Spec.Name] = struct{}{}
+				node.MemberUsers[member.Spec.Name] = member
 				continue
 			}
 			memberNode, exists := h.Nodes[member.Spec.Name]
@@ -161,7 +186,7 @@ func loadAllMembersForList(ctx context.Context, accessListName string, membersGe
 	return allMembers, nil
 }
 
-func (h *Hierarchy) validateAddition(parentNode, childNode *HierarchyNode, kind RelationshipKind) error {
+func (h *hierarchy) validateAddition(parentNode, childNode *HierarchyNode, kind RelationshipKind) error {
 	kindStr := "a Member"
 	if kind == RelationshipKindOwner {
 		kindStr = "an Owner"
@@ -175,13 +200,13 @@ func (h *Hierarchy) validateAddition(parentNode, childNode *HierarchyNode, kind 
 	return nil
 }
 
-func (h *Hierarchy) detectCycle(parentNode, childNode *HierarchyNode) bool {
+func (h *hierarchy) detectCycle(parentNode, childNode *HierarchyNode) bool {
 	isReachableAsMember := h.isReachable(childNode, parentNode.AccessList.GetName(), RelationshipKindMember, make(map[string]struct{}))
 	isReachableAsOwner := h.isReachable(childNode, parentNode.AccessList.GetName(), RelationshipKindOwner, make(map[string]struct{}))
 	return isReachableAsMember || isReachableAsOwner
 }
 
-func (h *Hierarchy) isReachable(node *HierarchyNode, targetName string, kind RelationshipKind, visited map[string]struct{}) bool {
+func (h *hierarchy) isReachable(node *HierarchyNode, targetName string, kind RelationshipKind, visited map[string]struct{}) bool {
 	if node.AccessList.GetName() == targetName {
 		return true
 	}
@@ -226,7 +251,7 @@ func (h *Hierarchy) isReachable(node *HierarchyNode, targetName string, kind Rel
 	return false
 }
 
-func (h *Hierarchy) exceedsMaxDepth(parentNode, childNode *HierarchyNode, kind RelationshipKind) bool {
+func (h *hierarchy) exceedsMaxDepth(parentNode, childNode *HierarchyNode, kind RelationshipKind) bool {
 	switch kind {
 	case RelationshipKindOwner:
 		// For Owners, only consider the depth downwards from the child node, since Ownership is not inherited Owners->Owners->Owners... as Membership is.
@@ -237,7 +262,7 @@ func (h *Hierarchy) exceedsMaxDepth(parentNode, childNode *HierarchyNode, kind R
 	}
 }
 
-func (h *Hierarchy) maxDepthDownwards(node *HierarchyNode, seen map[string]struct{}) int {
+func (h *hierarchy) maxDepthDownwards(node *HierarchyNode, seen map[string]struct{}) int {
 	if _, ok := seen[node.AccessList.GetName()]; ok {
 		return 0
 	}
@@ -254,7 +279,7 @@ func (h *Hierarchy) maxDepthDownwards(node *HierarchyNode, seen map[string]struc
 	return maxDepth
 }
 
-func (h *Hierarchy) maxDepthUpwards(node *HierarchyNode, seen map[string]struct{}) int {
+func (h *hierarchy) maxDepthUpwards(node *HierarchyNode, seen map[string]struct{}) int {
 	if _, ok := seen[node.AccessList.GetName()]; ok {
 		return 0
 	}
@@ -272,7 +297,7 @@ func (h *Hierarchy) maxDepthUpwards(node *HierarchyNode, seen map[string]struct{
 }
 
 // IsDescendant determines if a maybeChild AccessList is a descendant of a parent AccessList.
-func (h *Hierarchy) IsDescendant(parentListName, maybeChildListName string, kind RelationshipKind) (bool, error) {
+func (h *hierarchy) IsDescendant(parentListName, maybeChildListName string, kind RelationshipKind) (bool, error) {
 	parentNode, exists := h.Nodes[parentListName]
 	if !exists {
 		return false, trace.NotFound("Access List '%s' not found", parentListName)
@@ -288,7 +313,7 @@ func (h *Hierarchy) IsDescendant(parentListName, maybeChildListName string, kind
 }
 
 // ValidateAccessListMember validates the addition of an AccessListMember to an existing AccessList.
-func (h *Hierarchy) ValidateAccessListMember(parentListName string, member *accesslist.AccessListMember) error {
+func (h *hierarchy) ValidateAccessListMember(parentListName string, member *accesslist.AccessListMember) error {
 	if member.Spec.MembershipKind != accesslist.MembershipKindList {
 		return nil
 	}
@@ -296,14 +321,14 @@ func (h *Hierarchy) ValidateAccessListMember(parentListName string, member *acce
 }
 
 // ValidateAccessListOwner validates the addition of an existing AccessList as an Owner to another existing AccessList.
-func (h *Hierarchy) ValidateAccessListOwner(parentListName string, owner *accesslist.Owner) error {
+func (h *hierarchy) ValidateAccessListOwner(parentListName string, owner *accesslist.Owner) error {
 	if owner.MembershipKind != accesslist.MembershipKindList {
 		return nil
 	}
 	return h.validateAccessListMemberOrOwner(parentListName, owner.Name, RelationshipKindOwner)
 }
 
-func (h *Hierarchy) validateAccessListMemberOrOwner(parentListName string, memberOrOwnerName string, kind RelationshipKind) error {
+func (h *hierarchy) validateAccessListMemberOrOwner(parentListName string, memberOrOwnerName string, kind RelationshipKind) error {
 	parentNode, parentExists := h.Nodes[parentListName]
 	if !parentExists {
 		return trace.NotFound("Access List '%s' not found", parentListName)
@@ -319,16 +344,16 @@ func (h *Hierarchy) validateAccessListMemberOrOwner(parentListName string, membe
 }
 
 // ValidateAccessListWithMembers validates the addition of a new or existing AccessList with a list of AccessListMembers.
-func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessList, members []*accesslist.AccessListMember) error {
+func (h *hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessList, members []*accesslist.AccessListMember) error {
 	var tempNode *HierarchyNode
 	existingNode, exists := h.Nodes[accessList.GetName()]
 	if exists {
 		// Reuse existing node's reverse pointers to parents.
 		tempNode = &HierarchyNode{
 			AccessList:    accessList,
-			MemberUsers:   make(map[string]struct{}),
+			MemberUsers:   make(map[string]*accesslist.AccessListMember),
 			MemberLists:   make(map[string]*HierarchyNode),
-			OwnerUsers:    make(map[string]struct{}),
+			OwnerUsers:    make(map[string]*accesslist.Owner),
 			OwnerLists:    make(map[string]*HierarchyNode),
 			MemberParents: existingNode.MemberParents,
 			OwnerParents:  existingNode.OwnerParents,
@@ -336,9 +361,9 @@ func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessL
 	} else {
 		tempNode = &HierarchyNode{
 			AccessList:    accessList,
-			MemberUsers:   make(map[string]struct{}),
+			MemberUsers:   make(map[string]*accesslist.AccessListMember),
 			MemberLists:   make(map[string]*HierarchyNode),
-			OwnerUsers:    make(map[string]struct{}),
+			OwnerUsers:    make(map[string]*accesslist.Owner),
 			OwnerLists:    make(map[string]*HierarchyNode),
 			MemberParents: make(map[string]*HierarchyNode),
 			OwnerParents:  make(map[string]*HierarchyNode),
@@ -347,7 +372,7 @@ func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessL
 
 	for _, owner := range accessList.Spec.Owners {
 		if owner.MembershipKind != accesslist.MembershipKindList {
-			tempNode.OwnerUsers[owner.Name] = struct{}{}
+			tempNode.OwnerUsers[owner.Name] = &owner
 			continue
 		}
 		ownerNode, ownerExists := h.Nodes[owner.Name]
@@ -361,7 +386,7 @@ func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessL
 	}
 	for _, member := range members {
 		if member.Spec.MembershipKind != accesslist.MembershipKindList {
-			tempNode.MemberUsers[member.Spec.Name] = struct{}{}
+			tempNode.MemberUsers[member.Spec.Name] = member
 			continue
 		}
 		memberNode, memberExists := h.Nodes[member.Spec.Name]
@@ -376,9 +401,25 @@ func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessL
 	return nil
 }
 
+// GetOwners returns a flattened list of Owners for an Access List, including inherited Owners.
+//
+// Returned Owners are not validated for expiration or other requirements – use IsAccessListOwner
+// to validate an Owner's ownership status.
+func (h *hierarchy) GetOwners(accessListName string) ([]*accesslist.Owner, error) {
+	node, exists := h.Nodes[accessListName]
+	if !exists {
+		return nil, trace.NotFound("Access List '%s' not found", accessListName)
+	}
+
+	visited := make(map[string]struct{})
+	owners := h.collectOwners(node, visited, []*accesslist.Owner{})
+
+	return owners, nil
+}
+
 // IsAccessListOwner determines if a User is a valid Owner of an existing or new AccessList,
 // including via inheritance. If User has any inForce Locks, it will return an error.
-func (h *Hierarchy) IsAccessListOwner(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+func (h *hierarchy) IsAccessListOwner(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error) {
 	// Allow for Locks to be nil when not provided in constructor.
 	if h.Locks != nil {
 		locks, err := h.Locks.GetLocks(ctx, true, types.LockTarget{
@@ -423,7 +464,7 @@ func (h *Hierarchy) IsAccessListOwner(ctx context.Context, user types.User, acce
 	return MembershipOrOwnershipTypeNone, nil
 }
 
-func (h *Hierarchy) isInheritedOwner(ctx context.Context, user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, error) {
+func (h *hierarchy) isInheritedOwner(ctx context.Context, user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, error) {
 	if _, ok := visited[node.AccessList.GetName()]; ok {
 		return false, nil
 	}
@@ -435,10 +476,6 @@ func (h *Hierarchy) isInheritedOwner(ctx context.Context, user types.User, node 
 			return false, trace.Wrap(err)
 		}
 		if memberType != MembershipOrOwnershipTypeNone {
-			// Verify membership requirements
-			if !userMeetsRequirements(user, ownerList.AccessList.Spec.MembershipRequires) {
-				continue
-			}
 			return true, nil
 		}
 		// Recurse into ownerList's owners
@@ -455,7 +492,7 @@ func (h *Hierarchy) isInheritedOwner(ctx context.Context, user types.User, node 
 
 // IsAccessListMember determines if a User is a valid Member of an existing AccessList,
 // including via inheritance. If User has any inForce Locks, it will return an error.
-func (h *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+func (h *hierarchy) IsAccessListMember(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error) {
 	// Allow for Locks to be nil when not provided in constructor.
 	if h.Locks != nil {
 		locks, err := h.Locks.GetLocks(ctx, true, types.LockTarget{
@@ -484,9 +521,12 @@ func (h *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 	}
 	// Check inherited membership
 	visited := make(map[string]struct{})
-	isMember, err := h.isInheritedMember(user, node, visited)
+	isMember, expired, err := h.isInheritedMember(user, node, visited)
 	if err != nil {
 		return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+	}
+	if expired {
+		return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), node.AccessList.Spec.Title)
 	}
 	if isMember {
 		// Also needs to meet membership requirements of the parent.
@@ -498,30 +538,41 @@ func (h *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 	return MembershipOrOwnershipTypeNone, nil
 }
 
-func (h *Hierarchy) isInheritedMember(user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, error) {
+func (h *hierarchy) isInheritedMember(user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, bool, error) {
 	if _, ok := visited[node.AccessList.GetName()]; ok {
-		return false, nil
+		return false, false, nil
 	}
 	visited[node.AccessList.GetName()] = struct{}{}
+	expired := false
 	for _, memberList := range node.MemberLists {
 		// Check if identity is a member of memberList
-		if _, ok := memberList.MemberUsers[user.GetName()]; ok {
+		if member, ok := memberList.MemberUsers[user.GetName()]; ok {
+			// Check if membership is expired
+			if !member.Spec.Expires.IsZero() && !h.Clock.Now().Before(member.Spec.Expires) {
+				expired = true
+				// Avoid non-deterministic behavior here: If user's membership is expired, then
+				// continue checking, in case their membership in a related list is still valid.
+				continue
+			}
 			// Verify membership requirements
 			if !userMeetsRequirements(user, memberList.AccessList.Spec.MembershipRequires) {
 				continue
 			}
-			return true, nil
+			return true, false, nil
 		}
 		// Recurse into memberList's members
-		isMember, err := h.isInheritedMember(user, memberList, visited)
+		isMember, expiredRecurse, err := h.isInheritedMember(user, memberList, visited)
+		if expiredRecurse && !expired {
+			expired = true
+		}
 		if err != nil {
-			return false, trace.Wrap(err)
+			return false, expired, trace.Wrap(err)
 		}
 		if isMember {
-			return true, nil
+			return true, false, nil
 		}
 	}
-	return false, nil
+	return false, expired, nil
 }
 
 // userMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
@@ -566,4 +617,49 @@ func userMeetsRequirements(identity types.User, requires accesslist.Requires) bo
 
 	// The user meets all requirements.
 	return true
+}
+
+func (h *hierarchy) collectOwners(node *HierarchyNode, visited map[string]struct{}, owners []*accesslist.Owner) []*accesslist.Owner {
+	if _, ok := visited[node.AccessList.GetName()]; ok {
+		return owners
+	}
+	visited[node.AccessList.GetName()] = struct{}{}
+
+	// Collect direct owner users
+	for _, owner := range node.OwnerUsers {
+		owners = append(owners, owner)
+	}
+
+	// For owner lists, we need to collect their members as owners
+	for _, ownerList := range node.OwnerLists {
+		// Collect members from owner lists as potential owners
+		memberVisited := make(map[string]struct{})
+		owners = h.collectMembersAsOwners(ownerList, memberVisited, owners)
+	}
+
+	return owners
+}
+
+func (h *hierarchy) collectMembersAsOwners(node *HierarchyNode, visited map[string]struct{}, owners []*accesslist.Owner) []*accesslist.Owner {
+	if _, ok := visited[node.AccessList.GetName()]; ok {
+		return owners
+	}
+	visited[node.AccessList.GetName()] = struct{}{}
+
+	// Collect direct member users as owners
+	for _, member := range node.MemberUsers {
+		owners = append(owners, &accesslist.Owner{
+			Name:             member.Spec.Name,
+			Description:      member.Metadata.Description,
+			IneligibleStatus: "",
+			MembershipKind:   accesslist.MembershipKindUser,
+		})
+	}
+
+	// Recursively collect members from member lists
+	for _, memberList := range node.MemberLists {
+		owners = h.collectMembersAsOwners(memberList, visited, owners)
+	}
+
+	return owners
 }

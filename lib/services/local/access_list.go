@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -324,80 +325,19 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 //
 // Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
 func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
-	seen := map[string]struct{}{}
-	type queueItem struct {
-		name  string
-		depth int
+	accessLists, err := a.GetAccessLists(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	queue := []queueItem{{name: accessListName, depth: 0}}
-	var allOwners []*accesslist.Owner
-
-	for len(queue) > 0 {
-		item := queue[0]
-		queue = queue[1:]
-
-		if item.depth > accesslist.MaxAllowedDepth {
-			a.log.Warnf("Exceeded maximum depth of %d while gathering nested owners for access list %s", accesslist.MaxAllowedDepth, accessListName)
-			continue
-		}
-
-		accessList, err := a.GetAccessList(ctx, item.name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Owners are inherited from members of nested lists.
-		// So, on l0, we want to grab all the owners from the provided accessListName,
-		// while > l0, we want to fetch members of the nested lists.
-		if item.name == accessListName {
-			for _, owner := range accessList.GetOwners() {
-				if owner.MembershipKind == accesslist.MembershipKindList {
-					if _, ok := seen[owner.Name]; ok {
-						continue
-					}
-					seen[owner.Name] = struct{}{}
-					queue = append(queue, queueItem{name: owner.Name, depth: item.depth + 1})
-				} else {
-					allOwners = append(allOwners, &owner)
-				}
-			}
-			continue
-		}
-
-		var pageToken string
-		var members []*accesslist.AccessListMember
-
-		for {
-			var fetchedMembers []*accesslist.AccessListMember
-			fetchedMembers, pageToken, err = a.ListAccessListMembers(ctx, item.name, 0, pageToken)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			members = append(members, fetchedMembers...)
-			if pageToken == "" {
-				break
-			}
-		}
-
-		for _, member := range members {
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				if _, ok := seen[member.GetName()]; ok {
-					continue
-				}
-				seen[member.GetName()] = struct{}{}
-				queue = append(queue, queueItem{name: member.GetName(), depth: item.depth + 1})
-			} else {
-				allOwners = append(allOwners, &accesslist.Owner{
-					Name:             member.GetName(),
-					Description:      member.Metadata.Description,
-					MembershipKind:   member.Spec.MembershipKind,
-					IneligibleStatus: member.Spec.IneligibleStatus,
-				})
-			}
-		}
+	hierarchy, err := accesslists.NewHierarchy(ctx, accessLists, a, nil, a.clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	return allOwners, nil
+	owners, err := hierarchy.GetOwners(accessListName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return owners, nil
 }
 
 // UpsertAccessListMember creates or updates an access list member resource.
