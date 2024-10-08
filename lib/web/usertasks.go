@@ -53,13 +53,13 @@ func (h *Handler) userTaskStateUpdate(w http.ResponseWriter, r *http.Request, p 
 
 	userTask, err := clt.UserTasksServiceClient().GetUserTask(r.Context(), userTaskName)
 	if err != nil {
-		return nil, trace.Wrap(err, "NOT HERE")
+		return nil, trace.Wrap(err)
 	}
 	userTask.Spec.State = req.State
 
 	newUserTask, err := clt.UserTasksServiceClient().UpsertUserTask(r.Context(), userTask)
 	if err != nil {
-		return nil, trace.Wrap(err, "HERE")
+		return nil, trace.Wrap(err)
 	}
 
 	return ui.MakeUserTask(newUserTask), nil
@@ -113,7 +113,6 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("integration query param is required")
 	}
 
-	//userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasks(r.Context(), int64(limit), startKey)
 	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasksByIntegration(r.Context(), int64(limit), startKey, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
