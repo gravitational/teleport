@@ -31,48 +31,6 @@ import (
 // Matcher is used by reconciler to match resources.
 type Matcher[T any] func(T) bool
 
-// ReconcilerConfig is the resource reconciler configuration.
-type ReconcilerConfig[T any] struct {
-	// NOTE: This struct *must* maintain the same layout as
-	//       GenericReconcilerConfig[string, T] in order for automatic
-	//       conversions to work
-
-	// Matcher is used to match resources.
-	Matcher Matcher[T]
-	// GetCurrentResources returns currently registered resources. Note that the
-	// map keys must be consistent across the current and new resources.
-	GetCurrentResources func() map[string]T
-	// GetNewResources returns resources to compare current resources against.
-	// Note that the map keys must be consistent across the current and new
-	// resources.
-	GetNewResources func() map[string]T
-	// Compare allows custom comparators without having to implement IsEqual.
-	// Defaults to `CompareResources[T]` if not specified.
-	CompareResources func(T, T) int
-	// OnCreate is called when a new resource is detected.
-	OnCreate func(context.Context, T) error
-	// OnUpdate is called when an existing resource is updated.
-	OnUpdate func(ctx context.Context, new, old T) error
-	// OnDelete is called when an existing resource is deleted.
-	OnDelete func(context.Context, T) error
-	// Log is the reconciler's logger.
-	Log logrus.FieldLogger
-}
-
-// NewReconciler creates a new reconciler with provided configuration.
-//
-// Creates a new GenericReconciler[string, T] and wraps it in a Reconciler[T]
-// for backwards compatibility.
-func NewReconciler[T any](cfg ReconcilerConfig[T]) (*Reconciler[T], error) {
-	embedded, err := NewGenericReconciler(GenericReconcilerConfig[string, T](cfg))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &Reconciler[T]{
-		GenericReconciler: *embedded,
-	}, nil
-}
-
 // GenericReconcilerConfig is the resource reconciler configuration that allows
 // any type implementing comparable to be a key.
 type GenericReconcilerConfig[K comparable, T any] struct {
@@ -127,7 +85,7 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewReconciler creates a new GenericReconciler with provided configuration.
+// NewGenerocReconciler creates a new GenericReconciler with provided configuration.
 func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]) (*GenericReconciler[K, T], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -141,15 +99,6 @@ func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]
 		// changed to slog.
 		log: cfg.Log.WithFields(nil),
 	}, nil
-}
-
-// Reconciler reconciles currently registered resources with new resources and
-// creates/updates/deletes them appropriately.
-//
-// This type exists for backwards compatibility, and is a simple wrapper around
-// a GenericReconciler[string, T]
-type Reconciler[T any] struct {
-	GenericReconciler[string, T]
 }
 
 // GenericReconciler reconciles currently registered resources with new
@@ -269,4 +218,32 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 
 	r.log.Tracef("%v %v is already registered.", kind, key)
 	return nil
+}
+
+// ReconcilerConfig holds the configuration for a reconciler
+type ReconcilerConfig[T any] GenericReconcilerConfig[string, T]
+
+// Reconciler reconciles currently registered resources with new resources and
+// creates/updates/deletes them appropriately.
+//
+// This type exists for backwards compatibility, and is a simple wrapper around
+// a GenericReconciler[string, T]
+type Reconciler[T any] GenericReconciler[string, T]
+
+// NewReconciler creates a new reconciler with provided configuration.
+//
+// Creates a new GenericReconciler[string, T] and wraps it in a Reconciler[T]
+// for backwards compatibility.
+func NewReconciler[T any](cfg ReconcilerConfig[T]) (*Reconciler[T], error) {
+	embedded, err := NewGenericReconciler(GenericReconcilerConfig[string, T](cfg))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return (*Reconciler[T])(embedded), nil
+}
+
+// Reconcile reconciles currently registered resources with new resources and
+// creates/updates/deletes them appropriately.
+func (r *Reconciler[T]) Reconcile(ctx context.Context) error {
+	return (*GenericReconciler[string, T])(r).Reconcile(ctx)
 }
