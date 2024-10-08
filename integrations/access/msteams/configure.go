@@ -21,7 +21,7 @@ import (
 	"html/template"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -83,7 +83,7 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 
 	printStep(&step, "Created target directory: %s", targetDir)
 
-	configWriter, err := os.Create(path.Join(targetDir, "teleport-msteams.toml"))
+	configWriter, err := os.Create(filepath.Join(targetDir, "teleport-msteams.toml"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,13 +111,13 @@ func copyAssets(targetDir string) error {
 	}
 
 	for _, d := range a {
-		in, err := assets.Open(path.Join("_tpl", d.Name()))
+		in, err := assets.Open(filepath.Join("_tpl", d.Name()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer in.Close()
 
-		out, err := os.Create(path.Join(targetDir, d.Name()))
+		out, err := os.Create(filepath.Join(targetDir, d.Name()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -132,7 +132,7 @@ func copyAssets(targetDir string) error {
 }
 
 func ConfigureAppZip(targetDir, fileName string, p Payload) error {
-	manifestWriter, err := os.Create(path.Join(targetDir, "manifest.json"))
+	manifestWriter, err := os.Create(filepath.Join(targetDir, "manifest.json"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,7 +143,7 @@ func ConfigureAppZip(targetDir, fileName string, p Payload) error {
 
 	copyAssets(targetDir)
 
-	z, err := os.Create(path.Join(targetDir, fileName))
+	z, err := os.Create(filepath.Join(targetDir, fileName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -153,7 +153,7 @@ func ConfigureAppZip(targetDir, fileName string, p Payload) error {
 	defer w.Close()
 
 	for _, n := range zipFiles {
-		in, err := os.Open(path.Join(targetDir, n))
+		in, err := os.Open(filepath.Join(targetDir, n))
 		if err != nil {
 			return trace.Wrap(err)
 		}

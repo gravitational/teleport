@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -260,7 +260,7 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		TeamsAppID: spec.Msteams.TeamsAppId,
 	})
 
-	fileBytes, err := os.ReadFile(path.Join(targetDir, "app.zip"))
+	fileBytes, err := os.ReadFile(filepath.Join(targetDir, "app.zip"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
