@@ -30,7 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/lib/ui"
+	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
 // clusterKubesGet returns a list of kube clusters in a form the UI can present.
@@ -56,7 +57,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(page.Resources, accessChecker),
+		Items:      webui.MakeKubeClusters(page.Resources, accessChecker),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -90,7 +91,7 @@ func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeResources(resp.Resources, kubeCluster),
+		Items:      webui.MakeKubeResources(resp.Resources, kubeCluster),
 		StartKey:   resp.NextKey,
 		TotalCount: int(resp.TotalCount),
 	}, nil
@@ -130,7 +131,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(databases, dbUsers, dbNames),
+		Items:      webui.MakeDatabases(databases, dbUsers, dbNames),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -163,7 +164,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
+	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.
@@ -184,7 +185,7 @@ func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Req
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabaseServices(page.Resources),
+		Items:      webui.MakeDatabaseServices(page.Resources),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -212,7 +213,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	uiDesktops := make([]ui.Desktop, 0, len(page.Resources))
+	uiDesktops := make([]webui.Desktop, 0, len(page.Resources))
 	for _, r := range page.Resources {
 		desktop, ok := r.ResourceWithLabels.(types.WindowsDesktop)
 		if !ok {
@@ -224,7 +225,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.Wrap(err)
 		}
 
-		uiDesktops = append(uiDesktops, ui.MakeDesktop(desktop, logins, false /* requiresRequest */))
+		uiDesktops = append(uiDesktops, webui.MakeDesktop(desktop, logins, false /* requiresRequest */))
 	}
 
 	return listResourcesGetResponse{
@@ -254,7 +255,7 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDesktopServices(page.Resources),
+		Items:      webui.MakeDesktopServices(page.Resources),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -292,7 +293,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDesktop(desktop, logins, false /* requiresRequest */), nil
+	return webui.MakeDesktop(desktop, logins, false /* requiresRequest */), nil
 }
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
@@ -367,12 +368,12 @@ type desktopIsActive struct {
 
 // createNodeRequest contains the required information to create a Node.
 type createNodeRequest struct {
-	Name     string          `json:"name,omitempty"`
-	SubKind  string          `json:"subKind,omitempty"`
-	Hostname string          `json:"hostname,omitempty"`
-	Addr     string          `json:"addr,omitempty"`
-	Labels   []ui.Label      `json:"labels,omitempty"`
-	AWSInfo  *ui.AWSMetadata `json:"aws,omitempty"`
+	Name     string             `json:"name,omitempty"`
+	SubKind  string             `json:"subKind,omitempty"`
+	Hostname string             `json:"hostname,omitempty"`
+	Addr     string             `json:"addr,omitempty"`
+	Labels   []ui.Label         `json:"labels,omitempty"`
+	AWSInfo  *webui.AWSMetadata `json:"aws,omitempty"`
 }
 
 func (r *createNodeRequest) checkAndSetDefaults() error {
@@ -460,5 +461,5 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeServer(site.GetName(), server, logins, false /* requiresRequest */), nil
+	return webui.MakeServer(site.GetName(), server, logins, false /* requiresRequest */), nil
 }
