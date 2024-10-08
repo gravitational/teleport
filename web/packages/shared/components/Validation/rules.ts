@@ -105,22 +105,19 @@ const isIamRoleNameValid = roleName => {
   );
 };
 
-const requiredIamRoleName: Rule = value => () => {
-  if (!value) {
-    return {
-      valid: false,
-      message: 'IAM role name required',
-    };
-  }
-
-  if (value.length > 64) {
+/**
+ * @param name validAwsIAMRoleName verifies if the given value is a
+ * valid AWS IAM role name.
+ */
+const validAwsIAMRoleName = (name: string): ValidationResult => {
+  if (name.length > 64) {
     return {
       valid: false,
       message: 'name should be <= 64 characters',
     };
   }
 
-  if (!isIamRoleNameValid(value)) {
+  if (!isIamRoleNameValid(name)) {
     return {
       valid: false,
       message: 'name can only contain characters @ = , . + - and alphanumerics',
@@ -130,6 +127,23 @@ const requiredIamRoleName: Rule = value => () => {
   return {
     valid: true,
   };
+};
+
+/**
+ * requiredIamRoleName is a required field and checks for a
+ * value which should also be a valid AWS IAM role name.
+ * @param name is a role name.
+ * @returns ValidationResult
+ */
+const requiredIamRoleName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM role name required',
+    };
+  }
+
+  return validAwsIAMRoleName(name);
 };
 
 /**
@@ -197,6 +211,32 @@ const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
 };
 
 /**
+ * requiredMatchingRoleNameAndRoleArn checks if a given roleArn is a valid AWS
+ * IAM role ARN format and contains a given roleName.
+ *
+ * @param roleName Role name that is used to match role ARN.
+ * @param roleArn Role ARN which is to be tested for a valid AWS IAM role ARN format.
+ */
+const requiredMatchingRoleNameAndRoleArn =
+  (roleName: string) => (roleArn: string) => () => {
+    const regex = new RegExp(
+      '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
+    );
+
+    if (regex.test(roleArn)) {
+      return {
+        valid: true,
+      };
+    }
+
+    return {
+      valid: false,
+      message:
+        'invalid role ARN, double check you copied and pasted the correct output',
+    };
+  };
+
+/**
  * A rule function that combines multiple inner rule functions. All rules must
  * return `valid`, otherwise it returns a comma separated string containing all
  * invalid rule messages.
@@ -233,4 +273,6 @@ export {
   requiredIamRoleName,
   requiredEmailLike,
   requiredAll,
+  requiredMatchingRoleNameAndRoleArn,
+  validAwsIAMRoleName,
 };

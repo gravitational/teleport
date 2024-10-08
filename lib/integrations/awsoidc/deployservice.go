@@ -322,11 +322,11 @@ type DeployServiceClient interface {
 	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
 	TokenService
 
-	callerIdentityGetter
+	CallerIdentityGetter
 }
 
 type defaultDeployServiceClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	*ecs.Client
 	tokenServiceClient TokenService
 }
@@ -355,7 +355,7 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, to
 
 	return &defaultDeployServiceClient{
 		Client:               ecsClient,
-		callerIdentityGetter: stsClient,
+		CallerIdentityGetter: stsClient,
 		tokenServiceClient:   tokenServiceClient,
 	}, nil
 }

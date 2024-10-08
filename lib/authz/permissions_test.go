@@ -1139,7 +1139,8 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 	require.NoError(t, err)
 	caSvc := local.NewCAService(backend)
 	accessSvc := local.NewAccessService(backend)
-	identitySvc := local.NewTestIdentityService(backend)
+	identitySvc, err := local.NewTestIdentityService(backend)
+	require.NoError(t, err)
 	eventsSvc := local.NewEventsService(backend)
 
 	client := &testClient{

@@ -646,8 +646,8 @@ scp"` and use the familiar syntax:
 $ scp -P 61122 -r files root@node:/path/to/dest
 ```
 
-Starting from Teleport 9 the SCP and SFTP protocols are both supported by Server
-Access. OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
+Teleport supports both the SCP and SFTP protocols.
+OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
 if desired.
 
 ## Sharing sessions
@@ -942,13 +942,14 @@ the session recording backend. This requires either a self-hosted Teleport
 cluster or [external audit
 storage](../admin-guides/management/external-audit-storage.mdx).
 
-The `tsh play` command can print recordings in three formats, depending on the
+The `tsh play` command can print recordings in several formats, depending on the
 kind of resource the recorded session interacts with. To choose a format, use
 the `--format` flag of `tsh play`:
 
 | `--format` value | Supported resources | Description |
 |------------------|---------------------|-------------|
 | `pty` (default)  | Servers, Kubernetes clusters | `tsh` opens a pseudo-terminal to play each command executed in the session. |
+| `text` | Servers, Kubernetes clusters | `tsh` dumps the entire recording directly to standard out. Timing data is ignored. |
 | `json` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a JSON-serialized list of audit events, separated by newlines. |
 | `yaml` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a YAML-serialized list of audit events, separated by `---` characters. |
 
@@ -1110,9 +1111,6 @@ proxy_templates:
   #
   # Query by predicate expression similar to tsh ls --query.
   # Has priority over search but will be ignored if a host is provided.
-  #
-  # See https://goteleport.com/docs/reference/predicate-language/#resource-filtering for
-  # predicate expression examples.
   query: "labels.env == $1"
 
   # Optional fuzzy search terms to resolve the target host with.
@@ -1125,6 +1123,12 @@ proxy_templates:
 # match takes effect.
 - template: ...
 ```
+
+In the configuration above, `query` accepts an predicate expression.  This has
+priority over search but will be ignored if a host is provided.  See the
+[predicate language
+documentation](../reference/predicate-language.mdx#resource-filtering for
+predicate expression examples.
 
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the
 host server address `%h:%p` with the configured templates. For each replace rule set,

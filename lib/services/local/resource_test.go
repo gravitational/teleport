@@ -85,7 +85,8 @@ func runUserResourceTest(
 	require.NoError(t, err)
 
 	// Check that dynamically created item is compatible with service
-	s := NewTestIdentityService(tt.bk)
+	s, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
 	b, err := s.GetUser(ctx, "bob", withSecrets)
 	require.NoError(t, err)
 	require.True(t, services.UsersEquals(bob, b), "dynamically inserted user does not match")
@@ -196,7 +197,8 @@ func TestGithubConnectorResource(t *testing.T) {
 	err := CreateResources(ctx, tt.bk, connector)
 	require.NoError(t, err)
 
-	s := NewTestIdentityService(tt.bk)
+	s, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
 	_, err = s.GetGithubConnector(ctx, "github", true)
 	require.NoError(t, err)
 }
@@ -230,6 +232,7 @@ func newUserTestCase(t *testing.T, name string, roles []string, withSecrets bool
 	if withSecrets {
 		auth := localAuthSecretsTestCase(t)
 		user.SetLocalAuth(&auth)
+		user.SetWeakestDevice(types.MFADeviceKind_MFA_DEVICE_KIND_TOTP)
 	}
 	return &user
 }

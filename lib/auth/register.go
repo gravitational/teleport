@@ -36,7 +36,6 @@ import (
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
 func LocalRegister(id state.IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*state.Identity, error) {
-	// TODO(nklaassen): split SSH and TLS keys for host identities.
 	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)

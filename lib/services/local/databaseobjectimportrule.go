@@ -70,12 +70,12 @@ const (
 	databaseObjectImportRulePrefix = "databaseObjectImportRulePrefix"
 )
 
-func NewDatabaseObjectImportRuleService(backend backend.Backend) (services.DatabaseObjectImportRules, error) {
+func NewDatabaseObjectImportRuleService(b backend.Backend) (services.DatabaseObjectImportRules, error) {
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*databaseobjectimportrulev1.DatabaseObjectImportRule]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindDatabaseObjectImportRule,
-			BackendPrefix: databaseObjectImportRulePrefix,
+			BackendPrefix: backend.NewKey(databaseObjectImportRulePrefix),
 			//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
 			MarshalFunc: services.FastMarshalProtoResourceDeprecated[*databaseobjectimportrulev1.DatabaseObjectImportRule],
 			//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
