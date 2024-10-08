@@ -39,6 +39,7 @@ func (p *playFromFileStreamer) StreamSessionEvents(
 	ctx context.Context,
 	sessionID session.ID,
 	startIndex int64,
+	_ string,
 ) (chan apievents.AuditEvent, chan error) {
 	evts := make(chan apievents.AuditEvent)
 	errs := make(chan error, 1)

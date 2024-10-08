@@ -42,7 +42,7 @@ type fakeStreamer struct {
 	interval time.Duration
 }
 
-func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64, _ string) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	events := make(chan apievents.AuditEvent)
 

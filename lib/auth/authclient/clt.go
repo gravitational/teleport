@@ -337,8 +337,8 @@ func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.Use
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
-func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	return c.APIClient.StreamSessionEvents(ctx, string(sessionID), startIndex)
+func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64, format string) (chan apievents.AuditEvent, chan error) {
+	return c.APIClient.StreamSessionEvents(ctx, string(sessionID), startIndex, format)
 }
 
 // SearchEvents allows searching for audit events with pagination support.

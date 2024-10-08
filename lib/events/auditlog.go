@@ -504,7 +504,7 @@ func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.Get
 }
 
 // StreamSessionEvents implements [SessionStreamer].
-func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64, _ string) (chan apievents.AuditEvent, chan error) {
 	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID))
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)

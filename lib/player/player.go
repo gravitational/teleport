@@ -90,6 +90,7 @@ type Streamer interface {
 		ctx context.Context,
 		sessionID session.ID,
 		startIndex int64,
+		format string,
 	) (chan events.AuditEvent, chan error)
 }
 
@@ -182,7 +183,7 @@ func (p *Player) stream() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
+	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0, teleport.PTY)
 	lastDelay := int64(0)
 	for {
 		select {

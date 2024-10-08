@@ -2146,7 +2146,7 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, errC := clt.StreamSessionEvents(ctx, "foo", 0)
+	_, errC := clt.StreamSessionEvents(ctx, "foo", 0, "" /* format */)
 	select {
 	case err := <-errC:
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
@@ -2172,7 +2172,7 @@ func TestStreamSessionEvents_User(t *testing.T) {
 	require.NoError(t, err)
 
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0, teleport.JSON)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
@@ -2188,6 +2188,7 @@ func TestStreamSessionEvents_User(t *testing.T) {
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
 	require.Equal(t, username, event.User)
+	require.Equal(t, teleport.JSON, event.Format)
 }
 
 // TestStreamSessionEvents_Builtin ensures that when a builtin role streams a session's events, it does not emit
@@ -2204,7 +2205,7 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	require.NoError(t, err)
 
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0, "" /* format */)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
@@ -2240,7 +2241,7 @@ func TestStreamSessionEvents(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	clt.StreamSessionEvents(ctx, session.ID("44c6cea8-362f-11ea-83aa-125400432324"), 0)
+	clt.StreamSessionEvents(ctx, session.ID("44c6cea8-362f-11ea-83aa-125400432324"), 0, teleport.JSON)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
@@ -2255,6 +2256,7 @@ func TestStreamSessionEvents(t *testing.T) {
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
 	require.Equal(t, username, event.User)
+	require.Equal(t, teleport.JSON, event.Format)
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
@@ -6172,7 +6174,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 				t.Cleanup(func() { s.alog = originalLog })
 				s.alog = events.NewDiscardAuditLog()
 
-				eventC, errC := s.StreamSessionEvents(ctx, "foo", 0)
+				eventC, errC := s.StreamSessionEvents(ctx, "foo", 0, "" /* format */)
 				select {
 				case err := <-errC:
 					require.NoError(t, err)

@@ -350,7 +350,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	var lastEvent events.AuditEvent
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
+	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0, "" /* format */)
 
 loop:
 	for {

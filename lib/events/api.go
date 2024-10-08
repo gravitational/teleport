@@ -1011,7 +1011,7 @@ type SessionStreamer interface {
 	// statements. Both returned channels must be driven until the event channel
 	// is exhausted or the error channel reports an error, or until the context
 	// is canceled.
-	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64, format string) (chan apievents.AuditEvent, chan error)
 }
 
 type SearchEventsRequest struct {

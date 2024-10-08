@@ -33,7 +33,7 @@ type MockAuditLog struct {
 	SessionEvents []apievents.AuditEvent
 }
 
-func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, startIndex int64, _ string) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	events := make(chan apievents.AuditEvent)
 

@@ -137,7 +137,7 @@ func exportSession(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
-	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(cf.Context, *sid, 0)
+	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(cf.Context, *sid, 0, format)
 
 	var exporter sessionExporter
 	switch format {

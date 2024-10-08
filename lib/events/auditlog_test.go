@@ -132,7 +132,7 @@ func TestConcurrentStreaming(t *testing.T) {
 	errors := make(chan error, streams)
 	for i := 0; i < streams; i++ {
 		go func() {
-			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0)
+			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0, "" /* format */)
 			for {
 				select {
 				case err := <-errC:
