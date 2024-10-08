@@ -56,6 +56,10 @@ func NewStaticAuthServer(authServer string) *AuthProxyArgs {
 	}
 }
 
+// newAuthProxyArgs initializes --auth-server and --proxy-server args on the
+// given command. This can be embedded in any parent command that needs to
+// accept an auth or proxy address. Note that `ApplyConfig` will need to be
+// called in the parent's own `ApplyConfig`.
 func newAuthProxyArgs(cmd *kingpin.CmdClause) *AuthProxyArgs {
 	args := &AuthProxyArgs{}
 

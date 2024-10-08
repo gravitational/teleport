@@ -37,6 +37,8 @@ type ApplicationTunnelCommand struct {
 	AppName string
 }
 
+// NewApplicationTunnelCommand initializes flags for an app tunnel command and
+// returns a struct to contain the parse result.
 func NewApplicationTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *ApplicationTunnelCommand {
 	cmd := parentCmd.Command("application-tunnel", "Starts an application tunnel").Alias("app-tunnel")
 

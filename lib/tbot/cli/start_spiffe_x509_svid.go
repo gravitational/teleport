@@ -42,6 +42,9 @@ type SPIFFEX509SVIDCommand struct {
 	IPSANs   []string
 }
 
+// NewSPIFFEX509SVIDCommand initializes the command and flags for the
+// `spiffe-x509-svid` output and returns a struct that will contain the parse
+// result.
 func NewSPIFFEX509SVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *SPIFFEX509SVIDCommand {
 	cmd := parentCmd.Command("spiffe-x509-svid", "Starts with a SPIFFE-compatible X509 SVID output")
 

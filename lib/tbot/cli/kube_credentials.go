@@ -24,6 +24,8 @@ type KubeCredentialsCommand struct {
 	DestinationDir string
 }
 
+// NewKubeCredentialsCommand initializes a kubernetes `credentials` command
+// and returns a struct that will contain the parse result.
 func NewKubeCredentialsCommand(parentCmd KingpinClause, action func(*KubeCredentialsCommand) error) *KubeCredentialsCommand {
 	cmd := parentCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
 

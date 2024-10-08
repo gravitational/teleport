@@ -40,6 +40,8 @@ type DatabaseCommand struct {
 	Database    string
 }
 
+// NewDatabaseCommand initializes a command and flags for database outputs and
+// returns a struct that will contain the parse result.
 func NewDatabaseCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *DatabaseCommand {
 	cmd := parentCmd.Command("database", "Starts with a database output").Alias("db")
 
