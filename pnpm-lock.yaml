@@ -40,9 +40,6 @@ importers:
       '@uiw/react-codemirror':
         specifier: ^4.23.3
         version: 4.23.3(@babel/runtime@7.25.6)(@codemirror/autocomplete@6.18.1(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.34.1)(@lezer/common@1.2.1))(@codemirror/language@6.10.2)(@codemirror/lint@6.4.2)(@codemirror/search@6.5.3)(@codemirror/state@6.4.1)(@codemirror/theme-one-dark@6.1.2)(@codemirror/view@6.34.1)(codemirror@6.0.1(@lezer/common@1.2.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      ace-builds:
-        specifier: 1.36.2
-        version: 1.36.2
       d3-scale:
         specifier: ^4.0.2
         version: 4.0.2
@@ -287,6 +284,9 @@ importers:
       '@gravitational/design':
         specifier: workspace:*
         version: link:../design
+      ace-builds:
+        specifier: 1.36.2
+        version: 1.36.2
       events:
         specifier: 3.3.0
         version: 3.3.0

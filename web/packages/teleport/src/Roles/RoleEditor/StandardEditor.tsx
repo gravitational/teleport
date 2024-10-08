@@ -21,7 +21,6 @@ import { Box, Flex, H3 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-
 import * as Icon from 'design/Icon';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import styled, { useTheme } from 'styled-components';

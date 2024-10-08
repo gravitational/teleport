@@ -56,7 +56,7 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 
 	switch kind {
 	case types.KindAccessMonitoringRule:
-		resource, err := ConvertYAMLToAccessMonitoringRuleResource(req.YAML)
+		resource, err := yamlToAccessMonitoringRuleResource(req.YAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -64,7 +64,7 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 		return yamlParseResponse{Resource: resource}, nil
 
 	case types.KindRole:
-		resource, err := ConvertYAMLToRole(req.YAML)
+		resource, err := yamlToRole(req.YAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -115,7 +115,7 @@ func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params h
 	return yamlStringifyResponse{YAML: string(data)}, nil
 }
 
-func ConvertYAMLToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+func yamlToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	extractedRes, err := extractResource(yaml)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -131,7 +131,7 @@ func ConvertYAMLToAccessMonitoringRuleResource(yaml string) (*accessmonitoringru
 	return resource, nil
 }
 
-func ConvertYAMLToRole(yaml string) (types.Role, error) {
+func yamlToRole(yaml string) (types.Role, error) {
 	extractedRes, err := extractResource(yaml)
 	if err != nil {
 		return nil, trace.Wrap(err)

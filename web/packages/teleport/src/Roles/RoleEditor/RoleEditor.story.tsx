@@ -17,23 +17,17 @@
  */
 
 import React from 'react';
-
 import { StoryObj } from '@storybook/react';
-
 import { delay, http, HttpResponse } from 'msw';
-
 import { Info } from 'design/Alert';
-
 import Flex from 'design/Flex';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
-
 import cfg from 'teleport/config';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { withDefaults } from './withDefaults';
-
 import { RoleEditor } from './RoleEditor';
 
 export default {
