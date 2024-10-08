@@ -572,7 +572,12 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return nil, trace.Wrap(err)
 	}
 
-	return server.MatchersToGCPInstanceFetchers(serverMatchers, client), nil
+	projectsClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server.MatchersToGCPInstanceFetchers(serverMatchers, client, projectsClient), nil
 }
 
 // databaseFetchersFromMatchers converts Matchers into a set of Database Fetchers.
@@ -734,19 +739,26 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	projectClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "unable to create gcp project client")
+	}
 	for _, matcher := range otherMatchers {
 		for _, projectID := range matcher.ProjectIDs {
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
 					case types.GCPMatcherKubernetes:
-						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
-							Client:       kubeClient,
-							Location:     location,
-							FilterLabels: matcher.GetLabels(),
-							ProjectID:    projectID,
-							Log:          s.Log,
-						})
+						fetcher, err := fetchers.NewGKEFetcher(
+							ctx,
+							fetchers.GKEFetcherConfig{
+								GKEClient:     kubeClient,
+								ProjectClient: projectClient,
+								Location:      location,
+								FilterLabels:  matcher.GetLabels(),
+								ProjectID:     projectID,
+								Log:           s.Log,
+							})
 						if err != nil {
 							return trace.Wrap(err)
 						}
