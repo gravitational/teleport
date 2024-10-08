@@ -457,7 +457,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("max_age cannot be negative")
 		}
 		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age must be a multiple of seconds")
+			return trace.BadParameter("max_age %q is invalid, cannot have sub-second units", maxAge.String())
 		}
 	}
 
@@ -467,7 +467,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("max_age cannot be negative")
 		}
 		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age must be a multiple of seconds")
+			return trace.BadParameter("max_age %q invalid, cannot have sub-second units", maxAge.String())
 		}
 	}
 
