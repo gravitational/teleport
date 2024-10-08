@@ -4670,6 +4670,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 	if err := newAuthPref.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 		FIPS:          a.authServer.fips,
 		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
+		Cloud:         modules.GetModules().Features().Cloud,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

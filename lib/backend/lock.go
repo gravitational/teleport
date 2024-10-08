@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,7 +36,12 @@ const (
 )
 
 func lockKey(parts ...string) Key {
-	return internalKey(locksPrefix, parts...)
+	key := Key{
+		components: append([]string{locksPrefix}, parts...),
+	}
+	key.s = strings.Join(key.components, SeparatorString)
+
+	return key
 }
 
 type Lock struct {

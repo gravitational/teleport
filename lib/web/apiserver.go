@@ -406,7 +406,6 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-
 }
 
 // Check if this request should be forwarded to an application handler to
@@ -778,7 +777,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
+	// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
 	h.POST("/webapi/ssh/certs", h.WithUnauthenticatedLimiter(h.createSSHCert))
+
+	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
 
 	// list available sites
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
@@ -870,7 +872,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
-	h.GET("/webapi/sites/:site/pods", h.WithClusterAuth(h.clusterKubePodsGet))
+	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -4095,6 +4097,8 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 // # Success response
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+//
+// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -4169,6 +4173,69 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return loginResp, nil
+}
+
+// headlessLogin is a web call that perform headless login based on a user's
+// name, returning new login certs if successful.
+//
+// POST /v1/webapi/headless/login
+//
+// { "user": "bob", "pub_key": "key to sign", "ttl": 1000000000 }
+//
+// # Success response
+//
+// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req client.HeadlessLoginReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient := h.cfg.ProxyClient
+
+	authSSHUserReq := authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+			Username:                 req.User,
+			SSHPublicKey:             req.SSHPubKey,
+			TLSPublicKey:             req.TLSPubKey,
+			ClientMetadata:           clientMetaFromReq(r),
+			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
+		},
+		CompatibilityMode:       req.Compatibility,
+		TTL:                     req.TTL,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		SSHAttestationStatement: req.SSHAttestationStatement,
+		TLSAttestationStatement: req.TLSAttestationStatement,
+	}
+
+	// We need to use the default callback timeout rather than the standard client timeout.
+	// However, authClient is shared across all Proxy->Auth requests, so we need to create
+	// a new client to avoid applying the callback timeout to other concurrent requests. To
+	// this end, we create a clone of the HTTP Client with the desired timeout instead.
+	httpClient, err := authClient.CloneHTTPClient(
+		authclient.ClientParamTimeout(defaults.HeadlessLoginTimeout),
+		authclient.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
+	if conn, err := authz.ConnFromContext(r.Context()); err == nil {
+		if err := conn.SetWriteDeadline(h.clock.Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	loginResp, err := httpClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
