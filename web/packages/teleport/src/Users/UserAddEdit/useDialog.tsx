@@ -86,7 +86,6 @@ export default function useUserDialog(props: Props) {
     onSave,
     onChangeName,
     onChangeRoles,
-    fetchRoles: props.fetchRoles,
     setConfiguredTraits,
     isNew: props.isNew,
     attempt,
@@ -100,7 +99,6 @@ export default function useUserDialog(props: Props) {
 export type Props = {
   isNew: boolean;
   user: User;
-  fetchRoles(search: string): Promise<string[]>;
   onClose(): void;
   onCreate(user: User): Promise<any>;
   onUpdate(user: User): Promise<any>;

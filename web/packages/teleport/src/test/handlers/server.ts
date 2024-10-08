@@ -16,4 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Users } from './Users';
+import { setupServer } from 'msw/node';
+
+export const server = setupServer();

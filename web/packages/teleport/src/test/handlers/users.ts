@@ -16,4 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Users } from './Users';
+import { http, HttpResponse, HttpResponseResolver } from 'msw';
+
+import { User } from 'teleport/services/user';
+
+interface BadRequest {
+  error: {
+    message: string;
+  };
+}
+
+export function handleGetUsers(
+  resolver: HttpResponseResolver<never, never, User[] | BadRequest>
+) {
+  return http.get('/v1/webapi/users', resolver);
+}
+
+export const successGetUsers = (users: User[]) =>
+  handleGetUsers(() => HttpResponse.json(users));
+
+export const errorGetUsers = (message: string) =>
+  handleGetUsers(() =>
+    HttpResponse.json(
+      {
+        error: {
+          message,
+        },
+      },
+      {
+        status: 400,
+      }
+    )
+  );
