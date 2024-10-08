@@ -78,20 +78,18 @@ func TestDynamicWindowsService_CreateDynamicDesktop(t *testing.T) {
 
 func TestDynamicWindowsService_UpsertDynamicDesktop(t *testing.T) {
 	ctx, service := setupDynamicDesktopTest(t)
-	t.Run("ok", func(t *testing.T) {
-		want := newDynamicDesktop(t, "example")
-		got, err := service.UpsertDynamicWindowsDesktop(ctx, want.Copy())
-		want.SetRevision(got.GetRevision())
-		require.NoError(t, err)
-		require.NotEmpty(t, got.GetRevision())
-		require.Empty(t, cmp.Diff(
-			want,
-			got,
-			protocmp.Transform(),
-		))
-		_, err = service.UpsertDynamicWindowsDesktop(ctx, want.Copy())
-		require.NoError(t, err)
-	})
+	want := newDynamicDesktop(t, "example")
+	got, err := service.UpsertDynamicWindowsDesktop(ctx, want.Copy())
+	want.SetRevision(got.GetRevision())
+	require.NoError(t, err)
+	require.NotEmpty(t, got.GetRevision())
+	require.Empty(t, cmp.Diff(
+		want,
+		got,
+		protocmp.Transform(),
+	))
+	_, err = service.UpsertDynamicWindowsDesktop(ctx, want.Copy())
+	require.NoError(t, err)
 }
 
 func TestDynamicWindowsService_GetDynamicDesktop(t *testing.T) {
@@ -210,20 +208,18 @@ func TestDynamicWindowsService_DeleteDynamicDesktop(t *testing.T) {
 
 func TestDynamicWindowsService_DeleteAllDynamicDesktop(t *testing.T) {
 	ctx, service := setupDynamicDesktopTest(t)
-	t.Run("ok", func(t *testing.T) {
-		err := service.DeleteAllDynamicWindowsDesktops(ctx)
-		require.NoError(t, err)
-		_, err = service.CreateDynamicWindowsDesktop(ctx, newDynamicDesktop(t, "d1"))
-		require.NoError(t, err)
-		_, err = service.CreateDynamicWindowsDesktop(ctx, newDynamicDesktop(t, "d2"))
-		require.NoError(t, err)
-		desktops, _, err := service.ListDynamicWindowsDesktops(ctx, 5, "")
-		require.NoError(t, err)
-		require.Len(t, desktops, 2)
-		err = service.DeleteAllDynamicWindowsDesktops(ctx)
-		require.NoError(t, err)
-		desktops, _, err = service.ListDynamicWindowsDesktops(ctx, 5, "")
-		require.NoError(t, err)
-		require.Len(t, desktops, 0)
-	})
+	err := service.DeleteAllDynamicWindowsDesktops(ctx)
+	require.NoError(t, err)
+	_, err = service.CreateDynamicWindowsDesktop(ctx, newDynamicDesktop(t, "d1"))
+	require.NoError(t, err)
+	_, err = service.CreateDynamicWindowsDesktop(ctx, newDynamicDesktop(t, "d2"))
+	require.NoError(t, err)
+	desktops, _, err := service.ListDynamicWindowsDesktops(ctx, 5, "")
+	require.NoError(t, err)
+	require.Len(t, desktops, 2)
+	err = service.DeleteAllDynamicWindowsDesktops(ctx)
+	require.NoError(t, err)
+	desktops, _, err = service.ListDynamicWindowsDesktops(ctx, 5, "")
+	require.NoError(t, err)
+	require.Len(t, desktops, 0)
 }
