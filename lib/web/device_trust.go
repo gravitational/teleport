@@ -47,7 +47,7 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	confirmToken := &devicepb.DeviceConfirmationToken{}
 	confirmToken.Id = query.Get("id")
 	confirmToken.Token = query.Get("token")
-	redirectURI := query.Get("redirect_uri")
+	unsafeRedirectURI := query.Get("redirect_uri")
 
 	switch {
 	case confirmToken.Id == "":
@@ -82,11 +82,11 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	// Always redirect back to the dashboard, regardless of outcome.
 	app.SetRedirectPageHeaders(w.Header(), "" /* nonce */)
 
-	redirectTo, err := h.getRedirectURL(redirectURI)
+	redirectTo, err := h.getRedirectPath(unsafeRedirectURI)
 	if err != nil {
 		h.log.
 			WithError(err).
-			WithField("redirect_uri", redirectURI).
+			WithField("redirect_uri", unsafeRedirectURI).
 			Debug("Unable to parse redirectURI")
 	}
 	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
@@ -94,9 +94,9 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	return nil, nil
 }
 
-// getRedirectURL tries to parse the given redirectURI. It will always return a redirect url
+// getRedirectPath tries to parse the given redirectURI. It will always return a redirect url
 // even if the parse fails (in case of failture, the returned string is "/web")
-func (h *Handler) getRedirectURL(redirectURI string) (string, error) {
+func (h *Handler) getRedirectPath(redirectURI string) (string, error) {
 	const basePath = "/web"
 
 	if redirectURI == "" {

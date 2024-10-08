@@ -53,12 +53,13 @@ describe('parseDeepLink', () => {
           searchParams: {
             id: '123',
             token: '234',
+            redirect_uri: null,
           },
         },
       },
       {
         input:
-          'teleport://cluster.example.com/authenticate_web_device?id=123&token=234&redirect=http://cluster.example.com/web/users',
+          'teleport://cluster.example.com/authenticate_web_device?id=123&token=234&redirect_uri=http://cluster.example.com/web/users',
         expectedURL: {
           host: 'cluster.example.com',
           hostname: 'cluster.example.com',
@@ -68,7 +69,7 @@ describe('parseDeepLink', () => {
           searchParams: {
             id: '123',
             token: '234',
-            redirect: 'http://cluster.example.com/web/users',
+            redirect_uri: 'http://cluster.example.com/web/users',
           },
         },
       },
@@ -214,7 +215,7 @@ describe('makeDeepLinkWithSafeInput followed by parseDeepLink gives the same res
       searchParams: {
         token: '123',
         id: '123',
-        redirect: 'http://cluster.example.com:1337/web/users',
+        redirect_uri: 'http://cluster.example.com:1337/web/users',
       },
     },
   ];
@@ -240,7 +241,7 @@ describe('parseDeepLink followed by makeDeepLinkWithSafeInput gives the same res
     'teleport://alice@cluster.example.com/connect_my_computer',
     'teleport://alice.bobson%40example.com@cluster.example.com:1337/connect_my_computer',
     'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234',
-    'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234&redirect=http%3A%2F%2Fcluster.example.com%2Fweb%2Fusers',
+    'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234&redirect_uri=http%3A%2F%2Fcluster.example.com%2Fweb%2Fusers',
   ];
 
   test.each(inputs)('%s', input => {

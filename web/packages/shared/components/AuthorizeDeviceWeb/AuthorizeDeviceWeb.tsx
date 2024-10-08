@@ -33,6 +33,7 @@ import {
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import { processRedirectURI } from 'shared/utils/processRedirectUri';
 
 export const PassthroughPage = () => {
   const ctx = useTeleport();
@@ -41,7 +42,7 @@ export const PassthroughPage = () => {
     id: string;
     token: string;
   }>();
-  const redirect = new URLSearchParams(search).get('redirect_uri');
+  const redirect_uri = new URLSearchParams(search).get('redirect_uri');
 
   const { cluster, username } = ctx.storeUser.state;
   const deviceTrustAuthorize = makeDeepLinkWithSafeInput({
@@ -51,7 +52,7 @@ export const PassthroughPage = () => {
     searchParams: {
       id,
       token,
-      redirect,
+      redirect_uri,
     },
   });
   const platform = getPlatform();
@@ -74,6 +75,7 @@ export const PassthroughPage = () => {
 
   return (
     <DeviceTrustConnectPassthrough
+      redirectUri={redirect_uri}
       downloadLinks={downloadLinks}
       authorizeWebDeviceDeepLink={deviceTrustAuthorize}
     />
@@ -82,9 +84,11 @@ export const PassthroughPage = () => {
 
 export const DeviceTrustConnectPassthrough = ({
   authorizeWebDeviceDeepLink,
+  redirectUri,
   downloadLinks,
 }: {
   authorizeWebDeviceDeepLink: string;
+  redirectUri?: string;
   downloadLinks: Array<DownloadLink>;
 }) => {
   return (
@@ -127,7 +131,7 @@ export const DeviceTrustConnectPassthrough = ({
               css={`
                 text-decoration: none;
               `}
-              to={cfg.routes.root}
+              to={processRedirectURI(cfg.routes.root, redirectUri)}
             >
               continue without device trust{' '}
             </Link>

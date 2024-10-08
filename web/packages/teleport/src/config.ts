@@ -476,16 +476,19 @@ const cfg = {
   },
 
   getDeviceTrustAuthorizeRoute(id: string, token: string, redirect?: string) {
-    let path = generatePath(cfg.routes.deviceTrustAuthorize, {
+    const path = generatePath(cfg.routes.deviceTrustAuthorize, {
       id,
       token,
     });
 
+    const searchParams = new URLSearchParams();
+
     if (redirect) {
-      path = `${path}?redirect_uri=${redirect}`;
+      searchParams.append('redirect_uri', redirect);
     }
 
-    return path;
+    const searchString = searchParams.toString();
+    return searchString ? `${path}?${searchString}` : path;
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {

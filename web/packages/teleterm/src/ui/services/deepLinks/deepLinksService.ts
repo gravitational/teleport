@@ -17,6 +17,7 @@
  */
 
 import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
+import { processRedirectURI } from 'shared/utils/processRedirectUri';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -27,6 +28,7 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 
+const basePath = '/web';
 const confirmPath = 'webapi/devices/webconfirm';
 export class DeepLinksService {
   constructor(
@@ -103,7 +105,7 @@ export class DeepLinksService {
   private async askAuthorizeDeviceTrust(
     url: AuthenticateWebDeviceDeepURL
   ): Promise<void> {
-    const { id, token, redirect } = url.searchParams;
+    const { id, token, redirect_uri } = url.searchParams;
 
     const result = await this.loginAndSetActiveWorkspace(url);
     if (!result.isAtDesiredWorkspace) {
@@ -117,7 +119,8 @@ export class DeepLinksService {
       kind: 'device-trust-authorize',
       rootClusterUri,
       onCancel: () => {
-        window.open(`https://${rootCluster.proxyHost}/web`);
+        const processedRedirectURI = processRedirectURI(basePath, redirect_uri);
+        window.open(`https://${rootCluster.proxyHost}${processedRedirectURI}`);
       },
       onAuthorize: async () => {
         const result = await this.clustersService.authenticateWebDevice(
@@ -128,8 +131,8 @@ export class DeepLinksService {
           }
         );
         let url = `https://${rootCluster.proxyHost}/${confirmPath}?id=${result.response.confirmationToken.id}&token=${result.response.confirmationToken.token}`;
-        if (redirect) {
-          url = `${url}&redirect_uri=${redirect}`;
+        if (redirect_uri) {
+          url = `${url}&redirect_uri=${redirect_uri}`;
         }
         // open url to confirm the token. This endpoint verifies the token and "upgrades"
         // the web session and redirects to "/web"
