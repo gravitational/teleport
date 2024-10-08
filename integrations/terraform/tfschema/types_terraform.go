@@ -3052,6 +3052,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"force_authn": {
+					Description: "ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
 				"issuer": {
 					Computed:      true,
 					Description:   "Issuer is the identity provider issuer.",
@@ -3075,6 +3080,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 							Description: "EntityDescriptorUrl is a URL that supplies a configuration XML.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"force_authn": {
+							Description: "ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
 					}),
 					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
@@ -31015,7 +31025,41 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["force_authn"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.MFASettings.force_authn"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.force_authn", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											} else {
+												var t github_com_gravitational_teleport_api_types.SAMLForceAuthn
+												if !v.Null && !v.Unknown {
+													t = github_com_gravitational_teleport_api_types.SAMLForceAuthn(v.Value)
+												}
+												obj.ForceAuthn = t
+											}
+										}
+									}
 								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["force_authn"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.ForceAuthn"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.ForceAuthn", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+							} else {
+								var t github_com_gravitational_teleport_api_types.SAMLForceAuthn
+								if !v.Null && !v.Unknown {
+									t = github_com_gravitational_teleport_api_types.SAMLForceAuthn(v.Value)
+								}
+								obj.ForceAuthn = t
 							}
 						}
 					}
@@ -32118,10 +32162,54 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 											tf.Attrs["entity_descriptor_url"] = v
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["force_authn"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.MFASettings.force_authn"})
+										} else {
+											v, ok := tf.Attrs["force_authn"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.MFASettings.force_authn", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.force_authn", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+												}
+												v.Null = int64(obj.ForceAuthn) == 0
+											}
+											v.Value = int64(obj.ForceAuthn)
+											v.Unknown = false
+											tf.Attrs["force_authn"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["mfa"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["force_authn"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.ForceAuthn"})
+						} else {
+							v, ok := tf.Attrs["force_authn"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.ForceAuthn", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.ForceAuthn", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
+								v.Null = int64(obj.ForceAuthn) == 0
+							}
+							v.Value = int64(obj.ForceAuthn)
+							v.Unknown = false
+							tf.Attrs["force_authn"] = v
 						}
 					}
 				}
