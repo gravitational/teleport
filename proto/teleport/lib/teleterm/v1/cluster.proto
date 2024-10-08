@@ -73,6 +73,21 @@ enum ShowResources {
   SHOW_RESOURCES_ACCESSIBLE_ONLY = 2;
 }
 
+// RequestModeKubernetesResources is the Kubernetes resource identifier used
+// in access request mode settings.
+// Modeled after existing message KubernetesResource.
+message RequestModeKubernetesResource {
+  // Kind specifies the Kubernetes Resource type.
+  string kind = 1;
+}
+
+// AccessRequestMode describes request mode settings for applicable resources.
+message AccessRequestMode {
+  // KubernetesResources defines which Kubernetes subresources a user can
+  // request during request creation.
+  repeated RequestModeKubernetesResource kubernetes_resources = 1;
+}
+
 // LoggedInUser describes a logged-in user
 message LoggedInUser {
   // name is the user name
@@ -100,6 +115,8 @@ message LoggedInUser {
     USER_TYPE_SSO = 2;
   }
   UserType user_type = 8;
+  // RequestMode defines what resource kinds a user can request for applicable resources.
+  AccessRequestMode request_mode = 9;
 }
 
 // ACL is the access control list of the user

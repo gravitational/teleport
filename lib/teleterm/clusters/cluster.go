@@ -83,6 +83,8 @@ type ClusterWithDetails struct {
 	ProxyVersion string
 	// ShowResources tells if the cluster can show requestable resources on the resources page.
 	ShowResources constants.ShowResources
+	// RequestMode defines access request mode for specific resources.
+	RequestMode *api.AccessRequestMode
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -198,15 +200,27 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		Cluster:            c,
 		SuggestedReviewers: caps.SuggestedReviewers,
 		RequestableRoles:   caps.RequestableRoles,
-		Features:           authPingResponse.ServerFeatures,
-		AuthClusterID:      authClusterID,
-		ACL:                acl,
-		UserType:           user.GetUserType(),
-		ProxyVersion:       clusterPingResponse.ServerVersion,
-		ShowResources:      webConfig.UI.ShowResources,
+		RequestMode: &api.AccessRequestMode{
+			KubernetesResources: makeKubernetesRequestMode(caps.RequestMode.KubernetesResources),
+		},
+		Features:      authPingResponse.ServerFeatures,
+		AuthClusterID: authClusterID,
+		ACL:           acl,
+		UserType:      user.GetUserType(),
+		ProxyVersion:  clusterPingResponse.ServerVersion,
+		ShowResources: webConfig.UI.ShowResources,
 	}
 
 	return withDetails, nil
+}
+
+func makeKubernetesRequestMode(resources []types.RequestModeKubernetesResource) []*api.RequestModeKubernetesResource {
+	apiResources := make([]*api.RequestModeKubernetesResource, 0, len(resources))
+	for _, resource := range resources {
+		apiResources = append(apiResources, &api.RequestModeKubernetesResource{Kind: resource.Kind})
+	}
+
+	return apiResources
 }
 
 func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAccess {
