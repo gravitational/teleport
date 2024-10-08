@@ -110,12 +110,6 @@ const (
 	secondFactorTypeSSOString = "sso"
 )
 
-// ToString returns the user friendly string representation of the second factor type.
-func (s *SecondFactorType) ToString() string {
-	str, _ := s.encode()
-	return str
-}
-
 func (s *SecondFactorType) encode() (string, error) {
 	switch *s {
 	case SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED:
@@ -127,7 +121,7 @@ func (s *SecondFactorType) encode() (string, error) {
 	case SecondFactorType_SECOND_FACTOR_TYPE_SSO:
 		return secondFactorTypeSSOString, nil
 	default:
-		return "", trace.BadParameter("SecondFactorType invalid value %v", *s)
+		return "", trace.BadParameter("invalid SecondFactorType value %v", *s)
 	}
 }
 
@@ -144,7 +138,7 @@ func (s *SecondFactorType) decode(val any) error {
 		case "":
 			*s = SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED
 		default:
-			return trace.BadParameter("SecondFactorType invalid value %v", val)
+			return trace.BadParameter("invalid SecondFactorType value %v", val)
 		}
 	case int32:
 		return trace.Wrap(s.setFromEnum(v))
@@ -157,16 +151,16 @@ func (s *SecondFactorType) decode(val any) error {
 	case float32:
 		return trace.Wrap(s.setFromEnum(int32(v)))
 	default:
-		return trace.BadParameter("RequireMFAType invalid type %T", val)
+		return trace.BadParameter("invalid SecondFactorType type %T", val)
 	}
 	return nil
 }
 
 // setFromEnum sets the value from enum value as int32.
-func (r *SecondFactorType) setFromEnum(val int32) error {
+func (s *SecondFactorType) setFromEnum(val int32) error {
 	if _, ok := SecondFactorType_name[val]; !ok {
-		return trace.BadParameter("invalid SecondFactorType mode %v", val)
+		return trace.BadParameter("invalid SecondFactorType enum %v", val)
 	}
-	*r = SecondFactorType(val)
+	*s = SecondFactorType(val)
 	return nil
 }

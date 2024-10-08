@@ -332,7 +332,7 @@ func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
 
-	// Unset SecondFactors so it doesn't take priority over the second factor we are setting.
+	// Unset SecondFactors, only one can be set at a time.
 	c.Spec.SecondFactors = nil
 }
 
@@ -349,6 +349,9 @@ func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
 // SetSecondFactors sets the list of supported second factors.
 func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
 	c.Spec.SecondFactors = s
+
+	// Unset SecondFactor, only one can be set at a time.
+	c.Spec.SecondFactor = ""
 }
 
 // GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
