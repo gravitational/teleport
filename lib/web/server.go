@@ -98,6 +98,7 @@ func (s *Server) Serve(l net.Listener) error {
 	if closed {
 		return trace.Errorf("serve called on previously closed server")
 	}
+	go s.cfg.Handler.handler.startFeatureWatcher()
 	return trace.Wrap(s.cfg.Server.Serve(l))
 }
 
