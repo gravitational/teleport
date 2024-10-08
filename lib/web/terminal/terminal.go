@@ -175,7 +175,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 			switch envelope.Type {
 			case defaults.WebsocketClose:
 				return
-			case defaults.WebsocketWebauthnChallenge:
+			case defaults.MFAChallenge:
 				select {
 				case <-ctx.Done():
 					return
@@ -223,7 +223,7 @@ type MFACodec interface {
 // websocket in the correct format.
 func (t *WSStream) WriteChallenge(challenge *client.MFAAuthenticateChallenge, codec MFACodec) error {
 	// Send the challenge over the socket.
-	msg, err := codec.Encode(challenge, defaults.WebsocketWebauthnChallenge)
+	msg, err := codec.Encode(challenge, defaults.MFAChallenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func (t *WSStream) ReadChallengeResponse(codec MFACodec) (*authproto.MFAAuthenti
 	if !ok {
 		return nil, io.EOF
 	}
-	resp, err := codec.DecodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	resp, err := codec.DecodeResponse([]byte(envelope.Payload), defaults.MFAChallenge)
 	return resp, trace.Wrap(err)
 }
 
@@ -249,7 +249,7 @@ func (t *WSStream) ReadChallenge(codec MFACodec) (*authproto.MFAAuthenticateChal
 	if !ok {
 		return nil, io.EOF
 	}
-	challenge, err := codec.DecodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	challenge, err := codec.DecodeChallenge([]byte(envelope.Payload), defaults.MFAChallenge)
 	return challenge, trace.Wrap(err)
 }
 

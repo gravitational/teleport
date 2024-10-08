@@ -978,6 +978,10 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 		// they're used a lot in test code
 		return nil
 	}
+	if clientRedirect == "/web/sso_confirm" {
+		// If this is a SSO redirect in the WebUI, allow.
+		return nil
+	}
 	u, err := url.Parse(clientRedirect)
 	if err != nil {
 		return trace.Wrap(err, "parsing client redirect URL")

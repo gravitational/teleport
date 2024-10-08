@@ -709,7 +709,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	// Validate SecondFactor and SecondFactors.
-	if c.Spec.SecondFactor != "" && len(c.Spec.SecondFactors) == 0 {
+	if c.Spec.SecondFactor != "" && len(c.Spec.SecondFactors) > 0 {
 		return trace.BadParameter("must set either SecondFactor or SecondFactors, not both")
 	}
 
@@ -961,7 +961,6 @@ func (wal *WebauthnLocalAuth) Check() error {
 	}
 	return nil
 }
-
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
