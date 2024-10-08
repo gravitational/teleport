@@ -43,12 +43,12 @@ type BotInstanceService struct {
 }
 
 // NewBotInstanceService creates a new BotInstanceService with the given backend.
-func NewBotInstanceService(backend backend.Backend, clock clockwork.Clock) (*BotInstanceService, error) {
+func NewBotInstanceService(b backend.Backend, clock clockwork.Clock) (*BotInstanceService, error) {
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*machineidv1.BotInstance]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindBotInstance,
-			BackendPrefix: botInstancePrefix,
+			BackendPrefix: backend.NewKey(botInstancePrefix),
 			MarshalFunc:   services.MarshalBotInstance,
 			UnmarshalFunc: services.UnmarshalBotInstance,
 			ValidateFunc:  services.ValidateBotInstance,

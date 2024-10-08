@@ -93,7 +93,7 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !promptTOTP && !c.WebauthnSupported:
+	case !promptTOTP && promptWebauthn && !c.WebauthnSupported:
 		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.
