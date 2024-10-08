@@ -21,8 +21,8 @@ package backend
 import (
 	"context"
 	"regexp"
+	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -35,32 +35,38 @@ const errorMessage = "special characters are not allowed in resource names, plea
 // the path.
 var allowPattern = regexp.MustCompile(`^[0-9A-Za-z@_:.\-/+]*$`)
 
-// denyPattern matches some unallowed combinations
-var denyPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`//`),
-	regexp.MustCompile(`(^|/)\.\.?(/|$)`),
-}
-
 // IsKeySafe checks if the passed in key conforms to whitelist
-func IsKeySafe(s Key) bool {
-	return allowPattern.Match(s) && !denyPatternsMatch(s) && utf8.Valid(s)
-}
+func IsKeySafe(key Key) bool {
+	components := key.Components()
+	for i, k := range components {
+		switch k {
+		case string(noEnd):
+			continue
+		case ".", "..":
+			return false
+		case "":
+			return key.exactKey && i == len(components)-1
+		}
 
-// denyPatternsMatch checks if the passed in key conforms to the deny patterns.
-func denyPatternsMatch(s Key) bool {
-	for _, pattern := range denyPatterns {
-		if pattern.Match(s) {
-			return true
+		if strings.Contains(k, string(Separator)) {
+			return false
+		}
+
+		if !allowPattern.MatchString(k) {
+			return false
 		}
 	}
-
-	return false
+	return true
 }
 
 var _ Backend = (*Sanitizer)(nil)
 
-// Sanitizer wraps a Backend implementation to make sure all values requested
-// of the backend are whitelisted.
+// Sanitizer wraps a [Backend] implementation to make sure all
+// [Key]s written to the backend are allowed. Retrieval and deletion
+// of items do not perform any [Key] sanitization in order to allow
+// interacting with any items that might already exist in the
+// [Backend] prior to validation being performed on each
+// subcomponent of a [Key] instead of on the entire [Key].
 type Sanitizer struct {
 	backend Backend
 }
@@ -74,9 +80,6 @@ func NewSanitizer(backend Backend) *Sanitizer {
 
 // GetRange returns query range
 func (s *Sanitizer) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
-	if !IsKeySafe(startKey) {
-		return nil, trace.BadParameter(errorMessage, startKey)
-	}
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
 }
 
@@ -119,9 +122,6 @@ func (s *Sanitizer) ConditionalUpdate(ctx context.Context, i Item) (*Lease, erro
 
 // Get returns a single item or not found error
 func (s *Sanitizer) Get(ctx context.Context, key Key) (*Item, error) {
-	if !IsKeySafe(key) {
-		return nil, trace.BadParameter(errorMessage, key)
-	}
 	return s.backend.Get(ctx, key)
 }
 
@@ -137,28 +137,16 @@ func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWi
 
 // Delete deletes item by key
 func (s *Sanitizer) Delete(ctx context.Context, key Key) error {
-	if !IsKeySafe(key) {
-		return trace.BadParameter(errorMessage, key)
-	}
 	return s.backend.Delete(ctx, key)
 }
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.
 func (s *Sanitizer) ConditionalDelete(ctx context.Context, key Key, revision string) error {
-	if !IsKeySafe(key) {
-		return trace.BadParameter(errorMessage, key)
-	}
 	return s.backend.ConditionalDelete(ctx, key, revision)
 }
 
 // DeleteRange deletes range of items
 func (s *Sanitizer) DeleteRange(ctx context.Context, startKey, endKey Key) error {
-	// we only validate the start key, since we often compute the end key
-	// in order to delete a bunch of related entries
-	if !IsKeySafe(startKey) {
-		return trace.BadParameter(errorMessage, startKey)
-	}
-
 	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
 

@@ -18,9 +18,7 @@
 
 import React from 'react';
 import { render, screen, userEvent } from 'design/utils/testing';
-
 import { within } from '@testing-library/react';
-
 import { UserEvent } from '@testing-library/user-event';
 
 import { Role } from 'teleport/services/resources';

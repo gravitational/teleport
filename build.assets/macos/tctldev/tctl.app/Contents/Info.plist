@@ -41,7 +41,7 @@
 		<key>DTXcodeBuild</key>
 		<string>13C100</string>
 		<key>LSMinimumSystemVersion</key>
-		<string>10.15.0</string>
+		<string>11.0.0</string>
 		<key>NSHumanReadableCopyright</key>
 		<string/>
 		<key>NSMainStoryboardFile</key>

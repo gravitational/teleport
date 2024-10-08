@@ -17,15 +17,10 @@
  */
 
 import React, { useEffect, useState } from 'react';
-
 import { Alert, Box, Button, Flex, H3, Indicator, Link } from 'design';
-
 import { P } from 'design/Text/Text';
-
 import { useAsync } from 'shared/hooks/useAsync';
-
 import { Danger } from 'design/Alert';
-
 import { useTheme } from 'styled-components';
 
 import {
@@ -36,27 +31,19 @@ import {
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useTeleport from 'teleport/useTeleport';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-
 import { useServerSidePagination } from 'teleport/components/hooks';
-
 import { storageService } from 'teleport/services/storageService';
-
 import { RoleWithYaml, Role, RoleResource } from 'teleport/services/resources';
-
 import useResources, {
   State as ResourcesState,
 } from 'teleport/components/useResources';
-
 import { yamlService } from 'teleport/services/yaml';
-
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
 import { useRoles, State } from './useRoles';
-
 import { RoleEditor } from './RoleEditor';
-
 import templates from './templates';
 
 export function RolesContainer() {

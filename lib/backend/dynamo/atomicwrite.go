@@ -19,7 +19,6 @@
 package dynamo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"slices"
@@ -269,12 +268,12 @@ TxnLoop:
 		return revision, nil
 	}
 
-	var keys [][]byte
+	var keys []string
 	for _, ca := range condacts {
-		keys = append(keys, ca.Key)
+		keys = append(keys, ca.Key.String())
 	}
 
-	b.logger.ErrorContext(ctx, "AtomicWrite failed, dynamodb transaction experienced too many conflicts", "keys", bytes.Join(keys, []byte(",")))
+	b.logger.ErrorContext(ctx, "AtomicWrite failed, dynamodb transaction experienced too many conflicts", "keys", strings.Join(keys, ","))
 
 	return "", trace.Errorf("dynamodb transaction experienced too many conflicts")
 }

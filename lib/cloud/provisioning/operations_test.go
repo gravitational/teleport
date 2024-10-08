@@ -335,7 +335,7 @@ func TestWriteOperationPlan(t *testing.T) {
 				AutoConfirm: true,
 			},
 			want: strings.TrimLeft(`
-"op-name" will perform the following actions:
+"op-name" will perform the following action:
 
 <actionA summary>.
 actionA: <actionA details>

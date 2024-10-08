@@ -21,7 +21,6 @@ import { Box, ButtonIcon, Flex, H3, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-
 import * as Icon from 'design/Icon';
 import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
 import styled, { useTheme } from 'styled-components';
@@ -76,12 +75,12 @@ export const StandardEditor = ({
     roleModel.accessSpecs.every(as => as.kind !== k)
   );
 
-  const handleSave = (validator: Validator) => {
+  function handleSave(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
     onSave?.(roleEditorModelToRole(standardEditorModel.roleModel));
-  };
+  }
 
   function handleChange(modified: Partial<RoleEditorModel>) {
     const updatedResourceModel: RoleEditorModel = {
@@ -145,7 +144,7 @@ export const StandardEditor = ({
           )}
           <EditorWrapper
             mute={standardEditorModel.roleModel.requiresReset}
-            data-testid="standard"
+            data-testid="standard-editor"
           >
             <Flex flexDirection="column" gap={3} my={2}>
               <MetadataSection
@@ -233,9 +232,7 @@ const MetadataSection = ({
       value={value.name}
       disabled={isProcessing}
       rule={requiredField('Role name is required')}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-        onChange({ ...value, name: e.target.value })
-      }
+      onChange={e => onChange({ ...value, name: e.target.value })}
     />
     <FieldInput
       label="Description"
