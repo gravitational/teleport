@@ -98,6 +98,7 @@ be able to use the workload's SPIFFE ID to make authorization decisions in GCP.
 
 <Tabs>
 <TabItem label="Terraform">
+
 ```hcl
 data "google_project" "project" {}
 
@@ -120,6 +121,7 @@ resource "google_iam_workload_identity_pool_provider" "workload_identity_oidc" {
     }
 }
 ```
+
 </TabItem>
 <TabItem label="`gcloud`">
 Use the `gcloud` CLI to create a workload identity pool:
@@ -146,6 +148,7 @@ $ gcloud iam workload-identity-pools providers create-oidc workload-id-oidc \
     # This will allow it to be used to make Authz decisions in GCP.
     --attribute-mapping="google.subject=assertion.sub"
 ```
+
 </TabItem>
 
 </Tabs>
@@ -175,6 +178,7 @@ secret.
 
 <Tabs>
 <TabItem label="Terraform">
+
 ```hcl
 resource "google_storage_bucket" "demo" {
     // Replace with a meaningful, unique name.
@@ -198,6 +202,7 @@ resource "google_storage_bucket_iam_binding" "binding" {
     ]
 }
 ```
+
 </TabItem>
 <TabItem label="`gcloud`">
 
@@ -222,6 +227,7 @@ $ POOL_ID="workload-id-pool"
 $ SPIFFE_ID="spiffe://example.teleport.sh/svc/example-service"
 $ MEMBER="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/subject/${SPIFFE_ID}"
 $ gcloud storage buckets add-iam-policy-binding gs://example --member=$MEMBER --role=$ROLE
+```
 
 </TabItem>
 </Tabs>
