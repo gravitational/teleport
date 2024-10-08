@@ -208,8 +208,7 @@ To determine the numeric ID of a channel for the bot to notify, follow the instr
 </Tabs>
 
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
-value configures the Discord channel (or channels) to notify. The value can be a
-single string or an array of strings.
+value configures the Discord channel (or channels) to notify.
 
 The `role_to_recipients` map must also include an entry for `"*"`, which the
 plugin looks up if no other entry matches a given role name. In the example
@@ -222,6 +221,10 @@ by adding the following to your `role_to_recipients` config (replace
 
 <Tabs>
 <TabItem label="Executable or Docker">
+
+Here is an example of a `role_to_recipients` map. Each value can be a single
+string or an array of strings:
+
 ```toml
 [role_to_recipients]
 "*" = "YOUR-CHANNEL-ID"
@@ -229,10 +232,15 @@ by adding the following to your `role_to_recipients` config (replace
 ```
 </TabItem>
 <TabItem label="Helm Chart">
+
+In the Helm chart, the `role_to_recipients` field is called `roleToRecipients`
+and uses the following format, where keys are strings and values are arrays of
+strings:
+
 ```yaml
 roleToRecipients:
-  "*": "YOUR-CHANNEL-ID"
-  "editor": "YOUR-CHANNEL-ID"
+  "*": ["YOUR-CHANNEL-ID"]
+  "editor": ["YOUR-CHANNEL-ID"]
 ```
 </TabItem>
 </Tabs>
