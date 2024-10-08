@@ -18,12 +18,13 @@
 
 import React from 'react';
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
-import { OnboardCard } from 'design/Onboard/OnboardCard';
 import { Text } from 'design';
 
+import { WelcomeWrapper } from './WelcomeWrapper';
+import { OnboardCard } from './OnboardCard';
+
 export default {
-  title: 'Design/Onboard',
+  title: 'teleport/Onboard',
 };
 
 export const Wrapper = () => (

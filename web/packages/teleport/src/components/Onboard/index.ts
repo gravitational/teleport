@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,12 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { OnboardFooter } from 'design/Onboard/OnboardFooter';
-
-export default {
-  title: 'Design/Onboard',
-};
-
-export const Footer = () => <OnboardFooter />;
+export * from './WelcomeWrapper';
+export * from './OnboardCard';
+export * from './OnboardFooter';
