@@ -88,6 +88,24 @@ TF_VAR_use_tls_routing ?= false
 # Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc", or "saml"
 TF_VAR_teleport_auth_type ?= "local"
 
+# (optional) AWS tags applied to all resources.
+TF_VAR_default_tags ?= {}
+
+# (optional) Whether to trigger instance refresh rollout for Teleport Auth
+# servers when the launch template or configuration changes.
+# Enable this with caution - upgrading Teleport version will trigger an
+# instance refresh and auth servers must be scaled down to only one instance
+# before upgrading your Teleport cluster.
+TF_VAR_enable_auth_asg_instance_refresh ?= false
+
+# (optional) Whether to trigger instance refresh rollout for Teleport Proxy
+# servers when the launch template or configuration changes.
+TF_VAR_enable_proxy_asg_instance_refresh ?= false
+
+# (optional) Whether to trigger instance refresh rollout for Teleport Node
+# servers when the launch template or configuration changes.
+TF_VAR_enable_node_asg_instance_refresh ?= false
+
 export
 
 # Plan launches terraform plan
