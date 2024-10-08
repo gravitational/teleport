@@ -73,9 +73,9 @@ Workload Identity Federation for your Teleport cluster.
 
 ### Create a Workload Identity Pool and OIDC Provider
 
-First, you'll need to create a Workload Identity pool and an OIDC provider
-within this pool in GCP. A Workload Identity pool is an entity for managing
-how external identities are mapped to GCP identities.
+First, you'll need to create a workload identity pool and an OIDC provider
+within this pool in GCP. A workload identity pool is an entity for managing
+how external workload identities are represented within GCP.
 
 The provider configures how the external identities should authenticate to the
 pool. Since Teleport Workload Identity issues OIDC compatible JWT-SVIDs, you'll
@@ -88,7 +88,8 @@ sense to name it after your Teleport cluster. In this example, it will be called
 
 When configuring the provider, you need to specify the issuer URI. This will be
 the public address of your Teleport Proxy Service with the path
-`/workload-identity` appended.
+`/workload-identity` appended. Your Teleport Proxy Service must be accessible
+by GCP in order for OIDC federation to work.
 
 You'll also specify an "attribute mapping". This determines how GCP will map the
 identity within the JWT to a principal in GCP. Since we're using SVIDs, we'll
@@ -373,6 +374,8 @@ $ export GOOGLE_APPLICATION_CREDENTIALS=gcp-workload-identity.json
 The official GCP documentation for Workload Identity Federation.
 - [Workload Identity Overview](./introduction.mdx): Overview of Teleport
 Workload Identity.
+- [JWT SVID Overview](./jwt-svids.mdx): Overview of the JWT SVIDs issued by
+Teleport Workload Identity.
 - [Best Practices](./best-practices.mdx): Best practices for using Workload
 Identity in Production.
 - Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
