@@ -125,7 +125,7 @@ func TestMFA(t *testing.T) {
 	c := NewConn(&fakeConn{Buffer: &buff})
 
 	mfaWant := &MFA{
-		Type: defaults.WebsocketWebauthnChallenge[0],
+		Type: defaults.MFAChallenge[0],
 		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
 			WebauthnChallenge: &wantypes.CredentialAssertion{
 				Response: wantypes.PublicKeyCredentialRequestOptions{
@@ -159,7 +159,7 @@ func TestMFA(t *testing.T) {
 	require.Equal(t, mfaWant, mfaGot)
 
 	respWant := &MFA{
-		Type: defaults.WebsocketWebauthnChallenge[0],
+		Type: defaults.MFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: &wanpb.CredentialAssertionResponse{

@@ -30,6 +30,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -175,6 +176,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			AllowReuse:                  allowReuse,
 			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
+		SSOClientRedirectURL: sso.WebMFARedirect,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -192,6 +194,7 @@ func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWrit
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY,
 		},
+		SSOClientRedirectURL: sso.WebMFARedirect,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -483,6 +486,9 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *clien
 	}
 	if protoChal.GetWebauthnChallenge() != nil {
 		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+	if protoChal.GetSSOChallenge() != nil {
+		chal.SSOChallenge = protoChal.GetSSOChallenge()
 	}
 	return chal
 }

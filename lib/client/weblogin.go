@@ -111,6 +111,8 @@ type MFAChallengeResponse struct {
 	TOTPCode string `json:"totp_code,omitempty"`
 	// WebauthnResponse is a response from a webauthn device.
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+	// SSOResponse is a response from an SSO MFA flow.
+	SSOResponse *proto.SSOResponse `json:"sso_response,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
@@ -457,6 +459,8 @@ type MFAAuthenticateChallenge struct {
 	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
+	// SSOChallenge is an SSO MFA challenge.
+	SSOChallenge *proto.SSOChallenge `json:"sso_challenge"`
 }
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
