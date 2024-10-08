@@ -18,15 +18,13 @@
 
 package cli
 
-import "github.com/alecthomas/kingpin/v2"
-
 type KubeCredentialsCommand struct {
 	*genericExecutorHandler[KubeCredentialsCommand]
 
 	DestinationDir string
 }
 
-func NewKubeCredentialsCommand(parentCmd *kingpin.CmdClause, action func(*KubeCredentialsCommand) error) *KubeCredentialsCommand {
+func NewKubeCredentialsCommand(parentCmd KingpinClause, action func(*KubeCredentialsCommand) error) *KubeCredentialsCommand {
 	cmd := parentCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
 
 	c := &KubeCredentialsCommand{}

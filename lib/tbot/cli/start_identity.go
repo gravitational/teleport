@@ -22,13 +22,14 @@ import (
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
-// CommandStartIdentity implements `tbot start identity` and
+// IdentityCommand implements `tbot start identity` and
 // `tbot configure identity`.
-type CommandStartIdentity struct {
+type IdentityCommand struct {
 	*sharedStartArgs
 	*genericMutatorHandler
 
@@ -36,10 +37,10 @@ type CommandStartIdentity struct {
 	Cluster     string
 }
 
-func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *CommandStartIdentity {
+func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *IdentityCommand {
 	cmd := parentCmd.Command("identity", "Start with an identity output for SSH and Teleport API access").Alias("ssh").Alias("id")
 
-	c := &CommandStartIdentity{}
+	c := &IdentityCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
@@ -51,7 +52,7 @@ func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Com
 	return c
 }
 
-func (c *CommandStartIdentity) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+func (c *IdentityCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	if err := c.sharedStartArgs.ApplyConfig(cfg, l); err != nil {
 		return trace.Wrap(err)
 	}

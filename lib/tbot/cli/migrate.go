@@ -18,10 +18,6 @@
 
 package cli
 
-import (
-	"github.com/alecthomas/kingpin/v2"
-)
-
 // MigrateCommand contains fields parsed for `tbot migrate`
 type MigrateCommand struct {
 	*genericExecutorHandler[MigrateCommand]
@@ -32,7 +28,7 @@ type MigrateCommand struct {
 }
 
 // NewMigrateCommand initializes the `tbot migrate` command and its flags.
-func NewMigrateCommand(app *kingpin.Application, action func(*MigrateCommand) error) *MigrateCommand {
+func NewMigrateCommand(app KingpinClause, action func(*MigrateCommand) error) *MigrateCommand {
 	cmd := app.Command("migrate", "Migrates a config file from an older version to the newest version. Outputs to stdout by default.")
 
 	c := &MigrateCommand{}

@@ -22,6 +22,7 @@ import (
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
+
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 )

@@ -18,8 +18,6 @@
 
 package cli
 
-import "github.com/alecthomas/kingpin/v2"
-
 // SSHMultiplerProxyCommand includes fields for `tbot ssh-multiplexer-proxy-command`
 type SSHMultiplerProxyCommand struct {
 	*genericExecutorHandler[SSHMultiplerProxyCommand]
@@ -29,7 +27,7 @@ type SSHMultiplerProxyCommand struct {
 }
 
 // NewSSHMultiplexerProxyCommand initializes and parses args for `tbot ssh-multiplexer-proxy-command`
-func NewSSHMultiplexerProxyCommand(app *kingpin.Application, action func(*SSHMultiplerProxyCommand) error) *SSHMultiplerProxyCommand {
+func NewSSHMultiplexerProxyCommand(app KingpinClause, action func(*SSHMultiplerProxyCommand) error) *SSHMultiplerProxyCommand {
 	cmd := app.Command(
 		"ssh-multiplexer-proxy-command",
 		"An OpenSSH compatible ProxyCommand which connects to a long-lived tbot running the ssh-multiplexer service",

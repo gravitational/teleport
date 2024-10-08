@@ -27,15 +27,79 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/trace"
 )
+
+// AuthProxyArgs is an embeddable struct that can add --auth-server and
+// --proxy-server to arbitrary commands for reuse.
+type AuthProxyArgs struct {
+	// AuthServer is a Teleport auth server address. It may either point
+	// directly to an auth server, or to a Teleport proxy server in which case
+	// a tunneled auth connection will be established.
+	// Prefer using Address() to pick an address.
+	AuthServer string
+
+	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
+	// explicitly point to a Teleport proxy.
+	// Example: "example.teleport.sh:443"
+	ProxyServer string
+}
+
+// NewStaticAuthServer returns an AuthProxyArgs with the given AuthServer field
+// configured. Used in tests.
+func NewStaticAuthServer(authServer string) *AuthProxyArgs {
+	return &AuthProxyArgs{
+		AuthServer: authServer,
+	}
+}
+
+func newAuthProxyArgs(cmd *kingpin.CmdClause) *AuthProxyArgs {
+	args := &AuthProxyArgs{}
+
+	cmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(AuthServerEnvVar).StringVar(&args.AuthServer)
+	cmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(ProxyServerEnvVar).StringVar(&args.ProxyServer)
+
+	return args
+}
+
+func (a *AuthProxyArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+	if a.AuthServer != "" {
+		if cfg.AuthServer != "" {
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding configuration",
+				"flag", "auth-server",
+				"config_value", cfg.AuthServer,
+				"cli_value", a.AuthServer,
+			)
+		}
+		cfg.AuthServer = a.AuthServer
+	}
+
+	if a.ProxyServer != "" {
+		if cfg.ProxyServer != "" {
+			l.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding configuration",
+				"flag", "proxy-server",
+				"config_value", cfg.ProxyServer,
+				"cli_value", a.ProxyServer,
+			)
+		}
+		cfg.ProxyServer = a.ProxyServer
+	}
+
+	return nil
+}
 
 // sharedStartArgs are arguments that are shared between all modern `start` and
 // `configure` subcommands.
 type sharedStartArgs struct {
-	ProxyServer     string
+	*AuthProxyArgs
+
 	JoinMethod      string
 	Token           string
 	CAPins          []string
@@ -56,7 +120,6 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 		strings.Join(config.SupportedJoinMethods, ", "),
 	)
 
-	cmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(ProxyServerEnvVar).StringVar(&args.ProxyServer)
 	cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&args.Token)
 	cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&args.CAPins)
 	cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&args.CertificateTTL)
@@ -72,21 +135,14 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	// Note: Debug, FIPS, and Insecure are included from globals.
 
-	if s.Oneshot {
-		cfg.Oneshot = true
+	if s.AuthProxyArgs != nil {
+		if err := s.AuthProxyArgs.ApplyConfig(cfg, l); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	if s.ProxyServer != "" {
-		if cfg.ProxyServer != "" {
-			l.WarnContext(
-				context.TODO(),
-				"CLI parameters are overriding configuration",
-				"flag", "proxy-server",
-				"config_value", cfg.ProxyServer,
-				"cli_value", s.ProxyServer,
-			)
-		}
-		cfg.ProxyServer = s.ProxyServer
+	if s.Oneshot {
+		cfg.Oneshot = true
 	}
 
 	if s.CertificateTTL != 0 {

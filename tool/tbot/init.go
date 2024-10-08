@@ -422,7 +422,7 @@ func getAndTestACLOptions(initCmd *cli.InitCommand, destDir string) (*user.User,
 }
 
 func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
-	botConfig, err := cli.LoadConfigWithMutators(globals)
+	botConfig, err := cli.LoadConfigWithMutators(globals, init)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -431,6 +431,7 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 	defer cancel()
 
 	initables := botConfig.GetInitables()
+	log.Warn("initables", "initables", initables)
 	var target config.Initable
 	// First, resolve the correct output/service. If using a config file with
 	// only 1 destination we can assume we want to init that one; otherwise,

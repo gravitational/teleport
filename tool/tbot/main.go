@@ -73,18 +73,19 @@ func Run(args []string, stdout io.Writer) error {
 	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.HelpFlag.Short('h')
 
+	// Construct the top-level subcommands.
 	versionCmd := app.Command("version", "Print the version of your tbot binary.")
 
 	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
+
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&configureOutPath)
 
-	// TODO: configureOutPath may have new arg positioning semantics. Verify any change and consider promoting to global
-	// if necessary.
 	// TODO: consider discarding config flag for non-legacy. These should always be self contained.
 
+	// Initialize all new-style commands.
 	var commands []cli.CommandRunner
 	commands = append(commands,
 		cli.NewInitCommand(app, func(init *cli.InitCommand) error {
@@ -117,32 +118,34 @@ func Run(args []string, stdout io.Writer) error {
 
 		// `start` and `configure` commands
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
 		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
 		cli.NewDatabaseCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
 		cli.NewKubernetesCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
 		cli.NewApplicationCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
 		cli.NewApplicationTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
 		cli.NewSPIFFEX509SVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewSPIFFEX509SVIDCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+		cli.NewSPIFFEX509SVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 	)
 
 	// TODO: workload id / spiffe service subcommand?
 
+	// Initialize legacy-style commands. These are simple enough to not really
+	// benefit from conversion to a new-style command.
 	spiffeInspectPath := ""
 	spiffeInspectCmd := app.Command("spiffe-inspect", "Inspects a SPIFFE Workload API endpoint to ensure it is working correctly.")
 	spiffeInspectCmd.Flag("path", "The path to the SPIFFE Workload API endpoint to test.").Required().StringVar(&spiffeInspectPath)
@@ -278,14 +281,14 @@ func buildConfigAndStart(ctx context.Context, globals *cli.GlobalArgs) cli.Mutat
 
 // buildConfigAndConfigure returns a MutatorAction that will generate a config
 // and run `onConfigure` with the result.
-func buildConfigAndConfigure(ctx context.Context, outPath string, stdout io.Writer) cli.MutatorAction {
+func buildConfigAndConfigure(ctx context.Context, globals *cli.GlobalArgs, outPath *string, stdout io.Writer) cli.MutatorAction {
 	return func(mutator cli.ConfigMutator) error {
-		cfg, err := cli.BaseConfigWithMutator(mutator)
+		cfg, err := cli.BaseConfigWithMutators(globals, mutator)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(onConfigure(ctx, cfg, outPath, stdout))
+		return trace.Wrap(onConfigure(ctx, cfg, *outPath, stdout))
 	}
 }
 

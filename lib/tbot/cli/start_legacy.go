@@ -27,16 +27,69 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
-// CommandStartLegacy starts with legacy behavior. This handles flags somewhat
+// LegacyDestinationDirArgs is an embeddable struct that provides legacy-style
+// --destination-dir handling, largely for reuse by `start legacy` and other
+// older subcommands like `init`.
+type LegacyDestinationDirArgs struct {
+	// DestinationDir stores the generated end-user certificates.
+	DestinationDir string
+}
+
+// newLegacyDestinationDirArgs initializes the legacy --destination-dir flag on
+// the given command, and returns a struct that will contain the parse result.
+func newLegacyDestinationDirArgs(cmd *kingpin.CmdClause) *LegacyDestinationDirArgs {
+	args := &LegacyDestinationDirArgs{}
+
+	cmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&args.DestinationDir)
+
+	return args
+}
+
+func (a *LegacyDestinationDirArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+	if a.DestinationDir != "" {
+		// WARNING:
+		// See: https://github.com/gravitational/teleport/issues/27206 for
+		// potential gotchas that currently exist when dealing with this
+		// override behavior.
+
+		// CLI only supports a single filesystem Destination with SSH client config
+		// and all roles.
+		if len(cfg.Services) > 0 {
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding output services",
+				"flag", "destination-dir",
+				"cli_value", a.DestinationDir,
+			)
+		}
+
+		// When using the CLI --destination-dir we configure an Identity type
+		// output for that directory.
+		cfg.Services = []config.ServiceConfig{
+			&config.IdentityOutput{
+				Destination: &config.DestinationDirectory{
+					Path: a.DestinationDir,
+				},
+			},
+		}
+	}
+
+	return nil
+}
+
+// LegacyCommand starts with legacy behavior. This handles flags somewhat
 // differently and maintains support for certain deprecated flags, so does not
 // use `sharedStartArgs`.
-type CommandStartLegacy struct {
+type LegacyCommand struct {
+	*AuthProxyArgs
+	*LegacyDestinationDirArgs
+
 	// cmd is the concrete command for this instance
 	cmd *kingpin.CmdClause
 
@@ -47,17 +100,8 @@ type CommandStartLegacy struct {
 	// By default, this is `text`.
 	LogFormat string
 
-	// AuthServer is a Teleport auth server address. It may either point
-	// directly to an auth server, or to a Teleport proxy server in which case
-	// a tunneled auth connection will be established.
-	// Prefer using Address() to pick an address.
-	AuthServer string
-
 	// DataDir stores the bot's internal data.
 	DataDir string
-
-	// DestinationDir stores the generated end-user certificates.
-	DestinationDir string
 
 	// Destination is a destination URI
 	Destination string
@@ -84,51 +128,38 @@ type CommandStartLegacy struct {
 	// Oneshot controls whether the bot quits after a single renewal.
 	Oneshot bool
 
-	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
-	// explicitly point to a Teleport proxy.
-	// Example: "example.teleport.sh:443"
-	ProxyServer string
-
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
-
-	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
-	Insecure bool
 }
 
 // NewLegacyCommand initializes and returns a command supporting
 // `tbot start legacy` and `tbot configure legacy`.
-func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *CommandStartLegacy {
+func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *LegacyCommand {
 	joinMethodList := fmt.Sprintf(
 		"(%s)",
 		strings.Join(config.SupportedJoinMethods, ", "),
 	)
 
-	c := &CommandStartLegacy{
+	c := &LegacyCommand{
 		action: action,
 		cmd:    parentCmd.Command("legacy", "Start with either a config file or a legacy output").Default(),
 	}
-	c.cmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(AuthServerEnvVar).StringVar(&c.AuthServer)
+	c.AuthProxyArgs = newAuthProxyArgs(c.cmd)
+
 	c.cmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&c.DataDir)
-	c.cmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&c.DestinationDir)
-	c.cmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(ProxyServerEnvVar).StringVar(&c.ProxyServer)
 	c.cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&c.Token)
 	c.cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&c.CAPins)
 	c.cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&c.CertificateTTL)
 	c.cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&c.RenewalInterval)
-	c.cmd.Flag("insecure", "Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.").BoolVar(&c.Insecure)
 	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, config.SupportedJoinMethods...)
 	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&c.Oneshot)
 	c.cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&c.DiagAddr)
-	c.cmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(utils.LogFormatText).
-		EnumVar(&c.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
 	return c
 }
 
-func (c *CommandStartLegacy) TryRun(cmd string) (match bool, err error) {
+func (c *LegacyCommand) TryRun(cmd string) (match bool, err error) {
 	switch cmd {
 	case c.cmd.FullCommand():
 		err = c.action(c)
@@ -139,40 +170,23 @@ func (c *CommandStartLegacy) TryRun(cmd string) (match bool, err error) {
 	return true, trace.Wrap(err)
 }
 
-func (c *CommandStartLegacy) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
-	// TODO: Weird flags that need to be addressed:
-	// - Debug
-	// - FIPS
-	// - Insecure
+func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+	// Note: Debug, FIPS, and Insecure are included from globals
+
+	if c.AuthProxyArgs != nil {
+		if err := c.AuthProxyArgs.ApplyConfig(cfg, l); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if c.LegacyDestinationDirArgs != nil {
+		if err := c.LegacyDestinationDirArgs.ApplyConfig(cfg, l); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	if c.Oneshot {
 		cfg.Oneshot = true
-	}
-
-	if c.AuthServer != "" {
-		if cfg.AuthServer != "" {
-			log.WarnContext(
-				context.TODO(),
-				"CLI parameters are overriding configuration",
-				"flag", "auth-server",
-				"config_value", cfg.AuthServer,
-				"cli_value", c.AuthServer,
-			)
-		}
-		cfg.AuthServer = c.AuthServer
-	}
-
-	if c.ProxyServer != "" {
-		if cfg.ProxyServer != "" {
-			log.WarnContext(
-				context.TODO(),
-				"CLI parameters are overriding configuration",
-				"flag", "proxy-server",
-				"config_value", cfg.ProxyServer,
-				"cli_value", c.ProxyServer,
-			)
-		}
-		cfg.ProxyServer = c.ProxyServer
 	}
 
 	if c.CertificateTTL != 0 {
@@ -243,11 +257,6 @@ func (c *CommandStartLegacy) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) 
 		cfg.Onboarding.SetToken(c.Token)
 	}
 
-	// TODO:
-	// if c.FIPS {
-	// 	cfg.FIPS = c.FIPS
-	// }
-
 	if c.DiagAddr != "" {
 		if cfg.DiagAddr != "" {
 			log.WarnContext(
@@ -259,12 +268,6 @@ func (c *CommandStartLegacy) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) 
 			)
 		}
 		cfg.DiagAddr = c.DiagAddr
-	}
-
-	// TODO: This is now set _before_ CheckAndSetDefaults() which causes a mild
-	// change in behavior. Verify this is tolerable.
-	if c.Insecure {
-		cfg.Insecure = true
 	}
 
 	return nil

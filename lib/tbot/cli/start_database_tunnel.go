@@ -22,8 +22,9 @@ import (
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // DatabaseTunnelCommand implements `tbot start database-tunnel` and
@@ -40,7 +41,7 @@ type DatabaseTunnelCommand struct {
 
 // NewDatabaseTunnelCommand creates a command supporting `tbot start database-tunnel`
 func NewDatabaseTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *DatabaseTunnelCommand {
-	cmd := parentCmd.Command("database", "Start a database tunnel listener").Alias("db-tunnel")
+	cmd := parentCmd.Command("database-tunnel", "Start a database tunnel listener").Alias("db-tunnel")
 
 	c := &DatabaseTunnelCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)

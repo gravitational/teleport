@@ -23,10 +23,11 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -126,6 +127,10 @@ func (e *genericExecutorHandler[T]) TryRun(cmd string) (match bool, err error) {
 
 func applyMutators(l *slog.Logger, cfg *config.BotConfig, mutators ...ConfigMutator) error {
 	for _, mutator := range mutators {
+		if mutator == nil {
+			continue
+		}
+
 		if err := mutator.ApplyConfig(cfg, l); err != nil {
 			return trace.Wrap(err)
 		}
@@ -172,12 +177,12 @@ func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*co
 	return cfg, nil
 }
 
-// BaseConfigWithMutator returns a base bot config with a given CLI mutator
+// BaseConfigWithMutators returns a base bot config with the given CLI mutators
 // applied. `CheckAndSetDefaults()` will be called on the result. This is useful
 // for explicitly _not_ loading a config file, like in `tbot configure ...`
-func BaseConfigWithMutator(mutator ConfigMutator) (*config.BotConfig, error) {
+func BaseConfigWithMutators(mutators ...ConfigMutator) (*config.BotConfig, error) {
 	cfg := &config.BotConfig{}
-	if err := mutator.ApplyConfig(cfg, log); err != nil {
+	if err := applyMutators(log, cfg, mutators...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -210,4 +215,11 @@ func RemainingArgs(s kingpin.Settings) (target *[]string) {
 	target = new([]string)
 	s.SetValue((*RemainingArgsList)(target))
 	return
+}
+
+// KingpinClause allows commands and flags to mount to either the root app
+// (kingpin.Application) or a subcommand (kingpin.CmdClause)
+type KingpinClause interface {
+	Command(name string, help string) *kingpin.CmdClause
+	Flag(name string, help string) *kingpin.FlagClause
 }

@@ -18,8 +18,6 @@
 
 package cli
 
-import "github.com/alecthomas/kingpin/v2"
-
 // DBCommand contains fields for `tbot db`
 type DBCommand struct {
 	*genericExecutorHandler[DBCommand]
@@ -37,7 +35,7 @@ type DBCommand struct {
 }
 
 // NewDBCommand initializes flags for `tbot db`
-func NewDBCommand(app *kingpin.Application, action func(*DBCommand) error) *DBCommand {
+func NewDBCommand(app KingpinClause, action func(*DBCommand) error) *DBCommand {
 	cmd := app.Command("db", "Execute database commands through tsh.")
 
 	c := &DBCommand{}

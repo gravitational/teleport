@@ -22,8 +22,9 @@ import (
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // SPIFFEX509SVIDCommand implements `tbot start spiffe-x509-svid` and

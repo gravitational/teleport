@@ -22,8 +22,9 @@ import (
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // ApplicationCommand implements `tbot start application` and
@@ -46,7 +47,7 @@ func NewApplicationCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *
 
 	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("app", "The name of the app in Teleport").Required().StringVar(&c.AppName)
-	cmd.Flag("specific-tls-extensions", "If set, include additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions").Required().BoolVar(&c.SpecificTLSExtensions)
+	cmd.Flag("specific-tls-extensions", "If set, include additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions").BoolVar(&c.SpecificTLSExtensions)
 
 	// Note: CLI will not support roles; all will be requested.
 

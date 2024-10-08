@@ -22,8 +22,9 @@ import (
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // ApplicationTunnelCommand implements `tbot start application-tunnel` and

@@ -19,30 +19,36 @@
 package cli
 
 import (
-	"github.com/alecthomas/kingpin/v2"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // InitCommand implements a command for `tbot init`
 type InitCommand struct {
+	*AuthProxyArgs
+	*LegacyDestinationDirArgs
 	*genericExecutorHandler[InitCommand]
 
-	DestinationDir string
-	Owner          string
-	BotUser        string
-	ReaderUser     string
-	InitDir        string
-	Clean          bool
+	Owner      string
+	BotUser    string
+	ReaderUser string
+	InitDir    string
+	Clean      bool
 }
 
 // NewInitCommand constructs an InitCommand at the top level of the given
 // application. It will execute `action` when selected by the user.
-func NewInitCommand(app *kingpin.Application, action func(*InitCommand) error) *InitCommand {
+func NewInitCommand(app KingpinClause, action func(*InitCommand) error) *InitCommand {
 	cmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 
 	c := &InitCommand{}
+	c.AuthProxyArgs = newAuthProxyArgs(cmd)
+	c.LegacyDestinationDirArgs = newLegacyDestinationDirArgs(cmd)
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-	cmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&c.DestinationDir)
 	cmd.Flag("owner", "Defines Linux \"user:group\" owner of \"--destination-dir\". Defaults to the Linux user running tbot if unspecified.").StringVar(&c.Owner)
 	cmd.Flag("bot-user", "Enables POSIX ACLs and defines Linux user that can read/write short-lived certificates to \"--destination-dir\".").StringVar(&c.BotUser)
 	cmd.Flag("reader-user", "Enables POSIX ACLs and defines Linux user that will read short-lived certificates from \"--destination-dir\".").StringVar(&c.ReaderUser)
@@ -50,4 +56,20 @@ func NewInitCommand(app *kingpin.Application, action func(*InitCommand) error) *
 	cmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&c.Clean)
 
 	return c
+}
+
+func (c *InitCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+	if c.AuthProxyArgs != nil {
+		if err := c.AuthProxyArgs.ApplyConfig(cfg, l); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if c.LegacyDestinationDirArgs != nil {
+		if err := c.LegacyDestinationDirArgs.ApplyConfig(cfg, l); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
