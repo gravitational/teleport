@@ -289,6 +289,16 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 
 	kid := libjwt.KeyID(jwtSigner.Public().(*rsa.PublicKey))
 
+	// Upsert a fake proxy to ensure we have a public address to use for the
+	// issuer.
+	proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"teleport.example.com"},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().UpsertProxy(ctx, proxy)
+	require.NoError(t, err)
+	wantIssuer := "https://teleport.example.com/workload-identity"
+
 	tests := []struct {
 		name           string
 		user           string
@@ -336,6 +346,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 				require.Equal(t, wantSPIFFEID, claims.Subject)
 				require.Equal(t, svid.Jti, claims.ID)
 				require.Equal(t, "example.com", claims.Audience[0])
+				require.Equal(t, wantIssuer, claims.Issuer)
 				require.WithinDuration(t, time.Now().Add(30*time.Minute), claims.Expiry.Time(), 5*time.Second)
 				require.WithinDuration(t, time.Now(), claims.IssuedAt.Time(), 5*time.Second)
 			},
