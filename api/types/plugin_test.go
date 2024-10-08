@@ -1038,12 +1038,6 @@ func TestPluginAWSICSettings(t *testing.T) {
 				Arn:             "arn:aws:sso:::instance/ssoins-1234567890",
 				ProvisioningSpec: &AWSICProvisioningSpec{
 					BaseUrl: "https://example.com/scim/v2",
-					BearerTokenRef: &PluginStaticCredentialsRef{
-						Labels: map[string]string{
-							"plugin-id":    "some-guid",
-							"cred-purpose": "aws-ic-scim",
-						},
-					},
 				},
 			},
 		}

@@ -728,12 +728,6 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 		return trace.BadParameter("base URL data must be set")
 	}
 
-	if c.BearerTokenRef == nil {
-		return trace.BadParameter("bearer token ref must be set")
-	}
-
-	// TODO(tcsc): work out how validate predicate expressions
-
 	return nil
 }
 

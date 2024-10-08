@@ -6449,35 +6449,11 @@ message AWSICProvisioningSpec {
   // BaseURL is the SCIM base URL
   string base_url = 1;
 
-  // IncludeUsers is a list of predicate expressions used to identify users to
-  // provision into the downstream Identity Center. An empty list implies
-  // "provision all users".
-  repeated string include_users = 2;
-
-  // ExcludeUsers is a list of predicate expressions used to identify users that
-  // must not be provisioned into the downstream Identity Center. ExcludeUsers
-  // overrides IncludeUsers
-  //
-  // An empty list implies "provision all users" (i.e. "exclude no-one")
-  repeated string exclude_users = 3;
-
-  // IncludeAccessLists is a list of predicate expressions used to identify
-  // Access Lists to provision as Groups in the downstream IdP. An empty list
-  // implies "provision all Access Lists".
-  repeated string include_access_lists = 4;
-
-  // ExcludeAccessLists is a list of predicate expressions used to identify
-  // AccessLists that must *not* be provisioned into the downstream Identity
-  // Center. ExcludeAccessLists overrides IncludeAccessLists
-  //
-  // An empty list implies "provision all access lists" (i.e. "exclude no-one")
-  repeated string exclude_access_lists = 5;
-
-  // BearerTokenRef holds a reference to bearer token used to authenticate with
-  // AWS when provisioning users and groups via SCIM. The actual credential can
-  // be looked up in a PluginStaticCredentuials service using the data from
-  // this reference.
-  PluginStaticCredentialsRef bearer_token_ref = 6;
+  // BearerToken is used to authenticate with AWS when provisioning users and
+  // groups via SCIM. This is expected to be empty in serialized records, as the
+  // actual credential is stored separetely ain a PluginStaticCredentials
+  // service, and populated at runtime as necessary.
+  string bearer_token = 2;
 }
 
 message PluginBootstrapCredentialsV1 {
