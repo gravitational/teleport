@@ -53,8 +53,8 @@ func NewSPIFFEX509SVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction
 	cmd.Flag("include-federated-trust-bundles", "If set, include federated trust bundles in the output").BoolVar(&c.IncludeFederatedTrustBundles)
 	cmd.Flag("svid-path", "A SPIFFE ID to request, prefixed with '/'").Required().StringVar(&c.SVIDPath)
 	cmd.Flag("svid-hint", "An optional hint for consumers of the SVID to aid in identification").StringVar(&c.SVIDHint)
-	cmd.Flag("request-dns-san", "A DNS name that should be included in the SVID. Repeatable.").StringsVar(&c.DNSSANs)
-	cmd.Flag("request-ip-san", "An IP address that should be included in the SVID. Repeatable.").StringsVar(&c.IPSANs)
+	cmd.Flag("dns-san", "A DNS name that should be included in the SVID. Repeatable.").StringsVar(&c.DNSSANs)
+	cmd.Flag("ip-san", "An IP address that should be included in the SVID. Repeatable.").StringsVar(&c.IPSANs)
 
 	return c
 }

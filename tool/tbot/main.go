@@ -142,8 +142,6 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewSPIFFEX509SVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 	)
 
-	// TODO: workload id / spiffe service subcommand?
-
 	// Initialize legacy-style commands. These are simple enough to not really
 	// benefit from conversion to a new-style command.
 	spiffeInspectPath := ""

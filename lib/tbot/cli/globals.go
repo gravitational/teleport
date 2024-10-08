@@ -102,10 +102,6 @@ func (g *GlobalArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 		cfg.Debug = g.Debug
 	}
 
-	// TODO: in previous versions, `insecure` is handled _after_
-	// BotConfig.CheckAndSetDefaults(). This flag is checked and setting it here
-	// *will* cause a behavioral change, so make sure the new behavior is sane.
-	// (It is unclear why this was done.)
 	if g.Insecure {
 		cfg.Insecure = true
 	}
