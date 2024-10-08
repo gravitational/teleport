@@ -279,6 +279,8 @@ type IntegrationConfAccessGraphAWSSync struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAzureOIDC contains the arguments of
@@ -312,6 +314,8 @@ type IntegrationConfDeployServiceIAM struct {
 	TaskRole string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEICEIAM contains the arguments of
@@ -323,6 +327,8 @@ type IntegrationConfEICEIAM struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAWSAppAccessIAM contains the arguments of
@@ -332,6 +338,8 @@ type IntegrationConfAWSAppAccessIAM struct {
 	RoleName string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEC2SSMIAM contains the arguments of
@@ -356,6 +364,8 @@ type IntegrationConfEC2SSMIAM struct {
 	IntegrationName string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -367,6 +377,8 @@ type IntegrationConfEKSIAM struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAWSOIDCIdP contains the arguments of
@@ -383,6 +395,9 @@ type IntegrationConfAWSOIDCIdP struct {
 	ProxyPublicURL string
 	// AutoConfirm skips user confirmation of the operation plan if true.
 	AutoConfirm bool
+	// PolicyPreset is the name of a pre-defined policy statement which will be
+	// assigned to the AWS Role associate with the OIDC integration.
+	PolicyPreset string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -394,6 +409,8 @@ type IntegrationConfListDatabasesIAM struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)

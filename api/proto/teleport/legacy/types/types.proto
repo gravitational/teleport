@@ -4764,6 +4764,9 @@ message SAMLConnectorSpecV2 {
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
   // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   SAMLConnectorMFASettings MFASettings = 17 [(gogoproto.jsontag) = "mfa,omitempty"];
+  // ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
+  // is treated as NO.
+  SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -4775,6 +4778,21 @@ message SAMLConnectorMFASettings {
   string entity_descriptor = 2;
   // EntityDescriptorUrl is a URL that supplies a configuration XML.
   string entity_descriptor_url = 3;
+  // ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is
+  // treated as YES to always re-authentication for MFA checks. This should only be set to NO if the
+  // IdP is setup to perform MFA checks on top of active user sessions.
+  SAMLForceAuthn force_authn = 4;
+}
+
+// SAMLForceAuthn specified whether existing SAML sessions should be accepted or re-authentication
+// should be forced.
+enum SAMLForceAuthn {
+  // UNSPECIFIED is treated as the default value for the context; NO for login, YES for MFA checks.
+  FORCE_AUTHN_UNSPECIFIED = 0;
+  // YES re-authentication should be forced for existing SAML sessions..
+  FORCE_AUTHN_YES = 1;
+  // NO re-authentication should not be forced for existing SAML sessions.
+  FORCE_AUTHN_NO = 2;
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
