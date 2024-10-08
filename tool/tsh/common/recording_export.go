@@ -91,7 +91,8 @@ func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, 
 	var width, height int32
 	currentFilename := makeAVIFileName(prefix, fileCount)
 
-	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
+	// TODO(gabrielcorado): Define a recording format for this.
+	evts, errs := ss.StreamSessionEvents(ctx, sid, 0, "" /* format */)
 	fastPathReceived := false
 loop:
 	for {

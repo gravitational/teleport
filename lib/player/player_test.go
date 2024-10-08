@@ -328,7 +328,7 @@ type simpleStreamer struct {
 	delay int64 // milliseconds
 }
 
-func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64, _ string) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	evts := make(chan apievents.AuditEvent)
 
@@ -366,7 +366,7 @@ type databaseStreamer struct {
 	idx      int64
 }
 
-func (d *databaseStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+func (d *databaseStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64, _ string) (chan apievents.AuditEvent, chan error) {
 	errors := make(chan error, 1)
 	evts := make(chan apievents.AuditEvent)
 

@@ -608,7 +608,7 @@ func streamSession(
 	sessionID string,
 ) (string, []apievents.AuditEvent) {
 	t.Helper()
-	evtCh, errCh := streamer.StreamSessionEvents(ctx, session.ID(sessionID), 0)
+	evtCh, errCh := streamer.StreamSessionEvents(ctx, session.ID(sessionID), 0, "" /* format */)
 	capturedStream := &bytes.Buffer{}
 	evts := make([]apievents.AuditEvent, 0)
 readLoop:
@@ -1220,7 +1220,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				ctx, cancel := context.WithCancel(ctx)
 				defer cancel()
-				eventsCh, errCh := authSrv.StreamSessionEvents(ctx, session.ID(sessionID), 0)
+				eventsCh, errCh := authSrv.StreamSessionEvents(ctx, session.ID(sessionID), 0, "" /* format */)
 				for {
 					select {
 					case err := <-errCh:
@@ -4970,7 +4970,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
-	eventsCh, errCh := site.StreamSessionEvents(ctx, session.ID(tracker.GetSessionID()), 0)
+	eventsCh, errCh := site.StreamSessionEvents(ctx, session.ID(tracker.GetSessionID()), 0, "" /* format */)
 	err = nil
 readLoop:
 	for {
@@ -7394,7 +7394,7 @@ outer:
 		time.Sleep(time.Second * 5)
 
 		receivedSession := make([]apievents.AuditEvent, 0)
-		sessionPlayback, e := api.StreamSessionEvents(ctx, sessionID, 0)
+		sessionPlayback, e := api.StreamSessionEvents(ctx, sessionID, 0, "" /* format */)
 
 	inner:
 		for {
