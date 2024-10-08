@@ -95,7 +95,7 @@ func (p *PluginDataService) getPluginData(ctx context.Context, filter types.Plug
 	}
 	var matches []types.PluginData
 	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue

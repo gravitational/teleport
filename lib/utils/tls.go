@@ -190,3 +190,10 @@ func DefaultCipherSuites() []uint16 {
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 	}
 }
+
+// RefreshTLSConfigTickets should be called right before cloning a [tls.Config]
+// for a one-off use to not break TLS session resumption, as a workaround for
+// https://github.com/golang/go/issues/60506 .
+func RefreshTLSConfigTickets(c *tls.Config) {
+	_, _ = c.DecryptTicket(nil, tls.ConnectionState{})
+}
