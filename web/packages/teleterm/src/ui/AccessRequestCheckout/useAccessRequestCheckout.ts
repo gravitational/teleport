@@ -20,6 +20,7 @@ import { useState, useEffect } from 'react';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { Option } from 'shared/components/Select';
 
 import {
   getDryRunMaxDuration,
@@ -28,12 +29,20 @@ import {
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
+import {
+  excludeKubeClusterWithNamespaces,
+  KubeNamespaceRequest,
+  requiresKubeResourceSelection,
+} from 'shared/components/AccessRequests/NewRequest/kube';
+import { PendingKubeResourceItem } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/RequestCheckout';
+import { KubeResourceKind } from 'teleport/services/kube';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   PendingAccessRequest,
   extractResourceRequestProperties,
   ResourceRequest,
+  toResourceRequest,
 } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import {
@@ -54,6 +63,13 @@ export default function useAccessRequestCheckout() {
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
+
+  const loggedInUser =
+    ctx.clustersService.findCluster(rootClusterUri)?.loggedInUser;
+  const allowedKubeSubresourceKinds =
+    loggedInUser?.requestMode?.kubernetesResources?.map(
+      r => r.kind as KubeResourceKind
+    ) || [];
 
   const {
     selectedReviewers,
@@ -120,7 +136,7 @@ export default function useAccessRequestCheckout() {
               name: d.id,
               kind: d.kind,
               clusterName: d.clusterName,
-              subResourceName: '',
+              subResourceName: d.subResourceName || '',
             })),
         });
         setResourceRequestRoles(response.applicableRoles);
@@ -171,7 +187,7 @@ export default function useAccessRequestCheckout() {
         pendingRequest.resources.forEach(resourceRequest => {
           const { kind, id, name } =
             extractResourceRequestProperties(resourceRequest);
-          data.push({
+          const item: PendingListItemWithOriginalItem = {
             kind,
             id,
             name,
@@ -179,7 +195,12 @@ export default function useAccessRequestCheckout() {
             clusterName: ctx.clustersService.findClusterByResource(
               resourceRequest.resource.uri
             )?.name,
-          });
+          };
+
+          if (kind === 'namespace') {
+            item.subResourceName = name;
+          }
+          data.push(item);
         });
       }
     }
@@ -204,6 +225,58 @@ export default function useAccessRequestCheckout() {
     await workspaceAccessRequest.addOrRemoveResource(
       pendingListItem.originalItem
     );
+
+    if (pendingListItem.kind === 'kube_cluster') {
+      deleteKubeClustersNamespaces({
+        kubeClusterUri: pendingListItem.originalItem.resource.uri,
+        kubeClusterId: pendingListItem.id,
+      });
+    }
+  }
+
+  async function deleteKubeClustersNamespaces({
+    kubeClusterUri,
+    kubeClusterId,
+  }: {
+    kubeClusterUri: string;
+    kubeClusterId: string;
+  }) {
+    const pending = workspaceAccessRequest.getPendingAccessRequest();
+    if (pending.kind === 'role') return;
+    const hasInsertedItem = pending.resources.has(kubeClusterUri);
+
+    if (!hasInsertedItem) {
+      const namespacesToDelete: ResourceRequest[] = [];
+      pending.resources.forEach(value => {
+        if (value.kind === 'namespace') {
+          const { kubeId } = routing.parseKubeResourceNamespaceUri(
+            value.resource.uri
+          ).params;
+          if (kubeId === kubeClusterId) {
+            namespacesToDelete.push(value);
+          }
+        }
+      });
+      if (namespacesToDelete.length) {
+        await workspaceAccessRequest.addOrRemoveResources(namespacesToDelete);
+      }
+    }
+  }
+
+  async function bulkToggleKubeResources(
+    items: PendingKubeResourceItem[],
+    kubeCluster: PendingListKubeClusterWithOriginalItem
+  ) {
+    await workspaceAccessRequest.addOrRemoveResources(
+      items.map(item => {
+        return toResourceRequest({
+          kind: item.kind,
+          resourceId: item.id,
+          resourceName: item.subResourceName,
+          clusterUri: kubeCluster.originalItem.resource.uri,
+        });
+      })
+    );
   }
 
   function getAssumedRequests() {
@@ -222,6 +295,7 @@ export default function useAccessRequestCheckout() {
    */
   function prepareAndCreateRequest(req: CreateRequest) {
     const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
+
     const params: CreateAccessRequestRequest = {
       rootClusterUri,
       reason: req.reason,
@@ -229,17 +303,44 @@ export default function useAccessRequestCheckout() {
       dryRun: req.dryRun,
       resourceIds: data
         .filter(d => d.kind !== 'role')
-        .map(d => ({
-          name: d.id,
-          clusterName: d.clusterName,
-          kind: d.kind,
-          subResourceName: '',
-        })),
+        .filter(d => excludeKubeClusterWithNamespaces(d, data))
+        // Skip dry running with kube_cluster that requires
+        // subresource selection. Otherwise the user will see
+        // an error saying they can't make kube_cluster requests.
+        .filter(
+          d =>
+            !requiresKubeResourceSelection({
+              dryRun: req.dryRun,
+              kind: d.kind,
+              requestMode: allowedKubeSubresourceKinds,
+            })
+        )
+        .map(d => {
+          if (d.kind === 'namespace') {
+            return {
+              name: d.id,
+              kind: d.kind,
+              clusterName: d.clusterName,
+              subResourceName: d.subResourceName,
+            };
+          }
+          return {
+            name: d.id,
+            clusterName: d.clusterName,
+            kind: d.kind,
+            subResourceName: '',
+          };
+        }),
       roles: data.filter(d => d.kind === 'role').map(d => d.name),
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
       requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
     };
+
+    // Don't attempt creating anything if there are no resources selected.
+    if (!params.resourceIds.length && !params.roles.length) {
+      return;
+    }
 
     // if we have a resource access request, we pass along the selected roles from the checkout
     if (params.resourceIds.length > 0) {
@@ -250,7 +351,12 @@ export default function useAccessRequestCheckout() {
 
     return retryWithRelogin(ctx, clusterUri, () =>
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
-        return { accessRequest: response.request, requestedCount: data.length };
+        return {
+          accessRequest: response.request,
+          requestedCount: data.filter(d =>
+            excludeKubeClusterWithNamespaces(d, data)
+          ).length,
+        };
       })
     ).catch(e => {
       setCreateRequestAttempt({ status: 'failed', statusText: e.message });
@@ -326,6 +432,30 @@ export default function useAccessRequestCheckout() {
     }
   }
 
+  async function fetchKubeNamespaces({
+    kubeCluster,
+    search,
+  }: KubeNamespaceRequest): Promise<Option[]> {
+    const { response } = await ctx.tshd.listKubernetesResources({
+      searchKeywords: search,
+      limit: 50,
+      useSearchAsRoles: true,
+      nextKey: '',
+      resourceType: 'namespace',
+      clusterUri,
+      predicateExpression: '',
+      kubernetesCluster: kubeCluster,
+      kubernetesNamespace: '',
+    });
+    return response.resources.map(i => {
+      return {
+        kind: 'namespace',
+        value: i.name,
+        label: i.name,
+      };
+    });
+  }
+
   const shouldShowClusterNameColumn =
     pendingAccessRequest?.kind === 'resource' &&
     Array.from(pendingAccessRequest.resources.values()).some(a =>
@@ -365,6 +495,9 @@ export default function useAccessRequestCheckout() {
     pendingRequestTtlOptions,
     startTime,
     onStartTimeChange,
+    fetchKubeNamespaces,
+    bulkToggleKubeResources,
+    allowedKubeSubresourceKinds,
   };
 }
 
@@ -378,3 +511,8 @@ type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
         kind: 'role';
       }
   );
+
+type PendingListKubeClusterWithOriginalItem = Omit<PendingListItem, 'kind'> & {
+  kind: Extract<ResourceKind, 'kube_cluster'>;
+  originalItem: ResourceRequest;
+};
