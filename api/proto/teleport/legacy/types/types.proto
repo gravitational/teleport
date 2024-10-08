@@ -6088,7 +6088,7 @@ message PluginSpecV1 {
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
     // Settings for the Microsoft Teams plugin
-    PluginMSTeamsSettings msTeams = 15;
+    PluginMSTeamsSettings msteams = 15;
   }
 
   // generation contains a unique ID that should:

@@ -249,15 +249,15 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	spec, ok := plugin.Spec.Settings.(*types.PluginSpecV1_MsTeams)
+	spec, ok := plugin.Spec.Settings.(*types.PluginSpecV1_Msteams)
 	if !ok {
 		return nil, trace.BadParameter("plugin specified was not of type MsTeams")
 	}
 
 	msteams.ConfigureAppZip(targetDir, "app.zip", msteams.Payload{
-		AppID:      spec.MsTeams.AppId,
-		TenantID:   spec.MsTeams.TenantId,
-		TeamsAppID: spec.MsTeams.TeamsAppId,
+		AppID:      spec.Msteams.AppId,
+		TenantID:   spec.Msteams.TenantId,
+		TeamsAppID: spec.Msteams.TeamsAppId,
 	})
 
 	fileBytes, err := os.ReadFile(path.Join(targetDir, "app.zip"))
