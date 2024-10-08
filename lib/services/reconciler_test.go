@@ -41,6 +41,7 @@ func TestReconciler(t *testing.T) {
 		onCreateCalls       []testResource
 		onUpdateCalls       []updateCall
 		onDeleteCalls       []testResource
+		comparator          func(testResource, testResource) int
 	}{
 		{
 			description: "new matching resource should be registered",
@@ -141,6 +142,51 @@ func TestReconciler(t *testing.T) {
 				makeDynamicResource("res1", map[string]string{"env": "prod"}),
 				makeDynamicResource("res4", map[string]string{"env": "prod"}),
 			},
+		}, {
+			description: "custom comparison function",
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"env": []string{"prod"}},
+			}},
+			registeredResources: []testResource{
+				makeDynamicResource("res0", map[string]string{"env": "prod"}),
+				makeDynamicResource("res1", map[string]string{"env": "prod"}),
+				makeDynamicResource("res2", map[string]string{"env": "prod"}),
+				makeDynamicResource("res3", map[string]string{"env": "prod"}),
+				makeDynamicResource("res4", map[string]string{"env": "prod"}),
+			},
+			newResources: []testResource{
+				makeDynamicResource("res0", map[string]string{"env": "prod", "updated": "yes"}),
+				makeDynamicResource("res1", map[string]string{"env": "prod", "updated": "no"}),
+				makeDynamicResource("res2", map[string]string{"env": "prod", "updated": "no"}),
+				makeDynamicResource("res3", map[string]string{"env": "prod", "updated": "yes"}),
+				makeDynamicResource("res4", map[string]string{"env": "prod", "updated": "yes"}),
+			},
+			comparator: func(a, b testResource) int {
+				updated, ok := a.Metadata.Labels["updated"]
+				if !ok {
+					updated, ok = b.Metadata.Labels["updated"]
+					if !ok {
+						panic(`neither resource has "updated" label`)
+					}
+				}
+
+				if updated == "yes" {
+					return Different
+				}
+				return Equal
+			},
+			onUpdateCalls: []updateCall{
+				{
+					new: makeDynamicResource("res0", map[string]string{"env": "prod", "updated": "yes"}),
+					old: makeDynamicResource("res0", map[string]string{"env": "prod"}),
+				}, {
+					new: makeDynamicResource("res3", map[string]string{"env": "prod", "updated": "yes"}),
+					old: makeDynamicResource("res3", map[string]string{"env": "prod"}),
+				}, {
+					new: makeDynamicResource("res4", map[string]string{"env": "prod", "updated": "yes"}),
+					old: makeDynamicResource("res4", map[string]string{"env": "prod"}),
+				},
+			},
 		},
 	}
 
@@ -164,6 +210,7 @@ func TestReconciler(t *testing.T) {
 						return t.Metadata.Name
 					})
 				},
+				CompareResources: test.comparator,
 				OnCreate: func(ctx context.Context, tr testResource) error {
 					onCreateCalls = append(onCreateCalls, tr)
 					return nil
@@ -182,9 +229,9 @@ func TestReconciler(t *testing.T) {
 			// Reconcile and make sure we got all expected callback calls.
 			err = reconciler.Reconcile(context.Background())
 			require.NoError(t, err)
-			require.Equal(t, test.onCreateCalls, onCreateCalls)
-			require.Equal(t, test.onUpdateCalls, onUpdateCalls)
-			require.Equal(t, test.onDeleteCalls, onDeleteCalls)
+			require.ElementsMatch(t, test.onCreateCalls, onCreateCalls)
+			require.ElementsMatch(t, test.onUpdateCalls, onUpdateCalls)
+			require.ElementsMatch(t, test.onDeleteCalls, onDeleteCalls)
 		})
 	}
 }
