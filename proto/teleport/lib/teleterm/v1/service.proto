@@ -317,10 +317,10 @@ message ListKubernetesResourcesRequest {
   string resource_type = 2;
   // Limit is the maximum amount of resources to retrieve.
   int32 limit = 3;
-  // StartKey is used to start listing resources from a specific spot. It
+  // NextKey is used to start listing resources from a specific spot. It
   // should be set to the previous NextKey value if using pagination, or
   // left empty.
-  string start_key = 4;
+  string next_key = 4;
   // PredicateExpression defines boolean conditions that will be matched against the resource.
   string predicate_expression = 5;
   // SearchKeywords is a string containing search keywords to match against resource field values.
@@ -336,8 +336,8 @@ message ListKubernetesResourcesRequest {
 }
 
 message ListKubernetesResourcesResponse {
-  repeated KubeResource items = 1;
-  string start_key = 2;
+  repeated KubeResource resources = 1;
+  string next_key = 2;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.

@@ -822,18 +822,18 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 		return nil, trace.Wrap(err)
 	}
 
-	proxyGRPCClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var resources *kubeproto.ListKubernetesResourcesResponse
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		resources, err = proxyGRPCClient.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
+		kubenetesServiceClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		resources, err = kubenetesServiceClient.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
 			ResourceType:        req.GetResourceType(),
 			Limit:               req.GetLimit(),
-			StartKey:            req.GetStartKey(),
+			StartKey:            req.GetNextKey(),
 			PredicateExpression: req.GetPredicateExpression(),
 			SearchKeywords:      client.ParseSearchKeywords(req.GetSearchKeywords(), ' '),
 			UseSearchAsRoles:    req.GetUseSearchAsRoles(),
@@ -841,11 +841,7 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 			KubernetesNamespace: req.GetKubernetesNamespace(),
 			TeleportCluster:     cluster.Name,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return trace.Wrap(err)
 	})
 
 	return resources, trace.Wrap(err)

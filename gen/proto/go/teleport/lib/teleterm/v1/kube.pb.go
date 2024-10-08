@@ -120,10 +120,8 @@ type KubeResource struct {
 	// eg: the kube cluster that a namespace belongs to
 	Cluster string `protobuf:"bytes,5,opt,name=cluster,proto3" json:"cluster,omitempty"`
 	// namespace is the kube namespace where the resource is located
-	// note:
-	//
-	//	this field will be blank if this resource "kind" is "namespace",
-	//	refer to field "name" for the name of namespace
+	// note: this field will be blank if this resource "kind" is "namespace",
+	// refer to field "name" for the name of namespace
 	Namespace string `protobuf:"bytes,6,opt,name=namespace,proto3" json:"namespace,omitempty"`
 }
 

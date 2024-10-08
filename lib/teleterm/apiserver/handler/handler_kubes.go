@@ -28,7 +28,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination
@@ -63,11 +63,11 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 	}
 
 	response := &api.ListKubernetesResourcesResponse{
-		StartKey: resp.NextKey,
+		NextKey: resp.NextKey,
 	}
 
 	for _, kubeResource := range resp.Resources {
-		response.Items = append(response.Items, newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI))
+		response.Resources = append(response.Resources, newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI))
 	}
 
 	return response, nil
@@ -99,7 +99,7 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 }
 
 func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string, resourceURI uri.ResourceURI) *api.KubeResource {
-	uiLabels := ui.MakeUILabelsWithoutInternalPrefixes(resource.GetStaticLabels())
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels())
 	apiLabels := APILabels{}
 	for _, uiLabel := range uiLabels {
 		apiLabels = append(apiLabels, &api.Label{
@@ -109,7 +109,7 @@ func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string
 	}
 
 	return &api.KubeResource{
-		Uri:       resourceURI.AppendKubeResource(resource.GetKind(), kubeCluster, resource.GetName()).String(),
+		Uri:       resourceURI.AppendKube(kubeCluster).AppendKubeResourceNamespace(resource.GetName()).String(),
 		Kind:      resource.GetKind(),
 		Name:      resource.GetName(),
 		Labels:    apiLabels,

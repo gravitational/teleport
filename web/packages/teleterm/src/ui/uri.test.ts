@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { KubeResourceParam, Params, routing } from './uri';
+import { Params, routing } from './uri';
 
 describe('getServerUri', () => {
   const tests: Array<
@@ -65,37 +65,33 @@ describe('getServerUri', () => {
   /* eslint-enable jest/no-conditional-expect */
 });
 
-describe('getKubeResourceUri', () => {
-  const tests: Array<
-    { name: string; input: KubeResourceParam } & { output: string }
-  > = [
+describe('getKubeResourceNamespaceUri', () => {
+  const tests: Array<{ name: string; input: Params } & { output: string }> = [
     {
-      name: 'returns a kube resource URI for a root cluster',
+      name: 'returns a kube resource namespace URI for a root cluster',
       input: {
         rootClusterId: 'foo',
         kubeId: 'kubeClusterName',
-        kubeResourceId: 'kubeResourceName',
-        kubeResourceKind: 'namespace',
+        kubeNamespaceId: 'namespace',
       },
-      output: '/clusters/foo/namespace/kubeClusterName/kubeResourceName',
+      output: '/clusters/foo/kubes/kubeClusterName/namespaces/namespace',
     },
     {
-      name: 'returns a kube resource URI for a leaf cluster',
+      name: 'returns a kube resource namespace URI for a leaf cluster',
       input: {
         rootClusterId: 'foo',
         leafClusterId: 'bar',
         kubeId: 'kubeClusterName',
-        kubeResourceId: 'kubeResourceName',
-        kubeResourceKind: 'namespace',
+        kubeNamespaceId: 'namespace',
       },
       output:
-        '/clusters/foo/leaves/bar/namespace/kubeClusterName/kubeResourceName',
+        '/clusters/foo/leaves/bar/kubes/kubeClusterName/namespaces/namespace',
     },
   ];
 
   /* eslint-disable jest/no-conditional-expect */
   test.each(tests)('$name', ({ input, output }) => {
-    expect(routing.getKubeResourceUri(input)).toEqual(output);
+    expect(routing.getKubeResourceNamespaceUri(input)).toEqual(output);
   });
   /* eslint-enable jest/no-conditional-expect */
 });
