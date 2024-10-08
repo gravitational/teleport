@@ -599,6 +599,8 @@ release-ng-amd64-fips:
 	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
 release-ng-arm64:
 	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes
+release-ng-arm64-fips:
+	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
 release-ng-386:
 	$(MAKE) release-ng ARCH=386
 release-ng-arm:
