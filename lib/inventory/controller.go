@@ -102,6 +102,8 @@ const (
 	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
 	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
 
+	timeReconciliationOk testEvent = "time-reconciliation-ok"
+
 	instanceCompareFailed testEvent = "instance-compare-failed"
 
 	handlerStart = "handler-start"
@@ -530,6 +532,7 @@ func (c *Controller) timeReconciliation(handle *upstreamHandle, now time.Time) e
 			tracker.pingResponse = pong
 			tracker.mu.Unlock()
 		}
+		c.testEvent(timeReconciliationOk)
 	}()
 
 	return nil

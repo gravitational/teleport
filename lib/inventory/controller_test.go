@@ -1422,8 +1422,6 @@ func TestTimeReconciliation(t *testing.T) {
 	const wantAddr = "1.2.3.4:123"
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	events := make(chan testEvent, 1024)
 	auth := &fakeAuth{
 		expectAddr: wantAddr,
@@ -1434,16 +1432,20 @@ func TestTimeReconciliation(t *testing.T) {
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withInstanceHBInterval(time.Millisecond*200),
-		withTimeReconciliationInterval(time.Millisecond*100),
+		withTimeReconciliationInterval(time.Millisecond*300),
 		withTestEventsChannel(events),
 		WithClock(clock),
 	)
-	t.Cleanup(func() {
-		require.NoError(t, controller.Close())
-	})
 
 	// Set up fake in-memory control stream.
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	t.Cleanup(func() {
+		require.NoError(t, downstream.Close())
+		require.NoError(t, upstream.Close())
+		require.NoError(t, controller.Close())
+		cancel()
+	})
 
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
@@ -1456,13 +1458,11 @@ func TestTimeReconciliation(t *testing.T) {
 		for {
 			select {
 			case msg := <-downstream.Recv():
-				switch m := msg.(type) {
-				case proto.DownstreamInventoryPing:
-					downstream.Send(ctx, proto.UpstreamInventoryPong{
-						ID:          m.ID,
-						SystemClock: clock.Now().Add(-time.Minute).UTC(),
-					})
-				}
+				downstream.Send(ctx, proto.UpstreamInventoryPong{
+					ID:          msg.(proto.DownstreamInventoryPing).ID,
+					SystemClock: clock.Now().Add(-time.Minute).UTC(),
+				})
+				return
 			case <-downstream.Done():
 			case <-ctx.Done():
 			}
@@ -1472,16 +1472,16 @@ func TestTimeReconciliation(t *testing.T) {
 	_, ok := controller.GetControlStream(serverID)
 	require.True(t, ok)
 
-	// Verify that instance heartbeat succeeds at least 2 times to propagate the system clock.
 	awaitEvents(t, events,
-		expect(instanceHeartbeatOk),
-		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+		expect(timeReconciliationOk),
 	)
 	awaitEvents(t, events,
 		expect(instanceHeartbeatOk),
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
 	)
+	auth.mu.Lock()
 	m := auth.lastInstance.GetLastMeasurement()
+	auth.mu.Unlock()
 	require.InDelta(t, time.Minute, m.ControllerSystemClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
 }
 
