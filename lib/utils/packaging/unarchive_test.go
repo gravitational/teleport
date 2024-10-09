@@ -116,14 +116,9 @@ func TestPackaging(t *testing.T) {
 	})
 }
 
-// TestDirCleanUp verifies that helper for the cleanup removes directories
-func TestDirCleanup(t *testing.T) {
-	testDir, err := os.MkdirTemp(os.TempDir(), "test")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(testDir))
-	})
-
+// TestRemoveWithSuffix verifies that helper for the cleanup removes directories
+func TestRemoveWithSuffix(t *testing.T) {
+	testDir := t.TempDir()
 	dirForRemove := "test-extract-pkg"
 
 	// Creates directories `test/test-extract-pkg/test-extract-pkg` with exact names
@@ -137,7 +132,7 @@ func TestDirCleanup(t *testing.T) {
 	dirInSkipPath := filepath.Join(skipPath, dirForRemove)
 	require.NoError(t, os.MkdirAll(skipPath, 0o755))
 
-	err = RemoveWithSuffix(testDir, dirForRemove, skipName)
+	err := RemoveWithSuffix(testDir, dirForRemove, skipName)
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(testDir, dirForRemove))

@@ -34,27 +34,27 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CompressDirToZipFile compresses a directory into `.zip` format,
+// CompressDirToZipFile compresses a source directory into `.zip` format and stores at `archivePath`,
 // preserving the relative file path structure of the source directory.
-func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err error) {
-	archive, err := os.Create(destPath)
+func CompressDirToZipFile(ctx context.Context, sourceDir, archivePath string) (err error) {
+	archive, err := os.Create(archivePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
 		if closeErr := archive.Close(); closeErr != nil {
-			err = trace.Wrap(closeErr)
+			err = trace.NewAggregate(err, closeErr)
 			return
 		}
 		if err != nil {
-			if err := os.Remove(destPath); err != nil {
+			if err := os.Remove(archivePath); err != nil {
 				slog.ErrorContext(ctx, "failed to remove archive", "error", err)
 			}
 		}
 	}()
 
 	zipWriter := zip.NewWriter(archive)
-	err = filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -66,7 +66,7 @@ func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err
 			return trace.Wrap(err)
 		}
 		defer file.Close()
-		relPath, err := filepath.Rel(sourcePath, path)
+		relPath, err := filepath.Rel(sourceDir, path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -89,27 +89,27 @@ func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err
 	return
 }
 
-// CompressDirToTarGzFile compresses a directory into .tar.gz format,
+// CompressDirToTarGzFile compresses a source directory into .tar.gz format and stores at `archivePath`,
 // preserving the relative file path structure of the source directory.
-func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (err error) {
-	archive, err := os.Create(destPath)
+func CompressDirToTarGzFile(ctx context.Context, sourceDir, archivePath string) (err error) {
+	archive, err := os.Create(archivePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
 		if closeErr := archive.Close(); closeErr != nil {
-			err = trace.Wrap(closeErr)
+			err = trace.NewAggregate(err, closeErr)
 			return
 		}
 		if err != nil {
-			if err := os.Remove(destPath); err != nil {
+			if err := os.Remove(archivePath); err != nil {
 				slog.ErrorContext(ctx, "failed to remove archive", "error", err)
 			}
 		}
 	}()
 	gzipWriter := gzip.NewWriter(archive)
 	tarWriter := tar.NewWriter(gzipWriter)
-	err = filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -125,7 +125,7 @@ func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (e
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		header.Name, err = filepath.Rel(sourcePath, path)
+		header.Name, err = filepath.Rel(sourceDir, path)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -150,18 +150,19 @@ func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (e
 	return
 }
 
-// CompressDirToPkgFile runs for the macOS `pkgbuild` command to generate a .pkg file from the source.
-func CompressDirToPkgFile(ctx context.Context, sourcePath, destPath, identifier string) error {
+// CompressDirToPkgFile runs for the macOS `pkgbuild` command to generate a .pkg
+// archive file from the source directory.
+func CompressDirToPkgFile(ctx context.Context, sourceDir, archivePath, identifier string) error {
 	if runtime.GOOS != "darwin" {
 		return trace.BadParameter("only darwin platform is supported for pkg file")
 	}
 	cmd := exec.CommandContext(
 		ctx,
 		"pkgbuild",
-		"--root", sourcePath,
+		"--root", sourceDir,
 		"--identifier", identifier,
 		"--version", teleport.Version,
-		destPath,
+		archivePath,
 	)
 
 	return trace.Wrap(cmd.Run())
