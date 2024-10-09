@@ -244,7 +244,9 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Cli
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI certificateSigner) error {
-	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), cryptosuites.UserSSH)
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
+		cryptosuites.UserSSH)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -502,7 +504,9 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	principals := strings.Split(a.genHost, ",")
 
 	// Generate an SSH key.
-	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), cryptosuites.HostSSH)
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
+		cryptosuites.HostSSH)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -853,16 +857,6 @@ client_encryption_options:
 `))
 )
 
-func getCurrentSuiteFromPing(clusterAPI certificateSigner) cryptosuites.GetSuiteFunc {
-	return func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
-		pr, err := clusterAPI.Ping(ctx)
-		if err != nil {
-			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
-		}
-		return pr.SignatureAlgorithmSuite, nil
-	}
-}
-
 // generateKeyRing generates and returns a keyring using a key algorithm
 // determined by the current cluster signature algorithm suite and [purpose].
 // The returned KeyRing always uses a single private key for both SSH and TLS,
@@ -870,7 +864,9 @@ func getCurrentSuiteFromPing(clusterAPI certificateSigner) cryptosuites.GetSuite
 // single protocol anyway, or writes to an identity file which only supports a
 // single private key.
 func generateKeyRing(ctx context.Context, clusterAPI certificateSigner, purpose cryptosuites.KeyPurpose) (*client.KeyRing, error) {
-	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), purpose)
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
+		purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

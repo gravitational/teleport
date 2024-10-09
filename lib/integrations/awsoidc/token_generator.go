@@ -89,7 +89,7 @@ func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
 func issuerForIntegration(ctx context.Context, integration types.Integration, cacheClt Cache) (string, error) {
 	issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
 	if issuerS3URI == "" {
-		issuer, err := oidc.IssuerForCluster(ctx, cacheClt)
+		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
 		return issuer, trace.Wrap(err)
 	}
 
