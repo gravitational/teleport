@@ -3540,9 +3540,18 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN); err != nil {
 			return nil, trace.Wrap(ErrDone)
 		}
-
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
-		return nil, trace.BadParameter("scope not present in request")
+
+		// Require that a scope was provided.
+		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, trace.BadParameter("scope not present in request")
+		}
+
+		var err error
+		username, err = authz.GetClientUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
