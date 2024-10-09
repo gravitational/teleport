@@ -1,4 +1,4 @@
-// Copyright 2023 Gravitational, Inc
+// Copyright 2024 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -236,7 +236,7 @@ type PrincipalStateSpec struct {
 
 	// DownstreamId identifies the downstream service that this state applies to.
 	DownstreamId string `protobuf:"bytes,1,opt,name=downstream_id,json=downstreamId,proto3" json:"downstream_id,omitempty"`
-	// PrincipalId identifies what kind of principal this state applies to, either
+	// PrincipalType identifies what kind of principal this state applies to, either
 	// a User or a Group (i.e. AccessList)
 	PrincipalType PrincipalType `protobuf:"varint,2,opt,name=principal_type,json=principalType,proto3,enum=teleport.provisioning.v1.PrincipalType" json:"principal_type,omitempty"`
 	// PrincipalId identifies the Teleport User or Access List that this state
@@ -307,7 +307,7 @@ type PrincipalStateStatus struct {
 	// principal
 	ExternalId string `protobuf:"bytes,2,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
 	// LastProvisioned records the last time this record was provisioined into
-	// the downstream system
+	// the downstream system.
 	LastProvisioned *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_provisioned,json=lastProvisioned,proto3" json:"last_provisioned,omitempty"`
 	// Error holds a description of the last provisioing error, if any.
 	Error string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
