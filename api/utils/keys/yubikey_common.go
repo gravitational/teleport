@@ -35,9 +35,14 @@ type HardwareKeyPrompt interface {
 	ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error)
 }
 
+// PINAndPUK describes a response returned from HardwareKeyPrompt.ChangePIN.
 type PINAndPUK struct {
+	// New PIN set by the user.
 	PIN        string
+	// PUK used to change the PIN.
+	// This is a new PUK if it has not been changed (from the default PUK).
 	PUK        string
+	// PUKChanged is true if the user changed the default PUK.
 	PUKChanged bool
 }
 

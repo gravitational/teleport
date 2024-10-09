@@ -97,7 +97,7 @@ type FSKeyStore struct {
 	log logrus.FieldLogger
 
 	// KeyDir is the directory where all keys are stored.
-	KeyDir            string
+	KeyDir string
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If nil, a default CLI prompt is used.
@@ -182,6 +182,8 @@ func (fs *FSKeyStore) kubeCredPath(idx KeyRingIndex, kubename string) string {
 	return keypaths.KubeCredPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
 func (fs *FSKeyStore) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
 	fs.CustomHardwareKeyPrompt = prompt
 }
@@ -878,4 +880,6 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 	return sshCerts, nil
 }
 
+// SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
+// Does nothing.
 func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ keys.HardwareKeyPrompt) {}
