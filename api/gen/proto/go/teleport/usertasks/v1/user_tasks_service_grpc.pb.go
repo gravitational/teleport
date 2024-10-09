@@ -108,9 +108,8 @@ func (c *userTaskServiceClient) ListUserTasks(ctx context.Context, in *ListUserT
 }
 
 func (c *userTaskServiceClient) ListUserTasksByIntegration(ctx context.Context, in *ListUserTasksByIntegrationRequest, opts ...grpc.CallOption) (*ListUserTasksResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListUserTasksResponse)
-	err := c.cc.Invoke(ctx, UserTaskService_ListUserTasksByIntegration_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, UserTaskService_ListUserTasksByIntegration_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
