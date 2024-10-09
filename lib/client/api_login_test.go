@@ -137,7 +137,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		}
 	}
 
-	ctx := context.Background()
 	tests := []struct {
 		name                    string
 		makeInputReader         func(pass, otpKey string, clock clockwork.Clock) *prompt.FakeReader
@@ -267,9 +266,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-
 			// Start Teleport.
 			clock := clockwork.NewFakeClockAt(time.Now())
 			sa := newStandaloneTeleport(t, clock)
@@ -315,6 +311,9 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.HasTouchIDCredentialsFunc = func(_, _ string) bool {
 				return test.hasTouchIDCredentials
 			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 
 			// Test.
 			clock.Advance(30 * time.Second)
