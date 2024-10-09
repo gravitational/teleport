@@ -500,7 +500,6 @@ func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAd
 		assert.NoError(t, agent.Close())
 	})
 
-	// Wait for database agent to start.
 	_, err = agent.WaitForEventTimeout(30*time.Second, service.NodeSSHReady)
 	require.NoError(t, err, "agent server didn't start after 10s")
 

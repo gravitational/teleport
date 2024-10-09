@@ -1462,7 +1462,7 @@ func TestTimeReconciliation(t *testing.T) {
 				case proto.DownstreamInventoryPing:
 					downstream.Send(ctx, proto.UpstreamInventoryPong{
 						ID:          m.ID,
-						SystemClock: time.Now().Add(-time.Minute).UTC(),
+						SystemClock: clock.Now().Add(-time.Minute).UTC(),
 					})
 				}
 			case <-downstream.Done():
@@ -1474,7 +1474,7 @@ func TestTimeReconciliation(t *testing.T) {
 	_, ok := controller.GetControlStream(serverID)
 	require.True(t, ok)
 
-	// verify that instance heartbeat succeeds at least 2 times to propagate the system clock.
+	// Verify that instance heartbeat succeeds at least 2 times to propagate the system clock.
 	awaitEvents(t, events,
 		expect(instanceHeartbeatOk),
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
@@ -1484,7 +1484,7 @@ func TestTimeReconciliation(t *testing.T) {
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
 	)
 	m := auth.lastInstance.GetLastMeasurement()
-	require.InDelta(t, time.Minute, m.LocalClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
+	require.InDelta(t, time.Minute, m.ControllerSystemClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
 }
 
 type eventOpts struct {

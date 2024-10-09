@@ -526,7 +526,7 @@ func (c *Controller) timeReconciliation(handle *upstreamHandle, now time.Time) e
 			return
 		case pong := <-rspC:
 			tracker.mu.Lock()
-			pong.localClock = now
+			pong.controllerClock = now
 			tracker.pingResponse = pong
 			tracker.mu.Unlock()
 		}
@@ -609,8 +609,8 @@ func (c *Controller) handlePingRequest(handle *upstreamHandle, req pingRequest) 
 	start := c.clock.Now()
 	if err := handle.Send(c.closeContext, ping); err != nil {
 		req.rspC <- pingResponse{
-			localClock: start,
-			err:        err,
+			controllerClock: start,
+			err:             err,
 		}
 		return trace.Wrap(err)
 	}

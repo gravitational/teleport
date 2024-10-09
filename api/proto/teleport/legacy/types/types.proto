@@ -716,13 +716,13 @@ message InstanceSpecV1 {
 
 // SystemClockMeasurement represents the measurement state of the systems clock difference.
 message SystemClockMeasurement {
-  // LocalClock is the time of the auth service.
-  google.protobuf.Timestamp LocalClock = 1 [
+  // ControllerSystemClock is the system clock of the inventory controller.
+  google.protobuf.Timestamp ControllerSystemClock = 1 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "local_clock,omitempty"
+    (gogoproto.jsontag) = "controller_system_clock,omitempty"
   ];
-  // SystemClock is the time of the remote service.
+  // SystemClock is the system clock of the upstream.
   google.protobuf.Timestamp SystemClock = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,

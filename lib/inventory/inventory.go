@@ -557,9 +557,9 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
 		LastMeasurement: &types.SystemClockMeasurement{
-			LocalClock:      i.pingResponse.localClock,
-			SystemClock:     i.pingResponse.systemClock,
-			RequestDuration: i.pingResponse.reqDuration,
+			ControllerSystemClock: i.pingResponse.controllerClock,
+			SystemClock:           i.pingResponse.systemClock,
+			RequestDuration:       i.pingResponse.reqDuration,
 		},
 	})
 	if err != nil {
@@ -655,10 +655,10 @@ type pingRequest struct {
 }
 
 type pingResponse struct {
-	reqDuration time.Duration
-	systemClock time.Time
-	localClock  time.Time
-	err         error
+	reqDuration     time.Duration
+	systemClock     time.Time
+	controllerClock time.Time
+	err             error
 }
 
 func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, err error) {

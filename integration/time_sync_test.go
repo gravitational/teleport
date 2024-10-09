@@ -56,7 +56,7 @@ func TestTimeReconciliation(t *testing.T) {
 	require.NotNil(t, agent)
 
 	err = retryutils.RetryStaticFor(30*time.Second, time.Second, func() error {
-		agentClock.Advance(1 * time.Minute)
+		agentClock.Advance(time.Minute)
 		notifications, _, err := authService.ListGlobalNotifications(ctx, 100, "")
 		if err != nil {
 			return trace.Wrap(err)

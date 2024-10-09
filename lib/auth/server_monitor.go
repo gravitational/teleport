@@ -83,7 +83,7 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 		handle.VisitInstanceState(func(ref inventory.InstanceStateRef) (update inventory.InstanceStateUpdate) {
 			if ref.LastHeartbeat != nil && ref.LastHeartbeat.GetLastMeasurement() != nil {
 				m := ref.LastHeartbeat.GetLastMeasurement()
-				diff := m.LocalClock.Sub(m.SystemClock) - m.RequestDuration/2
+				diff := m.ControllerSystemClock.Sub(m.SystemClock) - m.RequestDuration/2
 				if diff > systemClockThreshold || -diff > systemClockThreshold {
 					slog.WarnContext(ctx, "server time difference detected",
 						"server", hello.GetServerID(),
