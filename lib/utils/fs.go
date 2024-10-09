@@ -201,6 +201,16 @@ func FSTryWriteLock(filePath string) (unlock func() error, err error) {
 	return fileLock.Unlock, nil
 }
 
+// FSWriteLock tries to grab write lock and block if lock is already acquired by someone else.
+func FSWriteLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	if err := fileLock.Lock(); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return fileLock.Unlock, nil
+}
+
 // FSTryWriteLockTimeout tries to grab write lock, it's doing it until locks is acquired, or timeout is expired,
 // or context is expired.
 func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
@@ -214,7 +224,7 @@ func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Du
 	return fileLock.Unlock, nil
 }
 
-// FSTryReadLock tries to grab write lock, returns ErrUnsuccessfulLockTry
+// FSTryReadLock tries to grab shared lock, returns ErrUnsuccessfulLockTry
 // if lock is already acquired by someone else
 func FSTryReadLock(filePath string) (unlock func() error, err error) {
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
@@ -224,6 +234,16 @@ func FSTryReadLock(filePath string) (unlock func() error, err error) {
 	}
 	if !locked {
 		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
+	}
+
+	return fileLock.Unlock, nil
+}
+
+// FSReadLock tries to grab shared lock and block if lock is already acquired by someone else.
+func FSReadLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	if err := fileLock.RLock(); err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	return fileLock.Unlock, nil
