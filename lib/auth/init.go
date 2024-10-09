@@ -322,6 +322,10 @@ type InitConfig struct {
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
 
+	// ProvisioningStates is a service that manages the storage and retrieval of
+	// downstream User and Access List provisioning records
+	ProvisioningStates services.ProvisioningStates
+
 	// Logger is the logger instance for the auth service to use.
 	Logger *slog.Logger
 }
