@@ -117,6 +117,60 @@ type TimelineContent struct {
 	Content string `json:"content,omitempty"`
 }
 
+type OncallTeamsBody struct {
+	Data     []OncallTeamsData     `json:"data,omitempty"`
+	Included []OncallTeamsIncluded `json:"included,omitempty"`
+}
+
+type OncallTeamsData struct {
+	Metadata
+	Attributes    OncallTeamsAttributes    `json:"attributes,omitempty"`
+	Relationships OncallTeamsRelationships `json:"relationships,omitempty"`
+}
+
+type OncallTeamsAttributes struct {
+	Name   string `json:"name,omitempty"`
+	Handle string `json:"handle,omitempty"`
+}
+
+type OncallTeamsRelationships struct {
+	OncallUsers OncallUsers `json:"oncall_users,omitempty"`
+}
+
+type OncallUsers struct {
+	Data []OncallUsersData `json:"data,omitempty"`
+}
+
+type OncallUsersData struct {
+	Metadata
+}
+
+type OncallTeamsIncluded struct {
+	Metadata
+	Attributes OncallTeamsIncludedAttributes `json:"attributes,omitempty"`
+}
+
+type OncallTeamsIncludedAttributes struct {
+	Email string `json:"email,omitempty"`
+	Name  string `json:"name,omitempty"`
+}
+
+type UsersBody struct {
+	Data []UsersData `json:"data,omitempty"`
+}
+
+type UsersData struct {
+	Metadata
+	Attributes UsersAttributes `json:"attributes,omitempty"`
+}
+
+type UsersAttributes struct {
+	Name     string `json:"name,omitempty"`
+	Handle   string `json:"handle,omitempty"`
+	Email    string `json:"email,omitempty"`
+	Disabled bool   `json:"disabled,omitempty"`
+}
+
 // ErrorResult contains the error response.
 type ErrorResult struct {
 	Errors []string `json:"errors"`

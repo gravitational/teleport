@@ -34,6 +34,8 @@ import (
 const (
 	// APIEndpointDefaultURL specifies the default US1 region api endpoint.
 	APIEndpointDefaultURL = "https://api.datadoghq.com"
+	// APIUnstableEndpointURL specifies the unsatble api endpoint URL.
+	APIUnstableEndpointURL = "https://api.datadoghq.com/api/unstable"
 	// APIVersion specifies the api version.
 	APIVersion = "api/v2"
 	// SeverityDefault specifies the default incident severity.

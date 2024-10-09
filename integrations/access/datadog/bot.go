@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -34,6 +35,9 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
+
+// AutoApprovalsAnnotation defines the datadog auto approvals label.
+const AutoApprovalsAnnotation = "datadog_auto_approvals"
 
 // Bot is a Datadog client that works with AccessRequest.
 // It is responsible for creating/updating Datadog incidents when access request
@@ -151,6 +155,39 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		ID:   name,
 		Kind: kind,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, reqData pd.AccessRequestData) ([]string, error) {
+	oncallTeams, err := b.datadog.GetOncallTeams(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	teamNames := getTeamNamesFromAnnotations(reqData, AutoApprovalsAnnotation)
+
+	var oncallUserIDs []string
+	for _, oncallTeam := range oncallTeams.Data {
+		if !slices.Contains(teamNames, strings.TrimSpace(oncallTeam.Attributes.Handle)) && !slices.Contains(teamNames, strings.TrimSpace(oncallTeam.Attributes.Name)) {
+			continue
+		}
+		for _, oncallUser := range oncallTeam.Relationships.OncallUsers.Data {
+			oncallUserIDs = append(oncallUserIDs, oncallUser.ID)
+		}
+	}
+
+	var oncallUserEmails []string
+	for _, user := range oncallTeams.Included {
+		if slices.Contains(oncallUserIDs, user.ID) {
+			oncallUserEmails = append(oncallUserEmails, user.Attributes.Email)
+		}
+	}
+	return oncallUserEmails, nil
+}
+
+func getTeamNamesFromAnnotations(reqData pd.AccessRequestData, annotationKey string) []string {
+	teamNames := reqData.SystemAnnotations[annotationKey]
+	slices.Sort(teamNames)
+	return slices.Compact(teamNames)
 }
 
 func buildIncidentSummary(clusterName, reqID string, reqData pd.AccessRequestData, webProxyURL *url.URL) (string, error) {

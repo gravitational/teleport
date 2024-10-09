@@ -22,15 +22,17 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/teleport"
+	api "github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -47,13 +49,16 @@ const (
 type App struct {
 	pluginName string
 	pluginType string
-	apiClient  teleport.Client
+	apiClient  api.Client
 	recipients common.RawRecipientsMap
 	pluginData *pd.CompareAndSwap[PluginData]
 	bot        MessagingBot
 	job        lib.ServiceJob
 
 	accessMonitoringRules *accessmonitoring.RuleHandler
+	// accessRequestUser is the name of the Teleport user that will act
+	// as the access request approver.
+	accessRequestUser string
 }
 
 // NewApp will create a new access request application.
@@ -88,6 +93,7 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 		PluginName:             a.pluginName,
 		FetchRecipientCallback: a.bot.FetchRecipient,
 	})
+	a.accessRequestUser = baseApp.Conf.GetTeleportUser()
 
 	return nil
 }
@@ -172,6 +178,8 @@ func (a *App) run(ctx context.Context) error {
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	ctx, _ = logger.WithField(ctx, teleport.ComponentKey, "accessrequest")
+
 	switch event.Resource.GetKind() {
 	case types.KindAccessMonitoringRule:
 		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
@@ -261,6 +269,11 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 			}
 		} else {
 			log.Warning("No channel to post")
+		}
+
+		// Try to approve the request if user is currently on-call
+		if err := a.tryApproveRequest(ctx, reqID, reqData); err != nil {
+			log.Warningf("Failed to auto approve request: %v", err)
 		}
 	case trace.IsAlreadyExists(err):
 		// The messages were already sent, nothing to do, we can update the reviews
@@ -530,4 +543,47 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 		}
 	}
 	return resourceNames, nil
+}
+
+// tryApproveRequest attempts to automatically approve the access request if the
+// user is on call for the configured service/team.
+func (a *App) tryApproveRequest(ctx context.Context, reqID string, reqData pd.AccessRequestData) error {
+	log := logger.Get(ctx).
+		WithField("req_id", reqID).
+		WithField("user", reqData.User)
+
+	if !lib.IsEmail(reqData.User) {
+		return trace.BadParameter("%q is not a valid email", reqData.User)
+	}
+	oncallUsers, err := a.bot.FetchOncallUsers(ctx, reqData)
+	if trace.IsNotImplemented(err) {
+		log.Debugf("Skipping approval because %s bot does not support automatic approvals.", a.pluginName)
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !slices.Contains(oncallUsers, reqData.User) {
+		log.Debugf("Skipping approval because user is not on-call.")
+		return nil
+	}
+
+	if _, err := a.apiClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: reqID,
+		Review: types.AccessReview{
+			Author:        a.accessRequestUser,
+			ProposedState: types.RequestState_APPROVED,
+			Reason:        fmt.Sprintf("Access requested by user %s who is on call", reqData.User),
+			Created:       time.Now(),
+		},
+	}); err != nil {
+		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
+			log.Debug("Request has already been reviewed.")
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	log.Info("Successfully submitted a request approval")
+	return nil
 }
