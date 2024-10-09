@@ -29,9 +29,10 @@ import (
 func legacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) constants.SecondFactorType {
 	hasOTP := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_OTP)
 	hasWebAuthn := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+	hasSSO := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
 	switch {
-	case hasOTP && hasWebAuthn:
+	case (hasOTP && hasWebAuthn) || hasSSO:
 		return constants.SecondFactorOn
 	case hasWebAuthn:
 		return constants.SecondFactorWebauthn

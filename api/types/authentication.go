@@ -87,11 +87,12 @@ type AuthPreference interface {
 	IsSecondFactorEnabled() bool
 	// IsSecondFactorEnforced checks if second factor is enforced.
 	IsSecondFactorEnforced() bool
-	// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+	// IsSecondFactorTOTPAllowed  checks if users can use TOTP as an MFA method.
 	IsSecondFactorTOTPAllowed() bool
-	// IsSecondFactorWebauthnAllowed checks if users are allowed to register
-	// Webauthn devices.
+	// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
 	IsSecondFactorWebauthnAllowed() bool
+	// IsSecondFactorSSOAllowed checks if users can use SSO as an MFA method.
+	IsSecondFactorSSOAllowed() bool
 	// IsAdminActionMFAEnforced checks if admin action MFA is enforced.
 	IsAdminActionMFAEnforced() bool
 
@@ -383,15 +384,19 @@ func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
 	return len(c.GetSecondFactors()) > 0 && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
 
-// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+// IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
 func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
 	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_OTP)
 }
 
-// IsSecondFactorWebauthnAllowed checks if users are allowed to register
-// Webauthn devices.
+// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
 func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+}
+
+// IsSecondFactorSSOAllowed checks if users can use SSO as an MFA method.
+func (c *AuthPreferenceV2) IsSecondFactorSSOAllowed() bool {
+	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 }
 
 // IsAdminActionMFAEnforced checks if admin action MFA is enforced.
@@ -679,7 +684,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
-
 	if c.Spec.AllowLocalAuth == nil {
 		c.Spec.AllowLocalAuth = NewBoolOption(true)
 	}
@@ -722,7 +726,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	case "":
 		// default to OTP if SecondFactors is also not set.
-		if len(c.Spec.SecondFactors) == 0 {
+		if c.Spec.SecondFactors == nil {
 			c.Spec.SecondFactor = constants.SecondFactorOTP
 		}
 	default:
@@ -769,6 +773,16 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
 		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
+	// Prevent accidental local lockout by disabling local second factor methods, (likely leaving only sso enabled).
+	hasTOTP := c.IsSecondFactorTOTPAllowed()
+	if c.GetAllowLocalAuth() && !hasTOTP && !hasWebauthn {
+		switch c.Spec.SecondFactor {
+		case constants.SecondFactorOptional, constants.SecondFactorOff:
+		default:
+			return trace.BadParameter("missing a local second factor method for local users (otp, webauthn), either add a local second factor method or disable local auth")
+		}
 	}
 
 	// Validate connector name for type=local.
