@@ -26,31 +26,48 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
-// TestApplicationTunnelCommand tests that the ApplicationTunnelCommand
-// properly parses its arguments and applies as expected onto a BotConfig.
-func TestApplicationTunnelCommand(t *testing.T) {
-	testStartConfigureCommand(t, NewApplicationTunnelCommand, []startConfigureTestCase{
+// TestSPIFFESVIDCommand tests that the SPIFFESVIDCommand properly parses its
+// arguments and applies as expected onto a BotConfig.
+func TestSPIFFESVIDCommand(t *testing.T) {
+	testStartConfigureCommand(t, NewSPIFFESVIDCommand, []startConfigureTestCase{
 		{
 			name: "success",
 			args: []string{
 				"start",
-				"application-tunnel",
+				"spiffe-x509-svid",
+				"--destination=/bar",
 				"--token=foo",
 				"--join-method=github",
 				"--proxy-server=example.com:443",
-				"--app=foo",
-				"--listen=tcp://0.0.0.0:8000",
+				"--include-federated-trust-bundles",
+				"--svid-path=/foo/bar",
+				"--svid-hint=hello world",
+				"--dns-san=foo.example.com",
+				"--dns-san=bar.example.com",
+				"--ip-san=192.168.1.1",
+				"--ip-san=192.168.1.2",
 			},
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				require.Len(t, cfg.Services, 1)
 
-				// It must configure an app tunnel service
+				// It must configure a SPIFFE output with a directory destination.
 				svc := cfg.Services[0]
-				appSvc, ok := svc.(*config.ApplicationTunnelService)
+				spiffe, ok := svc.(*config.SPIFFESVIDOutput)
 				require.True(t, ok)
 
-				require.Equal(t, "foo", appSvc.AppName)
-				require.Equal(t, "tcp://0.0.0.0:8000", appSvc.Listen)
+				require.True(t, spiffe.IncludeFederatedTrustBundles)
+
+				svid := spiffe.SVID
+				require.Equal(t, "/foo/bar", svid.Path)
+				require.Equal(t, "hello world", svid.Hint)
+
+				sans := svid.SANS
+				require.ElementsMatch(t, sans.DNS, []string{"foo.example.com", "bar.example.com"})
+				require.ElementsMatch(t, sans.IP, []string{"192.168.1.1", "192.168.1.2"})
+
+				dir, ok := spiffe.Destination.(*config.DestinationDirectory)
+				require.True(t, ok)
+				require.Equal(t, "/bar", dir.Path)
 			},
 		},
 	})

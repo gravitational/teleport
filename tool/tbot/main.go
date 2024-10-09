@@ -138,8 +138,8 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
 		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 
-		cli.NewSPIFFEX509SVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
-		cli.NewSPIFFEX509SVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
+		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout)),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really

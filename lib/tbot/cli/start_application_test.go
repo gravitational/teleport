@@ -21,7 +21,6 @@ package cli
 import (
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -30,46 +29,32 @@ import (
 // TestApplicationCommand tests that the ApplicationCommand properly parses its
 // arguments and applies as expected onto a BotConfig.
 func TestApplicationCommand(t *testing.T) {
-	mockAction := configMutatorMock{}
-	mockAction.On("action", mock.Anything).Return(nil)
+	testStartConfigureCommand(t, NewApplicationCommand, []startConfigureTestCase{
+		{
+			name: "success",
+			args: []string{
+				"start",
+				"application",
+				"--destination=/bar",
+				"--token=foo",
+				"--join-method=github",
+				"--proxy-server=example.com:443",
+				"--app=foo",
+				"--specific-tls-extensions",
+			},
+			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
+				// It must configure a app output with a directory destination.
+				svc := cfg.Services[0]
+				appSvc, ok := svc.(*config.ApplicationOutput)
+				require.True(t, ok)
 
-	app, subcommand := buildMinimalKingpinApp("start")
-	cmd := NewApplicationCommand(subcommand, mockAction.action)
+				require.Equal(t, "foo", appSvc.AppName)
+				require.True(t, appSvc.SpecificTLSExtensions)
 
-	// Note: various flags here are already tested as part of sharedStartArgs.
-	command, err := app.Parse([]string{
-		"start",
-		"application",
-		"--destination=/bar",
-		"--token=foo",
-		"--join-method=github",
-		"--proxy-server=example.com:443",
-		"--app=foo",
-		"--specific-tls-extensions",
+				dir, ok := appSvc.Destination.(*config.DestinationDirectory)
+				require.True(t, ok)
+				require.Equal(t, "/bar", dir.Path)
+			},
+		},
 	})
-	require.NoError(t, err)
-
-	match, err := cmd.TryRun(command)
-	require.NoError(t, err)
-	require.True(t, match)
-
-	mockAction.AssertCalled(t, "action", mock.Anything)
-
-	// Convert these args to a BotConfig and check it.
-	cfg, err := LoadConfigWithMutators(&GlobalArgs{}, cmd)
-	require.NoError(t, err)
-
-	require.Len(t, cfg.Services, 1)
-
-	// It must configure a app output with a directory destination.
-	svc := cfg.Services[0]
-	appSvc, ok := svc.(*config.ApplicationOutput)
-	require.True(t, ok)
-
-	require.Equal(t, "foo", appSvc.AppName)
-	require.True(t, appSvc.SpecificTLSExtensions)
-
-	dir, ok := appSvc.Destination.(*config.DestinationDirectory)
-	require.True(t, ok)
-	require.Equal(t, "/bar", dir.Path)
 }

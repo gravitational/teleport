@@ -20,6 +20,7 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"testing"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -30,15 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-type configMutatorMock struct {
-	mock.Mock
-}
-
-func (m *configMutatorMock) action(mut ConfigMutator) error {
-	args := m.Called(mut)
-	return args.Error(0)
-}
 
 type genericExecutorMock[T any] struct {
 	mock.Mock
@@ -137,10 +129,10 @@ func TestConfigMutators(t *testing.T) {
 				{"spiffe-x509-svid", "--destination=foo", "--svid-path=/bar"},
 			},
 			buildCommand: func(parent *kingpin.CmdClause, callback MutatorAction) CommandRunner {
-				return NewSPIFFEX509SVIDCommand(parent, callback)
+				return NewSPIFFESVIDCommand(parent, callback)
 			},
 			assert: func(t *testing.T, value any) {
-				require.IsType(t, &SPIFFEX509SVIDCommand{}, value)
+				require.IsType(t, &SPIFFESVIDCommand{}, value)
 			},
 		},
 		{
@@ -182,10 +174,13 @@ func TestConfigMutators(t *testing.T) {
 					subcommandName := "sub"
 					app, subcommand := buildMinimalKingpinApp(subcommandName)
 
-					mockAction := configMutatorMock{}
-					mockAction.On("action", mock.Anything).Return(nil)
-
-					runner := tt.buildCommand(subcommand, mockAction.action)
+					actionCalled := false
+					var actionCalledMutator ConfigMutator
+					runner := tt.buildCommand(subcommand, func(mutator ConfigMutator) error {
+						actionCalled = true
+						actionCalledMutator = mutator
+						return nil
+					})
 
 					command, err := app.Parse(append([]string{subcommandName}, argSet...))
 					require.NoError(t, err)
@@ -194,10 +189,9 @@ func TestConfigMutators(t *testing.T) {
 					require.NoError(t, err)
 					require.True(t, match)
 
-					mockAction.AssertCalled(t, "action", mock.Anything)
+					require.True(t, actionCalled)
 
-					arg := mockAction.Calls[0].Arguments.Get(0)
-					tt.assert(t, arg)
+					tt.assert(t, actionCalledMutator)
 				})
 			}
 		})
@@ -363,4 +357,47 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, legacy.DestinationDir, destImplReal.Path)
 	require.True(t, cfg.Debug)
 	require.Equal(t, legacy.DiagAddr, cfg.DiagAddr)
+}
+
+type startConfigureCommand interface {
+	ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
+	TryRun(cmd string) (match bool, err error)
+}
+
+type startConfigureTestCase struct {
+	name         string
+	args         []string
+	assertConfig func(t *testing.T, cfg *config.BotConfig)
+}
+
+func testStartConfigureCommand[T startConfigureCommand](
+	t *testing.T,
+	newCommand func(parentCmd *kingpin.CmdClause, action MutatorAction) T,
+	testCases []startConfigureTestCase,
+) {
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			app, subcommand := buildMinimalKingpinApp("start")
+			actionCalled := false
+			cmd := newCommand(subcommand, func(mut ConfigMutator) error {
+				actionCalled = true
+				return nil
+			})
+
+			command, err := app.Parse(tt.args)
+			require.NoError(t, err)
+
+			match, err := cmd.TryRun(command)
+			require.NoError(t, err)
+			require.True(t, match)
+
+			require.True(t, actionCalled)
+
+			// Convert these args to a BotConfig and check it.
+			cfg, err := LoadConfigWithMutators(&GlobalArgs{}, cmd)
+			require.NoError(t, err)
+
+			tt.assertConfig(t, cfg)
+		})
+	}
 }

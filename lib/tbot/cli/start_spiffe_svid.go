@@ -27,9 +27,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
-// SPIFFEX509SVIDCommand implements `tbot start spiffe-x509-svid` and
-// `tbot configure spiffe-x509-svid`.
-type SPIFFEX509SVIDCommand struct {
+// SPIFFESVIDCommand implements `tbot start spiffe-svid` and
+// `tbot configure spiffe-svid`.
+type SPIFFESVIDCommand struct {
 	*sharedStartArgs
 	*genericMutatorHandler
 
@@ -42,13 +42,13 @@ type SPIFFEX509SVIDCommand struct {
 	IPSANs   []string
 }
 
-// NewSPIFFEX509SVIDCommand initializes the command and flags for the
-// `spiffe-x509-svid` output and returns a struct that will contain the parse
+// NewSPIFFESVIDCommand initializes the command and flags for the
+// `spiffe-svid` output and returns a struct that will contain the parse
 // result.
-func NewSPIFFEX509SVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *SPIFFEX509SVIDCommand {
-	cmd := parentCmd.Command("spiffe-x509-svid", "Starts with a SPIFFE-compatible X509 SVID output")
+func NewSPIFFESVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *SPIFFESVIDCommand {
+	cmd := parentCmd.Command("spiffe-svid", "Starts with a SPIFFE-compatible SVID output")
 
-	c := &SPIFFEX509SVIDCommand{}
+	c := &SPIFFESVIDCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
@@ -62,7 +62,7 @@ func NewSPIFFEX509SVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction
 	return c
 }
 
-func (c *SPIFFEX509SVIDCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
+func (c *SPIFFESVIDCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
 	if err := c.sharedStartArgs.ApplyConfig(cfg, l); err != nil {
 		return trace.Wrap(err)
 	}
