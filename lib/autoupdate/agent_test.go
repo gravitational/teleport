@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package autoupdate
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,18 +31,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
-func TestRun_Disable(t *testing.T) {
+func TestDisable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		args     []string
 		cfg      *UpdateConfig // nil -> file not present
 		errMatch string
 	}{
 		{
 			name: "enabled",
-			args: []string{"disable"},
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -52,7 +51,6 @@ func TestRun_Disable(t *testing.T) {
 		},
 		{
 			name: "already disabled",
-			args: []string{"disable"},
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -63,11 +61,9 @@ func TestRun_Disable(t *testing.T) {
 		},
 		{
 			name: "config does not exist",
-			args: []string{"disable"},
 		},
 		{
 			name: "invalid metadata",
-			args: []string{"disable"},
 			cfg: &UpdateConfig{
 				Spec: UpdateSpec{
 					Enabled: true,
@@ -81,7 +77,7 @@ func TestRun_Disable(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfgPath := filepath.Join(dir, versionsDirName, configFileName)
+			cfgPath := filepath.Join(dir, "update.yaml")
 			err := os.MkdirAll(filepath.Dir(cfgPath), 0777)
 			require.NoError(t, err)
 
@@ -93,9 +89,7 @@ func TestRun_Disable(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			args := append(tt.args, []string{"--data-dir", dir}...)
-			err = Run(args)
-
+			err = Disable(context.Background(), cfgPath)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)

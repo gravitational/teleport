@@ -22,8 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -33,15 +31,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/net/http/httpproxy"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -192,85 +189,6 @@ func setupLogger(debug bool, format string) error {
 	return nil
 }
 
-const (
-	updateConfigVersion = "v1"
-	updateConfigKind    = "update_config"
-)
-
-// UpdateConfig describes the update.yaml file schema.
-type UpdateConfig struct {
-	// Version of the configuration file
-	Version string `yaml:"version"`
-	// Kind of configuration file (always "update_config")
-	Kind string `yaml:"kind"`
-	// Spec contains user-specified configuration.
-	Spec UpdateSpec `yaml:"spec"`
-	// Status contains state configuration.
-	Status UpdateStatus `yaml:"status"`
-}
-
-// UpdateSpec describes the spec field in update.yaml.
-type UpdateSpec struct {
-	// Proxy address
-	Proxy string `yaml:"proxy"`
-	// Group update identifier
-	Group string `yaml:"group"`
-	// URLTemplate for the Teleport tgz download URL.
-	URLTemplate string `yaml:"url_template"`
-	// Enabled controls whether auto-updates are enabled.
-	Enabled bool `yaml:"enabled"`
-}
-
-// UpdateStatus describes the status field in update.yaml.
-type UpdateStatus struct {
-	// ActiveVersion is the currently active Teleport version.
-	ActiveVersion string `yaml:"active_version"`
-}
-
-// readUpdatesConfig reads update.yaml
-func readUpdatesConfig(path string) (*UpdateConfig, error) {
-	f, err := os.Open(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return &UpdateConfig{
-			Version: updateConfigVersion,
-			Kind:    updateConfigKind,
-		}, nil
-	}
-	if err != nil {
-		return nil, trace.Errorf("failed to open: %w", err)
-	}
-	defer f.Close()
-	var cfg UpdateConfig
-	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
-		return nil, trace.Errorf("failed to parse: %w", err)
-	}
-	if k := cfg.Kind; k != updateConfigKind {
-		return nil, trace.Errorf("invalid kind %q", k)
-	}
-	if v := cfg.Version; v != updateConfigVersion {
-		return nil, trace.Errorf("invalid version %q", v)
-	}
-	return &cfg, nil
-}
-
-// writeUpdatesConfig writes update.yaml atomically, ensuring the file cannot be corrupted.
-func writeUpdatesConfig(filename string, cfg *UpdateConfig) error {
-	opts := []renameio.Option{
-		renameio.WithPermissions(0755),
-		renameio.WithExistingPermissions(),
-	}
-	t, err := renameio.NewPendingFile(filename, opts...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer t.Cleanup()
-	err = yaml.NewEncoder(t).Encode(cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(t.CloseAtomicallyReplace())
-}
-
 // cmdDisable disables updates.
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	var (
@@ -286,17 +204,8 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	cfg, err := readUpdatesConfig(updateYAML)
-	if err != nil {
-		return trace.Errorf("failed to read updates.yaml: %w", err)
-	}
-	if !cfg.Spec.Enabled {
-		plog.InfoContext(ctx, "Automatic updates already disabled")
-		return nil
-	}
-	cfg.Spec.Enabled = false
-	if err := writeUpdatesConfig(updateYAML, cfg); err != nil {
-		return trace.Errorf("failed to write updates.yaml: %w", err)
+	if err := autoupdate.Disable(ctx, updateYAML); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
