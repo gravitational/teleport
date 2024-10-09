@@ -46,9 +46,11 @@ func (s Set[T]) Add(elements ...T) Set[T] {
 }
 
 // Union updates the set to be the union of the original set and `other`
-func (s Set[T]) Union(other Set[T]) {
-	for element := range other {
-		s[element] = struct{}{}
+func (s Set[T]) Union(others ...Set[T]) {
+	for _, other := range others {
+		for element := range other {
+			s[element] = struct{}{}
+		}
 	}
 }
 
@@ -99,4 +101,14 @@ func (s Set[T]) Elements() []T {
 		elements = append(elements, e)
 	}
 	return elements
+}
+
+// SetTransform maps a set into another set, using the supplied `transform`
+// mapping function to convert the set elements.
+func SetTransform[SrcT, DstT comparable](src Set[SrcT], transform func(SrcT) DstT) Set[DstT] {
+	dst := NewSetWithCapacity[DstT](len(src))
+	for element := range src {
+		dst.Add(transform(element))
+	}
+	return dst
 }

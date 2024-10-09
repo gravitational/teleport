@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -278,4 +279,13 @@ func TestSet(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestSetTransform(t *testing.T) {
+	src := NewSet(1, 2, 3, 4, 5, 6, 7, 8, 9, 0)
+	dst := SetTransform(src, strconv.Itoa)
+	require.ElementsMatch(t,
+		[]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
+		dst.Elements(),
+	)
 }
