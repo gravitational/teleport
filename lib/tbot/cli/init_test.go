@@ -41,7 +41,7 @@ func TestInitCommand(t *testing.T) {
 				require.Equal(t, "jeffrey", got.BotUser)
 				require.Equal(t, "bob", got.ReaderUser)
 				require.Equal(t, "/tmp", got.InitDir)
-				require.Equal(t, true, got.Clean)
+				require.True(t, got.Clean)
 			},
 		},
 	})

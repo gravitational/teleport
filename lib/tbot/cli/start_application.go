@@ -38,7 +38,7 @@ type ApplicationCommand struct {
 	SpecificTLSExtensions bool
 }
 
-// NewApplicationCommand initalizes a command and flag for application outputs
+// NewApplicationCommand initializes a command and flag for application outputs
 // and returns a struct that will contain the parse result.
 func NewApplicationCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *ApplicationCommand {
 	cmd := parentCmd.Command("application", "Starts with an application output").Alias("app")
