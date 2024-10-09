@@ -295,7 +295,7 @@ func readTLSCredential(keyPath, certPath string, customPrompt keys.HardwareKeyPr
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
-	key, err := keys.ParsePrivateKeyWithCustomPrompt(keyPEM, customPrompt)
+	key, err := keys.ParsePrivateKey(keyPEM, keys.WithCustomPrompt(customPrompt))
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
