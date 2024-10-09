@@ -897,13 +897,13 @@ func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := client.CreateDynamicWindowsDesktop(ctx, wd); err != nil {
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.CreateDynamicWindowsDesktop(ctx, wd); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !rc.force {
 				return trace.AlreadyExists("application %q already exists", wd.GetName())
 			}
-			if err := client.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
+			if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())
@@ -922,7 +922,8 @@ func (rc *ResourceCommand) updateDynamicWindowsDesktop(ctx context.Context, clie
 		return trace.Wrap(err)
 	}
 
-	if err := client.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
+	dynamicDesktopClient := client.DynamicDesktopClient()
+	if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1728,7 +1729,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
 	case types.KindDynamicWindowsDesktop:
-		if err = client.DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
+		if err = client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
@@ -2506,24 +2507,40 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &windowsDesktopCollection{desktops: out}, nil
 	case types.KindDynamicWindowsDesktop:
-		desktops, err := client.GetDynamicWindowsDesktops(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &dynamicWindowsDesktopCollection{desktops: desktops}, nil
+		dynamicDesktopClient := client.DynamicDesktopClient()
+		if rc.ref.Name != "" {
+			desktop, err := dynamicDesktopClient.GetDynamicWindowsDesktop(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &dynamicWindowsDesktopCollection{
+				desktops: []types.DynamicWindowsDesktop{desktop},
+			}, nil
 		}
 
-		var out []types.DynamicWindowsDesktop
-		for _, desktop := range desktops {
-			if desktop.GetName() == rc.ref.Name {
-				out = append(out, desktop)
+		pageToken := ""
+		desktops := make([]types.DynamicWindowsDesktop, 0, 100)
+		for {
+			d, next, err := dynamicDesktopClient.ListDynamicWindowsDesktop(ctx, 100, pageToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if rc.ref.Name == "" {
+				desktops = append(desktops, d...)
+			} else {
+				for _, desktop := range desktops {
+					if desktop.GetName() == rc.ref.Name {
+						desktops = append(desktops, desktop)
+					}
+				}
+			}
+			pageToken = next
+			if next == "" {
+				break
 			}
 		}
-		if len(out) == 0 {
-			return nil, trace.NotFound("Windows desktop %q not found", rc.ref.Name)
-		}
-		return &dynamicWindowsDesktopCollection{desktops: out}, nil
+
+		return &dynamicWindowsDesktopCollection{desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
 			tokens, err := client.GetTokens(ctx)
