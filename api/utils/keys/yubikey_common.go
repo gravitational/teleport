@@ -38,10 +38,10 @@ type HardwareKeyPrompt interface {
 // PINAndPUK describes a response returned from HardwareKeyPrompt.ChangePIN.
 type PINAndPUK struct {
 	// New PIN set by the user.
-	PIN        string
+	PIN string
 	// PUK used to change the PIN.
 	// This is a new PUK if it has not been changed (from the default PUK).
-	PUK        string
+	PUK string
 	// PUKChanged is true if the user changed the default PUK.
 	PUKChanged bool
 }
