@@ -421,6 +421,8 @@ func (r *userReconciler) createSyncEvent(reconcilerErr error) *apievents.OktaUse
 func PreserveUserMetadata(dst, src types.User) {
 	dst.SetRevision(src.GetRevision())
 	dst.SetCreatedBy(src.GetCreatedBy())
+	dst.SetWeakestDevice(src.GetWeakestDevice())
+	dst.SetPasswordState(src.GetPasswordState())
 }
 
 // reconcileUsers pulls the user list from an upstream okta organization and

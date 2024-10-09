@@ -515,6 +515,52 @@ func TestReconcileUsers(t *testing.T) {
 		require.Equal(t, 3, stats.total())
 	})
 
+	t.Run("unchanged users are left alone even with changes to ", func(t *testing.T) {
+		// Given an Okta organization with the same users...
+		reconcilerUnderTest, fixture := newTestReconciler(t)
+		shaggyOkta := mkOktaUser(t, "shaggy", "SHAGGY")
+		scoobyOkta := mkOktaUser(t, "scooby", "SCOOBY")
+		velmaOkta := mkOktaUser(t, "velma", "VELMA")
+
+		oktaUsers := map[string]types.User{
+			scoobyOkta.GetName(): scoobyOkta,
+			shaggyOkta.GetName(): shaggyOkta,
+			velmaOkta.GetName():  velmaOkta,
+		}
+
+		// same users as before, but with different weak mfa devices
+		shaggyTeleport := mkOktaUser(t, "shaggy", "SHAGGY")
+		shaggyTeleport.SetWeakestDevice(types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN)
+		scoobyTeleport := mkOktaUser(t, "scooby", "SCOOBY")
+		scoobyTeleport.SetWeakestDevice(types.MFADeviceKind_MFA_DEVICE_KIND_TOTP)
+		velmaTeleport := mkOktaUser(t, "velma", "VELMA")
+		velmaTeleport.SetWeakestDevice(types.MFADeviceKind_MFA_DEVICE_KIND_UNSET)
+		teleportUsers := map[string]types.User{
+			shaggyTeleport.GetName(): shaggyTeleport,
+			scoobyTeleport.GetName(): scoobyTeleport,
+			velmaTeleport.GetName():  velmaTeleport,
+		}
+
+		// And we expect a sync event wll be emitted
+		fixture.eventEmitter.On("EmitAuditEvent", someContext, userSyncEvent).
+			Run(expectedUserSyncEvent{t: t, total: 3}.validate).
+			Return(nil)
+
+		// WHEN I attempt to reconcile the users
+		stats, err := reconcilerUnderTest.reconcileUsers(ctx, oktaUsers, teleportUsers)
+
+		// EXPECT that the operation succeeds and no methods are called on the
+		// access point
+		require.NoError(t, err)
+
+		// ALSO EXPECT that the no changes are recorded in the returned stats
+		// values
+		require.Zero(t, stats.created)
+		require.Zero(t, stats.deleted)
+		require.Zero(t, stats.modified)
+		require.Equal(t, 3, stats.total())
+	})
+
 	t.Run("lockable users are locked", func(t *testing.T) {
 		for userStatus := range lockableStatuses {
 			t.Run(userStatus, func(t *testing.T) {
