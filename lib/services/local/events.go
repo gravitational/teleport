@@ -35,6 +35,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
@@ -235,6 +236,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newSPIFFEFederationParser()
 		case types.KindStaticHostUser:
 			parser = newStaticHostUserParser()
+		case types.KindProvisioningState:
+			parser = newProvisioningStateParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -3085,6 +3088,48 @@ func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, err
 			return nil, trace.Wrap(err, "unmarshalling resource from event")
 		}
 		return types.Resource153ToLegacy(federation), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newProvisioningStateParser() *provisioningStateParser {
+	return &provisioningStateParser{
+		baseParser: newBaseParser(backend.NewKey(provisioningStatePrefix)),
+	}
+}
+
+type provisioningStateParser struct {
+	baseParser
+}
+
+func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		key := event.Item.Key.TrimPrefix(backend.NewKey(provisioningStatePrefix))
+		if len(key.Components()) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		downstreamID := key.Components()[0]
+		return &types.ResourceHeader{
+			Kind:    types.KindProvisioningState,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        strings.TrimPrefix(key.TrimPrefix(backend.NewKey(downstreamID)).String(), backend.SeparatorString),
+				Namespace:   apidefaults.Namespace,
+				Description: downstreamID, // smuggle the downstream ID to the cache in the Description field.
+			},
+		}, nil
+	case types.OpPut:
+		r, err := services.UnmarshalProtoResource[*provisioningv1.PrincipalState](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

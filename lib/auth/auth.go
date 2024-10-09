@@ -344,6 +344,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.ProvisioningStates == nil {
+		cfg.ProvisioningStates, err = local.NewProvisioningStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "Creating provisioning state service")
+		}
+	}
 	if cfg.CloudClients == nil {
 		cfg.CloudClients, err = cloud.NewClients()
 		if err != nil {
@@ -461,6 +467,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 		StaticHostUser:            cfg.StaticHostUsers,
+		ProvisioningStates:        cfg.ProvisioningStates,
 	}
 
 	as := Server{
@@ -668,6 +675,7 @@ type Services struct {
 	services.SPIFFEFederations
 	services.StaticHostUser
 	services.AutoUpdateService
+	services.ProvisioningStates
 }
 
 // GetWebSession returns existing web session described by req.
