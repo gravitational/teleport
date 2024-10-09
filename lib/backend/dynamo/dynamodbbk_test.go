@@ -404,3 +404,21 @@ const (
 	readScalingPolicySuffix  = "read-target-tracking-scaling-policy"
 	writeScalingPolicySuffix = "write-target-tracking-scaling-policy"
 )
+
+func TestKeyPrefix(t *testing.T) {
+	t.Run("leading separator in key", func(t *testing.T) {
+		prefixed := prependPrefix(backend.NewKey("test", "llama"))
+		assert.Equal(t, "teleport/test/llama", prefixed)
+
+		key := trimPrefix(prefixed)
+		assert.Equal(t, "/test/llama", key.String())
+	})
+
+	t.Run("no leading separator in key", func(t *testing.T) {
+		prefixed := prependPrefix(backend.KeyFromString(".locks/test/llama"))
+		assert.Equal(t, "teleport.locks/test/llama", prefixed)
+
+		key := trimPrefix(prefixed)
+		assert.Equal(t, ".locks/test/llama", key.String())
+	})
+}

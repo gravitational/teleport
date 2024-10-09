@@ -20,15 +20,16 @@ package events
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DiscardAuditLog is do-nothing, discard-everything implementation
@@ -124,12 +125,12 @@ func (d *DiscardRecorder) RecordEvent(ctx context.Context, pe apievents.Prepared
 	}
 	event := pe.GetAuditEvent()
 
-	log.WithFields(log.Fields{
-		"event_id":    event.GetID(),
-		"event_type":  event.GetType(),
-		"event_time":  event.GetTime(),
-		"event_index": event.GetIndex(),
-	}).Traceln("Discarding stream event")
+	slog.Log(ctx, logutils.TraceLevel, "Discarding stream event",
+		"event_id", event.GetID(),
+		"event_type", event.GetType(),
+		"event_time", event.GetTime(),
+		"event_index", event.GetIndex(),
+	)
 	return nil
 }
 
@@ -143,12 +144,13 @@ type DiscardEmitter struct{}
 
 // EmitAuditEvent discards audit event
 func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.WithFields(log.Fields{
-		"event_id":    event.GetID(),
-		"event_type":  event.GetType(),
-		"event_time":  event.GetTime(),
-		"event_index": event.GetIndex(),
-	}).Debugf("Discarding event")
+	slog.DebugContext(ctx, "Discarding event",
+		"event_id", event.GetID(),
+		"event_type", event.GetType(),
+		"event_time", event.GetTime(),
+		"event_index", event.GetIndex(),
+	)
+
 	return nil
 }
 

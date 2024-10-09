@@ -71,13 +71,13 @@ func (r *EICEIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // EICEIAMConfigureClient describes the required methods to create the IAM Policies required for accessing EC2 instances usine EICE.
 type EICEIAMConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultEICEIAMConfigureClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	*iam.Client
 }
 
@@ -93,7 +93,7 @@ func NewEICEIAMConfigureClient(ctx context.Context, region string) (EICEIAMConfi
 	}
 
 	return &defaultEICEIAMConfigureClient{
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 		Client:               iam.NewFromConfig(cfg),
 	}, nil
 }
@@ -130,7 +130,7 @@ func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req EICEI
 		return trace.Wrap(err)
 	}
 
-	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

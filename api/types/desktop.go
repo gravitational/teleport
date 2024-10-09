@@ -549,15 +549,6 @@ type ListDynamicWindowsDesktopsResponse struct {
 	NextKey  string
 }
 
-// ListDynamicWindowsDesktopsRequest is a request type to ListDynamicWindowsDesktops.
-type ListDynamicWindowsDesktopsRequest struct {
-	DynamicWindowsDesktopFilter
-	Limit                         int
-	StartKey, PredicateExpression string
-	Labels                        map[string]string
-	SearchKeywords                []string
-}
-
 // ListWindowsDesktopServicesResponse is a response type to ListWindowsDesktopServices.
 type ListWindowsDesktopServicesResponse struct {
 	DesktopServices []WindowsDesktopService

@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/auth/dynamicwindows"
 	"io"
 	"net"
 	"os"
@@ -57,6 +58,7 @@ import (
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	dynamicwindowspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -104,6 +106,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -174,15 +177,6 @@ type GRPCServer struct {
 	// the new service so that logic only needs to exist in one place.
 	// TODO(tross) DELETE IN 17.0.0
 	usersService *usersv1.Service
-
-	// botService is used to forward requests to deprecated bot RPCs to the
-	// new service.
-	botService *machineidv1.BotService
-
-	// presenceService is used to forward requests to deprecated presence RPCs
-	// to the new service.
-	// TODO(noah) DELETE IN 17.0.0
-	presenceService *presencev1.Service
 
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
@@ -3996,113 +3990,6 @@ func (g *GRPCServer) DeleteAllWindowsDesktops(ctx context.Context, _ *emptypb.Em
 	return &emptypb.Empty{}, nil
 }
 
-// GetDynamicWindowsDesktops returns all registered dynamic Windows desktops.
-func (g *GRPCServer) GetDynamicWindowsDesktops(ctx context.Context, _ *emptypb.Empty) (*authpb.GetDynamicWindowsDesktopsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	DynamicWindowsDesktops, err := auth.GetDynamicWindowsDesktops(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var desktops []*types.DynamicWindowsDesktopV1
-	for _, s := range DynamicWindowsDesktops {
-		desktop, ok := s.(*types.DynamicWindowsDesktopV1)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", s)
-		}
-		desktops = append(desktops, desktop)
-	}
-	return &authpb.GetDynamicWindowsDesktopsResponse{
-		Desktops: desktops,
-	}, nil
-}
-
-// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
-func (g *GRPCServer) GetDynamicWindowsDesktop(ctx context.Context, request *authpb.GetDynamicWindowsDesktopRequest) (*authpb.GetDynamicWindowsDesktopResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	d, err := auth.GetDynamicWindowsDesktop(ctx, request.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	desktop, ok := d.(*types.DynamicWindowsDesktopV1)
-	if !ok {
-		return nil, trace.BadParameter("unexpected type %T", d)
-	}
-	return &authpb.GetDynamicWindowsDesktopResponse{
-		Desktop: desktop,
-	}, nil
-}
-
-// CreateDynamicWindowsDesktop registers a new dynamic Windows desktop.
-func (g *GRPCServer) CreateDynamicWindowsDesktop(ctx context.Context, desktop *types.DynamicWindowsDesktopV1) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.CreateDynamicWindowsDesktop(ctx, desktop); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
-func (g *GRPCServer) UpdateDynamicWindowsDesktop(ctx context.Context, desktop *types.DynamicWindowsDesktopV1) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpdateDynamicWindowsDesktop(ctx, desktop); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// UpsertDynamicWindowsDesktop updates a dynamic Windows desktop, creating it if it doesn't exist.
-func (g *GRPCServer) UpsertDynamicWindowsDesktop(ctx context.Context, desktop *types.DynamicWindowsDesktopV1) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpsertDynamicWindowsDesktop(ctx, desktop); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
-func (g *GRPCServer) DeleteDynamicWindowsDesktop(ctx context.Context, req *authpb.DeleteDynamicWindowsDesktopRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.DeleteDynamicWindowsDesktop(ctx, req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
-// DeleteAllDynamicWindowsDesktops removes all registered Windows desktop hosts.
-func (g *GRPCServer) DeleteAllDynamicWindowsDesktops(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.DeleteAllDynamicWindowsDesktops(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
 func (g *GRPCServer) GenerateWindowsDesktopCert(ctx context.Context, req *authpb.WindowsDesktopCertRequest) (*authpb.WindowsDesktopCertResponse, error) {
@@ -5252,6 +5139,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		AuthServer: cfg.AuthServer,
 		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Clock:      cfg.AuthServer.GetClock(),
@@ -5334,10 +5222,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Entry: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		server:          server,
-		usersService:    usersService,
-		botService:      botService,
-		presenceService: presenceService,
+		server:       server,
+		usersService: usersService,
 	}
 
 	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
@@ -5363,6 +5249,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	authpb.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
+
+	dynamicWindows, err := dynamicwindows.NewService(dynamicwindows.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dynamicwindowspb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5480,6 +5375,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		SignatureAlgorithmSuiteParams: types.SignatureAlgorithmSuiteParams{
 			FIPS:          cfg.AuthServer.fips,
 			UsingHSMOrKMS: cfg.AuthServer.keyStore.UsingHSMOrKMS(),
+			Cloud:         modules.GetModules().Features().Cloud,
 		},
 	})
 	if err != nil {

@@ -19,7 +19,6 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -202,7 +201,7 @@ func (c *CircularBuffer) emit(r Event) {
 
 func (c *CircularBuffer) fanOutEvent(r Event) {
 	var watchersToDelete []*BufferWatcher
-	c.watchers.walkPath(string(r.Item.Key), func(watcher *BufferWatcher) {
+	c.watchers.walkPath(r.Item.Key.String(), func(watcher *BufferWatcher) {
 		if watcher.MetricComponent != "" {
 			watcherQueues.WithLabelValues(watcher.MetricComponent).Set(float64(len(watcher.eventsC)))
 		}
@@ -225,13 +224,13 @@ func RemoveRedundantPrefixes(prefixes []Key) []Key {
 	}
 	// group adjacent prefixes together
 	sort.Slice(prefixes, func(i, j int) bool {
-		return bytes.Compare(prefixes[i], prefixes[j]) == -1
+		return prefixes[i].Compare(prefixes[j]) == -1
 	})
 	// j increments only for values with non-redundant prefixes
 	j := 0
 	for i := 1; i < len(prefixes); i++ {
 		// skip keys that have first key as a prefix
-		if bytes.HasPrefix(prefixes[i], prefixes[j]) {
+		if prefixes[i].HasPrefix(prefixes[j]) {
 			continue
 		}
 		j++
@@ -257,7 +256,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	if len(watch.Prefixes) == 0 {
 		// if watcher has no prefixes, assume it will match anything
 		// starting from the separator (what includes all keys in backend invariant, see Keys function)
-		watch.Prefixes = append(watch.Prefixes, []byte{Separator})
+		watch.Prefixes = append(watch.Prefixes, Key{})
 	} else {
 		// if watcher's prefixes are redundant, keep only shorter prefixes
 		// to avoid double fan out
@@ -449,7 +448,7 @@ type watcherTree struct {
 // add adds buffer watcher to the tree
 func (t *watcherTree) add(w *BufferWatcher) {
 	for _, p := range w.Prefixes {
-		prefix := string(p)
+		prefix := p.String()
 		val, ok := t.Tree.Get(prefix)
 		var watchers []*BufferWatcher
 		if ok {
@@ -467,7 +466,7 @@ func (t *watcherTree) rm(w *BufferWatcher) bool {
 	}
 	var found bool
 	for _, p := range w.Prefixes {
-		prefix := string(p)
+		prefix := p.String()
 		val, ok := t.Tree.Get(prefix)
 		if !ok {
 			continue

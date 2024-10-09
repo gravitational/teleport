@@ -104,6 +104,14 @@ type SAMLConnector interface {
 	GetSingleLogoutURL() string
 	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
 	SetSingleLogoutURL(string)
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() SAMLConnectorMFASettings
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
+	// GetForceAuthn returns ForceAuthn
+	GetForceAuthn() bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -389,6 +397,46 @@ func (o *SAMLConnectorV2) GetSingleLogoutURL() string {
 // SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
 func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
 	o.Spec.SingleLogoutURL = url
+}
+
+// GetMFASettings returns the connector's MFA settings.
+func (o *SAMLConnectorV2) GetMFASettings() SAMLConnectorMFASettings {
+	if o.Spec.MFASettings == nil {
+		return SAMLConnectorMFASettings{
+			Enabled: false,
+		}
+	}
+	return *o.Spec.MFASettings
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *SAMLConnectorV2) IsMFAEnabled() bool {
+	return o.GetMFASettings().Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *SAMLConnectorV2) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
+	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
+
+	switch o.Spec.MFASettings.ForceAuthn {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		// Default to YES.
+		o.Spec.ForceAuthn = SAMLForceAuthn_FORCE_AUTHN_YES
+	default:
+		o.Spec.ForceAuthn = o.Spec.MFASettings.ForceAuthn
+	}
+
+	return nil
+}
+
+// GetForceAuthn returns ForceAuthn
+func (o *SAMLConnectorV2) GetForceAuthn() bool {
+	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
 }
 
 // setStaticFields sets static resource header and metadata fields.

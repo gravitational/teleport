@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -71,20 +71,20 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 }
 
 func setupDirsForTest(t *testing.T, testTempDir string, distroConfig map[string]string) {
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/etc"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/local/bin"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/share"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/var/lock"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "etc"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "usr/local/bin"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "usr/share"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "var/lock"), fs.ModePerm))
 
 	for fileName, contents := range distroConfig {
 		isDir := strings.HasSuffix(fileName, "/")
 		if isDir {
 			require.Empty(t, contents, "expected no contents for directory %q", fileName)
-			require.NoError(t, os.MkdirAll(path.Join(testTempDir, fileName), fs.ModePerm))
+			require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, fileName), fs.ModePerm))
 		} else {
-			filePathWithoutParent := path.Base(fileName)
-			require.NoError(t, os.MkdirAll(path.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
-			require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
+			filePathWithoutParent := filepath.Base(fileName)
+			require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
 		}
 	}
 }

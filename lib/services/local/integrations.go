@@ -53,12 +53,12 @@ func WithIntegrationsServiceCacheMode(cacheMode bool) func(*IntegrationsService)
 }
 
 // NewIntegrationsService creates a new IntegrationsService.
-func NewIntegrationsService(backend backend.Backend, opts ...IntegrationsServiceOption) (*IntegrationsService, error) {
+func NewIntegrationsService(b backend.Backend, opts ...IntegrationsServiceOption) (*IntegrationsService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.Integration]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     defaults.MaxIterationLimit,
 		ResourceKind:  types.KindIntegration,
-		BackendPrefix: integrationsPrefix,
+		BackendPrefix: backend.NewKey(integrationsPrefix),
 		MarshalFunc:   services.MarshalIntegration,
 		UnmarshalFunc: services.UnmarshalIntegration,
 	})
@@ -67,7 +67,7 @@ func NewIntegrationsService(backend backend.Backend, opts ...IntegrationsService
 	}
 	integrationsSvc := &IntegrationsService{
 		svc:     *svc,
-		backend: backend,
+		backend: b,
 	}
 	for _, opt := range opts {
 		opt(integrationsSvc)
@@ -132,7 +132,7 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 		return trace.Wrap(err)
 	}
 	conditionalActions = append(conditionalActions, backend.ConditionalAction{
-		Key:       s.svc.MakeKey(name),
+		Key:       s.svc.MakeKey(backend.NewKey(name)),
 		Condition: backend.Exists(),
 		Action:    backend.Delete(),
 	})

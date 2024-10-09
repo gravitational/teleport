@@ -148,7 +148,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	}
 
 	teleportVersionTag := teleport.Version
-	if automaticUpgrades(h.ClusterFeatures) {
+	if automaticUpgrades(h.GetClusterFeatures()) {
 		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -201,7 +201,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 	}
 
 	teleportVersionTag := teleport.Version
-	if automaticUpgrades(h.ClusterFeatures) {
+	if automaticUpgrades(h.GetClusterFeatures()) {
 		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -527,7 +527,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.ClusterFeatures, h.cfg.AutomaticUpgradesChannels)
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), h.cfg.AutomaticUpgradesChannels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -695,11 +695,25 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 func awsOIDCSecurityGroupsRulesConverter(inRules []*integrationv1.SecurityGroupRule) []awsoidc.SecurityGroupRule {
 	out := make([]awsoidc.SecurityGroupRule, 0, len(inRules))
 	for _, r := range inRules {
-		cidrs := make([]awsoidc.CIDR, 0, len(r.Cidrs))
+		var cidrs []awsoidc.CIDR
+		if len(r.Cidrs) > 0 {
+			cidrs = make([]awsoidc.CIDR, 0, len(r.Cidrs))
+		}
 		for _, cidr := range r.Cidrs {
 			cidrs = append(cidrs, awsoidc.CIDR{
 				CIDR:        cidr.Cidr,
 				Description: cidr.Description,
+			})
+		}
+
+		var groupIDs []awsoidc.GroupIDRule
+		if len(r.GroupIds) > 0 {
+			groupIDs = make([]awsoidc.GroupIDRule, 0, len(r.GroupIds))
+		}
+		for _, group := range r.GroupIds {
+			groupIDs = append(groupIDs, awsoidc.GroupIDRule{
+				GroupId:     group.GroupId,
+				Description: group.Description,
 			})
 		}
 		out = append(out, awsoidc.SecurityGroupRule{
@@ -707,6 +721,7 @@ func awsOIDCSecurityGroupsRulesConverter(inRules []*integrationv1.SecurityGroupR
 			FromPort:   int(r.FromPort),
 			ToPort:     int(r.ToPort),
 			CIDRs:      cidrs,
+			Groups:     groupIDs,
 		})
 	}
 	return out

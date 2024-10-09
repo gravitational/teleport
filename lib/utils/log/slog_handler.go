@@ -656,6 +656,9 @@ func StringerAttr(s fmt.Stringer) slog.LogValuer {
 }
 
 func (s stringerAttr) LogValue() slog.Value {
+	if s.Stringer == nil {
+		return slog.StringValue("")
+	}
 	return slog.StringValue(s.Stringer.String())
 }
 
