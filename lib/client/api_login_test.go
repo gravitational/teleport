@@ -150,7 +150,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
 		name                    string
-		secondFactor            constants.SecondFactorType
 		inputReader             *prompt.FakeReader
 		solveWebauthn           func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 		authConnector           string
@@ -161,37 +160,32 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	}{
 		{
 			name:             "OTP device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
 			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
 			solveWebauthn:    noopWebauthnFn,
 			allowStdinHijack: true,
 		},
 		{
 			name:             "Webauthn device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
 			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
 			solveWebauthn:    solveWebauthn,
 			allowStdinHijack: true,
 		},
 		{
 			name:             "Webauthn device with PIN and hijack", // a bit hypothetical, but _could_ happen.
-			secondFactor:     constants.SecondFactorOptional,
 			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
 			solveWebauthn:    solvePIN,
 			allowStdinHijack: true,
 		},
 		{
-			name:         "OTP preferred",
-			secondFactor: constants.SecondFactorOptional,
-			inputReader:  prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
+			name:        "OTP preferred",
+			inputReader: prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
 			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 				panic("this should not be called")
 			},
 			preferOTP: true,
 		},
 		{
-			name:         "Webauthn device login",
-			secondFactor: constants.SecondFactorOptional,
+			name: "Webauthn device login",
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(func(ctx context.Context) (string, error) {
@@ -201,21 +195,18 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		},
 		{
 			name:          "passwordless login",
-			secondFactor:  constants.SecondFactorOptional,
 			inputReader:   prompt.NewFakeReader(), // no inputs
 			solveWebauthn: solvePwdless,
 			authConnector: constants.PasswordlessConnector,
 		},
 		{
 			name:                  "default to passwordless if registered",
-			secondFactor:          constants.SecondFactorOptional,
 			inputReader:           prompt.NewFakeReader(), // no inputs
 			solveWebauthn:         solvePwdless,
 			hasTouchIDCredentials: true,
 		},
 		{
-			name:         "cross-platform attachment doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
+			name: "cross-platform attachment doesn't default to passwordless",
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(func(ctx context.Context) (string, error) {
@@ -226,8 +217,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			authenticatorAttachment: wancli.AttachmentCrossPlatform,
 		},
 		{
-			name:         "local connector doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
+			name: "local connector doesn't default to passwordless",
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(func(ctx context.Context) (string, error) {
@@ -238,8 +228,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			hasTouchIDCredentials: true,
 		},
 		{
-			name:         "OTP preferred doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
+			name: "OTP preferred doesn't default to passwordless",
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(solveOTP),
@@ -254,15 +243,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
-
-			authServer := sa.Auth.GetAuthServer()
-			pref, err := authServer.GetAuthPreference(ctx)
-			require.NoError(t, err)
-			if pref.GetSecondFactor() != test.secondFactor {
-				pref.SetSecondFactor(test.secondFactor)
-				_, err = authServer.UpsertAuthPreference(ctx, pref)
-				require.NoError(t, err)
-			}
 
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
