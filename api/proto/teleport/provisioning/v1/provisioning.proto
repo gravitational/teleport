@@ -54,7 +54,7 @@ message PrincipalStateSpec {
   // DownstreamId identifies the downstream service that this state applies to.
   string downstream_id = 1;
 
-  // PrincipalId identifies what kind of principal this state applies to, either
+  // PrincipalType identifies what kind of principal this state applies to, either
   // a User or a Group (i.e. AccessList)
   PrincipalType principal_type = 2;
 
