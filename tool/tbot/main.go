@@ -108,7 +108,7 @@ func Run(args []string, stdout io.Writer) error {
 			return onDBCommand(globalCfg, dbCmd)
 		}),
 
-		cli.NewSSHMultiplexerProxyCommand(app, func(c *cli.SSHMultiplerProxyCommand) error {
+		cli.NewSSHMultiplexerProxyCommand(app, func(c *cli.SSHMultiplexerProxyCommand) error {
 			return onSSHMultiplexProxyCommand(ctx, c.Socket, c.Data)
 		}),
 

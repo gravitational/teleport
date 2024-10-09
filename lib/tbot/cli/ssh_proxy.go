@@ -18,8 +18,6 @@
 
 package cli
 
-import "github.com/alecthomas/kingpin/v2"
-
 // SSHProxyCommand includes fields for `tbot ssh-proxy-command`
 type SSHProxyCommand struct {
 	*genericExecutorHandler[SSHProxyCommand]
@@ -62,7 +60,7 @@ type SSHProxyCommand struct {
 
 // NewSSHProxyCommand initializes the `tbot ssh-proxy-command` subcommand and
 // its fields.
-func NewSSHProxyCommand(app *kingpin.Application, action func(*SSHProxyCommand) error) *SSHProxyCommand {
+func NewSSHProxyCommand(app KingpinClause, action func(*SSHProxyCommand) error) *SSHProxyCommand {
 	cmd := app.Command("ssh-proxy-command", "An OpenSSH/PuTTY proxy command").Hidden()
 
 	c := &SSHProxyCommand{}

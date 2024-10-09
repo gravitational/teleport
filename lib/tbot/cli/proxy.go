@@ -20,8 +20,6 @@ package cli
 
 import (
 	"context"
-
-	"github.com/alecthomas/kingpin/v2"
 )
 
 // ProxyCommand supports `tbot proxy`
@@ -41,7 +39,7 @@ type ProxyCommand struct {
 }
 
 // NewProxyCommand initializes the subcommand for `tbot proxy`
-func NewProxyCommand(app *kingpin.Application, action func(*ProxyCommand) error) *ProxyCommand {
+func NewProxyCommand(app KingpinClause, action func(*ProxyCommand) error) *ProxyCommand {
 	cmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
 
 	c := &ProxyCommand{}

@@ -18,22 +18,22 @@
 
 package cli
 
-// SSHMultiplerProxyCommand includes fields for `tbot ssh-multiplexer-proxy-command`
-type SSHMultiplerProxyCommand struct {
-	*genericExecutorHandler[SSHMultiplerProxyCommand]
+// SSHMultiplexerProxyCommand includes fields for `tbot ssh-multiplexer-proxy-command`
+type SSHMultiplexerProxyCommand struct {
+	*genericExecutorHandler[SSHMultiplexerProxyCommand]
 
 	Socket string
 	Data   string
 }
 
 // NewSSHMultiplexerProxyCommand initializes and parses args for `tbot ssh-multiplexer-proxy-command`
-func NewSSHMultiplexerProxyCommand(app KingpinClause, action func(*SSHMultiplerProxyCommand) error) *SSHMultiplerProxyCommand {
+func NewSSHMultiplexerProxyCommand(app KingpinClause, action func(*SSHMultiplexerProxyCommand) error) *SSHMultiplexerProxyCommand {
 	cmd := app.Command(
 		"ssh-multiplexer-proxy-command",
 		"An OpenSSH compatible ProxyCommand which connects to a long-lived tbot running the ssh-multiplexer service",
 	).Hidden()
 
-	c := &SSHMultiplerProxyCommand{}
+	c := &SSHMultiplexerProxyCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
 	cmd.Arg("path", "Path to the listener socket.").Required().StringVar(&c.Socket)
