@@ -76,24 +76,9 @@ type ServiceConfig struct {
 	Backend                       Backend
 	Authorizer                    authz.Authorizer
 	Emitter                       apievents.Emitter
-	AccessGraph                   AccessGraphConfig
+	AccessGraph                   clusterconfigpb.AccessGraphConfig
 	ReadOnlyCache                 ReadOnlyCache
 	SignatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
-}
-
-// AccessGraphConfig contains the configuration about the access graph service
-// and whether it is enabled or not.
-type AccessGraphConfig struct {
-	// Enabled is a flag that indicates whether the access graph service is enabled.
-	Enabled bool
-	// Address is the address of the access graph service. The address is in the
-	// form of "host:port".
-	Address string
-	// CA is the PEM-encoded CA certificate of the access graph service.
-	CA []byte
-	// Insecure is a flag that indicates whether the access graph service should
-	// skip verifying the server's certificate chain and host name.
-	Insecure bool
 }
 
 // Service implements the teleport.clusterconfig.v1.ClusterConfigService RPC service.
@@ -104,7 +89,7 @@ type Service struct {
 	backend                       Backend
 	authorizer                    authz.Authorizer
 	emitter                       apievents.Emitter
-	accessGraph                   AccessGraphConfig
+	accessGraph                   clusterconfigpb.AccessGraphConfig
 	readOnlyCache                 ReadOnlyCache
 	signatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
 }
@@ -973,7 +958,7 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		AccessGraph: &clusterconfigpb.AccessGraphConfig{
 			Enabled:  s.accessGraph.Enabled,
 			Address:  s.accessGraph.Address,
-			Ca:       s.accessGraph.CA,
+			Ca:       s.accessGraph.Ca,
 			Insecure: s.accessGraph.Insecure,
 			SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
 				SshScanEnabled: sshScanEnabled,

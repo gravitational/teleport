@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -58,7 +59,7 @@ type APIConfig struct {
 	// Will be nil if audit logging is not enabled.
 	MetadataGetter events.UploadMetadataGetter
 	// AccessGraph contains the configuration about the access graph service
-	AccessGraph AccessGraphConfig
+	AccessGraph *clusterconfigpb.AccessGraphConfig
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -73,21 +74,6 @@ func (a *APIConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer is missing")
 	}
 	return nil
-}
-
-// AccessGraphConfig contains the configuration about the access graph service
-// and whether it is enabled or not.
-type AccessGraphConfig struct {
-	// Enabled is a flag that indicates whether the access graph service is enabled.
-	Enabled bool
-	// Address is the address of the access graph service. The address is in the
-	// form of "host:port".
-	Address string
-	// CA is the PEM-encoded CA certificate of the access graph service.
-	CA []byte
-	// Insecure is a flag that indicates whether the access graph service should
-	// skip verifying the server's certificate chain and host name.
-	Insecure bool
 }
 
 // APIServer implements http API server for AuthServer interface

@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"slices"
 	"strings"
 	"sync"
@@ -142,7 +143,7 @@ type Config struct {
 	// to the Access Graph service.
 	GetClientCert func() (*tls.Certificate, error)
 	// AccessGraphConfig is the configuration for the Access Graph client
-	AccessGraphConfig AccessGraphConfig
+	AccessGraphConfig *clusterconfigpb.AccessGraphConfig
 
 	// ClusterFeatures returns flags for supported/unsupported features.
 	// Used as a function because cluster features might change on Auth restarts.
@@ -160,21 +161,6 @@ type Config struct {
 	// jitter is a function which applies random jitter to a duration.
 	// It is used to add Expiration times to Resources that don't support Heartbeats (eg EICE Nodes).
 	jitter retryutils.Jitter
-}
-
-// AccessGraphConfig represents TAG server config.
-type AccessGraphConfig struct {
-	// Enabled indicates if Access Graph reporting is enabled.
-	Enabled bool
-
-	// Addr of the Access Graph service.
-	Addr string
-
-	// CA is the CA in PEM format used by the Access Graph service.
-	CA []byte
-
-	// Insecure is true if the connection to the Access Graph service should be insecure.
-	Insecure bool
 }
 
 func (c *Config) CheckAndSetDefaults() error {

@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"net"
 	"strings"
 	"testing"
@@ -805,7 +806,7 @@ func WithLimiterConfig(config *limiter.Config) TestTLSServerOption {
 }
 
 // WithAccessGraphConfig sets the access graph configuration.
-func WithAccessGraphConfig(config AccessGraphConfig) TestTLSServerOption {
+func WithAccessGraphConfig(config *clusterconfigpb.AccessGraphConfig) TestTLSServerOption {
 	return func(cfg *TestTLSServerConfig) {
 		cfg.APIConfig.AccessGraph = config
 	}

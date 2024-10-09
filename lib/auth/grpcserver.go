@@ -5354,9 +5354,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Backend:    cfg.AuthServer.Services,
 		Authorizer: cfg.Authorizer,
 		Emitter:    cfg.Emitter,
-		AccessGraph: clusterconfigv1.AccessGraphConfig{
+		AccessGraph: clusterconfigv1pb.AccessGraphConfig{
 			Enabled:  cfg.APIConfig.AccessGraph.Enabled,
-			CA:       cfg.APIConfig.AccessGraph.CA,
+			Ca:       cfg.APIConfig.AccessGraph.Ca,
 			Address:  cfg.APIConfig.AccessGraph.Address,
 			Insecure: cfg.APIConfig.AccessGraph.Insecure,
 		},

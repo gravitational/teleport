@@ -21,6 +21,7 @@ package servicecfg
 
 import (
 	"context"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"io"
 	"log/slog"
 	"net"
@@ -262,7 +263,7 @@ type Config struct {
 	Testing ConfigTesting
 
 	// AccessGraph represents AccessGraph server config
-	AccessGraph AccessGraphConfig
+	AccessGraph *clusterconfigpb.AccessGraphConfig
 
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -307,21 +308,6 @@ type ConfigTesting struct {
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
 	KubeMultiplexerIgnoreSelfConnections bool
-}
-
-// AccessGraphConfig represents TAG server config
-type AccessGraphConfig struct {
-	// Enabled Access Graph reporting enabled
-	Enabled bool
-
-	// Addr of the Access Graph service addr
-	Addr string
-
-	// CA is the path to the CA certificate file
-	CA string
-
-	// Insecure is true if the connection to the Access Graph service should be insecure
-	Insecure bool
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.

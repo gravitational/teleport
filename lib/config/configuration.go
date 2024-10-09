@@ -505,11 +505,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.AccessGraph.Enabled {
 		cfg.AccessGraph.Enabled = true
-		if fc.AccessGraph.Endpoint == "" {
+		if fc.AccessGraph.Address == "" {
 			return trace.BadParameter("access_graph.endpoint is required when access graph integration is enabled")
 		}
-		cfg.AccessGraph.Addr = fc.AccessGraph.Endpoint
-		cfg.AccessGraph.CA = fc.AccessGraph.CA
+		cfg.AccessGraph.Address = fc.AccessGraph.Address
+		cfg.AccessGraph.Ca = fc.AccessGraph.Ca
 		// TODO(tigrato): change this behavior when we drop support for plain text connections
 		cfg.AccessGraph.Insecure = fc.AccessGraph.Insecure
 	}

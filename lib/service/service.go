@@ -28,6 +28,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -2232,8 +2233,8 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	var accessGraphCAData []byte
-	if cfg.AccessGraph.Enabled && cfg.AccessGraph.CA != "" {
-		accessGraphCAData, err = os.ReadFile(cfg.AccessGraph.CA)
+	if cfg.AccessGraph.Enabled && cfg.AccessGraph.CaFile != "" {
+		accessGraphCAData, err = os.ReadFile(cfg.AccessGraph.CaFile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2245,10 +2246,10 @@ func (process *TeleportProcess) initAuthService() error {
 		PluginRegistry: process.PluginRegistry,
 		Emitter:        authServer,
 		MetadataGetter: uploadHandler,
-		AccessGraph: auth.AccessGraphConfig{
+		AccessGraph: &clusterconfigpb.AccessGraphConfig{
 			Enabled:  cfg.AccessGraph.Enabled,
-			Address:  cfg.AccessGraph.Addr,
-			CA:       accessGraphCAData,
+			Address:  cfg.AccessGraph.Address,
+			Ca:       accessGraphCAData,
 			Insecure: cfg.AccessGraph.Insecure,
 		},
 	}
@@ -4496,7 +4497,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		var accessGraphAddr utils.NetAddr
 		if cfg.AccessGraph.Enabled {
-			addr, err := utils.ParseAddr(cfg.AccessGraph.Addr)
+			addr, err := utils.ParseAddr(cfg.AccessGraph.Address)
 			if err != nil {
 				return trace.Wrap(err)
 			}

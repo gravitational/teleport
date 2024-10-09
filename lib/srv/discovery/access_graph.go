@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"io"
 	"sync"
 	"time"
@@ -228,7 +229,7 @@ func push(
 }
 
 // NewAccessGraphClient returns a new access graph service client.
-func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate, error), config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate, error), config *clusterconfigpb.AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opt, err := grpcCredentials(config, getCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -240,7 +241,7 @@ func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate,
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 	)
 
-	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
+	conn, err := grpc.DialContext(ctx, config.Address, opts...)
 	return conn, trace.Wrap(err)
 }
 
@@ -390,11 +391,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 }
 
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate, error)) (grpc.DialOption, error) {
+func grpcCredentials(config *clusterconfigpb.AccessGraphConfig, getCert func() (*tls.Certificate, error)) (grpc.DialOption, error) {
 	var pool *x509.CertPool
-	if len(config.CA) > 0 {
+	if len(config.Ca) > 0 {
 		pool = x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(config.CA) {
+		if !pool.AppendCertsFromPEM(config.Ca) {
 			return nil, trace.BadParameter("failed to append CA certificate to pool")
 		}
 	}

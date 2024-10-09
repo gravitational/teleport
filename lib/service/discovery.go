@@ -20,6 +20,7 @@ package service
 
 import (
 	"context"
+	clusterconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"log/slog"
 	"os"
 	"time"
@@ -140,25 +141,25 @@ func (process *TeleportProcess) integrationOnlyCredentials() bool {
 
 // buildAccessGraphFromTAGOrFallbackToAuth builds the AccessGraphConfig from the Teleport Agent configuration or falls back to the Auth server's configuration.
 // If the AccessGraph configuration is not enabled locally, it will fall back to the Auth server's configuration.
-func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client authclient.ClientI, logger *slog.Logger) (discovery.AccessGraphConfig, error) {
+func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servicecfg.Config, client authclient.ClientI, logger *slog.Logger) (*clusterconfigv1pb.AccessGraphConfig, error) {
 	var (
 		accessGraphCAData []byte
 		err               error
 	)
 	if config == nil {
-		return discovery.AccessGraphConfig{}, trace.BadParameter("config is nil")
+		return &clusterconfigv1pb.AccessGraphConfig{}, trace.BadParameter("config is nil")
 	}
-	if config.AccessGraph.CA != "" {
-		accessGraphCAData, err = os.ReadFile(config.AccessGraph.CA)
+	if config.AccessGraph.CaFile != "" {
+		accessGraphCAData, err = os.ReadFile(config.AccessGraph.CaFile)
 		if err != nil {
-			return discovery.AccessGraphConfig{}, trace.Wrap(err, "failed to read access graph CA file")
+			return &clusterconfigv1pb.AccessGraphConfig{}, trace.Wrap(err, "failed to read access graph CA file")
 		}
 	}
-	accessGraphCfg := discovery.AccessGraphConfig{
+	accessGraphCfg := clusterconfigv1pb.AccessGraphConfig{
 		Enabled:  config.AccessGraph.Enabled,
-		Addr:     config.AccessGraph.Addr,
+		Address:  config.AccessGraph.Address,
 		Insecure: config.AccessGraph.Insecure,
-		CA:       accessGraphCAData,
+		Ca:       accessGraphCAData,
 	}
 	if !accessGraphCfg.Enabled {
 		logger.DebugContext(ctx, "Access graph is disabled or not configured. Falling back to the Auth server's access graph configuration.")
@@ -169,13 +170,13 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 		case trace.IsNotImplemented(err):
 			logger.DebugContext(ctx, "Auth server does not support access graph's GetClusterAccessGraphConfig RPC")
 		case err != nil:
-			return discovery.AccessGraphConfig{}, trace.Wrap(err)
+			return &clusterconfigv1pb.AccessGraphConfig{}, trace.Wrap(err)
 		default:
 			accessGraphCfg.Enabled = rsp.Enabled
-			accessGraphCfg.Addr = rsp.Address
-			accessGraphCfg.CA = rsp.Ca
+			accessGraphCfg.Address = rsp.Address
+			accessGraphCfg.Ca = rsp.Ca
 			accessGraphCfg.Insecure = rsp.Insecure
 		}
 	}
-	return accessGraphCfg, nil
+	return &accessGraphCfg, nil
 }

@@ -32,6 +32,10 @@ message AccessGraphConfig {
   bool insecure = 4;
   // secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
   AccessGraphSecretsScanConfiguration secrets_scan_config = 5;
+  // cipher_suites is the list of cipher suites to use for the Access Graph connection.
+  repeated uint32 cipher_suites = 6;
+  // ca_file is the path to the CA certificate file of the access graph service.
+  string ca_file = 7;
 }
 
 // AccessGraphSecretsScanConfiguration controls the secrets scanning service parameters.
