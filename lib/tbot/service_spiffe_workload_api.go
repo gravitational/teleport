@@ -717,7 +717,11 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 			}
 		}
 		if !found {
-			log.ErrorContext(ctx, "Workload is not authorized for the specifically requested SPIFFE ID")
+			log.ErrorContext(ctx, "Workload is not authorized for the specifically requested SPIFFE ID", "requested_spiffe_id", req.SpiffeId)
+			return nil, status.Error(
+				codes.PermissionDenied,
+				"workload is not authorized for requested SPIFFE ID",
+			)
 		}
 	}
 
