@@ -1208,6 +1208,9 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !pingResp.LicenseExpiry.IsZero() {
+		userContext.Cluster.LicenseExpiry = pingResp.LicenseExpiry
+	}
 
 	userContext.ConsumedAccessRequestID = c.cfg.Session.GetConsumedAccessRequestID()
 

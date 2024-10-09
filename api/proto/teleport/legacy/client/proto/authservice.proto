@@ -438,6 +438,12 @@ message PingResponse {
 
   reserved 6; // LicenseWarnings, jsontag "license_warnings"
   reserved "LicenseWarnings";
+
+  // LicenseExpiry is the expiry date of the enterprise license, if applicable.
+  google.protobuf.Timestamp LicenseExpiry = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "licenseExpiry"
+  ];
 }
 
 // ProductType is the type of product.
