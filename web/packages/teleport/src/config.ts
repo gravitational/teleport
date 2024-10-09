@@ -35,7 +35,11 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
-import type { PluginKind, Regions } from './services/integrations';
+import type {
+  PluginKind,
+  Regions,
+  AwsOidcPolicyPreset,
+} from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 import type { KubeResourceKind } from './services/kube/types';
@@ -309,7 +313,7 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
     awsConfigureIamScriptDeployServicePath:
       '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
@@ -370,7 +374,7 @@ const cfg = {
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
 
     gcpWorkforceConfigurePath:
-      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+      '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
       '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
@@ -545,7 +549,10 @@ const cfg = {
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
     const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
-    return cfg.baseUrl + generatePath(path, { ...p });
+    return (
+      cfg.baseUrl +
+      generatePath(path, { ...p, policyPreset: p.policyPreset || undefined })
+    );
   },
 
   getDbScriptUrl(token: string) {
@@ -1267,6 +1274,7 @@ export interface UrlAwsOidcConfigureIdp {
   roleName: string;
   s3Bucket?: string;
   s3Prefix?: string;
+  policyPreset?: AwsOidcPolicyPreset;
 }
 
 export interface UrlAwsConfigureIamScriptParams {

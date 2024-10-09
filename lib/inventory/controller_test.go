@@ -1421,8 +1421,6 @@ func TestTimeReconciliation(t *testing.T) {
 	const peerAddr = "1.2.3.4:456"
 	const wantAddr = "1.2.3.4:123"
 
-	t.Parallel()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

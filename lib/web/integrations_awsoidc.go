@@ -1114,6 +1114,13 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
+	policyPreset := queryParams.Get("policyPreset")
+	if err := awsoidc.ValidatePolicyPreset(awsoidc.PolicyPreset(policyPreset)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if policyPreset != "" {
+		argsList = append(argsList, fmt.Sprintf("--policy-preset=%s", shsprintf.EscapeDefaultContext(policyPreset)))
+	}
 
 	// We have two set up modes:
 	// - use the Proxy HTTP endpoint as Identity Provider
@@ -1129,7 +1136,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 
 	switch {
 	case s3Bucket == "" && s3Prefix == "":
-		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1144,7 +1151,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		}
 		s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
 
-		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
+		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
