@@ -181,7 +181,7 @@ Optional:
 
 Optional:
 
-- `annotations` (Map of List of String) Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.
+- `annotations` (Map of List of String) Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specallowrequestclaims_to_roles))
 - `max_duration` (String) MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.
 - `roles` (List of String) Roles is the name of roles which will match the request rule.
@@ -344,7 +344,7 @@ Optional:
 
 Optional:
 
-- `annotations` (Map of List of String) Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.
+- `annotations` (Map of List of String) Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specdenyrequestclaims_to_roles))
 - `max_duration` (String) MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.
 - `roles` (List of String) Roles is the name of roles which will match the request rule.

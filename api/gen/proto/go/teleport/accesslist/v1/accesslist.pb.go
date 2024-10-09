@@ -222,7 +222,7 @@ type AccessList struct {
 
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
-	// spec is the specification for the access list.
+	// spec is the specification for the Access List.
 	Spec *AccessListSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 	// status contains dynamically calculated fields.
 	Status *AccessListStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
@@ -279,33 +279,33 @@ func (x *AccessList) GetStatus() *AccessListStatus {
 	return nil
 }
 
-// AccessListSpec is the specification for an access list.
+// AccessListSpec is the specification for an Access List.
 type AccessListSpec struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// description is an optional plaintext description of the access list.
+	// description is an optional plaintext description of the Access List.
 	Description string `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
-	// owners is a list of owners of the access list.
+	// owners is a list of owners of the Access List.
 	Owners []*AccessListOwner `protobuf:"bytes,2,rep,name=owners,proto3" json:"owners,omitempty"`
-	// audit describes the frequency that this access list must be audited.
+	// audit describes the frequency that this Access List must be audited.
 	Audit *AccessListAudit `protobuf:"bytes,3,opt,name=audit,proto3" json:"audit,omitempty"`
 	// membership_requires describes the requirements for a user to be a member of
-	// the access list. For a membership to an access list to be effective, the
+	// the Access List. For a membership to an Access List to be effective, the
 	// user must meet the requirements of Membership_requires and must be in the
 	// members list.
 	MembershipRequires *AccessListRequires `protobuf:"bytes,4,opt,name=membership_requires,json=membershipRequires,proto3" json:"membership_requires,omitempty"`
 	// ownership_requires describes the requirements for a user to be an owner of
-	// the access list. For ownership of an access list to be effective, the user
+	// the Access List. For ownership of an Access List to be effective, the user
 	// must meet the requirements of ownership_requires and must be in the owners
 	// list.
 	OwnershipRequires *AccessListRequires `protobuf:"bytes,5,opt,name=ownership_requires,json=ownershipRequires,proto3" json:"ownership_requires,omitempty"`
-	// grants describes the access granted by membership to this access list.
+	// grants describes the access granted by membership to this Access List.
 	Grants *AccessListGrants `protobuf:"bytes,6,opt,name=grants,proto3" json:"grants,omitempty"`
-	// title is a plaintext short description of the access list.
+	// title is a plaintext short description of the Access List.
 	Title string `protobuf:"bytes,8,opt,name=title,proto3" json:"title,omitempty"`
-	// owner_grants describes the access granted by owners to this access list.
+	// owner_grants describes the access granted by owners to this Access List.
 	OwnerGrants *AccessListGrants `protobuf:"bytes,11,opt,name=owner_grants,json=ownerGrants,proto3" json:"owner_grants,omitempty"`
 }
 
@@ -395,7 +395,7 @@ func (x *AccessListSpec) GetOwnerGrants() *AccessListGrants {
 	return nil
 }
 
-// AccessListOwner is an owner of an access list.
+// AccessListOwner is an owner of an Access List.
 type AccessListOwner struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -462,7 +462,7 @@ func (x *AccessListOwner) GetIneligibleStatus() IneligibleStatus {
 	return IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED
 }
 
-// AccessListAudit describes the audit configuration for an access list.
+// AccessListAudit describes the audit configuration for an Access List.
 type AccessListAudit struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -635,7 +635,7 @@ func (x *Notifications) GetStart() *durationpb.Duration {
 	return nil
 }
 
-// AccessListRequires describes a requirement section for an access list. A user
+// AccessListRequires describes a requirement section for an Access List. A user
 // must meet the following criteria to obtain the specific access to the list.
 type AccessListRequires struct {
 	state         protoimpl.MessageState
@@ -693,18 +693,18 @@ func (x *AccessListRequires) GetTraits() []*v11.Trait {
 	return nil
 }
 
-// AccessListGrants describes what access is granted by membership to the access
-// list.
+// AccessListGrants describes what access is granted by membership to the Access
+// List.
 type AccessListGrants struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// roles are the roles that are granted to users who are members of the access
-	// list.
+	// roles are the roles that are granted to users who are members of the Access
+	// List.
 	Roles []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
 	// traits are the traits that are granted to users who are members of the
-	// access list.
+	// Access List.
 	Traits []*v11.Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
 }
 
@@ -752,7 +752,7 @@ func (x *AccessListGrants) GetTraits() []*v11.Trait {
 	return nil
 }
 
-// Member describes a member of an access list.
+// Member describes a member of an Access List.
 type Member struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -760,7 +760,7 @@ type Member struct {
 
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
-	// spec is the specification for the access list member.
+	// spec is the specification for the Access List member.
 	Spec *MemberSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 }
 
@@ -808,23 +808,23 @@ func (x *Member) GetSpec() *MemberSpec {
 	return nil
 }
 
-// MemberSpec is the specification for an access list member.
+// MemberSpec is the specification for an Access List member.
 type MemberSpec struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// associated access list
+	// associated Access List
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
-	// name is the name of the member of the access list.
+	// name is the name of the member of the Access List.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// joined is when the user joined the access list.
+	// joined is when the user joined the Access List.
 	Joined *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=joined,proto3" json:"joined,omitempty"`
-	// expires is when the user's membership to the access list expires.
+	// expires is when the user's membership to the Access List expires.
 	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
-	// reason is the reason this user was added to the access list.
+	// reason is the reason this user was added to the Access List.
 	Reason string `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
-	// added_by is the user that added this user to the access list.
+	// added_by is the user that added this user to the Access List.
 	AddedBy string `protobuf:"bytes,6,opt,name=added_by,json=addedBy,proto3" json:"added_by,omitempty"`
 	// ineligible_status describes if this member is eligible or not
 	// and if not, describes how they're lacking eligibility.
@@ -910,7 +910,7 @@ func (x *MemberSpec) GetIneligibleStatus() IneligibleStatus {
 	return IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED
 }
 
-// Review is a review of an access list.
+// Review is a review of an Access List.
 type Review struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -918,7 +918,7 @@ type Review struct {
 
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
-	// spec is the specification for the access list review.
+	// spec is the specification for the Access List review.
 	Spec *ReviewSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 }
 
@@ -966,13 +966,13 @@ func (x *Review) GetSpec() *ReviewSpec {
 	return nil
 }
 
-// ReviewSpec is the specification for an access list review.
+// ReviewSpec is the specification for an Access List review.
 type ReviewSpec struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// access_list is the name of the access list that this review is for.
+	// access_list is the name of the Access List that this review is for.
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// reviewers are the users who performed the review.
 	Reviewers []string `protobuf:"bytes,2,rep,name=reviewers,proto3" json:"reviewers,omitempty"`
@@ -1133,7 +1133,7 @@ type AccessListStatus struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// member_count is the number of members in the in the access list.
+	// member_count is the number of members in the in the Access List.
 	MemberCount *uint32 `protobuf:"varint,1,opt,name=member_count,json=memberCount,proto3,oneof" json:"member_count,omitempty"`
 }
 
