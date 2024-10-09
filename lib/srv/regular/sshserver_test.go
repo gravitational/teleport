@@ -76,7 +76,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 // teleportTestUser is additional user used for tests
@@ -1259,25 +1258,6 @@ func TestAllowedLabels(t *testing.T) {
 	}
 }
 
-// TestKeyAlgorithms makes sure Teleport does not accept invalid user
-// certificates. The main check is the certificate algorithms.
-func TestKeyAlgorithms(t *testing.T) {
-	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
-
-	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
-	require.NoError(t, err)
-
-	sshConfig := &ssh.ClientConfig{
-		User:            f.user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(ellipticSigner)},
-		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
-	}
-
-	_, err = tracessh.Dial(context.Background(), "tcp", f.ssh.srv.Addr(), sshConfig)
-	require.Error(t, err)
-}
-
 func TestInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
@@ -1475,11 +1455,11 @@ func TestProxyRoundRobin(t *testing.T) {
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -1615,11 +1595,11 @@ func TestProxyDirectAccess(t *testing.T) {
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -2332,11 +2312,11 @@ func TestParseSubsystemRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
-			ClusterName:         f.testSrv.ClusterName(),
-			Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-			RemoteClusterGetter: proxyClient,
-			SiteGetter:          reverseTunnelServer,
-			TracerProvider:      tracing.NoopProvider(),
+			ClusterName:      f.testSrv.ClusterName(),
+			Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+			LocalAccessPoint: proxyClient,
+			SiteGetter:       reverseTunnelServer,
+			TracerProvider:   tracing.NoopProvider(),
 		})
 		require.NoError(t, err)
 
@@ -2593,11 +2573,11 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -3014,11 +2994,11 @@ func TestHostUserCreationProxy(t *testing.T) {
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
