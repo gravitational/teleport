@@ -28,17 +28,17 @@ import (
 // Ceremony is an MFA ceremony.
 type Ceremony struct {
 	// CreateAuthenticateChallenge creates an authentication challenge.
-	CreateAuthenticateChallenge func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	CreateAuthenticateChallenge CreateAuthenticateChallengeFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
-	// SolveAuthenticateChallenge solves an authentication challenge. Used in non-interactive settings,
-	// such as the WebUI with layers abstracting user interaction, and tests.
-	SolveAuthenticateChallenge func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
-	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge. The provided
-	// context will be closed once the ceremony is complete.
+	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge, and the MFA ceremony
+	// will be handled by the prompt. The provided context will be closed once the ceremony is complete.
 	SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 }
+
+// CreateAuthenticateChallengeFunc is a function that creates and authentication challenge.
+type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
 // SSOMFACeremony is an SSO MFA ceremony.
 type SSOMFACeremony interface {
@@ -57,8 +57,6 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 	switch {
 	case c.CreateAuthenticateChallenge == nil:
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
-	case c.SolveAuthenticateChallenge != nil && c.PromptConstructor != nil:
-		return nil, trace.BadParameter("mfa ceremony should have SolveAuthenticateChallenge or PromptConstructor set, not both")
 	case req == nil:
 		// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
 		// its own req or uses a different rpc, e.g. moderated sessions.
@@ -96,13 +94,8 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, &ErrMFANotRequired
 	}
 
-	if c.SolveAuthenticateChallenge == nil && c.PromptConstructor == nil {
-		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have SolveAuthenticateChallenge or PromptConstructor set in order to succeed")
-	}
-
-	if c.SolveAuthenticateChallenge != nil {
-		resp, err := c.SolveAuthenticateChallenge(ctx, chal)
-		return resp, trace.Wrap(err)
+	if c.PromptConstructor == nil {
+		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
 	}
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
