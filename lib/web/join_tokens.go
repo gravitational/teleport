@@ -47,9 +47,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
-	"github.com/gravitational/teleport/lib/web/ui"
+	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
 const (
@@ -101,7 +102,7 @@ func automaticUpgrades(features proto.Features) bool {
 
 // GetTokensResponse returns a list of JoinTokens.
 type GetTokensResponse struct {
-	Items []ui.JoinToken `json:"items"`
+	Items []webui.JoinToken `json:"items"`
 }
 
 func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -115,7 +116,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 		return nil, trace.Wrap(err)
 	}
 
-	uiTokens, err := ui.MakeJoinTokens(tokens)
+	uiTokens, err := webui.MakeJoinTokens(tokens)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,7 +183,7 @@ func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	uiToken, err := ui.MakeJoinToken(token)
+	uiToken, err := webui.MakeJoinToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -245,7 +246,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	uiToken, err := ui.MakeJoinToken(token)
+	uiToken, err := webui.MakeJoinToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

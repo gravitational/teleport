@@ -39,7 +39,7 @@ func TestValidateUserTask(t *testing.T) {
 		userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
 			Integration: "my-integration",
 			TaskType:    "discover-ec2",
-			IssueType:   "ec2-eice-create-node",
+			IssueType:   "ec2-ssm-invocation-failure",
 			State:       "OPEN",
 			DiscoverEc2: &usertasksv1.DiscoverEC2{
 				AccountId: "123456789012",
@@ -221,7 +221,7 @@ func TestNewDiscoverEC2UserTask(t *testing.T) {
 	baseEC2DiscoverTaskSpec := &usertasksv1.UserTaskSpec{
 		Integration: "my-integration",
 		TaskType:    "discover-ec2",
-		IssueType:   "ec2-eice-create-node",
+		IssueType:   "ec2-ssm-invocation-failure",
 		State:       "OPEN",
 		DiscoverEc2: &usertasksv1.DiscoverEC2{
 			AccountId: "123456789012",
@@ -250,7 +250,7 @@ func TestNewDiscoverEC2UserTask(t *testing.T) {
 				Kind:    "user_task",
 				Version: "v1",
 				Metadata: &headerv1.Metadata{
-					Name:    "bd1e9ec3-33d3-52f8-a674-c8145e739559",
+					Name:    "154e1429-da26-5ce2-add2-b0e77a27dd96",
 					Expires: userTaskExpirationTimestamp,
 				},
 				Spec: baseEC2DiscoverTaskSpec,

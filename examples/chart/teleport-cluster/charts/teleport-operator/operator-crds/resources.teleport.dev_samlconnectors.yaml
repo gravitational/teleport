@@ -115,6 +115,10 @@ spec:
                 description: EntityDescriptorURL is a URL that supplies a configuration
                   XML.
                 type: string
+              force_authn:
+                description: ForceAuthn specified whether re-authentication should
+                  be forced on login. UNSPECIFIED is treated as NO.
+                x-kubernetes-int-or-string: true
               issuer:
                 description: Issuer is the identity provider issuer.
                 type: string
@@ -136,6 +140,13 @@ spec:
                     description: EntityDescriptorUrl is a URL that supplies a configuration
                       XML.
                     type: string
+                  force_authn:
+                    description: ForceAuthn specified whether re-authentication should
+                      be forced for MFA checks. UNSPECIFIED is treated as YES to always
+                      re-authentication for MFA checks. This should only be set to
+                      NO if the IdP is setup to perform MFA checks on top of active
+                      user sessions.
+                    x-kubernetes-int-or-string: true
                 type: object
               provider:
                 description: Provider is the external identity provider.
