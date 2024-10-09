@@ -109,6 +109,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_AutoUpdateVersion{
 				AutoUpdateVersion: r,
 			}
+		case *autoupdate.AutoUpdateAgentPlan:
+			out.Resource = &proto.Event_AutoUpdateAgentPlan{
+				AutoUpdateAgentPlan: r,
+			}
 		case *usertasksv1.UserTask:
 			out.Resource = &proto.Event_UserTask{
 				UserTask: r,
@@ -560,6 +564,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateVersion(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateAgentPlan(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetUserTask(); r != nil {

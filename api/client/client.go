@@ -3024,6 +3024,59 @@ func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// CreateAutoUpdateAgentPlan creates AutoUpdateAgentPlan resource.
+func (c *Client) CreateAutoUpdateAgentPlan(ctx context.Context, plan *autoupdatev1pb.AutoUpdateAgentPlan) (*autoupdatev1pb.AutoUpdateAgentPlan, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.CreateAutoUpdateAgentPlan(ctx, &autoupdatev1pb.CreateAutoUpdateAgentPlanRequest{
+		Plan: plan,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateAgentPlan gets AutoUpdateAgentPlan resource.
+func (c *Client) GetAutoUpdateAgentPlan(ctx context.Context) (*autoupdatev1pb.AutoUpdateAgentPlan, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateAgentPlan(ctx, &autoupdatev1pb.GetAutoUpdateAgentPlanRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpdateAutoUpdateAgentPlan updates AutoUpdateAgentPlan resource.
+func (c *Client) UpdateAutoUpdateAgentPlan(ctx context.Context, plan *autoupdatev1pb.AutoUpdateAgentPlan) (*autoupdatev1pb.AutoUpdateAgentPlan, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpdateAutoUpdateAgentPlan(ctx, &autoupdatev1pb.UpdateAutoUpdateAgentPlanRequest{
+		Plan: plan,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// UpsertAutoUpdateAgentPlan updates or creates AutoUpdateAgentPlan resource.
+func (c *Client) UpsertAutoUpdateAgentPlan(ctx context.Context, plan *autoupdatev1pb.AutoUpdateAgentPlan) (*autoupdatev1pb.AutoUpdateAgentPlan, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.UpsertAutoUpdateAgentPlan(ctx, &autoupdatev1pb.UpsertAutoUpdateAgentPlanRequest{
+		Plan: plan,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateAgentPlan deletes AutoUpdateAgentPlan resource.
+func (c *Client) DeleteAutoUpdateAgentPlan(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateAgentPlan(ctx, &autoupdatev1pb.DeleteAutoUpdateAgentPlanRequest{})
+	return trace.Wrap(err)
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})

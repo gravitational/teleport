@@ -189,6 +189,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindStaticHostUser},
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
+		{Kind: types.KindAutoUpdateAgentPlan},
 		{Kind: types.KindUserTask},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -244,6 +245,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateVersion},
+		{Kind: types.KindAutoUpdateAgentPlan},
 		{Kind: types.KindUserTask},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
@@ -1966,6 +1968,29 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdat
 		return protobuf.Clone(cachedVersion).(*autoupdate.AutoUpdateVersion), nil
 	}
 	return rg.reader.GetAutoUpdateVersion(ctx)
+}
+
+// GetAutoUpdateAgentPlan gets the AutoUpdateAgentPlan from the backend.
+func (c *Cache) GetAutoUpdateAgentPlan(ctx context.Context) (*autoupdate.AutoUpdateAgentPlan, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentPlan")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoUpdateAgentPlans)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedPlan, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"plan"}, func(ctx context.Context) (*autoupdate.AutoUpdateAgentPlan, error) {
+			plan, err := rg.reader.GetAutoUpdateAgentPlan(ctx)
+			return plan, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedPlan).(*autoupdate.AutoUpdateAgentPlan), nil
+	}
+	return rg.reader.GetAutoUpdateAgentPlan(ctx)
 }
 
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {

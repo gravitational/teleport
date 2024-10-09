@@ -265,6 +265,7 @@ type cacheCollections struct {
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
 	autoUpdateConfigs        collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions       collectionReader[autoUpdateVersionGetter]
+	autoUpdateAgentPlans     collectionReader[autoUpdateAgentPlanGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -802,6 +803,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.autoUpdateVersions
+		case types.KindAutoUpdateAgentPlan:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateAgentPlans = &genericCollection[*autoupdate.AutoUpdateAgentPlan, autoUpdateAgentPlanGetter, autoUpdateAgentPlanExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateAgentPlans
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1345,6 +1355,41 @@ type autoUpdateVersionGetter interface {
 }
 
 var _ executor[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter] = autoUpdateVersionExecutor{}
+
+type autoUpdateAgentPlanExecutor struct{}
+
+func (autoUpdateAgentPlanExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateAgentPlan, error) {
+	plan, err := cache.AutoUpdateService.GetAutoUpdateAgentPlan(ctx)
+	return []*autoupdate.AutoUpdateAgentPlan{plan}, trace.Wrap(err)
+}
+
+func (autoUpdateAgentPlanExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateAgentPlan) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateAgentPlan(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateAgentPlanExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentPlan(ctx)
+}
+
+func (autoUpdateAgentPlanExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentPlan(ctx)
+}
+
+func (autoUpdateAgentPlanExecutor) isSingleton() bool { return true }
+
+func (autoUpdateAgentPlanExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateAgentPlanGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateAgentPlanGetter interface {
+	GetAutoUpdateAgentPlan(ctx context.Context) (*autoupdate.AutoUpdateAgentPlan, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateAgentPlan, autoUpdateAgentPlanGetter] = autoUpdateAgentPlanExecutor{}
 
 type userExecutor struct{}
 
