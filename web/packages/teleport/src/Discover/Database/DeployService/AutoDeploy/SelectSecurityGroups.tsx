@@ -28,15 +28,21 @@ import { pluralize } from 'shared/utils/text';
 import { P, P3 } from 'design/Text/Text';
 
 import {
+  AwsRdsDatabase,
   integrationService,
   SecurityGroup,
+  SecurityGroupRule,
 } from 'teleport/services/integrations';
 import { DbMeta } from 'teleport/Discover/useDiscover';
 
-import { SecurityGroupPicker, ButtonBlueText } from '../../../Shared';
+import {
+  SecurityGroupPicker,
+  SecurityGroupWithRecommendation,
+  ButtonBlueText,
+} from '../../../Shared';
 
 type TableData = {
-  items: SecurityGroup[];
+  items: SecurityGroupWithRecommendation[];
   nextToken?: string;
   fetchStatus: FetchStatus;
 };
@@ -87,11 +93,15 @@ export const SelectSecurityGroups = ({
           nextToken: sgTableData.nextToken,
         })
         .then(({ securityGroups, nextToken }) => {
-          const combinedSgs = [...sgTableData.items, ...securityGroups];
+          const groupsWithTips = withTips(
+            securityGroups,
+            dbMeta.selectedAwsRdsDb
+          );
+          const combinedSgs = [...sgTableData.items, ...groupsWithTips];
           setSgTableData({
             nextToken,
             fetchStatus: nextToken ? '' : 'disabled',
-            items: refresh ? securityGroups : combinedSgs,
+            items: refresh ? groupsWithTips : combinedSgs,
           });
           if (refresh) {
             // Reset so user doesn't unintentionally keep a security group
@@ -187,3 +197,113 @@ export const SelectSecurityGroups = ({
     </>
   );
 };
+
+function withTips(
+  securityGroups: SecurityGroup[],
+  db: AwsRdsDatabase
+): SecurityGroupWithRecommendation[] {
+  if (!securityGroups) {
+    return securityGroups;
+  }
+  const trustedGroups = getTrustedSecurityGroups(securityGroups, db);
+  return securityGroups.map(group => {
+    const isTrusted = trustedGroups.has(group.id);
+    const isOutboundAllowed = allowsOutbound(group);
+    return {
+      ...group,
+      tips: getTips(db, isTrusted, isOutboundAllowed),
+      // we recommend when either are true because security group rules are
+      // additive, meaning they can select multiple groups for a combined effect
+      // of satisfying the database inbound rules and the ECS task outbound
+      // rules.
+      recommended: isTrusted || isOutboundAllowed,
+    };
+  });
+}
+
+function getTips(
+  db: AwsRdsDatabase,
+  isTrusted: boolean,
+  allowsOutbound: boolean
+): string[] {
+  const result: string[] = [];
+  if (isTrusted) {
+    result.push(
+      `The inbound rules of the database ${pluralize(db.securityGroups.length, 'security group')} allow traffic from this security group`
+    );
+  }
+  if (allowsOutbound) {
+    result.push('This security group allows outbound traffic to the internet');
+  }
+  return result;
+}
+
+function allowsOutbound(sg: SecurityGroup): boolean {
+  return sg.outboundRules.some(rule => {
+    const havePorts = allowsOutboundToPorts(rule);
+    // this is a heuristic, because an exhaustive analysis is non-trivial.
+    return havePorts && rule.cidrs.some(cidr => cidr.cidr === '0.0.0.0/0');
+  });
+}
+
+function allowsOutboundToPorts(rule: SecurityGroupRule): boolean {
+  const publicECRPort = 443;
+  const proxyPort = window.location.port;
+  if (!proxyPort || proxyPort == '443') {
+    // if proxy port is not found or it is 443, then we only check for
+    // the HTTPS port.
+    return ruleAllowsPort(rule, publicECRPort);
+  }
+  // otherwise we need to check that the rule allows both proxy and ECR ports.
+  return (
+    ruleAllowsPort(rule, publicECRPort) &&
+    ruleAllowsPort(rule, parseInt(proxyPort, 10))
+  );
+}
+
+function getTrustedSecurityGroups(
+  securityGroups: SecurityGroup[],
+  db: AwsRdsDatabase
+): Set<string> {
+  const securityGroupsById = new Map(
+    securityGroups.map(group => [group.id, group])
+  );
+
+  const dbPort = getPort(db);
+  const trustedGroups = new Set<string>();
+  db.securityGroups.forEach(groupId => {
+    const group = securityGroupsById.get(groupId);
+    if (!group) {
+      return;
+    }
+    group.inboundRules.forEach(rule => {
+      if (!rule.groups?.length) {
+        // we only care about rules that reference other security groups.
+        return;
+      }
+      if (!ruleAllowsPort(rule, dbPort)) {
+        // a group is only trusted if it is trusted for the relevant port.
+        return;
+      }
+      rule.groups?.forEach(({ groupId }) => {
+        trustedGroups.add(groupId);
+      });
+    });
+  });
+
+  return trustedGroups;
+}
+
+function ruleAllowsPort(rule: SecurityGroupRule, port: number): boolean {
+  if (rule.ipProtocol === 'all') {
+    return true;
+  }
+  const fromPort = parseInt(rule.fromPort, 10);
+  const toPort = parseInt(rule.toPort, 10);
+  return port >= fromPort && port <= toPort;
+}
+
+function getPort(db: AwsRdsDatabase): number {
+  const [, port = '-1'] = db.uri.split(':');
+  return parseInt(port, 10);
+}
