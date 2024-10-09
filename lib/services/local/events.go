@@ -2867,6 +2867,47 @@ func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error
 	}
 }
 
+// base returns the key component that is offset
+// components before the last component.
+func base(key backend.Key, offset int) (string, error) {
+	parts := key.Components()
+	if len(parts) < offset+1 {
+		return "", trace.NotFound("failed parsing %v", key)
+	}
+	return string(parts[len(parts)-offset-1]), nil
+}
+
+func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
+	name, err := base(event.Item.Key, offset)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.ResourceHeader{
+		Kind:    kind,
+		Version: version,
+		Metadata: types.Metadata{
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+		},
+	}, nil
+}
+
+func resourceHeaderWithTemplate(event backend.Event, hdr types.ResourceHeader, offset int) (types.Resource, error) {
+	name, err := base(event.Item.Key, offset)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.ResourceHeader{
+		Kind:    hdr.Kind,
+		SubKind: hdr.SubKind,
+		Version: hdr.Version,
+		Metadata: types.Metadata{
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+		},
+	}, nil
+}
+
 // WaitForEvent waits for the event matched by the specified event matcher in the given watcher.
 func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, clock clockwork.Clock) (types.Resource, error) {
 	tick := clock.NewTicker(defaults.WebHeadersTimeout)

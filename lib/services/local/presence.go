@@ -1378,10 +1378,10 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{userGroupPrefix}
 		unmarshalItemFunc = backendItemToUserGroup
 	case types.KindIdentityCenterAccount:
-		keyPrefix = []string{awsAccountPrefix}
+		keyPrefix = []string{awsICPrefix, awsAccountPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccount
 	case types.KindIdentityCenterAccountAssignment:
-		keyPrefix = []string{awsAccountAssignmentPrefix}
+		keyPrefix = []string{awsICPrefix, awsAccountAssignmentPrefix}
 		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)

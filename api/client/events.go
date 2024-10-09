@@ -114,6 +114,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *provisioningv1.PrincipalState:
 			out.Resource = &proto.Event_PrincipalState{
 				PrincipalState: r,
+			}
 		case *autoupdate.AutoUpdateConfig:
 			out.Resource = &proto.Event_AutoUpdateConfig{
 				AutoUpdateConfig: r,
@@ -575,10 +576,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetPrincipalAssignment(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetPrincipalState(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetPrincipalAssignment(); r != nil {
 	} else if r := in.GetAutoUpdateConfig(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil

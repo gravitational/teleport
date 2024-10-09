@@ -177,7 +177,7 @@ export type PluginKind =
   | 'servicenow'
   | 'jamf'
   | 'entra-id'
-  | 'aws-ic';
+  | 'aws-ic'
   | 'datadog';
 
 export type PluginOktaSpec = {

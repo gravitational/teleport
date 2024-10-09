@@ -21,7 +21,7 @@ import (
 
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
+	libbackend "github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils/pagination"
@@ -54,11 +54,11 @@ type ProvisioningStateService struct {
 
 var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
 
-func NewProvisioningStateService(backend backend.Backend, mode ProvisioningStateServiceMode) (*ProvisioningStateService, error) {
+func NewProvisioningStateService(backend libbackend.Backend, mode ProvisioningStateServiceMode) (*ProvisioningStateService, error) {
 	userStatusSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*provisioningv1.PrincipalState]{
 		Backend:       backend,
 		ResourceKind:  types.KindProvisioningState,
-		BackendPrefix: provisioningStatePrefix,
+		BackendPrefix: libbackend.NewKey(provisioningStatePrefix),
 		MarshalFunc:   services.MarshalProtoResource[*provisioningv1.PrincipalState],
 		UnmarshalFunc: services.UnmarshalProtoResource[*provisioningv1.PrincipalState],
 	})

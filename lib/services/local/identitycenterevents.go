@@ -14,7 +14,7 @@ type identityCenterAccountParser struct {
 
 func newIdentityCenterAccountParser() *identityCenterAccountParser {
 	return &identityCenterAccountParser{
-		baseParser: newBaseParser(backend.NewKey(awsAccountPrefix)),
+		baseParser: newBaseParser(backend.NewKey(awsICPrefix, awsAccountPrefix)),
 	}
 }
 

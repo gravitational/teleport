@@ -47,10 +47,10 @@ const (
 
 const (
 	awsICPrefix                  = "identity_center"
-	awsAccountPrefix             = awsICPrefix + "/accounts"
-	awsPermissionSetPrefix       = awsICPrefix + "/permission_sets"
-	awsPrincipalAssignmentPrefix = awsICPrefix + "/principal_assignments"
-	awsAccountAssignmentPrefix   = awsICPrefix + "/account_assignments"
+	awsAccountPrefix             = "accounts"
+	awsPermissionSetPrefix       = "permission_sets"
+	awsPrincipalAssignmentPrefix = "principal_assignments"
+	awsAccountAssignmentPrefix   = "account_assignments"
 )
 
 type IdentityCenterServiceConfig struct {
@@ -101,7 +101,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 	accountsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.Account]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterAccount,
-		BackendPrefix: awsAccountPrefix,
+		BackendPrefix: backend.NewKey(awsICPrefix, "accounts"),
 		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.Account],
 		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.Account],
 	})
@@ -112,7 +112,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 	permissionSetSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PermissionSet]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterPermissionSet,
-		BackendPrefix: awsPermissionSetPrefix,
+		BackendPrefix: backend.NewKey(awsICPrefix, "permission_sets"),
 		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.PermissionSet],
 		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.PermissionSet],
 	})
@@ -123,7 +123,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 	principalsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PrincipalAssignment]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterPrincipalAssignment,
-		BackendPrefix: awsPrincipalAssignmentPrefix,
+		BackendPrefix: backend.NewKey(awsICPrefix, "principal_assignments"),
 		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.PrincipalAssignment],
 		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.PrincipalAssignment],
 	})
@@ -134,7 +134,7 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 	accountAssignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.AccountAssignment]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterAccountAssignment,
-		BackendPrefix: awsAccountAssignmentPrefix,
+		BackendPrefix: backend.NewKey(awsICPrefix, "account_assignments"),
 		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.AccountAssignment],
 		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.AccountAssignment],
 	})

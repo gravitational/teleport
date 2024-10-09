@@ -729,6 +729,9 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 		return trace.BadParameter("base URL data must be set")
 	}
 
+	return nil
+}
+
 func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	if c.ApiEndpoint == "" {
 		return trace.BadParameter("api_endpoint must be set")

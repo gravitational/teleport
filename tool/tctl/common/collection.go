@@ -1576,23 +1576,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsServiceNow                = "serviceNow"
 		settingsGitlab                    = "gitlab"
 		settingsEntraID                   = "entra_id"
-		settingsAWDIC                     = "awsIamIc"
-		credOauth2AccessToken             = "oauth2_access_token"
-		credBearerToken                   = "bearer_token"
-		credIdSecret                      = "id_secret"
-		credStaticCredentialsRef          = "static_credentials_ref"
-		settingsSlackAccessPlugin         = "slack_access_plugin"
-		settingsOpsgenie                  = "opsgenie"
-		settingsOpenAI                    = "openai"
-		settingsOkta                      = "okta"
-		settingsJamf                      = "jamf"
-		settingsPagerDuty                 = "pager_duty"
-		settingsMattermost                = "mattermost"
-		settingsJira                      = "jira"
-		settingsDiscord                   = "discord"
-		settingsServiceNow                = "serviceNow"
-		settingsGitlab                    = "gitlab"
-		settingsEntraID                   = "entra_id"
+		settingsAWSIC                     = "awsIamIc"
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 	)
 	type unknownPluginType struct {
@@ -1661,7 +1645,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
-		case settingsAWDIC:
+		case settingsAWSIC:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
