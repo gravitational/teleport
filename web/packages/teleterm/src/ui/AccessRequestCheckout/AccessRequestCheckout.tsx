@@ -259,6 +259,12 @@ export function AccessRequestCheckout() {
             setPendingRequestTtl={setPendingRequestTtl}
             startTime={startTime}
             onStartTimeChange={onStartTimeChange}
+            // TODO: these are placeholders to satisy linters.
+            // There is a split PR that handles teleterm support
+            // that will be merged right after this one (once both are approved)
+            bulkToggleKubeResources={() => null}
+            fetchKubeNamespaces={() => null}
+            allowedKubeSubresourceKinds={[]}
           />
         )}
       </Transition>
