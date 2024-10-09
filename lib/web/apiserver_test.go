@@ -5169,7 +5169,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 		name    string
 		clt     *TestWebClient
 		ep      []string
-		reqBody client.MFAChallengeRequest
+		reqBody any
 	}{
 		{
 			name: "/webapi/mfa/authenticatechallenge/password",
@@ -5192,6 +5192,9 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			name: "/webapi/mfa/authenticatechallenge",
 			clt:  authnClt,
 			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+			reqBody: createAuthenticateChallengeRequest{
+				ChallengeScope: int(mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN),
+			},
 		},
 		{
 			name: "/webapi/mfa/token/:token/authenticatechallenge",
