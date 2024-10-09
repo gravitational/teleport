@@ -16,17 +16,37 @@ gpgcheck=0
 enabled=1
 EOF
 
+# mirrorlist is no longer available since CentOS 7 EOL. The software collection
+# stuff for arm64 (aarch64) is in /altarch not /centos on vault.centos.org.
+# Make the fixup a script as it needs to be run multiple times as installing
+# and updating centos-release-scl-rh leaves the old unavailable URLs.
+# https://serverfault.com/a/1161847
+RUN cat <<EOF > /tmp/fix-yum-repo-list.sh
+#!/bin/sh
+sed -e 's/mirror.centos.org/vault.centos.org/g' \
+    -e 's/^#.*baseurl=http/baseurl=http/g' \
+    -e 's/^mirrorlist=http/#mirrorlist=http/g' \
+    -i /etc/yum.repos.d/*.repo
+if [ "$(uname -m)" = 'aarch64' ]; then
+    sed 's|centos/7/sclo|altarch/7/sclo|' -i /etc/yum.repos.d/*.repo
+fi
+EOF
+RUN chmod 755 /tmp/fix-yum-repo-list.sh && \
+    /tmp/fix-yum-repo-list.sh
+
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
-    yum update -y && \
     yum install -y centos-release-scl-rh && \
+    /tmp/fix-yum-repo-list.sh \
+    yum update -y && \
     yum install -y \
     centos-release-scl \
     cmake3 \
     git \
     scl-utils && \
-    yum clean all
+    yum clean all && \
+    /tmp/fix-yum-repo-list.sh
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
