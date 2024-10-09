@@ -505,6 +505,10 @@ type Config struct {
 	// StdinFunc allows tests to override prompt.Stdin().
 	// If nil prompt.Stdin() is used.
 	StdinFunc func() prompt.StdinReader
+
+	// HasTouchIDCredentialsFunc allows tests to override touchid.HasCredentials.
+	// If nil touchid.HasCredentials is used.
+	HasTouchIDCredentialsFunc func(rpID, user string) bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1265,6 +1269,13 @@ func (tc *TeleportClient) stdin() prompt.StdinReader {
 		return prompt.Stdin()
 	}
 	return tc.StdinFunc()
+}
+
+func (tc *TeleportClient) hasTouchIDCredentials(rpID, user string) bool {
+	if tc.HasTouchIDCredentialsFunc == nil {
+		return touchid.HasCredentials(rpID, user)
+	}
+	return tc.HasTouchIDCredentialsFunc(rpID, user)
 }
 
 func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
@@ -3693,9 +3704,6 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 	return clt, session, trace.Wrap(err)
 }
 
-// hasTouchIDCredentials provides indirection for tests.
-var hasTouchIDCredentials = touchid.HasCredentials
-
 // canDefaultToPasswordless checks without user interaction
 // if there is any registered passwordless login.
 func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
@@ -3718,7 +3726,7 @@ func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) b
 		user = tc.Username
 	}
 
-	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
+	return tc.hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.

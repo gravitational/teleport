@@ -88,10 +88,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
-	// Reset functions after tests.
-	oldHasCredentials := *client.HasTouchIDCredentials
-	t.Cleanup(func() { *client.HasTouchIDCredentials = oldHasCredentials })
-
 	waitForCancelFn := func(ctx context.Context) (string, error) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
@@ -259,9 +255,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			*client.HasTouchIDCredentials = func(rpid, user string) bool {
-				return test.hasTouchIDCredentials
-			}
 			authServer := sa.Auth.GetAuthServer()
 			pref, err := authServer.GetAuthPreference(ctx)
 			require.NoError(t, err)
@@ -285,6 +278,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			) (*proto.MFAAuthenticateResponse, string, error) {
 				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
 				return resp, "", err
+			}
+
+			tc.HasTouchIDCredentialsFunc = func(_, _ string) bool {
+				return test.hasTouchIDCredentials
 			}
 
 			clock.Advance(30 * time.Second)
