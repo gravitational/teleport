@@ -1711,6 +1711,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/access-request-plugins/datadog-hosted/",
+      "destination": "/admin-guides/access-controls/access-request-plugins/datadog-hosted/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/access-request-plugins/ssh-approval-datadog/",
       "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-datadog/",
       "permanent": true
