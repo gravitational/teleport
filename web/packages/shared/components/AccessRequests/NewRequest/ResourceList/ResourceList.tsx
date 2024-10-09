@@ -30,7 +30,7 @@ import { CustomSort } from 'design/DataTable/types';
 
 import { ResourceLabel, UnifiedResource } from 'teleport/services/agents';
 
-import { ResourceMap, ResourceKind } from '../resource';
+import { ResourceMap, RequestableResourceKind } from '../resource';
 
 import { Apps } from './Apps';
 import { Databases } from './Databases';
@@ -126,7 +126,7 @@ export type ListProps = {
   onLabelClick: (label: ResourceLabel) => void;
   addedResources: ResourceMap;
   addOrRemoveResource: (
-    kind: ResourceKind,
+    kind: RequestableResourceKind,
     resourceId: string,
     resourceName?: string
   ) => void;
@@ -135,7 +135,7 @@ export type ListProps = {
 
 export type ResourceListProps = {
   agents: UnifiedResource[];
-  selectedResource: ResourceKind;
+  selectedResource: RequestableResourceKind;
   // disableRows disable clicking on any buttons (when fetching).
   disableRows: boolean;
 } & ListProps;
