@@ -17,13 +17,19 @@
  */
 
 import React from 'react';
-import { Indicator, Box, Alert, Button, Link } from 'design';
+import { Alert, Box, Button, Indicator, Link } from 'design';
+
+import { Route, Switch } from 'react-router-dom';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+
+import cfg from 'teleport/config';
+
+import { UserDetails } from 'teleport/Users/UserDetails/UserDetails';
 
 import UserList from './UserList';
 import UserAddEdit from './UserAddEdit';
@@ -33,7 +39,17 @@ import useUsers, { State, UsersContainerProps } from './useUsers';
 
 export function UsersContainer(props: UsersContainerProps) {
   const state = useUsers(props);
+
   return <Users {...state} />;
+}
+
+export function UserRoute() {
+  return (
+    <Switch>
+      <Route path={cfg.routes.userDetails} component={UserDetails} />
+      <Route path={cfg.routes.users} component={UsersContainer} />
+    </Switch>
+  );
 }
 
 export function Users(props: State) {

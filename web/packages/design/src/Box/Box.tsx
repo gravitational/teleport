@@ -32,6 +32,8 @@ import {
   HeightProps,
   justifySelf,
   JustifySelfProps,
+  fontSize,
+  FontSizeProps,
   lineHeight,
   LineHeightProps,
   maxHeight,
@@ -65,6 +67,7 @@ export interface BoxProps
     TextAlignProps,
     FlexProps,
     AlignSelfProps,
+    FontSizeProps,
     JustifySelfProps,
     BorderProps,
     BordersProps,
@@ -87,6 +90,7 @@ const Box = styled.div<BoxProps>`
   ${justifySelf}
   ${borders}
   ${overflow}
+  ${fontSize}
 `;
 
 Box.displayName = 'Box';

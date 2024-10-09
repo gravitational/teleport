@@ -47,7 +47,7 @@ const FeatureHeaderTitle = styled(H1)`
 /**
  * Feature Box (container)
  */
-const FeatureBox = styled(Flex)`
+const FeatureBox = styled(Flex)<{ fullScreen?: boolean }>`
   width: 100%;
   height: 100%;
   flex-direction: column;
@@ -61,7 +61,7 @@ const FeatureBox = styled(Flex)`
   */
   &::after {
     content: ' ';
-    padding-bottom: 24px;
+    padding-bottom: ${p => (p.fullScreen ? 0 : 24)}px;
   }
 
   /* Allow overriding padding settings. */
