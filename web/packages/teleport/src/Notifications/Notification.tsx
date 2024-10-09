@@ -67,6 +67,10 @@ export function Notification({
   const { clusterId } = useStickyClusterId();
 
   const content = ctx.notificationContentFactory(notification);
+  // If there is no notification content because it is an unsupported kind, don't render anything.
+  if (!content) {
+    return null;
+  }
 
   const [markAsClickedAttempt, markAsClicked] = useAsync(() =>
     ctx.notificationService
@@ -104,9 +108,8 @@ export function Notification({
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
 
-  // If the notification is unsupported or hidden, or if the view is "Unread" and the notification has been read,
-  // it should not be shown.
-  if (!content || (view === 'Unread' && notification.clicked)) {
+  // If the view is "Unread" and the notification has been read, it should not be shown.
+  if (view === 'Unread' && notification.clicked) {
     // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
     // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
     if (content.kind == 'text') {
