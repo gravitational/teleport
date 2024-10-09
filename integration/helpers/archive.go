@@ -30,8 +30,9 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // CompressDirToZipFile compresses a source directory into `.zip` format and stores at `archivePath`,
