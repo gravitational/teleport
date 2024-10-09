@@ -216,6 +216,9 @@ func getRouteToApp(
 		return proto.RouteToApp{}, nil, trace.Wrap(err)
 	}
 
+	// TODO(noah): Now that app session ids are no longer being retrieved,
+	// we can begin to cache the routeToApp rather than regenerating this
+	// on each renew in the ApplicationTunnelSvc
 	routeToApp := proto.RouteToApp{
 		Name:        app.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
