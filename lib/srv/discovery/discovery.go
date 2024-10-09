@@ -463,8 +463,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(func() {
-			s.awsEC2ResourcesStatus.iterationStarted()
-			s.awsEC2Tasks.iterationStarted()
+			s.awsEC2ResourcesStatus.reset()
+			s.awsEC2Tasks.reset()
 		}),
 	)
 	if err != nil {
@@ -900,22 +900,6 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 				discoveryConfig: instances.DiscoveryConfig,
 				integration:     instances.Integration,
 			}, 1)
-
-			s.awsEC2Tasks.addFailedEnrollment(
-				awsEC2FailedEnrollmentGroup{
-					accountID:   instances.AccountID,
-					integration: instances.Integration,
-					issueType:   usertasks.AutoDiscoverEC2IssueEICEFailedToCreateNode,
-					region:      instances.Region,
-				},
-				&usertasksv1.DiscoverEC2Instance{
-					// TODO(marco): add instance name
-					DiscoveryConfig: instances.DiscoveryConfig,
-					DiscoveryGroup:  s.DiscoveryGroup,
-					InstanceId:      ec2Instance.InstanceID,
-					SyncTime:        timestamppb.New(s.clock.Now()),
-				},
-			)
 			continue
 		}
 
@@ -958,22 +942,6 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 				discoveryConfig: instances.DiscoveryConfig,
 				integration:     instances.Integration,
 			}, 1)
-
-			s.awsEC2Tasks.addFailedEnrollment(
-				awsEC2FailedEnrollmentGroup{
-					accountID:   instances.AccountID,
-					integration: instances.Integration,
-					issueType:   usertasks.AutoDiscoverEC2IssueEICEFailedToUpsertNode,
-					region:      instances.Region,
-				},
-				&usertasksv1.DiscoverEC2Instance{
-					// TODO(marco): add instance name
-					DiscoveryConfig: instances.DiscoveryConfig,
-					DiscoveryGroup:  s.DiscoveryGroup,
-					InstanceId:      instanceID,
-					SyncTime:        timestamppb.New(s.clock.Now()),
-				},
-			)
 		}
 	})
 	if err != nil {
@@ -1012,7 +980,7 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 
 		for _, instance := range req.Instances {
 			s.awsEC2Tasks.addFailedEnrollment(
-				awsEC2FailedEnrollmentGroup{
+				awsEC2FailedEnrollmentTaskKey{
 					accountID:   instances.AccountID,
 					integration: instances.Integration,
 					issueType:   usertasks.AutoDiscoverEC2IssueInvocationFailure,
