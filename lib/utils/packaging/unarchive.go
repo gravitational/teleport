@@ -32,6 +32,8 @@ import (
 )
 
 const (
+	// reservedFreeDisk is the predefined amount of free disk space (in bytes) required
+	// to remain available after extracting Teleport binaries.
 	reservedFreeDisk = 10 * 1024 * 1024
 )
 
@@ -141,7 +143,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 	return nil
 }
 
-// checkFreeSpace verifies that we have enough requested space at specific directory.
+// checkFreeSpace verifies that we have enough requested space (in bytes) at specific directory.
 func checkFreeSpace(path string, requested uint64) error {
 	free, err := utils.FreeDiskWithReserve(path, reservedFreeDisk)
 	if err != nil {

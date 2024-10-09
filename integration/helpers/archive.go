@@ -43,7 +43,7 @@ func CompressDirToZipFile(ctx context.Context, sourcePath, destPath string) (err
 	}
 	defer func() {
 		if closeErr := archive.Close(); closeErr != nil {
-			err = closeErr
+			err = trace.Wrap(closeErr)
 			return
 		}
 		if err != nil {
@@ -98,7 +98,7 @@ func CompressDirToTarGzFile(ctx context.Context, sourcePath, destPath string) (e
 	}
 	defer func() {
 		if closeErr := archive.Close(); closeErr != nil {
-			err = closeErr
+			err = trace.Wrap(closeErr)
 			return
 		}
 		if err != nil {

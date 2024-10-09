@@ -46,7 +46,7 @@ func PercentUsed(path string) (float64, error) {
 	return Round(ratio * 100), nil
 }
 
-// FreeDiskWithReserve returns the available disk space on the disk at dir, minus `reservedFreeDisk`.
+// FreeDiskWithReserve returns the available disk space (in bytes) on the disk at dir, minus `reservedFreeDisk`.
 func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
 	var stat syscall.Statfs_t
 	err := syscall.Statfs(dir, &stat)
