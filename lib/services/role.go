@@ -1594,8 +1594,6 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
-// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
-//
 //nolint:revive // Because we want this to be IdP.
 func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
 	_, debugf := rbacDebugLogger()
