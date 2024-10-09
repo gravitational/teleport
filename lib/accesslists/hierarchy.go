@@ -442,7 +442,7 @@ func (h *hierarchy) IsAccessListOwner(ctx context.Context, user types.User, acce
 	// Check explicit owners
 	if _, ok := node.OwnerUsers[user.GetName()]; ok {
 		// Verify ownership requirements using provided AccessList
-		if !userMeetsRequirements(user, node.AccessList.Spec.OwnershipRequires) {
+		if !UserMeetsRequirements(user, node.AccessList.Spec.OwnershipRequires) {
 			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
 		}
 		return MembershipOrOwnershipTypeExplicit, nil
@@ -456,7 +456,7 @@ func (h *hierarchy) IsAccessListOwner(ctx context.Context, user types.User, acce
 	}
 	if isOwner {
 		// ALso needs to meet ownership requirements of the parent.
-		if !userMeetsRequirements(user, node.AccessList.Spec.OwnershipRequires) {
+		if !UserMeetsRequirements(user, node.AccessList.Spec.OwnershipRequires) {
 			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
 		}
 		return MembershipOrOwnershipTypeInherited, nil
@@ -514,23 +514,24 @@ func (h *hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 	// Check explicit members
 	if _, ok := node.MemberUsers[user.GetName()]; ok {
 		// Verify membership requirements
-		if !userMeetsRequirements(user, node.AccessList.Spec.MembershipRequires) {
+		if !UserMeetsRequirements(user, node.AccessList.Spec.MembershipRequires) {
 			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
+		}
+		// Verify membership is not expired
+		if !node.MemberUsers[user.GetName()].Spec.Expires.IsZero() && !h.Clock.Now().Before(node.MemberUsers[user.GetName()].Spec.Expires) {
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), node.AccessList.Spec.Title)
 		}
 		return MembershipOrOwnershipTypeExplicit, nil
 	}
 	// Check inherited membership
 	visited := make(map[string]struct{})
-	isMember, expired, err := h.isInheritedMember(user, node, visited)
-	if err != nil {
-		return MembershipOrOwnershipTypeNone, trace.Wrap(err)
-	}
+	isMember, expired := h.isInheritedMember(user, node, visited)
 	if expired {
 		return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), node.AccessList.Spec.Title)
 	}
 	if isMember {
 		// Also needs to meet membership requirements of the parent.
-		if !userMeetsRequirements(user, node.AccessList.Spec.MembershipRequires) {
+		if !UserMeetsRequirements(user, node.AccessList.Spec.MembershipRequires) {
 			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
 		}
 		return MembershipOrOwnershipTypeInherited, nil
@@ -538,9 +539,9 @@ func (h *hierarchy) IsAccessListMember(ctx context.Context, user types.User, acc
 	return MembershipOrOwnershipTypeNone, nil
 }
 
-func (h *hierarchy) isInheritedMember(user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, bool, error) {
+func (h *hierarchy) isInheritedMember(user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, bool) {
 	if _, ok := visited[node.AccessList.GetName()]; ok {
-		return false, false, nil
+		return false, false
 	}
 	visited[node.AccessList.GetName()] = struct{}{}
 	expired := false
@@ -555,28 +556,25 @@ func (h *hierarchy) isInheritedMember(user types.User, node *HierarchyNode, visi
 				continue
 			}
 			// Verify membership requirements
-			if !userMeetsRequirements(user, memberList.AccessList.Spec.MembershipRequires) {
+			if !UserMeetsRequirements(user, memberList.AccessList.Spec.MembershipRequires) {
 				continue
 			}
-			return true, false, nil
+			return true, false
 		}
 		// Recurse into memberList's members
-		isMember, expiredRecurse, err := h.isInheritedMember(user, memberList, visited)
+		isMember, expiredRecurse := h.isInheritedMember(user, memberList, visited)
 		if expiredRecurse && !expired {
 			expired = true
 		}
-		if err != nil {
-			return false, expired, trace.Wrap(err)
-		}
 		if isMember {
-			return true, false, nil
+			return true, false
 		}
 	}
-	return false, expired, nil
+	return false, expired
 }
 
-// userMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
-func userMeetsRequirements(identity types.User, requires accesslist.Requires) bool {
+// UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
+func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bool {
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}
 	for _, role := range identity.GetRoles() {
