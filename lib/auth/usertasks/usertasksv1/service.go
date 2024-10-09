@@ -62,6 +62,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 // Reader contains the methods defined for cache access.
 type Reader interface {
 	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
@@ -118,6 +119,28 @@ func (s *Service) ListUserTasks(ctx context.Context, req *usertasksv1.ListUserTa
 	}
 
 	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &usertasksv1.ListUserTasksResponse{
+		UserTasks:     rsp,
+		NextPageToken: nextToken,
+	}, nil
+}
+
+// ListUserTasksByIntegration returns a list of user tasks filtered by an integration.
+func (s *Service) ListUserTasksByIntegration(ctx context.Context, req *usertasksv1.ListUserTasksByIntegrationRequest) (*usertasksv1.ListUserTasksResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindUserTask, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, nextToken, err := s.cache.ListUserTasksByIntegration(ctx, req.PageSize, req.PageToken, req.Integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
