@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AwsLaunchButton } from './IdentityCenterLaunchButton';
+import { IdentityCenterLaunchButton } from './IdentityCenterLaunchButton';
 
 export default {
-  title: 'Shared/AwsLaunchButton',
+  title: 'Shared/AwsLaunchButton2',
 };
 
 export const SameDisplayName = () => {

@@ -42,7 +42,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeDiscord,
 	PluginTypeEntraID,
 	PluginTypeSCIM,
-	PluginTypeAWSIC,
+	PluginTypeAWSIdentityCenter,
 	PluginTypeDatadog,
 }
 
@@ -76,7 +76,7 @@ const (
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
 
-	PluginTypeAWSIC = "aws-ic"
+	PluginTypeAWSIdentityCenter = "aws-identity-center"
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
 )
@@ -516,7 +516,7 @@ func (p *PluginV1) GetType() PluginType {
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
 	case *PluginSpecV1_AwsIc:
-		return PluginTypeAWSIC
+		return PluginTypeAWSIdentityCenter
 	case *PluginSpecV1_Datadog:
 		return PluginTypeDatadog
 

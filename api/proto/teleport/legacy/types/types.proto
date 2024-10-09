@@ -6507,7 +6507,7 @@ message AWSICProvisioningSpec {
 
   // PluginStaticCredentialsRef holds a reference to the static credential
   // holding the SCIM bearer token hsed by the provisioning system.
-  PluginStaticCredentialsRef scim_token_ref = 6;
+  string scim_token = 6;
 
   // DefaultOwners specifies the default owners of any Access Lists created
   // during initial setup.

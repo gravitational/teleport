@@ -162,7 +162,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   const { actions, userSamlIdPPerm } = useSamlAppAction();
   
   function getawsLaunchUrl(arn, display) {
-    if (permission_sets.length > 0) {
+    if (permission_sets?.length > 0) {
      return `${publicAddr}&role_name=${display}`
       } else {
         return cfg.getAppLauncherRoute({
@@ -174,7 +174,7 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
       }
   }
 
-  if (permission_sets.length > 0) {
+  if (permission_sets?.length > 0) {
     return (
       <IdentityCenterLaunchButton
         width="123px"
