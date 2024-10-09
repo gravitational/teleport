@@ -103,9 +103,6 @@ type LegacyCommand struct {
 	// DataDir stores the bot's internal data.
 	DataDir string
 
-	// Destination is a destination URI
-	Destination string
-
 	// CAPins is a list of pinned SKPI hashes of trusted auth server CAs, used
 	// only on first connect.
 	CAPins []string

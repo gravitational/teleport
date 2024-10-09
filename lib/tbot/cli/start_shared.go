@@ -176,6 +176,19 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		cfg.RenewalInterval = s.RenewalInterval
 	}
 
+	if s.DiagAddr != "" {
+		if cfg.DiagAddr != "" {
+			log.WarnContext(
+				context.TODO(),
+				"CLI parameters are overriding configuration",
+				"flag", "diag-addr",
+				"config_value", cfg.DiagAddr,
+				"cli_value", s.DiagAddr,
+			)
+		}
+		cfg.DiagAddr = s.DiagAddr
+	}
+
 	// Storage overrides any previously-configured storage config
 	if s.Storage != "" {
 		if cfg.Storage != nil && cfg.Storage.Destination != nil {
