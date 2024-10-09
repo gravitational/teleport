@@ -59,9 +59,12 @@ export type Role = {
   version: string;
 };
 
-type RoleConditions = {
-  node_labels?: Record<string, string[]>;
+export type RoleConditions = {
+  node_labels?: Labels;
+  logins?: string[];
 };
+
+export type Labels = Record<string, string | string[]>;
 
 /**
  * Teleport role options in full format, as returned from Teleport API. Note

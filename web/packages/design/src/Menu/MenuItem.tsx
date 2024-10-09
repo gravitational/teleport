@@ -64,7 +64,7 @@ const fromTheme = (props: ThemedMenuItemProps) => {
   };
 };
 
-const MenuItem = styled.div<MenuItemProps>`
+const MenuItem = styled.div.attrs({ role: 'menuitem' })<MenuItemProps>`
   min-height: 40px;
   box-sizing: border-box;
   cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};

@@ -26,7 +26,7 @@ import { MenuProps, AnchorProps } from './types';
 type Props = MenuProps & {
   defaultOpen?: boolean;
   buttonProps?: AnchorProps;
-  buttonText?: string;
+  buttonText?: React.ReactNode;
   menuProps?: MenuProps;
 };
 

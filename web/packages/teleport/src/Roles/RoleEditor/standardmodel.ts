@@ -18,7 +18,11 @@
 
 import { equalsDeep } from 'shared/utils/highbar';
 
-import { Role } from 'teleport/services/resources';
+import { Option } from 'shared/components/Select';
+
+import { Labels, Role, RoleConditions } from 'teleport/services/resources';
+
+import { Label } from 'teleport/components/LabelsInput/LabelsInput';
 
 import { defaultOptions } from './withDefaults';
 
@@ -37,7 +41,7 @@ export type StandardEditorModel = {
  */
 export type RoleEditorModel = {
   metadata: MetadataModel;
-  version: string;
+  accessSpecs: AccessSpec[];
   /**
    * Indicates whether the current resource, as described by YAML, is
    * accurately represented by this editor model. If it's not, the user needs
@@ -51,6 +55,34 @@ export type MetadataModel = {
   name: string;
   description?: string;
   revision?: string;
+};
+
+/** A model for access specifications section. */
+export type AccessSpec = KubernetesAccessSpec | ServerAccessSpec;
+
+/**
+ * A base for all access specification section models. Contains a type
+ * discriminator field.
+ */
+type AccessSpecBase<T extends AccessSpecKind> = {
+  /**
+   * Determines kind of resource that is accessed using this spec. Intended to
+   * be mostly consistent with UnifiedResources.kind, but that has no real
+   * meaning on the server side; we needed some discriminator, so we picked
+   * this one.
+   */
+  kind: T;
+};
+
+export type AccessSpecKind = 'node' | 'kube_cluster';
+
+/** Model for the Kubernetes access specification section. */
+export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'>;
+
+/** Model for the server access specification section. */
+export type ServerAccessSpec = AccessSpecBase<'node'> & {
+  labels: Label[];
+  logins: readonly Option[];
 };
 
 const roleVersion = 'v7';
@@ -89,13 +121,16 @@ export function roleToRoleEditorModel(
   const { kind, metadata, spec, version, ...rest } = role;
   const { name, description, revision, ...mRest } = metadata;
   const { allow, deny, options, ...sRest } = spec;
+  const { accessSpecs, requiresReset: allowRequiresReset } =
+    roleConditionsToAccessSpecs(allow);
+
   return {
     metadata: {
       name,
       description,
-      revision,
+      revision: originalRole?.metadata?.revision,
     },
-    version,
+    accessSpecs,
     requiresReset:
       revision !== originalRole?.metadata?.revision ||
       version !== roleVersion ||
@@ -103,11 +138,49 @@ export function roleToRoleEditorModel(
         isEmpty(rest) &&
         isEmpty(mRest) &&
         isEmpty(sRest) &&
-        isEmpty(allow) &&
         isEmpty(deny) &&
         equalsDeep(options, defaultOptions())
-      ),
+      ) ||
+      allowRequiresReset,
   };
+}
+
+function roleConditionsToAccessSpecs(conditions: RoleConditions): {
+  accessSpecs: AccessSpec[];
+  requiresReset: boolean;
+} {
+  const { node_labels, logins, ...rest } = conditions;
+  const accessSpecs: AccessSpec[] = [];
+  const nodeLabelsModel = labelsToModel(node_labels);
+  const nodeLoginsModel = (logins ?? []).map(login => ({
+    label: login,
+    value: login,
+  }));
+  if (nodeLabelsModel.length > 0 || nodeLoginsModel.length > 0) {
+    accessSpecs.push({
+      kind: 'node',
+      labels: nodeLabelsModel,
+      logins: nodeLoginsModel,
+    });
+  }
+  return {
+    accessSpecs,
+    requiresReset: !isEmpty(rest),
+  };
+}
+
+function labelsToModel(labels: Labels | undefined) {
+  if (!labels) return [];
+  return Object.entries(labels).flatMap(([name, value]) => {
+    if (typeof value === 'string') {
+      return {
+        name,
+        value,
+      };
+    } else {
+      return value.map(v => ({ name, value: v }));
+    }
+  });
 }
 
 function isEmpty(obj: object) {
@@ -119,11 +192,10 @@ function isEmpty(obj: object) {
  */
 export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   const { name, description, revision, ...mRest } = roleModel.metadata;
-  const { version } = roleModel;
   // Compile-time assert that protects us from silently losing fields.
   mRest satisfies Record<any, never>;
 
-  return {
+  const role: Role = {
     kind: 'role',
     metadata: {
       name,
@@ -135,8 +207,27 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
       deny: {},
       options: defaultOptions(),
     },
-    version,
+    version: roleVersion,
   };
+
+  for (const spec of roleModel.accessSpecs) {
+    if (spec.kind === 'node') {
+      const labels = {};
+      for (const { name, value } of spec.labels) {
+        if (!Object.hasOwn(labels, name)) {
+          labels[name] = value;
+        } else if (typeof labels[name] === 'string') {
+          labels[name] = [labels[name], value];
+        } else {
+          labels[name].push(value);
+        }
+      }
+      role.spec.allow.node_labels = labels;
+      role.spec.allow.logins = spec.logins.map(opt => opt.value);
+    }
+  }
+
+  return role;
 }
 
 /** Detects if fields were modified by comparing against the original role. */
@@ -144,8 +235,7 @@ export function hasModifiedFields(
   updated: RoleEditorModel,
   originalRole: Role
 ) {
-  return (
-    updated.metadata.name !== originalRole?.metadata.name ||
-    updated.metadata.description !== originalRole?.metadata.description
-  );
+  return !equalsDeep(roleEditorModelToRole(updated), originalRole, {
+    ignoreUndefined: true,
+  });
 }
