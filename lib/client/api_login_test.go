@@ -101,10 +101,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		return totp.GenerateCode(otpKey, clock.Now())
 	}
 	solveWebauthn := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+		ackTouch, err := prompt.PromptTouch()
+		if err != nil {
+			return nil, err
+		}
+
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, err
 		}
+		ackTouch()
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
@@ -134,17 +140,11 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			return nil, errors.New("invalid PIN")
 		}
 
-		// Realistically, this would happen too.
-		ackTouch, err := prompt.PromptTouch()
-		if err != nil {
-			return nil, err
-		}
-
 		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
 		if err != nil {
 			return nil, err
 		}
-		return resp, ackTouch()
+		return resp, nil
 	}
 
 	ctx := context.Background()

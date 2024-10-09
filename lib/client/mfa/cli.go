@@ -205,6 +205,13 @@ type webauthnPromptWithOTP struct {
 	otpCancelAndWait     func()
 }
 
+func (w *webauthnPromptWithOTP) cancelOTP() {
+	if w.otpCancelAndWait == nil {
+		return
+	}
+	w.otpCancelAndWaitOnce.Do(w.otpCancelAndWait)
+}
+
 func (w *webauthnPromptWithOTP) PromptTouch() (wancli.TouchAcknowledger, error) {
 	ack, err := w.LoginPrompt.PromptTouch()
 	if err != nil {
@@ -215,10 +222,16 @@ func (w *webauthnPromptWithOTP) PromptTouch() (wancli.TouchAcknowledger, error) 
 		err := ack()
 
 		// Stop the OTP goroutine when the first touch is acknowledged.
-		if w.otpCancelAndWait != nil {
-			w.otpCancelAndWaitOnce.Do(w.otpCancelAndWait)
-		}
+		w.cancelOTP()
 
 		return trace.Wrap(err)
 	}, nil
+}
+
+func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
+	// Stop the OTP goroutine before asking for PIN, in case it wasn't already
+	// stopped through PromptTouch.
+	w.cancelOTP()
+
+	return w.LoginPrompt.PromptPIN()
 }
