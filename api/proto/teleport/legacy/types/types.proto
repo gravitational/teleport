@@ -6159,6 +6159,8 @@ message PluginSpecV1 {
     PluginSCIMSettings scim = 14;
     // Settings for the Datadog Incident Management plugin
     PluginDatadogAccessSettings datadog = 15;
+    // PluginAWSICSettings holds settings for AWSICSettings
+    PluginAWSICSettings aws_ic = 16;
   }
 
   // generation contains a unique ID that should:
@@ -6422,6 +6424,38 @@ message PluginDatadogAccessSettings {
   string api_endpoint = 1;
   // FallbackRecipient specifies the default recipient.
   string fallback_recipient = 2;
+}
+
+// PluginAWSICSettings holds the settings for an AWS Identity Center integration.
+message PluginAWSICSettings {
+  option (gogoproto.equal) = true;
+
+  // IntegrationName is the Teleport OIDC integration used to gain access to the
+  // AWS account
+  string integration_name = 1;
+
+  // Region is the AWS region the target Identity Center instance is configured in
+  string region = 2;
+
+  // InstanceARN is the arn of the Identity Center instance to manage
+  string arn = 3;
+
+  // Provisioning holds settings for provisioing users and groups into AWS
+  AWSICProvisioningSpec provisioning_spec = 4;
+}
+
+// AWSICProvisioningSpec holds provisioning-specific Identity Center settings
+message AWSICProvisioningSpec {
+  option (gogoproto.equal) = true;
+
+  // BaseURL is the SCIM base URL
+  string base_url = 1;
+
+  // BearerToken is used to authenticate with AWS when provisioning users and
+  // groups via SCIM. This is expected to be empty in serialized records, as the
+  // actual credential is stored separetely ain a PluginStaticCredentials
+  // service, and populated at runtime as necessary.
+  string bearer_token = 2;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -6698,6 +6732,8 @@ message PluginBearerTokenCredentials {
 
 // PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
 message PluginStaticCredentialsRef {
+  option (gogoproto.equal) = true;
+
   // Labels is the set of labels to use to match against a set of static credentials.
   map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
 }

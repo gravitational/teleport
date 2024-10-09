@@ -21,7 +21,6 @@ import { Box, Flex, H3 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-
 import * as Icon from 'design/Icon';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import styled, { useTheme } from 'styled-components';
@@ -58,12 +57,12 @@ export const StandardEditor = ({
   const isEditing = !!originalRole;
   const { roleModel } = standardEditorModel;
 
-  const handleSave = (validator: Validator) => {
+  function handleSave(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
     onSave?.(roleEditorModelToRole(standardEditorModel.roleModel));
-  };
+  }
 
   function handleChange(modified: Partial<RoleEditorModel>) {
     const updatedResourceModel: RoleEditorModel = {
@@ -84,7 +83,7 @@ export const StandardEditor = ({
    * attempt, the only thing left to do is to set the `requiresReset` flag.
    */
   function resetForStandardEditor() {
-    onChange({
+    onChange?.({
       ...standardEditorModel,
       isDirty: true,
       roleModel: {
@@ -103,7 +102,7 @@ export const StandardEditor = ({
           )}
           <EditorWrapper
             mute={standardEditorModel.roleModel.requiresReset}
-            data-testid="standard"
+            data-testid="standard-editor"
           >
             <Box my={2}>
               <MetadataSection
@@ -148,9 +147,7 @@ const MetadataSection = ({
       value={value.name}
       disabled={isProcessing}
       rule={requiredField('Role name is required')}
-      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-        onChange({ ...value, name: e.target.value })
-      }
+      onChange={e => onChange({ ...value, name: e.target.value })}
     />
     <FieldInput
       label="Description"
