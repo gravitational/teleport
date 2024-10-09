@@ -113,7 +113,7 @@ func Run(args []string, stdout io.Writer) error {
 		}),
 
 		cli.NewKubeCredentialsCommand(kubeCmd, func(kubeCredentialsCmd *cli.KubeCredentialsCommand) error {
-			return onKubeCredentialsCommand(ctx, globalCfg, kubeCredentialsCmd)
+			return onKubeCredentialsCommand(ctx, kubeCredentialsCmd)
 		}),
 
 		// `start` and `configure` commands

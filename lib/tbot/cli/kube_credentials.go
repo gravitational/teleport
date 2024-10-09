@@ -32,7 +32,6 @@ func NewKubeCredentialsCommand(parentCmd KingpinClause, action func(*KubeCredent
 	c := &KubeCredentialsCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-	// TODO: this does not appear to be used. remove it?
 	cmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&c.DestinationDir)
 
 	return c
