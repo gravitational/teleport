@@ -164,7 +164,11 @@ export function UnifiedResourcesE() {
               clusterId={clusterId}
               isLeafCluster={isLeafCluster}
               getActionButton={getActionButton}
-              availabilityFilter={availabilityFilterFromPreferences}
+              availabilityFilter={
+                availabilityFilterFromPreferences.canRequestAll
+                  ? availabilityFilterFromPreferences
+                  : null
+              }
               showCheckout={showCheckout}
             />
           </SamlAppActionProvider>
