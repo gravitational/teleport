@@ -393,35 +393,6 @@ func RemoveFileIfExist(filePath string) error {
 	return nil
 }
 
-func RecursiveChown(dir string, uid, gid int) error {
-	// First, walk the directory to gather a list of files and directories to update before we open up to modifications
-	var pathsToUpdate []string
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		pathsToUpdate = append(pathsToUpdate, path)
-		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// filepath.WalkDir is documented to walk the paths in lexical order, iterating
-	// in the reverse order ensures that files are always Lchowned before their parent directory
-	for i := len(pathsToUpdate) - 1; i >= 0; i-- {
-		path := pathsToUpdate[i]
-		if err := os.Lchown(path, uid, gid); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				// Unexpected condition where file was removed after discovery.
-				continue
-			}
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 func CopyFile(src, dest string, perm os.FileMode) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
