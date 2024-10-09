@@ -4972,9 +4972,9 @@ func TestProxyUntrustedCert(t *testing.T) {
 	certDir := t.TempDir()
 	certPath := filepath.Join(certDir, "leaf.crt")
 	keyPath := filepath.Join(certDir, "leaf.key")
-	err = os.WriteFile(certPath, leafCert, 0o600)
+	err = os.WriteFile(certPath, leafCert, 0600)
 	require.NoError(t, err)
-	err = os.WriteFile(keyPath, leafPrivPem, 0o600)
+	err = os.WriteFile(keyPath, leafPrivPem, 0600)
 	require.NoError(t, err)
 
 	fc := &FileConfig{
