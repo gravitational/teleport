@@ -224,7 +224,7 @@ type ReadProxyAccessPoint interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -391,7 +391,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -953,7 +953,10 @@ type Cache interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
+
+	// ListReverseTunnels returns a paginated list of reverse tunnels.
+	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetClusterName returns cluster name
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -1178,6 +1181,8 @@ type Cache interface {
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 	// ListUserTasks returns the user tasks resources.
 	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	// ListUserTasksByIntegration returns the user tasks resources filtered by an integration.
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
 
 	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter

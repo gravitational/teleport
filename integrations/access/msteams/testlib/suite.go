@@ -55,9 +55,6 @@ type MsTeamsBaseSuite struct {
 // the fixtures in Slack. It runs for each test.
 func (s *MsTeamsBaseSuite) SetupTest() {
 	t := s.T()
-
-	err := logger.Setup(logger.Config{Severity: "debug"})
-	require.NoError(t, err)
 	s.raceNumber = runtime.GOMAXPROCS(0)
 
 	s.fakeTeams = NewFakeTeams(s.raceNumber)
@@ -76,6 +73,9 @@ func (s *MsTeamsBaseSuite) SetupTest() {
 	conf.Teleport = s.TeleportConfig()
 	conf.MSAPI = s.fakeTeams.Config
 	conf.MSAPI.SetBaseURLs(s.fakeTeams.URL(), s.fakeTeams.URL(), s.fakeTeams.URL())
+	conf.Log = logger.Config{
+		Severity: "debug",
+	}
 
 	s.appConfig = &conf
 }
@@ -414,9 +414,7 @@ func (s *MsTeamsSuiteEnterprise) TestRace() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(cancel)
 
-	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
-	require.NoError(t, err)
-
+	s.appConfig.Log.Severity = "debug" // Turn off noisy debug logging
 	s.startApp()
 
 	var (

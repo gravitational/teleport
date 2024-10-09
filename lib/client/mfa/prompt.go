@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -32,13 +33,23 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
+// WebauthnLoginFunc is a function that performs WebAuthn login.
+// Mimics the signature of [wancli.Login].
+type WebauthnLoginFunc func(
+	ctx context.Context,
+	origin string,
+	assertion *wantypes.CredentialAssertion,
+	prompt wancli.LoginPrompt,
+	opts *wancli.LoginOpts,
+) (*proto.MFAAuthenticateResponse, string, error)
+
 // PromptConfig contains common mfa prompt config options.
 type PromptConfig struct {
 	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
-	WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+	WebauthnLoginFunc WebauthnLoginFunc
 	// AllowStdinHijack allows stdin hijack during MFA prompts.
 	// Stdin hijack provides a better login UX, but it can be difficult to reason
 	// about and is often a source of bugs.
@@ -82,7 +93,7 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !promptTOTP && !c.WebauthnSupported:
+	case !promptTOTP && promptWebauthn && !c.WebauthnSupported:
 		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.
@@ -147,6 +158,9 @@ func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context
 			// Surface error immediately.
 			return nil, trace.Wrap(resp.Err)
 		case err != nil:
+			log.
+				WithError(err).
+				Debug("MFA goroutine failed, continuing so other goroutines have a chance to succeed")
 			errs = append(errs, err)
 			// Continue to give the other authn goroutine a chance to succeed.
 			// If both have failed, this will exit the loop.

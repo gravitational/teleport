@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -433,7 +432,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+		if err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
@@ -770,15 +769,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				err := modules.ValidateResource(storedAuthPref)
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
 		}
 
@@ -790,6 +788,7 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 					FIPS:          asrv.fips,
 					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+					Cloud:         modules.GetModules().Features().Cloud,
 				})
 			}
 

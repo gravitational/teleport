@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1659,32 +1660,6 @@ func TestRoles(t *testing.T) {
 	})
 }
 
-// TestReverseTunnels tests reverse tunnels caching
-func TestReverseTunnels(t *testing.T) {
-	t.Parallel()
-
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.ReverseTunnel]{
-		newResource: func(name string) (types.ReverseTunnel, error) {
-			return types.NewReverseTunnel(name, []string{"example.com:2023"})
-		},
-		create: modifyNoContext(p.presenceS.UpsertReverseTunnel),
-		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.presenceS.GetReverseTunnels(ctx)
-		},
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.cache.GetReverseTunnels(ctx)
-		},
-		update: modifyNoContext(p.presenceS.UpsertReverseTunnel),
-		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllReverseTunnels()
-		},
-	})
-}
-
 // TestTunnelConnections tests tunnel connections caching
 func TestTunnelConnections(t *testing.T) {
 	t.Parallel()
@@ -2302,7 +2277,7 @@ func TestUserTasks(t *testing.T) {
 
 	testResources153(t, p, testFuncs153[*usertasksv1.UserTask]{
 		newResource: func(name string) (*usertasksv1.UserTask, error) {
-			return newUserTasks(t, name), nil
+			return newUserTasks(t), nil
 		},
 		create: func(ctx context.Context, item *usertasksv1.UserTask) error {
 			_, err := p.userTasks.CreateUserTask(ctx, item)
@@ -2320,22 +2295,30 @@ func TestUserTasks(t *testing.T) {
 	})
 }
 
-func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
+func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	t.Helper()
 
-	return &usertasksv1.UserTask{
-		Kind:    types.KindUserTask,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
+	ut, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+		Integration: "my-integration",
+		TaskType:    usertasks.TaskTypeDiscoverEC2,
+		IssueType:   "ec2-ssm-agent-not-registered",
+		State:       "OPEN",
+		DiscoverEc2: &usertasksv1.DiscoverEC2{
+			AccountId: "123456789012",
+			Region:    "us-east-1",
+			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+				"i-123": {
+					InstanceId:      "i-123",
+					DiscoveryConfig: "dc01",
+					DiscoveryGroup:  "dg01",
+					SyncTime:        timestamppb.Now(),
+				},
+			},
 		},
-		Spec: &usertasksv1.UserTaskSpec{
-			Integration: "my-integration",
-			TaskType:    usertasks.TaskTypeDiscoverEC2,
-			IssueType:   "my-issue-type",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{},
-		},
-	}
+	})
+	require.NoError(t, err)
+
+	return ut
 }
 
 // TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
@@ -3447,7 +3430,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
 		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
 		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
-		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t, "test")),
+		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t)),
 	}
 
 	for name, cfg := range cases {

@@ -316,9 +316,8 @@ endif
 
 ifeq ("$(OS)","darwin")
 # Set the minimum version for macOS builds for Go, Rust and Xcode builds.
-# Note the minimum version for Apple silicon (ARM64) is 11.0 and will be automatically
-# clamped to the value for builds of that architecture
-MINIMUM_SUPPORTED_MACOS_VERSION = 10.15
+# (as of Go 1.23 we require macOS 11)
+MINIMUM_SUPPORTED_MACOS_VERSION = 11.0
 MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
 
 # Go
@@ -823,13 +822,6 @@ $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
 $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
-#
-# Downloads and builds changelog from source.
-# PHONY is set so that we rely on Go's mod cache and not Make's cache.
-#
-CHANGELOG := $(TOOLINGDIR)/bin/changelog
-$(CHANGELOG):
-	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -1293,11 +1285,13 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
 		-ignore '**/*.sh' \
+		-ignore '**/*.sql' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
-		-ignore '**/*.sql' \
+		-ignore '**/.terraform.lock.hcl' \
 		-ignore '**/Dockerfile' \
+		-ignore '**/node_modules/**' \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
@@ -1305,11 +1299,11 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
+		-ignore 'target/**' \
 		-ignore 'version.go' \
-		-ignore 'webassets/**' \
-		-ignore '**/node_modules/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
-		-ignore '**/.terraform.lock.hcl' \
+		-ignore 'web/packages/teleport/src/ironrdp/**' \
+		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
@@ -1805,14 +1799,15 @@ rustup-install-target-toolchain: rustup-set-version
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
-# usage: make -s changelog
-# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make -s changelog
+# usage: make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+CHANGELOG = github.com/gravitational/shared-workflows/tools/changelog@latest
 .PHONY: changelog
-changelog: $(CHANGELOG)
-	$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+changelog:
+	@go run $(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.

@@ -136,6 +136,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// Reverse tunnels
+	// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 	srv.POST("/:version/reversetunnels", srv.WithAuth(srv.upsertReverseTunnel))
 	srv.GET("/:version/reversetunnels", srv.WithAuth(srv.getReverseTunnels))
 	srv.DELETE("/:version/reversetunnels/:domain", srv.WithAuth(srv.deleteReverseTunnel))
@@ -344,6 +345,7 @@ type upsertReverseTunnelRawReq struct {
 }
 
 // upsertReverseTunnel is called by admin to create a reverse tunnel to remote proxy
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (s *APIServer) upsertReverseTunnel(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req upsertReverseTunnelRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -359,13 +361,14 @@ func (s *APIServer) upsertReverseTunnel(auth *ServerWithRoles, w http.ResponseWr
 	if req.TTL != 0 {
 		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-	if err := auth.UpsertReverseTunnel(tun); err != nil {
+	if err := auth.UpsertReverseTunnel(r.Context(), tun); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
 // getReverseTunnels returns a list of reverse tunnels
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	reverseTunnels, err := auth.GetReverseTunnels(r.Context())
 	if err != nil {
@@ -383,9 +386,10 @@ func (s *APIServer) getReverseTunnels(auth *ServerWithRoles, w http.ResponseWrit
 }
 
 // deleteReverseTunnel deletes reverse tunnel
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (s *APIServer) deleteReverseTunnel(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	domainName := p.ByName("domain")
-	err := auth.DeleteReverseTunnel(domainName)
+	err := auth.DeleteReverseTunnel(r.Context(), domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

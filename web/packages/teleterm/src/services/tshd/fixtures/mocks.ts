@@ -83,8 +83,6 @@ export class MockTshClient implements TshdClient {
   getAuthSettings = () =>
     new MockedUnaryCall({
       localAuthEnabled: true,
-      secondFactor: 'webauthn',
-      preferredMfa: 'webauthn',
       authProviders: [],
       hasMessageOfTheDay: false,
       authType: 'local',
@@ -106,6 +104,8 @@ export class MockTshClient implements TshdClient {
   deleteConnectMyComputerNode = () => new MockedUnaryCall({});
   getConnectMyComputerNodeName = () => new MockedUnaryCall({ name: '' });
   listUnifiedResources = () =>
+    new MockedUnaryCall({ resources: [], nextKey: '' });
+  listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
   getUserPreferences = () => new MockedUnaryCall({});
   updateUserPreferences = () => new MockedUnaryCall({});

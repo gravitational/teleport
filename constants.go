@@ -199,6 +199,9 @@ const (
 	// ComponentSession is an active session.
 	ComponentSession = "session"
 
+	// ComponentHostUsers represents host user management.
+	ComponentHostUsers = "hostusers"
+
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
 
@@ -399,21 +402,11 @@ const (
 	// Syslog is a mode for syslog logging
 	Syslog = "syslog"
 
-	// HumanDateFormat is a human readable date formatting
-	HumanDateFormat = "Jan _2 15:04 UTC"
-
-	// HumanDateFormatMilli is a human readable date formatting with milliseconds
-	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
-
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
-
-	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
-	// todo(lxea): DELETE IN 17
-	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
 const (

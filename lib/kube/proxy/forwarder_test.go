@@ -38,7 +38,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -58,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
@@ -941,7 +939,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				kubeCreds = &staticKubeCreds{}
 			}
 			err := setupImpersonationHeaders(
-				logrus.NewEntry(logrus.New()),
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
@@ -966,7 +963,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 	}
 }
 
-func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote bool) authContext {
+func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
 	t.Helper()
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
@@ -981,7 +978,7 @@ func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote
 			name:     "kube-cluster",
 			isRemote: isRemote,
 		},
-		kubeClusterName: "kube-cluster",
+		kubeClusterName: kubeCluster,
 		// getClientCreds requires sessions to be valid for at least 1 minute
 		sessionTTL: 2 * time.Minute,
 	}
@@ -995,7 +992,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	t.Cleanup(cancel)
 	f := newMockForwader(ctx, t)
 
-	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
+	authCtx := mockAuthCtx(t, "kube-cluster", false)
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -1106,7 +1103,10 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	clock := clockwork.NewFakeClock()
-	cachedTransport, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(clock))
+	cachedTransport, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   transportCacheTTL,
+		Clock: clock,
+	})
 	require.NoError(t, err)
 	csrClient, err := newMockCSRClient(clock)
 	require.NoError(t, err)

@@ -152,7 +152,7 @@ app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. Yo
   application will not be accessible in browsers over plain HTTP, even with VNet running. It's
   possible to work around this by setting a custom `public_addr` as explained above in this guide.
 - If the application needs to be accessible over HTTPS, it must handle TLS connections and return [a valid
-  cert](connecting-apps.mdx#tls-requirements) for the domain it is served on.
+  cert](connecting-apps.mdx#step-23-optional-configure-tls-and-dns-for-your-web-applications) for the domain it is served on.
 - [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
   [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session

@@ -43,11 +43,11 @@ type UserLoginStateService struct {
 }
 
 // NewUserLoginStateService creates a new UserLoginStateService.
-func NewUserLoginStateService(backend backend.Backend) (*UserLoginStateService, error) {
+func NewUserLoginStateService(b backend.Backend) (*UserLoginStateService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[*userloginstate.UserLoginState]{
-		Backend:       backend,
+		Backend:       b,
 		ResourceKind:  types.KindUserLoginState,
-		BackendPrefix: userLoginStatePrefix,
+		BackendPrefix: backend.NewKey(userLoginStatePrefix),
 		MarshalFunc:   services.MarshalUserLoginState,
 		UnmarshalFunc: services.UnmarshalUserLoginState,
 	})

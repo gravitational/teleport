@@ -135,7 +135,7 @@ func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) 
 			// use conditional update to ensure that the document has not been updated since the read
 			jobs[i], err = bulkWriter.Update(
 				b.svc.Collection(b.CollectionName).
-					Doc(b.keyToDocumentID(newDoc.Key)),
+					Doc(b.keyToDocumentID(newDoc.backendItem().Key)),
 				newDoc.updates(),
 				firestore.LastUpdateTime(dbDoc.UpdateTime),
 			)

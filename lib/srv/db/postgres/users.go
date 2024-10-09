@@ -81,7 +81,11 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		return trace.Wrap(err)
 	}
 
-	if err := e.createProcedures(ctx, sessionCtx, conn, []string{activateProcName, deactivateProcName}); err != nil {
+	err = withRetry(ctx, logger, func() error {
+		err := e.createProcedures(ctx, sessionCtx, conn, []string{activateProcName, deactivateProcName})
+		return trace.Wrap(err)
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -295,12 +299,16 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	}
 	defer conn.Close(ctx)
 
-	if err := e.createProcedures(ctx, sessionCtx, conn, []string{deactivateProcName}); err != nil {
-		return trace.Wrap(err)
-	}
-
 	logger := e.Log.With("user", sessionCtx.DatabaseUser)
 	logger.InfoContext(ctx, "Deactivating PostgreSQL user.")
+	err = withRetry(ctx, logger, func() error {
+		err := e.createProcedures(ctx, sessionCtx, conn, []string{deactivateProcName})
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return trace.NewAggregate(errRemove, trace.Wrap(err))
+	}
+
 	err = withRetry(ctx, logger, func() error {
 		return trace.Wrap(e.callProcedure(ctx, sessionCtx, conn, deactivateProcName, sessionCtx.DatabaseUser))
 	})

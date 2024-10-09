@@ -23,7 +23,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -110,10 +110,10 @@ func createStorageDir(c *StartCmdConfig) (string, error) {
 			return "", trace.Wrap(err)
 		}
 
-		dir = path.Join(dir, "dry_run", rs)
+		dir = filepath.Join(dir, "dry_run", rs)
 	}
 
-	dir = path.Join(c.StorageDir, dir)
+	dir = filepath.Join(c.StorageDir, dir)
 
 	_, err = os.Stat(dir)
 	if os.IsNotExist(err) {
