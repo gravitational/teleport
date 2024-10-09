@@ -318,6 +318,11 @@ func TestListDatabases(t *testing.T) {
 						Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-b")}},
 						VpcId:   aws.String("vpc-2"),
 					},
+					VpcSecurityGroups: []rdsTypes.VpcSecurityGroupMembership{
+						{VpcSecurityGroupId: aws.String("")},
+						{VpcSecurityGroupId: aws.String("sg-1")},
+						{VpcSecurityGroupId: aws.String("sg-2")},
+					},
 					Endpoint: &rdsTypes.Endpoint{
 						Address: stringPointer("endpoint.amazonaws.com"),
 						Port:    aws.Int32(5432),
@@ -353,6 +358,10 @@ func TestListDatabases(t *testing.T) {
 								ResourceID: "db-123",
 								VPCID:      "vpc-2",
 								Subnets:    []string{"subnet-b"},
+								SecurityGroups: []string{
+									"sg-1",
+									"sg-2",
+								},
 							},
 						},
 					},
