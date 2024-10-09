@@ -1254,6 +1254,10 @@ func (s *IdentityService) upsertUserStatusMFADevice(ctx context.Context, user st
 		user,
 		false, /*withSecrets*/
 		func(u types.User) (bool, error) {
+			// If the user already has the weakest device, don't update.
+			if u.GetWeakestDevice() == mfaState {
+				return false, nil
+			}
 			u.SetWeakestDevice(mfaState)
 			return true, nil
 		})
