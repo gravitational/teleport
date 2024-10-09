@@ -208,7 +208,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
 	}
 
-	jwtSvids, err := generateJWTSVID(
+	jwtSvids, err := generateJWTSVIDs(
 		ctx,
 		impersonatedClient,
 		s.cfg.SVID,
@@ -304,7 +304,7 @@ func (s *SPIFFESVIDOutputService) render(
 	return nil
 }
 
-func generateJWTSVID(
+func generateJWTSVIDs(
 	ctx context.Context,
 	clt *authclient.Client,
 	svid config.SVIDRequest,
@@ -313,7 +313,7 @@ func generateJWTSVID(
 ) (map[string]string, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"generateJWTSVID",
+		"generateJWTSVIDs",
 	)
 	defer span.End()
 
