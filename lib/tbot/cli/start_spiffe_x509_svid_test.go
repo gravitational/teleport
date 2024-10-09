@@ -21,9 +21,10 @@ package cli
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // TestSPIFFEX509SVIDCommand tests that the SPIFFEX509SVIDCommand properly parses its

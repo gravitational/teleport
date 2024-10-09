@@ -22,9 +22,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSharedStartArgs(t *testing.T) {
