@@ -508,7 +508,7 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 
 	pageSizes := []int{1, 2, 3, 5, 7, 100_000}
 	for _, pageSize := range pageSizes {
-		testingProp := strconv.Itoa(r.IntN(totalProps - 1))
+		testingProp := strconv.Itoa(r.IntN(totalProps))
 		t.Run(fmt.Sprintf("pageSize=%d,prop=%s", pageSize, testingProp), func(t *testing.T) {
 			var startingKey string
 			var foundResourcesPropAEquals []*testResource
