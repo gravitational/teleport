@@ -34,7 +34,7 @@ func TestSPIFFESVIDCommand(t *testing.T) {
 			name: "success",
 			args: []string{
 				"start",
-				"spiffe-x509-svid",
+				"spiffe-svid",
 				"--destination=/bar",
 				"--token=foo",
 				"--join-method=github",
