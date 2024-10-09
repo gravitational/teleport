@@ -101,3 +101,16 @@ func executeKubeContextTemplate(tmpl *template.Template, clusterName, kubeName s
 	err := tmpl.Execute(&buf, contextEntry)
 	return buf.String(), trace.Wrap(err)
 }
+
+// ContextNameFromTemplate generates a kubernetes context name from the given template.
+func ContextNameFromTemplate(temp string, clusterName, kubeName string) (string, error) {
+	tmpl, err := parseContextOverrideTemplate(temp)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if tmpl == nil {
+		return ContextName(clusterName, kubeName), nil
+	}
+	s, err := executeKubeContextTemplate(tmpl, clusterName, kubeName)
+	return s, trace.Wrap(err)
+}
