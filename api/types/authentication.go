@@ -87,7 +87,7 @@ type AuthPreference interface {
 	IsSecondFactorEnabled() bool
 	// IsSecondFactorEnforced checks if second factor is enforced.
 	IsSecondFactorEnforced() bool
-	// IsSecondFactorTOTPAllowed  checks if users can use TOTP as an MFA method.
+	// IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
 	IsSecondFactorTOTPAllowed() bool
 	// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
 	IsSecondFactorWebauthnAllowed() bool
@@ -322,7 +322,7 @@ func (c *AuthPreferenceV2) SetType(s string) {
 // GetSecondFactor returns the type of second factor.
 func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 	// SecondFactors takes priority if set.
-	if c.Spec.SecondFactors != nil {
+	if len(c.Spec.SecondFactors) > 0 {
 		return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
 	}
 
@@ -339,7 +339,7 @@ func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 
 // GetSecondFactors gets a list of supported second factors.
 func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
-	if c.Spec.SecondFactors != nil {
+	if len(c.Spec.SecondFactors) > 0 {
 		return c.Spec.SecondFactors
 	}
 
@@ -711,7 +711,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	// Validate SecondFactor and SecondFactors.
-	if c.Spec.SecondFactor != "" && c.Spec.SecondFactors != nil {
+	if c.Spec.SecondFactor != "" && len(c.Spec.SecondFactors) == 0 {
 		return trace.BadParameter("must set either SecondFactor or SecondFactors, not both")
 	}
 
@@ -726,7 +726,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	case "":
 		// default to OTP if SecondFactors is also not set.
-		if c.Spec.SecondFactors == nil {
+		if len(c.Spec.SecondFactors) == 0 {
 			c.Spec.SecondFactor = constants.SecondFactorOTP
 		}
 	default:
