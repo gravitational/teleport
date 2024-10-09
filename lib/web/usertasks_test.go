@@ -63,8 +63,6 @@ func TestUserTask(t *testing.T) {
 	}
 
 	issueTypes := []string{
-		usertasks.AutoDiscoverEC2IssueEICEFailedToCreateNode,
-		usertasks.AutoDiscoverEC2IssueEICEFailedToUpsertNode,
 		usertasks.AutoDiscoverEC2IssueInvocationFailure,
 		usertasks.AutoDiscoverEC2IssueScriptFailure,
 		usertasks.AutoDiscoverEC2IssueScriptInstanceConnectionLost,
