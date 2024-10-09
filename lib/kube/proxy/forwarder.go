@@ -38,7 +38,6 @@ import (
 	"github.com/google/uuid"
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -277,6 +276,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// transportCacheTTL is the TTL for the transport cache.
+const transportCacheTTL = 5 * time.Hour
+
 // NewForwarder returns new instance of Kubernetes request
 // forwarding proxy.
 func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
@@ -288,7 +290,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	// deleting expired entried clusters and kube_servers entries.
 	// In the meantime, we need to make sure that the cache is cleaned
 	// from time to time.
-	transportClients, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
+	transportClients, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   transportCacheTTL,
+		Clock: cfg.Clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -385,9 +390,7 @@ type Forwarder struct {
 	// cachedTransport is a cache of cachedTransportEntry objects used to
 	// connect to Teleport services.
 	// TODO(tigrato): Implement a cache eviction policy using watchers.
-	cachedTransport *ttlmap.TTLMap
-	// cachedTransportMu is a mutex used to protect the cachedTransport.
-	cachedTransportMu sync.Mutex
+	cachedTransport *utils.FnCache
 }
 
 // cachedTransportEntry is a cached transport entry used to connect to

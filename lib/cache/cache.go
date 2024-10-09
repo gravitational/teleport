@@ -2952,6 +2952,19 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey strin
 	return rg.reader.ListUserTasks(ctx, pageSize, nextKey)
 }
 
+// ListUserTasksByIntegration returns a list of UserTask resources filtered by an integration.
+func (c *Cache) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextKey string, integration string) ([]*usertasksv1.UserTask, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasksByIntegration")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userTasks)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListUserTasksByIntegration(ctx, pageSize, nextKey, integration)
+}
+
 // GetUserTask returns the specified UserTask resource.
 func (c *Cache) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserTask")
