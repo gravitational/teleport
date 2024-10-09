@@ -354,9 +354,8 @@ func (c *terminalServiceClient) GetSuggestedAccessLists(ctx context.Context, in 
 }
 
 func (c *terminalServiceClient) ListKubernetesResources(ctx context.Context, in *ListKubernetesResourcesRequest, opts ...grpc.CallOption) (*ListKubernetesResourcesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListKubernetesResourcesResponse)
-	err := c.cc.Invoke(ctx, TerminalService_ListKubernetesResources_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TerminalService_ListKubernetesResources_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
