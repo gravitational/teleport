@@ -2762,42 +2762,6 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
-// GetUsers returns all existing users
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.ListUsers] instead.
-func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	if withSecrets {
-		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
-		// migrated to that model.
-		if !a.hasBuiltinRole(types.RoleAdmin) {
-			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
-			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
-				Metadata: apievents.Metadata{
-					Type: events.UserLoginEvent,
-					Code: events.UserLocalLoginFailureCode,
-				},
-				Method: events.LoginMethodClientCert,
-				Status: apievents.Status{
-					Success:     false,
-					Error:       trace.Unwrap(err).Error(),
-					UserMessage: err.Error(),
-				},
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit local login failure event.")
-			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
-		}
-	} else {
-		if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	users, err := a.authServer.GetUsers(ctx, withSecrets)
-	return users, trace.Wrap(err)
-}
-
 // GetCurrentUserRoles returns current user's roles.
 func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
 	roleNames := a.context.User.GetRoles()
@@ -3494,53 +3458,6 @@ func hasOneNonPresetUser(users []types.User) bool {
 	}
 
 	return qtyNonPreset == 1
-}
-
-// UpdateUser updates an existing user in a backend.
-// Captures the auth user who modified the user record.
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.UpdateUser] instead.
-func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	updated, err := a.authServer.UpdateUser(ctx, user)
-	return updated, trace.Wrap(err)
-}
-
-// UpsertUser create or updates an existing user.
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.UpdateUser] instead.
-func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, u); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	createdBy := u.GetCreatedBy()
-	if createdBy.IsEmpty() {
-		u.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{Name: a.context.User.GetName()},
-		})
-	}
-	user, err := a.authServer.UpsertUser(ctx, u)
-	return user, trace.Wrap(err)
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the
@@ -7599,21 +7516,6 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
-}
-
-// checkOktaUserAccess gates access to update operations on user records based
-// on the origin label on the supplied user record.
-//
-// # See okta.CheckAccess() for the actual access rules
-//
-// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
-func checkOktaUserAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
-	existingUser, err := users.GetUser(ctx, existingUsername, false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	return okta.CheckAccess(authzCtx, existingUser, verb)
 }
 
 // checkOktaLockTarget prevents the okta service from locking users that are not

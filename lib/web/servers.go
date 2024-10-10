@@ -208,11 +208,6 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	uiDesktops := make([]webui.Desktop, 0, len(page.Resources))
 	for _, r := range page.Resources {
 		desktop, ok := r.ResourceWithLabels.(types.WindowsDesktop)
@@ -220,12 +215,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 			continue
 		}
 
-		logins, err := calculateDesktopLogins(accessChecker, desktop, r.Logins)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		uiDesktops = append(uiDesktops, webui.MakeDesktop(desktop, logins, false /* requiresRequest */))
+		uiDesktops = append(uiDesktops, webui.MakeDesktop(desktop, r.Logins, false /* requiresRequest */))
 	}
 
 	return listResourcesGetResponse{
