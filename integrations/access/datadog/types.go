@@ -117,6 +117,53 @@ type TimelineContent struct {
 	Content string `json:"content,omitempty"`
 }
 
+// OncallTeamsBody contains the response body for an on-call teams request.
+type OncallTeamsBody struct {
+	Data     []OncallTeamsData     `json:"data,omitempty"`
+	Included []OncallTeamsIncluded `json:"included,omitempty"`
+}
+
+// OncallTeamsData contains the on-call teams data.
+type OncallTeamsData struct {
+	Metadata
+	Attributes    OncallTeamsAttributes    `json:"attributes,omitempty"`
+	Relationships OncallTeamsRelationships `json:"relationships,omitempty"`
+}
+
+// OncallTeamsAttributes contains the on-call teams attributes.
+type OncallTeamsAttributes struct {
+	Name   string `json:"name,omitempty"`
+	Handle string `json:"handle,omitempty"`
+}
+
+// OncallTeamsRelationships contains the on-call teams relationships.
+type OncallTeamsRelationships struct {
+	OncallUsers OncallUsers `json:"oncall_users,omitempty"`
+}
+
+// OncallUsers contains the list of on-call users.
+type OncallUsers struct {
+	Data []OncallUsersData `json:"data,omitempty"`
+}
+
+// OncallUsersData contains the on-call user data.
+type OncallUsersData struct {
+	Metadata
+}
+
+// OncallTeamsIncluded contains the on-call teams included related resources.
+type OncallTeamsIncluded struct {
+	Metadata
+	Attributes OncallTeamsIncludedAttributes `json:"attributes,omitempty"`
+}
+
+// OncallTeamsIncludedAttributes contains the on-call teams included related resource
+// attributes.
+type OncallTeamsIncludedAttributes struct {
+	Email string `json:"email,omitempty"`
+	Name  string `json:"name,omitempty"`
+}
+
 // ErrorResult contains the error response.
 type ErrorResult struct {
 	Errors []string `json:"errors"`

@@ -108,6 +108,10 @@ func (m *mockPluginConfig) GetPluginType() types.PluginType {
 	return types.PluginTypeSlack
 }
 
+func (m *mockPluginConfig) GetTeleportUser() string {
+	return ""
+}
+
 func TestAccessListReminders_Single(t *testing.T) {
 	t.Parallel()
 
