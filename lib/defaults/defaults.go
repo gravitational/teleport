@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -945,3 +947,59 @@ const (
 	// creating directories.
 	DirectoryPermissions = 0o755
 )
+
+const (
+	// teleportReleaseCDN is the Teleport's CDN URL for release builds.
+	// This can be used to download the Teleport binary for release builds.
+	teleportReleaseCDN = "https://cdn.teleport.dev"
+	// teleportPreReleaseCDN is the Teleport's CDN URL for pre-release builds.
+	// This can be used to download the Teleport binary for pre-release builds.
+	teleportPreReleaseCDN = "https://cdn.cloud.gravitational.io"
+)
+
+// TeleportCDNBaseURL returns the URL of the CDN that can be used to download
+// Teleport build assets.
+func TeleportCDNBaseURL() string {
+	return teleportCDNBaseURL(*teleport.SemVersion)
+}
+
+// teleportCDNBaseURL returns the base URL of the CDN that can be used to download
+// Teleport build assets.
+func teleportCDNBaseURL(version semver.Version) string {
+	if version.PreRelease != "" {
+		return teleportPreReleaseCDN
+	}
+	return teleportReleaseCDN
+}
+
+const (
+	// teleportReleaseECR is the official release repo for Teleport images.
+	teleportReleaseECR = "public.ecr.aws/gravitational"
+	// teleportReleaseECR is the pre-release repo for Teleport images.
+	teleportPreReleaseECR = "public.ecr.aws/gravitational-staging"
+	// distrolessTeleportOSSImage is the distroless image of the OSS version of Teleport
+	distrolessTeleportOSSImage = "teleport-distroless"
+	// distrolessTeleportEntImage is the distroless image of the Enterprise version of Teleport
+	distrolessTeleportEntImage = "teleport-ent-distroless"
+)
+
+// DistrolessTeleportImage returns the distroless teleport image repo.
+func DistrolessTeleportImage(version semver.Version) string {
+	repo := distrolessTeleportImageRepo(version)
+	name := distrolessTeleportImageName(modules.GetModules().BuildType())
+	return fmt.Sprintf("%s/%s:%s", repo, name, version)
+}
+
+func distrolessTeleportImageRepo(version semver.Version) string {
+	if version.PreRelease != "" {
+		return teleportPreReleaseECR
+	}
+	return teleportReleaseECR
+}
+
+func distrolessTeleportImageName(buildType string) string {
+	if buildType == modules.BuildEnterprise {
+		return distrolessTeleportEntImage
+	}
+	return distrolessTeleportOSSImage
+}
