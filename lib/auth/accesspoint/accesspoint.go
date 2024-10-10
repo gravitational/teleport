@@ -105,6 +105,7 @@ type Config struct {
 	WebToken                types.WebTokenInterface
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
+	ProvisioningStates      services.ProvisioningStates
 }
 
 func (c *Config) CheckAndSetDefaults() error {
