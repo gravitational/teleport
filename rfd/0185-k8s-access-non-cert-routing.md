@@ -155,6 +155,17 @@ Kubernetes clients:
 
 - `kubectl`
 
+#### Audit and Analytics
+
+It will be worth including in the release notes that there will no longer 
+necessarily be a Kubernetes certificate generation event emitted in the audit
+log prior to Kubernetes access occurring.
+
+It would no longer be possible to track usage of Kubernetes Access for analytics
+purposes via the certificate generation event. However, we have other events
+that indicate Kubernetes Access usage (e.g an event per request), that are
+better suited for this purpose - so this seems acceptable.
+
 ### Alternatives
 
 #### Leverage SNI
