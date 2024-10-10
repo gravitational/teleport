@@ -105,7 +105,9 @@ type SAMLConnector interface {
 	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
 	SetSingleLogoutURL(string)
 	// GetMFASettings returns the connector's MFA settings.
-	GetMFASettings() SAMLConnectorMFASettings
+	GetMFASettings() *SAMLConnectorMFASettings
+	// SetMFASettings sets the connector's MFA settings.
+	SetMFASettings(s *SAMLConnectorMFASettings)
 	// IsMFAEnabled returns whether the connector has MFA enabled.
 	IsMFAEnabled() bool
 	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
@@ -400,18 +402,19 @@ func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
 }
 
 // GetMFASettings returns the connector's MFA settings.
-func (o *SAMLConnectorV2) GetMFASettings() SAMLConnectorMFASettings {
-	if o.Spec.MFASettings == nil {
-		return SAMLConnectorMFASettings{
-			Enabled: false,
-		}
-	}
-	return *o.Spec.MFASettings
+func (o *SAMLConnectorV2) GetMFASettings() *SAMLConnectorMFASettings {
+	return o.Spec.MFASettings
+}
+
+// SetMFASettings sets the connector's MFA settings.
+func (o *SAMLConnectorV2) SetMFASettings(s *SAMLConnectorMFASettings) {
+	o.Spec.MFASettings = s
 }
 
 // IsMFAEnabled returns whether the connector has MFA enabled.
 func (o *SAMLConnectorV2) IsMFAEnabled() bool {
-	return o.GetMFASettings().Enabled
+	mfa := o.GetMFASettings()
+	return mfa != nil && mfa.Enabled
 }
 
 // WithMFASettings returns the connector will some settings overwritten set from MFA settings.
@@ -422,6 +425,9 @@ func (o *SAMLConnectorV2) WithMFASettings() error {
 
 	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
 	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
+	o.Spec.Issuer = o.Spec.MFASettings.Issuer
+	o.Spec.SSO = o.Spec.MFASettings.Sso
+	o.Spec.Cert = o.Spec.MFASettings.Cert
 
 	switch o.Spec.MFASettings.ForceAuthn {
 	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
@@ -470,6 +476,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	// Issuer and SSO can be automatically set later if EntityDescriptor is provided
 	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" && (o.Spec.Issuer == "" || o.Spec.SSO == "") {
 		return trace.BadParameter("no entity_descriptor set, either provide entity_descriptor or entity_descriptor_url in spec")
+	}
+	if o.IsMFAEnabled() && o.Spec.MFASettings.EntityDescriptorUrl == "" && o.Spec.MFASettings.EntityDescriptor == "" && (o.Spec.MFASettings.Issuer == "" || o.Spec.MFASettings.Sso == "") {
+		return trace.BadParameter("no entity_descriptor set for mfa settings, either provide entity_descriptor or entity_descriptor_url in spec")
 	}
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {

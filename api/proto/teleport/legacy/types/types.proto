@@ -4773,6 +4773,7 @@ message SAMLConnectorMFASettings {
   bool enabled = 1;
   // EntityDescriptor is XML with descriptor. It can be used to supply configuration
   // parameters in one XML file rather than supplying them in the individual elements.
+  // Usually set from EntityDescriptorUrl.
   string entity_descriptor = 2;
   // EntityDescriptorUrl is a URL that supplies a configuration XML.
   string entity_descriptor_url = 3;
@@ -4780,6 +4781,13 @@ message SAMLConnectorMFASettings {
   // treated as YES to always re-authentication for MFA checks. This should only be set to NO if the
   // IdP is setup to perform MFA checks on top of active user sessions.
   SAMLForceAuthn force_authn = 4;
+  // Issuer is the identity provider issuer. Usually set from EntityDescriptor.
+  string issuer = 5;
+  // SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.
+  string sso = 6;
+  // Cert is the identity provider certificate PEM.
+  // IDP signs `<Response>` responses using this certificate.
+  string cert = 7;
 }
 
 // SAMLForceAuthn specified whether existing SAML sessions should be accepted or re-authentication
