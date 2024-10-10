@@ -332,11 +332,11 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	// Without this, the connection will be released after releaseConnectionDelay,
 	// leading to a failure when providing PIN or touch input:
 	// "verify pin: transmitting request: the supplied handle was invalid".
-	err := y.connect()
+	release, err := y.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer y.releaseConnection()
+	defer release()
 	var touchPromptDelayTimer *time.Timer
 	if y.attestation.TouchPolicy != piv.TouchPolicyNever {
 		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
@@ -684,13 +684,20 @@ type sharedPIVConnection struct {
 // connect a connection to YubiKey PIV module. The returned connection should be closed once
 // it's been used. The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
-func (c *sharedPIVConnection) connect() (err error) {
+func (c *sharedPIVConnection) connect() (func(), error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	release := func() {
+		go func() {
+			time.Sleep(releaseConnectionDelay)
+			c.waitClose.Done()
+		}()
+	}
+
 	if c.conn != nil {
 		c.waitClose.Add(1)
-		return nil
+		return release, nil
 	}
 
 	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
@@ -705,7 +712,7 @@ func (c *sharedPIVConnection) connect() (err error) {
 		Max: time.Millisecond * 50,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Backoff and retry for a time slightly greater than releaseConnectionDelay.
@@ -728,9 +735,9 @@ func (c *sharedPIVConnection) connect() (err error) {
 		// It's also possible that the user is running another PIV program, which may hold the PIV
 		// connection indefinitely (yubikey-agent). In this case, user action is necessary, so we
 		// alert them with this issue.
-		return trace.LimitExceeded("could not connect to YubiKey as another application is using it. Please try again once the program that uses the YubiKey, such as yubikey-agent is closed")
+		return nil, trace.LimitExceeded("could not connect to YubiKey as another application is using it. Please try again once the program that uses the YubiKey, such as yubikey-agent is closed")
 	} else if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	c.waitClose.Add(1)
@@ -743,129 +750,122 @@ func (c *sharedPIVConnection) connect() (err error) {
 		c.conn = nil
 	}()
 
-	return nil
-}
-
-func (c *sharedPIVConnection) releaseConnection() {
-	go func() {
-		time.Sleep(releaseConnectionDelay)
-		c.waitClose.Done()
-	}()
+	return release, nil
 }
 
 func (c *sharedPIVConnection) privateKey(slot piv.Slot, public crypto.PublicKey, auth piv.KeyAuth) (crypto.PrivateKey, error) {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	privateKey, err := c.conn.PrivateKey(slot, public, auth)
 	return privateKey, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) serial() (uint32, error) {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	serial, err := c.conn.Serial()
 	return serial, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) reset() error {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	// Clear cached keys.
 	cachedKeys = make(map[piv.Slot]*PrivateKey)
 	return trace.Wrap(c.conn.Reset())
 }
 
 func (c *sharedPIVConnection) setCertificate(key [24]byte, slot piv.Slot, cert *x509.Certificate) error {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	return trace.Wrap(c.conn.SetCertificate(key, slot, cert))
 }
 
 func (c *sharedPIVConnection) certificate(slot piv.Slot) (*x509.Certificate, error) {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	cert, err := c.conn.Certificate(slot)
 	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) generateKey(key [24]byte, slot piv.Slot, opts piv.Key) (crypto.PublicKey, error) {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	pubKey, err := c.conn.GenerateKey(key, slot, opts)
 	return pubKey, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) attest(slot piv.Slot) (*x509.Certificate, error) {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	cert, err := c.conn.Attest(slot)
 	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) attestationCertificate() (*x509.Certificate, error) {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	cert, err := c.conn.AttestationCertificate()
 	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) setPIN(oldPIN string, newPIN string) error {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	return trace.Wrap(c.conn.SetPIN(oldPIN, newPIN))
 }
 
 func (c *sharedPIVConnection) setPUK(oldPUK string, newPUK string) error {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	return trace.Wrap(c.conn.SetPUK(oldPUK, newPUK))
 }
 
 func (c *sharedPIVConnection) unblock(puk string, newPIN string) error {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	return trace.Wrap(c.conn.Unblock(puk, newPIN))
 }
 
 func (c *sharedPIVConnection) verifyPIN(pin string) error {
-	err := c.connect()
+	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer c.releaseConnection()
+	defer release()
 	return trace.Wrap(c.conn.VerifyPIN(pin))
 }
 
