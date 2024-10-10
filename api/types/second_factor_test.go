@@ -19,10 +19,11 @@ package types
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
-// TestEncodeDecodeSecondFactorType tests encoding/decoding of the SecondFactorType.
 func TestEncodeDecodeSecondFactorType(t *testing.T) {
 	for _, tt := range []struct {
 		secondFactorType SecondFactorType
@@ -42,16 +43,52 @@ func TestEncodeDecodeSecondFactorType(t *testing.T) {
 		t.Run(tt.secondFactorType.String(), func(t *testing.T) {
 			t.Run("encode", func(t *testing.T) {
 				encoded, err := tt.secondFactorType.encode()
-				require.NoError(t, err)
-				require.Equal(t, tt.encoded, encoded)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.encoded, encoded)
 			})
 
 			t.Run("decode", func(t *testing.T) {
 				var decoded SecondFactorType
 				err := decoded.decode(tt.encoded)
-				require.NoError(t, err)
-				require.Equal(t, tt.secondFactorType, decoded)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.secondFactorType, decoded)
 			})
+		})
+	}
+}
+
+func TestLegacySecondFactorsFromLegacySecondFactor(t *testing.T) {
+	for _, tt := range []struct {
+		sf  constants.SecondFactorType
+		sfs []SecondFactorType
+	}{
+		{
+			sf:  "",
+			sfs: nil,
+		},
+		{
+			sf:  constants.SecondFactorOff,
+			sfs: nil,
+		},
+		{
+			sf:  constants.SecondFactorOptional,
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP},
+		},
+		{
+			sf:  constants.SecondFactorOn,
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP},
+		},
+		{
+			sf:  constants.SecondFactorOTP,
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP},
+		},
+		{
+			sf:  constants.SecondFactorWebauthn,
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN},
+		},
+	} {
+		t.Run(string(tt.sf), func(t *testing.T) {
+			assert.Equal(t, tt.sfs, secondFactorsFromLegacySecondFactor(tt.sf))
 		})
 	}
 }

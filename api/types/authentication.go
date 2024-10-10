@@ -87,6 +87,8 @@ type AuthPreference interface {
 	IsSecondFactorEnabled() bool
 	// IsSecondFactorEnforced checks if second factor is enforced.
 	IsSecondFactorEnforced() bool
+	// IsSecondFactorLocalAllowed checks if a local second factor method is enabled (webauthn, totp).
+	IsSecondFactorLocalAllowed() bool
 	// IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
 	IsSecondFactorTOTPAllowed() bool
 	// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
@@ -382,6 +384,11 @@ func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
 	// TODO(Joerger): outside of tests, second factor should always be enforced.
 	// All calls should be removed and the old off/optional second factors removed.
 	return len(c.GetSecondFactors()) > 0 && c.Spec.SecondFactor != constants.SecondFactorOptional
+}
+
+// IsSecondFactorLocalAllowed checks if a local second factor method is enabled.
+func (c *AuthPreferenceV2) IsSecondFactorLocalAllowed() bool {
+	return c.IsSecondFactorTOTPAllowed() || c.IsSecondFactorWebauthnAllowed()
 }
 
 // IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
@@ -776,10 +783,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	// Prevent local lockout by disabling local second factor methods.
-	hasSSO := c.IsSecondFactorSSOAllowed()
-	hasTOTP := c.IsSecondFactorTOTPAllowed()
-	if c.GetAllowLocalAuth() && hasSSO && !hasTOTP && !hasWebauthn {
-		return trace.BadParameter("missing a local second factor method for local users (otp, webauthn), either add a local second factor method or disable local auth")
+	if c.GetAllowLocalAuth() && c.IsSecondFactorEnforced() && !c.IsSecondFactorLocalAllowed() {
+		if c.IsSecondFactorSSOAllowed() {
+			trace.BadParameter("missing a local second factor method for local users (otp, webauthn), either add a local second factor method or disable local auth")
+		}
+		return trace.BadParameter("missing a local second factor method for local users (otp, webauthn)")
 	}
 
 	// Validate connector name for type=local.

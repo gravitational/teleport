@@ -19,6 +19,7 @@ package types
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -69,7 +70,7 @@ func TestEncodeDecodeRequireMFAType(t *testing.T) {
 	}
 }
 
-func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
+func TestNewAuthPreference_secondFactors(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		spec           AuthPreferenceSpecV2
@@ -80,23 +81,25 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 			name: "OK default to OTP",
 			spec: AuthPreferenceSpecV2{},
 			assertAuthPref: func(t *testing.T, authPref AuthPreference) {
-				require.Equal(t, []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}, authPref.GetSecondFactors())
+				assert.Equal(t, []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}, authPref.GetSecondFactors())
 			},
 		},
 		{
-			name: "OK OTP",
+			name: "OK OTP default settings",
 			spec: AuthPreferenceSpecV2{
 				SecondFactors: []SecondFactorType{
 					SecondFactorType_SECOND_FACTOR_TYPE_OTP,
 				},
 			},
 			assertAuthPref: func(t *testing.T, authPref AuthPreference) {
-				require.False(t, authPref.GetAllowPasswordless())
-				require.False(t, authPref.GetAllowHeadless())
+				assert.False(t, authPref.GetAllowPasswordless())
+				assert.False(t, authPref.GetAllowHeadless())
+				assert.True(t, authPref.GetAllowLocalAuth())
+				assert.False(t, authPref.IsAdminActionMFAEnforced())
 			},
 		},
 		{
-			name: "OK WebAuthn",
+			name: "OK WebAuthn default settings",
 			spec: AuthPreferenceSpecV2{
 				SecondFactors: []SecondFactorType{
 					SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
@@ -106,12 +109,14 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertAuthPref: func(t *testing.T, authPref AuthPreference) {
-				require.True(t, authPref.GetAllowPasswordless())
-				require.True(t, authPref.GetAllowHeadless())
+				assert.True(t, authPref.GetAllowPasswordless())
+				assert.True(t, authPref.GetAllowHeadless())
+				assert.True(t, authPref.GetAllowLocalAuth())
+				assert.True(t, authPref.IsAdminActionMFAEnforced())
 			},
 		},
 		{
-			name: "OK SSO",
+			name: "OK SSO default settings",
 			spec: AuthPreferenceSpecV2{
 				SecondFactors: []SecondFactorType{
 					SecondFactorType_SECOND_FACTOR_TYPE_SSO,
@@ -119,9 +124,27 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 				AllowLocalAuth: NewBoolOption(false),
 			},
 			assertAuthPref: func(t *testing.T, authPref AuthPreference) {
-				require.False(t, authPref.GetAllowPasswordless())
-				require.False(t, authPref.GetAllowHeadless())
-				require.False(t, authPref.GetAllowLocalAuth())
+				assert.False(t, authPref.GetAllowPasswordless())
+				assert.False(t, authPref.GetAllowHeadless())
+				assert.False(t, authPref.GetAllowLocalAuth())
+				assert.True(t, authPref.IsAdminActionMFAEnforced())
+			},
+		},
+		{
+			name: "OK all second factors",
+			spec: AuthPreferenceSpecV2{
+				SecondFactors: []SecondFactorType{
+					SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+					SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+					SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+				},
+			},
+			assertAuthPref: func(t *testing.T, authPref AuthPreference) {
+				assert.True(t, authPref.GetAllowPasswordless())
+				assert.True(t, authPref.GetAllowHeadless())
+				assert.True(t, authPref.GetAllowLocalAuth())
+				// enabling OTP disables admin mfa.
+				assert.False(t, authPref.IsAdminActionMFAEnforced())
 			},
 		},
 		{
@@ -134,6 +157,11 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 					AppID: "https://localhost",
 				},
 			},
+			assertAuthPref: func(t *testing.T, authPref AuthPreference) {
+				w, err := authPref.GetWebauthn()
+				assert.NoError(t, err)
+				assert.Equal(t, &Webauthn{RPID: "localhost"}, w)
+			},
 		},
 		{
 			name: "NOK SecondFactor and SecondFactors both set",
@@ -144,7 +172,7 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertErr: func(t require.TestingT, err error, vals ...interface{}) {
-				require.ErrorAs(t, err, &trace.BadParameterError{})
+				assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			},
 		},
 		{
@@ -155,7 +183,7 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertErr: func(t require.TestingT, err error, vals ...interface{}) {
-				require.ErrorAs(t, err, &trace.BadParameterError{})
+				assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			},
 		},
 		{
@@ -167,7 +195,7 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 				AllowPasswordless: NewBoolOption(true),
 			},
 			assertErr: func(t require.TestingT, err error, vals ...interface{}) {
-				require.ErrorAs(t, err, &trace.BadParameterError{})
+				assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			},
 		},
 		{
@@ -179,7 +207,7 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 				AllowHeadless: NewBoolOption(true),
 			},
 			assertErr: func(t require.TestingT, err error, vals ...interface{}) {
-				require.ErrorAs(t, err, &trace.BadParameterError{})
+				assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			},
 		},
 		{
@@ -191,7 +219,7 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 				AllowLocalAuth: NewBoolOption(true),
 			},
 			assertErr: func(t require.TestingT, err error, vals ...interface{}) {
-				require.ErrorAs(t, err, &trace.BadParameterError{})
+				assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			},
 		},
 	} {
@@ -200,7 +228,7 @@ func TestAuthPreference_CheckAndSetDefaults(t *testing.T) {
 			if tt.assertErr != nil {
 				tt.assertErr(t, err)
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}
 
 			if tt.assertAuthPref != nil {
