@@ -2865,6 +2865,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 
 type loginGetter interface {
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
+	GetAllowedLoginsForIdentityCenter(resource services.AccessCheckable) []types.IdentityCenterAccountAssignment
 }
 
 // calculateSSHLogins returns the subset of the allowedLogins that exist in
@@ -3022,6 +3023,21 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			perms := accessChecker.GetAllowedLoginsForIdentityCenter(r.GetApp())
+			exists := func(accountID string, as []types.IdentityCenterAccountAssignment) bool {
+				for _, v := range as {
+					if v.AccountID == accountID {
+						return true
+					}
+
+				}
+				return false
+			}
+			if perms != nil && !exists(r.GetApp().GetAWSExternalID(), perms) {
+				// skip if this is identity center account without any permission assigned.
+				break
+			}
 			allowedAWSRolesLookup := map[string][]string{
 				r.GetApp().GetName(): allowedAWSRoles,
 			}
@@ -3034,6 +3050,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.log,
 				RequiresRequest:       enriched.RequiresRequest,
+				IdentityCenterPerms:   perms,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.AppServerOrSAMLIdPServiceProvider:

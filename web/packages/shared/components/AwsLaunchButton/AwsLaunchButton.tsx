@@ -94,6 +94,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             onLaunchUrl={onLaunchUrl}
             closeMenu={this.onClose}
             onChange={this.onChange}
+            isAwsIc={this.props.isAwsIc}
           />
         </Menu>
       </>
@@ -107,6 +108,7 @@ function RoleItemList({
   closeMenu,
   onChange,
   onLaunchUrl,
+  isAwsIc
 }: Props & {
   closeMenu: () => void;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -117,6 +119,9 @@ function RoleItemList({
     let text = `${accountId}: ${display}`;
     if (display !== name) {
       text = `${text} (${name})`;
+    }
+    if (isAwsIc) {
+      text = name
     }
     return (
       <StyledMenuItem
@@ -181,6 +186,7 @@ type Props = {
   getLaunchUrl(arn: string, display?: string): string;
   onLaunchUrl?(arn: string): void;
   width?: string;
+  isAwsIc?: boolean;
 };
 
 const StyledMenuItem = styled(MenuItem)(

@@ -161,34 +161,29 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   } = app;
   const { actions, userSamlIdPPerm } = useSamlAppAction();
   
-  function getawsLaunchUrl(arn, display) {
-    if (permission_sets?.length > 0) {
-     return `${publicAddr}&role_name=${display}`
-      } else {
-        return cfg.getAppLauncherRoute({
-          fqdn,
-          clusterId,
-          publicAddr,
-          arn,
-        })
-      }
-  }
-
-  if (permission_sets?.length > 0) {
-    return (
-      <IdentityCenterLaunchButton
-        width="123px"
-        permissionSets={permission_sets}
-        portalURL={launchUrl}
-      />
-    );
-  }
-
   if (awsConsole) {
+    function getIcLaunchRoute(arn: string, display: string) {
+      return `${publicAddr}&role_name=${display}`
+    }
+    function getawsLaunchUrl(arn, display) {
+      if (permission_sets) {
+      return getIcLaunchRoute(arn, display)
+        } else {
+          return cfg.getAppLauncherRoute({
+            fqdn,
+            clusterId,
+            publicAddr,
+            arn,
+          })
+        }
+    }
+
+    const isAwsIc = !!permission_sets
     return (
       <AwsLaunchButton
         width="123px"
         awsRoles={awsRoles}
+        isAwsIc={isAwsIc}
         getLaunchUrl={getawsLaunchUrl}
       />
     );

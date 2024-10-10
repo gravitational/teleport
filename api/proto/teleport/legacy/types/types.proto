@@ -3274,6 +3274,7 @@ message RoleConditions {
 message IdentityCenterAccountAssignment {
   string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
   string AccountID = 2 [(gogoproto.jsontag) = "account,omitempty"];
+  string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or

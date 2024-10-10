@@ -264,6 +264,8 @@ type AccessChecker interface {
 	// - types.KindApp with IsAWSConsole() == true
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
 
+	GetAllowedLoginsForIdentityCenter(resource AccessCheckable) []types.IdentityCenterAccountAssignment
+
 	// CheckSPIFFESVID checks if the role set has access to generating the
 	// requested SPIFFE ID. Returns an error if the role set does not have the
 	// ability to generate the requested SVID.
@@ -763,6 +765,18 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 	return result
 }
 
+func (a *accessChecker) GetAllowedLoginsForIdentityCenter(resource AccessCheckable) []types.IdentityCenterAccountAssignment {
+	var perms []types.IdentityCenterAccountAssignment
+	for _, role := range a.RoleSet {
+		fmt.Println("=====>>>>>>>: GetAllowedLoginsForIdentityCenter: ", resource.GetKind(), resource.GetName(), role.GetName(), role.GetSubKind())
+		if role.GetSubKind() == "aws_iam_identity_center" {
+			perms = append(perms, role.GetAWSIdentityCenterAssignment(types.Allow)...)
+
+		}
+	}
+	return perms
+}
+
 // GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 //
 // Supports the following resource types:
@@ -780,6 +794,16 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 
 	for _, role := range a.RoleSet {
 		var loginGetter func(types.RoleConditionType) []string
+		// fmt.Println("=====>>>>>>>: ", resource.GetKind(), resource.GetName(), role.GetName(), role.GetSubKind(), role.GetAWSIdentityCenterAssignment(types.Allow))
+		// if role.GetSubKind() == "aws_iam_identity_center" {
+		// 	perms := role.GetAWSIdentityCenterAssignment(types.Allow)
+		// 	finalPerms := make([]string, len(perms))
+		// 	for _, p := range perms {
+		// 		finalPerms = append(finalPerms, p.PermissionSet)
+		// 	}
+
+		// 	return finalPerms, nil
+		// }
 
 		switch resource.GetKind() {
 		case types.KindNode:
@@ -790,12 +814,14 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			if !resourceIsApp {
 				return nil, trace.BadParameter("received unsupported resource type for Application kind: %T", resource)
 			}
+
 			// For Apps, only AWS currently supports listing the possible logins.
 			if !resourceAsApp.IsAWSConsole() {
 				return nil, nil
 			}
 
 			loginGetter = role.GetAWSRoleARNs
+
 		case types.KindIdentityCenterAccount:
 			loginGetter = func(c types.RoleConditionType) []string {
 				if c == types.Allow {

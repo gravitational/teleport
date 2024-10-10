@@ -187,6 +187,8 @@ type Role interface {
 	// SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to assume.
 	SetAWSRoleARNs(RoleConditionType, []string)
 
+	GetAWSIdentityCenterAssignment(rct RoleConditionType) []IdentityCenterAccountAssignment
+
 	// GetAzureIdentities returns a list of Azure identities this role is allowed to assume.
 	GetAzureIdentities(RoleConditionType) []string
 	// SetAzureIdentities sets a list of Azure identities this role is allowed to assume.
@@ -783,6 +785,14 @@ func (r *RoleV6) GetAWSRoleARNs(rct RoleConditionType) []string {
 		return r.Spec.Allow.AWSRoleARNs
 	}
 	return r.Spec.Deny.AWSRoleARNs
+}
+
+// GetAWSIdentityCenterAssignment returns IdentityCenterAccountAssignment for a given role condition
+func (r *RoleV6) GetAWSIdentityCenterAssignment(rc RoleConditionType) []IdentityCenterAccountAssignment {
+	if rc == Allow {
+		return r.Spec.Allow.AccountAssignments
+	}
+	return r.Spec.Deny.AccountAssignments
 }
 
 // SetAWSRoleARNs sets a list of AWS role ARNs this role is allowed to impersonate.

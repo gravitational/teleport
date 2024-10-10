@@ -98,7 +98,8 @@ type MakeAppsConfig struct {
 	// Logger is a logger used for debugging while making an app
 	Logger logrus.FieldLogger
 	// RequireRequest indicates if a returned resource is only accessible after an access request
-	RequiresRequest bool
+	RequiresRequest     bool
+	IdentityCenterPerms []types.IdentityCenterAccountAssignment
 }
 
 // MakeApp creates an application object for the WebUI.
@@ -179,7 +180,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 			// TODO(sshah): The value for AWSRoles should come from user allowed role calculation
 			// just like the one done below in the else block rather than
 			// permission attached to accounts.
-			resultApp.AWSRoles = awsRolesFromPermSet(permissionSets, app.GetAWSExternalID())
+			resultApp.AWSRoles = awsRolesFromAccountAssignment(app.GetAWSExternalID(), c.IdentityCenterPerms)
 		} else {
 			allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
 			resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
@@ -191,6 +192,21 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	return resultApp
 }
 
+func awsRolesFromAccountAssignment(accountID string, as []types.IdentityCenterAccountAssignment) aws.Roles {
+	var awsRoles aws.Roles
+	for _, v := range as {
+		if v.AccountID == accountID {
+			awsRoles = append(awsRoles, aws.Role{
+				Name:      v.Name,
+				ARN:       v.PermissionSet,
+				AccountID: v.AccountID,
+			})
+		}
+
+	}
+	return awsRoles
+}
+
 func awsRolesFromPermSet(ps []IdentityCenterPermissionSet, accID string) aws.Roles {
 	var awsRoles aws.Roles
 	for _, v := range ps {
@@ -198,6 +214,7 @@ func awsRolesFromPermSet(ps []IdentityCenterPermissionSet, accID string) aws.Rol
 			Name:      v.Name,
 			ARN:       v.ARN,
 			AccountID: accID,
+			Display:   v.Name,
 		})
 	}
 	return awsRoles
