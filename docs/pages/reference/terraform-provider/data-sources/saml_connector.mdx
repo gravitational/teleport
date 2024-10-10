@@ -78,10 +78,13 @@ Optional:
 
 Optional:
 
+- `cert` (String) Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.
 - `enabled` (Boolean) Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
-- `entity_descriptor` (String) EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.
+- `entity_descriptor` (String) EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. Usually set from EntityDescriptorUrl.
 - `entity_descriptor_url` (String) EntityDescriptorUrl is a URL that supplies a configuration XML.
 - `force_authn` (Number) ForceAuthn specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is treated as YES to always re-authentication for MFA checks. This should only be set to NO if the IdP is setup to perform MFA checks on top of active user sessions.
+- `issuer` (String) Issuer is the identity provider issuer. Usually set from EntityDescriptor.
+- `sso` (String) SSO is the URL of the identity provider's SSO service. Usually set from EntityDescriptor.
 
 
 ### Nested Schema for `spec.signing_key_pair`

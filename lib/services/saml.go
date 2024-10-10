@@ -54,33 +54,51 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		return trace.Wrap(err)
 	}
 
-	if sc.GetEntityDescriptorURL() != "" {
-		resp, err := http.Get(sc.GetEntityDescriptorURL())
+	getEntityDescriptorFromURL := func(url string) (string, error) {
+		resp, err := http.Get(url)
 		if err != nil {
-			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+			return "", trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", url, sc.GetName())
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
+			return "", trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, url, sc.GetName())
 		}
 		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
-		sc.SetEntityDescriptor(string(body))
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+		return string(body), nil
 	}
 
-	if sc.GetEntityDescriptor() != "" {
+	getEntityDescriptorMetadata := func(ed string) (*samltypes.EntityDescriptor, error) {
 		metadata := &samltypes.EntityDescriptor{}
-		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
-			return trace.Wrap(err, "failed to parse entity_descriptor")
+		if err := xml.Unmarshal([]byte(ed), metadata); err != nil {
+			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
+		}
+		return metadata, nil
+	}
+
+	// Validate standard settings.
+	if url := sc.GetEntityDescriptorURL(); url != "" {
+		entityDescriptor, err := getEntityDescriptorFromURL(url)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		sc.SetIssuer(metadata.EntityID)
-		if metadata.IDPSSODescriptor != nil && len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
-			sc.SetSSO(metadata.IDPSSODescriptor.SingleSignOnServices[0].Location)
+		sc.SetEntityDescriptor(entityDescriptor)
+		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", url, sc.GetName())
+	}
+
+	if ed := sc.GetEntityDescriptor(); ed != "" {
+		md, err := getEntityDescriptorMetadata(ed)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		sc.SetIssuer(md.EntityID)
+		if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
+			sc.SetSSO(md.IDPSSODescriptor.SingleSignOnServices[0].Location)
 		}
 	}
 
@@ -125,6 +143,34 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 				}
 			}
 		}
+	}
+
+	// Validate MFA settings.
+	if mfa := sc.GetMFASettings(); mfa != nil {
+		if mfa.EntityDescriptorUrl != "" {
+			if mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL() {
+				// we got the entity descriptor above, skip the redundant round trip.
+				mfa.EntityDescriptor = sc.GetEntityDescriptor()
+			} else {
+				entityDescriptor, err := getEntityDescriptorFromURL(mfa.EntityDescriptorUrl)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				mfa.EntityDescriptor = entityDescriptor
+			}
+		}
+		if mfa.EntityDescriptor != "" {
+			md, err := getEntityDescriptorMetadata(mfa.EntityDescriptor)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			mfa.Issuer = md.EntityID
+			if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
+				mfa.Sso = md.IDPSSODescriptor.SingleSignOnServices[0].Location
+			}
+		}
+		sc.SetMFASettings(mfa)
 	}
 
 	log.Debugf("[SAML] SSO: %v", sc.GetSSO())
