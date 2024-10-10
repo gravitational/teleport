@@ -4901,7 +4901,16 @@ func TestSerializeMFADevices(t *testing.T) {
 		{"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
 	]
 	`
-	dev := types.NewMFADevice("my device", "id", aTime)
+
+	dev := &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "my device",
+		},
+		Id:       "id",
+		AddedAt:  aTime,
+		LastUsed: aTime,
+	}
+
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeMFADevices([]*types.MFADevice{dev}, f)
 	})

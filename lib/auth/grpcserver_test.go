@@ -295,7 +295,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	// 2nd-to-last resident credential.
 	// This is already tested above so we just use RegisterTestDevice here.
 	const pwdless2DevName = "pwdless2"
-	_, err = RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
+	pwdlessDev, err := RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
 	require.NoError(t, err, "RegisterTestDevice failed")
 
 	// Check that all new devices are registered.
@@ -433,6 +433,51 @@ func TestMFADeviceManagement(t *testing.T) {
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	require.Equal(t, "pwdless2", resp.Devices[0].GetName())
+
+	// Change the user to an SSO user with an MFA enabled auth connector.
+	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: user.GetRoles()},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{
+		Time: authServer.clock.Now(),
+		Connector: &types.ConnectorRef{
+			ID:   "saml",
+			Type: "saml",
+		},
+	})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Ephemeral sso device should show up in the list now. It can't be deleted.
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Devices, 2)
+
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName: "saml",
+		authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+			require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+			mfaResp, err := pwdlessDev.SolveAuthn(challenge)
+			require.NoError(t, err, "SolveAuthn")
+			return mfaResp
+		},
+		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
+			require.ErrorAs(t, err, new(*trace.BadParameterError))
+			require.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
+		}},
+	)
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {

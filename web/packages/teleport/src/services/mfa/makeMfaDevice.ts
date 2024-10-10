@@ -26,6 +26,8 @@ export default function makeMfaDevice(json): MfaDevice {
     description = 'Authenticator App';
   } else if (json.type === 'U2F' || json.type === 'WebAuthn') {
     description = 'Hardware Key';
+  } else if (json.type === 'SSO') {
+    description = 'SSO Provider';
   } else {
     description = 'unknown device';
   }
