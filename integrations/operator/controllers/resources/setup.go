@@ -77,7 +77,7 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportAccessList", NewAccessListReconciler})
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOktaImportRule", NewOktaImportRuleReconciler})
 	} else {
-		log.Info("The cluster license does not contain advanced workflows. TeleportAccessList, TeleportOktaImportRule  resourcess won't be reconciled")
+		log.Info("The cluster license does not contain advanced workflows. TeleportAccessList, TeleportOktaImportRule resources won't be reconciled")
 	}
 
 	kubeClient := mgr.GetClient()
