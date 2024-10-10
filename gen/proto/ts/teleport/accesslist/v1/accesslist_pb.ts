@@ -46,7 +46,7 @@ export interface AccessList {
      */
     header?: ResourceHeader;
     /**
-     * spec is the specification for the access list.
+     * spec is the specification for the Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListSpec spec = 2;
      */
@@ -59,32 +59,32 @@ export interface AccessList {
     status?: AccessListStatus;
 }
 /**
- * AccessListSpec is the specification for an access list.
+ * AccessListSpec is the specification for an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListSpec
  */
 export interface AccessListSpec {
     /**
-     * description is an optional plaintext description of the access list.
+     * description is an optional plaintext description of the Access List.
      *
      * @generated from protobuf field: string description = 1;
      */
     description: string;
     /**
-     * owners is a list of owners of the access list.
+     * owners is a list of owners of the Access List.
      *
      * @generated from protobuf field: repeated teleport.accesslist.v1.AccessListOwner owners = 2;
      */
     owners: AccessListOwner[];
     /**
-     * audit describes the frequency that this access list must be audited.
+     * audit describes the frequency that this Access List must be audited.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListAudit audit = 3;
      */
     audit?: AccessListAudit;
     /**
      * membership_requires describes the requirements for a user to be a member of
-     * the access list. For a membership to an access list to be effective, the
+     * the Access List. For a membership to an Access List to be effective, the
      * user must meet the requirements of Membership_requires and must be in the
      * members list.
      *
@@ -93,7 +93,7 @@ export interface AccessListSpec {
     membershipRequires?: AccessListRequires;
     /**
      * ownership_requires describes the requirements for a user to be an owner of
-     * the access list. For ownership of an access list to be effective, the user
+     * the Access List. For ownership of an Access List to be effective, the user
      * must meet the requirements of ownership_requires and must be in the owners
      * list.
      *
@@ -101,26 +101,26 @@ export interface AccessListSpec {
      */
     ownershipRequires?: AccessListRequires;
     /**
-     * grants describes the access granted by membership to this access list.
+     * grants describes the access granted by membership to this Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants grants = 6;
      */
     grants?: AccessListGrants;
     /**
-     * title is a plaintext short description of the access list.
+     * title is a plaintext short description of the Access List.
      *
      * @generated from protobuf field: string title = 8;
      */
     title: string;
     /**
-     * owner_grants describes the access granted by owners to this access list.
+     * owner_grants describes the access granted by owners to this Access List.
      *
      * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants owner_grants = 11;
      */
     ownerGrants?: AccessListGrants;
 }
 /**
- * AccessListOwner is an owner of an access list.
+ * AccessListOwner is an owner of an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListOwner
  */
@@ -147,7 +147,7 @@ export interface AccessListOwner {
     ineligibleStatus: IneligibleStatus;
 }
 /**
- * AccessListAudit describes the audit configuration for an access list.
+ * AccessListAudit describes the audit configuration for an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListAudit
  */
@@ -209,7 +209,7 @@ export interface Notifications {
     start?: Duration;
 }
 /**
- * AccessListRequires describes a requirement section for an access list. A user
+ * AccessListRequires describes a requirement section for an Access List. A user
  * must meet the following criteria to obtain the specific access to the list.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListRequires
@@ -230,29 +230,29 @@ export interface AccessListRequires {
     traits: Trait[];
 }
 /**
- * AccessListGrants describes what access is granted by membership to the access
- * list.
+ * AccessListGrants describes what access is granted by membership to the Access
+ * List.
  *
  * @generated from protobuf message teleport.accesslist.v1.AccessListGrants
  */
 export interface AccessListGrants {
     /**
-     * roles are the roles that are granted to users who are members of the access
-     * list.
+     * roles are the roles that are granted to users who are members of the Access
+     * List.
      *
      * @generated from protobuf field: repeated string roles = 1;
      */
     roles: string[];
     /**
      * traits are the traits that are granted to users who are members of the
-     * access list.
+     * Access List.
      *
      * @generated from protobuf field: repeated teleport.trait.v1.Trait traits = 2;
      */
     traits: Trait[];
 }
 /**
- * Member describes a member of an access list.
+ * Member describes a member of an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.Member
  */
@@ -264,50 +264,50 @@ export interface Member {
      */
     header?: ResourceHeader;
     /**
-     * spec is the specification for the access list member.
+     * spec is the specification for the Access List member.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MemberSpec spec = 2;
      */
     spec?: MemberSpec;
 }
 /**
- * MemberSpec is the specification for an access list member.
+ * MemberSpec is the specification for an Access List member.
  *
  * @generated from protobuf message teleport.accesslist.v1.MemberSpec
  */
 export interface MemberSpec {
     /**
-     * associated access list
+     * associated Access List
      *
      * @generated from protobuf field: string access_list = 1;
      */
     accessList: string;
     /**
-     * name is the name of the member of the access list.
+     * name is the name of the member of the Access List.
      *
      * @generated from protobuf field: string name = 2;
      */
     name: string;
     /**
-     * joined is when the user joined the access list.
+     * joined is when the user joined the Access List.
      *
      * @generated from protobuf field: google.protobuf.Timestamp joined = 3;
      */
     joined?: Timestamp;
     /**
-     * expires is when the user's membership to the access list expires.
+     * expires is when the user's membership to the Access List expires.
      *
      * @generated from protobuf field: google.protobuf.Timestamp expires = 4;
      */
     expires?: Timestamp;
     /**
-     * reason is the reason this user was added to the access list.
+     * reason is the reason this user was added to the Access List.
      *
      * @generated from protobuf field: string reason = 5;
      */
     reason: string;
     /**
-     * added_by is the user that added this user to the access list.
+     * added_by is the user that added this user to the Access List.
      *
      * @generated from protobuf field: string added_by = 6;
      */
@@ -321,7 +321,7 @@ export interface MemberSpec {
     ineligibleStatus: IneligibleStatus;
 }
 /**
- * Review is a review of an access list.
+ * Review is a review of an Access List.
  *
  * @generated from protobuf message teleport.accesslist.v1.Review
  */
@@ -333,20 +333,20 @@ export interface Review {
      */
     header?: ResourceHeader;
     /**
-     * spec is the specification for the access list review.
+     * spec is the specification for the Access List review.
      *
      * @generated from protobuf field: teleport.accesslist.v1.ReviewSpec spec = 2;
      */
     spec?: ReviewSpec;
 }
 /**
- * ReviewSpec is the specification for an access list review.
+ * ReviewSpec is the specification for an Access List review.
  *
  * @generated from protobuf message teleport.accesslist.v1.ReviewSpec
  */
 export interface ReviewSpec {
     /**
-     * access_list is the name of the access list that this review is for.
+     * access_list is the name of the Access List that this review is for.
      *
      * @generated from protobuf field: string access_list = 1;
      */
@@ -418,7 +418,7 @@ export interface ReviewChanges {
  */
 export interface AccessListStatus {
     /**
-     * member_count is the number of members in the in the access list.
+     * member_count is the number of members in the in the Access List.
      *
      * @generated from protobuf field: optional uint32 member_count = 1;
      */

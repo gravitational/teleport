@@ -89,7 +89,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 			// Implementation note: This needs RequiresReplace() to handle
 			// updates properly but we aren't able to attach plan modifiers to
 			// fields from schema methods here. See ModifyPlan below.
-			"traits": tfschema.GenSchemaTraits(ctx),
+			"traits": tfschema.GenSchemaTraits(ctx, tfsdk.Attribute{}),
 		},
 	}, nil
 }
