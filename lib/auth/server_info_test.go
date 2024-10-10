@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockServerInfoAccessPoint struct {
@@ -115,12 +114,7 @@ func TestReconcileServerInfo(t *testing.T) {
 			regularServerInfo.GetName(): regularServerInfo,
 		}
 
-		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-			Name: "ReconcileServerInfos",
-			Task: func(ctx context.Context) error {
-				return trace.Wrap(ReconcileServerInfos(ctx, ap))
-			},
-		})
+		go ReconcileServerInfos(ctx, ap)
 
 		// Wait until the reconciler finishes processing a batch.
 		ap.clock.BlockUntil(1)
@@ -145,12 +139,7 @@ func TestReconcileServerInfo(t *testing.T) {
 			regularServerInfo.GetName(): regularServerInfo,
 		}
 
-		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-			Name: "ReconcileServerInfos",
-			Task: func(ctx context.Context) error {
-				return trace.Wrap(ReconcileServerInfos(ctx, ap))
-			},
-		})
+		go ReconcileServerInfos(ctx, ap)
 
 		// Block until we hit the retryer.
 		ap.clock.BlockUntil(1)
