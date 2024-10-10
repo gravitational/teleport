@@ -562,6 +562,11 @@ func accessGraphFakeHTTPServer(t *testing.T, suite *webSuite) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("fake access graph response"))
 	})
+	// Create a REST API endpoint as TAG/Teleport handles /query and /static endpoint differently.
+	mux.HandleFunc("/graph/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("fake access graph response"))
+	})
 
 	srv := httptest.NewUnstartedServer(mux)
 	srv.EnableHTTP2 = true

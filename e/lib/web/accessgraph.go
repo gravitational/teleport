@@ -51,14 +51,15 @@ func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
 		isStaticFile := strings.HasPrefix(path, accessGraphStaticPathPrefix)
 		isQuery := strings.HasPrefix(path, accessGraphQueryPath)
 		isIntegration := strings.EqualFold(path, accessGraphIntegrationPath)
+		isGet := r.Method == http.MethodGet
 		switch {
-		case isStaticFile && !accessGraphSupportsHTTP:
+		case isStaticFile && !accessGraphSupportsHTTP && isGet:
 			h.WithUnauthenticatedHighLimiter(p.getAccessGraphFileFallback)(w, r, params)
-		case isStaticFile:
+		case isStaticFile && isGet:
 			h.WithUnauthenticatedHighLimiter(p.getAccessGraphUsingHTTPUnauthenticated)(w, r, params)
-		case isQuery && !accessGraphSupportsHTTP:
+		case isQuery && !accessGraphSupportsHTTP && isGet:
 			h.WithAuth(p.queryAccessGraph)(w, r, params)
-		case isIntegration:
+		case isIntegration && isGet:
 			h.WithAuth(p.listIntegrations)(w, r, params)
 		case !accessGraphSupportsHTTP:
 			p.Log.Warnf("Teleport Proxy received a request but the access graph service is not reachable. Returning 404.")
@@ -117,10 +118,25 @@ func (p *Plugin) getAccessGraphUsingHTTPWithAuth(w http.ResponseWriter, r *http.
 		return nil, trace.Wrap(err)
 	}
 
+	requiredVerb := ""
+
+	switch r.Method {
+	case http.MethodGet, http.MethodOptions, http.MethodHead:
+		requiredVerb = types.VerbRead
+	case http.MethodPost:
+		requiredVerb = types.VerbCreate
+	case http.MethodPut, http.MethodPatch:
+		requiredVerb = types.VerbUpdate
+	case http.MethodDelete:
+		requiredVerb = types.VerbDelete
+	default:
+		return nil, trace.BadParameter("unsupported HTTP method %q", r.Method)
+	}
+
 	if err := accessChecker.CheckAccessToRule(&services.Context{},
 		defaults.Namespace,
 		types.KindAccessGraph,
-		types.VerbRead); err != nil {
+		requiredVerb); err != nil {
 		return nil, trace.WrapWithMessage(err, "not allowed to read the access graph")
 	}
 	respRec := httplib.NewResponseStatusRecorder(w)

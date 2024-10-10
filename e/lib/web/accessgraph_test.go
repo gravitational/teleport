@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"testing"
 	"time"
@@ -406,6 +407,150 @@ func TestAccessGraphSettings(t *testing.T) {
 				assert.Equal(t, tt.want, got)
 
 			}, 5*time.Second, 1*time.Second)
+		})
+	}
+}
+
+func TestAccessGraphEndpoints(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+				entitlements.Policy:   {Enabled: true},
+			},
+		},
+	})
+
+	tests := []struct {
+		name        string
+		rbacVerbs   []string
+		makeRequest func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error)
+		verify      func(t *testing.T, resp *roundtrip.Response, err error)
+	}{
+		{
+			name:      "GET is allowed",
+			rbacVerbs: []string{types.VerbRead},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.Get(context.Background(), endpoint, url.Values{})
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+			},
+		},
+		{
+			name:      "GET is denied",
+			rbacVerbs: []string{types.VerbCreate},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.Get(context.Background(), endpoint, url.Values{})
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.Error(t, err)
+				require.Equal(t, http.StatusForbidden, resp.Code())
+			},
+		},
+		{
+			name:      "POST is allowed",
+			rbacVerbs: []string{types.VerbCreate},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.PostJSON(context.Background(), endpoint, nil)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+			},
+		},
+		{
+			name:      "POST is denied",
+			rbacVerbs: []string{types.VerbRead},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.PostJSON(context.Background(), endpoint, nil)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.Error(t, err)
+				require.Equal(t, http.StatusForbidden, resp.Code())
+			},
+		},
+		{
+			name:      "DELETE is denied",
+			rbacVerbs: []string{types.VerbRead},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.Delete(context.Background(), endpoint)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.Error(t, err)
+				require.Equal(t, http.StatusForbidden, resp.Code())
+			},
+		},
+		{
+			name:      "DELETE is allowed",
+			rbacVerbs: []string{types.VerbDelete},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.Delete(context.Background(), endpoint)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+			},
+		},
+		{
+			name:      "PUT is allowed",
+			rbacVerbs: []string{types.VerbUpdate},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.PutJSON(context.Background(), endpoint, nil)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+			},
+		},
+		{
+			name:      "PUT is denied",
+			rbacVerbs: []string{types.VerbRead},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.PutJSON(context.Background(), endpoint, nil)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.Error(t, err)
+				require.Equal(t, http.StatusForbidden, resp.Code())
+			},
+		},
+		{
+			name:      "PATCH is allowed",
+			rbacVerbs: []string{types.VerbUpdate},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.PatchJSON(context.Background(), endpoint, nil)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+			},
+		},
+		{
+			name:      "PATCH is denied",
+			rbacVerbs: []string{types.VerbRead},
+			makeRequest: func(clt *TestWebClient, endpoint string) (*roundtrip.Response, error) {
+				return clt.PatchJSON(context.Background(), endpoint, nil)
+			},
+			verify: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)                             // Note: I've no idea why our client responds with no error here
+				require.Equal(t, http.StatusForbidden, resp.Code()) // HTTP error code is correct
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := newWebSuite(t, withAccessGraphFeatures(features))
+			webPack := s.newAuthWebPack(t, "foo", withExtraRules(types.Rule{
+				Resources: []string{types.KindAccessGraph},
+				Verbs:     tt.rbacVerbs,
+			}))
+
+			endpoint := webPack.clt.Endpoint("enterprise", "accessgraph", "graph", "test")
+			resp, err := tt.makeRequest(webPack.clt, endpoint)
+			tt.verify(t, resp, err)
 		})
 	}
 }

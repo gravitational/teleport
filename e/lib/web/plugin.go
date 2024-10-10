@@ -396,6 +396,12 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	// Access graph
 	h.GET("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	h.POST("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	h.PATCH("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	h.OPTIONS("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	h.PUT("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	h.HEAD("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	h.DELETE("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
 	h.GET("/enterprise/accessgraphsettings", h.WithAuth(p.getAccessGraphSettings))
 	h.POST("/enterprise/accessgraphsettings", h.WithAuth(p.updateAccessGraphSettings))
 
