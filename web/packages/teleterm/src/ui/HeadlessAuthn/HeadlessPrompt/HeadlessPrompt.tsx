@@ -101,8 +101,8 @@ export function HeadlessPrompt({
         </ButtonIcon>
       </DialogHeader>
       {updateHeadlessStateAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          {updateHeadlessStateAttempt.statusText}
+        <Alerts.Danger mb={0} details={updateHeadlessStateAttempt.statusText}>
+          Could not update the headless command state
         </Alerts.Danger>
       )}
       <DialogContent>

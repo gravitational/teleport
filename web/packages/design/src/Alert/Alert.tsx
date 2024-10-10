@@ -190,7 +190,12 @@ export const Alert = ({
         <IconContainer kind={kind}>
           <AlertIcon kind={kind} customIcon={icon} size={alertIconSize} />
         </IconContainer>
-        <Box flex="1">
+        <Box
+          flex="1"
+          css={`
+            white-space: pre-wrap;
+          `}
+        >
           <Text typography="h3">{children}</Text>
           {details}
         </Box>

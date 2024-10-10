@@ -56,7 +56,11 @@ export const AuthenticateWebDevice = ({
           <b>{clusterName}</b>?
         </Text>
       </DialogContent>
-      {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
+      {attempt.status === 'error' && (
+        <Alert details={attempt.statusText}>
+          Could not authorize the session
+        </Alert>
+      )}
       <Flex flexDirection="column">
         <ButtonPrimary
           disabled={attempt.status === 'processing'}

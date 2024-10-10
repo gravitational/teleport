@@ -57,7 +57,9 @@ export function ClusterAdd(props: {
             </DialogHeader>
             <DialogContent mb={2}>
               {status === 'error' && (
-                <Alerts.Danger mb={5} children={statusText} />
+                <Alerts.Danger mb={5} details={statusText}>
+                  Could not add the cluster
+                </Alerts.Danger>
               )}
               <FieldInput
                 rule={requiredField('Cluster address is required')}
