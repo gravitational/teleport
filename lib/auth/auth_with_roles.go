@@ -279,12 +279,12 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
-func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
+func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
 	// which we don't have all data for, luckily the fields we don't have aren't made available
 	// to the RBAC filter anyway.
-	if tracker.GetKind() == types.KindSSHSession {
+	if tracker.GetSessionKind() == types.SSHSessionKind {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
 			Kind:           tracker.GetSessionKind(),
@@ -435,7 +435,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	ok := a.filterSessionTracker(ctx, joinerRoles, tracker, types.VerbRead)
+	ok := a.filterSessionTracker(joinerRoles, tracker, types.VerbRead)
 	if !ok {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -462,7 +462,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -490,7 +490,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
