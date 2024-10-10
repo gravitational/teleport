@@ -32,7 +32,6 @@ test('filters options and selects first item when inputType is FILTER', async ()
 
   render(
     <MenuLogin
-      placeholder="Filter users"
       required={false}
       getLoginItems={() => loginItems}
       onSelect={onSelect}
@@ -43,7 +42,7 @@ test('filters options and selects first item when inputType is FILTER', async ()
   fireEvent.click(await screen.findByText(/connect/i));
 
   // Type 'user' into the input to filter
-  const input = await screen.findByPlaceholderText('Filter users');
+  const input = await screen.findByPlaceholderText('Search logins…');
   fireEvent.change(input, { target: { value: 'user' } });
 
   fireEvent.keyPress(input, {

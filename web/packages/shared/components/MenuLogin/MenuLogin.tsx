@@ -63,7 +63,11 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
         item.login.toLocaleLowerCase().includes(filter)
       ) || [];
 
-    const placeholder = props.placeholder || 'Enter login name…';
+    const defaultPlaceholder =
+      inputType === MenuInputType.INPUT
+        ? 'Enter login name…'
+        : 'Search logins…';
+    const placeholder = props.placeholder || defaultPlaceholder;
 
     const onOpen = () => {
       if (!getLoginItemsAttempt.status) {
