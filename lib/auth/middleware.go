@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -361,7 +360,7 @@ func (a *Middleware) Wrap(h http.Handler) {
 	a.Handler = h
 }
 
-func getCustomRate(endpoint string) *ratelimit.RateSet {
+func getCustomRate(endpoint string) *limiter.RateSet {
 	switch endpoint {
 	// Account recovery RPCs.
 	case
@@ -370,7 +369,7 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 		"/proto.AuthService/GetAccountRecoveryToken",
 		"/proto.AuthService/StartAccountRecovery",
 		"/proto.AuthService/VerifyAccountRecovery":
-		rates := ratelimit.NewRateSet()
+		rates := limiter.NewRateSet()
 		// This limit means: 1 request per minute with bursts up to 10 requests.
 		if err := rates.Add(time.Minute, 1, 10); err != nil {
 			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
@@ -382,7 +381,7 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 		const period = defaults.LimiterPeriod
 		const average = defaults.LimiterAverage
 		const burst = defaults.LimiterBurst
-		rates := ratelimit.NewRateSet()
+		rates := limiter.NewRateSet()
 		if err := rates.Add(period, average, burst); err != nil {
 			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
 			return nil

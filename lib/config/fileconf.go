@@ -512,8 +512,10 @@ type ConnectionRate struct {
 // ConnectionLimits sets up connection limiter
 type ConnectionLimits struct {
 	MaxConnections int64            `yaml:"max_connections"`
-	MaxUsers       int              `yaml:"max_users"`
 	Rates          []ConnectionRate `yaml:"rates,omitempty"`
+
+	// Deprecated: MaxUsers has no effect.
+	MaxUsers int `yaml:"max_users"`
 }
 
 // LegacyLog contains the old format of the 'format' field

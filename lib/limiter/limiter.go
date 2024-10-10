@@ -24,11 +24,12 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/timetools"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
+
+	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 )
 
 // Limiter helps limiting connections and request rates
@@ -45,10 +46,8 @@ type Config struct {
 	Rates []Rate
 	// MaxConnections configures maximum number of connections
 	MaxConnections int64
-	// MaxNumberOfUsers controls maximum number of simultaneously active users
-	MaxNumberOfUsers int
 	// Clock is an optional parameter, if not set, will use system time
-	Clock timetools.TimeProvider
+	Clock clockwork.Clock
 }
 
 // NewLimiter returns new rate and connection limiter
@@ -112,17 +111,22 @@ func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
 	return func() { l.connectionLimiter.ReleaseConnection(token) }, nil
 }
 
+type RateSet = ratelimit.RateSet
+
+// NewRateSet crates an empty `RateSet` instance.
+func NewRateSet() *RateSet { return ratelimit.NewRateSet() }
+
 // UnaryServerInterceptor returns a gRPC unary interceptor which
 // rate limits by client IP.
 func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return l.UnaryServerInterceptorWithCustomRate(func(string) *ratelimit.RateSet {
+	return l.UnaryServerInterceptorWithCustomRate(func(string) *RateSet {
 		return nil
 	})
 }
 
-// CustomRateFunc is a function type which returns a custom *ratelimit.RateSet
+// CustomRateFunc is a function type which returns a custom rate set
 // for a given endpoint string.
-type CustomRateFunc func(endpoint string) *ratelimit.RateSet
+type CustomRateFunc func(endpoint string) *RateSet
 
 // UnaryServerInterceptorWithCustomRate returns a gRPC unary interceptor which
 // rate limits by client IP. Accepts a CustomRateFunc to set custom rates for
