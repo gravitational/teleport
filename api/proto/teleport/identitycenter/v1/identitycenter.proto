@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.identitycenter.v1;
 
-import "teleport/header/v1/resourceheader.proto";
+import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
 
@@ -42,9 +42,12 @@ message AccountStatus {}
 
 // Account is an Identity-Ceneter-managed AWS account
 message Account {
-  teleport.header.v1.ResourceHeader header = 1;
-  AccountSpec spec = 2;
-  AccountStatus status = 3;
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AccountSpec spec = 5;
+  AccountStatus status = 6;
 }
 
 // AccountSpec holds non-changing data about an AWS Account
@@ -75,7 +78,10 @@ message AccountSpec {
 
 // PermissionSet identifies a single permission set by name and ARN
 message PermissionSet {
-  teleport.header.v1.ResourceHeader header = 4;
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
   PermissionSetSpec spec = 5;
 }
 
@@ -100,8 +106,11 @@ message PermissionSetSpec {
 // grants that user the Permission Set specified in that resource, on the
 // AWS Account specified in that resource.
 message AccountAssignment {
-  teleport.header.v1.ResourceHeader header = 1;
-  AccountAssignmentSpec spec = 2;
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AccountAssignmentSpec spec = 5;
 }
 
 // AccountAssignmentSpec holds static information abount an AccountAssignment,
@@ -117,9 +126,12 @@ message AccountAssignmentSpec {
 // to a given principal. This is the source of truth for all Account & Permission
 // Set assignments in AWS
 message PrincipalAssignment {
-  teleport.header.v1.ResourceHeader header = 1;
-  PrincipalAssignmentSpec spec = 2;
-  PrincipalAssignmentStatus status = 3;
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  PrincipalAssignmentSpec spec = 5;
+  PrincipalAssignmentStatus status = 6;
 }
 
 // PrincipalType indicates the type of principal represented by a PrincipalAssignment
@@ -150,11 +162,11 @@ message PrincipalAssignmentSpec {
 // ProvisioningState indicates the current stage of the Account-Assignment
 // provisioning pipeline a resource is in.
 enum ProvisioningState {
-  // PROVISIONING_STATE_UNSPECIFIED is the default empty state. This should
-  // never be used in practice.
+  // PROVISIONING_STATE_UNSPECIFIED is the default empty state. This should never
+  // be used in practice.
   PROVISIONING_STATE_UNSPECIFIED = 0;
 
-  // PROVISIOING_STATE_STALE indicates that Teleport has recalculated the
+  // PROVISIONING_STATE_STALE indicates that Teleport has recalculated the
   // principal's Account Assignment set, but this has not yet been reflected in
   // AWS.
   PROVISIONING_STATE_STALE = 1;
