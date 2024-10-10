@@ -1202,7 +1202,10 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"proxy_checks_host_keys": GenSchemaBoolOption(ctx),
+				"proxy_checks_host_keys": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "ProxyChecksHostKeys is used to control if the proxy will check host keys when in recording mode.",
+					Optional:    true,
+				}),
 			}),
 			Description: "Spec is a SessionRecordingConfig specification",
 			Optional:    true,
@@ -1277,9 +1280,18 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"allow_headless":     GenSchemaBoolOption(ctx),
-				"allow_local_auth":   GenSchemaBoolOption(ctx),
-				"allow_passwordless": GenSchemaBoolOption(ctx),
+				"allow_headless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:    true,
+				}),
+				"allow_local_auth": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "AllowLocalAuth is true if local authentication is enabled.",
+					Optional:    true,
+				}),
+				"allow_passwordless": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.",
+					Optional:    true,
+				}),
 				"connector_name": {
 					Description: "ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.",
 					Optional:    true,
@@ -1311,7 +1323,10 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.",
 					Optional:    true,
 				},
-				"disconnect_expired_cert": GenSchemaBoolOption(ctx),
+				"disconnect_expired_cert": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected",
+					Optional:    true,
+				}),
 				"hardware_key": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"piv_slot": {
@@ -1341,7 +1356,10 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"idp": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"saml": {
-						Attributes:  github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx)}),
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "Enabled is set to true if this option allows access to the Teleport SAML IdP.",
+							Optional:    true,
+						})}),
 						Description: "SAML are options related to the Teleport SAML IdP.",
 						Optional:    true,
 					}}),
@@ -1381,7 +1399,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"second_factor": {
 					Computed:      true,
-					Description:   "SecondFactor is the type of second factor.",
+					Description:   "SecondFactor is the type of mult-factor.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -1401,7 +1419,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				"u2f": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"app_id": {
-							Description: "AppID returns the application ID for universal second factor.",
+							Description: "AppID returns the application ID for universal mult-factor.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -1411,7 +1429,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"facets": {
-							Description: "Facets returns the facets for universal second factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation.",
+							Description: "Facets returns the facets for universal mult-factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -1432,7 +1450,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"rp_id": {
-							Description: "RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the second factor will need to re-register.",
+							Description: "RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the multi-factor will need to re-register.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -1519,7 +1537,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"allow": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"app_labels": GenSchemaLabels(ctx),
+						"app_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "AppLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
 						"app_labels_expression": {
 							Description: "AppLabelsExpression is a predicate expression used to allow/deny access to Apps.",
 							Optional:    true,
@@ -1535,13 +1556,19 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"cluster_labels": GenSchemaLabels(ctx),
+						"cluster_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "ClusterLabels is a map of node labels (used to dynamically grant access to clusters).",
+							Optional:    true,
+						}),
 						"cluster_labels_expression": {
 							Description: "ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"db_labels": GenSchemaLabels(ctx),
+						"db_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DatabaseLabels are used in RBAC system to allow/deny access to databases.",
+							Optional:    true,
+						}),
 						"db_labels_expression": {
 							Description: "DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.",
 							Optional:    true,
@@ -1554,7 +1581,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"db_permissions": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"match": GenSchemaLabels(ctx),
+								"match": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Match is a list of object labels that must be matched for the permission to be granted.",
+									Optional:    true,
+								}),
 								"permissions": {
 									Description: "Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...",
 									Optional:    true,
@@ -1569,7 +1599,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"db_service_labels": GenSchemaLabels(ctx),
+						"db_service_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.",
+							Optional:    true,
+						}),
 						"db_service_labels_expression": {
 							Description: "DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.",
 							Optional:    true,
@@ -1590,7 +1623,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"group_labels": GenSchemaLabels(ctx),
+						"group_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "GroupLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
 						"group_labels_expression": {
 							Description: "GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.",
 							Optional:    true,
@@ -1658,7 +1694,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"kubernetes_labels": GenSchemaLabels(ctx),
+						"kubernetes_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "KubernetesLabels is a map of kubernetes cluster labels used for RBAC.",
+							Optional:    true,
+						}),
 						"kubernetes_labels_expression": {
 							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
 							Optional:    true,
@@ -1704,7 +1743,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"node_labels": GenSchemaLabels(ctx),
+						"node_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
+							Optional:    true,
+						}),
 						"node_labels_expression": {
 							Description: "NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.",
 							Optional:    true,
@@ -1712,7 +1754,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"request": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"annotations": GenSchemaTraits(ctx),
+								"annotations": GenSchemaTraits(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.",
+									Optional:    true,
+								}),
 								"claims_to_roles": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"claim": {
@@ -1909,7 +1954,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.",
 							Optional:    true,
 						},
-						"windows_desktop_labels": GenSchemaLabels(ctx),
+						"windows_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.",
+							Optional:    true,
+						}),
 						"windows_desktop_labels_expression": {
 							Description: "WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.",
 							Optional:    true,
@@ -1926,7 +1974,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				},
 				"deny": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"app_labels": GenSchemaLabels(ctx),
+						"app_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "AppLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
 						"app_labels_expression": {
 							Description: "AppLabelsExpression is a predicate expression used to allow/deny access to Apps.",
 							Optional:    true,
@@ -1942,13 +1993,19 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"cluster_labels": GenSchemaLabels(ctx),
+						"cluster_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "ClusterLabels is a map of node labels (used to dynamically grant access to clusters).",
+							Optional:    true,
+						}),
 						"cluster_labels_expression": {
 							Description: "ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"db_labels": GenSchemaLabels(ctx),
+						"db_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DatabaseLabels are used in RBAC system to allow/deny access to databases.",
+							Optional:    true,
+						}),
 						"db_labels_expression": {
 							Description: "DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.",
 							Optional:    true,
@@ -1961,7 +2018,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"db_permissions": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"match": GenSchemaLabels(ctx),
+								"match": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Match is a list of object labels that must be matched for the permission to be granted.",
+									Optional:    true,
+								}),
 								"permissions": {
 									Description: "Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...",
 									Optional:    true,
@@ -1976,7 +2036,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"db_service_labels": GenSchemaLabels(ctx),
+						"db_service_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.",
+							Optional:    true,
+						}),
 						"db_service_labels_expression": {
 							Description: "DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.",
 							Optional:    true,
@@ -1997,7 +2060,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"group_labels": GenSchemaLabels(ctx),
+						"group_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "GroupLabels is a map of labels used as part of the RBAC system.",
+							Optional:    true,
+						}),
 						"group_labels_expression": {
 							Description: "GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.",
 							Optional:    true,
@@ -2065,7 +2131,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"kubernetes_labels": GenSchemaLabels(ctx),
+						"kubernetes_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "KubernetesLabels is a map of kubernetes cluster labels used for RBAC.",
+							Optional:    true,
+						}),
 						"kubernetes_labels_expression": {
 							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
 							Optional:    true,
@@ -2107,7 +2176,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
-						"node_labels": GenSchemaLabels(ctx),
+						"node_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "NodeLabels is a map of node labels (used to dynamically grant access to nodes).",
+							Optional:    true,
+						}),
 						"node_labels_expression": {
 							Description: "NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.",
 							Optional:    true,
@@ -2115,7 +2187,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"request": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"annotations": GenSchemaTraits(ctx),
+								"annotations": GenSchemaTraits(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.",
+									Optional:    true,
+								}),
 								"claims_to_roles": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"claim": {
@@ -2312,7 +2387,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.",
 							Optional:    true,
 						},
-						"windows_desktop_labels": GenSchemaLabels(ctx),
+						"windows_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.",
+							Optional:    true,
+						}),
 						"windows_desktop_labels_expression": {
 							Description: "WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.",
 							Optional:    true,
@@ -2367,14 +2445,23 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        DurationType{},
 						},
-						"create_db_user": GenSchemaBoolOption(ctx),
+						"create_db_user": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "CreateDatabaseUser enabled automatic database user creation.",
+							Optional:    true,
+						}),
 						"create_db_user_mode": {
 							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is \"unspecified\", 1 is \"off\", 2 is \"keep\", 3 is \"best_effort_drop\".",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
-						"create_desktop_user": GenSchemaBoolOption(ctx),
-						"create_host_user":    GenSchemaBoolOption(ctx),
+						"create_desktop_user": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "CreateDesktopUser allows users to be automatically created on a Windows desktop",
+							Optional:    true,
+						}),
+						"create_host_user": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "CreateHostUser allows users to be automatically created on a host",
+							Optional:    true,
+						}),
 						"create_host_user_default_shell": {
 							Description: "CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.",
 							Optional:    true,
@@ -2385,8 +2472,14 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
-						"desktop_clipboard":         GenSchemaBoolOption(ctx),
-						"desktop_directory_sharing": GenSchemaBoolOption(ctx),
+						"desktop_clipboard": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.",
+							Optional:    true,
+						}),
+						"desktop_directory_sharing": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "DesktopDirectorySharing indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.",
+							Optional:    true,
+						}),
 						"device_trust_mode": {
 							Description: "DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.",
 							Optional:    true,
@@ -2411,7 +2504,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"idp": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"saml": {
-								Attributes:  github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx)}),
+								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"enabled": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Enabled is set to true if this option allows access to the Teleport SAML IdP.",
+									Optional:    true,
+								})}),
 								Description: "SAML are options related to the Teleport SAML IdP.",
 								Optional:    true,
 							}}),
@@ -2460,7 +2556,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
-						"port_forwarding": GenSchemaBoolOption(ctx),
+						"port_forwarding": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "PortForwarding defines if the certificate will have \"permit-port-forwarding\" in the certificate. PortForwarding is \"yes\" if not set, that's why this is a pointer",
+							Optional:    true,
+						}),
 						"record_session": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"default": {
@@ -2468,7 +2567,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"desktop": GenSchemaBoolOption(ctx),
+								"desktop": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.",
+									Optional:    true,
+								}),
 								"ssh": {
 									Description: "SSH indicates the session mode used on SSH sessions.",
 									Optional:    true,
@@ -2493,7 +2595,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
-						"ssh_file_copy": GenSchemaBoolOption(ctx),
+						"ssh_file_copy": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.",
+							Optional:    true,
+						}),
 					}),
 					Description: "Options is for OpenSSH options like agent forwarding.",
 					Optional:    true,
@@ -2643,7 +2748,10 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Description: "SAMLIdentities lists associated SAML identities that let user log in using externally verified identity",
 					Optional:    true,
 				},
-				"traits": GenSchemaTraits(ctx),
+				"traits": GenSchemaTraits(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.",
+					Optional:    true,
+				}),
 				"trusted_device_ids": {
 					Description: "TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.  Note that SSO users are transient and thus may contain an empty TrustedDeviceIDs field, even though the user->device association exists under the Device Trust subsystem. Do not rely on this field to determine device associations or ownership, it exists for legacy/informative purposes only.  Managed by the Device Trust subsystem, avoid manual edits.",
 					Optional:    true,
@@ -2774,7 +2882,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Optional:    true,
 				},
 				"client_id": {
-					Description: "ClientID is the id of the authentication client (Teleport Auth server).",
+					Description: "ClientID is the id of the authentication client (Teleport Auth Service).",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -2872,7 +2980,10 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"redirect_url": GenSchemaStrings(ctx),
+				"redirect_url": GenSchemaStrings(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.",
+					Optional:    true,
+				}),
 				"scope": {
 					Description: "Scope specifies additional scopes set by provider.",
 					Optional:    true,

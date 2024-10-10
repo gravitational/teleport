@@ -2732,9 +2732,9 @@ type InstanceSpecV1 struct {
 	Services []SystemRole `protobuf:"bytes,2,rep,name=Services,proto3,casttype=SystemRole" json:"services,omitempty"`
 	// Hostname is the hostname this instance most recently advertised.
 	Hostname string `protobuf:"bytes,3,opt,name=Hostname,proto3" json:"hostname,omitempty"`
-	// AuthID is the ID of the auth server that most recently observed this instance.
+	// AuthID is the ID of the Auth Service that most recently observed this instance.
 	AuthID string `protobuf:"bytes,4,opt,name=AuthID,proto3" json:"auth_id,omitempty"`
-	// LastSeen is the last time an auth server reported observing this instance.
+	// LastSeen is the last time an Auth Service server reported observing this instance.
 	LastSeen time.Time `protobuf:"bytes,5,opt,name=LastSeen,proto3,stdtime" json:"last_seen,omitempty"`
 	// ControlLog is the log of recent important instance control events related to this instance. See comments
 	// on the InstanceControlLogEntry type for details.
@@ -2784,10 +2784,10 @@ var xxx_messageInfo_InstanceSpecV1 proto.InternalMessageInfo
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
 // an instance is protected by CompareAndSwap semantics, allowing entries to function as a means of
-// synchronization as well as recordkeeping. For example, an auth server intending to trigger an upgrade
+// synchronization as well as recordkeeping. For example, an Auth Service instance intending to trigger an upgrade
 // for a given instance can check its control log for 'upgrade-attempt' entries. If no such entry exists,
 // it can attempt to write an 'upgrade-attempt' entry of its own. If that entry successfully writes without
-// hitting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
+// hitting a CompareFailed, the Auth Service instance knows that no other Auth Service instances will make concurrent upgrade
 // attempts while that entry persists.
 //
 // NOTE: Due to resource size and backend throughput limitations, care should be taken to minimize the
@@ -2908,7 +2908,7 @@ func (m *InstanceFilter) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_InstanceFilter proto.InternalMessageInfo
 
-// ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
+// ServerV2 represents a Node, App, Database, Proxy or Auth Service instance in a Teleport cluster.
 type ServerV2 struct {
 	// Kind is a resource kind
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -4194,7 +4194,7 @@ type TokenRule struct {
 	// node is allowed to join from.
 	AWSRegions []string `protobuf:"bytes,2,rep,name=AWSRegions,proto3" json:"aws_regions,omitempty"`
 	// AWSRole is used for the EC2 join method and is the ARN of the AWS
-	// role that the auth server will assume in order to call the ec2 API.
+	// role that the Auth Service will assume in order to call the ec2 API.
 	AWSRole string `protobuf:"bytes,3,opt,name=AWSRole,proto3" json:"aws_role,omitempty"`
 	// AWSARN is used for the IAM join method, the AWS identity of joining nodes
 	// must match this ARN. Supports wildcards "*" and "?".
@@ -4440,7 +4440,7 @@ type ProvisionTokenSpecV2GitHub struct {
 	//
 	// This value should be the hostname of the GHES instance, and should not
 	// include the scheme or a path. The instance must be accessible over HTTPS
-	// at this hostname and the certificate must be trusted by the Auth Server.
+	// at this hostname and the certificate must be trusted by the Auth Service.
 	EnterpriseServerHost string `protobuf:"bytes,2,opt,name=EnterpriseServerHost,proto3" json:"enterprise_server_host,omitempty"`
 	// EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be
 	// included in the expected issuer of the OIDC tokens. This is for
@@ -4606,14 +4606,14 @@ type ProvisionTokenSpecV2GitLab_Rule struct {
 	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
 	// project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME
 	//
-	// This field supports simple "glob-style" matching:
+	// This field supports "glob-style" matching:
 	// - Use '*' to match zero or more characters.
 	// - Use '?' to match any single character.
 	Sub string `protobuf:"bytes,1,opt,name=Sub,proto3" json:"sub,omitempty"`
 	// Ref allows access to be limited to jobs triggered by a specific git ref.
 	// Ensure this is used in combination with ref_type.
 	//
-	// This field supports simple "glob-style" matching:
+	// This field supports "glob-style" matching:
 	// - Use '*' to match zero or more characters.
 	// - Use '?' to match any single character.
 	Ref string `protobuf:"bytes,2,opt,name=Ref,proto3" json:"ref,omitempty"`
@@ -4626,7 +4626,7 @@ type ProvisionTokenSpecV2GitLab_Rule struct {
 	// Example:
 	// `mygroup`
 	//
-	// This field supports simple "glob-style" matching:
+	// This field supports "glob-style" matching:
 	// - Use '*' to match zero or more characters.
 	// - Use '?' to match any single character.
 	NamespacePath string `protobuf:"bytes,4,opt,name=NamespacePath,proto3" json:"namespace_path,omitempty"`
@@ -4634,7 +4634,7 @@ type ProvisionTokenSpecV2GitLab_Rule struct {
 	// project. Example:
 	// `mygroup/myproject`
 	//
-	// This field supports simple "glob-style" matching:
+	// This field supports "glob-style" matching:
 	// - Use '*' to match zero or more characters.
 	// - Use '?' to match any single character.
 	ProjectPath string `protobuf:"bytes,5,opt,name=ProjectPath,proto3" json:"project_path,omitempty"`
@@ -5482,7 +5482,7 @@ type ClusterNameSpecV2 struct {
 	// cluster is setup can and will cause catastrophic problems.
 	ClusterName string `protobuf:"bytes,1,opt,name=ClusterName,proto3" json:"cluster_name"`
 	// ClusterID is the unique cluster ID that is set once during the first
-	// auth server startup.
+	// Auth Service startup.
 	ClusterID            string   `protobuf:"bytes,2,opt,name=ClusterID,proto3" json:"cluster_id"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -6094,7 +6094,7 @@ var xxx_messageInfo_AuthPreferenceV2 proto.InternalMessageInfo
 type AuthPreferenceSpecV2 struct {
 	// Type is the type of authentication.
 	Type string `protobuf:"bytes,1,opt,name=Type,proto3" json:"type"`
-	// SecondFactor is the type of second factor.
+	// SecondFactor is the type of mult-factor.
 	SecondFactor github_com_gravitational_teleport_api_constants.SecondFactorType `protobuf:"bytes,2,opt,name=SecondFactor,proto3,casttype=github.com/gravitational/teleport/api/constants.SecondFactorType" json:"second_factor,omitempty"`
 	// ConnectorName is the name of the OIDC or SAML connector. If this value is
 	// not set the first connector in the backend will be used.
@@ -6187,9 +6187,9 @@ var xxx_messageInfo_AuthPreferenceSpecV2 proto.InternalMessageInfo
 // Deprecated: U2F is transparently converted to WebAuthn by Teleport. Prefer
 // using WebAuthn instead.
 type U2F struct {
-	// AppID returns the application ID for universal second factor.
+	// AppID returns the application ID for universal mult-factor.
 	AppID string `protobuf:"bytes,1,opt,name=AppID,proto3" json:"app_id,omitempty"`
-	// Facets returns the facets for universal second factor.
+	// Facets returns the facets for universal mult-factor.
 	// Deprecated: Kept for backwards compatibility reasons, but Facets have no
 	// effect since Teleport v10, when Webauthn replaced the U2F implementation.
 	Facets []string `protobuf:"bytes,2,rep,name=Facets,proto3" json:"facets,omitempty"`
@@ -6243,7 +6243,7 @@ type Webauthn struct {
 	// IMPORTANT: RPID must never change in the lifetime of the cluster, because
 	// it's recorded in the registration data on the WebAuthn device. If the
 	// RPID changes, all existing WebAuthn key registrations will become invalid
-	// and all users who use WebAuthn as the second factor will need to
+	// and all users who use WebAuthn as the multi-factor will need to
 	// re-register.
 	RPID string `protobuf:"bytes,1,opt,name=RPID,proto3" json:"rp_id,omitempty"`
 	// Allow list of device attestation CAs in PEM format.
@@ -6745,7 +6745,7 @@ func (m *UserTokenSecretsSpecV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UserTokenSecretsSpecV3 proto.InternalMessageInfo
 
-// AccessRequest represents an access request resource specification
+// AccessRequest represents an Access Request resource specification
 type AccessRequestV3 struct {
 	// Kind is a resource kind
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`
@@ -6847,7 +6847,7 @@ func (m *AccessReviewThreshold) XXX_DiscardUnknown() {
 var xxx_messageInfo_AccessReviewThreshold proto.InternalMessageInfo
 
 // PromotedAccessList is a minimal access list representation used for
-// promoting access requests to access lists.
+// promoting Access Requests to access lists.
 type PromotedAccessList struct {
 	// Name is the name of the access list.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
@@ -6891,7 +6891,7 @@ func (m *PromotedAccessList) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PromotedAccessList proto.InternalMessageInfo
 
-// AccessReview is a review to be applied to an access request.
+// AccessReview is a review to be applied to an Access Request.
 type AccessReview struct {
 	// Author is the teleport username of the review author.
 	Author string `protobuf:"bytes,1,opt,name=Author,proto3" json:"author"`
@@ -7089,7 +7089,7 @@ type AccessRequestSpecV3 struct {
 	User string `protobuf:"bytes,1,opt,name=User,proto3" json:"user"`
 	// Roles is the name of the roles being requested.
 	Roles []string `protobuf:"bytes,2,rep,name=Roles,proto3" json:"roles"`
-	// State is the current state of this access request.
+	// State is the current state of this Access Request.
 	State RequestState `protobuf:"varint,3,opt,name=State,proto3,enum=types.RequestState" json:"state,omitempty"`
 	// Created encodes the time at which the request was registered with the auth
 	// server.
@@ -7108,10 +7108,10 @@ type AccessRequestSpecV3 struct {
 	// arbitrary structured data to the audit log.
 	ResolveAnnotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,8,opt,name=ResolveAnnotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"resolve_annotations,omitempty"`
 	// SystemAnnotations is a set of programmatically generated annotations attached
-	// to pending access requests by teleport.  These annotations are generated by
+	// to pending Access Requests by teleport.  These annotations are generated by
 	// applying variable interpolation to the RoleConditions.Request.Annotations block
 	// of a user's role(s).  These annotations serve as a mechanism for administrators
-	// to pass extra information to plugins when they process pending access requests.
+	// to pass extra information to plugins when they process pending Access Requests.
 	SystemAnnotations github_com_gravitational_teleport_api_types_wrappers.Traits `protobuf:"bytes,9,opt,name=SystemAnnotations,proto3,customtype=github.com/gravitational/teleport/api/types/wrappers.Traits" json:"system_annotations,omitempty"`
 	// Thresholds is a list of review thresholds relevant to this request.  Order must be
 	// preserved, as thresholds are referenced by index (internal use only).
@@ -7132,11 +7132,11 @@ type AccessRequestSpecV3 struct {
 	SuggestedReviewers []string `protobuf:"bytes,13,rep,name=SuggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
 	// RequestedResourceIDs is a set of resources to which access is being requested.
 	RequestedResourceIDs []ResourceID `protobuf:"bytes,14,rep,name=RequestedResourceIDs,proto3" json:"resource_ids,omitempty"`
-	// LoginHint is used as a hint for search-based access requests to select
+	// LoginHint is used as a hint for search-based Access Requests to select
 	// roles based on the login the user is attempting.
 	LoginHint string `protobuf:"bytes,15,opt,name=LoginHint,proto3" json:"login_hint,omitempty"`
 	// DryRun indicates that the request should not actually be created, the
-	// auth server should only validate the access request.
+	// Auth Service should only validate the Access Request.
 	DryRun bool `protobuf:"varint,16,opt,name=DryRun,proto3" json:"dry_run,omitempty"`
 	// MaxDuration indicates how long the access should be granted for.
 	MaxDuration time.Time `protobuf:"bytes,17,opt,name=MaxDuration,proto3,stdtime" json:"max_duration,omitempty"`
@@ -7186,7 +7186,7 @@ func (m *AccessRequestSpecV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessRequestSpecV3 proto.InternalMessageInfo
 
-// AccessRequestFilter encodes filter params for access requests.
+// AccessRequestFilter encodes filter params for Access Requests.
 type AccessRequestFilter struct {
 	// ID specifies a request ID if set.
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"id,omitempty"`
@@ -7202,7 +7202,7 @@ type AccessRequestFilter struct {
 	SearchKeywords []string `protobuf:"bytes,4,rep,name=SearchKeywords,proto3" json:"search,omitempty"`
 	// Scope is an aditional filter to view requests based on needs review, reviewed, my requests
 	Scope AccessRequestScope `protobuf:"varint,5,opt,name=Scope,proto3,enum=types.AccessRequestScope" json:"scope,omitempty"`
-	// Requester is the requester of the api call. This is set by the auth server
+	// Requester is the requester of the api call. This is set by the Auth Service
 	// Use User for the requester of the request.
 	Requester            string   `protobuf:"bytes,6,opt,name=Requester,proto3" json:"requester,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -8427,7 +8427,7 @@ type AccessRequestConditions struct {
 	// ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
 	ClaimsToRoles []ClaimMapping `protobuf:"bytes,2,rep,name=ClaimsToRoles,proto3" json:"claims_to_roles,omitempty"`
 	// Annotations is a collection of annotations to be programmatically
-	// appended to pending access requests at the time of their creation.
+	// appended to pending Access Requests at the time of their creation.
 	// These annotations serve as a mechanism to propagate extra information
 	// to plugins.  Since these annotations support variable interpolation
 	// syntax, they also offer a mechanism for forwarding claims from an
@@ -8540,7 +8540,7 @@ func (m *AccessReviewConditions) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessReviewConditions proto.InternalMessageInfo
 
-// AccessRequestAllowedPromotion describes an allowed promotion to an access list.
+// AccessRequestAllowedPromotion describes an allowed promotion to an Access List.
 type AccessRequestAllowedPromotion struct {
 	// associated access list
 	AccessListName       string   `protobuf:"bytes,1,opt,name=accessListName,proto3" json:"accessListName,omitempty"`
@@ -9221,7 +9221,7 @@ type LocalAuthSecrets struct {
 	MFA     []*MFADevice `protobuf:"bytes,5,rep,name=MFA,proto3" json:"mfa,omitempty"`
 	// Webauthn holds settings necessary for webauthn local auth.
 	// May be null for legacy users or users that haven't yet used webauthn as
-	// their second factor.
+	// their multi-factor.
 	Webauthn             *WebauthnLocalAuth `protobuf:"bytes,6,opt,name=Webauthn,proto3" json:"webauthn,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
@@ -11703,7 +11703,7 @@ var xxx_messageInfo_OIDCConnectorV3List proto.InternalMessageInfo
 type OIDCConnectorSpecV3 struct {
 	// IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
 	IssuerURL string `protobuf:"bytes,1,opt,name=IssuerURL,proto3" json:"issuer_url"`
-	// ClientID is the id of the authentication client (Teleport Auth server).
+	// ClientID is the id of the authentication client (Teleport Auth Service).
 	ClientID string `protobuf:"bytes,2,opt,name=ClientID,proto3" json:"client_id"`
 	// ClientSecret is used to authenticate the client.
 	ClientSecret string `protobuf:"bytes,3,opt,name=ClientSecret,proto3" json:"client_secret"`
@@ -11925,7 +11925,7 @@ func (m *OIDCConnectorMFASettings) XXX_DiscardUnknown() {
 var xxx_messageInfo_OIDCConnectorMFASettings proto.InternalMessageInfo
 
 // OIDCAuthRequest is a request to authenticate with OIDC
-// provider, the state about request is managed by auth server
+// provider, the state about request is managed by Auth Service
 type OIDCAuthRequest struct {
 	// ConnectorID is ID of OIDC connector this request uses
 	ConnectorID string `protobuf:"bytes,1,opt,name=ConnectorID,proto3" json:"connector_id"`
@@ -11942,7 +11942,7 @@ type OIDCAuthRequest struct {
 	// Teleport Proxy after the oidc login attempt in the browser.
 	RedirectURL string `protobuf:"bytes,6,opt,name=RedirectURL,proto3" json:"redirect_url"`
 	// PublicKey is an optional public key, users want these keys to be signed by
-	// auth servers user CA in case of successful auth.
+	// the Auth Service's user CA in case of successful auth.
 	//
 	// Deprecated: prefer SshPublicKey and/or TlsPublicKey.
 	PublicKey []byte `protobuf:"bytes,7,opt,name=PublicKey,proto3" json:"public_key"` // Deprecated: Do not use.
@@ -12253,7 +12253,7 @@ func (m *SAMLConnectorMFASettings) XXX_DiscardUnknown() {
 var xxx_messageInfo_SAMLConnectorMFASettings proto.InternalMessageInfo
 
 // SAMLAuthRequest is a request to authenticate with SAML
-// provider, the state about request is managed by auth server.
+// provider, the state about request is managed by the Auth Service
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"id"`
@@ -12266,7 +12266,7 @@ type SAMLAuthRequest struct {
 	// RedirectURL will be used by browser.
 	RedirectURL string `protobuf:"bytes,5,opt,name=RedirectURL,proto3" json:"redirect_url"`
 	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
+	// keys to be signed by Auth Service's user CA in case
 	// of successful auth.
 	//
 	// Deprecated: prefer SshPublicKey and/or TlsPublicKey.
@@ -13323,7 +13323,7 @@ type LockTarget struct {
 	// Login specifies the name of a local UNIX user.
 	Login string `protobuf:"bytes,3,opt,name=Login,proto3" json:"login,omitempty"`
 	// Node specifies the UUID of a Teleport node.
-	// A matching node is also prevented from heartbeating to the auth server.
+	// A matching node is also prevented from heartbeating to the Auth Service.
 	// DEPRECATED: use ServerID instead.
 	Node string `protobuf:"bytes,4,opt,name=Node,proto3" json:"node,omitempty"` // Deprecated: Do not use.
 	// MFADevice specifies the UUID of a user MFA device.
@@ -13788,7 +13788,7 @@ func (m *Resolution) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Resolution proto.InternalMessageInfo
 
-// RegisterUsingTokenRequest is a request to register with the auth server using
+// RegisterUsingTokenRequest is a request to register with the Auth Service using
 // an authentication token
 type RegisterUsingTokenRequest struct {
 	// HostID is a unique host ID, usually a UUID
@@ -13872,7 +13872,7 @@ func (m *RegisterUsingTokenRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_RegisterUsingTokenRequest proto.InternalMessageInfo
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
-// access to their account by restoring their lost password or second factor. Once a recovery code
+// access to their account by restoring their lost password or multi-factor. Once a recovery code
 // is successfully verified, the code is mark used (which invalidates it), and lets the user begin
 // the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
 // of codes that will replace all the previous ones.
