@@ -1,7 +1,6 @@
 import React from 'react';
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { WelcomeWrapper, OnboardCard } from 'teleport/components/Onboard';
 
 import { Questionnaire } from './Questionnaire';
 

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
+import { WelcomeWrapper } from 'teleport/components/Onboard';
 
 import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
 import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials';
