@@ -219,42 +219,87 @@ const buttonPalette = <E extends React.ElementType>({
     case 'filled':
       if (intent === 'neutral') {
         return {
-          default: colors.interactive.tonal.neutral[0],
-          hover: colors.interactive.tonal.neutral[1],
-          active: colors.interactive.tonal.neutral[2],
+          default: {
+            text: colors.text.slightlyMuted,
+            background: colors.interactive.tonal.neutral[0].background,
+          },
+          hover: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[1].background,
+          },
+          active: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[2].background,
+          },
           focus: {
-            ...colors.interactive.tonal.neutral[0],
-            border: colors.interactive.tonal.neutral[0].text,
+            text: colors.text.slightlyMuted,
+            border: colors.text.slightlyMuted,
+            background: colors.interactive.tonal.neutral[0].background,
           },
         };
       } else {
         return {
-          default: colors.interactive.solid[intent].default,
-          hover: colors.interactive.solid[intent].hover,
-          active: colors.interactive.solid[intent].active,
+          default: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].default.background,
+          },
+          hover: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].hover.background,
+          },
+          active: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].active.background,
+          },
           focus: {
-            ...colors.interactive.solid[intent].default,
+            text: colors.text.primaryInverse,
             border: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].default.background,
           },
         };
       }
-    case 'minimal':
+    case 'minimal': {
+      if (intent === 'neutral') {
+        return {
+          default: {
+            text: colors.text.slightlyMuted,
+            background: 'transparent',
+          },
+          hover: {
+            text: colors.text.slightlyMuted,
+            background: colors.interactive.tonal[intent][0].background,
+          },
+          active: {
+            text: colors.text.main,
+            background: colors.interactive.tonal[intent][1].background,
+          },
+          focus: {
+            text: colors.text.slightlyMuted,
+            border: colors.text.slightlyMuted,
+            background: 'transparent',
+          },
+        };
+      }
       return {
         default: {
-          text:
-            intent === 'neutral'
-              ? colors.text.slightlyMuted
-              : colors.interactive.solid[intent].default.background,
+          text: colors.interactive.solid[intent].default.background,
           background: 'transparent',
         },
-        hover: colors.interactive.tonal[intent][0],
-        active: colors.interactive.tonal[intent][1],
+        hover: {
+          text: colors.interactive.solid[intent].hover.background,
+          background: colors.interactive.tonal[intent][0].background,
+        },
+        active: {
+          text: colors.interactive.solid[intent].active.background,
+          background: colors.interactive.tonal[intent][1].background,
+        },
         focus: {
-          text: colors.interactive.tonal[intent][0].text,
-          border: colors.interactive.tonal[intent][0].text,
+          text: colors.interactive.solid[intent].default.background,
+          border: colors.interactive.solid[intent].default.background,
           background: 'transparent',
         },
       };
+    }
     case 'border':
       if (intent === 'neutral') {
         return {
@@ -263,11 +308,18 @@ const buttonPalette = <E extends React.ElementType>({
             border: colors.interactive.tonal.neutral[2].background,
             background: 'transparent',
           },
-          hover: colors.interactive.tonal.neutral[1],
-          active: colors.interactive.tonal.neutral[2],
+          hover: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[1].background,
+          },
+          active: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[2].background,
+          },
           focus: {
-            ...colors.interactive.tonal.neutral[0],
-            border: colors.interactive.tonal.neutral[0].text,
+            text: colors.text.slightlyMuted,
+            border: colors.text.slightlyMuted,
+            background: colors.interactive.tonal.neutral[0].background,
           },
         };
       } else {
@@ -277,11 +329,18 @@ const buttonPalette = <E extends React.ElementType>({
             border: colors.interactive.solid[intent].default.background,
             background: 'transparent',
           },
-          hover: colors.interactive.solid[intent].hover,
-          active: colors.interactive.solid[intent].active,
+          hover: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].hover.background,
+          },
+          active: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].active.background,
+          },
           focus: {
-            ...colors.interactive.solid[intent].default,
+            text: colors.text.primaryInverse,
             border: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].default.background,
           },
         };
       }
