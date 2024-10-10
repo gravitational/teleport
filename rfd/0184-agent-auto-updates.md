@@ -82,61 +82,85 @@ We will introduce two user-facing resources:
    ```yaml
    kind: autoupdate_config
    spec:
-     agent_auto_update_mode: enable
-     agent_schedules:
-       regular:
-       - name: dev
-         days: ["Mon", "Tue", "Wed", "Thu"]
-         start_hour: 0
-         alert_after: 4h
-         canary_count: 5 # added in phase 5
-         max_in_flight: 20% # added in phase 6
-       - name: prod
-         days: ["Mon", "Tue", "Wed", "Thu"]
-         start_hour: 0
-         wait_days: 1 # update this group at least 1 day after the previous one
-         alert_after: 4h
-         canary_count: 5 # added in phase 5
-         max_in_flight: 20% # added in phase 6
+     # existing field, deprecated
+     tools_autoupdate: true/false
+     # new fields
+     tools:
+       mode: enabled/disabled/suspended
+     agents:
+       mode: enabled/disabled/suspended
+       schedules:
+         regular:
+         - name: dev
+           days: ["Mon", "Tue", "Wed", "Thu"]
+           start_hour: 0
+           alert_after: 4h
+           canary_count: 5 # added in phase 5
+           max_in_flight: 20% # added in phase 6
+         - name: prod
+           days: ["Mon", "Tue", "Wed", "Thu"]
+           start_hour: 0
+           wait_days: 1 # update this group at least 1 day after the previous one
+           alert_after: 4h
+           canary_count: 5 # added in phase 5
+           max_in_flight: 20% # added in phase 6
    ```
 
-2. The `autoupdate_agent_plan` resource, with `spec` owned by the Teleport cluster administrator (e.g. Teleport Cloud operators).
-   Its `status` is owned by Teleport and contains the current rollout status. Some parts of the status can be changed via
-   select RPCs (for example, an RPC to fast-track a group update).
+2. The `autoupdate_version` resource, with `spec` owned by the Teleport cluster administrator (e.g. Teleport Cloud operators).
    ```yaml
-   kind: autoupdate_agent_plan
+   kind: autoupdate_version
    spec:
-     start_version: v1
-     target_version: v2
-     schedule: regular
-     strategy: grouped
-     autoupdate_mode: enabled
-   status:
-     groups:
-     - name: dev
-       start_time: 2020-12-09T16:09:53+00:00
-       initial_count: 100 # part of phase 4
-       present_count: 100 # part of phase 4
-       failed_count: 0 # part of phase 4
-       progress: 0
-       state: canaries
-       canaries: # part of phase 5
-       - updater_uuid: abc
-         host_uuid: def
-         hostname: foo.example.com
-         success: false
-       last_update_time: 2020-12-10T16:09:53+00:00
-       last_update_reason: canaryTesting
-     - name: prod
-       start_time: 0000-00-00
-       initial_count: 0
-       present_count: 0
-       failed_count: 0
-       progress: 0
-       state: unstarted
-       last_update_time: 2020-12-10T16:09:53+00:00
-       last_update_reason: newAgentPlan
+     # existing fields
+     tools_version: vX
+     # new fields
+     agents:
+       start_version: v1
+       target_version: v2
+       schedule: regular
+       strategy: grouped
+       mode: enabled
    ```
+
+We will also introduce an internal resource, tracking the agent rollout status. This resource is
+owned by Teleport. Users and cluster operators can read its content but cannot create/update/upsert/delete it.
+This resource is editable via select RPCs (e.g. start or rollback a group).
+
+```yaml
+kind: autoupdate_agent_rollout
+spec:
+  # content copied from the `autoupdate_version.spec.agents`
+  version_config:
+    start_version: v1
+    target_version: v2
+    schedule: regular
+    strategy: grouped
+    mode: enabled
+status:
+  groups:
+    - name: dev
+      start_time: 2020-12-09T16:09:53+00:00
+      initial_count: 100 # part of phase 4
+      present_count: 100 # part of phase 4
+      failed_count: 0 # part of phase 4
+      progress: 0
+      state: canaries
+      canaries: # part of phase 5
+        - updater_uuid: abc
+          host_uuid: def
+          hostname: foo.example.com
+          success: false
+      last_update_time: 2020-12-10T16:09:53+00:00
+      last_update_reason: canaryTesting
+    - name: prod
+      start_time: 0000-00-00
+      initial_count: 0
+      present_count: 0
+      failed_count: 0
+      progress: 0
+      state: unstarted
+      last_update_time: 2020-12-10T16:09:53+00:00
+      last_update_reason: newAgentPlan
+```
 
 You can find more details about each resource field [in the dedicated resource section](#teleport-resources).
 
@@ -268,16 +292,17 @@ advertise they have failed to update. The maintenance is stuck until every insta
 is back online, and running the new version.
 
 <details>
-<summary>Autoupdate agent plan</summary>
+<summary>Autoupdate agent rollout</summary>
 
 ```yaml
-kind: autoupdate_agent_plan
+kind: autoupdate_agent_rollout
 spec:
-  start_version: v1
-  target_version: v2
-  schedule: regular
-  strategy: grouped
-  autoupdate_mode: enabled
+  version_config:
+    start_version: v1
+    target_version: v2
+    schedule: regular
+    strategy: grouped
+    mode: enabled
 status:
   groups:
     - name: dev
@@ -607,18 +632,21 @@ This is how Teleport customers can specify their automatic update preferences.
 ```yaml
 kind: autoupdate_config
 spec:
-  # agent_auto_update allows turning agent updates on or off at the
-  # cluster level. Only turn agent automatic updates off if self-managed
-  # agent updates are in place. Setting this to pause will temporarily halt the rollout.
-  agent_auto_update_mode: disable|enable|pause
-
-  # agent_schedules specifies version rollout schedules for agents.
-  # The schedule used is determined by the schedule associated
-  # with the version in the autoupdate_agent_plan resource.
-  # For now, only the "regular" schedule is configurable.
-  agent_schedules:
-    # rollout schedule must be "regular" for now
-    regular:
+  # existing field
+  tools_autoupdate: true
+  tools:
+    mode: enabled/disabled/suspended
+  agents:
+    # agent_auto_update allows turning agent updates on or off at the
+    # cluster level. Only turn agent automatic updates off if self-managed
+    # agent updates are in place. Setting this to pause will temporarily halt the rollout.
+    mode: enabled/disabled/suspended
+    # agent_schedules specifies version rollout schedules for agents.
+    # The schedule used is determined by the schedule associated
+    # with the version in the autoupdate_version resource.
+    # For now, only the "regular" schedule is configurable.
+    schedules:
+      regular:
         # name of the group. Must only contain valid backend / resource name characters.
       - name: staging
         # days specifies the days of the week when the group may be updated.
@@ -643,7 +671,6 @@ spec:
         # not completed.
         #  default: 4
         alert_after_hours: 1-8
-
   # ...
 ```
 
@@ -651,20 +678,23 @@ Default resource:
 ```yaml
 kind: autoupdate_config
 spec:
-  agent_auto_update_mode: enable
-  agent_schedules:
-    regular:
-    - name: default
-      days: ["Mon", "Tue", "Wed", "Thu"]
-      start_hour: 0
-      canary_count: 5
-      max_in_flight: 20%
-      alert_after: 4h
+  tools:
+    mode: enabled
+  agents:
+    mode: enabled
+    schedules:
+      regular:
+      - name: default
+        days: ["Mon", "Tue", "Wed", "Thu"]
+        start_hour: 0
+        canary_count: 5
+        max_in_flight: 20%
+        alert_after: 4h
 ```
 
-#### Autoupdate agent plan
+#### Autoupdate version
 
-The `autoupdate_agent_plan` spec is owned by the Teleport cluster administrator.
+The `autoupdate_version` spec is owned by the Teleport cluster administrator.
 In Teleport Cloud, this is the Cloud operations team. For self-hosted setups this is the user with access to the local
 admin socket (tctl on local machine).
 
@@ -677,50 +707,72 @@ admin socket (tctl on local machine).
 > Solving this problem is out of the scope of this RFD.
 
 ```yaml
-kind: autoupdate_agent_plan
+kind: autoupdate_version
 spec:
-  # start_version is the desired version for agents before their window.
-  start_version: A.B.C
-  # target_version is the desired version for agents after their window.
-  target_version: X.Y.Z
-  # schedule to use for the rollout
-  schedule: regular|immediate
-  # strategy to use for the rollout
-  # default: backpressure
-  strategy: backpressure|grouped
-  # paused specifies whether the rollout is paused
-  # default: enabled
-  autoupdate_mode: enabled|disabled|paused
+  # existing fields
+  tools_version: vX
+  # new fields
+  agents:
+    # start_version is the desired version for agents before their window.
+    start_version: v1
+    # target_version is the desired version for agents after their window.
+    target_version: v2
+    # schedule to use for the rollout
+    schedule: regular
+    # strategy to use for the rollout
+    # default: backpressure
+    strategy: grouped
+    # paused specifies whether the rollout is paused
+    # default: enabled
+    mode: enabled|disabled|suspended
+```
+
+#### Autoupdate agent rollout
+
+The `autoupdate_agent_rollout` resource is owned by Teleport. This resource can be read by users but not directly applied.
+To create and reconcile this resource, the Auth service looks up bot `autoupdate_config` and `autoupdate_version` to know the desired mode, versions, and schedule.
+Once the agent rollout is created, the auth uses its status to track the progress of the rollout through the different groups.
+
+```yaml
+kind: autoupdate_agent_rollout
+spec:
+  # content copied from the `autoupdate_version.spec.agents`
+  version_config:
+    start_version: v1
+    target_version: v2
+    schedule: regular
+    strategy: grouped
+    mode: enabled
 status:
   groups:
     # name of group
-  - name: staging
-    # start_time is the time the upgrade will start
-    start_time: 2020-12-09T16:09:53+00:00
-    # initial_count is the number of connected agents at the start of the window
-    initial_count: 432
-    # missing_count is the number of agents disconnected since the start of the rollout
-    present_count: 53
-    # failed_count is the number of agents rolled-back since the start of the rollout
-    failed_count: 23
-    # canaries is a list of agents used for canary deployments
-    canaries: # part of phase 5
-      # updater_uuid is the updater UUID
-    - updater_uuid: abc123-...
-      # host_uuid is the agent host UUID
-      host_uuid: def534-...
-      # hostname of the agent
-      hostname: foo.example.com
-      # success status
-      success: false
-    # progress is the current progress through the rollout
-    progress: 0.532
-    # state is the current state of the rollout (unstarted, active, done, rollback)
-    state: active
-    # last_update_time is the time of the previous update for the group
-    last_update_time: 2020-12-09T16:09:53+00:00
-    # last_update_reason is the trigger for the last update
-    last_update_reason: rollback
+    - name: staging
+      # start_time is the time the upgrade will start
+      start_time: 2020-12-09T16:09:53+00:00
+      # initial_count is the number of connected agents at the start of the window
+      initial_count: 432
+      # missing_count is the number of agents disconnected since the start of the rollout
+      present_count: 53
+      # failed_count is the number of agents rolled-back since the start of the rollout
+      failed_count: 23
+      # canaries is a list of agents used for canary deployments
+      canaries: # part of phase 5
+        # updater_uuid is the updater UUID
+        - updater_uuid: abc123-...
+          # host_uuid is the agent host UUID
+          host_uuid: def534-...
+          # hostname of the agent
+          hostname: foo.example.com
+          # success status
+          success: false
+      # progress is the current progress through the rollout
+      progress: 0.532
+      # state is the current state of the rollout (unstarted, active, done, rollback)
+      state: active
+      # last_update_time is the time of the previous update for the group
+      last_update_time: 2020-12-09T16:09:53+00:00
+      # last_update_reason is the trigger for the last update
+      last_update_reason: rollback
 ```
 
 #### Protobuf
@@ -730,83 +782,42 @@ syntax = "proto3";
 
 package teleport.autoupdate.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdatev1";
+import "teleport/header/v1/metadata.proto";
 
-// AutoUpdateService serves agent and client automatic version updates.
-service AutoUpdateService {
-  // GetAutoUpdateConfig updates the autoupdate config.
-  rpc GetAutoUpdateConfig(GetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // CreateAutoUpdateConfig creates the autoupdate config.
-  rpc CreateAutoUpdateConfig(CreateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // UpdateAutoUpdateConfig updates the autoupdate config.
-  rpc UpdateAutoUpdateConfig(UpdateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // UpsertAutoUpdateConfig overwrites the autoupdate config.
-  rpc UpsertAutoUpdateConfig(UpsertAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // ResetAutoUpdateConfig restores the autoupdate config to default values.
-  rpc ResetAutoUpdateConfig(ResetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
 
-  // GetAutoUpdateAgentPlan returns the autoupdate plan for agents.
-  rpc GetAutoUpdateAgentPlan(GetAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-  // CreateAutoUpdateAgentPlan creates the autoupdate plan for agents.
-  rpc CreateAutoUpdateAgentPlan(CreateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-  // UpdateAutoUpdateAgentPlan updates the autoupdate plan for agents.
-  rpc UpdateAutoUpdateAgentPlan(UpdateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-  // UpsertAutoUpdateAgentPlan overwrites the autoupdate plan for agents.
-  rpc UpsertAutoUpdateAgentPlan(UpsertAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-  
-  // TriggerAgentGroup changes the state of an agent group from `unstarted` to `active` or `canary`.
-  rpc TriggerAgentGroup(TriggerAgentGroupRequest) returns (AutoUpdateAgentPlan);
-  // ForceAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
-  rpc ForceAgentGroup(ForceAgentGroupRequest) returns (AutoUpdateAgentPlan);
-  // ResetAgentGroup resets the state of an agent group.
-  // For `canary`, this means new canaries are picked
-  // For `active`, this means the initial instance count is computed again.
-  rpc ResetAgentGroup(ResetAgentGroupRequest) returns (AutoUpdateAgentPlan);
-  // RollbackAgentGroup changes the state of an agent group to `rolledback`.
-  rpc RollbackAgentGroup(RollbackAgentGroupRequest) returns (AutoUpdateAgentPlan);
-}
+// CONFIG
 
-// GetAutoUpdateConfigRequest requests the contents of the AutoUpdateConfig.
-message GetAutoUpdateConfigRequest {}
-
-// CreateAutoUpdateConfigRequest requests creation of the the AutoUpdateConfig.
-message CreateAutoUpdateConfigRequest {
-  AutoUpdateConfig autoupdate_config = 1;
-}
-
-// UpdateAutoUpdateConfigRequest requests an update of the the AutoUpdateConfig.
-message UpdateAutoUpdateConfigRequest {
-  AutoUpdateConfig autoupdate_config = 1;
-}
-
-// UpsertAutoUpdateConfigRequest requests an upsert of the the AutoUpdateConfig.
-message UpsertAutoUpdateConfigRequest {
-  AutoUpdateConfig autoupdate_config = 1;
-}
-
-// ResetAutoUpdateConfigRequest requests a reset of the the AutoUpdateConfig to default values.
-message ResetAutoUpdateConfigRequest {}
-
-// AutoUpdateConfig holds dynamic configuration settings for automatic updates.
+// AutoUpdateConfig is a config singleton used to configure cluster
+// autoupdate settings.
 message AutoUpdateConfig {
-  // kind is the kind of the resource.
   string kind = 1;
-  // sub_kind is the sub kind of the resource.
   string sub_kind = 2;
-  // version is the version of the resource.
   string version = 3;
-  // metadata is the metadata of the resource.
   teleport.header.v1.Metadata metadata = 4;
-  // spec is the spec of the resource.
-  AutoUpdateConfigSpec spec = 7;
+
+  AutoUpdateConfigSpec spec = 5;
 }
 
-// AutoUpdateConfigSpec is the spec for the autoupdate config.
+// AutoUpdateConfigSpec encodes the parameters of the autoupdate config object.
 message AutoUpdateConfigSpec {
-  // agent_auto_update_mode specifies whether agent autoupdates are enabled, disabled, or paused.
+  reserved 1;
+  AutoUpdateConfigSpecTools tools = 2;
+  AutoUpdateConfigSpecAgents agents = 3;
+}
+
+// AutoUpdateConfigSpecTools encodes the parameters of automatic tools update.
+message AutoUpdateConfigSpecTools {
+  // Mode encodes the feature flag to enable/disable tools autoupdates.
+  Mode mode = 1;
+}
+
+// AutoUpdateConfigSpecTools encodes the parameters of automatic tools update.
+message AutoUpdateConfigSpecAgents {
+  // mode specifies whether agent autoupdates are enabled, disabled, or paused.
   Mode agent_auto_update_mode = 1;
   // agent_schedules specifies schedules for updates of grouped agents.
-  AgentAutoUpdateSchedules agent_schedules = 3;
+  AgentAutoUpdateSchedules agent_schedules = 2;
 }
 
 // AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
@@ -858,45 +869,45 @@ enum Mode {
   MODE_PAUSE = 3;
 }
 
-// GetAutoUpdateAgentPlanRequest requests the autoupdate_agent_plan singleton resource.
-message GetAutoUpdateAgentPlanRequest {}
-
-// GetAutoUpdateAgentPlanRequest requests creation of the autoupdate_agent_plan singleton resource.
-message CreateAutoUpdateAgentPlanRequest {
-  // autoupdate_agent_plan resource contents
-  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
+// Schedule type for the rollout
+enum Schedule {
+  // UNSPECIFIED update schedule
+  SCHEDULE_UNSPECIFIED = 0;
+  // REGULAR update schedule
+  SCHEDULE_REGULAR = 1;
+  // IMMEDIATE update schedule for updating all agents immediately
+  SCHEDULE_IMMEDIATE = 2;
 }
 
-// GetAutoUpdateAgentPlanRequest requests an update of the autoupdate_agent_plan singleton resource.
-message UpdateAutoUpdateAgentPlanRequest {
-  // autoupdate_agent_plan resource contents
-  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
-}
+// VERSION
 
-// GetAutoUpdateAgentPlanRequest requests an upsert of the autoupdate_agent_plan singleton resource.
-message UpsertAutoUpdateAgentPlanRequest {
-  // autoupdate_agent_plan resource contents
-  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
-}
-
-// AutoUpdateAgentPlan holds dynamic configuration settings for agent autoupdates.
-message AutoUpdateAgentPlan {
-  // kind is the kind of the resource.
+// AutoUpdateVersion is a resource singleton with version required for
+// tools autoupdate.
+message AutoUpdateVersion {
   string kind = 1;
-  // sub_kind is the sub kind of the resource.
   string sub_kind = 2;
-  // version is the version of the resource.
   string version = 3;
-  // metadata is the metadata of the resource.
   teleport.header.v1.Metadata metadata = 4;
-  // spec is the spec of the resource.
-  AutoUpdateAgentPlanSpec spec = 5;
-  // status is the status of the resource.
-  AutoUpdateAgentPlanStatus status = 6;
+
+  AutoUpdateVersionSpec spec = 5;
 }
 
-// AutoUpdateAgentPlanSpec is the spec for the autoupdate version.
-message AutoUpdateAgentPlanSpec {
+// AutoUpdateVersionSpec encodes the parameters of the autoupdate versions.
+message AutoUpdateVersionSpec {
+  // ToolsVersion is the semantic version required for tools autoupdates.
+  reserved 1;
+  AutoUpdateVersionSpecTools tools = 2;
+  AutoUpdateVersionSpecAgents agents = 3;
+}
+
+// AutoUpdateVersionSpecTools is the spec for the autoupdate version.
+message AutoUpdateVersionSpecTools {
+  // target_version is the target tools version.
+  string target_version = 1;
+}
+
+// AutoUpdateVersionSpecAgents is the spec for the autoupdate version.
+message AutoUpdateVersionSpecAgents {
   // start_version is the version to update from.
   string start_version = 1;
   // target_version is the version to update to.
@@ -909,28 +920,26 @@ message AutoUpdateAgentPlanSpec {
   Mode autoupdate_mode = 5;
 }
 
-// Schedule type for the rollout
-enum Schedule {
-  // UNSPECIFIED update schedule
-  SCHEDULE_UNSPECIFIED = 0;
-  // REGULAR update schedule
-  SCHEDULE_REGULAR = 1;
-  // IMMEDIATE update schedule for updating all agents immediately
-  SCHEDULE_IMMEDIATE = 2;
+// AGENT ROLLOUT
+
+message AutoUpdateAgentRollout {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AutoUpdateAgentRolloutSpec spec = 5;
+  AutoUpdateAgentRolloutStatus status = 6;
 }
 
-// Strategy type for the rollout
-enum Strategy {
-  // UNSPECIFIED update strategy
-  STRATEGY_UNSPECIFIED = 0;
-  // GROUPED update schedule, with no backpressure
-  STRATEGY_GROUPED = 1;
-  // BACKPRESSURE update schedule
-  STRATEGY_BACKPRESSURE = 2;
+message AutoUpdateAgentRolloutSpec {
+  AutoUpdateVersionSpecAgents version = 1;
 }
 
-// AutoUpdateAgentPlanStatus is the status for the AutoUpdateAgentPlan.
-message AutoUpdateAgentPlanStatus {
+message AutoUpdateAgentRolloutStatus {
+  repeated AutoUpdateAgentRolloutStatusGroup groups = 1;
+}
+
+message AutoUpdateAgentRolloutStatusGroup {
   // name of the group
   string name = 1;
   // start_time of the rollout
@@ -981,6 +990,128 @@ enum State {
   STATE_ROLLEDBACK = 5;
 }
 
+// AutoUpdateService provides an API to manage autoupdates.
+service AutoUpdateService {
+  // GetAutoUpdateConfig gets the current autoupdate config singleton.
+  rpc GetAutoUpdateConfig(GetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // CreateAutoUpdateConfig creates a new AutoUpdateConfig.
+  rpc CreateAutoUpdateConfig(CreateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // CreateAutoUpdateConfig updates AutoUpdateConfig singleton.
+  rpc UpdateAutoUpdateConfig(UpdateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // UpsertAutoUpdateConfig creates a new AutoUpdateConfig or replaces an existing AutoUpdateConfig.
+  rpc UpsertAutoUpdateConfig(UpsertAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // DeleteAutoUpdateConfig hard deletes the specified AutoUpdateConfig.
+  rpc DeleteAutoUpdateConfig(DeleteAutoUpdateConfigRequest) returns (google.protobuf.Empty);
+
+  // GetAutoUpdateVersion gets the current autoupdate version singleton.
+  rpc GetAutoUpdateVersion(GetAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // CreateAutoUpdateVersion creates a new AutoUpdateVersion.
+  rpc CreateAutoUpdateVersion(CreateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // UpdateAutoUpdateVersion updates AutoUpdateVersion singleton.
+  rpc UpdateAutoUpdateVersion(UpdateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // UpsertAutoUpdateVersion creates a new AutoUpdateVersion or replaces an existing AutoUpdateVersion.
+  rpc UpsertAutoUpdateVersion(UpsertAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
+  rpc DeleteAutoUpdateVersion(DeleteAutoUpdateVersionRequest) returns (google.protobuf.Empty);
+
+  // GetAutoUpdateAgentRollout gets the current autoupdate version singleton.
+  rpc GetAutoUpdateAgentRollout(GetAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // CreateAutoUpdateAgentRollout creates a new AutoUpdateAgentRollout.
+  rpc CreateAutoUpdateAgentRollout(CreateAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // UpdateAutoUpdateAgentRollout updates AutoUpdateAgentRollout singleton.
+  rpc UpdateAutoUpdateAgentRollout(UpdateAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // UpsertAutoUpdateAgentRollout creates a new AutoUpdateAgentRollout or replaces an existing AutoUpdateAgentRollout.
+  rpc UpsertAutoUpdateAgentRollout(UpsertAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
+  rpc DeleteAutoUpdateAgentRollout(DeleteAutoUpdateAgentRolloutRequest) returns (google.protobuf.Empty);
+
+  // TriggerAgentGroup changes the state of an agent group from `unstarted` to `active` or `canary`.
+  rpc TriggerAgentGroup(TriggerAgentGroupRequest) returns (AutoUpdateAgentRollout);
+  // ForceAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
+  rpc ForceAgentGroup(ForceAgentGroupRequest) returns (AutoUpdateAgentRollout);
+  // ResetAgentGroup resets the state of an agent group.
+  // For `canary`, this means new canaries are picked
+  // For `active`, this means the initial instance count is computed again.
+  rpc ResetAgentGroup(ResetAgentGroupRequest) returns (AutoUpdateAgentRollout);
+  // RollbackAgentGroup changes the state of an agent group to `rolledback`.
+  rpc RollbackAgentGroup(RollbackAgentGroupRequest) returns (AutoUpdateAgentRollout);
+}
+
+// Request for GetAutoUpdateConfig.
+message GetAutoUpdateConfigRequest {}
+
+// Request for CreateAutoUpdateConfig.
+message CreateAutoUpdateConfigRequest {
+  AutoUpdateConfig config = 1;
+}
+
+// Request for UpdateAutoUpdateConfig.
+message UpdateAutoUpdateConfigRequest {
+  AutoUpdateConfig config = 1;
+}
+
+// Request for UpsertAutoUpdateConfig.
+message UpsertAutoUpdateConfigRequest {
+  AutoUpdateConfig config = 1;
+}
+
+// Request for DeleteAutoUpdateConfig.
+message DeleteAutoUpdateConfigRequest {}
+
+// Request for GetAutoUpdateVersion.
+message GetAutoUpdateVersionRequest {}
+
+// Request for CreateAutoUpdateVersion.
+message CreateAutoUpdateVersionRequest {
+  AutoUpdateVersion version = 1;
+}
+
+// Request for UpdateAutoUpdateConfig.
+message UpdateAutoUpdateVersionRequest {
+  AutoUpdateVersion version = 1;
+}
+
+// Request for UpsertAutoUpdateVersion.
+message UpsertAutoUpdateVersionRequest {
+  AutoUpdateVersion version = 1;
+}
+
+// Request for DeleteAutoUpdateVersion.
+message DeleteAutoUpdateVersionRequest {}
+
+// Request for GetAutoUpdateAgentRollout.
+message GetAutoUpdateAgentRolloutRequest {}
+
+// Request for CreateAutoUpdateAgentRollout.
+message CreateAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout plan = 1;
+}
+
+// Request for UpdateAutoUpdateConfig.
+message UpdateAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout plan = 1;
+}
+
+// Request for UpsertAutoUpdateAgentRollout.
+message UpsertAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout plan = 1;
+}
+
+// Request for DeleteAutoUpdateAgentRollout.
+message DeleteAutoUpdateAgentRolloutRequest {}
+
 message TriggerAgentGroupRequest {
   // group is the agent update group name whose maintenance should be triggered.
   string group = 1;
@@ -1013,7 +1144,7 @@ allowing the next group to proceed. By default, only 5 agent groups are allowed.
 
 #### Agent update mode
 
-The agent auto update mode is specified by both Cloud (via `autoupdate_agent_plan`)
+The agent auto update mode is specified by both Cloud (via `autoupdate_version`)
 and by the customer (via `autoupdate_config`). The agent update mode controls whether
 the cluster in enrolled into automatic agent updates.
 
@@ -1142,11 +1273,11 @@ tctl autoupdate agent-plan suspend/resume
 
 ### Editing the plan
 
-The updater will receive `agent_auto_update: true` from the time is it designated for update until the `target_version` in `autoupdate_agent_plan` (below) changes.
+The updater will receive `agent_auto_update: true` from the time is it designated for update until the `target_version` in `autoupdate_version` (below) changes.
 Changing the `target_version` resets the schedule immediately, clearing all progress.
 
 [TODO: What is the use-case for this? can we do like with target_version and reset all instead of trying to merge the state]
-Changing the `start_version` in `autoupdate_agent_plan` changes the advertised `start_version` for all unfinished groups.
+Changing the `start_version` in `autoupdate_version` changes the advertised `start_version` for all unfinished groups.
 
 Changing `agent_schedules` will preserve the `state` of groups that have the same name before and after the change.
 However, any changes to `agent_schedules` that occur while a group is active will be rejected.
@@ -1161,20 +1292,20 @@ If a `default` group is not present, the last group is treated as the default.
 #### Update requests
 
 Teleport proxies will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
-The version and edition served from that endpoint will be configured using new `autoupdate_agent_plan` resource.
+The version served from that endpoint will be configured using new `autoupdate_version` resource.
 
 Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_auto_update` field) is
 dependent on:
 - The `host=[uuid]` parameter sent to `/v1/webapi/find`
 - The `group=[name]` parameter sent to `/v1/webapi/find`
-- The group state from the `autoupdate_agent_plan` status
+- The group state from the `autoupdate_agent_rollout` status (this also contains the version from `autoupdate_version`)
 
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via
 unauthenticated requests to `/v1/webapi/find`. Teleport proxies modulate the `/v1/webapi/find` response given the host
 UUID and group name.
 
 When the updater queries the proxy via `/v1/webapi/find?host=[uuid]&group=[name]`, the proxies query the
-`autoupdate_agent_plan` status to determine the value of `agent_auto_update: true`.
+`autoupdate_agent_rollout` to determine the value of `agent_auto_update: true`.
 The boolean is returned as `true` in the case that the provided `host` contains a UUID that is under the progress
 percentage for the `group`:
 `as_numeral(host_uuid) / as_numeral(max_uuid) < progress`
@@ -1269,10 +1400,10 @@ Every minute, auth servers persist the version counts:
 
 Expiration time of the persisted key is 1 hour.
 
-To progress the rollout, auth servers will range-read keys from `/autoupdate/[group]/*`, sum the counts, and write back to the `autoupdate_agent_plan` status on a one-minute interval.
-- To calculate the initial number of agents connected at the start of the window, each auth server will write the summed count of agents to `autoupdate_agent_plan` status, if not already written.
-- To calculate the canaries, each auth server will write a random selection of all canaries to `autoupdate_agent_plan` status, if not already written.
-- To determine the progress through the rollout, auth servers will write the calculated progress to the `autoupdate_agent_plan` status using the formulas, declining to write if the current written progress is further ahead.
+To progress the rollout, auth servers will range-read keys from `/autoupdate/[group]/*`, sum the counts, and write back to the `autoupdate_agent_rollout` status on a one-minute interval.
+- To calculate the initial number of agents connected at the start of the window, each auth server will write the summed count of agents to `autoupdate_agent_rollout` status, if not already written.
+- To calculate the canaries, each auth server will write a random selection of all canaries to `autoupdate_agent_rollout` status, if not already written.
+- To determine the progress through the rollout, auth servers will write the calculated progress to the `autoupdate_agent_rollout` status using the formulas, declining to write if the current written progress is further ahead.
 
 If `/autoupdate/[group]/[auth ID]` is older than 1 minute, we do not consider its contents.
 This prevents double-counting agents when auth servers are killed.
@@ -1286,7 +1417,7 @@ initial_count[group] = sum(agent_data[group].stats[*]).count
 
 Each auth server will calculate the progress as
 `( max_in_flight * initial_count[group] + agent_data[group].stats[target_version].count ) / initial_count[group]` and
-write the progress to `autoupdate_agent_plan` status. This formula determines the progress percentage by adding a
+write the progress to `autoupdate_agent_rollout` status. This formula determines the progress percentage by adding a
 `max_in_flight` percentage-window above the number of currently updated agents in the group.
 
 However, if `as_numeral(agent_data[group].stats[not(target_version)].lowest_uuid) / as_numeral(max_uuid)` is above the
