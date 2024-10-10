@@ -366,7 +366,7 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
-	return common.GetServiceNamesFromAnnotations(req, annotationKey)
+	return common.GetNamesFromAnnotations(req, annotationKey)
 }
 
 // createIncident posts an incident with request information.
