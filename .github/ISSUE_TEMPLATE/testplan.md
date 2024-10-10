@@ -161,23 +161,6 @@ as well as an upgrade of the previous version of Teleport.
     sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
     ```
 
-- [ ] External Audit Storage
-
-    External Audit Storage must be tested on an Enterprise Cloud tenant.
-    Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
-
-  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
-    - [ ] Docs (including screenshots) are up to date
-    - [ ] Discover flow works with or without an existing AWS OIDC integration
-    - [ ] Draft configuration can be resumed after navigating away
-    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
-    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
-    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
-    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
-    - [ ] `tsh play <session-id>` works
-  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
-  - [ ] Existing EAS configuration can be deleted (disabling EAS)
-
 - [ ] Interact with a cluster using `tsh`
 
    These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
@@ -967,7 +950,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
-Some tests are marked with "coverved by E2E test" and automatically completed
+Some tests are marked with "covered by E2E test" and automatically completed
 by default. In cases the E2E test is flaky or disabled, deselect the task for
 manualy testing.
 
@@ -1046,9 +1029,9 @@ manualy testing.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [x] AWS RDS Postgres. (covered by E2E test)
-  - [x] AWS RDS MySQL. (coverved by E2E test)
+  - [x] AWS RDS MySQL. (covered by E2E test)
   - [ ] AWS RDS MariaDB.
-  - [x] AWS Redshift (coverved by E2E test).
+  - [x] AWS Redshift (covered by E2E test).
 - [ ] Verify Database Access Control
   - [ ] Postgres (tables)
 - [ ] Verify audit events.
