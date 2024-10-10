@@ -30,13 +30,7 @@ import {
   hasFinished,
 } from 'shared/hooks/useAsync';
 
-import {
-  AvailableResourceMode,
-  DefaultTab,
-  LabelsViewMode,
-  UnifiedResourcePreferences,
-  ViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { UnifiedResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -58,16 +52,9 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   const [unifiedResourcePreferences, setUnifiedResourcePreferences] = useState<
     UserPreferences['unifiedResourcePreferences']
   >(
-    mergeWithDefaultUnifiedResourcePreferences(
-      appContext.workspacesService.getUnifiedResourcePreferences(
-        routing.ensureRootClusterUri(clusterUri)
-      )
-    ) || {
-      defaultTab: DefaultTab.ALL,
-      viewMode: ViewMode.CARD,
-      labelsViewMode: LabelsViewMode.COLLAPSED,
-      availableResourceMode: AvailableResourceMode.NONE,
-    }
+    appContext.workspacesService.getUnifiedResourcePreferences(
+      routing.ensureRootClusterUri(clusterUri)
+    )
   );
   const [clusterPreferences, setClusterPreferences] = useState<
     UserPreferences['clusterPreferences']
@@ -117,13 +104,10 @@ export function useUserPreferences(clusterUri: ClusterUri): {
 
   const updateUnifiedResourcePreferencesStateAndWorkspace = useCallback(
     (unifiedResourcePreferences: UnifiedResourcePreferences) => {
-      const prefsWithDefaults = mergeWithDefaultUnifiedResourcePreferences(
-        unifiedResourcePreferences
-      );
-      setUnifiedResourcePreferences(prefsWithDefaults);
+      setUnifiedResourcePreferences(unifiedResourcePreferences);
       appContext.workspacesService.setUnifiedResourcePreferences(
         routing.ensureRootClusterUri(clusterUri),
-        prefsWithDefaults
+        unifiedResourcePreferences
       );
     },
     [appContext.workspacesService, clusterUri]
@@ -138,7 +122,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
         const [prefs, error] = await runInitialFetchAttempt();
         if (!error) {
           updateUnifiedResourcePreferencesStateAndWorkspace(
-            prefs?.unifiedResourcePreferences
+            prefs.unifiedResourcePreferences
           );
           setClusterPreferences(prefs?.clusterPreferences);
         }
@@ -216,35 +200,5 @@ export function useUserPreferences(clusterUri: ClusterUri): {
       }),
       [clusterPreferences, unifiedResourcePreferences]
     ),
-  };
-}
-
-// TODO(gzdunek): DELETE IN 16.0.0.
-// Support for UnifiedTabPreference has been added in 14.1 and for
-// UnifiedViewModePreference in 14.1.5.
-// We have to support these values being undefined/unset in Connect v15.
-function mergeWithDefaultUnifiedResourcePreferences(
-  unifiedResourcePreferences: UnifiedResourcePreferences
-): UnifiedResourcePreferences {
-  return {
-    defaultTab: unifiedResourcePreferences
-      ? unifiedResourcePreferences.defaultTab
-      : DefaultTab.ALL,
-    viewMode:
-      unifiedResourcePreferences &&
-      unifiedResourcePreferences.viewMode !== ViewMode.UNSPECIFIED
-        ? unifiedResourcePreferences.viewMode
-        : ViewMode.CARD,
-    labelsViewMode:
-      unifiedResourcePreferences &&
-      unifiedResourcePreferences.labelsViewMode !== LabelsViewMode.UNSPECIFIED
-        ? unifiedResourcePreferences.labelsViewMode
-        : LabelsViewMode.COLLAPSED,
-    availableResourceMode:
-      unifiedResourcePreferences &&
-      unifiedResourcePreferences.availableResourceMode !==
-        AvailableResourceMode.UNSPECIFIED
-        ? unifiedResourcePreferences.availableResourceMode
-        : AvailableResourceMode.NONE,
   };
 }

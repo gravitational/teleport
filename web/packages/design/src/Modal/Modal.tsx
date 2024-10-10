@@ -258,7 +258,7 @@ const StyledBackdrop = styled.div<BackdropProps>`
 
 const StyledModal = styled.div<{
   modalCss: StyleFunction<any>;
-  ref: React.ForwardedRef<HTMLElement>;
+  ref: React.RefObject<HTMLElement>;
 }>`
   position: fixed;
   z-index: 1200;

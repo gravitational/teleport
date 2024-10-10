@@ -25,6 +25,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -91,6 +92,9 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 			Username: ctx.GetUser(),
 			Password: []byte(req.Pass),
 		}},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		},
 	})
 	if err != nil && trace.IsAccessDenied(err) {
 		// logout in case of access denied

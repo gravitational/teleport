@@ -186,7 +186,12 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
 func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	chal, err := h.cfg.ProxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: p.ByName("token")},
+		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+			RecoveryStartTokenID: p.ByName("token"),
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

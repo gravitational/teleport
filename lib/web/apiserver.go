@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -2109,9 +2110,12 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	feats := modules.GetModules().Features()
-	teleportPackage := teleport.ComponentTeleport
+	teleportPackage := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
-		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
+		teleportPackage = types.PackageNameEnt
+		if h.cfg.FIPS {
+			teleportPackage = types.PackageNameEntFIPS
+		}
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.
@@ -2657,12 +2661,20 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_Passwordless{
 			Passwordless: &proto.Passwordless{},
 		}
+
+		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		}
 	} else {
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 			UserCredentials: &proto.UserCredentials{
 				Username: req.User,
 				Password: []byte(req.Pass),
 			},
+		}
+
+		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		}
 	}
 

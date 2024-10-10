@@ -4116,6 +4116,7 @@ func TestListResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
@@ -5100,8 +5101,8 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
 
 		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
-			HostID:   "_",
-			Hostname: "_",
+			HostID:   strconv.Itoa(i),
+			Hostname: "example.com",
 			App: &types.AppV3{
 				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
 				Spec: types.AppSpecV3{
@@ -5121,6 +5122,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
@@ -5129,25 +5131,39 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	var results []*proto.PaginatedResource
-	var start string
-	for {
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Limit:         5,
-			IncludeLogins: true,
-			SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-			StartKey:      start,
-		})
-		require.NoError(t, err)
 
-		results = append(results, resp.Resources...)
-		start = resp.NextKey
-		if start == "" {
-			break
+	// Immediately listing resources can be problematic, given that not all were
+	// necessarily replicated in the unified resources cache. To cover this
+	// scenario, perform multiple attempts (if necessary) to read the complete
+	// list of resources.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Reset the resources list to avoid having items from previous
+		// iterations.
+		results = nil
+
+		var start string
+		for {
+			resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Limit:         5,
+				IncludeLogins: true,
+				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+				StartKey:      start,
+			})
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			results = append(results, resp.Resources...)
+			start = resp.NextKey
+			if start == "" {
+				break
+			}
 		}
-	}
-	// Note: this number should be updated in case we add more resources to the
-	// setup loop.
-	require.Len(t, results, 20)
+
+		// Note: this number should be updated in case we add more resources to
+		// the setup loop.
+		assert.Len(t, results, 20)
+	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources, expected 20 but got %d", len(results))
 
 	// Check that only server, desktop, and app server resources contain the expected logins
 	for _, resource := range results {

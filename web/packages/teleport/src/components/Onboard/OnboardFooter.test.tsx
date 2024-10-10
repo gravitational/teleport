@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,24 +18,21 @@
 
 import React from 'react';
 
-import { MemoryRouter } from 'react-router';
+import { render, screen } from 'design/utils/testing';
 
-import cfg from 'teleport/config';
+import { OnboardFooter } from './OnboardFooter';
 
-import CardTerminal, { CardTerminalLogin } from './index';
+test('renders RR, TOS, and PP', () => {
+  render(<OnboardFooter />);
 
-export default {
-  title: 'Design/Card/Terminal',
-};
-
-export const Blank = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminal title="Some Title" />
-  </MemoryRouter>
-);
-
-export const Login = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminalLogin />
-  </MemoryRouter>
-);
+  expect(
+    screen.getByText(/Gravitational, Inc. All Rights Reserved/i)
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('link', { name: /Terms of Service/i })
+  ).toHaveAttribute('href', 'https://goteleport.com/legal/tos/');
+  expect(screen.getByRole('link', { name: /Privacy Policy/i })).toHaveAttribute(
+    'href',
+    'https://goteleport.com/legal/privacy/'
+  );
+});

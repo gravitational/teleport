@@ -1029,7 +1029,6 @@ type AuthenticationConfig struct {
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
 	// Deprecated. HardwareKey.PIVSlot should be used instead.
-	// TODO(Joerger): DELETE IN 17.0.0
 	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
@@ -1069,19 +1068,24 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	var h *types.HardwareKey
-	if a.HardwareKey != nil {
+	switch {
+	case a.HardwareKey != nil:
+		if a.PIVSlot != "" {
+			log.Warn(`Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting.`)
+		}
 		h, err = a.HardwareKey.Parse()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	// TODO(Joerger): DELETE IN 17.0.0
-	if a.PIVSlot != "" {
-		log.Warn(`The "piv_slot" setting will be removed in 17.0.0, please set "hardware_key.piv_slot" instead.`)
+	case a.HardwareKey == nil && a.PIVSlot != "":
 		if err = a.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err, "failed to parse piv_slot")
 		}
+
+		h = &types.HardwareKey{
+			PIVSlot: string(a.PIVSlot),
+		}
+	default:
 	}
 
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
@@ -1097,7 +1101,6 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowHeadless:           a.Headless,
 		DeviceTrust:             dt,
 		DefaultSessionTTL:       a.DefaultSessionTTL,
-		PIVSlot:                 string(a.PIVSlot),
 		HardwareKey:             h,
 		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
 	})
