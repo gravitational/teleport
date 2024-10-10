@@ -68,7 +68,7 @@ type AutoDiscoverNodeInstallerConfig struct {
 	ProxyPublicAddr string
 
 	// TeleportPackage contains the teleport package name.
-	// Allowed values: teleport, teleport-ent
+	// Allowed values: teleport, teleport-ent, teleport-ent-fips
 	TeleportPackage string
 
 	// RepositoryChannel is the repository channel to use.
@@ -129,8 +129,12 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("teleport-package must be one of %+v", types.PackageNameKinds)
 	}
 
-	if c.AutoUpgrades && c.TeleportPackage != types.PackageNameEnt {
+	if c.AutoUpgrades && c.TeleportPackage == types.PackageNameOSS {
 		return trace.BadParameter("only enterprise package supports auto upgrades")
+	}
+
+	if c.AutoUpgrades && c.TeleportPackage == types.PackageNameEntFIPS {
+		return trace.BadParameter("auto upgrades are not supported in FIPS environments")
 	}
 
 	if c.autoUpgradesChannelURL == "" {
