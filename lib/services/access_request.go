@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -57,6 +58,8 @@ const (
 	// requestTTL is the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
+
+	InvalidKubernetesKindAccessRequest = "Not allowed to request Kubernetes resource kind"
 )
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
@@ -270,6 +273,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	caps.RequireReason = v.requireReason
 	caps.RequestPrompt = v.prompt
 	caps.AutoRequest = v.autoRequest
+	caps.RequestMode = &types.AccessRequestMode{KubernetesResources: v.requestMode.kubernetesResources}
 
 	return &caps, nil
 }
@@ -1027,9 +1031,12 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	userState     UserState
 	requireReason bool
-	autoRequest   bool
-	prompt        string
-	opts          struct {
+	requestMode   struct {
+		kubernetesResources []types.RequestModeKubernetesResource
+	}
+	autoRequest bool
+	prompt      string
+	opts        struct {
 		expandVars bool
 	}
 	Roles struct {
@@ -1255,6 +1262,49 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			assumeStartTime := *req.GetAssumeStartTime()
 			if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
 				return trace.Wrap(err)
+			}
+		}
+
+		// Validate kube request kinds.
+		// If request mode is defined, then any request for kube_cluster will be rejected.
+		isResourceRequest := len(req.GetRequestedResourceIDs()) > 0
+		restrictKubeRequestKinds := len(m.requestMode.kubernetesResources) > 0
+		if isResourceRequest && restrictKubeRequestKinds {
+			if err := enforceKubernetesRequestModes(req.GetRequestedResourceIDs(), m.requestMode.kubernetesResources); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func enforceKubernetesRequestModes(requestedResourceIDs []types.ResourceID, requestModeKubeResources []types.RequestModeKubernetesResource) error {
+	allowedKindsLookup := make(map[string]string, len(types.KubernetesResourcesKinds))
+	isWildcard := false
+
+	for _, kr := range requestModeKubeResources {
+		if kr.Kind == types.Wildcard {
+			isWildcard = true
+			break
+		}
+		allowedKindsLookup[kr.Kind] = kr.Kind
+	}
+
+	if isWildcard {
+		for _, kind := range types.KubernetesResourcesKinds {
+			allowedKindsLookup[kind] = kind
+		}
+	}
+
+	for _, id := range requestedResourceIDs {
+		if id.Kind == types.KindKubernetesCluster {
+			return trace.BadParameter("%s %q. Allowed kinds: %v.", InvalidKubernetesKindAccessRequest, types.KindKubernetesCluster, slices.Collect(maps.Keys(allowedKindsLookup)))
+		}
+		// Filter for kube resources.
+		if slices.Contains(types.KubernetesResourcesKinds, id.Kind) {
+			if _, found := allowedKindsLookup[id.Kind]; !found {
+				return trace.BadParameter("%s %q. Allowed kinds: %v.", InvalidKubernetesKindAccessRequest, id.Kind, slices.Collect(maps.Keys(allowedKindsLookup)))
 			}
 		}
 	}
@@ -1494,6 +1544,10 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
 	if m.prompt == "" {
 		m.prompt = role.GetOptions().RequestPrompt
+	}
+
+	if role.GetOptions().RequestMode != nil {
+		m.requestMode.kubernetesResources = append(m.requestMode.kubernetesResources, role.GetOptions().RequestMode.KubernetesResources...)
 	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
