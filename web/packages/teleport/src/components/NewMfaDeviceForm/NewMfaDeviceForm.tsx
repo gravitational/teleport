@@ -27,12 +27,12 @@ import { requiredField } from 'shared/components/Validation/rules';
 import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
-import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { StepHeader } from 'design/StepSlider';
 
+import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 
 export interface NewMfaDeviceFormProps {

@@ -17,25 +17,11 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, H2, Subtitle2 } from 'design';
 
-import { OnboardCard } from 'teleport/components/Onboard';
+import { OnboardFooter } from './OnboardFooter';
 
-export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
-  return (
-    <OnboardCard center>
-      <H2 mb={3}>{title}</H2>
-      <Subtitle2 mb="16px">{subTitle}</Subtitle2>
-      <ButtonPrimary width="100%" onClick={onClick}>
-        {btnText}
-      </ButtonPrimary>
-    </OnboardCard>
-  );
-}
-
-type Props = {
-  title: string;
-  subTitle: string;
-  btnText: string;
-  onClick(): void;
+export default {
+  title: 'teleport/Onboard',
 };
+
+export const Footer = () => <OnboardFooter />;
