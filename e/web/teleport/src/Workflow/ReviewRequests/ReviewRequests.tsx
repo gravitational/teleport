@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useParams } from 'react-router';
 import { Transition } from 'react-transition-group';
@@ -55,6 +55,7 @@ export default function Workflow() {
       View Notification Routing Rules
     </ButtonBorder>
   );
+  const transitionRef = useRef<HTMLDivElement>();
 
   if (!requestId) {
     return (
@@ -88,12 +89,14 @@ export default function Workflow() {
         </FeatureBox>
         <Transition
           in={showRoutingRuleDialog}
+          nodeRef={transitionRef}
           timeout={300}
           mountOnEnter
           unmountOnExit
         >
           {transitionState => (
             <NotificationRoutingRulesDialog
+              ref={transitionRef}
               onClose={() => setShowRoutingRuleDialog(false)}
               transitionState={transitionState}
             />

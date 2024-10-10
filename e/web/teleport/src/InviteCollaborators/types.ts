@@ -17,7 +17,7 @@ export type RoleValue = {
 export type RoleOption = Option<RoleValue, string>;
 
 export interface InviteCollaboratorsDialogProps {
-  onClose: (users?: User[]) => void;
+  onClose: () => void;
   open: boolean;
 }
 

@@ -37,7 +37,7 @@ export function ScheduleUpgrades({
 
   return (
     <Dialog
-      onCancel={onCancel}
+      onClose={onCancel}
       open={true}
       dialogCss={() => ({ maxWidth: '600px' })}
     >

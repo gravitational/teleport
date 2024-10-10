@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import { forwardRef, useState, useCallback, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { useTheme } from 'styled-components';
 import { Text, Flex, Box, ButtonIcon, Alert, Indicator, Button } from 'design';
@@ -23,13 +23,13 @@ import { RuleEditor } from './RuleEditor/RuleEditor';
 
 import type { TransitionStatus } from 'react-transition-group';
 
-export const NotificationRoutingRulesDialog = ({
-  onClose,
-  transitionState,
-}: {
-  onClose(): void;
-  transitionState: TransitionStatus;
-}) => {
+export const NotificationRoutingRulesDialog = forwardRef<
+  HTMLDivElement,
+  {
+    onClose(): void;
+    transitionState: TransitionStatus;
+  }
+>(({ onClose, transitionState }, ref) => {
   const ctx = useTeleport();
   const pluginAccess = ctx.storeUser.getPluginsAccess();
   const hasPluginAccess = pluginAccess.read;
@@ -145,6 +145,7 @@ export const NotificationRoutingRulesDialog = ({
       dialogCss={() => fullScreenDialogCss(theme)}
       disableEscapeKeyDown={false}
       open={true}
+      ref={ref}
       className={transitionState}
     >
       <Flex css={{ flex: 1 }}>
@@ -243,7 +244,7 @@ export const NotificationRoutingRulesDialog = ({
       </Flex>
     </Dialog>
   );
-};
+});
 
 const fullScreenDialogCss = (theme: Theme) => {
   return `

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Prompt, useHistory } from 'react-router';
 import { Transition } from 'react-transition-group';
 import styled from 'styled-components';
@@ -233,6 +233,8 @@ function NewRequest(props: State) {
   const limited = usage?.limit > 0 || cfg.entitlements.AccessRequests.limit > 0;
   const requestStarted = getNumAddedResources(addedResources) > 0;
 
+  const transitionRef = useRef<HTMLDivElement>();
+
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -446,9 +448,16 @@ function NewRequest(props: State) {
           )}
         </Box>
       )}
-      <Transition in={showCheckout} timeout={300} mountOnEnter unmountOnExit>
+      <Transition
+        in={showCheckout}
+        nodeRef={transitionRef}
+        timeout={300}
+        mountOnEnter
+        unmountOnExit
+      >
         {transitionState => (
           <RequestCheckout
+            ref={transitionRef}
             appsGrantedByUserGroup={appsGrantedByUserGroup}
             addedResources={addedResources}
             userGroupFetchAttempt={userGroupFetchAttempt}

@@ -21,8 +21,6 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
 import { useAttemptNext } from 'shared/hooks';
 
-import { makeUser } from 'teleport/services/user';
-
 import useTeleport from 'e-teleport/useTeleportE';
 
 import { InviteCollaboratorsDialogProps, RoleOption } from './types';
@@ -108,8 +106,8 @@ function InviteCollaboratorsDialogInner({
 
     ctx.cloudService
       .sendTeleportInvite(invite)
-      .then(r => {
-        onClose(r.map(makeUser));
+      .then(() => {
+        onClose();
         addNotification(createSuccessNotification(invite));
       })
       .catch(err => {

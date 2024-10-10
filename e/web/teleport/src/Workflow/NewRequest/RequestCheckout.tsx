@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Box, ButtonPrimary, ButtonText } from 'design';
 
@@ -15,8 +16,9 @@ import { useRequestCheckout } from './useRequestCheckout';
 
 import type { TransitionStatus } from 'react-transition-group';
 
-export function RequestCheckout(
-  props: Pick<
+export const RequestCheckout = forwardRef<
+  HTMLDivElement,
+  Pick<
     SharedRequestCheckoutProps,
     | 'onClose'
     | 'toggleResource'
@@ -29,7 +31,7 @@ export function RequestCheckout(
     addedResources: ResourceMap;
     transitionState: TransitionStatus;
   }
-) {
+>((props, ref) => {
   const { selectedResource, addedResources, reset } = props;
   const ctx = useTeleportE();
   const state = useRequestCheckout({
@@ -41,13 +43,14 @@ export function RequestCheckout(
 
   return (
     <SharedRequestCheckout
+      ref={ref}
       transitionState={props.transitionState}
       {...state}
       {...props}
       SuccessComponent={SuccessActionComponent}
     />
   );
-}
+});
 
 function SuccessActionComponent({ reset, onClose }) {
   return (
