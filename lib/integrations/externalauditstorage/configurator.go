@@ -108,7 +108,6 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 			ctx,
 			config.WithRegion(region),
 			config.WithUseFIPSEndpoint(useFips),
-			config.WithRetryMaxAttempts(10),
 		)
 		if err != nil {
 			return trace.Wrap(err)
