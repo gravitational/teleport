@@ -72,9 +72,14 @@ export function AuthDeviceList({
               {
                 altKey: 'remove-btn',
                 headerText: 'Actions',
-                render: device => (
-                  <RemoveCell onRemove={() => onRemove(device)} />
-                ),
+                render: device => {
+                  if (device.type === 'sso') {
+                    // return empty cell because we don't want to delete SSO devices
+                    // but also we want the row highlight to still work on this dummy cell
+                    return <Cell />;
+                  }
+                  return <RemoveCell onRemove={() => onRemove(device)} />;
+                },
               },
             ]}
             data={devices}
@@ -97,7 +102,7 @@ interface RemoveCellProps {
 
 function RemoveCell({ onRemove }: RemoveCellProps) {
   return (
-    <Cell>
+    <Cell data-testid="delete-device">
       <ButtonWarningBorder title="Delete" p={2} onClick={onRemove}>
         <Icon.Trash size="small" />
       </ButtonWarningBorder>
