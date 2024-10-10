@@ -1,6 +1,6 @@
 ---
-title: Configuring Workload ID and AWS Roles Anywhere
-description: Configuring AWS to accept Workload ID certificates as authentication using AWS Roles Anywhere
+title: Configuring Workload Identity and AWS Roles Anywhere
+description: Configuring AWS to accept Workload Identity certificates as authentication using AWS Roles Anywhere
 ---
 
 <Admonition type="tip" title="Preview">
@@ -27,8 +27,9 @@ AWS APIs in a few ways:
 - Requests to AWS are not proxied through the Teleport Proxy Service, meaning
   reduced latency but also less visibility, as these requests will not be
   recorded in Teleport's audit log.
-- Workload ID works with any AWS client, including the command-line tool but also
-  their SDKs
+- Workload Identity works with any AWS client, including the command-line tool
+  but also
+  their SDKs.
 - Using the Teleport Application Service to access AWS does not work with Machine ID
   and therefore cannot be used when a machine needs to authenticate with AWS.
 
@@ -59,7 +60,7 @@ If you have already deployed Teleport Workload Identity, then you will already
 have a SPIFFE ID structure in place. If you have not, then you will need to
 decide on a structure for your SPIFFE IDs.
 
-If you are only using Teleport Workload ID with AWS Roles Anywhere, you way
+If you are only using Teleport Workload Identity with AWS Roles Anywhere, you may
 structure your SPIFFE IDs so that they explicitly specify the AWS role they are
 allowed to assume. However, it often makes more sense to name the workload or
 person that will use the SPIFFE ID. See the
@@ -168,6 +169,8 @@ Click "Create profile".
 Now we need to configure Teleport to allow a X.509 certificate to be issued
 containing the SPIFFE ID we have chosen.
 
+Create `role.yaml` with the following content:
+
 ```yaml
 kind: role
 version: v6
@@ -184,6 +187,12 @@ Replace:
 - `my-workload-roles-anywhere` with a descriptive name for the role.
 - `/my-workload` with the path part of the SPIFFE ID you have chosen.
 
+Apply this role to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f role.yaml
+```
+
 If you intend this SPIFFE ID to be issued by a human, you now need to assign
 this role to their user:
 
@@ -199,7 +208,7 @@ this role to the bot:
 $ tctl bots update my-bot --add-roles my-workload-roles-anywhere
 ```
 
-## Step 3/4. Issue Workload ID certificates
+## Step 3/4. Issue Workload Identity certificates
 
 ### For machines using `tbot`
 
