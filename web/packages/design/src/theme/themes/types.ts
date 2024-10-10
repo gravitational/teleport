@@ -20,11 +20,6 @@ import { fonts } from '../fonts';
 import { blueGrey } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
 
-export type TextAndBackgroundColors = {
-  text: string;
-  background: string;
-};
-
 type InteractiveColorGroup = {
   default: string;
   hover: string;
