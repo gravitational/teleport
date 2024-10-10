@@ -33,6 +33,77 @@ func newResourceList() *tag.AWSResourceList {
 	}
 }
 
+type Reconciler[ItemType protoreflect.ProtoMessage, ResourceType protoreflect.ProtoMessage] struct {
+	oldItems        []*ItemType
+	newItems        []*ItemType
+	itemKeyFn       func(*ItemType) string
+	itemEqualFn     func(*ItemType, *ItemType) bool
+	itemWrapFn      func(*ItemType) *ResourceType
+	upsertResources []*ResourceType
+	deleteResources []*ResourceType
+}
+
+func NewReconciler[
+	ItemType protoreflect.ProtoMessage,
+	ResourceType protoreflect.ProtoMessage,
+](
+	oldItems []*ItemType,
+	newItems []*ItemType,
+	itemKeyFn func(*ItemType) string,
+	itemEqualFn func(*ItemType, *ItemType) bool,
+	itemWrapFn func(*ItemType) *ResourceType,
+) *Reconciler[ItemType, ResourceType] {
+	return &Reconciler[ItemType, ResourceType]{
+		oldItems:        oldItems,
+		newItems:        newItems,
+		itemKeyFn:       itemKeyFn,
+		itemEqualFn:     itemEqualFn,
+		itemWrapFn:      itemWrapFn,
+		upsertResources: make([]*ResourceType, 0),
+		deleteResources: make([]*ResourceType, 0),
+	}
+}
+
+func (r *Reconciler[ItemType, ResourceType]) Reconcile() {
+	// Remove duplicates from the new items
+	r.newItems = deduplicateSlice(r.newItems, r.itemKeyFn)
+
+	// Return upsert if there are no old items, and vice versa
+	if len(r.newItems) == 0 || len(r.oldItems) == 0 {
+		for _, item := range r.newItems {
+			r.upsertResources = append(r.upsertResources, r.itemWrapFn(item))
+		}
+		for _, item := range r.oldItems {
+			r.deleteResources = append(r.deleteResources, r.itemWrapFn(item))
+		}
+		return
+	}
+
+	// Map old and new items by their key
+	oldMap := make(map[string]*ItemType, len(r.oldItems))
+	for _, item := range r.oldItems {
+		oldMap[r.itemKeyFn(item)] = item
+	}
+	newMap := make(map[string]*ItemType, len(r.newItems))
+	for _, item := range r.newItems {
+		newMap[r.itemKeyFn(item)] = item
+	}
+
+	// Append new or modified items to the upsert list
+	for _, item := range r.newItems {
+		if oldItem, ok := oldMap[r.itemKeyFn(item)]; !ok || !r.itemEqualFn(oldItem, item) {
+			r.upsertResources = append(r.upsertResources, r.itemWrapFn(item))
+		}
+	}
+
+	// Append removed items to the delete list
+	for _, item := range r.oldItems {
+		if _, ok := newMap[r.itemKeyFn(item)]; !ok {
+			r.deleteResources = append(r.deleteResources, r.itemWrapFn(item))
+		}
+	}
+}
+
 // ReconcileResults reconciles two Resources objects and returns the operations
 // required to reconcile them into the new state.
 // It returns two AWSResourceList objects, one for resources to upsert and one
@@ -40,26 +111,26 @@ func newResourceList() *tag.AWSResourceList {
 func ReconcileResults(old *Resources, new *Resources) (upsert, delete *tag.AWSResourceList) {
 	upsert, delete = newResourceList(), newResourceList()
 	reconciledResources := []*reconcilePair{
-		reconcile(old.Users, new.Users, usersKey, usersInsert),
-		reconcile(old.UserInlinePolicies, new.UserInlinePolicies, userInlinePolKey, userInlinePolInsert),
-		reconcile(old.UserAttachedPolicies, new.UserAttachedPolicies, userAttchPolKey, userAttchPolInsert),
-		reconcile(old.UserGroups, new.UserGroups, userGroupKey, userGroupInsert),
-		reconcile(old.Groups, new.Groups, groupKey, groupInsert),
-		reconcile(old.GroupInlinePolicies, new.GroupInlinePolicies, grpInlinePolKey, grpInlinePolInsert),
-		reconcile(old.GroupAttachedPolicies, new.GroupAttachedPolicies, grpAttchPolKey, grpAttchPolInsert),
-		reconcile(old.Policies, new.Policies, policyKey, policyInsert),
-		reconcile(old.Instances, new.Instances, instanceKey, instanceInsert),
-		reconcile(old.S3Buckets, new.S3Buckets, s3bucketKey, s3bucketInsert),
-		reconcile(old.Roles, new.Roles, roleKey, roleInsert),
-		reconcile(old.RoleInlinePolicies, new.RoleInlinePolicies, roleInlinePolKey, roleInlinePolInsert),
-		reconcile(old.RoleAttachedPolicies, new.RoleAttachedPolicies, roleAttchPolKey, roleAttchPolInsert),
-		reconcile(old.InstanceProfiles, new.InstanceProfiles, instanceProfKey, instanceProfInsert),
-		reconcile(old.EKSClusters, new.EKSClusters, eksClusterKey, eksClusterInsert),
-		reconcile(old.AssociatedAccessPolicies, new.AssociatedAccessPolicies, assocAccPolKey, assocAccPolInsert),
-		reconcile(old.AccessEntries, new.AccessEntries, accessEntryKey, accessEntryInsert),
-		reconcile(old.RDSDatabases, new.RDSDatabases, rdsDbKey, rdsDbInsert),
-		reconcile(old.SAMLProviders, new.SAMLProviders, samlProvKey, samlProvInsert),
-		reconcile(old.OIDCProviders, new.OIDCProviders, oidcProvKey, oidcProvInsert),
+		reconcile(old.Users, new.Users, usersKey, usersWrap),
+		reconcile(old.UserInlinePolicies, new.UserInlinePolicies, userInlinePolKey, userInlinePolWrap),
+		reconcile(old.UserAttachedPolicies, new.UserAttachedPolicies, userAttchPolKey, userAttchPolWrap),
+		reconcile(old.UserGroups, new.UserGroups, userGroupKey, userGroupWrap),
+		reconcile(old.Groups, new.Groups, groupKey, groupWrap),
+		reconcile(old.GroupInlinePolicies, new.GroupInlinePolicies, grpInlinePolKey, grpInlinePolWrap),
+		reconcile(old.GroupAttachedPolicies, new.GroupAttachedPolicies, grpAttchPolKey, grpAttchPolWrap),
+		reconcile(old.Policies, new.Policies, policyKey, policyWrap),
+		reconcile(old.Instances, new.Instances, instanceKey, instanceWrap),
+		reconcile(old.S3Buckets, new.S3Buckets, s3bucketKey, s3bucketWrap),
+		reconcile(old.Roles, new.Roles, roleKey, roleWrap),
+		reconcile(old.RoleInlinePolicies, new.RoleInlinePolicies, roleInlinePolKey, roleInlinePolWrap),
+		reconcile(old.RoleAttachedPolicies, new.RoleAttachedPolicies, roleAttchPolKey, roleAttchPolWrap),
+		reconcile(old.InstanceProfiles, new.InstanceProfiles, instanceProfKey, instanceProfWrap),
+		reconcile(old.EKSClusters, new.EKSClusters, eksClusterKey, eksClusterWrap),
+		reconcile(old.AssociatedAccessPolicies, new.AssociatedAccessPolicies, assocAccPolKey, assocAccPolWrap),
+		reconcile(old.AccessEntries, new.AccessEntries, accessEntryKey, accessEntryWrap),
+		reconcile(old.RDSDatabases, new.RDSDatabases, rdsDbKey, rdsDbWrap),
+		reconcile(old.SAMLProviders, new.SAMLProviders, samlProvKey, samlProvWrap),
+		reconcile(old.OIDCProviders, new.OIDCProviders, oidcProvKey, oidcProvWrap),
 	}
 	for _, res := range reconciledResources {
 		upsert.Resources = append(upsert.Resources, res.upsert.Resources...)
@@ -137,7 +208,7 @@ func instanceKey(instance *tag.AWSInstanceV1) string {
 	return fmt.Sprintf("%s;%s", instance.InstanceId, instance.Region)
 }
 
-func instanceInsert(instance *tag.AWSInstanceV1) *tag.AWSResource {
+func instanceWrap(instance *tag.AWSInstanceV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_Instance{Instance: instance}}
 }
 
@@ -145,7 +216,7 @@ func usersKey(user *tag.AWSUserV1) string {
 	return fmt.Sprintf("%s;%s", user.AccountId, user.Arn)
 }
 
-func usersInsert(user *tag.AWSUserV1) *tag.AWSResource {
+func usersWrap(user *tag.AWSUserV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_User{User: user}}
 }
 
@@ -153,7 +224,7 @@ func userInlinePolKey(policy *tag.AWSUserInlinePolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetUser().GetUserName(), policy.PolicyName)
 }
 
-func userInlinePolInsert(policy *tag.AWSUserInlinePolicyV1) *tag.AWSResource {
+func userInlinePolWrap(policy *tag.AWSUserInlinePolicyV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_UserInlinePolicy{UserInlinePolicy: policy}}
 }
 
@@ -161,7 +232,7 @@ func userAttchPolKey(policy *tag.AWSUserAttachedPolicies) string {
 	return fmt.Sprintf("%s;%s", policy.AccountId, policy.User.Arn)
 }
 
-func userAttchPolInsert(policy *tag.AWSUserAttachedPolicies) *tag.AWSResource {
+func userAttchPolWrap(policy *tag.AWSUserAttachedPolicies) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_UserAttachedPolicies{UserAttachedPolicies: policy}}
 }
 
@@ -169,7 +240,7 @@ func userGroupKey(group *tag.AWSUserGroupsV1) string {
 	return fmt.Sprintf("%s;%s", group.User.AccountId, group.User.Arn)
 }
 
-func userGroupInsert(group *tag.AWSUserGroupsV1) *tag.AWSResource {
+func userGroupWrap(group *tag.AWSUserGroupsV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_UserGroups{UserGroups: group}}
 }
 
@@ -177,7 +248,7 @@ func groupKey(group *tag.AWSGroupV1) string {
 	return fmt.Sprintf("%s;%s", group.AccountId, group.Arn)
 }
 
-func groupInsert(group *tag.AWSGroupV1) *tag.AWSResource {
+func groupWrap(group *tag.AWSGroupV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_Group{Group: group}}
 }
 
@@ -185,7 +256,7 @@ func grpInlinePolKey(policy *tag.AWSGroupInlinePolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s", policy.Group.Name, policy.PolicyName, policy.AccountId)
 }
 
-func grpInlinePolInsert(policy *tag.AWSGroupInlinePolicyV1) *tag.AWSResource {
+func grpInlinePolWrap(policy *tag.AWSGroupInlinePolicyV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_GroupInlinePolicy{GroupInlinePolicy: policy}}
 }
 
@@ -193,7 +264,7 @@ func grpAttchPolKey(policy *tag.AWSGroupAttachedPolicies) string {
 	return fmt.Sprintf("%s;%s", policy.Group.GetAccountId(), policy.Group.Arn)
 }
 
-func grpAttchPolInsert(policy *tag.AWSGroupAttachedPolicies) *tag.AWSResource {
+func grpAttchPolWrap(policy *tag.AWSGroupAttachedPolicies) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_GroupAttachedPolicies{GroupAttachedPolicies: policy}}
 }
 
@@ -201,7 +272,7 @@ func policyKey(policy *tag.AWSPolicyV1) string {
 	return fmt.Sprintf("%s;%s", policy.AccountId, policy.Arn)
 }
 
-func policyInsert(policy *tag.AWSPolicyV1) *tag.AWSResource {
+func policyWrap(policy *tag.AWSPolicyV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_Policy{Policy: policy}}
 }
 
@@ -209,7 +280,7 @@ func s3bucketKey(s3 *tag.AWSS3BucketV1) string {
 	return fmt.Sprintf("%s;%s", s3.AccountId, s3.Name)
 }
 
-func s3bucketInsert(s3 *tag.AWSS3BucketV1) *tag.AWSResource {
+func s3bucketWrap(s3 *tag.AWSS3BucketV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_S3Bucket{S3Bucket: s3}}
 }
 
@@ -217,7 +288,7 @@ func roleKey(role *tag.AWSRoleV1) string {
 	return fmt.Sprintf("%s;%s", role.AccountId, role.Arn)
 }
 
-func roleInsert(role *tag.AWSRoleV1) *tag.AWSResource {
+func roleWrap(role *tag.AWSRoleV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_Role{Role: role}}
 }
 
@@ -225,7 +296,7 @@ func roleInlinePolKey(policy *tag.AWSRoleInlinePolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetAwsRole().Arn, policy.PolicyName)
 }
 
-func roleInlinePolInsert(policy *tag.AWSRoleInlinePolicyV1) *tag.AWSResource {
+func roleInlinePolWrap(policy *tag.AWSRoleInlinePolicyV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_RoleInlinePolicy{RoleInlinePolicy: policy}}
 }
 
@@ -233,7 +304,7 @@ func roleAttchPolKey(policy *tag.AWSRoleAttachedPolicies) string {
 	return fmt.Sprintf("%s;%s", policy.GetAwsRole().GetArn(), policy.AccountId)
 }
 
-func roleAttchPolInsert(policy *tag.AWSRoleAttachedPolicies) *tag.AWSResource {
+func roleAttchPolWrap(policy *tag.AWSRoleAttachedPolicies) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_RoleAttachedPolicies{RoleAttachedPolicies: policy}}
 }
 
@@ -241,7 +312,7 @@ func instanceProfKey(profile *tag.AWSInstanceProfileV1) string {
 	return fmt.Sprintf("%s;%s", profile.AccountId, profile.InstanceProfileId)
 }
 
-func instanceProfInsert(profile *tag.AWSInstanceProfileV1) *tag.AWSResource {
+func instanceProfWrap(profile *tag.AWSInstanceProfileV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_InstanceProfile{InstanceProfile: profile}}
 }
 
@@ -249,7 +320,7 @@ func eksClusterKey(cluster *tag.AWSEKSClusterV1) string {
 	return fmt.Sprintf("%s;%s", cluster.AccountId, cluster.Arn)
 }
 
-func eksClusterInsert(cluster *tag.AWSEKSClusterV1) *tag.AWSResource {
+func eksClusterWrap(cluster *tag.AWSEKSClusterV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_EksCluster{EksCluster: cluster}}
 }
 
@@ -257,7 +328,7 @@ func assocAccPolKey(policy *tag.AWSEKSAssociatedAccessPolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s;%s", policy.AccountId, policy.Cluster.Arn, policy.PrincipalArn, policy.PolicyArn)
 }
 
-func assocAccPolInsert(policy *tag.AWSEKSAssociatedAccessPolicyV1) *tag.AWSResource {
+func assocAccPolWrap(policy *tag.AWSEKSAssociatedAccessPolicyV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_EksClusterAssociatedPolicy{EksClusterAssociatedPolicy: policy}}
 }
 
@@ -265,7 +336,7 @@ func accessEntryKey(entry *tag.AWSEKSClusterAccessEntryV1) string {
 	return fmt.Sprintf("%s;%s;%s;%s", entry.AccountId, entry.Cluster.Arn, entry.PrincipalArn, entry.AccessEntryArn)
 }
 
-func accessEntryInsert(entry *tag.AWSEKSClusterAccessEntryV1) *tag.AWSResource {
+func accessEntryWrap(entry *tag.AWSEKSClusterAccessEntryV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_EksClusterAccessEntry{EksClusterAccessEntry: entry}}
 }
 
@@ -273,7 +344,7 @@ func rdsDbKey(db *tag.AWSRDSDatabaseV1) string {
 	return fmt.Sprintf("%s;%s", db.AccountId, db.Arn)
 }
 
-func rdsDbInsert(db *tag.AWSRDSDatabaseV1) *tag.AWSResource {
+func rdsDbWrap(db *tag.AWSRDSDatabaseV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_Rds{Rds: db}}
 }
 
@@ -281,7 +352,7 @@ func samlProvKey(provider *tag.AWSSAMLProviderV1) string {
 	return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
 }
 
-func samlProvInsert(provider *tag.AWSSAMLProviderV1) *tag.AWSResource {
+func samlProvWrap(provider *tag.AWSSAMLProviderV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_SamlProvider{SamlProvider: provider}}
 }
 
@@ -289,6 +360,6 @@ func oidcProvKey(provider *tag.AWSOIDCProviderV1) string {
 	return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
 }
 
-func oidcProvInsert(provider *tag.AWSOIDCProviderV1) *tag.AWSResource {
+func oidcProvWrap(provider *tag.AWSOIDCProviderV1) *tag.AWSResource {
 	return &tag.AWSResource{Resource: &tag.AWSResource_OidcProvider{OidcProvider: provider}}
 }
