@@ -107,6 +107,8 @@ type GCPClients interface {
 	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetGCPGKEClient returns GKE client.
 	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// GetGCPProjectsClient returns Projects client.
+	GetGCPProjectsClient(context.Context) (gcp.ProjectsClient, error)
 	// GetGCPInstancesClient returns instances client.
 	GetGCPInstancesClient(context.Context) (gcp.InstancesClient, error)
 }
@@ -266,6 +268,7 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 		gcpClients: gcpClients{
 			gcpSQLAdmin:  newClientCache[gcp.SQLAdminClient](gcp.NewSQLAdminClient),
 			gcpGKE:       newClientCache[gcp.GKEClient](gcp.NewGKEClient),
+			gcpProjects:  newClientCache[gcp.ProjectsClient](gcp.NewProjectsClient),
 			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
 		},
 		azureClients: azClients,
@@ -324,6 +327,8 @@ type gcpClients struct {
 	gcpSQLAdmin *clientCache[gcp.SQLAdminClient]
 	// gcpGKE is the cached GCP Cloud GKE client.
 	gcpGKE *clientCache[gcp.GKEClient]
+	// gcpProjects is the cached GCP Cloud Projects client.
+	gcpProjects *clientCache[gcp.ProjectsClient]
 	// gcpInstances is the cached GCP instances client.
 	gcpInstances *clientCache[gcp.InstancesClient]
 }
@@ -657,6 +662,11 @@ func (c *cloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.Clie
 // GetGCPGKEClient returns GKE client.
 func (c *cloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.gcpGKE.GetClient(ctx)
+}
+
+// GetGCPProjectsClient returns Project client.
+func (c *cloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+	return c.gcpProjects.GetClient(ctx)
 }
 
 // GetGCPInstancesClient returns instances client.
@@ -1022,6 +1032,7 @@ type TestCloudClients struct {
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
+	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
@@ -1232,6 +1243,11 @@ func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.
 // GetGCPGKEClient returns GKE client.
 func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.GCPGKE, nil
+}
+
+// GetGCPGKEClient returns GKE client.
+func (c *TestCloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+	return c.GCPProjects, nil
 }
 
 // GetGCPInstancesClient returns instances client.
