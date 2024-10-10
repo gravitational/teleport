@@ -4040,7 +4040,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.Wrap(err)
 	}
 
-	if cap.GetSecondFactor() == constants.SecondFactorOff {
+	if !cap.IsSecondFactorEnabled() {
 		return nil, trace.BadParameter("second factor disabled by cluster configuration")
 	}
 

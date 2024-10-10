@@ -110,6 +110,11 @@ const (
 	secondFactorTypeSSOString = "sso"
 )
 
+func (s *SecondFactorType) ToString() (string, error) {
+	str, err := s.encode()
+	return str, trace.Wrap(err)
+}
+
 func (s *SecondFactorType) encode() (string, error) {
 	switch *s {
 	case SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED:

@@ -72,8 +72,11 @@ type AuthPreference interface {
 	SetType(string)
 
 	// GetSecondFactor gets the type of second factor.
+	// Deprecated: use GetSecondFactors
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
+	// Deprecated: use SetSecondFactor outside of setting the deprecated
+	// off/optional values for tests.
 	SetSecondFactor(constants.SecondFactorType)
 	// GetSecondFactors gets a list of supported second factors.
 	GetSecondFactors() []SecondFactorType
@@ -863,7 +866,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
-	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.GetSecondFactor())
+	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactors=%q)", c.Spec.Type, c.GetSecondFactors())
 }
 
 // Clone returns a copy of the AuthPreference resource.
