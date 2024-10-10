@@ -31,8 +31,14 @@ import (
 )
 
 const (
-	AuthServerEnvVar  = "TELEPORT_AUTH_SERVER"
-	TokenEnvVar       = "TELEPORT_BOT_TOKEN"
+	// AuthServerEnvVar is the environment variable that overrides the
+	// configured auth server address.
+	AuthServerEnvVar = "TELEPORT_AUTH_SERVER"
+	// TokenEnvVar is the environment variable that overrides the configured
+	// bot token name.
+	TokenEnvVar = "TELEPORT_BOT_TOKEN"
+	// ProxyServerEnvVar is the environment variable that overrides the
+	// configured proxy server address.
 	ProxyServerEnvVar = "TELEPORT_PROXY"
 )
 
