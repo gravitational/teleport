@@ -32,19 +32,39 @@ message PrincipalState {
   PrincipalStateStatus status = 6;
 }
 
-// Status indicates the current stage of the provisioning pipeline a resource is
-// in.
-enum Status {
-  STATUS_UNSPECIFIED = 0;
-  STATUS_STALE = 1;
-  STATUS_PROVISIONED = 2;
-  STATUS_DELETED = 3;
+// ProvisioningState indicates the current stage of the provisioning pipeline a
+// resource is in.
+enum ProvisioningState {
+  // PROVISIONING_STATE_UNSPECIFIED is the `unset` default value. This should
+  // never be used in practice.
+  PROVISIONING_STATE_UNSPECIFIED = 0;
+
+  // PROVISIONING_STATE_STALE indicates that Teleport has detected a change in
+  // the principal resource, but that has not yet been reflected in the
+  // downstream system.
+  PROVISIONING_STATE_STALE = 1;
+
+  // PROVISIONING_STATE_PROVISIONED indicates that the principal has been synced
+  // with the downstram system and no further work is necessary.
+  PROVISIONING_STATE_PROVISIONED = 2;
+
+  // PROVISIONING_STATE_DELETED indicates that the principal has been deleted in
+  // Teleport, and must be de-provisioned in the downstream system and the
+  // provisioning state record deleted.
+  PROVISIONING_STATE_DELETED = 3;
 }
 
 // PrincipalType indicates the type of principal represented by a PrincipalState
 enum PrincipalType {
+  // PRINCIPAL_TYPE_UNSPECIFIED is the `unset` default value. This should
+  // never be used in practice.
   PRINCIPAL_TYPE_UNSPECIFIED = 0;
+
+  // PRINCIPAL_TYPE_USER indicates that the target principal is a Teleport user
   PRINCIPAL_TYPE_USER = 1;
+
+  // PRINCIPAL_TYPE_USER indicates that the target principal is a Teleport
+  // Access List
   PRINCIPAL_TYPE_ACCESS_LIST = 2;
 }
 
@@ -66,7 +86,13 @@ message PrincipalStateSpec {
 // PrincipalStateStatus contains the runtime-writable status block for the
 // PrincipalState resource
 message PrincipalStateStatus {
-  Status status = 1;
+  // Renamed status value (and it's type) to "provisioning_state" for clarity
+  reserved "status";
+  reserved 1;
+
+  // ProvisioningState indicates the resource's current state in the
+  // provisioning process state machine.
+  ProvisioningState provisioning_state = 5;
 
   // ExternalID holds the ID used by the downstream system to represent this
   // principal
