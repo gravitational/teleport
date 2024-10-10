@@ -283,3 +283,13 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 
 	return nil
 }
+
+// SetHomeDirectory sets the home directory path for an existing user.
+func (u *HostUsersProvisioningBackend) SetHomeDirectory(username, home string) error {
+	if home == "" {
+		home = string(os.PathSeparator)
+	}
+
+	_, err := host.SetUserHome(username, home)
+	return trace.Wrap(err)
+}

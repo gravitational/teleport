@@ -318,6 +318,26 @@ func TestRootHostUsers(t *testing.T) {
 		})
 	})
 
+	t.Run("test create permanent user with pre-existing home dir", func(t *testing.T) {
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		expectedHome := filepath.Join("/home", testuser)
+		require.NoDirExists(t, expectedHome)
+
+		require.NoError(t, os.Mkdir(expectedHome, 0700))
+		t.Cleanup(func() {
+			os.RemoveAll(expectedHome)
+		})
+		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep})
+		require.NoError(t, err)
+		require.Nil(t, closer)
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}) })
+
+		u, err := user.Lookup(testuser)
+		require.NoError(t, err)
+		require.Equal(t, string(os.PathSeparator), u.HomeDir)
+		require.DirExists(t, expectedHome)
+	})
+
 	t.Run("test create sudoers enabled users", func(t *testing.T) {
 		if _, err := exec.LookPath("visudo"); err != nil {
 			t.Skip("Visudo not found on path")

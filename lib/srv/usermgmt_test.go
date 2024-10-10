@@ -166,8 +166,12 @@ func (tm *testHostUserBackend) CreateHomeDirectory(user, uid, gid string) error 
 	return nil
 }
 
+func (tm *testHostUserBackend) SetHomeDirectory(username, home string) error {
+	return nil
+}
+
 func (tm *testHostUserBackend) GetDefaultHomeDirectory(user string) (string, error) {
-	return "", nil
+	return fmt.Sprintf("/home/%s", user), nil
 }
 
 // RemoveSudoersFile implements HostUsersBackend

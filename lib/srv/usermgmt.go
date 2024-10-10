@@ -112,6 +112,8 @@ type HostUsersBackend interface {
 	DeleteUser(name string) error
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
 	CreateHomeDirectory(userHome string, uid, gid string) error
+	// SetHomeDirectory sets a given user's home directory.
+	SetHomeDirectory(username, home string) error
 	// GetDefaultHomeDirectory returns the default home directory path for the given user
 	GetDefaultHomeDirectory(user string) (string, error)
 }
@@ -246,14 +248,6 @@ var unmanagedUserErr = errors.New("user not managed by teleport")
 var staticConversionErr = errors.New("managed host users can not be converted to or from a static host user")
 
 func (u *HostUserManagement) updateUser(hostUser HostUser, ui services.HostUsersInfo) error {
-	ctx := u.ctx
-	log := u.log.With(
-		"host_username", hostUser.Name,
-		"mode", ui.Mode,
-		"uid", hostUser.UID,
-		"gid", hostUser.GID,
-	)
-
 	if ui.Mode == services.HostUserModeKeep {
 		_, hasKeepGroup := hostUser.Groups[types.TeleportKeepGroup]
 		if !hasKeepGroup {
@@ -262,9 +256,8 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui services.HostUsers
 				return trace.Wrap(err)
 			}
 
-			log.DebugContext(ctx, "Creating home directory", "home_path", home)
-			err = u.backend.CreateHomeDirectory(home, hostUser.UID, hostUser.GID)
-			if err != nil && !os.IsExist(err) {
+			hostUser.Home = home
+			if err := u.setupHomeDirectory(hostUser); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -349,19 +342,7 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 			return trace.Wrap(err)
 		}
 
-		if userOpts.Home != "" {
-			log.InfoContext(u.ctx, "Attempting to create home directory", "home", userOpts.Home, "gid", userOpts.GID)
-			if err := u.backend.CreateHomeDirectory(userOpts.Home, user.Uid, user.Gid); err != nil {
-				if !os.IsExist(err) {
-					return trace.Wrap(err)
-				}
-				log.InfoContext(u.ctx, "Home directory already exists", "home", userOpts.Home, "gid", userOpts.GID)
-			} else {
-				log.InfoContext(u.ctx, "Created home directory", "home", userOpts.Home, "gid", userOpts.GID)
-			}
-		}
-
-		return nil
+		return trace.Wrap(u.setupHomeDirectory(HostUser{Name: user.Username, Home: userOpts.Home, UID: user.Uid, GID: user.Gid}))
 	})
 
 	return trace.Wrap(err)
@@ -738,4 +719,37 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui services.HostUser
 
 	log.InfoContext(context.Background(), "Resolved user groups", "before", currentGroups, "after", groupSlice)
 	return groupSlice, nil
+}
+
+// setupHomeDirectory tries to create a home directory for the given HostUser. If the directory cannot be created, the user's home directory
+// is reset to the root directory
+func (u *HostUserManagement) setupHomeDirectory(hostUser HostUser) error {
+	log := u.log.With(
+		"host_username", hostUser.Name,
+		"uid", hostUser.UID,
+		"gid", hostUser.GID,
+		"home", hostUser.Home,
+	)
+
+	if hostUser.Home == "" {
+		return nil
+	}
+
+	log.InfoContext(u.ctx, "Attempting to create home directory")
+	if err := u.backend.CreateHomeDirectory(hostUser.Home, hostUser.UID, hostUser.GID); err != nil {
+		if os.IsExist(err) {
+			log.InfoContext(u.ctx, "Home directory already exists")
+		} else {
+			log.WarnContext(u.ctx, "Could not create home directory", "error", err)
+		}
+
+		if err := u.backend.SetHomeDirectory(hostUser.Name, "/"); err != nil {
+			log.WarnContext(u.ctx, "Could not unset user home after failing to create directory, host may be inaccessible as this user")
+			return trace.WrapWithMessage(err, "resetting user home after failing to create directory")
+		}
+
+		return nil
+	}
+
+	return nil
 }
