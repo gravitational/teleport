@@ -20,6 +20,7 @@ import {
   makeRootCluster,
   makeAppGateway,
 } from 'teleterm/services/tshd/testHelpers';
+import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
 
 import { VnetClient, TshdClient } from '../createClient';
 import { MockedUnaryCall } from '../cloneableClient';
@@ -107,7 +108,13 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
-  getUserPreferences = () => new MockedUnaryCall({});
+  getUserPreferences = () =>
+    new MockedUnaryCall({
+      userPreferences: {
+        unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
+        clusterPreferences: { pinnedResources: { resourceIds: [] } },
+      },
+    });
   updateUserPreferences = () => new MockedUnaryCall({});
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
   promoteAccessRequest = () => new MockedUnaryCall({});
