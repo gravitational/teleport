@@ -171,13 +171,34 @@ All actions should require re-authn with a webauthn device.
   - [ ] AWS OIDC card is rendered
   - [ ] AWS External Audit Storage is also rendered but locked behind a CTA
 
+- [ ] External Audit Storage 
+  Note: you need an enterprise cloud staging tenant [^cloud-tenant-pre-release-deployments].
+  Note: you will need to update the CDN for AWS CloudShell scripts to work [^cloudshell-prerelease-cdn].
+
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+    - [ ] Docs (including screenshots) are up to date
+    - [ ] Discover flow works with or without an existing AWS OIDC integration
+    - [ ] Draft configuration can be resumed after navigating away
+    - [ ] Bootstrap step (oneoff command pasted into CloudShell) works to create infra
+    - [ ] Created IAM policy (attached to AWS OIDC integration role) matches docs example
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) are stored in configured S3 buckets
+    - [ ] Audit Events and Session Recordings (created after EAS enabled) can be queried and played in the web UI
+    - [ ] `tsh play <session-id>` works
+  - [ ] Existing EAS configuration can be replaced with a new one via Discover flow
+  - [ ] Existing EAS configuration can be deleted (disabling EAS)
+
 #### Enroll new resources using Discover Wizard
 
 Use Discover Wizard to enroll new resources and access them:
 
+Note: you will need to update the CDN for AWS CloudShell scripts to work [^cloudshell-prerelease-cdn].
+
 - [ ] SSH Server (teleport service, singular EC2, SSM agent)
 - [ ] Self-Hosted PostgreSQL and Mongo
 - [ ] AWS RDS (singular RDS, auto discover with ECS)
+
+  Note: you will need to update the CDN used for the ECS image [^rds-enrollment-pre-release-cdn].
+
 - [ ] Kubernetes
 - [ ] AWS EKS cluster
 - [ ] Non-guided cards link out to correct docs
@@ -1029,3 +1050,23 @@ Add the following to enable read access to trusted clusters
   - [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
         Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
         the app was able to reopen the tabs without any errors.
+
+[^cloud-tenant-pre-release-deployments]: Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
+
+[^cloudshell-prerelease-cdn]: The AWS integration enrollment wizards will have you run scripts in AWS cloudshell that try to download a teleport tarball from our usual CDN.
+That won't work with a pre-release build. You will need to modify the downloaded scripts to download the pre-release
+tarball from `cdn.cloud.gravitational.io` instead of `cdn.teleport.dev`, so change the provided script
+  `bash -c $(curl <url>)`
+  to
+  `bash -c $(curl <url> | sed 's/cdn.teleport.dev/cdn.gravitational.io/')`
+
+[^rds-enrollment-pre-release-cdn]: When you get to the "Deploy Database Service" step and click the deployment button it will create an ECS cluster and service.
+  You will have to update the ECS service task definition to use our staging ECR repo for the image URI:
+    1. Navigate to the ECS service it deployed (the wizard will link to it)
+    1. Go to `Configuration and networking`
+    1. Click on the task definition hyperlink
+    1. Click on `Create new revision`
+    1. Update the image URI to be `public.ecr.aws/gravitational-staging/teleport-ent-distroless:<TAG>`
+    1. Navigate to your ECS service again and click `Update service`
+    1. Change the revision to the task definition revision you just created, i.e the one marked LATEST
+    1. Confirm and save by clicking `Update`.
