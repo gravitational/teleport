@@ -162,7 +162,6 @@ type EtcdBackend struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	watchDone   chan struct{}
-	prefix      backend.Key
 }
 
 // Config represents JSON config for etcd backend
@@ -291,7 +290,6 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		buf:         buf,
 		leaseBucket: utils.SeventhJitter(options.leaseBucket),
 		leaseCache:  leaseCache,
-		prefix:      backend.KeyFromString(cfg.Key),
 	}
 
 	// Check that the etcd nodes are at least the minimum version supported
@@ -1109,9 +1107,9 @@ func fromType(eventType mvccpb.Event_EventType) types.OpType {
 }
 
 func (b *EtcdBackend) trimPrefix(in []byte) backend.Key {
-	return backend.KeyFromString(string(in)).TrimPrefix(b.prefix)
+	return backend.KeyFromString(string(in)).TrimPrefix(backend.KeyFromString(b.cfg.Key))
 }
 
 func (b *EtcdBackend) prependPrefix(in backend.Key) string {
-	return in.PrependKey(b.prefix).String()
+	return b.cfg.Key + in.String()
 }

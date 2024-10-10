@@ -49,6 +49,13 @@ func NewCLIPrompt(cfg *PromptConfig, writer io.Writer) *CLIPrompt {
 	}
 }
 
+func (c *CLIPrompt) stdin() prompt.StdinReader {
+	if c.cfg.StdinFunc == nil {
+		return prompt.Stdin()
+	}
+	return c.cfg.StdinFunc()
+}
+
 // Run prompts the user to complete an MFA authentication challenge.
 func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	if c.cfg.PromptReason != "" {
@@ -138,7 +145,7 @@ func (c *CLIPrompt) promptTOTP(ctx context.Context, quiet bool) (*proto.MFAAuthe
 		msg = fmt.Sprintf("Enter an OTP code from a %sdevice", c.promptDevicePrefix())
 	}
 
-	otp, err := prompt.Password(ctx, c.writer, prompt.Stdin(), msg)
+	otp, err := prompt.Password(ctx, c.writer, c.stdin(), msg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,6 +164,7 @@ func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, dualPrompt bool) wanc
 	}
 
 	prompt := wancli.NewDefaultPrompt(ctx, writer)
+	prompt.StdinFunc = c.cfg.StdinFunc
 	prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", c.promptDevicePrefix())
 	prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", c.promptDevicePrefix())
 
@@ -197,6 +205,13 @@ type webauthnPromptWithOTP struct {
 	otpCancelAndWait     func()
 }
 
+func (w *webauthnPromptWithOTP) cancelOTP() {
+	if w.otpCancelAndWait == nil {
+		return
+	}
+	w.otpCancelAndWaitOnce.Do(w.otpCancelAndWait)
+}
+
 func (w *webauthnPromptWithOTP) PromptTouch() (wancli.TouchAcknowledger, error) {
 	ack, err := w.LoginPrompt.PromptTouch()
 	if err != nil {
@@ -207,10 +222,16 @@ func (w *webauthnPromptWithOTP) PromptTouch() (wancli.TouchAcknowledger, error) 
 		err := ack()
 
 		// Stop the OTP goroutine when the first touch is acknowledged.
-		if w.otpCancelAndWait != nil {
-			w.otpCancelAndWaitOnce.Do(w.otpCancelAndWait)
-		}
+		w.cancelOTP()
 
 		return trace.Wrap(err)
 	}, nil
+}
+
+func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
+	// Stop the OTP goroutine before asking for PIN, in case it wasn't already
+	// stopped through PromptTouch.
+	w.cancelOTP()
+
+	return w.LoginPrompt.PromptPIN()
 }

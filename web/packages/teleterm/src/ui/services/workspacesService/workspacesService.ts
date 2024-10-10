@@ -263,7 +263,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   getUnifiedResourcePreferences(
     rootClusterUri: RootClusterUri
   ): UnifiedResourcePreferences {
-    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+    return (
+      this.state.workspaces[rootClusterUri].unifiedResourcePreferences ||
+      getDefaultUnifiedResourcePreferences()
+    );
   }
 
   /**
@@ -566,6 +569,7 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
     availableResourceMode: AvailableResourceMode.NONE,
   };
 }
+
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z

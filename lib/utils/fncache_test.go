@@ -534,3 +534,124 @@ func TestFnCacheEviction(t *testing.T) {
 	})
 	require.ErrorIs(t, err, ErrFnCacheClosed)
 }
+
+func TestFnCacheRemove(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type item struct {
+		k any
+		v any
+	}
+	expiredC := make(chan item, 5)
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Hour,
+		Context: ctx,
+		OnExpiry: func(ctx context.Context, key, expired any) {
+			expiredC <- item{k: key, v: expired}
+		},
+	})
+	require.NoError(t, err)
+
+	// Populate an entry in the cache.
+	out, err := FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Retrieve the entry and validate the loadFn isn't called
+	// and that the previously stored value is returned instead.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 0, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Remove the entry explicitly.
+	cache.Remove("test")
+
+	// Retrieve the entry again, this time the loadFn should
+	// be called because the item was explicitly removed.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 0, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, out)
+}
+
+func TestFnCacheSet(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+	type item struct {
+		k any
+		v any
+	}
+	expiredC := make(chan item, 5)
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Hour,
+		Context: ctx,
+		Clock:   clock,
+		OnExpiry: func(ctx context.Context, key, expired any) {
+			expiredC <- item{k: key, v: expired}
+		},
+	})
+	require.NoError(t, err)
+
+	// Populate an entry in the cache.
+	out, err := FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Manually override the value.
+	cache.Set("test", 500)
+
+	// Retrieve the item again and validate the loadFn isn't called
+	// and our manually set value is returned.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 500, out)
+
+	// Time travel to expire the item from the cache.
+	clock.Advance(2 * time.Hour)
+
+	// Retrieve the item again and validate the loadFn is called
+	// since the old item should have expired
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Manually override the value with a TTL this time.
+	cache.SetWithTTL("test", 999, time.Minute)
+
+	// Retrieve the item again and validate the loadFn isn't called
+	// and our manually set value is returned.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 999, out)
+
+	// Time travel to expire the item from the cache.
+	clock.Advance(2 * time.Minute)
+
+	// Retrieve the item again and validate the loadFn is called
+	// since the old item should have expired
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+}

@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -994,6 +995,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// SPIFFE Federation Trust Bundle
 	h.GET("/webapi/spiffe/bundle.json", h.WithLimiter(h.getSPIFFEBundle))
+	h.GET("/workload-identity/jwt-jwks.json", h.WithLimiter(h.getSPIFFEJWKS))
+	h.GET("/workload-identity/.well-known/openid-configuration", h.WithLimiter(h.getSPIFFEOIDCDiscoveryDocument))
 
 	// DiscoveryConfig CRUD
 	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
@@ -1001,6 +1004,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigGet))
 	h.PUT("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigUpdate))
 	h.DELETE("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
+
+	// User Tasks CRUD
+	// Listing Tasks by Integration: GET /webapi/sites/:site/usertask?integration=<integration-name>
+	h.GET("/webapi/sites/:site/usertask", h.WithClusterAuth(h.userTaskListByIntegration))
+	h.GET("/webapi/sites/:site/usertask/:name", h.WithClusterAuth(h.userTaskGet))
+	h.PUT("/webapi/sites/:site/usertask/:name/state", h.WithClusterAuth(h.userTaskStateUpdate))
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
@@ -1912,7 +1921,7 @@ func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
 
 // jwks returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) wellKnownJWKS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return h.jwks(r.Context(), types.JWTSigner)
+	return h.jwks(r.Context(), types.JWTSigner, true)
 }
 
 func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2101,9 +2110,12 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	feats := modules.GetModules().Features()
-	teleportPackage := teleport.ComponentTeleport
+	teleportPackage := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
-		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
+		teleportPackage = types.PackageNameEnt
+		if h.cfg.FIPS {
+			teleportPackage = types.PackageNameEntFIPS
+		}
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.
@@ -2649,12 +2661,20 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_Passwordless{
 			Passwordless: &proto.Passwordless{},
 		}
+
+		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		}
 	} else {
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 			UserCredentials: &proto.UserCredentials{
 				Username: req.User,
 				Password: []byte(req.Pass),
 			},
+		}
+
+		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		}
 	}
 
