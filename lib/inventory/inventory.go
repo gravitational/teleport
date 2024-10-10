@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
@@ -90,11 +91,15 @@ type DownstreamSender interface {
 
 type downstreamHandleOptions struct {
 	metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
+	clock          clockwork.Clock
 }
 
 func (options *downstreamHandleOptions) SetDefaults() {
 	if options.metadataGetter == nil {
 		options.metadataGetter = metadata.Get
+	}
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
 	}
 }
 
@@ -103,6 +108,13 @@ type DownstreamHandleOption func(c *downstreamHandleOptions)
 func withMetadataGetter(getter func(ctx context.Context) (*metadata.Metadata, error)) DownstreamHandleOption {
 	return func(opts *downstreamHandleOptions) {
 		opts.metadataGetter = getter
+	}
+}
+
+// WithDownstreamClock overrides existing clock for downstream handle.
+func WithDownstreamClock(clock clockwork.Clock) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.clock = clock
 	}
 }
 
@@ -122,6 +134,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 		closeContext:   ctx,
 		cancel:         cancel,
 		metadataGetter: options.metadataGetter,
+		clock:          options.clock,
 	}
 	go handle.run(fn, hello)
 	go handle.autoEmitMetadata()
@@ -138,6 +151,7 @@ type downstreamHandle struct {
 	cancel            context.CancelFunc
 	upstreamSSHLabels map[string]string
 	metadataGetter    func(ctx context.Context) (*metadata.Metadata, error)
+	clock             clockwork.Clock
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -390,6 +404,10 @@ type UpstreamHandle interface {
 	AgentMetadata() proto.UpstreamInventoryAgentMetadata
 
 	Ping(ctx context.Context, id uint64) (d time.Duration, err error)
+
+	// SystemClock makes ping request to fetch the system clock of the node.
+	SystemClock(ctx context.Context, id uint64) (time.Time, time.Duration, error)
+
 	// HasService is a helper for checking if a given service is associated with this
 	// stream.
 	HasService(types.SystemRole) bool
@@ -459,6 +477,10 @@ type instanceStateTracker struct {
 	// will be nil if the instance only recently connected or joined. Operations that expect to be able to
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
 	lastHeartbeat types.Instance
+
+	// pingResponse stores information about last system clock request to propagate this data in the
+	// next heartbeat request.
+	pingResponse pingResponse
 
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
 	// the stream if the retry does not succeede.
@@ -534,6 +556,11 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
+		LastMeasurement: &types.SystemClockMeasurement{
+			ControllerSystemClock: i.pingResponse.controllerClock,
+			SystemClock:           i.pingResponse.systemClock,
+			RequestDuration:       i.pingResponse.reqDuration,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -628,8 +655,10 @@ type pingRequest struct {
 }
 
 type pingResponse struct {
-	d   time.Duration
-	err error
+	reqDuration     time.Duration
+	systemClock     time.Time
+	controllerClock time.Time
+	err             error
 }
 
 func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, err error) {
@@ -644,11 +673,32 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 
 	select {
 	case rsp := <-rspC:
-		return rsp.d, rsp.err
+		return rsp.reqDuration, rsp.err
 	case <-h.Done():
 		return 0, trace.Errorf("failed to recv upstream pong (stream closed)")
 	case <-ctx.Done():
 		return 0, trace.Errorf("failed to recv upstream ping: %v", ctx.Err())
+	}
+}
+
+// SystemClock makes ping request to fetch the system clock of the downstream.
+func (h *upstreamHandle) SystemClock(ctx context.Context, id uint64) (time.Time, time.Duration, error) {
+	rspC := make(chan pingResponse, 1)
+	select {
+	case h.pingC <- pingRequest{rspC: rspC, id: id}:
+	case <-h.Done():
+		return time.Time{}, 0, trace.Errorf("failed to send downstream ping (stream closed)")
+	case <-ctx.Done():
+		return time.Time{}, 0, trace.Errorf("failed to send downstream ping: %v", ctx.Err())
+	}
+
+	select {
+	case rsp := <-rspC:
+		return rsp.systemClock, rsp.reqDuration, rsp.err
+	case <-h.Done():
+		return time.Time{}, 0, trace.Errorf("failed to recv upstream pong (stream closed)")
+	case <-ctx.Done():
+		return time.Time{}, 0, trace.Errorf("failed to recv upstream ping: %v", ctx.Err())
 	}
 }
 
