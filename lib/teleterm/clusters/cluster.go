@@ -54,6 +54,10 @@ type Cluster struct {
 	dir string
 	// Status is the cluster status
 	status client.ProfileStatus
+	// If not empty, it means that there was a problem with reading the cluster status.
+	// The status filed will contain "empty" values.
+	// The caller should try to sync the cluster again.
+	statusError error
 	// client is the cluster Teleport client
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
@@ -286,6 +290,11 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		Roles:          c.status.Roles,
 		ActiveRequests: c.status.ActiveRequests.AccessRequests,
 	}
+}
+
+// GetProfileStatusError returns a profile status error
+func (c *Cluster) GetProfileStatusError() error {
+	return c.statusError
 }
 
 // GetProxyHost returns proxy address (hostname:port) of the root cluster, even when called on a

@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 import { Box, Flex, Text, Label } from 'design';
 
@@ -28,18 +27,13 @@ import { IdentityRootCluster } from '../useIdentity';
 import { IdentityListItem } from './IdentityListItem';
 import { AddNewClusterItem } from './AddNewClusterItem';
 
-interface IdentityListProps {
+export function IdentityList(props: {
   loggedInUser: LoggedInUser;
   clusters: IdentityRootCluster[];
-
   onSelectCluster(clusterUri: string): void;
-
   onAddCluster(): void;
-
   onLogout(clusterUri: string): void;
-}
-
-export function IdentityList(props: IdentityListProps) {
+}) {
   return (
     <Box minWidth="200px">
       {props.loggedInUser && (
@@ -66,9 +60,7 @@ export function IdentityList(props: IdentityListProps) {
             <IdentityListItem
               key={i.uri}
               index={index}
-              isSelected={i.active}
-              userName={i.userName}
-              clusterName={i.clusterName}
+              cluster={i}
               onSelect={() => props.onSelectCluster(i.uri)}
               onLogout={() => props.onLogout(i.uri)}
             />

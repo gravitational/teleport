@@ -87,6 +87,20 @@ export interface LogoutRequest {
     clusterUri: string;
 }
 /**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+ */
+export interface StartHeadlessWatcherRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+ */
+export interface StartHeadlessWatcherResponse {
+}
+/**
  * @generated from protobuf message teleport.lib.teleterm.v1.GetAccessRequestRequest
  */
 export interface GetAccessRequestRequest {
@@ -1558,6 +1572,78 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.LogoutRequest
  */
 export const LogoutRequest = new LogoutRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StartHeadlessWatcherRequest$Type extends MessageType<StartHeadlessWatcherRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StartHeadlessWatcherRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StartHeadlessWatcherRequest>): StartHeadlessWatcherRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<StartHeadlessWatcherRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StartHeadlessWatcherRequest): StartHeadlessWatcherRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StartHeadlessWatcherRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+ */
+export const StartHeadlessWatcherRequest = new StartHeadlessWatcherRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StartHeadlessWatcherResponse$Type extends MessageType<StartHeadlessWatcherResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.StartHeadlessWatcherResponse", []);
+    }
+    create(value?: PartialMessage<StartHeadlessWatcherResponse>): StartHeadlessWatcherResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StartHeadlessWatcherResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StartHeadlessWatcherResponse): StartHeadlessWatcherResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: StartHeadlessWatcherResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+ */
+export const StartHeadlessWatcherResponse = new StartHeadlessWatcherResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetAccessRequestRequest$Type extends MessageType<GetAccessRequestRequest> {
     constructor() {
@@ -5792,6 +5878,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "UpdateTshdEventsServerAddress", options: {}, I: UpdateTshdEventsServerAddressRequest, O: UpdateTshdEventsServerAddressResponse },
     { name: "ListRootClusters", options: {}, I: ListClustersRequest, O: ListClustersResponse },
     { name: "ListLeafClusters", options: {}, I: ListLeafClustersRequest, O: ListClustersResponse },
+    { name: "StartHeadlessWatcher", options: {}, I: StartHeadlessWatcherRequest, O: StartHeadlessWatcherResponse },
     { name: "GetDatabases", options: {}, I: GetDatabasesRequest, O: GetDatabasesResponse },
     { name: "ListDatabaseUsers", options: {}, I: ListDatabaseUsersRequest, O: ListDatabaseUsersResponse },
     { name: "GetServers", options: {}, I: GetServersRequest, O: GetServersResponse },
