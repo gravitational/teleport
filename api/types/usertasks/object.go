@@ -90,40 +90,40 @@ const (
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
 // The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
 const (
-	// AutoDiscoverEC2IssueScriptInstanceNotRegistered is used to identify instances that failed to auto-enroll
+	// AutoDiscoverEC2IssueSSMInstanceNotRegistered is used to identify instances that failed to auto-enroll
 	// because they are not present in Amazon Systems Manager.
 	// This usually means that the Instance does not have the SSM Agent running,
 	// or that the instance's IAM Profile does not allow have the managed IAM Policy AmazonSSMManagedInstanceCore assigned to it.
-	AutoDiscoverEC2IssueScriptInstanceNotRegistered = "ec2-ssm-agent-not-registered"
+	AutoDiscoverEC2IssueSSMInstanceNotRegistered = "ec2-ssm-agent-not-registered"
 
-	// AutoDiscoverEC2IssueScriptInstanceConnectionLost is used to identify instances that failed to auto-enroll
+	// AutoDiscoverEC2IssueSSMInstanceConnectionLost is used to identify instances that failed to auto-enroll
 	// because the agent lost connection to Amazon Systems Manager.
 	// This can happen if the user changed some setting in the instance's network or IAM profile.
-	AutoDiscoverEC2IssueScriptInstanceConnectionLost = "ec2-ssm-agent-connection-lost"
+	AutoDiscoverEC2IssueSSMInstanceConnectionLost = "ec2-ssm-agent-connection-lost"
 
-	// AutoDiscoverEC2IssueScriptInstanceUnsupportedOS is used to identify instances that failed to auto-enroll
+	// AutoDiscoverEC2IssueSSMInstanceUnsupportedOS is used to identify instances that failed to auto-enroll
 	// because its OS is not supported by teleport.
 	// This can happen if the instance is running Windows.
-	AutoDiscoverEC2IssueScriptInstanceUnsupportedOS = "ec2-ssm-unsupported-os"
+	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS = "ec2-ssm-unsupported-os"
 
-	// AutoDiscoverEC2IssueScriptFailure is used to identify instances that failed to auto-enroll
+	// AutoDiscoverEC2IssueSSMScriptFailure is used to identify instances that failed to auto-enroll
 	// because the installation script failed.
 	// The invocation url must be included in the report, so that users can see what was wrong.
-	AutoDiscoverEC2IssueScriptFailure = "ec2-ssm-script-failure"
+	AutoDiscoverEC2IssueSSMScriptFailure = "ec2-ssm-script-failure"
 
-	// AutoDiscoverEC2IssueInvocationFailure is used to identify instances that failed to auto-enroll
+	// AutoDiscoverEC2IssueSSMInvocationFailure is used to identify instances that failed to auto-enroll
 	// because the SSM Script Run (also known as Invocation) failed.
 	// This happens when there's a failure with permissions or an invalid configuration (eg, invalid document name).
-	AutoDiscoverEC2IssueInvocationFailure = "ec2-ssm-invocation-failure"
+	AutoDiscoverEC2IssueSSMInvocationFailure = "ec2-ssm-invocation-failure"
 )
 
 // discoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
 var discoverEC2IssueTypes = []string{
-	AutoDiscoverEC2IssueScriptInstanceNotRegistered,
-	AutoDiscoverEC2IssueScriptInstanceConnectionLost,
-	AutoDiscoverEC2IssueScriptInstanceUnsupportedOS,
-	AutoDiscoverEC2IssueScriptFailure,
-	AutoDiscoverEC2IssueInvocationFailure,
+	AutoDiscoverEC2IssueSSMInstanceNotRegistered,
+	AutoDiscoverEC2IssueSSMInstanceConnectionLost,
+	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
+	AutoDiscoverEC2IssueSSMScriptFailure,
+	AutoDiscoverEC2IssueSSMInvocationFailure,
 }
 
 // ValidateUserTask validates the UserTask object without modifying it.

@@ -63,11 +63,11 @@ func TestUserTask(t *testing.T) {
 	}
 
 	issueTypes := []string{
-		usertasks.AutoDiscoverEC2IssueInvocationFailure,
-		usertasks.AutoDiscoverEC2IssueScriptFailure,
-		usertasks.AutoDiscoverEC2IssueScriptInstanceConnectionLost,
-		usertasks.AutoDiscoverEC2IssueScriptInstanceNotRegistered,
-		usertasks.AutoDiscoverEC2IssueScriptInstanceUnsupportedOS,
+		usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+		usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+		usertasks.AutoDiscoverEC2IssueSSMInstanceConnectionLost,
+		usertasks.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
+		usertasks.AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 	}
 	var userTaskForTest *usertasksv1.UserTask
 	for _, issueType := range issueTypes {
