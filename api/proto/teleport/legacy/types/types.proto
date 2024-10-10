@@ -5507,12 +5507,6 @@ message DynamicWindowsDesktopSpecV1 {
   Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
 }
 
-// DynamicWindowsDesktopFilter are filters to apply when searching for windows desktops.
-message DynamicWindowsDesktopFilter {
-  // Name is the name of the desktop.
-  string Name = 2 [(gogoproto.jsontag) = "name"];
-}
-
 message Resolution {
   uint32 Width = 1 [(gogoproto.jsontag) = "width,omitempty"];
   uint32 Height = 2 [(gogoproto.jsontag) = "height,omitempty"];
