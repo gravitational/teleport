@@ -208,8 +208,7 @@ const (
 	// is required for all users.
 	SecondFactorWebauthn = SecondFactorType("webauthn")
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
-	// required for all users, or that SSO MFA is enabled which cannot be
-	// expressed through a different SecondFactorType.
+	// required for all users.
 	SecondFactorOn = SecondFactorType("on")
 	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
 	// is required only for users that have MFA devices registered.

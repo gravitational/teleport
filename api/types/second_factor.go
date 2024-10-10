@@ -31,7 +31,7 @@ func legacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) const
 	hasWebAuthn := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 
 	switch {
-	case (hasOTP && hasWebAuthn):
+	case hasOTP && hasWebAuthn:
 		return constants.SecondFactorOn
 	case hasWebAuthn:
 		return constants.SecondFactorWebauthn
