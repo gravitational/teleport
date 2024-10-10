@@ -212,6 +212,32 @@ func TestConvertAuditEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "SessionRecordingAccess",
+			event: &apievents.SessionRecordingAccess{
+				UserMetadata: apievents.UserMetadata{
+					// TODO
+					// SessionType: "ssh",
+					User: "some-user",
+					// TODO
+					// Format: "pty",
+				},
+			},
+			expected: &SessionRecordingAccessEvent{
+				SessionType: "ssh",
+				UserName:    "some-user",
+				Format:      "pty",
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_SessionRecordingAccess{
+					SessionRecordingAccess: &prehogv1a.SessionRecordingAccessEvent{
+						SessionType: "ssh",
+						UserName:    anonymizer.AnonymizeString("some-user"),
+						Format:      "pty",
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {

@@ -1398,6 +1398,31 @@ message DatabaseUserPermissionsUpdateEvent {
   int32 num_tables_permissions = 4;
 }
 
+// SessionRecordingAccessEvent is emitted when the user accesses a session
+// recording.
+//
+// PostHog event: tp.recording.access
+message SessionRecordingAccessEvent {
+  // session_type is type of the session, should be
+  // "ssh"/"k8s"/"db"/"app"/"desktop" (matching the values for
+  // api/types.SessionKind).
+  //
+  // PostHog property: tp.session_type
+  string session_type = 1;
+
+  // user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
+  // encoded in base64.
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // format is the format the session recording was accessed.
+  // One of text/json/yaml/pty. pty being the interactive session player.
+  //
+  // PostHog property: tp.recording.format
+  string format = 3;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1550,6 +1575,8 @@ message SubmitEventRequest {
     AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
 
     UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+
+    SessionRecordingAccessEvent session_recording_access = 93;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

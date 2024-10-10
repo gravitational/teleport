@@ -2530,6 +2530,44 @@ export interface DatabaseUserPermissionsUpdateEvent {
     numTablesPermissions: number;
 }
 /**
+ * SessionRecordingAccessEvent is emitted when the user accesses a session
+ * recording.
+ *
+ * PostHog event: tp.recording.access
+ *
+ * @generated from protobuf message prehog.v1alpha.SessionRecordingAccessEvent
+ */
+export interface SessionRecordingAccessEvent {
+    /**
+     * session_type is type of the session, should be
+     * "ssh"/"k8s"/"db"/"app"/"desktop" (matching the values for
+     * api/types.SessionKind).
+     *
+     * PostHog property: tp.session_type
+     *
+     * @generated from protobuf field: string session_type = 1;
+     */
+    sessionType: string;
+    /**
+     * user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
+     * encoded in base64.
+     *
+     * PostHog property: tp.user_name
+     *
+     * @generated from protobuf field: string user_name = 2;
+     */
+    userName: string;
+    /**
+     * format is the format the session recording was accessed.
+     * One of text/json/yaml/pty. pty being the interactive session player.
+     *
+     * PostHog property: tp.recording.format
+     *
+     * @generated from protobuf field: string format = 3;
+     */
+    format: string;
+}
+/**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
  */
 export interface SubmitEventRequest {
@@ -3093,6 +3131,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
          */
         uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent;
+    } | {
+        oneofKind: "sessionRecordingAccess";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.SessionRecordingAccessEvent session_recording_access = 93;
+         */
+        sessionRecordingAccess: SessionRecordingAccessEvent;
     } | {
         oneofKind: undefined;
     };
@@ -9626,6 +9670,69 @@ class DatabaseUserPermissionsUpdateEvent$Type extends MessageType<DatabaseUserPe
  */
 export const DatabaseUserPermissionsUpdateEvent = new DatabaseUserPermissionsUpdateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class SessionRecordingAccessEvent$Type extends MessageType<SessionRecordingAccessEvent> {
+    constructor() {
+        super("prehog.v1alpha.SessionRecordingAccessEvent", [
+            { no: 1, name: "session_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "format", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SessionRecordingAccessEvent>): SessionRecordingAccessEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.sessionType = "";
+        message.userName = "";
+        message.format = "";
+        if (value !== undefined)
+            reflectionMergePartial<SessionRecordingAccessEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionRecordingAccessEvent): SessionRecordingAccessEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string session_type */ 1:
+                    message.sessionType = reader.string();
+                    break;
+                case /* string user_name */ 2:
+                    message.userName = reader.string();
+                    break;
+                case /* string format */ 3:
+                    message.format = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionRecordingAccessEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string session_type = 1; */
+        if (message.sessionType !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.sessionType);
+        /* string user_name = 2; */
+        if (message.userName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.userName);
+        /* string format = 3; */
+        if (message.format !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.format);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.SessionRecordingAccessEvent
+ */
+export const SessionRecordingAccessEvent = new SessionRecordingAccessEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -9719,7 +9826,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 89, name: "access_graph_aws_scan", kind: "message", oneof: "event", T: () => AccessGraphAWSScanEvent },
             { no: 90, name: "access_graph_access_path_changed", kind: "message", oneof: "event", T: () => AccessGraphAccessPathChangedEvent },
             { no: 91, name: "access_graph_crown_jewel_create", kind: "message", oneof: "event", T: () => AccessGraphCrownJewelCreateEvent },
-            { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent }
+            { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent },
+            { no: 93, name: "session_recording_access", kind: "message", oneof: "event", T: () => SessionRecordingAccessEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -10275,6 +10383,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessGraphCrownJewelDiffView)
                     };
                     break;
+                case /* prehog.v1alpha.SessionRecordingAccessEvent session_recording_access */ 93:
+                    message.event = {
+                        oneofKind: "sessionRecordingAccess",
+                        sessionRecordingAccess: SessionRecordingAccessEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionRecordingAccess)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -10560,6 +10674,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92; */
         if (message.event.oneofKind === "uiAccessGraphCrownJewelDiffView")
             UIAccessGraphCrownJewelDiffViewEvent.internalBinaryWrite(message.event.uiAccessGraphCrownJewelDiffView, writer.tag(92, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.SessionRecordingAccessEvent session_recording_access = 93; */
+        if (message.event.oneofKind === "sessionRecordingAccess")
+            SessionRecordingAccessEvent.internalBinaryWrite(message.event.sessionRecordingAccess, writer.tag(93, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

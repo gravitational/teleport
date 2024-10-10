@@ -299,6 +299,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 	case *apievents.CrownJewelCreate:
 		return &AccessGraphCrownJewelCreateEvent{}
+	case *apievents.SessionRecordingAccess:
+		return &SessionRecordingAccessEvent{
+			// TODO
+			// SessionType: e.SessionType,
+			UserName: e.User,
+			// TODO
+			// Format: e.Format,
+		}
 	}
 
 	return nil

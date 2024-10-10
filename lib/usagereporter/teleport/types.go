@@ -1229,6 +1229,22 @@ func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 	}
 }
 
+// SessionRecordingAccessEvent is an event that is emitted after an user access
+// a session recording.
+type SessionRecordingAccessEvent prehogv1a.SessionRecordingAccessEvent
+
+func (s *SessionRecordingAccessEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionRecordingAccess{
+			SessionRecordingAccess: &prehogv1a.SessionRecordingAccessEvent{
+				SessionType: s.SessionType,
+				UserName:    a.AnonymizeString(s.UserName),
+				Format:      s.Format,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
