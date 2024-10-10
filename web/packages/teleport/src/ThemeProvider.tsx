@@ -36,7 +36,7 @@ export const ThemeProvider = (props: { children?: ReactNode }) => {
   useEffect(() => {
     storageService.subscribe(receiveMessage);
 
-    function receiveMessage(event) {
+    function receiveMessage(event: StorageEvent) {
       const { key, newValue } = event;
 
       if (!newValue || key !== KeysEnum.USER_PREFERENCES) {

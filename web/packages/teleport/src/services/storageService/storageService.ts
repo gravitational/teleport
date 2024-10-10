@@ -58,11 +58,11 @@ export const storageService = {
     });
   },
 
-  subscribe(fn) {
+  subscribe(fn: (e: StorageEvent) => void) {
     window.addEventListener('storage', fn);
   },
 
-  unsubscribe(fn) {
+  unsubscribe(fn: (e: StorageEvent) => void) {
     window.removeEventListener('storage', fn);
   },
 
