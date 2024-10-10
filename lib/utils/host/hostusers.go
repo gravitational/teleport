@@ -213,3 +213,16 @@ func CheckSudoers(contents []byte) error {
 	}
 	return trace.Wrap(err)
 }
+
+func SetUserHome(username, home string) (exitCode int, err error) {
+	usermodBin, err := exec.LookPath("usermod")
+	if err != nil {
+		return -1, trace.Wrap(err, "cant find usermod binary")
+	}
+
+	// usermod -G (replace groups) (username)
+	cmd := exec.Command(usermodBin, "--home", home, username)
+	output, err := cmd.CombinedOutput()
+	log.Debugf("%s output: %s", cmd.Path, string(output))
+	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
+}
