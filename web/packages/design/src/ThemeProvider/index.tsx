@@ -47,18 +47,19 @@ export function shouldForwardProp(propName: string, target: WebTarget) {
   return true;
 }
 
-/** Uses a theme from a prop. Can be used in tests, storybook or in an app. */
-export function StaticThemeProvider(props: {
+/**
+ * Uses a theme from the prop and configures a `styled-components` theme.
+ * Can be used in tests, storybook or in an app.
+ */
+export function ConfiguredThemeProvider(props: {
   theme: Theme;
   children?: ReactNode;
 }) {
   return (
     <StyledThemeProvider theme={props.theme}>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
-        <React.Fragment>
-          <GlobalStyle />
-          {props.children}
-        </React.Fragment>
+        <GlobalStyle />
+        {props.children}
       </StyleSheetManager>
     </StyledThemeProvider>
   );

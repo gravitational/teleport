@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect, ReactNode } from 'react';
-import { StaticThemeProvider } from 'design/ThemeProvider';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { bblpTheme, lightTheme, darkTheme, Theme } from 'design/theme';
 import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
@@ -64,7 +64,9 @@ export const ThemeProvider = (props: { children?: ReactNode }) => {
   }
 
   return (
-    <StaticThemeProvider theme={theme}>{props.children}</StaticThemeProvider>
+    <ConfiguredThemeProvider theme={theme}>
+      {props.children}
+    </ConfiguredThemeProvider>
   );
 };
 

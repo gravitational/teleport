@@ -30,14 +30,16 @@ import {
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter as Router } from 'react-router-dom';
 
-import { StaticThemeProvider } from 'design/ThemeProvider';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import { darkTheme } from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
 function Providers({ children }: { children: React.ReactElement }) {
   return (
-    <StaticThemeProvider theme={darkTheme}>{children}</StaticThemeProvider>
+    <ConfiguredThemeProvider theme={darkTheme}>
+      {children}
+    </ConfiguredThemeProvider>
   );
 }
 
