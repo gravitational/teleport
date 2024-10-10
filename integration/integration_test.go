@@ -8810,7 +8810,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 	// Enable web service.
 	cfg := suite.defaultServiceConfig()
 	cfg.Auth.Enabled = true
-	cfg.Auth.Preference.SetSecondFactor("on")
+	cfg.Auth.Preference.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 	cfg.Auth.Preference.(*types.AuthPreferenceV2).Spec.RequireMFAType = types.RequireMFAType_SESSION
 	cfg.Auth.Preference.SetWebauthn(&types.Webauthn{RPID: "127.0.0.1"})
 	cfg.Proxy.DisableWebService = false
