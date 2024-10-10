@@ -124,7 +124,7 @@ func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 				// before initiating the gRPC dial.
 				// This approach works because the connection is cached for a few seconds,
 				// allowing subsequent calls without requiring additional user action.
-				if priv, ok := cert.PrivateKey.(HardwareKeyWarmer); ok {
+				if priv, ok := cert.PrivateKey.(hardwareKeyWarmer); ok {
 					err := priv.WarmupHardwareKey(ctx)
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -455,8 +455,8 @@ func (c *Client) Ping(ctx context.Context) error {
 	return nil
 }
 
-// HardwareKeyWarmer performs a bogus call to the hardware key,
+// hardwareKeyWarmer performs a bogus call to the hardware key,
 // to proactively prompt the user for a PIN/touch (if needed).
-type HardwareKeyWarmer interface {
+type hardwareKeyWarmer interface {
 	WarmupHardwareKey(ctx context.Context) error
 }
