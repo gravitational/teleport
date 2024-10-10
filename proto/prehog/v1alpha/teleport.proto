@@ -933,6 +933,8 @@ message AccessListMemberCreateEvent {
   // user_name is the anonymized user name
   string user_name = 1;
   AccessListMetadata metadata = 2;
+  // member_kind is the type of membership of the created member in the parent access list.
+  string member_kind = 3;
 }
 
 // AccessListMemberUpdate is an event that is emitted when a member is updated in an access list.
@@ -940,6 +942,8 @@ message AccessListMemberUpdateEvent {
   // user_name is the anonymized user name
   string user_name = 1;
   AccessListMetadata metadata = 2;
+  // membership_kind is the type of membership of the updated member in the parent access list.
+  string member_kind = 3;
 }
 
 // AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
@@ -947,6 +951,8 @@ message AccessListMemberDeleteEvent {
   // user_name is anonymized user name
   string user_name = 1;
   AccessListMetadata metadata = 2;
+  // member_kind is the type of membership of the deleted user in the parent access list.
+  string member_kind = 3;
 }
 
 // AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
@@ -960,6 +966,12 @@ message AccessListGrantsToUserEvent {
 
   // count_traits_granted is the number of traits granted to a user.
   int32 count_traits_granted = 3;
+
+  // count_inherited_roles_granted is the number of roles granted to a user inherited from nested access lists.
+  int32 count_inherited_roles_granted = 4;
+
+  // count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
+  int32 count_inherited_traits_granted = 5;
 }
 
 // AccessListReviewCreateEvent is an event that is emitted when an access list review is created.

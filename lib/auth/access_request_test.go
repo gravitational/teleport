@@ -1564,11 +1564,17 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return req
 	}
 
-	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
+	type testAccessListOwner struct {
+		name string
+		kind string
+	}
+
+	mustAccessListWithMembershipKind := func(name string, owners ...testAccessListOwner) *accesslist.AccessList {
 		ownersSpec := make([]accesslist.Owner, len(owners))
 		for i, owner := range owners {
 			ownersSpec[i] = accesslist.Owner{
-				Name: owner,
+				Name:           owner.name,
+				MembershipKind: owner.kind,
 			}
 		}
 		accessList, err := accesslist.NewAccessList(header.Metadata{
@@ -1587,10 +1593,22 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return accessList
 	}
 
+	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
+		ownersStruct := make([]testAccessListOwner, 0, len(owners))
+		for _, owner := range owners {
+			ownersStruct = append(ownersStruct, testAccessListOwner{owner, accesslist.MembershipKindUser})
+		}
+		return mustAccessListWithMembershipKind(name, ownersStruct...)
+	}
+
 	tests := []struct {
 		name              string
 		req               types.AccessRequest
 		accessLists       []*accesslist.AccessList
+		accessListMembers []struct {
+			Header header.Metadata
+			Spec   accesslist.AccessListMemberSpec
+		}
 		promotions        *types.AccessRequestAllowedPromotions
 		expectedReviewers []string
 	}{
@@ -1614,6 +1632,94 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 				},
 			},
 			expectedReviewers: []string{"rev1", "rev2", "owner1", "owner2", "owner3"},
+		},
+		{
+			name: "with ownership through nested list",
+			req:  mustRequest("rev1"),
+			accessLists: []*accesslist.AccessList{
+				mustAccessListWithMembershipKind(
+					"root",
+					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
+					testAccessListOwner{"nested", accesslist.MembershipKindList},
+				),
+				mustAccessListWithMembershipKind(
+					"nested",
+					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
+					testAccessListOwner{"nested1", accesslist.MembershipKindList},
+				),
+				mustAccessList("nested1", "owner1"),
+			},
+			accessListMembers: []struct {
+				Header header.Metadata
+				Spec   accesslist.AccessListMemberSpec
+			}{
+				{
+					Header: header.Metadata{
+						Name: "nested",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "root",
+						Name:           "nested",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindList,
+					},
+				},
+				{
+					Header: header.Metadata{
+						Name: "nested1",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "nested",
+						Name:           "nested1",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindList,
+					},
+				},
+				{
+					Header: header.Metadata{
+						Name: "owner2",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "nested",
+						Name:           "owner2",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindUser,
+					},
+				},
+				{
+					Header: header.Metadata{
+						Name: "owner3",
+					},
+					Spec: accesslist.AccessListMemberSpec{
+						AccessList:     "nested1",
+						Name:           "owner3",
+						Joined:         clock.Now().UTC(),
+						Expires:        clock.Now().UTC().Add(24 * time.Hour),
+						Reason:         "because",
+						AddedBy:        "owner1",
+						MembershipKind: accesslist.MembershipKindUser,
+					},
+				},
+			},
+			promotions: &types.AccessRequestAllowedPromotions{
+				Promotions: []*types.AccessRequestAllowedPromotion{
+					{AccessListName: "root"},
+					{AccessListName: "nested"},
+				},
+			},
+			// owner1 is owner of 'root', should be included
+			// owner2 is member of 'nested', which is owner of 'root', should be included via inheritance
+			// owner3 is member of 'nested1', which is member of 'nested', which is owner of 'root', should be included via two levels of inheritance
+			expectedReviewers: []string{"rev1", "owner1", "owner2", "owner3"},
 		},
 		{
 			name: "no promotions",
@@ -1643,6 +1749,14 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			for _, accessList := range test.accessLists {
 				_, err = accessLists.UpsertAccessList(ctx, accessList)
 				require.NoError(t, err)
+			}
+			if test.accessListMembers != nil {
+				for _, memberData := range test.accessListMembers {
+					member, err := accesslist.NewAccessListMember(memberData.Header, memberData.Spec)
+					require.NoError(t, err)
+					_, err = accessLists.UpsertAccessListMember(ctx, member)
+					require.NoError(t, err)
+				}
 			}
 
 			req := test.req.Copy()
