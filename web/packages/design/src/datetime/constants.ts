@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-const cfg = {
-  dateTimeFormat: 'yyyy-MM-dd HH:mm:ss',
-  dateFormat: 'yyyy-MM-dd',
-  shortFormat: 'MMM dd, yyyy',
-  // Displays time as 12/25/2024 at 12:00AM
-  dateWithPrefixedTime: `LL/dd/yyyy 'at' h:mma`,
-  // Displays time as December 25, 2024
-  dateWithFullMonth: 'LLLL dd, yyyy',
-};
+/** Formats as "2024-12-25 14:35:22" */
+export const DATE_TIME_FORMAT = 'yyyy-MM-dd HH:mm:ss';
 
-export default cfg;
+/** Formats as "2024-12-25". */
+export const DATE_FORMAT = 'yyyy-MM-dd';
+
+/** Formats as "Dec 25, 2024". */
+export const SHORT_DATE_FORMAT = 'MMM dd, yyyy';

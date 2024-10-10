@@ -19,28 +19,21 @@
 import { format } from 'date-fns';
 
 import Logger from 'shared/libs/logger';
-import cfg from 'shared/config';
+
+import { DATE_FORMAT, DATE_TIME_FORMAT, SHORT_DATE_FORMAT } from './constants';
 
 const DEFAULT_LOCALE = 'en-US';
 const isTest = process.env.NODE_ENV === 'test';
 
 const logger = Logger.create('datetime/format');
 
-/** Accepts a unix timestamp and returns formatted as 'yyyy-MM-dd'. */
-export function displayUnixDate(seconds: number): string {
-  // Multiply by 1000 b/c date constructor expects milliseconds.
-  const date = new Date(seconds * 1000);
-
-  return displayDate(date);
-}
-
 /** Accepts a date and returns formatted as 'yyyy-MM-dd' */
 export function displayDate(date: Date): string {
   try {
     if (isTest) {
-      return format(dateToUtc(date), cfg.dateFormat);
+      return format(dateToUtc(date), DATE_FORMAT);
     }
-    return format(date, cfg.dateFormat);
+    return format(date, DATE_FORMAT);
   } catch (err) {
     logger.error('displayDate()', err);
     return 'undefined';
@@ -51,9 +44,9 @@ export function displayDate(date: Date): string {
 export function displayShortDate(date: Date): string {
   try {
     if (isTest) {
-      return format(dateToUtc(date), cfg.shortFormat);
+      return format(dateToUtc(date), SHORT_DATE_FORMAT);
     }
-    return format(date, cfg.shortFormat);
+    return format(date, SHORT_DATE_FORMAT);
   } catch (err) {
     logger.error('displayDate()', err);
     return 'undefined';
@@ -72,9 +65,9 @@ export function displayUnixShortDate(seconds: number): string {
 export function displayDateTime(date: Date): string {
   try {
     if (isTest) {
-      return format(dateToUtc(date), cfg.dateTimeFormat);
+      return format(dateToUtc(date), DATE_TIME_FORMAT);
     }
-    return format(date, cfg.dateTimeFormat);
+    return format(date, DATE_TIME_FORMAT);
   } catch (err) {
     logger.error('displayDateTime()', err);
     return 'undefined';
