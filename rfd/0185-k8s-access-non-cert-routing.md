@@ -154,6 +154,7 @@ The key user we are working with has specified that they use the following
 Kubernetes clients:
 
 - `kubectl`
+- Python Kubernetes SDK
 
 #### Audit and Analytics
 
@@ -169,6 +170,17 @@ better suited for this purpose - so this seems acceptable.
 ### Alternatives
 
 #### Leverage SNI
+
+Rather than encoding the target Kubernetes cluster into the URL, we could
+instead encode it into the SNI.
+
+This has the following limitations:
+
+- We've already witnessed limited support for specifying SNIs in Kubernetes
+  clients.
+- We already overload the SNI and ALPN with a few meanings that makes routing
+  more difficult. Adding another level to the SNI (e.g a subdomain) would not be
+  valid with the certificates we issue today.
 
 #### Custom Protocol
 
