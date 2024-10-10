@@ -2885,28 +2885,14 @@ type loginGetter interface {
 // When connecting to servers in a leaf cluster, the root certificate is used,
 // so we need to ensure that we only present the allowed logins that would
 // result in a successful connection, if any exists.
-func calculateSSHLogins(identity *tlsca.Identity, loginGetter loginGetter, r types.ResourceWithLabels, allowedLogins []string) ([]string, error) {
-	// TODO(tross) DELETE IN V17.0.0
-	// This is here for backward compatibility in case the auth server
-	// does not support enriched resources yet.
-	if len(allowedLogins) == 0 {
-		logins, err := loginGetter.GetAllowedLoginsForResource(r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		slices.Sort(logins)
-		return logins, nil
-	}
-
-	localLogins := identity.Principals
-
+func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
 	allowed := make(map[string]struct{})
 	for _, login := range allowedLogins {
 		allowed[login] = struct{}{}
 	}
 
 	var logins []string
-	for _, local := range localLogins {
+	for _, local := range identity.Principals {
 		if _, ok := allowed[local]; ok {
 			logins = append(logins, local)
 		}
@@ -2914,22 +2900,6 @@ func calculateSSHLogins(identity *tlsca.Identity, loginGetter loginGetter, r typ
 
 	slices.Sort(logins)
 	return logins, nil
-}
-
-// calculateDesktopLogins determines the desktop logins allowed for the provided resource.
-// If no logins are provided, then the checker is interrogated to determine which logins
-// are allowed.
-//
-// TODO(tross) DELETE IN V17.0.0
-// This is here for backward compatibility if the auth server doesn't yet support enriching
-// resources with login information.
-func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels, allowedLogins []string) ([]string, error) {
-	if len(allowedLogins) > 0 {
-		return allowedLogins, nil
-	}
-
-	logins, err := loginGetter.GetAllowedLoginsForResource(r)
-	return logins, trace.Wrap(err)
 }
 
 // calculateAppLogins determines the app logins allowed for the provided
@@ -3013,7 +2983,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	for _, enriched := range page {
 		switch r := enriched.ResourceWithLabels.(type) {
 		case types.Server:
-			logins, err := calculateSSHLogins(identity, accessChecker, r, enriched.Logins)
+			logins, err := calculateSSHLogins(identity, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3088,12 +3058,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			logins, err := calculateDesktopLogins(accessChecker, r, enriched.Logins)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, logins, enriched.RequiresRequest))
+			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
@@ -3138,11 +3103,6 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	uiServers := make([]ui.Server, 0, len(page.Resources))
 	for _, resource := range page.Resources {
 		server, ok := resource.ResourceWithLabels.(types.Server)
@@ -3150,7 +3110,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			continue
 		}
 
-		logins, err := calculateSSHLogins(identity, accessChecker, server, resource.Logins)
+		logins, err := calculateSSHLogins(identity, resource.Logins)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
