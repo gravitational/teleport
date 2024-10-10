@@ -206,7 +206,13 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Traits:   p.Traits,
 	}
 
-	return k.sign(claims, nil)
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	so := &jose.SignerOptions{}
+	if v, ok := k.config.PublicKey.(*rsa.PublicKey); ok {
+		so.WithHeader("kid", KeyID(v))
+	}
+	return k.sign(claims, so)
 }
 
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
