@@ -19,7 +19,11 @@
 import React from 'react';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { FetchStatus, SortType } from 'design/DataTable/types';
-import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
+import {
+  LoginItem,
+  MenuInputType,
+  MenuLogin,
+} from 'shared/components/MenuLogin';
 
 import { Node } from 'teleport/services/nodes';
 import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
@@ -119,6 +123,7 @@ const renderLoginCell = (
   return (
     <Cell align="right">
       <MenuLogin
+        inputType={MenuInputType.FILTER}
         getLoginItems={handleOnOpen}
         onSelect={handleOnSelect}
         transformOrigin={{
