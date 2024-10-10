@@ -19,10 +19,9 @@ package types
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 )
@@ -137,6 +136,9 @@ func TestNewAuthPreference_secondFactors(t *testing.T) {
 					SecondFactorType_SECOND_FACTOR_TYPE_OTP,
 					SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
 					SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+				},
+				Webauthn: &Webauthn{
+					RPID: "localhost",
 				},
 			},
 			assertAuthPref: func(t *testing.T, authPref AuthPreference) {
