@@ -825,6 +825,45 @@ $ tctl request approve [token]
 $ tctl request approve request-id-1, request-id-2
 ```
 
+## tctl request create
+
+Create a pending Access Request.
+
+```code
+$ tctl request create <username>
+```
+
+### Arguments
+
+- `<username>` - Name of target user (required).
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+|`roles`|none|Comma-separated list of strings|Roles to be requested|
+|`resource`|none|Comma-separated list of strings|Resource IDs to be requested|
+|`reason`|none|String|Optional reason message|
+|`dry-run`|none|Boolean|Don't actually generate the Access Request|
+
+Use the `dry-run` flag if you want to validate whether Teleport can create an
+Access Request for the user in the `username` argument, given the user's static
+roles.
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+Create an Access Request for user `myuser` for the `prod` role, providing a
+reason:
+
+```code
+$ tctl request create myuser --roles=prod --reason="Fix an outage"
+```
+
 ## tctl request deny
 
 Denies a user's request:
