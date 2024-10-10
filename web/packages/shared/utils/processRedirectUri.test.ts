@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { processRedirectURI } from './processRedirectUri';
+import { processRedirectUri } from './processRedirectUri';
 
 describe('processRedirectURI', () => {
   const tests: Array<{ name: string; input: string | null; expected: string }> =
@@ -74,7 +74,7 @@ describe('processRedirectURI', () => {
     ];
 
   test.each(tests)('$name', ({ input, expected }) => {
-    const result = processRedirectURI('/web', input);
+    const result = processRedirectUri(input);
     expect(result).toEqual(expected);
   });
 });

@@ -33,7 +33,7 @@ import {
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
-import { processRedirectURI } from 'shared/utils/processRedirectUri';
+import { processRedirectUri } from 'shared/utils/processRedirectUri';
 
 export const PassthroughPage = () => {
   const ctx = useTeleport();
@@ -131,7 +131,7 @@ export const DeviceTrustConnectPassthrough = ({
               css={`
                 text-decoration: none;
               `}
-              to={processRedirectURI(cfg.routes.root, redirectUri)}
+              to={processRedirectUri(redirectUri)}
             >
               continue without device trust{' '}
             </Link>

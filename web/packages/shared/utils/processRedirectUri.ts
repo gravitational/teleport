@@ -27,7 +27,7 @@
  * - Invalid URIs: Returns the basePath
  *
  * @param basePath - The base path to prepend to the processed URI (e.g., '/web')
- * @param redirectURI - The redirect URI to process. Can be null, a relative path, or a full URL.
+ * @param redirectUri - The redirect URI to process. Can be null, a relative path, or a full URL.
  * @returns A processed URI string that always starts with the basePath, unless it's an invalid input.
  *
  * @example
@@ -38,33 +38,31 @@
  * processRedirectURI('/web', 'invalid://url') // returns '/web'
  * processRedirectURI('/app', 'https://example.com/path') // returns '/app/path'
  */
-export function processRedirectURI(
-  basePath: string,
-  redirectURI: string | null
-): string {
-  if (!redirectURI) {
+export function processRedirectUri(redirectUri: string | null): string {
+  // should be equal to cfg.routes.root
+  const basePath = '/web';
+  if (!redirectUri) {
     return basePath;
   }
   try {
-    const url = new URL(redirectURI);
-    let path = url.pathname;
+    const url = new URL(redirectUri);
+    const path = url.pathname;
     // If it already starts with basePath, return as is
     if (path.startsWith(basePath)) {
       return path;
     }
+
     if (path === '/') {
       return basePath;
     }
-    // For all other cases, ensure it starts with basePath
-    return path.startsWith(basePath)
-      ? path
-      : `${basePath}${path.startsWith('/') ? '' : '/'}${path}`;
+
+    return `${basePath}${path.startsWith('/') ? '' : '/'}${path}`;
   } catch (error) {
     // If it's not a valid URL, it might be a relative path
-    if (redirectURI.startsWith('/')) {
-      return redirectURI.startsWith(basePath)
-        ? redirectURI
-        : `${basePath}${redirectURI}`;
+    if (redirectUri.startsWith('/')) {
+      return redirectUri.startsWith(basePath)
+        ? redirectUri
+        : `${basePath}${redirectUri}`;
     }
     // For invalid URIs, return the default
     return basePath;

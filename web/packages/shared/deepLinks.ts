@@ -106,7 +106,7 @@ export function makeDeepLinkWithSafeInput<
 
   const searchParamsString = Object.entries(args.searchParams)
     // filter out params that have no value to prevent a string like "&myparam=null"
-    .filter(kv => !!kv[1])
+    .filter(kv => kv[1] !== null && kv[1] !== undefined)
     .map(kv => kv.map(encodeURIComponent).join('='))
     .join('&');
 

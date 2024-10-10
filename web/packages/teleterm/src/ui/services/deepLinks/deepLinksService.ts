@@ -17,7 +17,7 @@
  */
 
 import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
-import { processRedirectURI } from 'shared/utils/processRedirectUri';
+import { processRedirectUri } from 'shared/utils/processRedirectUri';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -28,7 +28,6 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 
-const basePath = '/web';
 const confirmPath = 'webapi/devices/webconfirm';
 export class DeepLinksService {
   constructor(
@@ -119,7 +118,7 @@ export class DeepLinksService {
       kind: 'device-trust-authorize',
       rootClusterUri,
       onCancel: () => {
-        const processedRedirectURI = processRedirectURI(basePath, redirect_uri);
+        const processedRedirectURI = processRedirectUri(redirect_uri);
         window.open(`https://${rootCluster.proxyHost}${processedRedirectURI}`);
       },
       onAuthorize: async () => {
