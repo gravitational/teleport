@@ -33,9 +33,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -232,17 +229,16 @@ type downloadConfig struct {
 
 //nolint:unused // scaffolding used in upcoming PR
 func newClient(cfg *downloadConfig) (*http.Client, error) {
-	rt := apiutils.NewHTTPRoundTripper(&http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.Insecure,
-			RootCAs:            cfg.Pool,
-		},
-		Proxy:           http.ProxyFromEnvironment,
-		IdleConnTimeout: apidefaults.DefaultIOTimeout,
-	}, nil)
-
+	tr, err := libdefaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tr.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: cfg.Insecure,
+		RootCAs:            cfg.Pool,
+	}
 	return &http.Client{
-		Transport: tracehttp.NewTransport(rt),
+		Transport: tr,
 		Timeout:   cfg.Timeout,
 	}, nil
 }
