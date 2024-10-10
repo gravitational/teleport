@@ -68,6 +68,9 @@ type Config struct {
 	Timeout time.Duration
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
+	// Group is an optional agent group identifier that modulates
+	// the returned desired agent version update information.
+	Group string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -170,6 +173,10 @@ func Find(cfg *Config) (*PingResponse, error) {
 	defer span.End()
 
 	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
+
+	if cfg.Group != "" {
+		endpoint = fmt.Sprintf("%s?group=%s", endpoint, cfg.Group)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -295,6 +302,8 @@ type PingResponse struct {
 	Proxy ProxySettings `json:"proxy"`
 	// ServerVersion is the version of Teleport that is running.
 	ServerVersion string `json:"server_version"`
+	// ServerVersion is the version of Teleport that is running.
+	ServerEdition string `json:"server_edition"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
 	// AutoUpdateSettings contains the auto update settings.
@@ -305,6 +314,13 @@ type PingResponse struct {
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
+
+	// AgentAutoupdate specifies whether an agent should update now (not implemented).
+	AgentAutoupdate bool `json:"agent_autoupdate"`
+	// AgentVersion contains the target agent version (not implemented).
+	AgentVersion string `json:"agent_version"`
+	// AgentUpdateJitterSeconds specifies the amount of jitter to wait before updating (not implemented).
+	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
