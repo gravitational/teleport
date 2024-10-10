@@ -18,29 +18,11 @@ package types
 
 import (
 	"encoding/json"
-	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 )
-
-// legacySecondFactorFromSecondFactors returns a suitable legacy second factor for the given list of second factors.
-func legacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) constants.SecondFactorType {
-	hasOTP := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_OTP)
-	hasWebAuthn := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
-
-	switch {
-	case hasOTP && hasWebAuthn:
-		return constants.SecondFactorOn
-	case hasWebAuthn:
-		return constants.SecondFactorWebauthn
-	case hasOTP:
-		return constants.SecondFactorOTP
-	default:
-		return constants.SecondFactorOff
-	}
-}
 
 // secondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
 func secondFactorsFromLegacySecondFactor(sf constants.SecondFactorType) []SecondFactorType {
