@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -240,6 +241,9 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		// db cert has expired.
 		Clock:         fakeClock,
 		WebauthnLogin: webauthnLogin,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
