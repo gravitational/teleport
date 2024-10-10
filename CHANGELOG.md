@@ -1,5 +1,31 @@
 # Changelog
 
+## 15.4.20 (10/10/24)
+
+* Added ability to list/get access monitoring rules resources with `tctl`. [#47402](https://github.com/gravitational/teleport/pull/47402)
+* Include JWK header in JWTs issued by Teleport Application Access. [#47394](https://github.com/gravitational/teleport/pull/47394)
+* Added kubeconfig context name to the output table of `tsh proxy kube` command for enhanced clarity. [#47382](https://github.com/gravitational/teleport/pull/47382)
+* Improve error messaging when connections to offline agents are attempted. [#47362](https://github.com/gravitational/teleport/pull/47362)
+* Allow specifying the instance type of AWS HA Terraform bastion instance. [#47339](https://github.com/gravitational/teleport/pull/47339)
+* Added a config option to Teleport Connect to control how it interacts with the local SSH agent (`sshAgent.addKeysToAgent`). [#47325](https://github.com/gravitational/teleport/pull/47325)
+* Fixed error in Workload ID in cases where the process ID cannot be resolved. [#47275](https://github.com/gravitational/teleport/pull/47275)
+* Teleport Connect for Linux now requires glibc 2.31 or later. [#47263](https://github.com/gravitational/teleport/pull/47263)
+* Fix missing `tsh` MFA prompt in certain OTP+WebAuthn scenarios. [#47155](https://github.com/gravitational/teleport/pull/47155)
+* Updates self-hosted db discover flow to generate 2190h TTL certs, not 12h. [#47127](https://github.com/gravitational/teleport/pull/47127)
+* Fixes an issue preventing access requests from displaying user friendly resource names. [#47111](https://github.com/gravitational/teleport/pull/47111)
+* Updated Go to `1.22.8`. [#47052](https://github.com/gravitational/teleport/pull/47052)
+* Fixed the "source path is empty" error when attempting to upload a file in Teleport Connect. [#47013](https://github.com/gravitational/teleport/pull/47013)
+* Enforce a global `device_trust.mode=required` on OSS processes paired with an Enterprise Auth. [#46946](https://github.com/gravitational/teleport/pull/46946)
+* A user joining a session will now see available controls for terminating & leaving the session. [#46910](https://github.com/gravitational/teleport/pull/46910)
+* Added a new config option in Teleport Connect to control SSH agent forwarding (`ssh.forwardAgent`); starting in Teleport Connect v17, this option will be disabled by default. [#46897](https://github.com/gravitational/teleport/pull/46897)
+* Teleport no longer creates invalid SAML Connectors when calling `tctl get saml/<connector-name> | tctl create -f` without the `--with-secrets` flag. [#46864](https://github.com/gravitational/teleport/pull/46864)
+* Fixed a regression in the SAML IdP service which prevented cache from initializing in a cluster that may have a service provider configured with unsupported `acs_url` and `relay_state` values. [#46846](https://github.com/gravitational/teleport/pull/46846)
+* Machine ID now generates cluster-specific ssh_config and known_host files which will always direct SSH connections made using them via Teleport. [#46685](https://github.com/gravitational/teleport/pull/46685)
+* Added new empty state to Devices list in web UI. [#5119](https://github.com/gravitational/teleport.e/pull/5119)
+* Permit bootstrapping enterprise clusters with state from an open source cluster. [#5094](https://github.com/gravitational/teleport.e/pull/5094)
+* Fixes a possible crash when using Teleport Policy's GitLab integration. [#5071](https://github.com/gravitational/teleport.e/pull/5071)
+* Emit audit logs when creating, updating or deleting Teleport Plugins. [#5056](https://github.com/gravitational/teleport.e/pull/5056)
+
 ## 15.4.19 (09/17/24)
 
 * Fixed a bug in Kubernetes access that causes the error `expected *metav1.PartialObjectMetadata object` when trying to list resources. [#46695](https://github.com/gravitational/teleport/pull/46695)
