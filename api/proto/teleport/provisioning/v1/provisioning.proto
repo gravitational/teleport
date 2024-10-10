@@ -86,9 +86,13 @@ message PrincipalStateSpec {
 // PrincipalStateStatus contains the runtime-writable status block for the
 // PrincipalState resource
 message PrincipalStateStatus {
+  // Renamed status value (and it's type) to "provisioning_state" for clarity
+  reserved "status";
+  reserved 1;
+
   // ProvisioningState indicates the resource's current state in the
   // provisioning process state machine.
-  ProvisioningState provisioning_state = 1;
+  ProvisioningState provisioning_state = 5;
 
   // ExternalID holds the ID used by the downstream system to represent this
   // principal
