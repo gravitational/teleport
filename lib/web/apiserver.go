@@ -45,7 +45,6 @@ import (
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -517,8 +516,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				Burst:   defaults.LimiterBurst,
 			},
 		},
-		MaxConnections:   defaults.LimiterMaxConnections,
-		MaxNumberOfUsers: defaults.LimiterMaxConcurrentUsers,
+		MaxConnections: defaults.LimiterMaxConnections,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -532,8 +530,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				Burst:   defaults.LimiterHighBurst,
 			},
 		},
-		MaxConnections:   defaults.LimiterMaxConnections,
-		MaxNumberOfUsers: defaults.LimiterMaxConcurrentUsers,
+		MaxConnections: defaults.LimiterMaxConnections,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4683,13 +4680,7 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 		return trace.Wrap(err)
 	}
 
-	err = limiter.RegisterRequest(remote, nil /* customRate */)
-	// MaxRateError doesn't play well with errors.Is, hence the type assertion.
-	var maxRateError *ratelimit.MaxRateError
-	if errors.As(err, &maxRateError) {
-		return trace.LimitExceeded(err.Error())
-	}
-	return trace.Wrap(err)
+	return trace.Wrap(limiter.RegisterRequest(remote, nil /* customRate */))
 }
 
 func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*SessionContext, error) {
