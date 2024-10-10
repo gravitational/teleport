@@ -980,10 +980,10 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 
 		for _, instance := range req.Instances {
 			s.awsEC2Tasks.addFailedEnrollment(
-				awsEC2FailedEnrollmentTaskKey{
+				awsEC2TaskKey{
 					accountID:   instances.AccountID,
 					integration: instances.Integration,
-					issueType:   usertasks.AutoDiscoverEC2IssueInvocationFailure,
+					issueType:   usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
 					region:      instances.Region,
 				},
 				&usertasksv1.DiscoverEC2Instance{
