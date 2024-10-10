@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -32,8 +33,12 @@ import (
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
+
+// AutoApprovalsAnnotation defines the datadog auto approvals label.
+const AutoApprovalsAnnotation = "datadog_auto_approvals"
 
 // Bot is a Datadog client that works with AccessRequest.
 // It is responsible for creating/updating Datadog incidents when access request
@@ -151,6 +156,43 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		ID:   name,
 		Kind: kind,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	log := logger.Get(ctx)
+
+	// Fetch all on-call teams
+	oncallTeams, err := b.datadog.GetOncallTeams(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	teamNames, err := common.GetNamesFromAnnotations(req, AutoApprovalsAnnotation)
+	if err != nil {
+		log.Debug("Automatic approvals annotation is empty or unspecified.")
+		return nil, nil
+	}
+	var oncallUserIDs []string
+	for _, oncallTeam := range oncallTeams.Data {
+		// Filter the list of teams to only the teams that match the datadog annotation.
+		if !slices.Contains(teamNames, oncallTeam.Attributes.Handle) &&
+			!slices.Contains(teamNames, oncallTeam.Attributes.Name) {
+			continue
+		}
+		// Collect users that are on-call for the specified team.
+		for _, oncallUser := range oncallTeam.Relationships.OncallUsers.Data {
+			oncallUserIDs = append(oncallUserIDs, oncallUser.ID)
+		}
+	}
+
+	var oncallUserEmails []string
+	for _, user := range oncallTeams.Included {
+		if slices.Contains(oncallUserIDs, user.ID) {
+			oncallUserEmails = append(oncallUserEmails, user.Attributes.Email)
+		}
+	}
+	return oncallUserEmails, nil
 }
 
 func buildIncidentSummary(clusterName, reqID string, reqData pd.AccessRequestData, webProxyURL *url.URL) (string, error) {
