@@ -23,6 +23,7 @@ export const Mark = styled.mark`
   border-radius: 6px;
   font-family: ${p => p.theme.fonts.mono};
   font-size: ${p => p.theme.fontSizes[1]}px;
-  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
+  background-color: ${p =>
+    p.theme.colors.interactive.tonal.neutral[2].background};
   color: inherit;
 `;

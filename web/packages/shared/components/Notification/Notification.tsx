@@ -197,7 +197,7 @@ const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
   switch (severity) {
     case 'neutral':
       return {
-        borderColor: theme.colors.interactive.tonal.neutral[2],
+        borderColor: theme.colors.interactive.tonal.neutral[2].background,
         iconColor: theme.colors.text.main,
       };
     case 'error':

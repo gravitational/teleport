@@ -355,7 +355,8 @@ const StyledLabel = styled(Label)`
   height: 20px;
   margin: 1px 0;
   margin-right: ${props => props.theme.space[2]}px;
-  background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  background-color: ${props =>
+    props.theme.colors.interactive.tonal.neutral[0].background};
   color: ${props => props.theme.colors.text.main};
   overflow: hidden;
   text-overflow: ellipsis;
