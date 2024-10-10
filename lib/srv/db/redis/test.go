@@ -78,15 +78,13 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 	}
 
 	client := redis.NewClient(&redis.Options{
-		Addr:         config.Address,
-		TLSConfig:    tlsConfig,
-		DialTimeout:  clientOptions.timeout,
-		ReadTimeout:  clientOptions.timeout,
-		WriteTimeout: clientOptions.timeout,
-		// Set DisableAuthOnConnect to true to avoid automatically sending
-		// HELLO to the server to speed up the tests. Let the caller decide to
-		// send HELLO or not.
-		DisableAuthOnConnect: true,
+		Addr:             config.Address,
+		TLSConfig:        tlsConfig,
+		DialTimeout:      clientOptions.timeout,
+		ReadTimeout:      clientOptions.timeout,
+		WriteTimeout:     clientOptions.timeout,
+		Protocol:         protocolV2,
+		DisableIndentity: true,
 	})
 
 	if !clientOptions.skipPing {
