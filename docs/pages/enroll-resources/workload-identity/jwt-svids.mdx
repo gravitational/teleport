@@ -33,14 +33,14 @@ The JWT-SVID can be useful in scenarios where X509-SVIDs are not suitable.
 For example, when the workload needs to authenticate to another workload which
 is behind a TLS-terminating load balancer.
 
-## OIDC Compatability
+## OIDC Compatibility
 
 The JWT SVIDs issued by Teleport Workload Identity are compatible with the
 specification for OIDC ID Tokens. This means that they can be used by workloads
 to authenticate to services that accept OIDC ID tokens as a form of
 authentication.
 
-The OIDC compatability is powered by two endpoints exposed by the Teleport
+The OIDC compatibility is powered by two endpoints exposed by the Teleport
 Proxy Service:
 
 - `/workload-identity/.well-known/openid-configuration`: This endpoint exposes
@@ -60,7 +60,7 @@ We have tested Teleport Workload Identity issued JWT-SVIDs with the following
 platforms:
 
 - AWS
-- [Google Cloud Platform](./gcp-workload-identitiy-federation-jwt.mdx)
+- [Google Cloud Platform](./gcp-workload-identity-federation-jwt.mdx)
 - Azure
 
 ## Next steps
