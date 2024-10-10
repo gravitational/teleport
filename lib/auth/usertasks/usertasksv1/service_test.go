@@ -65,6 +65,10 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbRead, types.VerbList},
 		},
 		{
+			name:         "ListUserTasksByIntegration",
+			allowedVerbs: []string{types.VerbRead, types.VerbList},
+		},
+		{
 			name:         "GetUserTask",
 			allowedVerbs: []string{types.VerbRead},
 		},

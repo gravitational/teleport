@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -46,7 +47,7 @@ type App struct {
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// AWSConsole if true, indicates that the app represents AWS management console.
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
@@ -100,7 +101,7 @@ type MakeAppsConfig struct {
 
 // MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
-	labels := makeLabels(app.GetAllLabels())
+	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
 	fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
@@ -159,7 +160,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 // Note: The SAMLAppPreset field is used in SAML service provider update flow in the
 // Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
-	labels := makeLabels(app.GetAllLabels())
+	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
 	resultApp := App{
 		Kind:            types.KindApp,
 		Name:            app.GetName(),
@@ -183,7 +184,7 @@ func MakeApps(c MakeAppsConfig) []App {
 		if appOrSP.IsAppServer() {
 			app := appOrSP.GetAppServer().GetApp()
 			fqdn := utils.AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
-			labels := makeLabels(app.GetAllLabels())
+			labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
 
 			userGroups := c.AppsToUserGroups[app.GetName()]
 
@@ -218,7 +219,7 @@ func MakeApps(c MakeAppsConfig) []App {
 
 			result = append(result, resultApp)
 		} else {
-			labels := makeLabels(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
+			labels := ui.MakeLabelsWithoutInternalPrefixes(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
 			resultApp := App{
 				Kind:         types.KindApp,
 				Name:         appOrSP.GetName(),
