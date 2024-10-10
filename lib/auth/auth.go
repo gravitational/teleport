@@ -3818,7 +3818,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 //   - Last resident key credential in a passwordless-capable cluster (avoids
 //     passwordless users from locking themselves out).
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
-	devs, err := a.Services.GetMFADevices(ctx, user, true)
+	mfaDevices, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3828,38 +3828,33 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	kindToSF := map[string]constants.SecondFactorType{
-		fmt.Sprintf("%T", &types.MFADevice_Totp{}):     constants.SecondFactorOTP,
-		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorWebauthn,
-		fmt.Sprintf("%T", &types.MFADevice_Webauthn{}): constants.SecondFactorWebauthn,
-	}
-	sfToCount := make(map[constants.SecondFactorType]int)
-	var knownDevices int
-	var deviceToDelete *types.MFADevice
-	var numResidentKeys int
-
 	isResidentKey := func(d *types.MFADevice) bool {
 		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
 	}
 
+	var deviceToDelete *types.MFADevice
+	knownDevices := make(map[types.SecondFactorType]int)
+	var numResidentKeys int
+
 	// Find the device to delete and count devices.
-	for _, d := range devs {
+	for _, d := range mfaDevices {
 		// Match device by name or ID.
 		if d.GetName() == deviceName || d.Id == deviceName {
 			deviceToDelete = d
 		}
 
-		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
-		switch {
-		case !ok && d == deviceToDelete:
-			return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
-		case !ok:
+		switch d.Device.(type) {
+		case *types.MFADevice_Totp:
+			knownDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_OTP]++
+		case *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			knownDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN]++
+		default:
+			if d == deviceToDelete {
+				return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
+			}
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
 		}
-
-		sfToCount[sf]++
-		knownDevices++
 
 		if isResidentKey(d) {
 			numResidentKeys++
@@ -3869,22 +3864,17 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
 	}
 
-	// Prevent users from deleting their last device for clusters that require second factors.
-	const minDevices = 1
-	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
-	case constants.SecondFactorOn:
-		if knownDevices <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
+	var numAllowedDevices int
+	for _, sf := range readOnlyAuthPref.GetSecondFactors() {
+		numAllowedDevices += knownDevices[sf]
+	}
+
+	// Prevent users from deleting their last allowed device for clusters that require second factors.
+	if readOnlyAuthPref.IsSecondFactorEnforced() {
+		const minDevices = 1
+		if numAllowedDevices <= minDevices {
+			return nil, trace.BadParameter("cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
-	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
-		}
-	default:
-		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
 	// canDeleteLastPasskey figures out whether the user can safely delete their
@@ -3914,17 +3904,13 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		// Minimum number of WebAuthn devices includes the passkey that we attempt
 		// to delete, hence 2.
-		if sfToCount[constants.SecondFactorWebauthn] >= 2 {
+		if knownDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN] >= 2 {
 			return true, nil
 		}
 
-		// Whether we take TOTPs into consideration or not depends on whether it's
-		// enabled.
-		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-			if sfToCount[constants.SecondFactorOTP] >= 1 {
-				return true, nil
-			}
+		// Whether we take TOTPs into consideration or not depends on whether it's enabled.
+		if readOnlyAuthPref.IsSecondFactorTOTPAllowed() && knownDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_OTP] >= 1 {
+			return true, nil
 		}
 
 		return false, nil
