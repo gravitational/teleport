@@ -2530,6 +2530,54 @@ export interface DatabaseUserPermissionsUpdateEvent {
     numTablesPermissions: number;
 }
 /**
+ * UserTaskStateEvent is emitted when a UserTask state changes.
+ * This can happen when the Task is created, when it's manually
+ * resolved by the user or when it changes back to being open
+ * when the issue happens again.
+ *
+ * PostHog event: tp.usertask.state
+ *
+ * @generated from protobuf message prehog.v1alpha.UserTaskStateEvent
+ */
+export interface UserTaskStateEvent {
+    /**
+     * task_type is the identifier for the type of task.
+     * Eg, discover-ec2
+     *
+     * PostHog property: tp.usertask.task_type
+     *
+     * @generated from protobuf field: string task_type = 1;
+     */
+    taskType: string;
+    /**
+     * issue_type is the identifier for the type of issue that occurred.
+     *
+     * PostHog property: tp.usertask.issue_type
+     *
+     * @generated from protobuf field: string issue_type = 2;
+     */
+    issueType: string;
+    /**
+     * state identifies the new state for this task.
+     * One of: OPEN, RESOLVED
+     *
+     * PostHog property: tp.usertask.state
+     *
+     * @generated from protobuf field: string state = 3;
+     */
+    state: string;
+    /**
+     * instances_count contains the number of instances that were affected by the issue
+     * This field is only present for the following task_types:
+     * - discover-ec2
+     *
+     * PostHog property: tp.usertask.discover_ec2.instances_count
+     *
+     * @generated from protobuf field: int32 instances_count = 4;
+     */
+    instancesCount: number;
+}
+/**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
  */
 export interface SubmitEventRequest {
@@ -3093,6 +3141,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
          */
         uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent;
+    } | {
+        oneofKind: "userTaskState";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UserTaskStateEvent user_task_state = 94;
+         */
+        userTaskState: UserTaskStateEvent;
     } | {
         oneofKind: undefined;
     };
@@ -9626,6 +9680,77 @@ class DatabaseUserPermissionsUpdateEvent$Type extends MessageType<DatabaseUserPe
  */
 export const DatabaseUserPermissionsUpdateEvent = new DatabaseUserPermissionsUpdateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
+    constructor() {
+        super("prehog.v1alpha.UserTaskStateEvent", [
+            { no: 1, name: "task_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "issue_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "instances_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UserTaskStateEvent>): UserTaskStateEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.taskType = "";
+        message.issueType = "";
+        message.state = "";
+        message.instancesCount = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UserTaskStateEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UserTaskStateEvent): UserTaskStateEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string task_type */ 1:
+                    message.taskType = reader.string();
+                    break;
+                case /* string issue_type */ 2:
+                    message.issueType = reader.string();
+                    break;
+                case /* string state */ 3:
+                    message.state = reader.string();
+                    break;
+                case /* int32 instances_count */ 4:
+                    message.instancesCount = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UserTaskStateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string task_type = 1; */
+        if (message.taskType !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.taskType);
+        /* string issue_type = 2; */
+        if (message.issueType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.issueType);
+        /* string state = 3; */
+        if (message.state !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.state);
+        /* int32 instances_count = 4; */
+        if (message.instancesCount !== 0)
+            writer.tag(4, WireType.Varint).int32(message.instancesCount);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UserTaskStateEvent
+ */
+export const UserTaskStateEvent = new UserTaskStateEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -9719,7 +9844,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 89, name: "access_graph_aws_scan", kind: "message", oneof: "event", T: () => AccessGraphAWSScanEvent },
             { no: 90, name: "access_graph_access_path_changed", kind: "message", oneof: "event", T: () => AccessGraphAccessPathChangedEvent },
             { no: 91, name: "access_graph_crown_jewel_create", kind: "message", oneof: "event", T: () => AccessGraphCrownJewelCreateEvent },
-            { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent }
+            { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent },
+            { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -10275,6 +10401,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessGraphCrownJewelDiffView)
                     };
                     break;
+                case /* prehog.v1alpha.UserTaskStateEvent user_task_state */ 94:
+                    message.event = {
+                        oneofKind: "userTaskState",
+                        userTaskState: UserTaskStateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).userTaskState)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -10560,6 +10692,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92; */
         if (message.event.oneofKind === "uiAccessGraphCrownJewelDiffView")
             UIAccessGraphCrownJewelDiffViewEvent.internalBinaryWrite(message.event.uiAccessGraphCrownJewelDiffView, writer.tag(92, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UserTaskStateEvent user_task_state = 94; */
+        if (message.event.oneofKind === "userTaskState")
+            UserTaskStateEvent.internalBinaryWrite(message.event.userTaskState, writer.tag(94, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
