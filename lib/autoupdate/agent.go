@@ -22,37 +22,33 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"os"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
-
-	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
 
 const (
-	updateConfigVersion = "v1"
-	updateConfigKind    = "update_config"
+	agentUpdateConfigVersion = "v1"
+	agentUpdateConfigKind    = "update_config"
 )
 
-// UpdateConfig describes the update.yaml file schema.
-type UpdateConfig struct {
+// AgentUpdateConfig describes the update.yaml file schema.
+type AgentUpdateConfig struct {
 	// Version of the configuration file
 	Version string `yaml:"version"`
 	// Kind of configuration file (always "update_config")
 	Kind string `yaml:"kind"`
 	// Spec contains user-specified configuration.
-	Spec UpdateSpec `yaml:"spec"`
+	Spec AgentUpdateSpec `yaml:"spec"`
 	// Status contains state configuration.
-	Status UpdateStatus `yaml:"status"`
+	Status AgentUpdateStatus `yaml:"status"`
 }
 
-// UpdateSpec describes the spec field in update.yaml.
-type UpdateSpec struct {
+// AgentUpdateSpec describes the spec field in update.yaml.
+type AgentUpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
 	// Group update identifier
@@ -63,58 +59,62 @@ type UpdateSpec struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-// UpdateStatus describes the status field in update.yaml.
-type UpdateStatus struct {
+// AgentUpdateStatus describes the status field in update.yaml.
+type AgentUpdateStatus struct {
 	// ActiveVersion is the currently active Teleport version.
 	ActiveVersion string `yaml:"active_version"`
 }
 
+type AgentUpdater struct {
+	Log *slog.Logger
+}
+
 // Disable disables agent updates.
 // updatePath must be a path to the update.yaml file.
-func Disable(ctx context.Context, updatePath string) error {
-	cfg, err := readUpdatesConfig(updatePath)
+func (u AgentUpdater) Disable(ctx context.Context, updatePath string) error {
+	cfg, err := u.readConfig(updatePath)
 	if err != nil {
 		return trace.Errorf("failed to read updates.yaml: %w", err)
 	}
 	if !cfg.Spec.Enabled {
-		plog.InfoContext(ctx, "Automatic updates already disabled")
+		u.Log.InfoContext(ctx, "Automatic updates already disabled")
 		return nil
 	}
 	cfg.Spec.Enabled = false
-	if err := writeUpdatesConfig(updatePath, cfg); err != nil {
+	if err := u.writeConfig(updatePath, cfg); err != nil {
 		return trace.Errorf("failed to write updates.yaml: %w", err)
 	}
 	return nil
 }
 
-// readUpdatesConfig reads update.yaml
-func readUpdatesConfig(path string) (*UpdateConfig, error) {
+// readConfig reads update.yaml
+func (AgentUpdater) readConfig(path string) (*AgentUpdateConfig, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return &UpdateConfig{
-			Version: updateConfigVersion,
-			Kind:    updateConfigKind,
+		return &AgentUpdateConfig{
+			Version: agentUpdateConfigVersion,
+			Kind:    agentUpdateConfigKind,
 		}, nil
 	}
 	if err != nil {
 		return nil, trace.Errorf("failed to open: %w", err)
 	}
 	defer f.Close()
-	var cfg UpdateConfig
+	var cfg AgentUpdateConfig
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return nil, trace.Errorf("failed to parse: %w", err)
 	}
-	if k := cfg.Kind; k != updateConfigKind {
+	if k := cfg.Kind; k != agentUpdateConfigKind {
 		return nil, trace.Errorf("invalid kind %q", k)
 	}
-	if v := cfg.Version; v != updateConfigVersion {
+	if v := cfg.Version; v != agentUpdateConfigVersion {
 		return nil, trace.Errorf("invalid version %q", v)
 	}
 	return &cfg, nil
 }
 
-// writeUpdatesConfig writes update.yaml atomically, ensuring the file cannot be corrupted.
-func writeUpdatesConfig(filename string, cfg *UpdateConfig) error {
+// writeConfig writes update.yaml atomically, ensuring the file cannot be corrupted.
+func (AgentUpdater) writeConfig(filename string, cfg *AgentUpdateConfig) error {
 	opts := []renameio.Option{
 		renameio.WithPermissions(0755),
 		renameio.WithExistingPermissions(),

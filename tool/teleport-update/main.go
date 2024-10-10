@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -32,7 +31,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -204,7 +202,8 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	if err := autoupdate.Disable(ctx, updateYAML); err != nil {
+	updater := autoupdate.AgentUpdater{Log: plog}
+	if err := updater.Disable(ctx, updateYAML); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -238,9 +237,7 @@ func newClient(cfg *downloadConfig) (*http.Client, error) {
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
 		},
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		},
+		Proxy:           http.ProxyFromEnvironment,
 		IdleConnTimeout: apidefaults.DefaultIOTimeout,
 	}, nil)
 

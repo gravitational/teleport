@@ -20,6 +20,7 @@ package autoupdate
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,30 +32,30 @@ import (
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
-func TestDisable(t *testing.T) {
+func TestAgentUpdater_Disable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		cfg      *UpdateConfig // nil -> file not present
+		cfg      *AgentUpdateConfig // nil -> file not present
 		errMatch string
 	}{
 		{
 			name: "enabled",
-			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec: AgentUpdateSpec{
 					Enabled: true,
 				},
 			},
 		},
 		{
 			name: "already disabled",
-			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec: AgentUpdateSpec{
 					Enabled: false,
 				},
 			},
@@ -64,8 +65,8 @@ func TestDisable(t *testing.T) {
 		},
 		{
 			name: "invalid metadata",
-			cfg: &UpdateConfig{
-				Spec: UpdateSpec{
+			cfg: &AgentUpdateConfig{
+				Spec: AgentUpdateSpec{
 					Enabled: true,
 				},
 			},
@@ -89,7 +90,10 @@ func TestDisable(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err = Disable(context.Background(), cfgPath)
+			updater := AgentUpdater{
+				Log: slog.Default(),
+			}
+			err = updater.Disable(context.Background(), cfgPath)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
