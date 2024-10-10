@@ -113,9 +113,35 @@ Within the Kube Forwarder, new route handlers would be added for all HTTP
 methods for `/v1/teleport/:teleportCluster/:kubeCluster/*`. These route handlers
 would parse the `teleportCluster` and `kubeCluster` from the URL, strip off the
 prefix, and then pass the request through to the original handler - with the
-additional context of the desired Teleport and Kubernetes cluster.
+additional context of the desired Teleport and Kubernetes cluster. This would
+take higher precedence than attributes contained within the certificate.
+
+Clients would no longer need to call `GenerateUserCerts` with a
+`KubernetesCluster` requested - instead - the normal identity of the user or 
+machine can be used to authenticate.
 
 #### Backwards/Forwards Compatibility
+
+By retaining the existing behaviour and endpoints within the Kube Forwarder,
+older clients using a kubeconfig and certificate generated with the
+`KubernetesCluster` attribute will continue to function.
+
+- VX.Y.0:
+  - Introduce new Kube Forwarder behaviour.
+  - Introduce opt-in `kubernetes/v2` `tbot` output. This will allow
+    users to opt-in to the new behaviour once they are satisfied that their
+    Auth Server, Proxy and Kubernetes Agents have been upgraded to the required
+    version.
+- V(X+1).0.0:
+  - Switch `tsh` to new behaviour. No longer requests the signing of a
+    certificate with the `KubernetesCluster` attribute and uses standard user
+    identity to authenticate.
+  - Switch `tbot` `kubernetes/v1` output to use `kubernetes/v2` implementation
+    under the hood.
+- V(X+2).0.0:
+  - It is now "safe" to remove the old attribute based routing from the Kube
+    Forwarder. We may wish to delay this further if we have concerns about
+    older client compatability.
 
 #### Client Compatability
 
