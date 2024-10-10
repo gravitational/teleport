@@ -1356,6 +1356,8 @@ rev. 1607, which is the exact minimum Windows version that we support.
 - [ ] `teleport` runs on the minimum supported macOS version
 - [ ] `tbot` runs on the minimum supported macOS version
 - [ ] Teleport Connect runs on the minimum supported macOS version
+- [ ] `tsh touchid diag` shows positive results for all requirements
+- [ ] `tctl touchid diag` shows positive results for all requirements
 
 ### Linux
 
