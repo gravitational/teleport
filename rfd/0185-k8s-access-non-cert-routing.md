@@ -115,7 +115,7 @@ would parse the `teleportCluster` and `kubeCluster` from the URL, strip off the
 prefix, and then pass the request through to the original handler - with the
 additional context of the desired Teleport and Kubernetes cluster.
 
-#### Backwards/Forewards Compatibility
+#### Backwards/Forwards Compatibility
 
 #### Client Compatability
 
@@ -123,6 +123,11 @@ Kubernetes API clients have been known to vary greatly in their support for
 more unusual configuration. We have witnessed this in the past when it came to
 supporting the ability to explicitly provide the SNI to use when making
 requests.
+
+The key user we are working with has specified that they use the following
+Kubernetes clients:
+
+- `kubectl`
 
 ### Alternatives
 
