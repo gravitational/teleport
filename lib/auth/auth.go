@@ -247,6 +247,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.DynamicWindowsDesktops == nil {
+		cfg.DynamicWindowsDesktops = local.NewDynamicWindowsDesktopService(cfg.Backend)
+	}
 	if cfg.SAMLIdPServiceProviders == nil {
 		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 		if err != nil {
@@ -437,6 +440,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AuditLogSessionStreamer:   cfg.AuditLog,
 		Events:                    cfg.Events,
 		WindowsDesktops:           cfg.WindowsDesktops,
+		DynamicWindowsDesktops:    cfg.DynamicWindowsDesktops,
 		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
 		UserGroups:                cfg.UserGroups,
 		SessionTrackerService:     cfg.SessionTrackerService,
@@ -637,6 +641,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.WindowsDesktops
+	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService

@@ -20,11 +20,11 @@ package servicecfg
 
 import (
 	"crypto/x509"
-	"github.com/gravitational/teleport/lib/services"
 	"maps"
 	"regexp"
 
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
