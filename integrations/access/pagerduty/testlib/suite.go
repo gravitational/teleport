@@ -432,7 +432,7 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 	ruleName := "test-pagerduty-amr"
 	lastRuleUpdated := ""
-	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(name string) error {
+	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(_ types.OpType, name string, _ *accessmonitoringrulesv1.AccessMonitoringRule) error {
 		lastRuleUpdated = ruleName
 		return nil
 	}
@@ -463,7 +463,7 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	// has been updated with new rule. Retry until the new cache picks up the rule.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		require.Equal(t, lastRuleUpdated, ruleName)
-	}, 10*time.Second, time.Second, "new access monitoring rule did not begin applying")
+	}, 3*time.Second, time.Millisecond*100, "new access monitoring rule did not begin applying")
 
 	// Test execution: create an access request
 	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
