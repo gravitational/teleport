@@ -1,4 +1,5 @@
-# example teleport-datadog configuration TOML file
+# Example teleport-datadog configuration TOML file
+
 [teleport]
 # Teleport Auth/Proxy Server address.
 #
@@ -39,7 +40,7 @@ severity = "SEV-3"
 # role.suggested_reviewers will automatically be treated as additional email recipients.
 # "*" must be provided to match non-specified roles.
 #
-# "dev" = "dev-team"
+# "dev" = ["dev-team"]
 # "*" = ["cloud@email.com", "cloud-team"]
 
 [log]
