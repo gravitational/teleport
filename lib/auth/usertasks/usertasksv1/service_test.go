@@ -29,15 +29,18 @@ import (
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestServiceAccess(t *testing.T) {
 	t.Parallel()
+	testReporter := &mockUsageReporter{}
 
 	testCases := []struct {
 		name          string
@@ -78,7 +81,7 @@ func TestServiceAccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 				t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-					service := newService(t, fakeChecker{allowedVerbs: verbs})
+					service := newService(t, fakeChecker{allowedVerbs: verbs}, testReporter)
 					err := callMethod(t, service, tt.name)
 					// expect access denied except with full set of verbs.
 					if len(verbs) == len(tt.allowedVerbs) {
@@ -103,6 +106,53 @@ func TestServiceAccess(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestUsageEvents(t *testing.T) {
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
+	testReporter := &mockUsageReporter{}
+	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter)
+	ctx := context.Background()
+
+	ut1, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+		Integration: "my-integration",
+		TaskType:    "discover-ec2",
+		IssueType:   "ec2-ssm-invocation-failure",
+		State:       "OPEN",
+		DiscoverEc2: &usertasksv1.DiscoverEC2{
+			AccountId: "123456789012",
+			Region:    "us-east-1",
+			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+				"i-123": &usertasksv1.DiscoverEC2Instance{
+					InstanceId:      "i-123",
+					DiscoveryConfig: "dc01",
+					DiscoveryGroup:  "dg01",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// Usage reporting happens when user task is created, so we expect to see an event.
+	require.Len(t, testReporter.emittedEvents, 1)
+
+	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+		InstanceId:      "i-345",
+		DiscoveryConfig: "dc01",
+		DiscoveryGroup:  "dg01",
+	}
+	_, err = service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// State was not updated, so usage events must not increase.
+	require.Len(t, testReporter.emittedEvents, 1)
+
+	ut1.Spec.State = "RESOLVED"
+	_, err = service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// State was updated, so usage events include this new usage report.
+	require.Len(t, testReporter.emittedEvents, 2)
 }
 
 // callMethod calls a method with given name in the UserTask service
@@ -132,7 +182,7 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func newService(t *testing.T, checker services.AccessChecker) *Service {
+func newService(t *testing.T, checker services.AccessChecker, usageReporter usagereporter.UsageReporter) *Service {
 	t.Helper()
 
 	b, err := memory.New(memory.Config{})
@@ -153,10 +203,23 @@ func newService(t *testing.T, checker services.AccessChecker) *Service {
 	})
 
 	service, err := NewService(ServiceConfig{
-		Authorizer: authorizer,
-		Backend:    backendService,
-		Cache:      backendService,
+		Authorizer:    authorizer,
+		Backend:       backendService,
+		Cache:         backendService,
+		UsageReporter: func() usagereporter.UsageReporter { return usageReporter },
 	})
 	require.NoError(t, err)
 	return service
+}
+
+type mockUsageReporter struct {
+	emittedEvents []*usagereporter.UserTaskStateEvent
+}
+
+func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	for _, e := range events {
+		if userTaskEvent, ok := e.(*usagereporter.UserTaskStateEvent); ok {
+			m.emittedEvents = append(m.emittedEvents, userTaskEvent)
+		}
+	}
 }
