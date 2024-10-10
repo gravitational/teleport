@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -70,7 +69,6 @@ func TestReporter(t *testing.T) {
 
 	r, err := NewReporter(ctx, ReporterConfig{
 		Backend:          bk,
-		Log:              logrus.StandardLogger(),
 		Clock:            clk,
 		ClusterName:      clusterName,
 		HostID:           uuid.NewString(),
