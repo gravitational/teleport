@@ -23,10 +23,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -135,4 +137,58 @@ func TestSearchSessionRange(t *testing.T) {
 func TestReadableDatabaseProtocol(t *testing.T) {
 	require.Equal(t, "Microsoft SQL Server", fmt.Sprint(ReadableDatabaseProtocol(ProtocolSQLServer)))
 	require.Equal(t, "unknown", fmt.Sprint(ReadableDatabaseProtocol("unknown")))
+}
+
+func TestDistrolessTeleportImageRepo(t *testing.T) {
+	tests := []struct {
+		desc      string
+		buildType string
+		version   string
+		want      string
+	}{
+		{
+			desc:      "ent release",
+			buildType: modules.BuildEnterprise,
+			version:   "16.0.0",
+			want:      "public.ecr.aws/gravitational/teleport-ent-distroless:16.0.0",
+		},
+		{
+			desc:      "oss release",
+			buildType: modules.BuildOSS,
+			version:   "16.0.0",
+			want:      "public.ecr.aws/gravitational/teleport-distroless:16.0.0",
+		},
+		{
+			desc:      "community release",
+			buildType: modules.BuildCommunity,
+			version:   "16.0.0",
+			want:      "public.ecr.aws/gravitational/teleport-distroless:16.0.0",
+		},
+		{
+			desc:      "ent pre-release",
+			buildType: modules.BuildEnterprise,
+			version:   "16.0.0-alpha.1",
+			want:      "public.ecr.aws/gravitational-staging/teleport-ent-distroless:16.0.0-alpha.1",
+		},
+		{
+			desc:      "oss pre-release",
+			buildType: modules.BuildOSS,
+			version:   "16.0.0-alpha.1",
+			want:      "public.ecr.aws/gravitational-staging/teleport-distroless:16.0.0-alpha.1",
+		},
+		{
+			desc:      "community pre-release",
+			buildType: modules.BuildCommunity,
+			version:   "16.0.0-alpha.1",
+			want:      "public.ecr.aws/gravitational-staging/teleport-distroless:16.0.0-alpha.1",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			semVer, err := semver.NewVersion(test.version)
+			require.NoError(t, err)
+			modules.SetTestModules(t, &modules.TestModules{TestBuildType: test.buildType})
+			require.Equal(t, test.want, DistrolessTeleportImage(*semVer))
+		})
+	}
 }
