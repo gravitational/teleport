@@ -223,7 +223,7 @@ export default class Modal extends React.Component<Props> {
   }
 }
 
-type BackdropProps = {
+export type BackdropProps = {
   /**
    * Allows backdrop to keep bg color of parent eg: popup menu
    */

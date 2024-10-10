@@ -55,7 +55,7 @@ provider in these environments.
 - An account and project on either the public Terraform Cloud SaaS or a
   Terraform Enterprise instance
 
-- The Teleport Terraform provider, v16.3.0 or later
+- The Teleport Terraform provider, v16.4.0 or later
 
 ## Step 1/4: Configure Terraform Cloud joining in Teleport
 
@@ -97,7 +97,7 @@ self-hosted Terraform Enterprise:
     roles: [Bot]
     join_method: terraform_cloud
     bot_name: terraform
-    terraform:
+    terraform_cloud:
       allow:
         - organization_name: ExampleOrganization
           project_name: example-project
@@ -121,7 +121,7 @@ self-hosted Terraform Enterprise:
     roles: [Bot]
     join_method: terraform_cloud
     bot_name: terraform
-    terraform:
+    terraform_cloud:
       hostname: terraform.example.com
       allow:
         - organization_name: ExampleOrganization

@@ -17,7 +17,7 @@
  */
 
 import React, { PropsWithChildren, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Popover, Box } from 'design';
 
 type Props = {
@@ -34,6 +34,7 @@ export const ToolTipBadge: React.FC<PropsWithChildren<Props>> = ({
   sticky = false,
   color,
 }) => {
+  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
 
@@ -66,7 +67,12 @@ export const ToolTipBadge: React.FC<PropsWithChildren<Props>> = ({
         {badgeTitle}
       </Box>
       <Popover
+        arrow
         modalCss={() => `pointer-events: ${sticky ? 'auto' : 'none'}`}
+        popoverCss={() => ({
+          background: theme.colors.tooltip.background,
+          backdropFilter: 'blur(2px)',
+        })}
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
@@ -93,7 +99,6 @@ export const ToolTipBadge: React.FC<PropsWithChildren<Props>> = ({
 };
 
 const StyledOnHover = styled(Box)`
-  background-color: white;
-  color: black;
+  color: ${props => props.theme.colors.text.primaryInverse};
   max-width: 350px;
 `;

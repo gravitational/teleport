@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -368,6 +369,13 @@ func (a *Server) newWebSession(
 			Warn("Failed to calculate trusted device mode for session")
 	} else {
 		sess.SetTrustedDeviceRequirement(tdr)
+
+		if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
+			log.WithFields(logrus.Fields{
+				"user":                       req.User,
+				"trusted_device_requirement": tdr,
+			}).Debug("Calculated trusted device requirement for session")
+		}
 	}
 
 	return sess, checker, nil

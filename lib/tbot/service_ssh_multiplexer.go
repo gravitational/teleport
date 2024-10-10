@@ -158,7 +158,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	}
 
 	// Generate known hosts
-	knownHosts, err := ssh.GenerateKnownHosts(
+	knownHosts, _, err := ssh.GenerateKnownHosts(
 		ctx,
 		s.botAuthClient,
 		clusterNames,

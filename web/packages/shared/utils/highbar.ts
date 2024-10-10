@@ -60,33 +60,34 @@ export function mergeDeep(target: MergeTarget, ...sources: Array<MergeTarget>) {
   return mergeDeep(target, ...sources);
 }
 
-type CompareArray = Array<Record<string, unknown>>;
-
-export function arrayObjectIsEqual(
-  arr1: CompareArray,
-  arr2: CompareArray
-): boolean {
-  const compareArrays = (arr1, arr2) =>
+/** Recursively compares two arrays. */
+export function arrayObjectIsEqual(arr1: unknown[], arr2: unknown[]): boolean {
+  return (
     arr1.length === arr2.length &&
-    arr1.every((obj, idx) => compareObjects(obj, arr2[idx]));
+    arr1.every((obj, idx) => equalsDeep(obj, arr2[idx]))
+  );
+}
 
-  const compareObjects = (obj1, obj2) => {
-    if (!isObject(obj1)) {
-      return obj1 === obj2;
-    }
+/** Recursively compares two values. */
+export function equalsDeep(val1: unknown, val2: unknown) {
+  if (!isObject(val1)) {
+    return val1 === val2;
+  }
 
-    if (Object.keys(obj1).length) {
-      if (Object.keys(obj1).length !== Object.keys(obj2).length) {
-        return false;
-      }
-      return Object.keys(obj1).every(key => {
-        return compareObjects(obj1[key], obj2[key]);
-      });
-    } else {
-      return true;
+  if (Array.isArray(val1) && Array.isArray(val2)) {
+    return arrayObjectIsEqual(val1, val2);
+  }
+
+  if (Object.keys(val1).length) {
+    if (Object.keys(val1).length !== Object.keys(val2).length) {
+      return false;
     }
-  };
-  return compareArrays(arr1, arr2);
+    return Object.keys(val1).every(key => {
+      return equalsDeep(val1[key], val2[key]);
+    });
+  } else {
+    return true;
+  }
 }
 
 export function isInteger(checkVal: any): boolean {

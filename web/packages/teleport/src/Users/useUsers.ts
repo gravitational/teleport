@@ -21,6 +21,8 @@ import { useAttempt } from 'shared/hooks';
 
 import { ExcludeUserField, User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
+import cfg from 'teleport/config';
+import { storageService } from 'teleport/services/storageService';
 import auth from 'teleport/services/auth/auth';
 
 export default function useUsers({
@@ -115,9 +117,20 @@ export default function useUsers({
     return items.map(r => r.name);
   }
 
+  function onDismissUsersMauNotice() {
+    storageService.setUsersMAUAcknowledged();
+  }
+
   useEffect(() => {
     attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
   }, []);
+
+  // if the cluster has billing enabled, and usageBasedBilling, and they haven't acknowledged
+  // the info yet
+  const showMauInfo =
+    ctx.getFeatureFlags().billing &&
+    cfg.isUsageBasedBilling &&
+    !storageService.getUsersMauAcknowledged();
 
   return {
     attempt,
@@ -139,6 +152,8 @@ export default function useUsers({
     inviteCollaboratorsOpen,
     onEmailPasswordResetClose,
     EmailPasswordReset,
+    showMauInfo,
+    onDismissUsersMauNotice,
   };
 }
 

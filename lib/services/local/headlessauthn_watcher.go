@@ -108,9 +108,14 @@ func NewHeadlessAuthenticationWatcher(ctx context.Context, cfg HeadlessAuthentic
 		return nil, trace.Wrap(err)
 	}
 
+	identityService, err := NewIdentityServiceV2(cfg.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	h := &HeadlessAuthenticationWatcher{
 		HeadlessAuthenticationWatcherConfig: cfg,
-		identityService:                     NewIdentityService(cfg.Backend),
+		identityService:                     identityService,
 		retry:                               retry,
 		closed:                              make(chan struct{}),
 		running:                             make(chan struct{}),

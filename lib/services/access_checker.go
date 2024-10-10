@@ -19,7 +19,9 @@
 package services
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -1006,12 +1008,21 @@ type HostUsersInfo struct {
 	UID string
 	// GID is the GID that the host user will be created with
 	GID string
+	// Shell is the default login shell for a host user
+	Shell string
+	// TakeOwnership determines whether or not an existing user should be
+	// taken over by teleport. This currently only applies to 'static' mode
+	// users, 'keep' mode users still need to assign 'teleport-keep' in the
+	// Groups slice in order to take ownership.
+	TakeOwnership bool
 }
 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
+	shellToRoles := make(map[string][]string)
+	var shell string
 	var mode types.CreateHostUserMode
 
 	for _, role := range a.RoleSet {
@@ -1048,9 +1059,24 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
 		}
 
+		hostUserShell := role.GetOptions().CreateHostUserDefaultShell
+		shell = cmp.Or(shell, hostUserShell)
+		if hostUserShell != "" {
+			shellToRoles[hostUserShell] = append(shellToRoles[hostUserShell], role.GetName())
+		}
+
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
+	}
+
+	if len(shellToRoles) > 1 {
+		b := &strings.Builder{}
+		for shell, roles := range shellToRoles {
+			fmt.Fprintf(b, "%s=%v ", shell, roles)
+		}
+
+		log.Warnf("Host user shell resolution is ambiguous due to conflicting roles. %q will be used, but consider unifying roles around a single shell. Current shell assignments: %s", shell, b)
 	}
 
 	for _, role := range a.RoleSet {
@@ -1083,6 +1109,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		Mode:   convertHostUserMode(mode),
 		UID:    uid,
 		GID:    gid,
+		Shell:  shell,
 	}, nil
 }
 

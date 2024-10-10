@@ -983,8 +983,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
 	play.Flag("skip-idle-time", "Quickly skip over idle time, applicable when streaming SSH or Kubernetes sessions.").BoolVar(&cf.NoWait)
 	play.Flag("format", defaults.FormatFlagDescription(
-		teleport.PTY, teleport.JSON, teleport.YAML,
-	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
+		teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text,
+	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text)
 	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
@@ -2546,6 +2546,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -17,6 +17,7 @@
  */
 
 import Modal from './Modal';
+export { type BackdropProps, type Props } from './Modal';
 export default Modal;
 
 export type { Props } from './Modal';

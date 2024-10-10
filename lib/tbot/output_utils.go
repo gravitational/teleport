@@ -24,7 +24,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -76,9 +75,9 @@ type BotConfigWriter struct {
 // WriteFile writes the file to the Destination. Only the basename of the path
 // is used. Specified permissions are ignored.
 func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) error {
-	p := path.Base(name)
+	p := filepath.Base(name)
 	if b.subpath != "" {
-		p = path.Join(b.subpath, p)
+		p = filepath.Join(b.subpath, p)
 	}
 
 	return trace.Wrap(b.dest.Write(b.ctx, p, data))
@@ -233,28 +232,6 @@ func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, da
 	return nil
 }
 
-// generateKeys generates TLS and SSH keypairs.
-func generateKeys() (private, sshpub, tlspub []byte, err error) {
-	// TODO(nklaassen): consider splitting SSH and TLS keys, support
-	// configurable key algorithms.
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	return privateKey, publicKey, tlsPublicKey, nil
-}
-
 // describeTLSIdentity generates an informational message about the given
 // TLS identity, appropriate for user-facing log messages.
 func describeTLSIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) string {
@@ -324,30 +301,7 @@ func generateIdentity(
 	//   This should be ignored if a renewal has been triggered manually or
 	//   by a CA rotation.
 
-	// Generate a fresh keypair for the impersonated identity. We don't care to
-	// reuse keys here: impersonated certs might not be as well-protected so
-	// constantly rotating private keys
-	// TODO(nklaassen): consider splitting SSH and TLS keys, support
-	// configurable algorithms.
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
-
-	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	req := proto.UserCertsRequest{
-		SSHPublicKey:   sshPublicKey,
-		TLSPublicKey:   tlsPublicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
 		Expires:        time.Now().Add(ttl),
 		RoleRequests:   roles,
@@ -361,6 +315,34 @@ func generateIdentity(
 
 	if configurator != nil {
 		configurator(&req)
+	}
+
+	keyPurpose := cryptosuites.BotImpersonatedIdentity
+	if req.RouteToDatabase.ServiceName != "" {
+		// We still used RSA for all database clients, all other bot
+		// impersonated identities can use ECDSA.
+		keyPurpose = cryptosuites.DatabaseClient
+	}
+
+	// Generate a fresh keypair for the impersonated identity. We don't care to
+	// reuse keys here, constantly rotate private keys to limit their effective
+	// lifetime.
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
+		keyPurpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SSHPublicKey = ssh.MarshalAuthorizedKey(sshPub)
+
+	req.TLSPublicKey, err = keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// First, ask the auth server to generate a new set of certs with a new
@@ -405,7 +387,7 @@ func generateIdentity(
 
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
 		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  sshPublicKey,
+		PublicKeyBytes:  req.SSHPublicKey,
 	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)

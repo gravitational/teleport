@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -35,6 +36,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -222,7 +224,7 @@ type ReadProxyAccessPoint interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -306,6 +308,12 @@ type ReadProxyAccessPoint interface {
 
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+
+	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -383,7 +391,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -795,6 +803,9 @@ type DiscoveryAccessPoint interface {
 
 	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
 	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
+
+	// UpsertUserTask creates or updates an User Task
+	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -942,7 +953,10 @@ type Cache interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetReverseTunnels returns  a list of reverse tunnels
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
+
+	// ListReverseTunnels returns a paginated list of reverse tunnels.
+	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetClusterName returns cluster name
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -1163,6 +1177,13 @@ type Cache interface {
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
 
+	// GetUserTask returns the user tasks resource by name.
+	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
+	// ListUserTasks returns the user tasks resources.
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	// ListUserTasksByIntegration returns the user tasks resources filtered by an integration.
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+
 	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter
 
@@ -1175,6 +1196,12 @@ type Cache interface {
 
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter
+
+	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+
+	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
@@ -1422,6 +1449,11 @@ func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error)
 // UpdateDiscoveryConfigStatus updates the status of a discovery config.
 func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
+}
+
+// UpserUserTask creates or updates an User Task.
+func (w *DiscoveryWrapper) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
+	return w.NoCache.UpsertUserTask(ctx, req)
 }
 
 // Close closes all associated resources

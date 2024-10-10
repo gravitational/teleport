@@ -182,6 +182,36 @@ func TestConvertAuditEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "AccessPathChanged",
+			event: &apievents.AccessPathChanged{
+				AffectedResourceName:   "some-resource",
+				AffectedResourceType:   "ssh",
+				AffectedResourceSource: "TELEPORT",
+			},
+			expected: &AccessGraphAccessPathChangedEvent{
+				AffectedResourceType:   "ssh",
+				AffectedResourceSource: "TELEPORT",
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_AccessGraphAccessPathChanged{
+					AccessGraphAccessPathChanged: &prehogv1a.AccessGraphAccessPathChangedEvent{
+						AffectedResourceType:   "ssh",
+						AffectedResourceSource: "teleport",
+					},
+				},
+			},
+		},
+		{
+			desc:     "CrownJewelCreateEvent",
+			event:    &apievents.CrownJewelCreate{},
+			expected: &AccessGraphCrownJewelCreateEvent{},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_AccessGraphCrownJewelCreate{
+					AccessGraphCrownJewelCreate: &prehogv1a.AccessGraphCrownJewelCreateEvent{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {

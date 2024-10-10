@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -759,6 +760,10 @@ func TestGCPRequireSSL(t *testing.T) {
 		Username:   user,
 	})
 	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: ephemeralCert.Certificate[0],
+	})
 
 	// Setup database servers for Postgres and MySQL with a mock GCP API that
 	// will require SSL and return the ephemeral certificate created above.
@@ -768,7 +773,7 @@ func TestGCPRequireSSL(t *testing.T) {
 			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 		},
 		GCPSQL: &mocks.GCPSQLAdminClientMock{
-			EphemeralCert: ephemeralCert,
+			EphemeralCert: string(certPEM),
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
 					IpConfiguration: &sqladmin.IpConfiguration{
@@ -1671,12 +1676,12 @@ func (c *testContext) postgresClientLocalProxy(ctx context.Context, teleportUser
 
 // mysqlClient connects to test MySQL through database access as a specified
 // Teleport user and database account.
-func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
+func (c *testContext) mysqlClient(teleportUser, dbService, dbUser string) (mysql.TestClientConn, error) {
 	return c.mysqlClientWithAddr(c.mysqlListener.Addr().String(), teleportUser, dbService, dbUser)
 }
 
 // mysqlClientWithAddr is like mysqlClient but allows to override connection address.
-func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (*mysqlclient.Conn, error) {
+func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUser string) (mysql.TestClientConn, error) {
 	return mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: c.authClient,
 		AuthServer: c.authServer,
@@ -1692,7 +1697,7 @@ func (c *testContext) mysqlClientWithAddr(address, teleportUser, dbService, dbUs
 }
 
 // mysqlClientLocalProxy connects to test MySQL through local ALPN proxy.
-func (c *testContext) mysqlClientLocalProxy(ctx context.Context, teleportUser, dbService, dbUser string) (*mysqlclient.Conn, *alpnproxy.LocalProxy, error) {
+func (c *testContext) mysqlClientLocalProxy(ctx context.Context, teleportUser, dbService, dbUser string) (mysql.TestClientConn, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolMySQL,
@@ -2519,9 +2524,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient: c.authClient,
-		Clients:    &clients.TestCloudClients{},
-		Clock:      c.clock,
+		AuthClient:  c.authClient,
+		AccessPoint: c.authClient,
+		Clients:     &clients.TestCloudClients{},
+		Clock:       c.clock,
 	})
 	require.NoError(t, err)
 

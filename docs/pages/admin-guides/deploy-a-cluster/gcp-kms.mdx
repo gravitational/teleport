@@ -27,14 +27,11 @@ learn more.
 
 ## Prerequisites
 
-The features documented on this page are available in Teleport `11.1.0` and
-higher.
-
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
-
+- Teleport v(=teleport.version=) Enterprise (self-hosted).
 - (!docs/pages/includes/tctl.mdx!)
-
 - A Google Cloud account.
+
+(!docs/pages/includes/enterprise/hsm-warning.mdx!)
 
 ## Step 1/5. Create a key ring in GCP
 
@@ -233,6 +230,9 @@ $ gcloud kms keys list --keyring "<Var name="teleport-keyring"/>" --location <Va
 
 Try logging in to the cluster with a Teleport user to make sure that new
 certificates can be signed without error.
+
+`tctl status` should also show `GCP KMS` as the `storage` method for all
+Certificate Authority keys.
 
 ## Migrating an existing cluster
 
