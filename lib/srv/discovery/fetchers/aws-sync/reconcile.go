@@ -89,7 +89,7 @@ func reconcile[T protoreflect.ProtoMessage](
 	oldItems []T,
 	newItems []T,
 	keyFn func(T) string,
-	insertFn func(T) *tag.AWSResource,
+	wrapFn func(T) *tag.AWSResource,
 ) *reconcilePair {
 	// Remove duplicates from the new items
 	newItems = deduplicateSlice(newItems, keyFn)
@@ -99,10 +99,10 @@ func reconcile[T protoreflect.ProtoMessage](
 	// Return upsert if there are no old items, and vice versa
 	if len(newItems) == 0 || len(oldItems) == 0 {
 		for _, item := range newItems {
-			upsertRes.Resources = append(upsertRes.Resources, insertFn(item))
+			upsertRes.Resources = append(upsertRes.Resources, wrapFn(item))
 		}
 		for _, item := range oldItems {
-			deleteRes.Resources = append(deleteRes.Resources, insertFn(item))
+			deleteRes.Resources = append(deleteRes.Resources, wrapFn(item))
 		}
 		return &reconcilePair{upsertRes, deleteRes}
 	}
@@ -120,14 +120,14 @@ func reconcile[T protoreflect.ProtoMessage](
 	// Append new or modified items to the upsert list
 	for _, item := range newItems {
 		if oldItem, ok := oldMap[keyFn(item)]; !ok || !proto.Equal(oldItem, item) {
-			upsertRes.Resources = append(upsertRes.Resources, insertFn(item))
+			upsertRes.Resources = append(upsertRes.Resources, wrapFn(item))
 		}
 	}
 
 	// Append removed items to the delete list
 	for _, item := range oldItems {
 		if _, ok := newMap[keyFn(item)]; !ok {
-			deleteRes.Resources = append(deleteRes.Resources, insertFn(item))
+			deleteRes.Resources = append(deleteRes.Resources, wrapFn(item))
 		}
 	}
 	return &reconcilePair{upsertRes, deleteRes}
