@@ -301,7 +301,7 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 	s.updateDiscoveryConfigStatus(result.DiscoveryConfig)
 
 	s.awsEC2Tasks.addFailedEnrollment(
-		awsEC2FailedEnrollmentTaskKey{
+		awsEC2TaskKey{
 			integration: result.IntegrationName,
 			issueType:   result.IssueType,
 			accountID:   result.SSMRunEvent.AccountID,
@@ -324,15 +324,15 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 type awsEC2Tasks struct {
 	mu sync.RWMutex
 	// instancesIssues maps the Discover EC2 User Task grouping parts to a set of instances metadata.
-	instancesIssues map[awsEC2FailedEnrollmentTaskKey]map[string]*usertasksv1.DiscoverEC2Instance
-	// groupsToSync is used to register which groups were changed in memory but were not yet sent to the cluster.
-	// When upserting User Tasks, if the group is not in groupsToSync,
+	instancesIssues map[awsEC2TaskKey]map[string]*usertasksv1.DiscoverEC2Instance
+	// issuesSyncQueue is used to register which groups were changed in memory but were not yet sent to the cluster.
+	// When upserting User Tasks, if the group is not in issuesSyncQueue,
 	// then the cluster already has the latest version of this particular group.
-	taskKeysToSync map[awsEC2FailedEnrollmentTaskKey]struct{}
+	issuesSyncQueue map[awsEC2TaskKey]struct{}
 }
 
-// awsEC2FailedEnrollmentTaskKey identifies a UserTask group.
-type awsEC2FailedEnrollmentTaskKey struct {
+// awsEC2TaskKey identifies a UserTask group.
+type awsEC2TaskKey struct {
 	integration string
 	issueType   string
 	accountID   string
@@ -345,12 +345,12 @@ func (d *awsEC2Tasks) reset() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.instancesIssues = make(map[awsEC2FailedEnrollmentTaskKey]map[string]*usertasksv1.DiscoverEC2Instance)
-	d.taskKeysToSync = make(map[awsEC2FailedEnrollmentTaskKey]struct{})
+	d.instancesIssues = make(map[awsEC2TaskKey]map[string]*usertasksv1.DiscoverEC2Instance)
+	d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
 }
 
 // addFailedEnrollment adds an enrollment failure of a given instance.
-func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2FailedEnrollmentTaskKey, instance *usertasksv1.DiscoverEC2Instance) {
+func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1.DiscoverEC2Instance) {
 	// Only failures associated with an Integration are reported.
 	// There's no major blocking for showing non-integration User Tasks, but this keeps scope smaller.
 	if g.integration == "" {
@@ -360,23 +360,23 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2FailedEnrollmentTaskKey, insta
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.instancesIssues == nil {
-		d.instancesIssues = make(map[awsEC2FailedEnrollmentTaskKey]map[string]*usertasksv1.DiscoverEC2Instance)
+		d.instancesIssues = make(map[awsEC2TaskKey]map[string]*usertasksv1.DiscoverEC2Instance)
 	}
 	if _, ok := d.instancesIssues[g]; !ok {
 		d.instancesIssues[g] = make(map[string]*usertasksv1.DiscoverEC2Instance)
 	}
 	d.instancesIssues[g][instance.InstanceId] = instance
 
-	if d.taskKeysToSync == nil {
-		d.taskKeysToSync = make(map[awsEC2FailedEnrollmentTaskKey]struct{})
+	if d.issuesSyncQueue == nil {
+		d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
 	}
-	d.taskKeysToSync[g] = struct{}{}
+	d.issuesSyncQueue[g] = struct{}{}
 }
 
 // acquireSemaphoreForUserTask tries to acquire a semaphore lock for this user task.
 // It returns a func which must be called to release the lock.
 // It also returns a context which is tied to the lease and will be canceled if the lease ends.
-func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (func(), context.Context, error) {
+func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn func(), ctx context.Context, err error) {
 	// Use the deterministic task name as semaphore name.
 	semaphoreName := userTaskName
 	semaphoreExpiration := 5 * time.Second
@@ -415,7 +415,7 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (func(), conte
 	ctxWithLease, cancel := context.WithCancel(lease)
 	defer cancel()
 
-	releaseFn := func() {
+	releaseFn = func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
 			s.Log.WithError(err).WithField("semaphore", userTaskName).Warn("error cleaning up UserTask semaphore")
@@ -429,7 +429,7 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (func(), conte
 // merges them against the ones that exist in the cluster.
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
-func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2FailedEnrollmentTaskKey, failedInstances map[string]*usertasksv1.DiscoverEC2Instance) error {
+func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances map[string]*usertasksv1.DiscoverEC2Instance) error {
 	userTaskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
 		Integration: taskGroup.integration,
 		IssueType:   taskGroup.issueType,
@@ -509,7 +509,7 @@ func (s *Server) discoverEC2UserTaskAddExistingInstances(currentUserTask *userta
 func (s *Server) upsertTasksForAWSEC2FailedEnrollments() {
 	s.awsEC2Tasks.mu.Lock()
 	defer s.awsEC2Tasks.mu.Unlock()
-	for g := range s.awsEC2Tasks.taskKeysToSync {
+	for g := range s.awsEC2Tasks.issuesSyncQueue {
 		instancesIssueByID := s.awsEC2Tasks.instancesIssues[g]
 		if len(instancesIssueByID) == 0 {
 			continue
@@ -526,6 +526,6 @@ func (s *Server) upsertTasksForAWSEC2FailedEnrollments() {
 			continue
 		}
 
-		delete(s.awsEC2Tasks.taskKeysToSync, g)
+		delete(s.awsEC2Tasks.issuesSyncQueue, g)
 	}
 }
