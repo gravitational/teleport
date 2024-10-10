@@ -371,9 +371,6 @@ const (
 	// LimiterMaxConnections Number of max. simultaneous connections to a service
 	LimiterMaxConnections = 15000
 
-	// LimiterMaxConcurrentUsers Number of max. simultaneous connected users/logins
-	LimiterMaxConcurrentUsers = 250
-
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
 	// generated signatures by the auth server
 	LimiterMaxConcurrentSignatures = 10
@@ -626,7 +623,6 @@ const (
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
 func ConfigureLimiter(lc *limiter.Config) {
 	lc.MaxConnections = LimiterMaxConnections
-	lc.MaxNumberOfUsers = LimiterMaxConcurrentUsers
 }
 
 // AuthListenAddr returns the default listening address for the Auth service

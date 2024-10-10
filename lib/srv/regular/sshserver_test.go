@@ -41,7 +41,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/timetools"
 	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -1780,34 +1779,10 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
-// fakeClock is a wrapper around clockwork.FakeClock that satisfies the timetoools.TimeProvider interface.
-// We are wrapping this so we can use the same mocked clock across the server and rate limiter.
-type fakeClock struct {
-	clock clockwork.FakeClock
-}
-
-func (fc fakeClock) UtcNow() time.Time {
-	return fc.clock.Now().UTC()
-}
-
-func (fc fakeClock) Sleep(d time.Duration) {
-	fc.clock.Advance(d)
-}
-
-func (fc fakeClock) After(d time.Duration) <-chan time.Time {
-	return fc.clock.After(d)
-}
-
-var _ timetools.TimeProvider = (*fakeClock)(nil)
-
 func TestLimiter(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
-
-	fClock := &fakeClock{
-		clock: f.clock,
-	}
 
 	getConns := func(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
 		return func() bool {
@@ -1818,7 +1793,7 @@ func TestLimiter(t *testing.T) {
 
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
-			Clock:          fClock,
+			Clock:          f.clock,
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
 				{

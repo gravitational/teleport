@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -8939,9 +8938,7 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 				Burst:   burst,
 			},
 		},
-		Clock: &timetools.FreezedTime{
-			CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
-		},
+		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 	h := &Handler{limiter: limiter}
@@ -9130,8 +9127,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		AccessPoint:   client,
 		DynamicLabels: nil,
 		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		},
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
