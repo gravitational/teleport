@@ -20,13 +20,15 @@ package dynamicwindows
 
 import (
 	"context"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	"github.com/gravitational/teleport"
 	dynamicwindowspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
-	"log/slog"
 )
 
 // Service implements the teleport.trust.v1.TrustService RPC service.

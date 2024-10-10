@@ -20,9 +20,11 @@ package dynamicwindows
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+
 	dynamicwindows "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
 // Client is a DynamicWindowsDesktop client.
