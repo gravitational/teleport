@@ -88,8 +88,11 @@ func TestMFADeviceManagement(t *testing.T) {
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		Type: constants.Local,
+		SecondFactors: []types.SecondFactorType{
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -291,12 +294,25 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
-	// Register a 2nd passwordless device, so we can test removal of the
-	// 2nd-to-last resident credential.
-	// This is already tested above so we just use RegisterTestDevice here.
-	const pwdless2DevName = "pwdless2"
-	_, err = RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
+	// Register an extra device to test allow deletion of other devices and test that
+	// the last device cannot be deleted.
+	const lastDeviceName = "lastDevice"
+	lastDevice, err := RegisterTestDevice(ctx, userClient, lastDeviceName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev)
 	require.NoError(t, err, "RegisterTestDevice failed")
+
+	// Also add a password so we can testing add last non-passkey MFA device. Testing the
+	// deletion of the last passkey is handled in TestDeletingLastPasswordlessDevice below.
+	err = authServer.UpsertPassword(user.GetName(), []byte("living on the edge"))
+	require.NoError(t, err, "UpsertPassword")
+
+	// Since this device won't be deleted, we can use it to solve webauthn
+	// challenges throughout the tests below.
+	lastDeviceWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+		mfaResp, err := lastDevice.SolveAuthn(challenge)
+		require.NoError(t, err, "SolveAuthn")
+		return mfaResp
+	}
 
 	// Check that all new devices are registered.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
@@ -308,7 +324,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, []string{pwdlessDevName, pwdless2DevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
+	require.Equal(t, []string{lastDeviceName, pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -319,7 +335,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			desc: "fail to delete an unknown device",
 			opts: mfaDeleteTestOpts{
 				deviceName:  "unknown-dev",
-				authHandler: devs.totpAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.Error,
 			},
 		},
@@ -371,55 +387,46 @@ func TestMFADeviceManagement(t *testing.T) {
 			desc: "delete TOTP device by name",
 			opts: mfaDeleteTestOpts{
 				deviceName:  devs.TOTPName,
-				authHandler: devs.totpAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.NoError,
-			},
-		},
-		{
-			desc: "delete pwdless device by name",
-			opts: mfaDeleteTestOpts{
-				deviceName:  pwdlessDevName,
-				authHandler: devs.webAuthHandler,
-				checkErr:    require.NoError,
-			},
-		},
-		{
-			desc: "delete last passwordless device fails",
-			opts: mfaDeleteTestOpts{
-				deviceName:  pwdless2DevName,
-				authHandler: devs.webAuthHandler,
-				checkErr: func(t require.TestingT, err error, _ ...interface{}) {
-					require.ErrorContains(t,
-						err,
-						"last passwordless credential",
-						"Unexpected error deleting last passwordless device",
-					)
-				},
 			},
 		},
 		{
 			desc: "delete webauthn device by name",
 			opts: mfaDeleteTestOpts{
 				deviceName:  devs.WebName,
-				authHandler: devs.webAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "delete passwordless device by name",
+			opts: mfaDeleteTestOpts{
+				deviceName:  pwdlessDevName,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.NoError,
 			},
 		},
 		{
 			desc: "delete webauthn device by ID",
 			opts: mfaDeleteTestOpts{
-				deviceName: deviceIDs[webDev2Name],
-				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					resp, err := webKey2.SignAssertion(
-						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
-					require.NoError(t, err)
-					return &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
-						},
-					}
+				deviceName:  deviceIDs[webDev2Name],
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "fail to delete last device",
+			opts: mfaDeleteTestOpts{
+				deviceName:  lastDeviceName,
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr: func(t require.TestingT, err error, _ ...any) {
+					require.ErrorContains(t,
+						err,
+						"cannot delete the last MFA device for this user",
+						"Unexpected error deleting last MFA device",
+					)
 				},
-				checkErr: require.NoError,
 			},
 		},
 	}
@@ -429,10 +436,10 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
-	// Check no remaining devices, apart from the additional passwordless device that we can't delete.
+	// Check no remaining devices, apart from the additional device that we can't delete.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	require.Equal(t, "pwdless2", resp.Devices[0].GetName())
+	require.Equal(t, lastDeviceName, resp.Devices[0].GetName())
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
@@ -447,31 +454,26 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
-			name:  "fails",
+			name:  "NOK no other MFA device",
 			setup: func(*testing.T, string, *authclient.Client, *TestDevice) {},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
 					err,
-					"last passwordless credential",
+					"cannot delete the last MFA device for this user",
 					"Unexpected error deleting last passwordless device",
 				)
 			},
 		},
 		{
-			name: "succeeds when passwordless is off",
-			setup: func(t *testing.T, _ string, _ *authclient.Client, _ *TestDevice) {
-				authPref, err := authServer.GetAuthPreference(ctx)
-				require.NoError(t, err, "GetAuthPreference")
-
-				// Turn off passwordless authentication.
-				authPref.SetAllowPasswordless(false)
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err, "UpsertAuthPreference")
+			name: "OK extra passwordless device",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				_, err := RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, WithPasswordless())
+				require.NoError(t, err, "RegisterTestDevice failed")
 			},
 			checkErr: require.NoError,
 		},
 		{
-			name: "succeeds when there is a password and other WebAuthn MFAs",
+			name: "OK password set with other WebAuthn device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
@@ -482,7 +484,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			name: "succeeds when there is a password and TOTP MFA",
+			name: "OK password set with other TOTP device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
@@ -493,7 +495,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			name: "succeeds when the user is an SSO user",
+			name: "OK SSO user with other device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				user, err := authServer.GetUser(ctx, username, false)
 				require.NoError(t, err, "GetUser")
@@ -503,13 +505,13 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 				_, err = authServer.UpsertUser(ctx, user)
 				require.NoError(t, err, "UpsertUser")
 				_, err = RegisterTestDevice(
-					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev)
 				require.NoError(t, err, "RegisterTestDevice")
 			},
 			checkErr: require.NoError,
 		},
 		{
-			name: "fails even if there is password, but no other MFAs",
+			name: "NOK password set but no other MFAs",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
@@ -517,7 +519,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.Error,
 		},
 		{
-			name: "fails even if there is another MFA, but no password",
+			name: "NOK other MFAs, but no password set",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				_, err := RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
@@ -531,8 +533,11 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Enable MFA support.
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				Type: constants.Local,
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				},
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
 				},
