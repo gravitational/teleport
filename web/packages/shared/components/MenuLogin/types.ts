@@ -21,10 +21,21 @@ export type LoginItem = {
   login: string;
 };
 
+// MenuInputType determines how the input present in the MenuLogin
+// will function. Default is Input, which allows freeform input and
+// will call the `onSelect` function with whatever value is entered.
+// FILTER will only filter the options present in the list and will
+// pass the 0th item in the filtered list to `onSelect` instead.
+export enum MenuInputType {
+  INPUT,
+  FILTER,
+}
+
 export type MenuLoginProps = {
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
   onSelect: (e: React.SyntheticEvent, login: string) => void;
   anchorOrigin?: any;
+  inputType?: MenuInputType;
   alignButtonWidthToMenu?: boolean;
   transformOrigin?: any;
   textTransform?: string;
