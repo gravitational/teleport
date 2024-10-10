@@ -150,11 +150,24 @@ more unusual configuration. We have witnessed this in the past when it came to
 supporting the ability to explicitly provide the SNI to use when making
 requests.
 
-The key user we are working with has specified that they use the following
+Therefore, we should ensure that Kubernetes clients and SDKs do support
+providing a base path as part of the server address (e.g they do not strip off
+the path and only use the hostname/port).
+
+The key customer we are working with has specified that they use the following
 Kubernetes clients:
 
 - `kubectl`
 - Python Kubernetes SDK
+
+Both of these clients correctly handle a base-path as configured in Kubeconfig:
+
+```yaml
+clusters:
+  - cluster:
+      server: http://127.0.0.1:8888/example/base/path
+    name: test-base-path
+```
 
 #### Audit and Analytics
 
