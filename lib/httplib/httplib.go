@@ -56,10 +56,10 @@ var (
 const timeoutMessage = "unable to complete the request due to a timeout, please try again in a few minutes"
 
 // HandlerFunc specifies HTTP handler function that returns error
-type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
+type HandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error)
 
 // StdHandlerFunc specifies HTTP handler function that returns error
-type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (interface{}, error)
+type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (any, error)
 
 // ErrorWriter is a function responsible for writing the error into response
 // body.
@@ -173,8 +173,20 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 }
 
 // ReadJSON reads HTTP json request and unmarshals it
-// into passed interface{} obj
-func ReadJSON(r *http.Request, val interface{}) error {
+// into passed any obj. A reasonable maximum size is enforced
+// to mitigate resource exhaustion attacks.
+func ReadJSON(r *http.Request, val any) error {
+	return readJSON(r, val, teleport.MaxHTTPRequestSize)
+}
+
+// ReadJSON reads an HTTP JSON request and unmarshals it
+// into val. A small maximum size is enforced to mitigate
+// resource exhaustion attacks.
+func ReadResourceJSON(r *http.Request, val any) error {
+	return readJSON(r, val, teleport.MaxResourceSize)
+}
+
+func readJSON(r *http.Request, val any, maxSize int64) error {
 	// Check content type to mitigate CSRF attack.
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
@@ -187,7 +199,7 @@ func ReadJSON(r *http.Request, val interface{}) error {
 		return trace.BadParameter("invalid request")
 	}
 
-	data, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
+	data, err := utils.ReadAtMost(r.Body, maxSize)
 	if err != nil {
 		return trace.Wrap(err)
 	}

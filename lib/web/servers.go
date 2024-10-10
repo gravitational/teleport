@@ -406,7 +406,7 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 	ctx := r.Context()
 
 	var req *createNodeRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
