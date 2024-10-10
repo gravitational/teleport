@@ -26,8 +26,10 @@ import (
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // ServiceConfig holds configuration options for the UserTask gRPC service.
@@ -40,6 +42,9 @@ type ServiceConfig struct {
 
 	// Cache is the cache for storing UserTask.
 	Cache Reader
+
+	// UsageReporter is the reporter for sending usage without it be related to an API call.
+	UsageReporter func() usagereporter.UsageReporter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -54,6 +59,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.Cache == nil {
 		return trace.BadParameter("cache is required")
+	}
+	if s.UsageReporter == nil {
+		return trace.BadParameter("usage reporter is required")
 	}
 
 	return nil
@@ -70,9 +78,10 @@ type Reader interface {
 type Service struct {
 	usertasksv1.UnimplementedUserTaskServiceServer
 
-	authorizer authz.Authorizer
-	backend    services.UserTasks
-	cache      Reader
+	authorizer    authz.Authorizer
+	backend       services.UserTasks
+	cache         Reader
+	usageReporter func() usagereporter.UsageReporter
 }
 
 // NewService returns a new UserTask gRPC service.
@@ -82,9 +91,10 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
-		cache:      cfg.Cache,
+		authorizer:    cfg.Authorizer,
+		backend:       cfg.Backend,
+		cache:         cfg.Cache,
+		usageReporter: cfg.UsageReporter,
 	}, nil
 }
 
@@ -104,7 +114,21 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 		return nil, trace.Wrap(err)
 	}
 
+	s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+
 	return rsp, nil
+}
+
+func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserTaskStateEvent {
+	ret := &usagereporter.UserTaskStateEvent{
+		TaskType:  ut.GetSpec().GetTaskType(),
+		IssueType: ut.GetSpec().GetTaskType(),
+		State:     ut.GetSpec().GetState(),
+	}
+	if ut.GetSpec().GetTaskType() == usertasks.TaskTypeDiscoverEC2 {
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEc2().GetInstances()))
+	}
+	return ret
 }
 
 // ListUserTasks returns a list of user tasks.
@@ -182,9 +206,18 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 		return nil, trace.Wrap(err)
 	}
 
+	existingUserTask, err := s.backend.GetUserTask(ctx, req.GetUserTask().GetMetadata().GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rsp, err := s.backend.UpdateUserTask(ctx, req.UserTask)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState() {
+		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
 	return rsp, nil
@@ -201,9 +234,27 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 		return nil, trace.Wrap(err)
 	}
 
+	var emitStateChangeEvent bool
+
+	existingUserTask, err := s.backend.GetUserTask(ctx, req.GetUserTask().GetMetadata().GetName())
+	switch {
+	case trace.IsNotFound(err):
+		emitStateChangeEvent = true
+
+	case err != nil:
+		return nil, trace.Wrap(err)
+
+	default:
+		emitStateChangeEvent = existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
+	}
+
 	rsp, err := s.backend.UpsertUserTask(ctx, req.UserTask)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if emitStateChangeEvent {
+		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
 	return rsp, nil
