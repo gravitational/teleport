@@ -1133,8 +1133,7 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
                   create_host_user_default_shell:
                     description: CreateHostUserDefaultShell is used to configure the
@@ -2465,8 +2464,7 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
                   create_host_user_default_shell:
                     description: CreateHostUserDefaultShell is used to configure the
