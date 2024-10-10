@@ -43,9 +43,9 @@ run in a highly available fashion.
 ## Auth Service State
 
 To run multiple instances of the Teleport Auth Service, you must switch to one of
-the high-availability secrets backend listed below first.
+the high-availability storage backends listed below first.
 
-Once you have a high-availability secrets backend and multiple instances of
+Once you have a high-availability storage backend and multiple instances of
 the Auth Service running, you'll need to create a load balancer to evenly
 distribute traffic to all Auth Service instances and have a single point of
 entry for all components that need to communicate with the Auth Service. Use the
