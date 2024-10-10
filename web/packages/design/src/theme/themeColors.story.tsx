@@ -69,16 +69,14 @@ const ColorsComponent = () => {
           {Object.entries(theme.colors.interactive.solid).map(
             ([intent, colorGroup]) => (
               <Flex gap={4}>
-                {Object.entries(colorGroup).map(
-                  ([state, { background, text }]) => (
-                    <SingleColorBox
-                      mb="2"
-                      path={`theme.colors.interactive.solid.${intent}.${state}`}
-                      bg={background}
-                      color={text}
-                    />
-                  )
-                )}
+                {Object.entries(colorGroup).map(([state, background]) => (
+                  <SingleColorBox
+                    mb="2"
+                    path={`theme.colors.interactive.solid.${intent}.${state}`}
+                    bg={background}
+                    color={theme.colors.text.primaryInverse}
+                  />
+                ))}
               </Flex>
             )
           )}
@@ -95,12 +93,12 @@ const ColorsComponent = () => {
           {Object.entries(theme.colors.interactive.tonal).map(
             ([intent, colorGroup]) => (
               <Flex gap={4}>
-                {colorGroup.map(({ background, text }, i) => (
+                {colorGroup.map((background, i) => (
                   <SingleColorBox
                     mb="2"
                     path={`theme.colors.interactive.tonal.${intent}[${i}]`}
                     bg={background}
-                    color={text}
+                    color={theme.colors.text.main}
                   />
                 ))}
               </Flex>

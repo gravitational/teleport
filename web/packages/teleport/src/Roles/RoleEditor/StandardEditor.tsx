@@ -172,7 +172,7 @@ const Section = ({
   return (
     <Box
       border={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0].background}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
       borderRadius={2}
     >
       <Flex p={3} css={'cursor: pointer'} onClick={() => setExpanded(e => !e)}>

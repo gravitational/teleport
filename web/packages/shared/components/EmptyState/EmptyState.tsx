@@ -73,8 +73,7 @@ export const FeatureSlider = styled.div<{ $currIndex: number }>`
 
   top: calc(var(--feature-height) * ${p => p.$currIndex});
 
-  background-color: ${p =>
-    p.theme.colors.interactive.tonal.primary[0].background};
+  background-color: ${p => p.theme.colors.interactive.tonal.primary[0]};
 `;
 
 export type FeatureProps = {
@@ -119,7 +118,7 @@ export const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
 
   background-color: ${p =>
     !p.$isSliding && p.$active
-      ? p => p.theme.colors.interactive.tonal.primary[0].background
+      ? p => p.theme.colors.interactive.tonal.primary[0]
       : 'inherit'};
 
   ${Title} {

@@ -243,9 +243,9 @@ function error({ hasError, theme }: { hasError?: boolean; theme: Theme }) {
   return {
     borderRadius: 'inherit !important',
     borderWidth: '1px !important',
-    borderColor: theme.colors.interactive.solid.danger.default.background,
+    borderColor: theme.colors.interactive.solid.danger.default,
     '&:hover': {
-      borderColor: `${theme.colors.interactive.solid.danger.default.background} !important`,
+      borderColor: `${theme.colors.interactive.solid.danger.default} !important`,
     },
   };
 }
@@ -279,8 +279,7 @@ const StyledSelect = styled.div<{
     min-height: ${props => selectGeometry[props.selectSize].height}px;
     height: fit-content;
     border: 1px solid;
-    border-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[2].background};
+    border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
     border-radius: 4px;
     background-color: transparent;
     box-shadow: none;
@@ -301,7 +300,7 @@ const StyledSelect = styled.div<{
 
   .react-select__control--is-focused {
     border-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+      props.theme.colors.interactive.solid.primary.default};
     cursor: pointer;
 
     .react-select__dropdown-indicator {
@@ -310,7 +309,7 @@ const StyledSelect = styled.div<{
 
     &:hover {
       border-color: ${props =>
-        props.theme.colors.interactive.solid.primary.default.background};
+        props.theme.colors.interactive.solid.primary.default};
     }
   }
 
@@ -328,7 +327,7 @@ const StyledSelect = styled.div<{
 
   .react-select__multi-value {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     border-radius: 1000px;
     padding: 0 0 0 12px;
     overflow: hidden;
@@ -344,9 +343,8 @@ const StyledSelect = styled.div<{
       color: ${props => props.theme.colors.text.slightlyMuted};
       &:hover {
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.neutral[0].background};
-        color: ${props =>
-          props.theme.colors.interactive.solid.danger.default.background};
+          props.theme.colors.interactive.tonal.neutral[0]};
+        color: ${props => props.theme.colors.interactive.solid.danger.default};
       }
     }
   }
@@ -362,28 +360,28 @@ const StyledSelect = styled.div<{
     cursor: pointer;
     &:hover {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
     }
   }
 
   .react-select__option--is-focused {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     &:hover {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
     }
   }
 
   .react-select__option--is-selected {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[1].background};
+      props.theme.colors.interactive.tonal.neutral[1]};
     color: inherit;
     font-weight: 500;
 
     &:hover {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1].background};
+        props.theme.colors.interactive.tonal.neutral[1]};
     }
   }
 
@@ -392,9 +390,8 @@ const StyledSelect = styled.div<{
     &:hover,
     &:focus {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
-      color: ${props =>
-        props.theme.colors.interactive.solid.danger.default.background};
+        props.theme.colors.interactive.tonal.neutral[0]};
+      color: ${props => props.theme.colors.interactive.solid.danger.default};
     }
   }
   .react-select__menu {
@@ -412,8 +409,7 @@ const StyledSelect = styled.div<{
         : props.theme.typography.body2}
 
     .react-select__menu-list::-webkit-scrollbar-thumb {
-      background: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1].background};
+      background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
       border-radius: 4px;
     }
   }
@@ -428,7 +424,7 @@ const StyledSelect = styled.div<{
 
   .react-select__control--is-disabled {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     color: ${props => props.theme.colors.text.disabled};
     border: 1px solid transparent;
     .react-select__single-value,

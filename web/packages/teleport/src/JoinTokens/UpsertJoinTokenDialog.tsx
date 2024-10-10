@@ -353,8 +353,7 @@ export const UpsertJoinTokenDialog = ({
 };
 
 export const RuleBox = styled(Box)`
-  border-color: ${props =>
-    props.theme.colors.interactive.tonal.neutral[0].background};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   border-width: 2px;
   border-style: solid;
   border-radius: ${props => props.theme.radii[2]}px;

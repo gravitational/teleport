@@ -186,7 +186,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'webauthn' && (
               <Box
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
               >
@@ -214,7 +214,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'otp' && (
               <Flex
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
                 gap={3}

@@ -48,8 +48,7 @@ describe('StandardBanner', () => {
     );
     expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-info');
     expect(container.firstChild).toHaveStyle({
-      backgroundColor:
-        theme.colors.interactive.tonal.informational[2].background,
+      backgroundColor: theme.colors.interactive.tonal.informational[2],
     });
   });
 
@@ -64,7 +63,7 @@ describe('StandardBanner', () => {
     );
     expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-warning');
     expect(container.firstChild).toHaveStyle({
-      backgroundColor: theme.colors.interactive.tonal.alert[2].background,
+      backgroundColor: theme.colors.interactive.tonal.alert[2],
     });
   });
 
@@ -81,7 +80,7 @@ describe('StandardBanner', () => {
       'icon-warningcircle'
     );
     expect(container.firstChild).toHaveStyle({
-      backgroundColor: theme.colors.interactive.tonal.danger[2].background,
+      backgroundColor: theme.colors.interactive.tonal.danger[2],
     });
   });
 

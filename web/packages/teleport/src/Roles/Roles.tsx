@@ -278,7 +278,7 @@ function RoleEditorAdapter({
       flexDirection="column"
       p={4}
       borderLeft={1}
-      borderColor={theme.colors.interactive.tonal.neutral[0].background}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
       width="800px"
     >
       {convertAttempt.status === 'processing' && (
