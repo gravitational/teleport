@@ -16,42 +16,45 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import PropTypes from 'prop-types';
-import styled from 'styled-components';
+import { forwardRef, PropsWithChildren } from 'react';
+import styled, { StyleFunction } from 'styled-components';
 
-import Modal from './../Modal';
+import Modal, { Props as ModalProps } from './../Modal';
 
-export default class Dialog extends React.Component {
-  render() {
-    const { children, dialogCss, className, ...modalProps } = this.props;
-    return (
-      <Modal role="dialog" {...modalProps}>
-        <ModalBox>
-          <DialogBox
-            data-testid="dialogbox"
-            dialogCss={dialogCss}
-            className={className}
-          >
-            {children}
-          </DialogBox>
-        </ModalBox>
-      </Modal>
-    );
-  }
-}
+// ModalProps enforces its own requirements with regards to the children prop through types
+// which we do not care about here, as children passed to <Dialog> are not passed directly to <Modal>.
+type ModalPropsWithoutChildren = Omit<ModalProps, 'children'>;
 
-Dialog.defaultProps = {
-  disableBackdropClick: true,
-  disableEscapeKeyDown: true,
-};
-
-Dialog.propTypes = {
-  ...Modal.propTypes,
-  children: PropTypes.node,
-  dialogCss: PropTypes.func,
-  className: PropTypes.string,
-};
+export const Dialog = forwardRef<
+  HTMLDivElement,
+  PropsWithChildren<
+    {
+      className?: string;
+      dialogCss?: StyleFunction<any>;
+    } & ModalPropsWithoutChildren
+  >
+>((props, ref) => {
+  const { children, dialogCss, className, ...modalProps } = props;
+  return (
+    <Modal disableBackdropClick disableEscapeKeyDown {...modalProps}>
+      <ModalBox>
+        {/*
+            ref is supposed to be set on DialogBox, not Modal, because when used with
+            react-transition-group, it's DialogBox that's going to have its className set based on
+            the transition state.
+          */}
+        <DialogBox
+          ref={ref}
+          data-testid="dialogbox"
+          dialogCss={dialogCss}
+          className={className}
+        >
+          {children}
+        </DialogBox>
+      </ModalBox>
+    </Modal>
+  );
+});
 
 const ModalBox = styled.div`
   height: 100%;
@@ -65,7 +68,7 @@ const ModalBox = styled.div`
   transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
 `;
 
-const DialogBox = styled.div`
+const DialogBox = styled.div<{ dialogCss: StyleFunction<any> }>`
   padding: 32px;
   padding-top: 24px;
   background: ${props => props.theme.colors.levels.surface};
