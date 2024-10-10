@@ -52,7 +52,6 @@ const (
 
 	// PIV connections are closed after a short delay so that the program
 	// has a chance to reclaim the connection before it is closed completely.
-	// TODO (Joerger): Increase release delay for `tsh proxy` connections?
 	releaseConnectionDelay = 5 * time.Second
 )
 
@@ -60,7 +59,7 @@ const (
 //
 // Additionally, this allows the program to cache the key's PIN (if applicable)
 // after the user is prompted the first time, preventing redundant prompts when
-// the retrieved is retrieved multiple times.
+// the key is retrieved multiple times.
 //
 // Note: in most cases the connection caches the PIN itself, and connections can be
 // reclaimed before they are fully closed (within a few seconds). However, in uncommon
