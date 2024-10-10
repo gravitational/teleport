@@ -501,6 +501,14 @@ type Config struct {
 	// GenerateUnifiedKey indicates that the client should generate a single key
 	// for SSH and TLS instead of split keys.
 	GenerateUnifiedKey bool
+
+	// StdinFunc allows tests to override prompt.Stdin().
+	// If nil prompt.Stdin() is used.
+	StdinFunc func() prompt.StdinReader
+
+	// HasTouchIDCredentialsFunc allows tests to override touchid.HasCredentials.
+	// If nil touchid.HasCredentials is used.
+	HasTouchIDCredentialsFunc func(rpID, user string) bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1254,6 +1262,20 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	return tc, nil
+}
+
+func (tc *TeleportClient) stdin() prompt.StdinReader {
+	if tc.StdinFunc == nil {
+		return prompt.Stdin()
+	}
+	return tc.StdinFunc()
+}
+
+func (tc *TeleportClient) hasTouchIDCredentials(rpID, user string) bool {
+	if tc.HasTouchIDCredentialsFunc == nil {
+		return touchid.HasCredentials(rpID, user)
+	}
+	return tc.HasTouchIDCredentialsFunc(rpID, user)
 }
 
 func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
@@ -3682,9 +3704,6 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 	return clt, session, trace.Wrap(err)
 }
 
-// hasTouchIDCredentials provides indirection for tests.
-var hasTouchIDCredentials = touchid.HasCredentials
-
 // canDefaultToPasswordless checks without user interaction
 // if there is any registered passwordless login.
 func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
@@ -3707,7 +3726,7 @@ func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) b
 		user = tc.Username
 	}
 
-	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
+	return tc.hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
@@ -4244,7 +4263,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		fmt.Fprintln(tc.Stderr, motd.Text)
 
 		// If possible, prompt the user for acknowledement before continuing.
-		if stdin := prompt.Stdin(); stdin.IsTerminal() {
+		if stdin := tc.stdin(); stdin.IsTerminal() {
 			// We're re-using the password reader for user acknowledgment for
 			// aesthetic purposes, because we want to hide any garbage the
 			// user might enter at the prompt. Whatever the user enters will
@@ -4625,11 +4644,11 @@ func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) 
 	)
 	defer span.End()
 
-	stdin := prompt.Stdin()
+	stdin := tc.stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform OTP login without a terminal")
 	}
-	return prompt.Password(ctx, tc.Stderr, prompt.Stdin(), "Enter your OTP token")
+	return prompt.Password(ctx, tc.Stderr, stdin, "Enter your OTP token")
 }
 
 // AskPassword prompts the user to enter the password
@@ -4641,7 +4660,7 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 	)
 	defer span.End()
 
-	stdin := prompt.Stdin()
+	stdin := tc.stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform password login without a terminal")
 	}
@@ -5088,7 +5107,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	fmt.Fprintf(tc.Stdout, "Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\n", headlessAuthn.ClientIpAddress)
 
 	if confirm {
-		ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), "Approve?")
+		ok, err := prompt.Confirmation(ctx, tc.Stdout, tc.stdin(), "Approve?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
