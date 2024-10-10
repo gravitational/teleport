@@ -2109,9 +2109,12 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	feats := modules.GetModules().Features()
-	teleportPackage := teleport.ComponentTeleport
+	teleportPackage := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
-		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
+		teleportPackage = types.PackageNameEnt
+		if h.cfg.FIPS {
+			teleportPackage = types.PackageNameEntFIPS
+		}
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.
