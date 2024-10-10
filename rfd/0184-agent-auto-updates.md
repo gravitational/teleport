@@ -181,7 +181,7 @@ The following product requirements were defined by our leadership team:
 
 13. I should be able to install an auto-updating deployment of Teleport via whatever mechanism I want to, including OS packages such as apt and yum.
 
-14. If new nodes join a bucket outside the upgrade window, and you are within your compatibility window, wait until your next group update start.
+14. If new instances join a bucket outside the upgrade window, and you are within your compatibility window, wait until your next group update start.
     If you are not within your compatibility window, attempt to upgrade right away.
 
 15. If an agent comes back online after some period of time, and it is still compatible with
@@ -261,9 +261,11 @@ Now, new agents will install v2 by default, and v3 after the maintenance.
 
 ##### Failure mode 1(a): the new version crashes
 
-I create a new deployment with a broken version. The version is deployed to the canaries.
-The canaries crash, the updater reverts the update, the agents connect back online and
-advertise they have rolled-back. The maintenance is stuck until the canaries are running the target version.
+I create a new deployment with a broken version. The version is deployed to a few instances picked randomly.
+Those instances are called the canaries. As the new version has an issue, one or many of those canary instances can't run the
+new version and their updater has to revert to the previous one. The agents connect back online and
+advertise they have failed to update. The maintenance is stuck until every instance that got selected to test the new version
+is back online, and running the new version.
 
 <details>
 <summary>Autoupdate agent plan</summary>
@@ -304,40 +306,47 @@ status:
 ```
 </details>
 
-I and the customer get an alert if the canary testing has not succeeded after an hour.
-Teleport cloud operators and the customer can access the canary `hostname` and `host_uuid`
-to identify broken canary agents.
+I and the customer get an alert if the test instances are not running the expected version after an hour.
+Teleport cloud operators and the customer can look up the hostname and host UUID of the test instances
+to identify which one(s) failed to update and go troubleshoot.
 
 Customers receive cluster alerts, while Cloud receives alerts driven by Teleport metrics.
 
 The rollout resumes.
 
+If the issue is related to a specific instance and not the new Teleport version (e.g. VM out of disk space),
+the user can instruct teleport to pick 5 new canary instances.
+
 ##### Failure mode 1(b): the new version crashes, but not on the canaries
 
 This scenario is the same as the previous one but the Teleport agent bug only manifests on select agents.
-For example: [the agent fails to read cloud-provider specific metadata and crashes](TODO add link).
+For example: [the agent fails to read cloud-provider specific metadata and crashes](https://github.com/gravitational/teleport/issues/42312).
+This can also be caused by a specific Teleport service crashing. For example, the discovery service is crashing but
+all other services are OK. As most instances are running ssh_service, the discovery_service instances are less likely
+to get picked.
 
-The canaries might not select one of the affected agents and allow the update to proceed.
+The version is deployed to a few instances picked randomly but none of them runs on the affected cloud provider.
+The canary instances can update properly and the update is sent to every instance of the group.
+
 All agents are updated, and all agents hosted on the cloud provider affected by the bug crash.
 The updaters of the affected agents will attempt to self-heal by reverting to the previous version.
 
-Once the previous Teleport version is running, the agent will advertise the update failed and that it had to rollback.
-If too many agents fail, this will block the group from transitioning from `active` to `done`, protecting the future
+Once the previous Teleport version is running, the agents from the affected cloud platform will advertise the update
+failed, and they had to rollback.
+
+If too many agents failed, this will block the group from transitioning from `active` to `done`, protecting the future
 groups from the faulty updates.
 
 ##### Failure mode 2(a): the new version crashes, and the old version cannot start
 
-I create a new deployment, with a broken version. The version is deployed to the canaries.
-The canaries attempt the update, and the new Teleport instance crashes.
-The updater fails to self-heal as the old version does not start anymore.
-
-This is typically caused by external sources like full disk, faulty networking, resource exhaustion.
-This can also be caused by the Teleport control plan not being available.
+I create a new deployment with a broken version. The version is deployed to a few instances picked randomly.
+Those instances are called the canaries. As the new version has an issue, one or many of those canary instances can't
+run the new version. Their updater also fails to revert to the previous version.
 
 The group update is stuck until the canary comes back online and runs the latest version.
 
-The customer and Teleport cloud receive an alert. The customer and Teleport cloud can retrieve the
-hostid and hostname of the faulty canaries. With this information they can go troubleshoot the failed agents.
+The customer and Teleport cloud receive an alert. Both customer and Teleport cloud can retrieve the
+host id and hostname of the faulty canary instances. With this information they can go troubleshoot the failed agents.
 
 ##### Failure mode 2(b): the new version crashes, and the old version cannot start, but not on the canaries
 
@@ -431,7 +440,7 @@ tctl autoupdate agent resume
 
 #### As a Teleport user and a Teleport on-call responder, I want to be able to pin a specific Teleport version of an agent to understand if a specific behaviour is caused by a specific Teleport version
 
-I connect to the node and lookup its status:
+I connect to the server and lookup its status:
 ```shell
 teleport-update status
 # Running version v16.2.5
@@ -491,13 +500,15 @@ tctl autoupdate agent status
 I can trigger the dev group immediately using the command:
 
 ```shell
-tctl autoupdate agent start-update dev --no-canary
-# Dev group update triggered (canary or active)
+tctl autoupdate agent start-update dev [--force]
+# Dev group update triggered.
 ```
+
+The `--force` flag allows the user to skip progressive deployment mechanism such as canaries or backpressure.
 
 Alternatively
 ```shell
-tctl autoupdate agent force-done dev
+tctl autoupdate agent mark-done dev
 ```
 
 <details>
@@ -562,6 +573,7 @@ I can also install teleport using the package manager, then enroll the agent int
 #### As a Teleport user I want to enroll my existing agent into AUs
 
 I have an agent, installed from a package manager or by manually unpacking the tarball.
+This agent might or might not be enrolled in the previous automatic update mechanism (apt/yum-based).
 I have the teleport updater installed and available in my path.
 I run:
 
@@ -582,6 +594,8 @@ teleport-update enable --group production
 > It used the configuration to pick the right proxy address. As teleport is already running, the teleport service is
 > reloaded to use the new binary.
 
+If the agent was previously enrolled into AUs with the old teleport updater package, the `enable` command will also
+remove the old package.
 
 ### Teleport Resources
 
@@ -746,7 +760,7 @@ service AutoUpdateService {
   rpc ForceAgentGroup(ForceAgentGroupRequest) returns (AutoUpdateAgentPlan);
   // ResetAgentGroup resets the state of an agent group.
   // For `canary`, this means new canaries are picked
-  // For `active`, this means the initial node count is computed again.
+  // For `active`, this means the initial instance count is computed again.
   rpc ResetAgentGroup(ResetAgentGroupRequest) returns (AutoUpdateAgentPlan);
   // RollbackAgentGroup changes the state of an agent group to `rolledback`.
   rpc RollbackAgentGroup(RollbackAgentGroupRequest) returns (AutoUpdateAgentPlan);
@@ -1083,6 +1097,12 @@ they successfully came back online and the group can transition to the `active` 
 If canaries never update, report rollback, or disappear, the group will stay stuck in `canary` state.
 An alert will eventually fire, warning the user about the stuck update.
 
+> [!NOTE]
+> In the first version, canary selection will happen randomly. As most instances are running the ssh_service and not
+> the other ones, we are less likely to catch an issue in a less common service.
+> An optimisation would be to try to pick canaries maximizing the service coverage.
+> This would make the test more robust and provide better availability guarantees.
+
 #### Updating a group
 
 A group in `active` mode is currently being updated. The conditions to leave `active` mode and transition to the
@@ -1224,7 +1244,7 @@ is running which version and belongs to which group.
 
 Hello messages are sent on connection and are used to build the serve's local inventory.
 This information is available almost instantaneously after the connection and can be cheaply queried by the auth (
-everything is in memory). The inventory is then used to count the local nodes and drive the rollout.
+everything is in memory). The inventory is then used to count the local instances and drive the rollout.
 
 Both instance heartbeats and Hello merssages will be extended to incorporate and send data that is written to
 `/var/lib/teleport/versions/update.yaml` and `/tmp/teleport_update_uuid` by the `teleport-update` binary.
