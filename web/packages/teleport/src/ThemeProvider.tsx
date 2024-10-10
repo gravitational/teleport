@@ -18,13 +18,15 @@
 
 import React, { useState, useEffect, ReactNode } from 'react';
 import { StaticThemeProvider } from 'design/ThemeProvider';
-
-import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
 import { bblpTheme, lightTheme, darkTheme, Theme } from 'design/theme';
+import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 import { storageService, KeysEnum } from 'teleport/services/storageService';
+
+const customThemes = {
+  bblp: bblpTheme,
+};
 
 export const ThemeProvider = (props: { children?: ReactNode }) => {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
@@ -56,16 +58,9 @@ export const ThemeProvider = (props: { children?: ReactNode }) => {
     };
   }, [themePreference]);
 
-  const customThemes = {
-    bblp: bblpTheme,
-  };
-
-  // If no props.theme is defined, use the custom theme instead of the user preference theme.
-  let theme: Theme;
+  let theme = themePreferenceToTheme(themePreference);
   if (customThemes[cfg.customTheme]) {
     theme = customThemes[cfg.customTheme];
-  } else {
-    theme = themePreferenceToTheme(themePreference);
   }
 
   return (
@@ -80,10 +75,15 @@ function themePreferenceToTheme(themePreference: ThemePreference): Theme {
   return themePreference === ThemePreference.LIGHT ? lightTheme : darkTheme;
 }
 
-// because unspecified can exist but only used as a fallback and not an option,
-// we need to get the current/next themes with getPrefersDark in mind.
-// TODO (avatus) when we add user settings page, we can add a Theme.SYSTEM option
-// and remove the checks for unspecified
+/**
+ * Determines the current theme preference.
+ *
+ * If the provided `currentTheme` is `UNSPECIFIED`, it checks the user's
+ * system preference and returns a theme based on it.
+ *
+ * @TODO(avatus) when we add user settings page, we can add a Theme.SYSTEM option
+ * and remove the checks for unspecified
+ */
 export function getCurrentTheme(
   currentTheme: ThemePreference
 ): ThemePreference {
