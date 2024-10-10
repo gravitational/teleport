@@ -110,9 +110,8 @@ We will introduce two user-facing resources:
    ```yaml
    kind: autoupdate_version
    spec:
-     # existing fields
-     tools_version: vX
-     # new fields
+     tools:
+       target_version: vX
      agents:
        start_version: v1
        target_version: v2
@@ -632,7 +631,7 @@ This is how Teleport customers can specify their automatic update preferences.
 ```yaml
 kind: autoupdate_config
 spec:
-  # existing field
+  # existing field, deprecated
   tools_autoupdate: true
   tools:
     mode: enabled/disabled/suspended
@@ -709,9 +708,8 @@ admin socket (tctl on local machine).
 ```yaml
 kind: autoupdate_version
 spec:
-  # existing fields
-  tools_version: vX
-  # new fields
+  tools:
+    target_version: vX
   agents:
     # start_version is the desired version for agents before their window.
     start_version: v1
