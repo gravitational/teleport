@@ -406,10 +406,14 @@ func (a *Server) authenticateUserInternal(
 
 	// When using password only make sure that auth preference does not require
 	// second factor, otherwise users could bypass it.
-	switch authPreference.GetSecondFactor() {
-	case constants.SecondFactorOff:
-		// No 2FA required, check password only.
-	case constants.SecondFactorOptional:
+	switch {
+	case authPreference.IsSecondFactorEnforced():
+		// Some form of MFA is required but none provided. Either client is
+		// buggy (didn't send MFA response) or someone is trying to bypass
+		// MFA.
+		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
+		return nil, "", trace.AccessDenied("missing second factor")
+	case authPreference.IsSecondFactorEnabled():
 		// 2FA is optional. Make sure that a user does not have MFA devices
 		// registered.
 		devs, err := a.Services.GetMFADevices(ctx, user, false /* withSecrets */)
@@ -421,11 +425,7 @@ func (a *Server) authenticateUserInternal(
 			return nil, "", trace.AccessDenied("missing second factor authentication")
 		}
 	default:
-		// Some form of MFA is required but none provided. Either client is
-		// buggy (didn't send MFA response) or someone is trying to bypass
-		// MFA.
-		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
-		return nil, "", trace.AccessDenied("missing second factor")
+		// No 2FA required, check password only.
 	}
 	if err = a.WithUserLock(ctx, user, func() error {
 		return a.checkPasswordWOToken(ctx, user, req.Pass.Password)

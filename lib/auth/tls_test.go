@@ -1401,7 +1401,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "local", gotAP.GetType())
-	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
+	require.Equal(t, []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP}, gotAP.GetSecondFactors())
 	require.True(t, gotAP.GetDisconnectExpiredCert())
 	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }

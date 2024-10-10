@@ -67,7 +67,38 @@ func TestPing(t *testing.T) {
 			},
 			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
 				assert.Equal(t, cap.GetType(), resp.Auth.Type)
-				assert.Equal(t, cap.GetSecondFactor(), resp.Auth.SecondFactor)
+				assert.Equal(t, constants.SecondFactorOn, resp.Auth.SecondFactor)
+				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
+				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
+
+				u2f, _ := cap.GetU2F()
+				require.NotNil(t, resp.Auth.U2F)
+				assert.Equal(t, u2f.AppID, resp.Auth.U2F.AppID)
+
+				webCfg, _ := cap.GetWebauthn()
+				require.NotNil(t, resp.Auth.Webauthn)
+				assert.Equal(t, webCfg.RPID, resp.Auth.Webauthn.RPID)
+
+				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, resp.Auth.SignatureAlgorithmSuite)
+			},
+		},
+		{
+			name: "OK local auth SecondFactors",
+			spec: &types.AuthPreferenceSpecV2{
+				Type: constants.Local,
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				},
+				U2F: &types.U2F{
+					AppID: "https://example.com",
+				},
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+			},
+			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+				assert.Equal(t, cap.GetType(), resp.Auth.Type)
+				assert.Equal(t, constants.SecondFactorWebauthn, resp.Auth.SecondFactor)
 				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
 				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
 

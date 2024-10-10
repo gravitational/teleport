@@ -1235,10 +1235,33 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 	return h.cfg.AccessGraphAddr
 }
 
+// legacySecondFactorFromSecondFactors returns a suitable legacy second factor for the given list of second factors.
+func legacySecondFactorFromSecondFactors(secondFactors []types.SecondFactorType) constants.SecondFactorType {
+	hasOTP := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_OTP)
+	hasWebAuthn := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+	hasSSO := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
+
+	switch {
+	case hasSSO:
+		// In the WebUI, we can treat exclusive SSO MFA as disabled. In practice this means
+		// things like the add MFA device is disabled, but SSO MFA prompts will still work.
+		// TODO(Joerger): Ensure that SSO MFA flows work in the WebUI with this change, once implemented.
+		return constants.SecondFactorOff
+	case hasOTP && hasWebAuthn:
+		return constants.SecondFactorOn
+	case hasWebAuthn:
+		return constants.SecondFactorWebauthn
+	case hasOTP:
+		return constants.SecondFactorOTP
+	default:
+		return constants.SecondFactorOff
+	}
+}
+
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
 		Type:                    constants.Local,
-		SecondFactor:            cap.GetSecondFactor(),
+		SecondFactor:            legacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		AllowPasswordless:       cap.GetAllowPasswordless(),
 		AllowHeadless:           cap.GetAllowHeadless(),
@@ -1283,7 +1306,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:            cap.GetSecondFactor(),
+		SecondFactor:            legacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
@@ -1301,7 +1324,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
 		},
 		// Local fallback / MFA.
-		SecondFactor:            cap.GetSecondFactor(),
+		SecondFactor:            legacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
@@ -1318,7 +1341,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:            cap.GetSecondFactor(),
+		SecondFactor:            legacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
@@ -1720,7 +1743,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:          authProviders,
-			SecondFactor:       cap.GetSecondFactor(),
+			SecondFactor:       legacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
 			LocalAuthEnabled:   cap.GetAllowLocalAuth(),
 			AllowPasswordless:  cap.GetAllowPasswordless(),
 			AuthType:           authType,
@@ -2316,20 +2339,17 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	clientMeta := clientMetaFromReq(r)
 
 	var webSession types.WebSession
-	switch cap.GetSecondFactor() {
-	case constants.SecondFactorOff:
+	switch {
+	case !cap.IsSecondFactorEnforced():
 		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
-	case constants.SecondFactorOTP, constants.SecondFactorOn:
+	case req.SecondFactorToken == "" && !cap.IsSecondFactorEnforced():
+		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
+	case cap.IsSecondFactorTOTPAllowed():
 		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
-	case constants.SecondFactorOptional:
-		if req.SecondFactorToken == "" {
-			webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
-		} else {
-			webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
-		}
 	default:
-		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
+		return nil, trace.AccessDenied("direct login w/ password+otp not suported by this cluster")
 	}
+
 	if err != nil {
 		h.log.WithError(err).Warnf("Access attempt denied for user %q.", req.User)
 		// Since checking for private key policy meant that they passed authn,
@@ -4178,18 +4198,18 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return loginResp, nil
 	}
 
-	switch cap.GetSecondFactor() {
-	case constants.SecondFactorOff:
+	switch {
+	case !cap.IsSecondFactorEnforced():
 		authSSHUserReq.AuthenticateUserRequest.Pass = &authclient.PassCreds{
 			Password: []byte(req.Password),
 		}
-	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case cap.IsSecondFactorTOTPAllowed():
 		authSSHUserReq.AuthenticateUserRequest.OTP = &authclient.OTPCreds{
 			Password: []byte(req.Password),
 			Token:    req.OTPToken,
 		}
 	default:
-		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
+		return nil, trace.AccessDenied("direct login with password+otp not suported by this cluster")
 	}
 
 	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)

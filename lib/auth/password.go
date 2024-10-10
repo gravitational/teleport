@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -386,10 +385,10 @@ func (a *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		return trace.Wrap(err)
 	}
 
-	switch sf := cap.GetSecondFactor(); {
-	case sf == constants.SecondFactorOff:
+	switch {
+	case !cap.IsSecondFactorEnabled():
 		return nil
-	case req.GetNewMFARegisterResponse() == nil && sf == constants.SecondFactorOptional:
+	case req.GetNewMFARegisterResponse() == nil && !cap.IsSecondFactorEnforced():
 		// Optional second factor does not enforce users to add a MFA device.
 		// No need to check if a user already has registered devices since we expect
 		// users to have no devices at this point.
