@@ -143,7 +143,7 @@ const WarningIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
   color: ${p =>
     p.$muteIconColor
       ? p.theme.colors.text.disabled
-      : p.theme.colors.interactive.solid.alert.default.background};
+      : p.theme.colors.interactive.solid.alert.default};
 `;
 
 const ErrorIcon = styled(Icons.WarningCircle)<{ $muteIconColor?: boolean }>`
@@ -152,5 +152,5 @@ const ErrorIcon = styled(Icons.WarningCircle)<{ $muteIconColor?: boolean }>`
   color: ${p =>
     p.$muteIconColor
       ? p.theme.colors.text.disabled
-      : p.theme.colors.interactive.solid.danger.default.background};
+      : p.theme.colors.interactive.solid.danger.default};
 `;

@@ -126,7 +126,7 @@ const themedStyles = <E extends React.ElementType>(
   const style = buttonStyle(props);
 
   let disabledStyle: CSSObject = {
-    backgroundColor: colors.interactive.tonal.neutral[0].background,
+    backgroundColor: colors.interactive.tonal.neutral[0],
     color: colors.buttons.textDisabled,
     borderColor: 'transparent',
     boxShadow: 'none',
@@ -221,40 +221,40 @@ const buttonPalette = <E extends React.ElementType>({
         return {
           default: {
             text: colors.text.slightlyMuted,
-            background: colors.interactive.tonal.neutral[0].background,
+            background: colors.interactive.tonal.neutral[0],
           },
           hover: {
             text: colors.text.main,
-            background: colors.interactive.tonal.neutral[1].background,
+            background: colors.interactive.tonal.neutral[1],
           },
           active: {
             text: colors.text.main,
-            background: colors.interactive.tonal.neutral[2].background,
+            background: colors.interactive.tonal.neutral[2],
           },
           focus: {
             text: colors.text.slightlyMuted,
             border: colors.text.slightlyMuted,
-            background: colors.interactive.tonal.neutral[0].background,
+            background: colors.interactive.tonal.neutral[0],
           },
         };
       } else {
         return {
           default: {
             text: colors.text.primaryInverse,
-            background: colors.interactive.solid[intent].default.background,
+            background: colors.interactive.solid[intent].default,
           },
           hover: {
             text: colors.text.primaryInverse,
-            background: colors.interactive.solid[intent].hover.background,
+            background: colors.interactive.solid[intent].hover,
           },
           active: {
             text: colors.text.primaryInverse,
-            background: colors.interactive.solid[intent].active.background,
+            background: colors.interactive.solid[intent].active,
           },
           focus: {
             text: colors.text.primaryInverse,
             border: colors.text.primaryInverse,
-            background: colors.interactive.solid[intent].default.background,
+            background: colors.interactive.solid[intent].default,
           },
         };
       }
@@ -267,11 +267,11 @@ const buttonPalette = <E extends React.ElementType>({
           },
           hover: {
             text: colors.text.slightlyMuted,
-            background: colors.interactive.tonal[intent][0].background,
+            background: colors.interactive.tonal[intent][0],
           },
           active: {
             text: colors.text.main,
-            background: colors.interactive.tonal[intent][1].background,
+            background: colors.interactive.tonal[intent][1],
           },
           focus: {
             text: colors.text.slightlyMuted,
@@ -282,20 +282,20 @@ const buttonPalette = <E extends React.ElementType>({
       }
       return {
         default: {
-          text: colors.interactive.solid[intent].default.background,
+          text: colors.interactive.solid[intent].default,
           background: 'transparent',
         },
         hover: {
-          text: colors.interactive.solid[intent].hover.background,
-          background: colors.interactive.tonal[intent][0].background,
+          text: colors.interactive.solid[intent].hover,
+          background: colors.interactive.tonal[intent][0],
         },
         active: {
-          text: colors.interactive.solid[intent].active.background,
-          background: colors.interactive.tonal[intent][1].background,
+          text: colors.interactive.solid[intent].active,
+          background: colors.interactive.tonal[intent][1],
         },
         focus: {
-          text: colors.interactive.solid[intent].default.background,
-          border: colors.interactive.solid[intent].default.background,
+          text: colors.interactive.solid[intent].default,
+          border: colors.interactive.solid[intent].default,
           background: 'transparent',
         },
       };
@@ -305,42 +305,42 @@ const buttonPalette = <E extends React.ElementType>({
         return {
           default: {
             text: colors.text.slightlyMuted,
-            border: colors.interactive.tonal.neutral[2].background,
+            border: colors.interactive.tonal.neutral[2],
             background: 'transparent',
           },
           hover: {
             text: colors.text.main,
-            background: colors.interactive.tonal.neutral[1].background,
+            background: colors.interactive.tonal.neutral[1],
           },
           active: {
             text: colors.text.main,
-            background: colors.interactive.tonal.neutral[2].background,
+            background: colors.interactive.tonal.neutral[2],
           },
           focus: {
             text: colors.text.slightlyMuted,
             border: colors.text.slightlyMuted,
-            background: colors.interactive.tonal.neutral[0].background,
+            background: colors.interactive.tonal.neutral[0],
           },
         };
       } else {
         return {
           default: {
-            text: colors.interactive.solid[intent].default.background,
-            border: colors.interactive.solid[intent].default.background,
+            text: colors.interactive.solid[intent].default,
+            border: colors.interactive.solid[intent].default,
             background: 'transparent',
           },
           hover: {
             text: colors.text.primaryInverse,
-            background: colors.interactive.solid[intent].hover.background,
+            background: colors.interactive.solid[intent].hover,
           },
           active: {
             text: colors.text.primaryInverse,
-            background: colors.interactive.solid[intent].active.background,
+            background: colors.interactive.solid[intent].active,
           },
           focus: {
             text: colors.text.primaryInverse,
             border: colors.text.primaryInverse,
-            background: colors.interactive.solid[intent].default.background,
+            background: colors.interactive.solid[intent].default,
           },
         };
       }

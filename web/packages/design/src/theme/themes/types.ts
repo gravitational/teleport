@@ -26,9 +26,9 @@ export type TextAndBackgroundColors = {
 };
 
 type InteractiveColorGroup = {
-  default: TextAndBackgroundColors;
-  hover: TextAndBackgroundColors;
-  active: TextAndBackgroundColors;
+  default: string;
+  hover: string;
+  active: string;
 };
 
 export type ThemeColors = {
@@ -74,12 +74,12 @@ export type ThemeColors = {
       alert: InteractiveColorGroup;
     };
     tonal: {
-      primary: TextAndBackgroundColors[];
-      neutral: TextAndBackgroundColors[];
-      success: TextAndBackgroundColors[];
-      danger: TextAndBackgroundColors[];
-      alert: TextAndBackgroundColors[];
-      informational: TextAndBackgroundColors[];
+      primary: string[];
+      neutral: string[];
+      success: string[];
+      danger: string[];
+      alert: string[];
+      informational: string[];
     };
   };
 

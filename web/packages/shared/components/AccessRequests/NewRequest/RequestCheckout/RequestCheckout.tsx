@@ -607,10 +607,10 @@ const StyledFieldCheckbox = styled(FieldCheckbox)`
   padding: ${p => p.theme.space[2]}px;
   background-color: ${props =>
     props.checked
-      ? props.theme.colors.interactive.tonal.primary[2].background
+      ? props.theme.colors.interactive.tonal.primary[2]
       : 'transparent'};
   border-bottom: ${props => props.theme.borders[2]}
-    ${props => props.theme.colors.interactive.tonal.neutral[0].background};
+    ${props => props.theme.colors.interactive.tonal.neutral[0]};
 
   & > label {
     display: block; // make it full-width
