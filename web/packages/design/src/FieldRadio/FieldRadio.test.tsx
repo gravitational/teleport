@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useRef, useState, ChangeEvent } from 'react';
+
 import { render, screen, userEvent } from 'design/utils/testing';
-import React, { useRef, useState } from 'react';
 
 import { FieldRadio } from './FieldRadio';
 
@@ -26,7 +27,7 @@ test('controlled flow', async () => {
 
   function TestField() {
     const [val, setVal] = useState('');
-    function onRbChange(e: React.ChangeEvent<HTMLInputElement>) {
+    function onRbChange(e: ChangeEvent<HTMLInputElement>) {
       const v = e.currentTarget.value;
       setVal(v);
       onChange(v);

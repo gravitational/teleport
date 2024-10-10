@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { displayDate, displayDateTime } from 'shared/services/loc';
+import { displayDate, displayDateTime } from 'design/datetime';
 
 import { MatchCallback } from './match';
 

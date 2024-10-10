@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,36 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export class Logger {
-  constructor(name = 'default') {
-    this.name = name;
-  }
-
-  log(level = 'log', ...args) {
-    window.console[level](`%c[${this.name}]`, `color: blue;`, ...args);
-  }
-
-  trace(...args) {
-    this.log('trace', ...args);
-  }
-
-  warn(...args) {
-    this.log('warn', ...args);
-  }
-
-  info(...args) {
-    this.log('info', ...args);
-  }
-
-  debug(...args) {
-    this.log('debug', ...args);
-  }
-
-  error(...args) {
-    this.log('error', ...args);
-  }
-}
-
-export default {
-  create: (...args) => new Logger(...args),
-};
+export * from './format';
