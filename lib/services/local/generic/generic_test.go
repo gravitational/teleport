@@ -480,7 +480,7 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("my-prefix"),
+		BackendPrefix: "my-prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
