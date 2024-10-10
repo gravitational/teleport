@@ -75,7 +75,7 @@ var (
 	// FIPSSTSEndpoints returns the set of known valid FIPS AWS STS endpoints.
 	FIPSSTSEndpoints = sync.OnceValue(func() []string {
 		return []string{
-			fipsSTSEndpointUSEast1,
+			"sts-fips.us-east-1.amazonaws.com",
 			"sts-fips.us-east-2.amazonaws.com",
 			"sts-fips.us-west-1.amazonaws.com",
 			"sts-fips.us-west-2.amazonaws.com",
@@ -83,6 +83,16 @@ var (
 			"sts.us-gov-west-1.amazonaws.com",
 		}
 	})
-)
 
-const fipsSTSEndpointUSEast1 = "sts-fips.us-east-1.amazonaws.com"
+	// FIPSSTSRegions returns the set of known AWS regions with FIPS STS endpoints.
+	FIPSSTSRegions = sync.OnceValue(func() []string {
+		return []string{
+			"us-east-1",
+			"us-east-2",
+			"us-west-1",
+			"us-west-2",
+			"us-gov-east-1",
+			"us-gov-west-1",
+		}
+	})
+)
