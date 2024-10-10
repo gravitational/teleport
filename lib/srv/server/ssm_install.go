@@ -220,7 +220,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	for _, instanceID := range instanceIDsState.missing {
 		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
-			usertasks.AutoDiscoverEC2IssueScriptInstanceNotRegistered,
+			usertasks.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 		)
 		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -230,7 +230,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	for _, instanceID := range instanceIDsState.connectionLost {
 		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
-			usertasks.AutoDiscoverEC2IssueScriptInstanceConnectionLost,
+			usertasks.AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 		)
 		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -240,7 +240,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	for _, instanceID := range instanceIDsState.unsupportedOS {
 		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
-			usertasks.AutoDiscoverEC2IssueScriptInstanceUnsupportedOS,
+			usertasks.AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 		)
 		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -358,7 +358,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 					SSMRunEvent:     invocationResultEvent,
 					IntegrationName: req.IntegrationName,
 					DiscoveryConfig: req.DiscoveryConfig,
-					IssueType:       usertasks.AutoDiscoverEC2IssueScriptFailure,
+					IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
 				}))
 			}
 
@@ -372,7 +372,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 				SSMRunEvent:     stepResultEvent,
 				IntegrationName: req.IntegrationName,
 				DiscoveryConfig: req.DiscoveryConfig,
-				IssueType:       usertasks.AutoDiscoverEC2IssueScriptFailure,
+				IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
 			}))
 		}
 	}
