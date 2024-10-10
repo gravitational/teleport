@@ -195,6 +195,13 @@ func (e *Exporter) Done() <-chan struct{} {
 	return e.done
 }
 
+// GetCurrentDate returns the current target date. Note that earlier dates may also be being processed concurrently.
+func (e *Exporter) GetCurrentDate() time.Time {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.currentDate
+}
+
 // GetState loads the current state of the exporter. Note that there may be concurrent export operations
 // in progress, meaning that by the time state is observed it may already be outdated.
 func (e *Exporter) GetState() ExporterState {
