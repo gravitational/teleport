@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -74,18 +75,26 @@ type AuthPreference interface {
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
+	// GetSecondFactors gets a list of supported second factors.
+	GetSecondFactors() []SecondFactorType
+	// SetSecondFactors sets the list of supported second factors.
+	SetSecondFactors(...SecondFactorType)
 	// GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
 	// method when various options are available.
 	// It is empty if there is nothing to suggest.
 	GetPreferredLocalMFA() constants.SecondFactorType
-	// IsSecondFactorEnforced checks if second factor is enforced
-	// (not disabled or set to optional).
+	// IsSecondFactorEnabled checks if second factor is enabled.
+	IsSecondFactorEnabled() bool
+	// IsSecondFactorEnforced checks if second factor is enforced.
 	IsSecondFactorEnforced() bool
-	// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+	// IsSecondFactorLocalAllowed checks if a local second factor method is enabled (webauthn, totp).
+	IsSecondFactorLocalAllowed() bool
+	// IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
 	IsSecondFactorTOTPAllowed() bool
-	// IsSecondFactorWebauthnAllowed checks if users are allowed to register
-	// Webauthn devices.
+	// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
 	IsSecondFactorWebauthnAllowed() bool
+	// IsSecondFactorSSOAllowed checks if users can use SSO as an MFA method.
+	IsSecondFactorSSOAllowed() bool
 	// IsAdminActionMFAEnforced checks if admin action MFA is enforced.
 	IsAdminActionMFAEnforced() bool
 
@@ -314,62 +323,87 @@ func (c *AuthPreferenceV2) SetType(s string) {
 
 // GetSecondFactor returns the type of second factor.
 func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
+	// SecondFactors takes priority if set.
+	if len(c.Spec.SecondFactors) > 0 {
+		return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
+	}
+
 	return c.Spec.SecondFactor
 }
 
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
+
+	// Unset SecondFactors, only one can be set at a time.
+	c.Spec.SecondFactors = nil
 }
 
+// GetSecondFactors gets a list of supported second factors.
+func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
+	if len(c.Spec.SecondFactors) > 0 {
+		return c.Spec.SecondFactors
+	}
+
+	// If SecondFactors isn't set, try to convert the old SecondFactor field.
+	return secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
+}
+
+// SetSecondFactors sets the list of supported second factors.
+func (c *AuthPreferenceV2) SetSecondFactors(sfs ...SecondFactorType) {
+	c.Spec.SecondFactors = sfs
+
+	// Unset SecondFactor, only one can be set at a time.
+	c.Spec.SecondFactor = ""
+}
+
+// GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
+// method when various options are available.
+// It is empty if there is nothing to suggest.
 func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
-	switch sf := c.GetSecondFactor(); sf {
-	case constants.SecondFactorOff:
-		return "" // Nothing to suggest.
-	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		return sf // Single method.
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// In order of preference:
-		// 1. WebAuthn (public-key based)
-		// 2. OTP
-		if _, err := c.GetWebauthn(); err == nil {
-			return constants.SecondFactorWebauthn
-		}
-		return constants.SecondFactorOTP
-	default:
-		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
-		return "" // Unsure, say nothing.
+	if c.IsSecondFactorWebauthnAllowed() {
+		return secondFactorTypeWebauthnString
 	}
+
+	if c.IsSecondFactorTOTPAllowed() {
+		return secondFactorTypeOTPString
+	}
+
+	return ""
 }
 
-// IsSecondFactorEnforced checks if second factor is enforced (not disabled or set to optional).
+// IsSecondFactorEnforced checks if second factor is enabled.
+func (c *AuthPreferenceV2) IsSecondFactorEnabled() bool {
+	// TODO(Joerger): outside of tests, second factor should always be enabled.
+	// All calls should be removed and the old off/optional second factors removed.
+	return len(c.GetSecondFactors()) > 0
+}
+
+// IsSecondFactorEnforced checks if second factor is enforced.
 func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
-	return c.Spec.SecondFactor != constants.SecondFactorOff && c.Spec.SecondFactor != constants.SecondFactorOptional
+	// TODO(Joerger): outside of tests, second factor should always be enforced.
+	// All calls should be removed and the old off/optional second factors removed.
+	return len(c.GetSecondFactors()) > 0 && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
 
-// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+// IsSecondFactorLocalAllowed checks if a local second factor method is enabled.
+func (c *AuthPreferenceV2) IsSecondFactorLocalAllowed() bool {
+	return c.IsSecondFactorTOTPAllowed() || c.IsSecondFactorWebauthnAllowed()
+}
+
+// IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
 func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
-	return c.Spec.SecondFactor == constants.SecondFactorOTP ||
-		c.Spec.SecondFactor == constants.SecondFactorOptional ||
-		c.Spec.SecondFactor == constants.SecondFactorOn
+	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_OTP)
 }
 
-// IsSecondFactorWebauthnAllowed checks if users are allowed to register
-// Webauthn devices.
+// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
 func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
-	// Is Webauthn configured and enabled?
-	switch _, err := c.GetWebauthn(); {
-	case trace.IsNotFound(err): // OK, expected to happen in some cases.
-		return false
-	case err != nil:
-		slog.WarnContext(context.Background(), "Got unexpected error when reading Webauthn config", "error", err)
-		return false
-	}
+	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+}
 
-	// Are second factor settings in accordance?
-	return c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
-		c.Spec.SecondFactor == constants.SecondFactorOptional ||
-		c.Spec.SecondFactor == constants.SecondFactorOn
+// IsSecondFactorSSOAllowed checks if users can use SSO as an MFA method.
+func (c *AuthPreferenceV2) IsSecondFactorSSOAllowed() bool {
+	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 }
 
 // IsAdminActionMFAEnforced checks if admin action MFA is enforced.
@@ -657,9 +691,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
-	if c.Spec.SecondFactor == "" {
-		c.Spec.SecondFactor = constants.SecondFactorOTP
-	}
 	if c.Spec.AllowLocalAuth == nil {
 		c.Spec.AllowLocalAuth = NewBoolOption(true)
 	}
@@ -686,20 +717,32 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
-	if c.Spec.SecondFactor == constants.SecondFactorU2F {
+	// Validate SecondFactor and SecondFactors.
+	if c.Spec.SecondFactor != "" && len(c.Spec.SecondFactors) > 0 {
+		return trace.BadParameter("must set either SecondFactor or SecondFactors, not both")
+	}
+
+	switch c.Spec.SecondFactor {
+	case constants.SecondFactorOff, constants.SecondFactorOTP, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F:
 		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
 			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
+	case "":
+		// default to OTP if SecondFactors is also not set.
+		if len(c.Spec.SecondFactors) == 0 {
+			c.Spec.SecondFactor = constants.SecondFactorOTP
+		}
+	default:
+		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
-	// Make sure second factor makes sense.
-	sf := c.Spec.SecondFactor
-	switch sf {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-	case constants.SecondFactorWebauthn:
+	// Validate expected fields for webauthn.
+	hasWebauthn := c.IsSecondFactorWebauthnAllowed()
+	if hasWebauthn {
 		// If U2F is present validate it, we can derive Webauthn from it.
 		if c.Spec.U2F != nil {
 			if err := c.Spec.U2F.Check(); err != nil {
@@ -709,45 +752,21 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 				// Not a problem, try to derive from U2F.
 				c.Spec.Webauthn = &Webauthn{}
 			}
-		}
-		if c.Spec.Webauthn == nil {
-			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
-		}
-		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
-			return trace.Wrap(err)
-		}
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// The following scenarios are allowed for "on" and "optional":
-		// - Webauthn is configured (preferred)
-		// - U2F is configured, Webauthn derived from it (U2F-compat mode)
-
-		if c.Spec.U2F == nil && c.Spec.Webauthn == nil {
-			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
-		}
-
-		// Is U2F configured?
-		if c.Spec.U2F != nil {
-			if err := c.Spec.U2F.Check(); err != nil {
+			if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 				return trace.Wrap(err)
 			}
-			if c.Spec.Webauthn == nil {
-				// Not a problem, try to derive from U2F.
-				c.Spec.Webauthn = &Webauthn{}
-			}
 		}
 
-		// Is Webauthn valid? At this point we should always have a config.
+		if c.Spec.Webauthn == nil {
+			return trace.BadParameter("missing required webauthn configuration")
+		}
+
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
-	default:
-		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
 	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
-	hasWebauthn := sf == constants.SecondFactorWebauthn ||
-		sf == constants.SecondFactorOn ||
-		sf == constants.SecondFactorOptional
 	switch {
 	case c.Spec.AllowPasswordless == nil:
 		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)
@@ -761,6 +780,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
 		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
+	// Prevent local lockout by disabling local second factor methods.
+	if c.GetAllowLocalAuth() && c.IsSecondFactorEnforced() && !c.IsSecondFactorLocalAllowed() {
+		if c.IsSecondFactorSSOAllowed() {
+			trace.BadParameter("missing a local second factor method for local users (otp, webauthn), either add a local second factor method or disable local auth")
+		}
+		return trace.BadParameter("missing a local second factor method for local users (otp, webauthn)")
 	}
 
 	// Validate connector name for type=local.
@@ -836,7 +863,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
-	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
+	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.GetSecondFactor())
 }
 
 // Clone returns a copy of the AuthPreference resource.

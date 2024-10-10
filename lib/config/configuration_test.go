@@ -5051,7 +5051,6 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
-
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
