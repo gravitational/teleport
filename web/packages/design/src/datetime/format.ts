@@ -24,18 +24,18 @@ import cfg from 'shared/config';
 const DEFAULT_LOCALE = 'en-US';
 const isTest = process.env.NODE_ENV === 'test';
 
-const logger = Logger.create('services/loc');
+const logger = Logger.create('datetime/format');
 
-// displayUnixDate accepts a unix timestamp and returns formatted as 'yyyy-MM-dd'
-export function displayUnixDate(seconds: number) {
+/** Accepts a unix timestamp and returns formatted as 'yyyy-MM-dd'. */
+export function displayUnixDate(seconds: number): string {
   // Multiply by 1000 b/c date constructor expects milliseconds.
   const date = new Date(seconds * 1000);
 
   return displayDate(date);
 }
 
-// displayDate accepts a date and returns formatted as 'yyyy-MM-dd'
-export function displayDate(date: Date) {
+/** Accepts a date and returns formatted as 'yyyy-MM-dd' */
+export function displayDate(date: Date): string {
   try {
     if (isTest) {
       return format(dateToUtc(date), cfg.dateFormat);
@@ -47,8 +47,8 @@ export function displayDate(date: Date) {
   }
 }
 
-// displayShortDate accepts a date and returns formatted as 'MM dd, yyyy'
-export function displayShortDate(date: Date) {
+/** Accepts a date and returns formatted as 'MM dd, yyyy'. */
+export function displayShortDate(date: Date): string {
   try {
     if (isTest) {
       return format(dateToUtc(date), cfg.shortFormat);
@@ -60,16 +60,16 @@ export function displayShortDate(date: Date) {
   }
 }
 
-// displayShortDate accepts a date and returns formatted as 'MM dd, yyyy'
-export function displayUnixShortDate(seconds: number) {
+/** Accepts a date and returns formatted as 'MM dd, yyyy'. */
+export function displayUnixShortDate(seconds: number): string {
   // Multiply by 1000 b/c date constructor expects milliseconds.
   const date = new Date(seconds * 1000);
 
   return displayShortDate(date);
 }
 
-// displayDateTime accepts a date and returns formatted as 'yyyy-MM-dd HH:mm:ss'
-export function displayDateTime(date: Date) {
+/** Accepts a date and returns formatted as 'yyyy-MM-dd HH:mm:ss'. */
+export function displayDateTime(date: Date): string {
   try {
     if (isTest) {
       return format(dateToUtc(date), cfg.dateTimeFormat);
@@ -81,7 +81,7 @@ export function displayDateTime(date: Date) {
   }
 }
 
-export function dateToUtc(date: Date) {
+function dateToUtc(date: Date): Date {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60 * 1000);
 }
 
@@ -92,7 +92,7 @@ export function dateToUtc(date: Date) {
  *
  * During tests, the locale will always default to `en-US`.
  */
-export function dateTimeShortFormat(date: Date) {
+export function dateTimeShortFormat(date: Date): string {
   const locale = isTest ? DEFAULT_LOCALE : undefined;
   return new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(date);
 }

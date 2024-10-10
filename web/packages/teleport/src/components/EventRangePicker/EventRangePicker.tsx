@@ -21,7 +21,7 @@ import { components, ValueContainerProps } from 'react-select';
 import 'react-day-picker/dist/style.css';
 import { Text, Box } from 'design';
 import Dialog from 'design/DialogConfirmation';
-import { displayDate } from 'shared/services/loc';
+import { displayDate } from 'design/datetime';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import Select, { Option } from 'shared/components/Select';

@@ -16,10 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  displayDate,
-  displayDateTime,
-  displayUnixDate,
-  dateToUtc,
-} from './loc';
-export { displayDate, displayDateTime, displayUnixDate, dateToUtc };
+export * from './format';
