@@ -1092,7 +1092,7 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 	// "x-teleport-event" channel.
 	for _, p := range s.parties {
 		if len(notifyPartyPayload) == 0 {
-			s.logger.WarnContext(ctx.srv.Context(), "No session join event to send to party.", "remote_addr", p.sconn.RemoteAddr())
+			s.logger.WarnContext(ctx.srv.Context(), "No session join event to send to party.", "party", p)
 			continue
 		}
 
@@ -1101,10 +1101,10 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, payload)
 		if err != nil {
-			s.logger.WarnContext(ctx.srv.Context(), "Unable to send session join event to party.", "remote_addr", p.sconn.RemoteAddr(), "error", err)
+			s.logger.WarnContext(ctx.srv.Context(), "Unable to send session join event to party.", "party", p, "error", err)
 			continue
 		}
-		s.logger.DebugContext(ctx.srv.Context(), "Sent session join event to party.", "remote_addr", p.sconn.RemoteAddr())
+		s.logger.DebugContext(ctx.srv.Context(), "Sent session join event to party.", "party", p)
 	}
 }
 
@@ -1139,18 +1139,18 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 	for _, p := range s.parties {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
-			s.logger.WarnContext(ctx.srv.Context(), "Unable to marshal session leave event for party.", "error", err, "remote_addr")
+			s.logger.WarnContext(ctx.srv.Context(), "Unable to marshal session leave event for party.", "error", err, "party", p)
 			continue
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
 			// The party's connection may already be closed, in which case we expect an EOF
 			if !errors.Is(err, io.EOF) {
-				s.logger.WarnContext(ctx.srv.Context(), "Unable to send session leave event to party.", "remote_addr", p.sconn.RemoteAddr(), "error", err)
+				s.logger.WarnContext(ctx.srv.Context(), "Unable to send session leave event to party.", "party", p, "error", err)
 			}
 			continue
 		}
-		s.logger.DebugContext(ctx.srv.Context(), "Sent session leave event to party.", "remote_addr", p.sconn.RemoteAddr())
+		s.logger.DebugContext(ctx.srv.Context(), "Sent session leave event to party.", "party", p)
 	}
 }
 
@@ -1734,7 +1734,7 @@ func (s *session) checkPresence(ctx context.Context) error {
 				if err := party.closeUnderSessionLock(); err != nil {
 					s.logger.ErrorContext(
 						ctx, "Failed to remove party.",
-						"party", "error", err)
+						"party", party, "error", err)
 				}
 			}
 		}
