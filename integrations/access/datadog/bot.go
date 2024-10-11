@@ -37,9 +37,6 @@ import (
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
-// AutoApprovalsAnnotation defines the datadog auto approvals label.
-const AutoApprovalsAnnotation = "datadog_auto_approvals"
-
 // Bot is a Datadog client that works with AccessRequest.
 // It is responsible for creating/updating Datadog incidents when access request
 // events occur.
@@ -168,7 +165,8 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 		return nil, trace.Wrap(err)
 	}
 
-	teamNames, err := common.GetNamesFromAnnotations(req, AutoApprovalsAnnotation)
+	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+	teamNames, err := common.GetNamesFromAnnotations(req, annotationKey)
 	if err != nil {
 		log.Debug("Automatic approvals annotation is empty or unspecified.")
 		return nil, nil

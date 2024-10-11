@@ -268,7 +268,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 			log.Warning("No channel to post")
 		}
 
-		// Try to approve the request if user is currently on-call
+		// Try to approve the request if user is currently on-call.
 		if err := a.tryApproveRequest(ctx, reqID, req); err != nil {
 			log.Warningf("Failed to auto approve request: %v", err)
 		}

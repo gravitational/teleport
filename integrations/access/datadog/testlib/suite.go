@@ -590,7 +590,7 @@ func (s *DatadogSuiteEnterprise) TestAutoApprovalWhenNotOnCall() {
 	s.fakeDatadog.StoreOncallTeams("dev-team", []string{integration.RequesterOSSUserName})
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
-		datadog.AutoApprovalsAnnotation,
+		types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel,
 		[]string{ApprovalTeamName},
 	)
 
@@ -628,7 +628,7 @@ func (s *DatadogSuiteEnterprise) TestAutoApprovalWhenOnCall() {
 	s.fakeDatadog.StoreOncallTeams(ApprovalTeamName, []string{integration.RequesterOSSUserName})
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
-		datadog.AutoApprovalsAnnotation,
+		types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel,
 		[]string{ApprovalTeamName},
 	)
 
