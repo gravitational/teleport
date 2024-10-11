@@ -59,7 +59,8 @@ type Datadog struct {
 	// datadog api client package: https://github.com/DataDog/datadog-api-client-go.
 	client *resty.Client
 
-	// TODO: Remove clientUnstable once on-call API is merged into official API
+	// TODO: Remove clientUnstable once on-call API is merged into official API.
+	// See: https://docs.datadoghq.com/api/latest/
 	clientUnstable *resty.Client
 }
 
