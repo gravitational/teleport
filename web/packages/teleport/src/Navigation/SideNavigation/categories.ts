@@ -16,10 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  Main,
-  useContentMinWidthContext,
-  useNoMinWidth,
-  StyledIndicator,
-} from './Main';
-export { MainContainer } from './MainContainer';
+export enum NavigationCategory {
+  Resources = 'Resources',
+  Access = 'Access',
+  Identity = 'Identity',
+  Policy = 'Policy',
+  Audit = 'Audit',
+  AddNew = 'Add New',
+}
+
+export const NAVIGATION_CATEGORIES = [
+  NavigationCategory.Resources,
+  NavigationCategory.Access,
+  NavigationCategory.Identity,
+  NavigationCategory.Policy,
+  NavigationCategory.Audit,
+  NavigationCategory.AddNew,
+];
+
+export const STANDALONE_CATEGORIES = [
+  NavigationCategory.AddNew,
+  // TODO(rudream): Remove this once shortcuts to pinned/nodes/apps/dbs/desktops/kubes are implemented.
+  NavigationCategory.Resources,
+];

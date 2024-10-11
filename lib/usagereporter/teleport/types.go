@@ -1229,6 +1229,22 @@ func (u *SPIFFESVIDIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 	}
 }
 
+// UserTaskStateEvent is an event emitted when the state of a User Task changes.
+type UserTaskStateEvent prehogv1a.UserTaskStateEvent
+
+func (u *UserTaskStateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UserTaskState{
+			UserTaskState: &prehogv1a.UserTaskStateEvent{
+				TaskType:       u.TaskType,
+				IssueType:      u.IssueType,
+				State:          u.State,
+				InstancesCount: u.InstancesCount,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -1732,6 +1748,24 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		ret := &UIAccessGraphCrownJewelDiffViewEvent{
 			AffectedResourceSource: data.AffectedResourceSource,
 			AffectedResourceType:   data.AffectedResourceType,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UserTaskStateEvent:
+		data := e.UserTaskStateEvent
+		if data.TaskType == "" {
+			return nil, trace.BadParameter("task type is empty")
+		}
+		if data.IssueType == "" {
+			return nil, trace.BadParameter("issue type is empty")
+		}
+		if data.State == "" {
+			return nil, trace.BadParameter("state is empty")
+		}
+		ret := &UserTaskStateEvent{
+			TaskType:       data.TaskType,
+			IssueType:      data.IssueType,
+			State:          data.State,
+			InstancesCount: data.InstancesCount,
 		}
 		return ret, nil
 	default:

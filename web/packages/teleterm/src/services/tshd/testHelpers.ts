@@ -90,6 +90,7 @@ export const makeRootCluster = (
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
   showResources: ShowResources.REQUESTABLE,
+  profileStatusError: '',
   ...props,
 });
 
@@ -104,6 +105,7 @@ export const makeLeafCluster = (
   authClusterId: '',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '',
+  profileStatusError: '',
   showResources: ShowResources.UNSPECIFIED,
   ...props,
 });

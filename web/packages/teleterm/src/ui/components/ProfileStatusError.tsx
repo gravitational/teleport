@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,10 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export {
-  Main,
-  useContentMinWidthContext,
-  useNoMinWidth,
-  StyledIndicator,
-} from './Main';
-export { MainContainer } from './MainContainer';
+import { Warning } from 'design/Icon';
+import { P3, Flex } from 'design';
+
+export function ProfileStatusError(props: {
+  error: string;
+  mb?: number | string;
+}) {
+  return (
+    <Flex mb={props.mb}>
+      <Warning color="error.main" size="small" mr={1} />
+      <P3>{toWellFormattedConnectionError(props.error)}</P3>
+    </Flex>
+  );
+}
+
+/** Takes the last line from the error and capitalizes it. */
+function toWellFormattedConnectionError(error: string): string {
+  const lastLine = error.trim().split(/\r?\n/).at(-1).trim();
+  return lastLine.charAt(0).toUpperCase() + lastLine.slice(1);
+}
