@@ -239,6 +239,7 @@ func TestSession_newRecorder(t *testing.T) {
 	logger := logrus.WithFields(logrus.Fields{
 		teleport.ComponentKey: teleport.ComponentAuth,
 	})
+	slogger := utils.NewSlogLoggerForTests()
 
 	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
@@ -256,8 +257,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream-when-proxy-recording",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: slogger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -277,8 +278,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream--when-proxy-sync-recording",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: slogger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -298,8 +299,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: slogger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -338,8 +339,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "best-effort-err-new-audit-writer-succeeds",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: slogger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -385,8 +386,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "audit-writer",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: slogger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -431,6 +432,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		teleport.ComponentKey: teleport.ComponentAuth,
 	})
 
+	slogger := utils.NewSlogLoggerForTests()
+
 	t.Run("FallbackConcurrency", func(t *testing.T) {
 		srv := newMockServer(t)
 		reg, err := NewSessionRegistry(SessionRegistryConfig{
@@ -441,8 +444,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		t.Cleanup(func() { reg.Close() })
 
 		sess := &session{
-			id:  "test",
-			log: logger,
+			id:     "test",
+			logger: slogger,
 			recorder: &mockRecorder{
 				SessionPreparerRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
 				done:                    true,
@@ -1124,8 +1127,8 @@ func TestTrackingSession(t *testing.T) {
 			}
 
 			sess := &session{
-				id:  rsession.NewID(),
-				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
+				id:     rsession.NewID(),
+				logger: utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
