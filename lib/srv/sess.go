@@ -581,14 +581,14 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, re
 				s.Srv.Context(), "Unable to send event to session party.",
 				"event", res,
 				"error", err,
-				"party", p.sconn.RemoteAddr(),
+				"party", p,
 			)
 			continue
 		}
 		s.logger.DebugContext(
 			s.Srv.Context(), "Sent event to session party.",
 			"event", res,
-			"party", p.sconn.RemoteAddr(),
+			"party", p,
 		)
 	}
 
@@ -651,17 +651,17 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 
 		eventPayload, err := json.Marshal(resizeEvent.GetAuditEvent())
 		if err != nil {
-			s.logger.WarnContext(ctx, "Unable to marshal resize event for session party.", "error", err, "party", p.sconn.RemoteAddr())
+			s.logger.WarnContext(ctx, "Unable to marshal resize event for session party.", "error", err, "party", p)
 			continue
 		}
 
 		// Send the message as a global request.
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.logger.WarnContext(ctx, "Unable to send resize event to session party.", "error", err, "party", p.sconn.RemoteAddr())
+			s.logger.WarnContext(ctx, "Unable to send resize event to session party.", "error", err, "party", p)
 			continue
 		}
-		s.logger.DebugContext(ctx, "Sent resize event to session party.", "event", params, "party", p.sconn.RemoteAddr())
+		s.logger.DebugContext(ctx, "Sent resize event to session party.", "event", params, "party", p)
 	}
 
 	return nil
@@ -1612,7 +1612,7 @@ func (s *session) String() string {
 // if the party is the last in the session or has policies that dictate it to end.
 // Must be called under session Lock.
 func (s *session) removePartyUnderLock(p *party) error {
-	s.logger.InfoContext(s.serverCtx, "Removing party from session.", "party_id", p.id)
+	s.logger.InfoContext(s.serverCtx, "Removing party from session.", "party", p)
 
 	// Remove participant from in-memory map of party members.
 	delete(s.parties, p.id)
@@ -1620,7 +1620,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	s.BroadcastMessage("User %v left the session.", p.user)
 
 	// Update session tracker
-	s.logger.DebugContext(s.serverCtx, "Removing participant from tracker.", "party_id", p.id)
+	s.logger.DebugContext(s.serverCtx, "Removing participant from tracker.", "party", p)
 	if err := s.tracker.RemoveParticipant(s.serverCtx, p.id.String()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1728,13 +1728,13 @@ func (s *session) checkPresence(ctx context.Context) error {
 		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.logger.WarnContext(
 				ctx, "Participant is not active, kicking.",
-				"party_id", participant.ID,
+				"participant", participant.ID,
 			)
 			if party := s.parties[rsession.ID(participant.ID)]; party != nil {
 				if err := party.closeUnderSessionLock(); err != nil {
 					s.logger.ErrorContext(
 						ctx, "Failed to remove party.",
-						"party_id", party.id, "error", err)
+						"party", "error", err)
 				}
 			}
 		}
@@ -2043,7 +2043,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			_, err := io.Copy(s.inWriter, p)
 			s.logger.DebugContext(
 				s.serverCtx, "Copying from Party to session writer completed with error.",
-				"party_id", p.id,
+				"party", p,
 				"error", err,
 			)
 		}()
@@ -2114,7 +2114,7 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 		return trace.Wrap(err)
 	}
 
-	s.logger.DebugContext(s.serverCtx, "Tracking participant.", "party_id", p.id)
+	s.logger.DebugContext(s.serverCtx, "Tracking participant.", "party", p)
 	participant := &types.Participant{
 		ID:         p.id.String(),
 		User:       p.user,
@@ -2196,6 +2196,13 @@ func (p *party) String() string {
 	return fmt.Sprintf("%v party(id=%v)", p.ctx, p.id)
 }
 
+func (p *party) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("id", p.id.String()),
+		slog.String("remote_addr", p.sconn.RemoteAddr().String()),
+	)
+}
+
 // Close is called when the party's session ctx is closed.
 func (p *party) Close() error {
 	p.s.mu.Lock()
@@ -2220,7 +2227,7 @@ func (p *party) closeUnderSessionLock() error {
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
 func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet, p *party, sessType sessionType) error {
-	s.logger.DebugContext(ctx, "Tracking participant.", "party_id", p.id)
+	s.logger.DebugContext(ctx, "Tracking participant.", "party", p)
 	var initialCommand []string
 	if execRequest, err := s.scx.GetExecRequest(); err == nil {
 		initialCommand = []string{execRequest.GetCommand()}
