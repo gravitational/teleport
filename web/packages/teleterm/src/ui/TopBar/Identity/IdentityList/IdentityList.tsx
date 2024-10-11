@@ -56,13 +56,13 @@ export function IdentityList(props: {
       <KeyboardArrowsNavigation>
         {focusGrabber}
         <Box>
-          {props.clusters.map((i, index) => (
+          {props.clusters.map((cluster, index) => (
             <IdentityListItem
-              key={i.uri}
+              key={cluster.uri}
               index={index}
-              cluster={i}
-              onSelect={() => props.onSelectCluster(i.uri)}
-              onLogout={() => props.onLogout(i.uri)}
+              cluster={cluster}
+              onSelect={() => props.onSelectCluster(cluster.uri)}
+              onLogout={() => props.onLogout(cluster.uri)}
             />
           ))}
         </Box>
