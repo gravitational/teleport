@@ -289,19 +289,17 @@ const Container = styled.div<{ clicked?: boolean }>`
   border-radius: ${props => props.theme.radii[3]}px;
   cursor: pointer;
 
-  background: ${props =>
-    props.theme.colors.interactive.tonal.primary[0].background};
+  background: ${props => props.theme.colors.interactive.tonal.primary[0]};
   &:hover {
-    background: ${props =>
-      props.theme.colors.interactive.tonal.primary[1].background};
+    background: ${props => props.theme.colors.interactive.tonal.primary[1]};
   }
 
   ${props =>
     props.clicked &&
     `
-    background: ${props.theme.colors.interactive.tonal.neutral[0].background};
+    background: ${props.theme.colors.interactive.tonal.neutral[0]};
     &:hover {
-      background: ${props.theme.colors.interactive.tonal.neutral[1].background};
+      background: ${props.theme.colors.interactive.tonal.neutral[1]};
     }
     `}
 `;
@@ -352,27 +350,27 @@ function getIconColors(
     case 'success':
       return {
         primary: theme.colors.success.main,
-        secondary: theme.colors.interactive.tonal.success[0].background,
+        secondary: theme.colors.interactive.tonal.success[0],
       };
     case 'success-alt':
       return {
         primary: theme.colors.accent.main,
-        secondary: theme.colors.interactive.tonal.informational[0].background,
+        secondary: theme.colors.interactive.tonal.informational[0],
       };
     case 'informational':
       return {
         primary: theme.colors.brand,
-        secondary: theme.colors.interactive.tonal.primary[0].background,
+        secondary: theme.colors.interactive.tonal.primary[0],
       };
     case `warning`:
       return {
         primary: theme.colors.warning.main,
-        secondary: theme.colors.interactive.tonal.alert[0].background,
+        secondary: theme.colors.interactive.tonal.alert[0],
       };
     case 'failure':
       return {
         primary: theme.colors.error.main,
-        secondary: theme.colors.interactive.tonal.danger[0].background,
+        secondary: theme.colors.interactive.tonal.danger[0],
       };
   }
 }
