@@ -680,8 +680,11 @@ type sharedPIVConnection struct {
 	waitClose sync.WaitGroup
 }
 
-// connect a connection to YubiKey PIV module. The returned connection should be closed once
-// it's been used. The YubiKey PIV module itself takes some additional time to handle closed
+// connect establishes a connection to a YubiKey PIV module and returns a release function.
+// The release function should be called to properly close the shared connection.
+// The connection is not immediately terminated, allowing other callers to
+// use it before it's released.
+// The YubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
 func (c *sharedPIVConnection) connect() (func(), error) {
 	c.mu.Lock()
