@@ -141,7 +141,7 @@ func (t *TermHandlers) HandleFileTransferDecision(ctx context.Context, ch ssh.Ch
 
 	session := scx.getSession()
 	if session == nil {
-		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		t.SessionRegistry.logger.DebugContext(ctx, "Unable to create file transfer Request, no session found in context.")
 		return nil
 	}
 
@@ -164,7 +164,7 @@ func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Cha
 
 	session := scx.getSession()
 	if session == nil {
-		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		t.SessionRegistry.logger.DebugContext(ctx, "Unable to create file transfer Request, no session found in context.")
 		return nil
 	}
 

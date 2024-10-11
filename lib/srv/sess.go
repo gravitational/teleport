@@ -104,9 +104,6 @@ func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
 type SessionRegistry struct {
 	SessionRegistryConfig
 
-	// deprecated: log holds the legacy logrus structured logger
-	log *log.Entry
-
 	// logger holds the structured logger
 	logger *slog.Logger
 
@@ -186,13 +183,10 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 
 	return &SessionRegistry{
 		SessionRegistryConfig: cfg,
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
-		}),
-		logger:   slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
-		sessions: make(map[rsession.ID]*session),
-		users:    cfg.Srv.GetHostUsers(),
-		sudoers:  cfg.Srv.GetHostSudoers(),
+		logger:                slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
+		sessions:              make(map[rsession.ID]*session),
+		users:                 cfg.Srv.GetHostUsers(),
+		sudoers:               cfg.Srv.GetHostSudoers(),
 		sessionsByUser: &userSessions{
 			sessionsByUser: make(map[string]int),
 		},
@@ -232,7 +226,7 @@ func (s *SessionRegistry) Close() {
 		se.Stop()
 	}
 
-	s.log.Debug("Closing Session Registry.")
+	s.logger.DebugContext(s.Srv.Context(), "Closing Session Registry.")
 }
 
 type sudoersCloser struct {
@@ -446,7 +440,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 	sess := ctx.getSession()
 	if sess == nil {
-		s.log.Debug("Unable to terminate session, no session found in context.")
+		s.logger.DebugContext(s.Srv.Context(), "Unable to terminate session, no session found in context.")
 		return nil
 	}
 
@@ -544,7 +538,10 @@ const (
 func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
-		s.log.Debugf("Unable to notify %s, no session found in context.", res)
+		s.logger.DebugContext(
+			s.Srv.Context(), "Unable to notify event, no session found in context.",
+			"event", res,
+		)
 		return trace.NotFound("no session found in context")
 	}
 
@@ -568,7 +565,11 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, re
 
 	eventPayload, err := json.Marshal(fileTransferEvent)
 	if err != nil {
-		s.log.Warnf("Unable to marshal %s event: %v.", res, err)
+		s.logger.WarnContext(
+			s.Srv.Context(), "Unable to marshal event.",
+			"event", res,
+			"error", err,
+		)
 		return trace.Wrap(err)
 	}
 
@@ -576,10 +577,19 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, re
 		// Send the message as a global request.
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %s event to %v: %v.", res, p.sconn.RemoteAddr(), err)
+			s.logger.WarnContext(
+				s.Srv.Context(), "Unable to send event to session party.",
+				"event", res,
+				"error", err,
+				"party", p.sconn.RemoteAddr(),
+			)
 			continue
 		}
-		s.log.Debugf("Sent %s event to %v.", res, p.sconn.RemoteAddr())
+		s.logger.DebugContext(
+			s.Srv.Context(), "Sent event to session party.",
+			"event", res,
+			"party", p.sconn.RemoteAddr(),
+		)
 	}
 
 	return nil
@@ -591,7 +601,7 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *FileTransferRequest, re
 func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.TerminalParams, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
-		s.log.Debug("Unable to update window size, no session found in context.")
+		s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
 		return nil
 	}
 
@@ -611,10 +621,10 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 		// Report the updated window size to the session stream (this is so the sessions
 		// can be replayed correctly).
 		if err := session.recordEvent(s.Srv.Context(), resizeEvent); err != nil {
-			s.log.WithError(err).Warn("Failed to record resize session event.")
+			s.logger.WarnContext(ctx, "Failed to record resize session event.", "error", err)
 		}
 	} else {
-		s.log.WithError(err).Warn("Failed to set up resize session event - event will not be recorded")
+		s.logger.WarnContext(ctx, "Failed to set up resize session event - event will not be recorded.", "error", err)
 	}
 
 	// Update the size of the server side PTY.
@@ -641,17 +651,17 @@ func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.T
 
 		eventPayload, err := json.Marshal(resizeEvent.GetAuditEvent())
 		if err != nil {
-			s.log.Warnf("Unable to marshal resize event for %v: %v.", p.sconn.RemoteAddr(), err)
+			s.logger.WarnContext(ctx, "Unable to marshal resize event for session party.", "error", err, "party", p.sconn.RemoteAddr())
 			continue
 		}
 
 		// Send the message as a global request.
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to resize event to %v: %v.", p.sconn.RemoteAddr(), err)
+			s.logger.WarnContext(ctx, "Unable to send resize event to session party.", "error", err, "party", p.sconn.RemoteAddr())
 			continue
 		}
-		s.log.Debugf("Sent resize event %v to %v.", params, p.sconn.RemoteAddr())
+		s.logger.DebugContext(ctx, "Sent resize event to session party.", "event", params, "party", p.sconn.RemoteAddr())
 	}
 
 	return nil
