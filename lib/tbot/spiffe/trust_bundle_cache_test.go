@@ -20,6 +20,7 @@ package spiffe
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -35,6 +36,9 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -176,6 +180,12 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	caCert, err := tlsca.ParseCertificatePEM(caCertPEM)
 	require.NoError(t, err)
+	jwtCAPublic, jwtCAPrivate, err := testauthority.New().GenerateJWT()
+	require.NoError(t, err)
+	jwtCA, err := keys.ParsePublicKey(jwtCAPublic)
+	require.NoError(t, err)
+	jwtCAKID, err := jwt.KeyID(jwtCA)
+	require.NoError(t, err)
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.SPIFFECA,
 		ClusterName: "example.com",
@@ -184,6 +194,12 @@ func TestTrustBundleCache_Run(t *testing.T) {
 				{
 					Cert: caCertPEM,
 					Key:  caKey,
+				},
+			},
+			JWT: []*types.JWTKeyPair{
+				{
+					PublicKey:  jwtCAPublic,
+					PrivateKey: jwtCAPrivate,
 				},
 			},
 		},
@@ -225,31 +241,25 @@ func TestTrustBundleCache_Run(t *testing.T) {
 		errCh <- err
 	}()
 
-	subscription, stop := cache.Subscribe()
-	t.Cleanup(stop)
-
-	// Fetch the first bundle, we expect to see the Local bundle and the one
-	// pre-initialized federated bundle.
-	var gotBundleSet *BundleSet
-	select {
-	case gotBundleSet = <-subscription:
-	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
-	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
-	}
+	gotBundleSet, err := cache.GetBundleSet(ctx)
+	require.NoError(t, err)
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
 	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
 	require.Len(t, gotBundleSet.Local.X509Authorities(), 1)
 	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
+	require.Len(t, gotBundleSet.Local.JWTAuthorities(), 1)
+	gotBundleJWTKey, ok := gotBundleSet.Local.FindJWTAuthority(jwtCAKID)
+	require.True(t, ok, "public key not found in bundle")
+	require.True(t, gotBundleJWTKey.(interface{ Equal(x crypto.PublicKey) bool }).Equal(jwtCA), "public keys do not match")
 	// Check the federated bundle
 	gotFederatedBundle, ok := gotBundleSet.Federated["pre-init-federated.example.com"]
 	require.True(t, ok)
 	require.True(t, gotFederatedBundle.Equal(preInitFed))
 
 	// Update the local bundle with a new additional cert
+	ca = ca.Clone()
 	additionalCAKey, additionalCACertPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, []string{}, time.Hour)
 	require.NoError(t, err)
 	additionalCACert, err := tlsca.ParseCertificatePEM(additionalCACertPEM)
@@ -269,12 +279,14 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the updated local CA
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
@@ -305,12 +317,14 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the updated federated bundle
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
@@ -341,14 +355,16 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the new federated bundle
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
-	require.NotNil(t, gotBundleSet.Local)
 	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
 	require.Len(t, gotBundleSet.Local.X509Authorities(), 2)
 	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
@@ -374,12 +390,15 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the new federated bundle deleted
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
 	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())

@@ -85,6 +85,7 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
 		Client:                 a.apiClient,
 		PluginType:             a.pluginType,
+		PluginName:             a.pluginName,
 		FetchRecipientCallback: a.bot.FetchRecipient,
 	})
 

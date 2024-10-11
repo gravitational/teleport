@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { contextBridge } from 'electron';
+import { contextBridge, webUtils } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
@@ -99,6 +99,14 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     vnetClient,
     ptyServiceClient,
     setupTshdEventContextBridgeService,
+    // Ideally, we would call this function only on the preload side,
+    // but there's no easy way to access the file there (constructing the tshd
+    // call for a file transfer happens entirely on the renderer side).
+    //
+    // However, the risk of exposing this API is minimal because the file passed
+    // in cannot be constructed in JS (it must be selected in the file picker).
+    // So an attacker cannot pass a fake file to probe the file system.
+    getPathForFile: file => webUtils.getPathForFile(file),
   };
 }
 

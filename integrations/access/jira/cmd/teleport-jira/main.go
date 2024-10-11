@@ -21,12 +21,12 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/jira"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -100,8 +100,9 @@ func run(configPath string, insecure bool, debug bool) error {
 		return trace.Wrap(err)
 	}
 
-	go lib.ServeSignals(app, 15*time.Second)
+	go lib.ServeSignals(app, common.PluginShutdownTimeout)
 
+	logger.Standard().Infof("Starting Teleport Access Jira Plugin %s:%s", teleport.Version, teleport.Gitref)
 	return trace.Wrap(
 		app.Run(context.Background()),
 	)

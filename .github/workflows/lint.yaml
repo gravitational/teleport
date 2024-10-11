@@ -2,8 +2,9 @@ name: Lint (Go)
 run-name: Lint (Go and Rust)
 on:
   pull_request:
-
   merge_group:
+env:
+  GOFLAGS: '-buildvcs=false'
 
 jobs:
   changes:
@@ -85,15 +86,12 @@ jobs:
       - name: Check for untidy go modules
         shell: bash
         run: |
-          find . -path ./e -prune -o -name go.mod -print | while read f; do 
+          find . -path ./e -prune -o -name go.mod -print | while read f; do
             echo "checking $f"
-            pushd $(dirname "$f") > /dev/null; 
-            go mod tidy;
+            pushd $(dirname "$f") > /dev/null;
+            go mod tidy -diff;
             popd > /dev/null;
           done
-
-          # We have to add the current directory as a safe directory or else git commands will not work as expected.
-          git config --global --add safe.directory $( realpath . ) && git diff --exit-code;
 
       - name: Set linter versions
         run: |
@@ -206,7 +204,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@54abbed4fe8d8d45173eca4798b0c39a53a7b658 # v1.39.0
+      - uses: bufbuild/buf-setup-action@62ee92603c244ad0da98bab36a834a999a5329e6 # v1.43.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
@@ -232,4 +230,5 @@ jobs:
 
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@main && make terraform-resources-up-to-date
+        # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@c91cc3ef4d7d0046c36cb96b1cd337e466c61225 && make terraform-resources-up-to-date

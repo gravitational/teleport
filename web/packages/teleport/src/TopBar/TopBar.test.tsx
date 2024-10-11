@@ -159,6 +159,17 @@ test('authorized icon will show if session is authorized', async () => {
   expect(screen.getAllByTestId('device-trusted-icon')).toHaveLength(2);
 });
 
+test('authorized icon will show regardless of device requirements', async () => {
+  setup();
+  jest.spyOn(session, 'getDeviceTrustRequired').mockImplementation(() => false);
+  jest.spyOn(session, 'getIsDeviceTrusted').mockImplementation(() => true);
+
+  render(getTopBar());
+
+  // the icon will show in the topbar and the usermenunav dropdown
+  expect(screen.getAllByTestId('device-trusted-icon')).toHaveLength(2);
+});
+
 test('icon will not show if device trust is not required', async () => {
   setup();
   jest.spyOn(session, 'getDeviceTrustRequired').mockImplementation(() => false);

@@ -25,19 +25,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -295,29 +289,43 @@ type ConfiguratorConfig struct {
 	Flags configurators.BootstrapFlags
 	// ServiceConfig Teleport database service config.
 	ServiceConfig *servicecfg.Config
-	// AWSSession current AWS session.
-	AWSSession *awssession.Session
-	// AWSSTSClient AWS STS client.
-	AWSSTSClient stsiface.STSAPI
-	// AWSIAMClient AWS IAM client.
-	AWSIAMClient iamiface.IAMAPI
-	// AWSSSMClient is a mapping of region -> ssm client
-	AWSSSMClients map[string]ssmiface.SSMAPI
 	// Policies instance of the `Policies` that the actions use.
 	Policies awslib.Policies
 	// Identity is the current AWS credentials chain identity.
 	Identity awslib.Identity
+
+	// awsCfg is the configuration used for AWS service clients.
+	awsCfg *aws.Config
+	// stsClient is an AWS STS client.
+	stsClient stsClient
+	// iamClient is an AWS IAM client.
+	iamClient iamClient
+	// ssmClients is a mapping of region -> AWS SSM client
+	ssmClients map[string]ssmClient
+}
+
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+type iamClient interface {
+	GetRole(ctx context.Context, params *iam.GetRoleInput, optFns ...func(*iam.Options)) (*iam.GetRoleOutput, error)
+}
+
+type ssmClient interface {
+	CreateDocument(ctx context.Context, params *ssm.CreateDocumentInput, optFns ...func(*ssm.Options)) (*ssm.CreateDocumentOutput, error)
 }
 
 // CheckAndSetDefaults checks and set configuration default values.
 func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
+	ctx := context.Background()
 	if c.ServiceConfig == nil {
 		return trace.BadParameter("config file is required")
 	}
 
-	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
+	useFIPSEndpoint := aws.FIPSEndpointStateUnset
 	if modules.GetModules().IsBoringBinary() {
-		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+		useFIPSEndpoint = aws.FIPSEndpointStateEnabled
 	}
 
 	// When running the command in manual mode, we want to have zero dependency
@@ -327,58 +335,53 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 	if !c.Flags.Manual {
 		var err error
 
-		if c.AWSSession == nil {
-			c.AWSSession, err = awssession.NewSessionWithOptions(awssession.Options{
-				SharedConfigState: awssession.SharedConfigEnable,
-				Config: aws.Config{
-					UseFIPSEndpoint: useFIPSEndpoint,
-				},
-			})
+		if c.awsCfg == nil {
+			cfg, err := config.LoadDefaultConfig(ctx,
+				config.WithUseFIPSEndpoint(useFIPSEndpoint),
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			c.awsCfg = &cfg
+		}
+
+		if c.stsClient == nil {
+			c.stsClient = sts.NewFromConfig(*c.awsCfg)
+		}
+		if c.iamClient == nil {
+			c.iamClient = iam.NewFromConfig(*c.awsCfg)
+		}
+		if c.Identity == nil {
+			c.Identity, err = awslib.GetIdentityWithClientV2(context.Background(), c.stsClient)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		if c.AWSSTSClient == nil {
-			c.AWSSTSClient = sts.New(c.AWSSession)
-		}
-		if c.AWSIAMClient == nil {
-			c.AWSIAMClient = iam.New(c.AWSSession)
-		}
-		if c.Identity == nil {
-			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.AWSSTSClient)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		if c.AWSSSMClients == nil {
-			c.AWSSSMClients = make(map[string]ssmiface.SSMAPI)
+		if c.ssmClients == nil {
+			c.ssmClients = make(map[string]ssmClient)
 			for _, matcher := range c.ServiceConfig.Discovery.AWSMatchers {
 				if !slices.Contains(matcher.Types, types.AWSMatcherEC2) {
 					continue
 				}
 				for _, region := range matcher.Regions {
-					if _, ok := c.AWSSSMClients[region]; ok {
+					if _, ok := c.ssmClients[region]; ok {
 						continue
 					}
-					session, err := awssession.NewSessionWithOptions(awssession.Options{
-						Config: aws.Config{
-							Region:          &region,
-							UseFIPSEndpoint: useFIPSEndpoint,
-						},
-						SharedConfigState: awssession.SharedConfigEnable,
-					})
-					if err != nil {
-						return trace.Wrap(err)
+					withRegion := func(o *ssm.Options) {
+						o.Region = region
 					}
-					c.AWSSSMClients[region] = ssm.New(session)
+					c.ssmClients[region] = ssm.NewFromConfig(*c.awsCfg, withRegion)
 				}
 			}
 
 		}
 
 		if c.Policies == nil {
-			c.Policies = awslib.NewPolicies(c.Identity.GetPartition(), c.Identity.GetAccountID(), iam.New(c.AWSSession))
+			partition := c.Identity.GetPartition()
+			accountID := c.Identity.GetAccountID()
+			iamClient := iam.NewFromConfig(*c.awsCfg)
+			c.Policies = awslib.NewPolicies(partition, accountID, iamClient)
 		}
 	}
 
@@ -506,7 +509,7 @@ func buildDiscoveryActions(config ConfiguratorConfig, targetCfg targetConfig) ([
 		return nil, err
 	}
 
-	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClients, targetCfg, proxyAddr)...)
+	actions = append(actions, buildSSMDocumentCreators(config.ssmClients, targetCfg, proxyAddr)...)
 	return actions, nil
 }
 
@@ -520,7 +523,7 @@ func buildCommonActions(config ConfiguratorConfig, targetCfg targetConfig) ([]co
 	// If the policy has no statements means that the agent doesn't require
 	// any IAM permission. In this case, return without errors and with empty
 	// actions.
-	if len(policy.Document.Statements) == 0 {
+	if policy.Document.IsEmpty() {
 		return []configurators.ConfiguratorAction{}, nil
 	}
 
@@ -554,7 +557,7 @@ func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction
 	}
 
 	// Define the target and target type.
-	target, err := policiesTarget(config.Flags, accountID, partitionID, config.Identity, config.AWSIAMClient)
+	target, err := policiesTarget(config.Flags, accountID, partitionID, config.Identity, config.iamClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -572,7 +575,7 @@ func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction
 
 // policiesTarget defines which target and its type the policies will be
 // attached to.
-func policiesTarget(flags configurators.BootstrapFlags, accountID string, partitionID string, identity awslib.Identity, iamClient iamiface.IAMAPI) (awslib.Identity, error) {
+func policiesTarget(flags configurators.BootstrapFlags, accountID string, partitionID string, identity awslib.Identity, iamClient iamClient) (awslib.Identity, error) {
 	if flags.AttachToUser != "" {
 		userArn := flags.AttachToUser
 		if !arn.IsARN(flags.AttachToUser) {
@@ -637,14 +640,17 @@ func failedToResolveAssumeRoleARN(roleIdentity string) string {
 // the underlying role ARN using IAM API.
 // This is necessary since the assumed-role ARN does not include the role path,
 // so we cannot reliably reconstruct the role ARN from the assumed-role ARN.
-func getRoleARNForAssumedRole(iamClient iamiface.IAMAPI, identity awslib.Identity) (awslib.Identity, error) {
+func getRoleARNForAssumedRole(iamClient iamClient, identity awslib.Identity) (awslib.Identity, error) {
 	failedToResolveAssumeRoleARN := failedToResolveAssumeRoleARN(identity.GetName())
 
-	roleOutput, err := iamClient.GetRole(&iam.GetRoleInput{RoleName: aws.String(identity.GetName())})
-	if err != nil || roleOutput == nil || roleOutput.Role == nil || roleOutput.Role.Arn == nil {
+	out, err := iamClient.GetRole(context.Background(), &iam.GetRoleInput{
+		RoleName: aws.String(identity.GetName()),
+	})
+	if err != nil || out == nil || out.Role == nil || out.Role.Arn == nil {
 		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
 	}
-	roleIdentity, err := awslib.IdentityFromArn(*roleOutput.Role.Arn)
+
+	roleIdentity, err := awslib.IdentityFromArn(*out.Role.Arn)
 	if err != nil {
 		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
 	}
@@ -759,7 +765,7 @@ func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.Bootstra
 	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_server or proxy_service.public_addr in the teleport config")
 }
 
-func buildSSMDocumentCreators(ssm map[string]ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
+func buildSSMDocumentCreators(ssm map[string]ssmClient, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
 	var creators []configurators.ConfiguratorAction
 	for _, matcher := range targetCfg.awsMatchers {
 		if !slices.Contains(matcher.Types, types.AWSMatcherEC2) {
@@ -1013,7 +1019,7 @@ func buildSecretsManagerStatements(databases []*servicecfg.Database, target awsl
 			addedKMSKeyIDs[kmsKeyID] = true
 			kmsStatement.Resources = append(
 				kmsStatement.Resources,
-				buildARN(target, kms.ServiceName, "key/"+kmsKeyID),
+				buildARN(target, "kms", "key/"+kmsKeyID),
 			)
 		}
 	}
@@ -1045,7 +1051,7 @@ func buildSTSAssumeRoleStatements(targetCfg targetConfig, additionalSTSActions .
 func buildSecretsManagerARN(target awslib.Identity, keyPrefix string) string {
 	return buildARN(
 		target,
-		secretsmanager.ServiceName,
+		"secretsmanager",
 		fmt.Sprintf("secret:%s/*", strings.TrimSuffix(keyPrefix, "/")),
 	)
 }
@@ -1064,7 +1070,7 @@ func buildARN(target awslib.Identity, service, resource string) string {
 
 type awsSSMDocumentCreator struct {
 	Contents string
-	ssm      ssmiface.SSMAPI
+	ssm      ssmClient
 	Name     string
 }
 
@@ -1080,16 +1086,16 @@ func (a *awsSSMDocumentCreator) Details() string {
 
 // Execute upserts the policy and store its ARN in the action context.
 func (a *awsSSMDocumentCreator) Execute(ctx context.Context, actionCtx *configurators.ConfiguratorActionContext) error {
-	_, err := a.ssm.CreateDocumentWithContext(ctx, &ssm.CreateDocumentInput{
+	_, err := a.ssm.CreateDocument(ctx, &ssm.CreateDocumentInput{
 		Content:        aws.String(a.Contents),
 		Name:           aws.String(a.Name),
-		DocumentType:   aws.String(ssm.DocumentTypeCommand),
-		DocumentFormat: aws.String("YAML"),
+		DocumentType:   ssmtypes.DocumentTypeCommand,
+		DocumentFormat: ssmtypes.DocumentFormatYaml,
 	})
 
 	if err != nil {
-		var aErr awserr.Error
-		if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeDocumentAlreadyExists {
+		var docAlreadyExistsError *ssmtypes.DocumentAlreadyExists
+		if errors.As(err, &docAlreadyExistsError) {
 			fmt.Printf("⚠️ Warning: SSM document %s already exists. Not overwriting.\n", a.Name)
 			return nil
 		}

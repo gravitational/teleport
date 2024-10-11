@@ -88,7 +88,7 @@ func TestExportAuthorities(t *testing.T) {
 		require.NotNil(t, key.Signer, "ParsePrivateKey returned a nil key")
 	}
 
-	// TestAuthServer uses ECDSA for all CAs except db_client.
+	// TestAuthServer uses ECDSA for all CAs except db, db_client, saml_idp, oidc_idp.
 	validateRSAPrivateKeyDERFunc := func(t *testing.T, s string) {
 		privKey, err := x509.ParsePKCS1PrivateKey([]byte(s))
 		require.NoError(t, err, "x509.ParsePKCS1PrivateKey failed")
@@ -227,7 +227,7 @@ func TestExportAuthorities(t *testing.T) {
 				},
 				errorCheck:      require.NoError,
 				assertNoSecrets: validateTLSCertificateDERFunc,
-				assertSecrets:   validateECDSAPrivateKeyDERFunc,
+				assertSecrets:   validateRSAPrivateKeyDERFunc,
 			},
 			{
 				name: "db-client",

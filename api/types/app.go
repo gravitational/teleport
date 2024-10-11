@@ -82,6 +82,10 @@ type Application interface {
 	// GetIntegration will return the Integration.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	GetIntegration() string
+	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
+	GetRequiredAppNames() []string
+	// GetCORS returns the CORS configuration for the app.
+	GetCORS() *CORSPolicy
 }
 
 // NewAppV3 creates a new app resource.
@@ -317,6 +321,14 @@ func (a *AppV3) String() string {
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
 	return utils.CloneProtoMsg(a)
+}
+
+func (a *AppV3) GetRequiredAppNames() []string {
+	return a.Spec.RequiredAppNames
+}
+
+func (a *AppV3) GetCORS() *CORSPolicy {
+	return a.Spec.CORS
 }
 
 // MatchSearch goes through select field values and tries to

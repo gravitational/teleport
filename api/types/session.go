@@ -317,7 +317,7 @@ func (ws *WebSessionV2) SetSSHPriv(priv []byte) {
 
 // GetTLSPriv returns private TLS key.
 func (ws *WebSessionV2) GetTLSPriv() []byte {
-	// TODO(nklaassen): DELETE IN 18.0.0
+	// TODO(nklaassen): DELETE IN 18.0.0 when all auth servers are writing web session TLS key.
 	if ws.Spec.TLSPriv == nil {
 		// An older auth instance may have written this web session before the
 		// SSH and TLS keys were split.

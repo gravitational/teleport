@@ -206,7 +206,8 @@ requested and identify the Slack channels to notify.
 
 <Tabs>
 <TabItem label="Executable or Docker">
-Here is an example of a `role_to_recipients` map:
+Here is an example of a `role_to_recipients` map. Each value can be a
+single string or an array of strings:
 
 ```toml
 [role_to_recipients]
@@ -216,26 +217,26 @@ Here is an example of a `role_to_recipients` map:
 ```
 </TabItem>
 <TabItem label="Helm Chart">
-In our Helm chart, the `role_to_recipients` field is called `roleToRecipients`
-and uses the following format:
+In the Helm chart, the `role_to_recipients` field is called `roleToRecipients`
+and uses the following format, where keys are strings and values are arrays of
+strings:
 
 ```yaml
 roleToRecipients:
-  "*": "admin-slack-channel"
+  "*": ["admin-slack-channel"]
   "dev":
     - "dev-slack-channel"
     - "admin-slack-channel"
-  "dba": "alex@gmail.com"
+  "dba": ["alex@gmail.com"]
 ```
 </TabItem>
 </Tabs>
 
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
-value configures the Slack channel (or channels) to notify. The value can be a
-single string or an array of strings. Each string must be either the name of a
-Slack channel (including a user's direct message channel) or the email address
-of a Slack user. If the recipient is an email address, the Slack plugin will
-use that email address to look up a direct message channel.
+value configures the Slack channel (or channels) to notify. Each string must be
+either the name of a Slack channel (including a user's direct message channel)
+or the email address of a Slack user. If the recipient is an email address, the
+Slack plugin will use that email address to look up a direct message channel.
 
 The `role_to_recipients` map must also include an entry for `"*"`, which the
 plugin looks up if no other entry matches a given role name. In the example

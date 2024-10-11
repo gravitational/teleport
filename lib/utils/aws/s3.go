@@ -24,8 +24,8 @@ import (
 	"io"
 	"net/http"
 
-	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
-	managerV2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	managerv2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	s3v2 "github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -98,13 +98,13 @@ type s3V2FileWriter struct {
 
 // NewS3V2FileWriter created s3V2FileWriter. Close method on writer should be called
 // to make sure that reader has finished.
-func NewS3V2FileWriter(ctx context.Context, s3Client managerV2.UploadAPIClient, bucket, key string, uploaderOptions []func(*managerV2.Uploader), putObjectInputOptions ...func(*s3v2.PutObjectInput)) (*s3V2FileWriter, error) {
-	uploader := managerV2.NewUploader(s3Client, uploaderOptions...)
+func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, bucket, key string, uploaderOptions []func(*managerv2.Uploader), putObjectInputOptions ...func(*s3v2.PutObjectInput)) (*s3V2FileWriter, error) {
+	uploader := managerv2.NewUploader(s3Client, uploaderOptions...)
 	pr, pw := io.Pipe()
 
 	uploadParams := &s3v2.PutObjectInput{
-		Bucket: awsV2.String(bucket),
-		Key:    awsV2.String(key),
+		Bucket: awsv2.String(bucket),
+		Key:    awsv2.String(key),
 		Body:   pr,
 	}
 

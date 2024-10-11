@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -101,24 +100,24 @@ func (c *TLSCredential) TLSCertificate() (tls.Certificate, error) {
 type KeyRing struct {
 	KeyRingIndex
 
-	// PrivateKey used to represent the single cryptographic key associated with all
-	// certificates in the KeyRing. This is in the process of being deprecated
-	// and replaced with unique keys for each certificate, as part of the
-	// implementation of RFD 136.
-	PrivateKey *keys.PrivateKey
+	// SSHPrivateKey is a private key used for SSH authentication.
+	SSHPrivateKey *keys.PrivateKey
+	// Cert is an SSH client certificate.
+	Cert []byte
 
-	// Cert is an SSH client certificate
-	Cert []byte `json:"Cert,omitempty"`
+	// TLSPrivateKey is a private key used for TLS authentication.
+	TLSPrivateKey *keys.PrivateKey
 	// TLSCert is a PEM encoded client TLS x509 certificate.
 	// It's used to authenticate to the Teleport APIs.
-	TLSCert []byte `json:"TLSCert,omitempty"`
-	// KubeTLSCredentials are TLS credentials for individual
-	// kubernetes clusters. Map key is a kubernetes cluster name.
+	TLSCert []byte
+
+	// KubeTLSCredentials are TLS credentials for individual kubernetes clusters.
+	// Map key is a kubernetes cluster name.
 	KubeTLSCredentials map[string]TLSCredential
 	// DBTLSCredentials are TLS credentials for database access.
 	// Map key is the database service name.
 	DBTLSCredentials map[string]TLSCredential
-	// AppTLSCredetials are TLS credentials for application access.
+	// AppTLSCredentials are TLS credentials for application access.
 	// Map key is the application name.
 	AppTLSCredentials map[string]TLSCredential
 	// TrustedCerts is a list of trusted certificate authorities
@@ -138,51 +137,34 @@ func (k *KeyRing) Copy() *KeyRing {
 // [purpose], meant to be used as the subject key for a new user cert request.
 // If [k.PrivateKey] is a PIV/hardware key or an RSA key, it will be re-used.
 func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient, purpose cryptosuites.KeyPurpose) (*keys.PrivateKey, error) {
-	if k.PrivateKey.IsHardware() {
+	if k.TLSPrivateKey.IsHardware() {
 		// We always re-use the root TLS key if it is a hardware key.
-		return k.PrivateKey, nil
+		return k.TLSPrivateKey, nil
 	}
-	if _, isRSA := k.PrivateKey.Public().(*rsa.PublicKey); isRSA {
+	if _, isRSA := k.TLSPrivateKey.Public().(*rsa.PublicKey); isRSA {
 		// We always re-use the root TLS key if it is RSA (it would be expensive
 		// to always generate new RSA keys). If [k.PrivateKey] is RSA we must be
 		// using the `legacy` signature algorithm suitei and the subject keys
 		// should be RSA as well.
-		return k.PrivateKey, nil
+		return k.TLSPrivateKey, nil
 	}
 
-	// Ping is cached if called more than once on [tc].
-	pingResp, err := tc.Ping(ctx)
+	key, err := cryptosuites.GenerateKey(ctx, tc.GetCurrentSignatureAlgorithmSuite, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := cryptosuites.GenerateKeyWithSuite(ctx, pingResp.Auth.SignatureAlgorithmSuite, purpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	priv, err := keys.NewPrivateKey(key, privateKeyPEM)
+	priv, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return priv, nil
 }
 
-// GenerateRSAKeyRing generates a new unsigned key ring.
-func GenerateRSAKeyRing() (*KeyRing, error) {
-	priv, err := native.GeneratePrivateKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return NewKeyRing(priv), nil
-}
-
-// NewKeyRing creates a new KeyRing for the given private key.
-func NewKeyRing(priv *keys.PrivateKey) *KeyRing {
+// NewKeyRing creates a new KeyRing for the given private keys.
+func NewKeyRing(sshPriv, tlsPriv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
-		PrivateKey:         priv,
+		SSHPrivateKey:      sshPriv,
+		TLSPrivateKey:      tlsPriv,
 		KubeTLSCredentials: make(map[string]TLSCredential),
 		DBTLSCredentials:   make(map[string]TLSCredential),
 		AppTLSCredentials:  make(map[string]TLSCredential),
@@ -281,7 +263,7 @@ func (k *KeyRing) TeleportClientTLSConfig(cipherSuites []uint16, clusters []stri
 		return nil, trace.NotFound("TLS certificate not found")
 	}
 	return k.clientTLSConfig(cipherSuites, TLSCredential{
-		PrivateKey: k.PrivateKey,
+		PrivateKey: k.TLSPrivateKey,
 		Cert:       k.TLSCert,
 	}, clusters)
 }
@@ -340,7 +322,7 @@ func (k *KeyRing) ProxyClientSSHConfig(hostname string) (*ssh.ClientConfig, erro
 		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
 	}
 
-	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, k.PrivateKey.Signer)
+	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, k.SSHPrivateKey.Signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -437,7 +419,7 @@ func (k *KeyRing) AsAgentKey() (agent.AddedKey, error) {
 	}
 
 	return agent.AddedKey{
-		PrivateKey:       k.PrivateKey.Signer,
+		PrivateKey:       k.SSHPrivateKey.Signer,
 		Certificate:      sshCert,
 		Comment:          teleportAgentKeyComment(k.KeyRingIndex),
 		LifetimeSecs:     0,
@@ -557,7 +539,7 @@ func (k *KeyRing) AsAuthMethod() (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAuthMethod(cert, k.PrivateKey)
+	return sshutils.AsAuthMethod(cert, k.SSHPrivateKey)
 }
 
 // SSHSigner returns an ssh.Signer using the SSH certificate in this key.
@@ -566,7 +548,7 @@ func (k *KeyRing) SSHSigner() (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.SSHSigner(cert, k.PrivateKey)
+	return sshutils.SSHSigner(cert, k.SSHPrivateKey)
 }
 
 // SSHCert returns parsed SSH certificate
@@ -611,7 +593,7 @@ func (k *KeyRing) CheckCert() error {
 func (k *KeyRing) checkCert(sshCert *ssh.Certificate) error {
 	// Check that the certificate was for the current public key. If not, the
 	// public/private key pair may have been rotated.
-	if !sshutils.KeysEqual(sshCert.Key, k.PrivateKey.SSHPublicKey()) {
+	if !sshutils.KeysEqual(sshCert.Key, k.SSHPrivateKey.SSHPublicKey()) {
 		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
 	}
 
@@ -650,6 +632,8 @@ func (k *KeyRing) EqualPrivateKey(other *KeyRing) bool {
 	// For example, for PIV keys, the private key PEM only uniquely
 	// identifies a PIV slot, so we can use the public key to verify
 	// that the private key on the slot hasn't changed.
-	return subtle.ConstantTimeCompare(k.PrivateKey.PrivateKeyPEM(), other.PrivateKey.PrivateKeyPEM()) == 1 &&
-		bytes.Equal(k.PrivateKey.MarshalSSHPublicKey(), other.PrivateKey.MarshalSSHPublicKey())
+	return bytes.Equal(k.SSHPrivateKey.MarshalSSHPublicKey(), other.SSHPrivateKey.MarshalSSHPublicKey()) &&
+		bytes.Equal(k.TLSPrivateKey.MarshalSSHPublicKey(), other.TLSPrivateKey.MarshalSSHPublicKey()) &&
+		subtle.ConstantTimeCompare(k.SSHPrivateKey.PrivateKeyPEM(), other.SSHPrivateKey.PrivateKeyPEM()) == 1 &&
+		subtle.ConstantTimeCompare(k.TLSPrivateKey.PrivateKeyPEM(), other.TLSPrivateKey.PrivateKeyPEM()) == 1
 }

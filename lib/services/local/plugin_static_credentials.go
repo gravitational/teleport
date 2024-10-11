@@ -39,11 +39,11 @@ type PluginStaticCredentialsService struct {
 }
 
 // NewPluginStaticCredentialsService creates a new PluginStaticCredentialsService.
-func NewPluginStaticCredentialsService(backend backend.Backend) (*PluginStaticCredentialsService, error) {
+func NewPluginStaticCredentialsService(b backend.Backend) (*PluginStaticCredentialsService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.PluginStaticCredentials]{
-		Backend:       backend,
+		Backend:       b,
 		ResourceKind:  types.KindPluginStaticCredentials,
-		BackendPrefix: pluginStaticCredentialsPrefix,
+		BackendPrefix: backend.NewKey(pluginStaticCredentialsPrefix),
 		MarshalFunc:   services.MarshalPluginStaticCredentials,
 		UnmarshalFunc: services.UnmarshalPluginStaticCredentials,
 	})
@@ -65,6 +65,11 @@ func (p *PluginStaticCredentialsService) CreatePluginStaticCredentials(ctx conte
 // GetPluginStaticCredentials will get a plugin static credentials resource by name.
 func (p *PluginStaticCredentialsService) GetPluginStaticCredentials(ctx context.Context, name string) (types.PluginStaticCredentials, error) {
 	creds, err := p.svc.GetResource(ctx, name)
+	return creds, trace.Wrap(err)
+}
+
+func (p *PluginStaticCredentialsService) UpdatePluginStaticCredentials(ctx context.Context, item types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	creds, err := p.svc.ConditionalUpdateResource(ctx, item)
 	return creds, trace.Wrap(err)
 }
 

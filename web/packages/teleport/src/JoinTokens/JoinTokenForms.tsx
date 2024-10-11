@@ -206,7 +206,7 @@ export const JoinTokenGCPForm = ({
             }
             value={rule.locations}
             label="Add Locations"
-            labelTip="Allows regions and/or zones."
+            helperText="Allows regions and/or zones."
           />
           <FieldSelectCreatable
             placeholder="PROJECT_compute@developer.gserviceaccount.com"

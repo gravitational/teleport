@@ -85,6 +85,7 @@ func NewOpsgenieApp(ctx context.Context, conf *Config) (*App, error) {
 	opsgenieApp.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
 		Client:                 teleClient,
 		PluginType:             string(conf.BaseConfig.PluginType),
+		PluginName:             pluginName,
 		FetchRecipientCallback: createScheduleRecipient,
 	})
 	opsgenieApp.mainJob = lib.NewServiceJob(opsgenieApp.run)

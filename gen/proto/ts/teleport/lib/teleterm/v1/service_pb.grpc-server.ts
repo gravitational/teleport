@@ -65,6 +65,8 @@ import { GetAppsResponse } from "./service_pb";
 import { GetAppsRequest } from "./service_pb";
 import { GetKubesResponse } from "./service_pb";
 import { GetKubesRequest } from "./service_pb";
+import { ListKubernetesResourcesResponse } from "./service_pb";
+import { ListKubernetesResourcesRequest } from "./service_pb";
 import { GetSuggestedAccessListsResponse } from "./service_pb";
 import { GetSuggestedAccessListsRequest } from "./service_pb";
 import { PromoteAccessRequestResponse } from "./service_pb";
@@ -201,6 +203,13 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest) returns (teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists: grpc.handleUnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>;
+    /**
+     * ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+     * Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+     *
+     * @generated from protobuf rpc: ListKubernetesResources(teleport.lib.teleterm.v1.ListKubernetesResourcesRequest) returns (teleport.lib.teleterm.v1.ListKubernetesResourcesResponse);
+     */
+    listKubernetesResources: grpc.handleUnaryCall<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse>;
     /**
      * GetKubes returns filtered, sorted, and paginated kubes
      *
@@ -552,6 +561,16 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => GetSuggestedAccessListsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetSuggestedAccessListsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetSuggestedAccessListsRequest.toBinary(value))
+    },
+    listKubernetesResources: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources",
+        originalName: "ListKubernetesResources",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ListKubernetesResourcesResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListKubernetesResourcesRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListKubernetesResourcesResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListKubernetesResourcesRequest.toBinary(value))
     },
     getKubes: {
         path: "/teleport.lib.teleterm.v1.TerminalService/GetKubes",
