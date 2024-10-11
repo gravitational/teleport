@@ -290,7 +290,8 @@ const AuditList = () => {
         tbody tr {
           cursor: pointer;
           &:hover {
-            background-color: ${p => p.theme.colors.interactive.tonal.primary};
+            background-color: ${p =>
+              p.theme.colors.interactive.tonal.primary[2]};
           }
         }
       `}

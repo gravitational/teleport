@@ -27,7 +27,7 @@ export const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
 
   background-color: ${p =>
     !p.$isSliding && p.$active
-      ? p => p.theme.colors.interactive.tonal.primary[0].background
+      ? p => p.theme.colors.interactive.tonal.primary[0]
       : 'inherit'};
 
   ${Title} {

@@ -205,8 +205,7 @@ const StyledSelect = styled(Select)`
 
   &.hasSelectedGroups {
     .react-select__control {
-      background: ${p =>
-        p.theme.colors.interactive.solid.primary.default.background};
+      background: ${p => p.theme.colors.interactive.solid.primary.default};
       border: transparent;
     }
 

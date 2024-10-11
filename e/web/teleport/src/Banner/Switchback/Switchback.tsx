@@ -44,7 +44,7 @@ export function Switchback({
           px={2}
           mr={2}
           color={theme.colors.text.primaryInverse}
-          bg={theme.colors.interactive.solid.primary.default.background}
+          bg={theme.colors.interactive.solid.primary.default}
           style={{
             fontWeight: '500',
             overflow: 'hidden',

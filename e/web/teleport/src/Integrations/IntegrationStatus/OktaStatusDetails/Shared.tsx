@@ -65,7 +65,7 @@ export function CustomLabel({ enabled }: { enabled: boolean }) {
     <Label
       kind={getEnableLabelKind(enabled)}
       css={`
-        background: ${p => p.theme.colors.interactive.tonal.success[1]}
+        background: ${p => p.theme.colors.interactive.tonal.success[1]};
         color: ${p => p.theme.colors.success.hover};
       `}
     >
