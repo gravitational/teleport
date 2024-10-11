@@ -1,0 +1,274 @@
+---
+title: Getting started with AWS Identity Center integration
+description: Learn how to set up integration with AWS Identity Center
+---
+
+With Teleport Identity Center integration, you can:
+
+- Provision user and groups from Teleport into AWS Identity Center.
+- Provision permission assignment from Teleport into AWS Identity Center that grants access to AWS accounts.
+- Authenticate Teleport users to AWS Identity Center via Teleport a SAML IdP.
+
+
+<Notice type="warning">
+Stability notice: For internal testing only.
+</Notice>
+
+## Prerequisites
+
+- Teleport version:
+  - Pull the branch `sshah/idc-dev` branch from `telepeort` and `telepeort.e` repository and
+  deploy to staging tenant. Cloud hosting is required as the integration depends on AWS OIDC
+  integration to authenticate itslef to AWS API.
+- Administrative access in Telepert with the following permissions.
+  - `read`, `list`, `create`, `update`, `delete` access to `saml_idp_service_provider` resource.
+  - `read`, `list`, `create`, `update`, `delete` access to `access_list` resource.
+  - `read`, `list`, `create`, `update`, `delete` access to `integration` resource.
+  - (new) `read`, `list`, `create`, `update`, `delete` access to `aws_iam_ic_account` resource.
+  - (new) `account_assignment_labels` on the `role.spec.allow.`. Note: Although this label is required
+    for now, we are in a discussion to remove it. Please refer back to this doc if it stops working for you.
+- Administrative permission in AWS.
+  - Identity Center enabled for organization. Teleport does not support account-level identity center.
+  - AWS API permissions.
+    - Permission to enable and manage Identity Center.
+    - Permission to create AWS OIDC identity provider.
+    - Permission to create and update AWS IAM role.
+
+
+## Step 1/2. Install Identity Center plugin
+**Note:** You need AWS Identiy Center enabled for your organization at this point.
+
+### 1.1 Configure AWS integration
+
+Click on the Identity Center tile available in the Enroll New integration page.
+
+In the first step, you need to provide
+- Identity Center region. Copy this data from Identity Center.
+- Identity Center ARN. Copy this data from Identity Center.
+- A new integration name that will be used to create AWS OIDC integration.
+
+The Web UI will then let you generate integration script.
+
+In production, the command generated from the Web UI will configure all the required AWS OIDC integration for you.
+
+To accommodate permissions required for the Identity Center integration, the
+`teleport integration configure awsoidc-idp` has been updated with `--policy-preset=aws-identity-center` flag that
+configures required permissions for Identity Center integration:
+```bash
+$ teleport integration configure awsoidc-idp --cluster=example.cloud.gravitational.io --proxy-public-url=https://example.cloud.gravitational.io --name=teleport-aws-ic --role=teleport-aws-ic --policy-preset=aws-identity-center 
+```
+
+However, since this version is not released yet, you will have to compile a linux build and upload to AWS cloud
+shell and run the command manually.
+
+Alternatively, you can run existing Teleport OIDC configuration command
+```bash
+$ teleport integration configure awsoidc-idp --cluster=example.cloud.gravitational.io --proxy-public-url=https://example.cloud.gravitational.io --name=teleport-aws-ic --role=teleport-aws-ic
+```
+and then update the role `teleport-aws-ic` with the following inline policy statement:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "TeleportIdentityCenterClient",
+            "Effect": "Allow",
+            "Action": [
+                "organizations:ListAccounts",
+                "organizations:ListAccountsForParent",
+                "identitystore:ListUsers",
+                "identitystore:ListGroups",
+                "identitystore:ListGroupMemberships",
+                "sso:DescribeInstance",
+                "sso:DescribePermissionSet",
+                "sso:ListPermissionSets",
+                "sso:ListAccountAssignmentsForPrincipal",
+                "sso:CreateAccountAssignment",
+                "sso:DescribeAccountAssignmentCreationStatus",
+                "sso:DeleteAccountAssignment",
+                "sso:DescribeAccountAssignmentDeletionStatus",
+                "iam:AttachRolePolicy",
+                "iam:CreateRole",
+                "iam:GetRole",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListRolePolicies",
+                "iam:GetSAMLProvider",
+                "iam:ListRoles",
+                "iam:CreateSAMLProvider"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+```
+
+Once a new AWS IAM role is created and updated with permissions, you will need to copy the ARN 
+of that role paste it to the Web UI.
+
+
+### 1.2 Preview resources and select default Access List owner
+
+In this step, Web UI lets you preview the resources that will be imported from AWS Identity Center to
+Teleport. If you have just enabled Identity Center for your organization, you may not have
+any resource available yet. That is okay for now as Teleport will start provisioning resource form Teleport
+to AWS once the integration is complete.
+
+Pick users to be configured as default owners for Access List. Existing groups in AWS Identity Center
+will be imported as Access List in Teleport (the group import is WIP but configure default owners right away
+so it can be picked up once the import is supported).
+
+
+### 1.3 Configure Identity Center identity source
+
+In this step, you wil:
+- Configure Teleport SAML IdP as an identity source for Identity Center.
+  - You will need to upload Teleport SAML IdP metadata to Identity Center.
+- Add Identity Center as a SAML service provdier to Teleport.
+  - You will need to upload Identity Center SAML metada file to Teleport.
+  - Teleport uses a default `aws-identity-center` name for the SAML service provider.
+    **Note**: The name is hardcoded and will not work if you already have a SAML provider with the same name.
+    Naming conflict resolution will be resolved in a subsequent plugin update.
+
+
+### 1.4 Configure SCIM
+
+Once you configure identiy source, AWS lets you enable automatic user provisioning
+with SCIM. Follow Web UI to enable and retrieve the SCIM credential and paste it in
+the input fields.
+
+Test the credential with `Test` button. Once Telpoert validates response is valid,
+Click on Finish button to complete plugin installation.
+In this step, you wil:
+
+
+After you install the plugin, the identity center service will
+- Import Identity Center accounts. They will be available in Teleport Web UI as an AWS application.
+- Import permission assignment. They will be availble in Teleport as roles, which can be used to
+  request or grant access to the AWS accounts.
+- Import groups as Access List (not supported yet)
+
+
+## Step 2/2. Test Access Request and permission provisioning.
+
+Upon successful role grant via Access Request ceremony, Teleport provisions
+granted permission assignment into AWS Identity Center.
+
+
+An Access Request for Identity Center resource typically involves four kinds of role.
+1. Role that grants access to Identity Center resource in Teleport.
+2. Role that defines AWS Identity Center permission assignment.
+3. Role for user to request access to the role #1 and #2
+4. Role for administrator to grant access to roles #1 and #2 and #3.
+
+
+### 1. Role that grants access to Identity Center resource in Teleport.
+```yaml
+kind: role
+version: v7
+metadata:
+  name: ic_all_access
+spec:
+  allow:
+    account_assignment_labels:
+      '*': '*'
+    app_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - aws_iam_ic_account
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+...
+
+```
+
+### 2. Role that defines AWS Identity Center permission assignment.
+
+When you install the Identity Center plugin, Teleport import the permission sets from the
+Identity Center and create them as the role as reference below.
+```yaml
+kind: role
+sub_kind: aws_iam_identity_center
+version: v7
+metadata:
+  labels:
+    teleport.dev/origin: aws_iam_ic
+  name: AdministratorAccess-on-dev-account
+spec:
+  allow:
+    account_assignment_labels:
+      teleport.dev/account-id: "<account_id>"
+    account_assignments:
+    - account: "<account_id>" # id of AWS identity center account.
+      name: AdministratorAccess # name of the permission set in AWS
+      permission_set: arn:aws:sso:::permissionSet/ssoins-8824eede0d4dd26a/ps-25beafadd65e32d5
+...
+
+```
+
+### 3. Role for user to request access to the role #1 and #2
+```yaml
+kind: role
+metadata:
+  name: request_aws_iam_ic
+spec:
+  allow:
+    request:
+      roles:
+      - ic_all_access
+      - AdministratorAccess-on-goteleport-local
+      search_as_roles:
+      - ic_all_access
+      - AdministratorAccess-on-goteleport-local
+    rules:
+    - resources:
+      - aws_iam_ic_account
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+  deny:
+  ...
+  options:
+ ...
+version: v7
+```
+
+### 4. Role for administrator to grant access to roles #1 and #2 and #3.
+```
+kind: role
+version: v5
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      preview_as_roles:
+      - ic_all_access
+      - AdministratorAccess-on-dev-account
+      roles:
+      - ic_all_access
+      - AdministratorAccess-on-dev-account
+...
+
+```
+
+Upon Access Request approval, Teleport provisions permission assignment in Identity Center.
+Usually, the assignment is provisioned immidiately but sometime may take up to a minute or more.
