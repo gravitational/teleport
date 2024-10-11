@@ -32,7 +32,7 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 
 import { Notifications } from 'teleport/Notifications';
-import { zIndexMap } from 'teleport/Navigation/SideNavigation/Navigation';
+import { zIndexMap } from 'teleport/Navigation/SideNavigation/zIndexMap';
 
 export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();

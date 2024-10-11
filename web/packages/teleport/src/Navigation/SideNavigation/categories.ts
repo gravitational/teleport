@@ -25,6 +25,11 @@ export enum NavigationCategory {
   AddNew = 'Add New',
 }
 
+/* CustomNavigationCategory are pseudo-categories which exist only in the nav menu, eg. Search. */
+export enum CustomNavigationCategory {
+  Search = 'Search',
+}
+
 export const NAVIGATION_CATEGORIES = [
   NavigationCategory.Resources,
   NavigationCategory.Access,
