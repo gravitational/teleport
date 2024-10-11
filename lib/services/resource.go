@@ -245,6 +245,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSPIFFEFederation, nil
 	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccount + "s":
 		return types.KindIdentityCenterAccount, nil
+	case types.KindProvisioningState, types.KindProvisioningState + "s":
+		return types.KindProvisioningState, nil
 	case types.KindStaticHostUser, types.KindStaticHostUser + "s", "host_user", "host_users":
 		return types.KindStaticHostUser, nil
 	case types.KindUserTask, types.KindUserTask + "s":

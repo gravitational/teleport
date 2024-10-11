@@ -4822,6 +4822,14 @@ func (g *GRPCServer) DeleteAllIdentityCenterAccount(ctx context.Context, _ *empt
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllIdentityCenterAccount(ctx))
 }
 
+func (g *GRPCServer) DeleteAllIdentityCenterProvisioningState(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllIdentityCenterProvisioningState(ctx))
+}
+
 // ListUserGroups returns a paginated list of user group resources.
 func (g *GRPCServer) ListUserGroups(ctx context.Context, req *authpb.ListUserGroupsRequest) (*authpb.ListUserGroupsResponse, error) {
 	auth, err := g.authenticate(ctx)

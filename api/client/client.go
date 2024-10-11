@@ -4509,6 +4509,14 @@ func (c *Client) DeleteAllIdentityCenterAccount(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) DeleteAllIdentityCenterProvisioningState(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllIdentityCenterProvisioningState(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
 func (c *Client) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllSAMLIdPServiceProviders(ctx, &emptypb.Empty{})

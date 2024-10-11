@@ -3581,4 +3581,7 @@ service AuthService {
 
   // DeleteAllIdentityCenterAccount deletes all identity center accounts.
   rpc DeleteAllIdentityCenterAccount(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // DeleteAllIdentityCenterProvisioningState deletes all identity center provisioning state.
+  rpc DeleteAllIdentityCenterProvisioningState(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

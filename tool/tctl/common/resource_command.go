@@ -1787,7 +1787,14 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		if err := client.DeleteAllIdentityCenterAccount(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("Identity center account %q has been deleted\n", rc.ref.Name)
+	case types.KindProvisioningState:
+		// TODO(sshah): In produciton, this is to be replaced with Delete
+		// specific identity center provisioning state by id/name.
+		if err := client.DeleteAllIdentityCenterProvisioningState(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Identity center provisioningState %q has been deleted\n", rc.ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
