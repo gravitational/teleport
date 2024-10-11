@@ -17,7 +17,11 @@
  */
 
 import React from 'react';
-import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
+import {
+  MenuInputType,
+  MenuLogin,
+  MenuLoginProps,
+} from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
 
@@ -73,6 +77,7 @@ export function ConnectServerActionButton(props: {
 
   return (
     <MenuLogin
+      inputType={MenuInputType.FILTER}
       textTransform="none"
       getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
       onSelect={(e, login) => connect(login)}
