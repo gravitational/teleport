@@ -336,6 +336,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		return nil, trace.Wrap(err)
 	}
 	defer release()
+
 	var touchPromptDelayTimer *time.Timer
 	if y.attestation.TouchPolicy != piv.TouchPolicyNever {
 		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
@@ -675,9 +676,9 @@ type sharedPIVConnection struct {
 	card string
 
 	// conn is the shared PIV connection.
-	conn      *piv.YubiKey
-	mu        sync.Mutex
-	waitClose sync.WaitGroup
+	conn              *piv.YubiKey
+	mu                sync.Mutex
+	activeConnections int
 }
 
 // connect establishes a connection to a YubiKey PIV module and returns a release function.
@@ -691,14 +692,33 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 	defer c.mu.Unlock()
 
 	release := func() {
-		go func() {
-			time.Sleep(releaseConnectionDelay)
-			c.waitClose.Done()
-		}()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if c.activeConnections > 0 {
+			c.activeConnections--
+		}
+
+		// If this is the last active connection, close after a delay,
+		// giving other callers a chance to claim the connection first.
+		if c.activeConnections == 0 {
+			go func() {
+				time.Sleep(releaseConnectionDelay)
+
+				c.mu.Lock()
+				defer c.mu.Unlock()
+
+				// Close the shared connection if there are still no new active connections,
+				// and the connection hasn't been yet closed by another goroutine.
+				if c.activeConnections == 0 && c.conn != nil {
+					c.conn.Close()
+					c.conn = nil
+				}
+			}()
+		}
 	}
 
 	if c.conn != nil {
-		c.waitClose.Add(1)
+		c.activeConnections++
 		return release, nil
 	}
 
@@ -742,16 +762,7 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 		return nil, trace.Wrap(err)
 	}
 
-	c.waitClose.Add(1)
-	go func() {
-		c.waitClose.Wait()
-
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.conn.Close()
-		c.conn = nil
-	}()
-
+	c.activeConnections++
 	return release, nil
 }
 
