@@ -434,13 +434,16 @@ All of these are fields within the `allow` and `deny` sections of a Teleport
 role resource.
 
 Labels for resources enrolled with Teleport:
-- `app_labels`
-- `cluster_labels`
-- `db_labels`
-- `db_service_labels`
-- `kubernetes_labels`
-- `node_labels`
-- `windows_desktop_labels`
+
+|Role Field|Teleport Resource|
+|---|---|
+|`app_labels`|[Applications](../../enroll-resources/application-access/controls.mdx)|
+|`cluster_labels`|[Trusted Clusters](../../admin-guides/management/admin/trustedclusters.mdx)|
+|`db_labels`|[Databases](../../enroll-resources/database-access/rbac.mdx)|
+|`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
+|`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
+|`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
+|`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`

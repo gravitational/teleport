@@ -31,6 +31,7 @@ import { BoxProps } from 'design/Box';
 import type {
   NotificationItem,
   NotificationItemContent,
+  NotificationItemObjectContent,
   NotificationSeverity,
 } from './types';
 
@@ -41,7 +42,9 @@ interface NotificationProps extends BoxProps {
 
   /**
    * If defined, determines whether the notification is auto-dismissed after 5
-   * seconds. If undefined, the decision is based on the notification severity.
+   * seconds. If undefined, the decision is based on the notification severity:
+   * only 'success', 'info', and 'neutral' notifications are removable by
+   * default.
    */
   isAutoRemovable?: boolean;
 }
@@ -49,14 +52,20 @@ interface NotificationProps extends BoxProps {
 const autoRemoveDurationMs = 5_000; // 5s
 
 export function Notification(props: NotificationProps) {
-  const { item, onRemove, ...styleProps } = props;
+  const {
+    item,
+    onRemove,
+    isAutoRemovable: isAutoRemovableProp,
+    ...styleProps
+  } = props;
+  const content = toObjectContent(item.content);
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const timeoutHandler = useRef<number>();
   const theme = useTheme();
 
   const isAutoRemovable =
-    props.isAutoRemovable ??
+    isAutoRemovableProp ??
     ['success', 'info', 'neutral'].includes(item.severity);
   useEffect(() => {
     if (!isHovered && isAutoRemovable) {
@@ -82,6 +91,8 @@ export function Notification(props: NotificationProps) {
   return (
     <Container
       py={3}
+      // We use a custom value to offset the default padding by the width of the
+      // left border.
       pl="12px"
       pr={3}
       borderColor={borderColor}
@@ -104,7 +115,7 @@ export function Notification(props: NotificationProps) {
             severity={item.severity}
             size="medium"
             color={iconColor}
-            customIcon={icon(item.content)}
+            customIcon={content.icon}
           />
           {/* Right margin leaves room for the close button. Note that we
               wouldn't have to do it if the close button was in layout, but we
@@ -112,11 +123,11 @@ export function Notification(props: NotificationProps) {
               then occupy too much vertical space where it used to be, causing
               other problems. */}
           <Box flex="1" mr={4}>
-            <Text typography="h3">{title(item.content)}</Text>
-            <Text typography="body3">{subtitle(item.content)}</Text>
+            <Text typography="h3">{content.title}</Text>
+            <Text typography="body3">{content.subtitle}</Text>
           </Box>
         </Flex>
-        <NotificationBody content={item.content} isExpanded={isExpanded} />
+        <NotificationBody content={content} isExpanded={isExpanded} />
       </Flex>
       <CloseIcon
         style={{
@@ -161,14 +172,10 @@ const NotificationIcon = ({
   }
 };
 
-const title = (content: NotificationItemContent) =>
-  typeof content === 'string' ? content : content.title;
-
-const subtitle = (content: NotificationItemContent) =>
-  typeof content === 'string' ? undefined : content.subtitle;
-
-const icon = (content: NotificationItemContent) =>
-  typeof content === 'string' ? undefined : content.icon;
+const toObjectContent = (
+  content: NotificationItemContent
+): NotificationItemObjectContent =>
+  typeof content === 'string' ? { title: content } : content;
 
 const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
   switch (severity) {
@@ -214,21 +221,22 @@ const NotificationBody = ({
   content,
   isExpanded,
 }: {
-  content: NotificationItemContent;
+  content: NotificationItemObjectContent;
   isExpanded: boolean;
 }) => {
   const longerTextCss = isExpanded ? textCss : shortTextCss;
-
-  if (typeof content === 'string') {
-    return undefined;
-  }
+  const hasListOrDescription = !!content.list || !!content.description;
 
   return (
     <>
-      <Text typography="body2" color="text.slightlyMuted" css={longerTextCss}>
-        {content.list && <List items={content.list} />}
-        {content.description}
-      </Text>
+      {/* Note: an empty <Text/> element would still generate a flex gap, so we
+          only render it if necessary. */}
+      {hasListOrDescription && (
+        <Text typography="body2" color="text.slightlyMuted" css={longerTextCss}>
+          {content.list && <List items={content.list} />}
+          {content.description}
+        </Text>
+      )}
       {content.action && (
         <Box alignSelf="flex-start">
           <ActionButton intent="neutral" action={content.action} />
@@ -271,14 +279,11 @@ const shortTextCss = `
   -webkit-line-clamp: 3;
 `;
 
-const Container = styled(Flex)`
+const Container = styled(Box)`
   /* Positioning anchor for the close button. */
   position: relative;
-  flex-direction: row;
-  justify-content: space-between;
   background: ${props => props.theme.colors.levels.elevated};
   border-left: ${props => props.theme.borders[3]};
-  min-height: 40px;
   width: 320px;
   box-shadow:
     0px 3px 5px -1px rgba(0, 0, 0, 0.2),

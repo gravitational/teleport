@@ -20,10 +20,12 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -577,6 +579,147 @@ func TestGithubAuthRequest(t *testing.T) {
 			requestCopy, err := clientReader.GetGithubAuthRequest(ctx, request.StateToken)
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+// TestGithubAuthCompat attempts to test github SSO authentication from the
+// perspective of an Auth service receiving requests from a Proxy service. The
+// Auth service on major version N should support proxies on version N and N-1,
+// which may send a single user public key or split SSH and TLS public keys.
+//
+// The proxy originally sends the user public keys via gPRC
+// CreateGithubAuthRequest, and later retrieves the request via HTTP
+// github/requests/validate which must have the same format as the requested
+// keys to support both old and new proxies.
+func TestGithubAuthCompat(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	connector, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToRoles: []types.TeamRolesMapping{{
+			Organization: "octocats",
+			Team:         "devs",
+			Roles:        []string{"access"},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertGithubConnector(context.Background(), connector)
+	require.NoError(t, err)
+
+	srv.Auth().GithubUserAndTeamsOverride = func() (*GithubUserResponse, []GithubTeamResponse, error) {
+		return &GithubUserResponse{
+				Login: "alice",
+			}, []GithubTeamResponse{{
+				Name: "devs",
+				Slug: "devs",
+				Org:  GithubOrgResponse{Login: "octocats"},
+			}}, nil
+	}
+
+	_, err = CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                         string
+		pubKey, sshPubKey, tlsPubKey []byte
+		expectSSHSubjectKey          ssh.PublicKey
+		expectTLSSubjectKey          crypto.PublicKey
+	}{
+		{
+			desc: "no keys",
+		},
+		{
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
+			sshPubKey:           sshPubBytes,
+			tlsPubKey:           tlsPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+		{
+			desc:                "only ssh",
+			sshPubKey:           sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+		},
+		{
+			desc:                "only tls",
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Create the request over gRPC, this simulates to proxy creating the
+			// initial request.
+			req, err := proxyClient.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+				ConnectorID:  connector.GetName(),
+				Type:         constants.Github,
+				PublicKey:    tc.pubKey,
+				SshPublicKey: tc.sshPubKey,
+				TlsPublicKey: tc.tlsPubKey,
+				CertTTL:      apidefaults.MinCertDuration,
+			})
+			require.NoError(t, err)
+
+			// Simulate the proxy redirecting the user to github, getting a
+			// response, and calling back to auth for validation.
+			resp, err := proxyClient.ValidateGithubAuthCallback(ctx, url.Values{
+				"code":  []string{"success"},
+				"state": []string{req.StateToken},
+			})
+			require.NoError(t, err)
+
+			// The proxy should get back the keys exactly as it sent them. Older
+			// proxies won't look for the new split keys, and they do check for
+			// the old single key to tell if this was a console or web request.
+			require.Equal(t, tc.pubKey, resp.Req.PublicKey) //nolint:staticcheck // SA1019. Checking that deprecated field is set.
+			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
+			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
+
+			// Make sure the subject key in the issued SSH cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectSSHSubjectKey != nil {
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+			} else {
+				// No SSH cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.Cert)
+			}
+
+			// Make sure the subject key in the issued TLS cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectTLSSubjectKey != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+			} else {
+				// No TLS cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.TLSCert)
+			}
 		})
 	}
 }
@@ -3973,6 +4116,7 @@ func TestListResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
@@ -4957,8 +5101,8 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
 
 		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
-			HostID:   "_",
-			Hostname: "_",
+			HostID:   strconv.Itoa(i),
+			Hostname: "example.com",
 			App: &types.AppV3{
 				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
 				Spec: types.AppSpecV3{
@@ -4978,6 +5122,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
@@ -4986,25 +5131,39 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	var results []*proto.PaginatedResource
-	var start string
-	for {
-		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Limit:         5,
-			IncludeLogins: true,
-			SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-			StartKey:      start,
-		})
-		require.NoError(t, err)
 
-		results = append(results, resp.Resources...)
-		start = resp.NextKey
-		if start == "" {
-			break
+	// Immediately listing resources can be problematic, given that not all were
+	// necessarily replicated in the unified resources cache. To cover this
+	// scenario, perform multiple attempts (if necessary) to read the complete
+	// list of resources.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Reset the resources list to avoid having items from previous
+		// iterations.
+		results = nil
+
+		var start string
+		for {
+			resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Limit:         5,
+				IncludeLogins: true,
+				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+				StartKey:      start,
+			})
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			results = append(results, resp.Resources...)
+			start = resp.NextKey
+			if start == "" {
+				break
+			}
 		}
-	}
-	// Note: this number should be updated in case we add more resources to the
-	// setup loop.
-	require.Len(t, results, 20)
+
+		// Note: this number should be updated in case we add more resources to
+		// the setup loop.
+		assert.Len(t, results, 20)
+	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources, expected 20 but got %d", len(results))
 
 	// Check that only server, desktop, and app server resources contain the expected logins
 	for _, resource := range results {
@@ -6598,6 +6757,189 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 	}
 }
 
+func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate)})
+	client, err := srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		relayState       string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:     "missing url scheme in acs input",
+			entityID: "sp",
+			acsURL:   "sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "http url scheme in acs",
+			entityID: "sp",
+			acsURL:   "http://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:     "unsupported scheme in acs",
+			entityID: "sp",
+			acsURL:   "gopher://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "invalid character in acs",
+			entityID: "sp",
+			acsURL:   "https://sp>",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:       "invalid character in relay state",
+			entityID:   "sp",
+			acsURL:     "https://sp",
+			relayState: "default_state<b",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "test",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+				EntityID:         test.entityID,
+				ACSURL:           test.acsURL,
+				RelayState:       test.relayState,
+			})
+			require.NoError(t, err)
+
+			err = client.CreateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
+		})
+	}
+}
+
+func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate, types.VerbUpdate)})
+	client, err := srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "sp",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
+	})
+	require.NoError(t, err)
+
+	err = client.CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		relayState       string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:             "invalid character in relay state",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
+			relayState:       "default_state<b",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "sp",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+				RelayState:       test.relayState,
+			})
+			require.NoError(t, err)
+
+			err = client.UpdateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
+		})
+	}
+}
+
 func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -7107,17 +7449,8 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	// Server used to create users and roles.
-	setupAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestAdmin().I))
-	require.NoError(t, err)
-	setupServer := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		alog:       srv.AuditLog,
-		context:    *setupAuthContext,
-	}
-
 	// Create a test user.
-	_, err = CreateUser(ctx, setupServer, "username")
+	_, err = CreateUser(ctx, srv.AuthServer.Services, "username")
 	require.NoError(t, err)
 
 	for _, tc := range []struct {

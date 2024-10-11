@@ -23,6 +23,8 @@ import {
   AlignItemsProps,
   justifyContent,
   JustifyContentProps,
+  flexBasis,
+  FlexBasisProps,
   flexWrap,
   FlexWrapProps,
   flexDirection,
@@ -39,6 +41,7 @@ export interface FlexProps
     JustifyContentProps,
     FlexWrapProps,
     FlexDirectionProps,
+    FlexBasisProps,
     GapProps {}
 
 const Flex = styled(Box)<FlexProps>`
@@ -46,6 +49,7 @@ const Flex = styled(Box)<FlexProps>`
   ${alignItems}
   ${justifyContent}
   ${flexWrap}
+  ${flexBasis}
   ${flexDirection}
   ${gap};
 `;

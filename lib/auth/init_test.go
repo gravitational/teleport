@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -44,15 +45,19 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -159,6 +164,215 @@ func TestBadIdentity(t *testing.T) {
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
+}
+
+func TestSignatureAlgorithmSuite(t *testing.T) {
+	ctx := context.Background()
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.HSM: {Enabled: true},
+			},
+		},
+	})
+
+	setupInitConfig := func(t *testing.T, fips, hsm bool) InitConfig {
+		cfg := setupConfig(t)
+		cfg.FIPS = fips
+		if hsm {
+			cfg.KeyStoreConfig = keystore.HSMTestConfig(t)
+		}
+		// Pre-generate all CAs to keep tests fast esp. with SoftHSM.
+		for _, caType := range types.CertAuthTypes {
+			cfg.BootstrapResources = append(cfg.BootstrapResources, suite.NewTestCAWithConfig(suite.TestCAConfig{
+				Type:        caType,
+				ClusterName: cfg.ClusterName.GetClusterName(),
+				Clock:       cfg.Clock,
+			}))
+		}
+		return cfg
+	}
+
+	testCases := map[string]struct {
+		fips                  bool
+		hsm                   bool
+		cloud                 bool
+		expectDefaultSuite    types.SignatureAlgorithmSuite
+		expectUnallowedSuites []types.SignatureAlgorithmSuite
+	}{
+		"basic": {
+			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		},
+		"fips": {
+			fips:               true,
+			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
+				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+			},
+		},
+		"hsm": {
+			hsm:                true,
+			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
+				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			},
+		},
+		"fips and hsm": {
+			fips:               true,
+			hsm:                true,
+			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
+				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+			},
+		},
+		"cloud": {
+			cloud:              true,
+			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
+				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			},
+		},
+	}
+
+	// Test the behavior of auth server init. A default signature algorithm
+	// suite should never overwrite a persisted signature algorithm suite for an
+	// existing cluster, even if that was also a default.
+	t.Run("init", func(t *testing.T) {
+		for desc, tc := range testCases {
+			t.Run(desc, func(t *testing.T) {
+				if tc.cloud {
+					modules.SetTestModules(t, &modules.TestModules{
+						TestFeatures: modules.Features{
+							Cloud: true,
+							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+								entitlements.HSM: {Enabled: true},
+							},
+						},
+					})
+				}
+				// Assert that a fresh cluster gets expected default suite.
+				cfg := setupInitConfig(t, tc.fips, tc.hsm)
+				authServer, err := Init(ctx, cfg)
+				require.NoError(t, err)
+				t.Cleanup(func() { authServer.Close() })
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err)
+				assert.Equal(t, types.OriginDefaults, authPref.GetMetadata().Labels[types.OriginLabel])
+				assert.Equal(t, tc.expectDefaultSuite, authPref.GetSignatureAlgorithmSuite())
+
+				// Reset to unspecified suite and persist (still with
+				// OriginDefaults) to mimic an older cluster with the old defaults
+				// that later gets upgraded.
+				authPref.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err)
+				authPref, err = authServer.GetAuthPreference(ctx)
+				require.NoError(t, err)
+				// Sanity check it persisted as a default.
+				assert.Equal(t, types.OriginDefaults, authPref.GetMetadata().Labels[types.OriginLabel])
+				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, authPref.GetSignatureAlgorithmSuite())
+
+				// Start a second brand new auth server sharing the same config and
+				// backend. The new auth starting up would apply the new default
+				// auth preference and persist it to the backend, but it should not
+				// modify the existing signature algorithm suite even though it's
+				// unspecified. This is meant to test that a v16 auth server
+				// upgraded to v17 will still have an unspecified signature
+				// algorithm suite and won't get a new one until explicitly opting
+				// in.
+				authServer, err = Init(ctx, cfg)
+				require.NoError(t, err)
+				t.Cleanup(func() { authServer.Close() })
+				authPref, err = authServer.GetAuthPreference(ctx)
+				require.NoError(t, err)
+				assert.Equal(t, types.OriginDefaults, authPref.GetMetadata().Labels[types.OriginLabel])
+				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, authPref.GetSignatureAlgorithmSuite())
+
+				// Assert that the selected algorithm is RSA2048 when the suite is
+				// unspecified.
+				alg, err := cryptosuites.AlgorithmForKey(ctx,
+					cryptosuites.GetCurrentSuiteFromAuthPreference(authServer),
+					cryptosuites.UserTLS)
+				require.NoError(t, err)
+				require.Equal(t, cryptosuites.RSA2048, alg)
+			})
+		}
+	})
+
+	suiteName := func(suite types.SignatureAlgorithmSuite) string {
+		suiteName, err := suite.MarshalText()
+		require.NoError(t, err)
+		return string(suiteName)
+	}
+
+	// Test that the auth preference cannot be upserted with a signature
+	// algorithm suite incompatible with the cluster FIPS and HSM settings.
+	t.Run("upsert", func(t *testing.T) {
+		for desc, tc := range testCases {
+			t.Run(desc, func(t *testing.T) {
+				if tc.cloud {
+					modules.SetTestModules(t, &modules.TestModules{
+						TestFeatures: modules.Features{
+							Cloud: true,
+							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+								entitlements.HSM: {Enabled: true},
+							},
+						},
+					})
+				}
+				cfg := TestAuthServerConfig{
+					Dir:  t.TempDir(),
+					FIPS: tc.fips,
+					AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+						// Cloud requires second factor enabled.
+						SecondFactor: constants.SecondFactorOn,
+						Webauthn: &types.Webauthn{
+							RPID: "teleport.example.com",
+						},
+					},
+				}
+				if tc.hsm {
+					cfg.KeystoreConfig = keystore.HSMTestConfig(t)
+				}
+				testAuthServer, err := NewTestAuthServer(cfg)
+				require.NoError(t, err)
+				tlsServer, err := testAuthServer.NewTestTLSServer()
+				require.NoError(t, err)
+				clt, err := tlsServer.NewClient(TestAdmin())
+				require.NoError(t, err)
+
+				for _, suiteValue := range types.SignatureAlgorithmSuite_value {
+					suite := types.SignatureAlgorithmSuite(suiteValue)
+					t.Run(suiteName(suite), func(t *testing.T) {
+						authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+							SignatureAlgorithmSuite: suite,
+						})
+						require.NoError(t, err)
+
+						_, err = clt.UpsertAuthPreference(ctx, authPref)
+						if slices.Contains(tc.expectUnallowedSuites, suite) {
+							var badParameterErr *trace.BadParameterError
+							assert.ErrorAs(t, err, &badParameterErr)
+							return
+						} else {
+							assert.NoError(t, err)
+						}
+
+						// Reset should go back to the default suite.
+						err = clt.ResetAuthPreference(ctx)
+						require.NoError(t, err)
+						authPref, err = clt.GetAuthPreference(ctx)
+						require.NoError(t, err)
+						assert.Equal(t, types.OriginDefaults, authPref.GetMetadata().Labels[types.OriginLabel])
+						assert.Equal(t, tc.expectDefaultSuite, authPref.GetSignatureAlgorithmSuite())
+					})
+				}
+			})
+		}
+	})
 }
 
 type testDynamicallyConfigurableParams struct {

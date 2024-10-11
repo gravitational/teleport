@@ -77,7 +77,7 @@ func (s *CA) CreateCertAuthorities(ctx context.Context, cas ...types.CertAuthori
 			return "", trace.Wrap(err)
 		}
 
-		item, err := caToItem(nil, ca)
+		item, err := caToItem(backend.Key{}, ca)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -203,7 +203,7 @@ func (s *CA) DeleteCertAuthorities(ctx context.Context, ids ...types.CertAuthID)
 		if err := id.Check(); err != nil {
 			return trace.Wrap(err)
 		}
-		for _, key := range [][]byte{activeCAKey(id), inactiveCAKey(id)} {
+		for _, key := range []backend.Key{activeCAKey(id), inactiveCAKey(id)} {
 			condacts = append(condacts, backend.ConditionalAction{
 				Key:       key,
 				Condition: backend.Whatever(),

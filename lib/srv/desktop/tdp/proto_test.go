@@ -223,14 +223,14 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		{
 			name: "rejects long Error",
 			msg: Error{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
+				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},
 		{
-			name: "rejects long Notification",
-			msg: Notification{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxNotificationMessageLength+1)),
+			name: "rejects long Alert",
+			msg: Alert{
+				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},

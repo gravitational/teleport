@@ -34,7 +34,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -66,11 +65,12 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 		return nil, trace.Wrap(awsutils.ConvertS3Error(err), "CreateMultiPartUpload session(%v)", sessionID)
 	}
 
-	h.WithFields(logrus.Fields{
-		"upload":  aws.ToString(resp.UploadId),
-		"session": sessionID,
-		"key":     aws.ToString(resp.Key),
-	}).Infof("Created upload in %v", time.Since(start))
+	h.logger.InfoContext(ctx, "Created upload",
+		"duration", time.Since(start),
+		"upload", aws.ToString(resp.UploadId),
+		"session", sessionID,
+		"key", aws.ToString(resp.Key),
+	)
 
 	return &events.StreamUpload{SessionID: sessionID, ID: aws.ToString(resp.UploadId)}, nil
 }
@@ -85,11 +85,11 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 	start := time.Now()
 	uploadKey := h.path(upload.SessionID)
-	log := h.WithFields(logrus.Fields{
-		"upload":  upload.ID,
-		"session": upload.SessionID,
-		"key":     uploadKey,
-	})
+	log := h.logger.With(
+		"upload", upload.ID,
+		"session", upload.SessionID,
+		"key", uploadKey,
+	)
 
 	// Calculate the content MD5 hash to be included in the request. This is required for S3 buckets with Object Lock enabled.
 	hash := md5.New()
@@ -113,7 +113,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		ContentMD5: aws.String(md5sum),
 	}
 
-	log.Debugf("Uploading part %v", partNumber)
+	log.DebugContext(ctx, "Uploading part", "part_number", partNumber)
 	resp, err := h.client.UploadPart(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(awsutils.ConvertS3Error(err),
@@ -125,7 +125,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	// check if that matches the actual LastModified of the part. It doesn't
 	// make much sense to do an additional request to check the LastModified of
 	// the part we just uploaded, however.
-	log.Infof("Uploaded part %v in %v", partNumber, time.Since(start))
+	log.InfoContext(ctx, "Uploaded part", "part_number", partNumber, "upload_curation", time.Since(start))
 	return &events.StreamPart{
 		ETag:         aws.ToString(resp.ETag),
 		Number:       partNumber,
@@ -135,23 +135,23 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) error {
 	uploadKey := h.path(upload.SessionID)
-	log := h.WithFields(logrus.Fields{
-		"upload":  upload.ID,
-		"session": upload.SessionID,
-		"key":     uploadKey,
-	})
+	log := h.logger.With(
+		"upload", upload.ID,
+		"session", upload.SessionID,
+		"key", uploadKey,
+	)
 	req := &s3.AbortMultipartUploadInput{
 		Bucket:   aws.String(h.Bucket),
 		Key:      aws.String(uploadKey),
 		UploadId: aws.String(upload.ID),
 	}
-	log.Debug("Aborting upload")
+	log.DebugContext(ctx, "Aborting upload")
 	_, err := h.client.AbortMultipartUpload(ctx, req)
 	if err != nil {
 		return awsutils.ConvertS3Error(err)
 	}
 
-	log.Info("Aborted upload")
+	log.InfoContext(ctx, "Aborted upload")
 	return nil
 }
 
@@ -171,11 +171,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	start := time.Now()
 	uploadKey := h.path(upload.SessionID)
-	log := h.WithFields(logrus.Fields{
-		"upload":  upload.ID,
-		"session": upload.SessionID,
-		"key":     uploadKey,
-	})
+	log := h.logger.With(
+		"upload", upload.ID,
+		"session", upload.SessionID,
+		"key", uploadKey,
+	)
 
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
@@ -190,7 +190,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		}
 	}
 
-	log.Debug("Completing upload")
+	log.DebugContext(ctx, "Completing upload")
 	params := &s3.CompleteMultipartUploadInput{
 		Bucket:          aws.String(h.Bucket),
 		Key:             aws.String(uploadKey),
@@ -203,19 +203,19 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			"CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
 	}
 
-	log.Infof("Completed upload in %v", time.Since(start))
+	log.InfoContext(ctx, "Completed upload", "duration", time.Since(start))
 	return nil
 }
 
 // ListParts lists upload parts
 func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
 	uploadKey := h.path(upload.SessionID)
-	log := h.WithFields(logrus.Fields{
-		"upload":  upload.ID,
-		"session": upload.SessionID,
-		"key":     uploadKey,
-	})
-	log.Debug("Listing parts for upload")
+	log := h.logger.With(
+		"upload", upload.ID,
+		"session", upload.SessionID,
+		"key", uploadKey,
+	)
+	log.DebugContext(ctx, "Listing parts for upload")
 
 	var parts []events.StreamPart
 

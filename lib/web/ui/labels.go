@@ -19,37 +19,8 @@
 package ui
 
 import (
-	"sort"
-	"strings"
-
 	"github.com/gravitational/teleport/api/types"
 )
-
-// makeLabels is a function that transforms map[string]string arguments passed to it to sorted slice of Labels.
-// It also removes all Teleport internal labels from output.
-func makeLabels(labelMaps ...map[string]string) []Label {
-	length := 0
-	for _, labelMap := range labelMaps {
-		length += len(labelMap)
-	}
-
-	labels := make([]Label, 0, length)
-
-	for _, labelMap := range labelMaps {
-		for name, value := range labelMap {
-			if strings.HasPrefix(name, types.TeleportInternalLabelPrefix) ||
-				strings.HasPrefix(name, types.TeleportHiddenLabelPrefix) {
-				continue
-			}
-
-			labels = append(labels, Label{Name: name, Value: value})
-		}
-	}
-
-	sort.Sort(sortedLabels(labels))
-
-	return labels
-}
 
 func transformCommandLabels(commandLabels map[string]types.CommandLabel) map[string]string {
 	labels := make(map[string]string, len(commandLabels))

@@ -38,6 +38,7 @@ const (
 	PKCS1PrivateKeyType      = "RSA PRIVATE KEY"
 	PKCS8PrivateKeyType      = "PRIVATE KEY"
 	ECPrivateKeyType         = "EC PRIVATE KEY"
+	OpenSSHPrivateKeyType    = "OPENSSH PRIVATE KEY"
 	pivYubiKeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
 )
 
@@ -57,7 +58,8 @@ type PrivateKey struct {
 	keyPEM []byte
 }
 
-// NewPrivateKey returns a new PrivateKey for the given crypto.Signer.
+// NewPrivateKey returns a new PrivateKey for the given crypto.Signer with a
+// pre-marshaled private key PEM, which may be a special PIV key PEM.
 func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -71,14 +73,62 @@ func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	}, nil
 }
 
-// SSHPublicKey returns the ssh.PublicKey representiation of the public key.
+// NewSoftwarePrivateKey returns a new PrivateKey for a crypto.Signer.
+// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey.
+func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
+	sshPub, err := ssh.NewPublicKey(signer.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyPEM, err := MarshalPrivateKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &PrivateKey{
+		Signer: signer,
+		sshPub: sshPub,
+		keyPEM: keyPEM,
+	}, nil
+}
+
+// SSHPublicKey returns the ssh.PublicKey representation of the public key.
 func (k *PrivateKey) SSHPublicKey() ssh.PublicKey {
 	return k.sshPub
 }
 
-// SSHPublicKey returns the ssh.PublicKey representiation of the public key.
+// MarshalSSHPrivateKey returns the private key marshaled to:
+// - PEM-encoded OpenSSH format for Ed25519 or ECDSA keys
+// - PEM-encoded PKCS#1 for RSA keys
+// - a custom PEM-encoded format for PIV keys
+func (k *PrivateKey) MarshalSSHPrivateKey() ([]byte, error) {
+	switch k.Signer.(type) {
+	case ed25519.PrivateKey, *ecdsa.PrivateKey:
+		// OpenSSH largely does not support PKCS8 private keys, write these in
+		// OpenSSH format.
+		const comment = ""
+		pemBlock, err := ssh.MarshalPrivateKey(k.Signer, comment)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pem.EncodeToMemory(pemBlock), nil
+	}
+	// Otherwise we are dealing with either a hardware key which has a custom
+	// format, or an RSA key which would already be in PKCS#1, which OpenSSH can
+	// handle.
+	return k.keyPEM, nil
+}
+
+// MarshalSSHPublicKey returns the public key marshaled to SSH authorized_keys format.
 func (k *PrivateKey) MarshalSSHPublicKey() []byte {
 	return ssh.MarshalAuthorizedKey(k.sshPub)
+}
+
+// MarshalTLSPublicKey returns a PEM encoding of the public key. Encodes RSA keys
+// in PKCS1 format for backward compatibility. All other key types are encoded
+// in PKIX, ASN.1 DER form. Only supports *rsa.PublicKey, *ecdsa.PublicKey, and
+// ed25519.PublicKey.
+func (k *PrivateKey) MarshalTLSPublicKey() ([]byte, error) {
+	return MarshalPublicKey(k.Signer.Public())
 }
 
 // PrivateKeyPEM returns PEM encoded private key data. This may be data necessary
@@ -170,34 +220,54 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 	}
 
 	switch block.Type {
-	case PKCS1PrivateKeyType:
-		cryptoSigner, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
-	case ECPrivateKeyType:
-		cryptoSigner, err := x509.ParseECPrivateKey(block.Bytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
-	case PKCS8PrivateKeyType:
-		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	case pivYubiKeyPrivateKeyType:
+		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
+		return priv, trace.Wrap(err, "parsing YubiKey private key")
+	case OpenSSHPrivateKeyType:
+		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		cryptoSigner, ok := priv.(crypto.Signer)
 		if !ok {
-			return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
+			return nil, trace.BadParameter("ssh.ParseRawPrivateKey returned an invalid private key of type %T", priv)
+		}
+		// For some reason ssh.ParseRawPrivateKey returns a *ed25519.PrivateKey
+		// instead of the plain ed25519.PrivateKey which is used everywhere
+		// else. This breaks comparisons and type switches, so explicitly convert it.
+		if pEdwards, ok := cryptoSigner.(*ed25519.PrivateKey); ok {
+			cryptoSigner = *pEdwards
 		}
 		return NewPrivateKey(cryptoSigner, keyPEM)
-	case pivYubiKeyPrivateKeyType:
-		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse YubiKey private key")
+	case PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType:
+		// The DER format doesn't always exactly match the PEM header, various
+		// versions of Teleport and OpenSSL have been guilty of writing PKCS#8
+		// data into an "RSA PRIVATE KEY" block or vice-versa, so we just try
+		// parsing every DER format. This matches the behavior of [tls.X509KeyPair].
+		var preferredErr error
+		if priv, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+			signer, ok := priv.(crypto.Signer)
+			if !ok {
+				return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
+			}
+			return NewPrivateKey(signer, keyPEM)
+		} else if block.Type == PKCS8PrivateKeyType {
+			preferredErr = err
 		}
-		return priv, nil
+		if signer, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+			return NewPrivateKey(signer, keyPEM)
+		} else if block.Type == PKCS1PrivateKeyType {
+			preferredErr = err
+		}
+		if signer, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
+			return NewPrivateKey(signer, keyPEM)
+		} else if block.Type == ECPrivateKeyType {
+			preferredErr = err
+		}
+		// If all three parse functions returned an error, preferedErr is
+		// guaranteed to be set to the error from the parse function that
+		// usually matches the PEM block type.
+		return nil, trace.Wrap(preferredErr, "parsing private key PEM")
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}
@@ -235,12 +305,12 @@ func LoadKeyPair(privFile, sshPubFile string) (*PrivateKey, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	marshalledSSHPub, err := os.ReadFile(sshPubFile)
+	marshaledSSHPub, err := os.ReadFile(sshPubFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := ParseKeyPair(privPEM, marshalledSSHPub)
+	priv, err := ParseKeyPair(privPEM, marshaledSSHPub)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -248,14 +318,14 @@ func LoadKeyPair(privFile, sshPubFile string) (*PrivateKey, error) {
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshalledSSHPub []byte) (*PrivateKey, error) {
+func ParseKeyPair(privPEM, marshaledSSHPub []byte) (*PrivateKey, error) {
 	priv, err := ParsePrivateKey(privPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Verify that the private key's public key matches the expected public key.
-	if !bytes.Equal(ssh.MarshalAuthorizedKey(priv.SSHPublicKey()), marshalledSSHPub) {
+	if !bytes.Equal(ssh.MarshalAuthorizedKey(priv.SSHPublicKey()), marshaledSSHPub) {
 		return nil, trace.CompareFailed("the given private and public keys do not form a valid keypair")
 	}
 
@@ -350,4 +420,16 @@ func X509Certificate(certPEMBlock []byte) (*x509.Certificate, [][]byte, error) {
 		return nil, rawCerts, trace.Wrap(err, "failed to parse certificate")
 	}
 	return x509Cert, rawCerts, nil
+}
+
+// MarshalSoftwarePrivateKeyPKCS8DER marshals the provided private key as PKCS#8 DER.
+func MarshalSoftwarePrivateKeyPKCS8DER(signer crypto.Signer) ([]byte, error) {
+	switch k := signer.(type) {
+	case *PrivateKey:
+		return MarshalSoftwarePrivateKeyPKCS8DER(k.Signer)
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		return x509.MarshalPKCS8PrivateKey(k)
+	default:
+		return nil, trace.BadParameter("unsupported key type: %T", signer)
+	}
 }

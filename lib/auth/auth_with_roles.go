@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -60,9 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -1190,12 +1189,6 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 			return trace.Wrap(err)
 		}
 
-		// TODO (Joerger): DELETE IN 17.0.0
-		// Set LoadSecrets to true for requests from old proxies.
-		if a.hasBuiltinRole(types.RoleProxy) {
-			kind.LoadSecrets = true
-		}
-
 		// Allow reading Snowflake sessions to DB service.
 		if kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase) {
 			return nil
@@ -2132,32 +2125,28 @@ func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
 	return a.authServer.DeleteProxy(ctx, name)
 }
 
-func (a *ServerWithRoles) UpsertReverseTunnel(r types.ReverseTunnel) error {
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
+func (a *ServerWithRoles) UpsertReverseTunnel(ctx context.Context, r types.ReverseTunnel) error {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertReverseTunnel(r)
+	return a.authServer.UpsertReverseTunnel(ctx, r)
 }
 
-func (a *ServerWithRoles) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
-	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetReverseTunnel(name, opts...)
-}
-
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
 func (a *ServerWithRoles) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetReverseTunnels(ctx, opts...)
+	return a.authServer.GetReverseTunnels(ctx)
 }
 
-func (a *ServerWithRoles) DeleteReverseTunnel(domainName string) error {
+// TODO(noah): DELETE IN 18.0.0 - all these methods are now gRPC.
+func (a *ServerWithRoles) DeleteReverseTunnel(ctx context.Context, domainName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindReverseTunnel, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteReverseTunnel(domainName)
+	return a.authServer.DeleteReverseTunnel(ctx, domainName)
 }
 
 func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
@@ -2773,42 +2762,6 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
-// GetUsers returns all existing users
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.ListUsers] instead.
-func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	if withSecrets {
-		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
-		// migrated to that model.
-		if !a.hasBuiltinRole(types.RoleAdmin) {
-			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
-			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
-				Metadata: apievents.Metadata{
-					Type: events.UserLoginEvent,
-					Code: events.UserLocalLoginFailureCode,
-				},
-				Method: events.LoginMethodClientCert,
-				Status: apievents.Status{
-					Success:     false,
-					Error:       trace.Unwrap(err).Error(),
-					UserMessage: err.Error(),
-				},
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit local login failure event.")
-			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
-		}
-	} else {
-		if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	users, err := a.authServer.GetUsers(ctx, withSecrets)
-	return users, trace.Wrap(err)
-}
-
 // GetCurrentUserRoles returns current user's roles.
 func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
 	roleNames := a.context.User.GetRoles()
@@ -3213,94 +3166,53 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	appSessionID := req.RouteToApp.SessionID
+	var appSessionID string
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
-		if req.RouteToApp.SessionID == "" {
-			ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
-				NewWebSessionRequest: NewWebSessionRequest{
-					User:           req.Username,
-					LoginIP:        a.context.Identity.GetIdentity().LoginIP,
-					SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
-					Traits:         accessInfo.Traits,
-					Roles:          accessInfo.Roles,
-					AccessRequests: req.AccessRequests,
-					// App sessions created through generateUserCerts are securely contained
-					// to the Proxy and Auth roles, and thus should pass hardware key requirements
-					// through the "web_session" attestation. User's will be required to provide
-					// MFA instead.
-					AttestWebSession: true,
-				},
-				PublicAddr:        req.RouteToApp.PublicAddr,
-				ClusterName:       req.RouteToApp.ClusterName,
-				AWSRoleARN:        req.RouteToApp.AWSRoleARN,
-				AzureIdentity:     req.RouteToApp.AzureIdentity,
-				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
-				MFAVerified:       verifiedMFADeviceID,
-				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
-				AppName:           req.RouteToApp.Name,
-				AppURI:            req.RouteToApp.URI,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			appSessionID = ws.GetName()
-		} else {
-			// TODO (Joerger): DELETE IN 17.0.0
-			// Old clients will pass a session ID of an existing App session instead of a
-			// single GenerateUserCerts call. This is allowed, but ensure new clients cannot
-			// generate certs for MFA verified app sessions without an additional MFA check.
-			ws, err := a.GetAppSession(ctx, types.GetAppSessionRequest{
-				SessionID: req.RouteToApp.SessionID,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			// If the app session is MFA verified and this request is not MFA verified, deny the request.
-			x509Cert, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			wsIdentity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if wsIdentity.IsMFAVerified() && verifiedMFADeviceID == "" {
-				return nil, trace.BadParameter("mfa verification required to sign app certs for mfa-verified session")
-			}
-		}
-	}
-
-	var sshPublicKey, tlsPublicKey []byte
-	var sshPublicKeyAttestationStatement, tlsPublicKeyAttestationStatement *keys.AttestationStatement
-	sharedPublicKey := req.PublicKey //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
-	if sharedPublicKey != nil {
-		if req.SSHPublicKey != nil || req.TLSPublicKey != nil {
-			return nil, trace.BadParameter("illegal to set SSHPublicKey or TLSPublicKey in addition to PublicKey (this is a bug)")
-		}
-		if req.SSHPublicKeyAttestationStatement != nil || req.TLSPublicKeyAttestationStatement != nil {
-			return nil, trace.BadParameter("illegal to set SSHPublicKeyAttestationStatement or TLSPublicKeyAttestationStatement in addition to PublicKey (this is a bug)")
-		}
-		sshPublicKey = sharedPublicKey
-		cryptoPubKey, err := sshutils.CryptoPublicKey(sharedPublicKey)
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+			NewWebSessionRequest: NewWebSessionRequest{
+				User:           req.Username,
+				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
+				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
+				Traits:         accessInfo.Traits,
+				Roles:          accessInfo.Roles,
+				AccessRequests: req.AccessRequests,
+				// App sessions created through generateUserCerts are securely contained
+				// to the Proxy and Auth roles, and thus should pass hardware key requirements
+				// through the "web_session" attestation. User's will be required to provide
+				// MFA instead.
+				AttestWebSession: true,
+			},
+			PublicAddr:        req.RouteToApp.PublicAddr,
+			ClusterName:       req.RouteToApp.ClusterName,
+			AWSRoleARN:        req.RouteToApp.AWSRoleARN,
+			AzureIdentity:     req.RouteToApp.AzureIdentity,
+			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
+			MFAVerified:       verifiedMFADeviceID,
+			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			AppName:           req.RouteToApp.Name,
+			AppURI:            req.RouteToApp.URI,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sharedAttestationStatement := req.AttestationStatement //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
-		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
-		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
-	} else {
-		sshPublicKey = req.SSHPublicKey
-		tlsPublicKey = req.TLSPublicKey
-		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement)
-		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement)
+		appSessionID = ws.GetName()
 	}
+
+	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
+		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		req.SSHPublicKey,
+		req.TLSPublicKey,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
+		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+	)
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
@@ -3311,8 +3223,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		compatibility:                    req.Format,
 		sshPublicKey:                     sshPublicKey,
 		tlsPublicKey:                     tlsPublicKey,
-		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		sshPublicKeyAttestationStatement: sshAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsAttestationStatement,
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,
@@ -3546,53 +3458,6 @@ func hasOneNonPresetUser(users []types.User) bool {
 	}
 
 	return qtyNonPreset == 1
-}
-
-// UpdateUser updates an existing user in a backend.
-// Captures the auth user who modified the user record.
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.UpdateUser] instead.
-func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	updated, err := a.authServer.UpdateUser(ctx, user)
-	return updated, trace.Wrap(err)
-}
-
-// UpsertUser create or updates an existing user.
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.UpdateUser] instead.
-func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, u); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	createdBy := u.GetCreatedBy()
-	if createdBy.IsEmpty() {
-		u.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{Name: a.context.User.GetName()},
-		})
-	}
-	user, err := a.authServer.UpsertUser(ctx, u)
-	return user, trace.Wrap(err)
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the
@@ -4251,34 +4116,6 @@ func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.Prepared
 	return s.stream.RecordEvent(ctx, pe)
 }
 
-func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.actionForKindSession(namespace, sid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
-}
-
-func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]events.EventFields, error) {
-	if err := a.actionForKindSession(namespace, sid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// emit a session recording view event for the audit log
-	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
-		Metadata: apievents.Metadata{
-			Type: events.SessionRecordingAccessEvent,
-			Code: events.SessionRecordingAccessCode,
-		},
-		SessionID:    sid.String(),
-		UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.alog.GetSessionEvents(namespace, sid, afterN)
-}
-
 func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
 	sessionEvents, _, err := a.alog.SearchSessionEvents(context.TODO(), events.SearchSessionEventsRequest{
 		From:  time.Time{},
@@ -4715,6 +4552,14 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		}
 	}
 
+	if err := newAuthPref.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          a.authServer.fips,
+		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
+		Cloud:         modules.GetModules().Features().Cloud,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4768,6 +4613,10 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 	}
 
 	defaultAuthPref := types.DefaultAuthPreference()
+	defaultAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          a.authServer.fips,
+		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
+	})
 	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
 
 	var msg string
@@ -5177,60 +5026,6 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
-// Deprecated: use [presencev1.PresenceService.GetRemoteCluster]
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cluster, err := a.authServer.GetRemoteCluster(ctx, clusterName)
-	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
-	}
-	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
-	}
-	return cluster, nil
-}
-
-// Deprecated: use [presencev1.PresenceService.ListRemoteClusters]
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	remoteClusters, err := a.authServer.GetRemoteClusters(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.filterRemoteClustersForUser(remoteClusters)
-}
-
-// filterRemoteClustersForUser filters remote clusters based on what the current user is authorized to access
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.RemoteCluster) ([]types.RemoteCluster, error) {
-	filteredClusters := make([]types.RemoteCluster, 0, len(remoteClusters))
-	for _, rc := range remoteClusters {
-		if err := a.context.Checker.CheckAccessToRemoteCluster(rc); err != nil {
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		filteredClusters = append(filteredClusters, rc)
-	}
-	return filteredClusters, nil
-}
-
-// Deprecated: use [presencev1.PresenceService.DeleteRemoteCluster]
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
-}
-
 // AcquireSemaphore acquires lease with requested resources from semaphore.
 func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbCreate, types.VerbUpdate); err != nil {
@@ -5273,6 +5068,8 @@ func (a *ServerWithRoles) DeleteSemaphore(ctx context.Context, filter types.Sema
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
+// DEPRECATED
+// TODO(tigrato): DELETE IN 18.0
 func (a *ServerWithRoles) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	// limits the requests types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -5590,17 +5387,6 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 
 	// Users can fetch their own app sessions without secrets.
 	if err := a.currentUserAction(session.GetUser()); err == nil {
-		// TODO (Joerger): DELETE IN 17.0.0
-		// App Session secrets should not be returned to the user. We only do this
-		// here for backwards compatibility with `tsh proxy azure`, which uses the
-		// app session key to sign JWT tokens with Azure claims. This check means
-		// that `tsh proxy azure` will fail for old clients when used with Per-session
-		// MFA or Hardware Key support, which is planned for release in v16.0.0.
-		identity := a.context.Identity.GetIdentity()
-		if !identity.IsMFAVerified() && identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
-			return session, nil
-		}
-
 		return session.WithoutSecrets(), nil
 	}
 
@@ -6056,6 +5842,26 @@ func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEve
 	}
 
 	return outEvents, lastKey, nil
+}
+
+// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+// performance over ordering and filtering, and is intended for bulk export of events.
+func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+	}
+
+	return a.alog.ExportUnstructuredEvents(ctx, req)
+}
+
+// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+func (a *ServerWithRoles) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+	}
+
+	return a.alog.GetEventExportChunks(ctx, req)
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
@@ -7101,6 +6907,16 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
@@ -7148,6 +6964,14 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7692,21 +7516,6 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
-}
-
-// checkOktaUserAccess gates access to update operations on user records based
-// on the origin label on the supplied user record.
-//
-// # See okta.CheckAccess() for the actual access rules
-//
-// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
-func checkOktaUserAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
-	existingUser, err := users.GetUser(ctx, existingUsername, false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	return okta.CheckAccess(authzCtx, existingUser, verb)
 }
 
 // checkOktaLockTarget prevents the okta service from locking users that are not

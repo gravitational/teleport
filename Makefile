@@ -316,9 +316,8 @@ endif
 
 ifeq ("$(OS)","darwin")
 # Set the minimum version for macOS builds for Go, Rust and Xcode builds.
-# Note the minimum version for Apple silicon (ARM64) is 11.0 and will be automatically
-# clamped to the value for builds of that architecture
-MINIMUM_SUPPORTED_MACOS_VERSION = 10.15
+# (as of Go 1.23 we require macOS 11)
+MINIMUM_SUPPORTED_MACOS_VERSION = 11.0
 MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
 
 # Go
@@ -426,6 +425,15 @@ tsh-app:
 	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
 	cp "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
 	$(NOTARIZE_TSH_APP)
+
+.PHONY: tctl-app
+tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
+tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/$(TCTL_SKELETON).entitlements
+tctl-app:
+	cp -rf "build.assets/macos/$(TCTL_SKELETON)/tctl.app/" "$(TCTL_APP_BUNDLE)/"
+	mkdir -p "$(TCTL_APP_BUNDLE)/Contents/MacOS/"
+	cp "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)/Contents/MacOS/."
+	$(NOTARIZE_TCTL_APP)
 
 #
 # BPF support (IF ENABLED)
@@ -613,12 +621,15 @@ include darwin-signing.mk
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: full build-archive
 
+SIGNED_BINARIES := $(BINARIES:%tsh=%tsh.app)
+SIGNED_BINARIES := $(SIGNED_BINARIES:%tctl=%tctl.app)
+
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) tsh-app
-	$(MAKE) build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
@@ -635,23 +646,26 @@ else
 # Ensure you have the rust toolchains for these installed by running
 #   make ARCH=arm64 rustup-install-target-toolchain
 #   make ARCH=amd64 rustup-install-target-toolchain
-release-darwin: TARBINS := $(subst tsh,tsh.app,$(TARBINS))
+release-darwin: TARBINS := $(TARBINS:%tsh=%tsh.app)
+release-darwin: TARBINS := $(TARBINS:%tctl=%tctl.app)
 release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
 
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
-	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
 	lipo -create -output $(BUILDDIR)/tsh \
 		$(BUILDDIR_arm64)/tsh.app/Contents/MacOS/tsh \
 		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
+	lipo -create -output $(BUILDDIR)/tctl \
+		$(BUILDDIR_arm64)/tctl.app/Contents/MacOS/tctl \
+		$(BUILDDIR_amd64)/tctl.app/Contents/MacOS/tctl
 
 	$(NOTARIZE_BINARIES)
-	$(MAKE) tsh-app
-	$(MAKE) ARCH=universal build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) ARCH=universal build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
 
@@ -808,13 +822,6 @@ $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
 $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
-#
-# Downloads and builds changelog from source.
-# PHONY is set so that we rely on Go's mod cache and not Make's cache.
-#
-CHANGELOG := $(TOOLINGDIR)/bin/changelog
-$(CHANGELOG):
-	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -844,18 +851,20 @@ helmunit/installed:
 .PHONY: test-helm
 test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 examples/chart/teleport-kube-agent
-	helm unittest -3 examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 examples/chart/access/*
-	helm unittest -3 examples/chart/event-handler
+	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 --with-subchart=false examples/chart/access/*
+	helm unittest -3 --with-subchart=false examples/chart/event-handler
+	helm unittest -3 --with-subchart=false examples/chart/tbot
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 -u examples/chart/teleport-kube-agent
-	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 -u examples/chart/access/*
-	helm unittest -3 -u examples/chart/event-handler
+	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 -u --with-subchart=false examples/chart/access/*
+	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
+	helm unittest -3 -u --with-subchart=false examples/chart/tbot
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -1152,11 +1161,10 @@ e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
 lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
 
 #
-# Lints everything but Go sources.
-# Similar to lint.
+# Runs linters without dedicated GitHub Actions.
 #
 .PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-helm lint-license
+lint-no-actions: lint-sh lint-license
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
@@ -1251,7 +1259,7 @@ lint-helm:
 		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator; do \
+	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
 		if [ -d $${CHART}/.lint ]; then \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
@@ -1277,11 +1285,13 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
 		-ignore '**/*.sh' \
+		-ignore '**/*.sql' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
-		-ignore '**/*.sql' \
+		-ignore '**/.terraform.lock.hcl' \
 		-ignore '**/Dockerfile' \
+		-ignore '**/node_modules/**' \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
@@ -1289,11 +1299,12 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
+		-ignore 'target/**' \
 		-ignore 'version.go' \
-		-ignore 'webassets/**' \
-		-ignore '**/node_modules/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
-		-ignore '**/.terraform.lock.hcl' \
+		-ignore 'web/packages/teleport/src/ironrdp/**' \
+		-ignore 'lib/limiter/internal/ratelimit/**' \
+		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
@@ -1661,8 +1672,12 @@ pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 
 	@echo Building tsh-$(VERSION).pkg
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	./build.assets/build-pkg-app.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mv tsh*.pkg* $(BUILDDIR)/
+
+	@echo Building tctl-$(VERSION).pkg
+	./build.assets/build-pkg-app.sh -p tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	mv tctl*.pkg* $(BUILDDIR)/
 
 	@echo Building teleport-bin-$(VERSION).pkg
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
@@ -1672,7 +1687,7 @@ pkg: | $(RELEASE_DIR)
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 
 	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
-	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
 	$(NOTARIZE_TELEPORT_PKG)
 
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
@@ -1785,14 +1800,15 @@ rustup-install-target-toolchain: rustup-set-version
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
-# usage: make -s changelog
-# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make -s changelog
+# usage: make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+CHANGELOG = github.com/gravitational/shared-workflows/tools/changelog@latest
 .PHONY: changelog
-changelog: $(CHANGELOG)
-	$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+changelog:
+	@go run $(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.

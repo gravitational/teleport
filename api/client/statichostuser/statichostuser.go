@@ -19,7 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 )
 
 // Client is a StaticHostUser client.

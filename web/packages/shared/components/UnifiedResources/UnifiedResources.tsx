@@ -113,12 +113,12 @@ export type BulkAction = {
    * over if this prop is supplied
    */
   tooltip?: string;
-  action: (
-    selectedResources: {
-      unifiedResourceId: string;
-      resource: SharedUnifiedResource['resource'];
-    }[]
-  ) => void;
+  action: (selectedResources: SelectedResource[]) => void;
+};
+
+export type SelectedResource = {
+  unifiedResourceId: string;
+  resource: SharedUnifiedResource['resource'];
 };
 
 export type FilterKind = {

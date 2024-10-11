@@ -36,7 +36,8 @@ func mockFetchRecipient(ctx context.Context, recipient string) (*common.Recipien
 
 func TestHandleAccessMonitoringRule(t *testing.T) {
 	amrh := NewRuleHandler(RuleHandlerConfig{
-		PluginType:             "fakePlugin",
+		PluginType:             "fakePluginType",
+		PluginName:             "fakePluginName",
 		FetchRecipientCallback: mockFetchRecipient,
 	})
 
@@ -44,7 +45,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
 		Notification: &pb.Notification{
-			Name:       "fakePlugin",
+			Name:       "fakePluginName",
 			Recipients: []string{"a", "b"},
 		},
 	})
@@ -73,6 +74,49 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpDelete,
 		Resource: types.Resource153ToLegacy(rule1),
+	})
+	require.Empty(t, amrh.getAccessMonitoringRules())
+}
+
+func TestHandleAccessMonitoringRulePluginNameMisMatch(t *testing.T) {
+	amrh := NewRuleHandler(RuleHandlerConfig{
+		PluginName:             "fakePluginName",
+		FetchRecipientCallback: mockFetchRecipient,
+	})
+
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+		Notification: &pb.Notification{
+			Name:       "notTheFakePluginName",
+			Recipients: []string{"a", "b"},
+		},
+	})
+	require.NoError(t, err)
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule1),
+	})
+	require.Empty(t, amrh.getAccessMonitoringRules())
+
+	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+		Notification: &pb.Notification{
+			Name:       "fakePluginName",
+			Recipients: []string{"c", "d"},
+		},
+	})
+	require.NoError(t, err)
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule2),
+	})
+	require.Len(t, amrh.getAccessMonitoringRules(), 1)
+
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpDelete,
+		Resource: types.Resource153ToLegacy(rule2),
 	})
 	require.Empty(t, amrh.getAccessMonitoringRules())
 }

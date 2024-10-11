@@ -108,6 +108,12 @@ type OIDCConnector interface {
 	GetMaxAge() (time.Duration, bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() OIDCConnectorMFASettings
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -202,6 +208,9 @@ func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 
 	o2.SetClientSecret("")
 	o2.SetGoogleServiceAccount("")
+	if o2.Spec.MFASettings != nil {
+		o2.Spec.MFASettings.ClientSecret = ""
+	}
 
 	return &o2
 }
@@ -496,32 +505,68 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 	return o.Spec.ClientRedirectSettings
 }
 
+// GetMFASettings returns the connector's MFA settings.
+func (o *OIDCConnectorV3) GetMFASettings() OIDCConnectorMFASettings {
+	if o.Spec.MFASettings == nil {
+		return OIDCConnectorMFASettings{
+			Enabled: false,
+		}
+	}
+	return *o.Spec.MFASettings
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *OIDCConnectorV3) IsMFAEnabled() bool {
+	return o.GetMFASettings().Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *OIDCConnectorV3) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.ClientID = o.Spec.MFASettings.ClientId
+	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
+	o.Spec.ACR = o.Spec.MFASettings.AcrValues
+	o.Spec.Prompt = o.Spec.MFASettings.Prompt
+	return nil
+}
+
 // Check returns nil if all parameters are great, err otherwise
-func (i *OIDCAuthRequest) Check() error {
-	if i.ConnectorID == "" {
+func (r *OIDCAuthRequest) Check() error {
+	switch {
+	case r.ConnectorID == "":
 		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.StateToken == "" {
+	case r.StateToken == "":
 		return trace.BadParameter("StateToken: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
+	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
+	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
+	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
+	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
+	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
-
+	sshPubKey := r.PublicKey
+	if len(sshPubKey) == 0 {
+		sshPubKey = r.SshPublicKey
+	}
+	if len(sshPubKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+		if err != nil {
+			return trace.BadParameter("bad SSH public key: %v", err)
+		}
+	}
+	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
+		return trace.BadParameter("wrong CertTTL")
+	}
 	return nil
 }

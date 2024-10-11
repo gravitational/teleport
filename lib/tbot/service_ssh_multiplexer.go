@@ -158,7 +158,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	}
 
 	// Generate known hosts
-	knownHosts, err := ssh.GenerateKnownHosts(
+	knownHosts, _, err := ssh.GenerateKnownHosts(
 		ctx,
 		s.botAuthClient,
 		clusterNames,
@@ -192,8 +192,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	}
 
 	var sshConfigBuilder strings.Builder
-	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
-	err = sshConf.GetMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
+	err = openssh.WriteMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
 		AppName:         openssh.TbotApp,
 		ClusterNames:    clusterNames,
 		KnownHostsPath:  filepath.Join(absPath, ssh.KnownHostsName),

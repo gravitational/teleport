@@ -41,7 +41,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/timetools"
 	"github.com/moby/term"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -76,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 // teleportTestUser is additional user used for tests
@@ -257,7 +255,9 @@ func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshO
 		sshSrv.Wait()
 	})
 
-	_, err = testServer.Auth().UpsertNode(ctx, sshSrv.getServerInfo())
+	server, err := sshSrv.getServerInfo(ctx)
+	require.NoError(t, err)
+	_, err = testServer.Auth().UpsertNode(ctx, server)
 	require.NoError(t, err)
 
 	sshSrvAddress := sshSrv.Addr()
@@ -1257,25 +1257,6 @@ func TestAllowedLabels(t *testing.T) {
 	}
 }
 
-// TestKeyAlgorithms makes sure Teleport does not accept invalid user
-// certificates. The main check is the certificate algorithms.
-func TestKeyAlgorithms(t *testing.T) {
-	t.Parallel()
-	f := newFixtureWithoutDiskBasedLogging(t)
-
-	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
-	require.NoError(t, err)
-
-	sshConfig := &ssh.ClientConfig{
-		User:            f.user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(ellipticSigner)},
-		HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
-	}
-
-	_, err = tracessh.Dial(context.Background(), "tcp", f.ssh.srv.Addr(), sshConfig)
-	require.Error(t, err)
-}
-
 func TestInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
@@ -1473,11 +1454,11 @@ func TestProxyRoundRobin(t *testing.T) {
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -1613,11 +1594,11 @@ func TestProxyDirectAccess(t *testing.T) {
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -1798,34 +1779,10 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
-// fakeClock is a wrapper around clockwork.FakeClock that satisfies the timetoools.TimeProvider interface.
-// We are wrapping this so we can use the same mocked clock across the server and rate limiter.
-type fakeClock struct {
-	clock clockwork.FakeClock
-}
-
-func (fc fakeClock) UtcNow() time.Time {
-	return fc.clock.Now().UTC()
-}
-
-func (fc fakeClock) Sleep(d time.Duration) {
-	fc.clock.Advance(d)
-}
-
-func (fc fakeClock) After(d time.Duration) <-chan time.Time {
-	return fc.clock.After(d)
-}
-
-var _ timetools.TimeProvider = (*fakeClock)(nil)
-
 func TestLimiter(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := context.Background()
-
-	fClock := &fakeClock{
-		clock: f.clock,
-	}
 
 	getConns := func(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
 		return func() bool {
@@ -1836,7 +1793,7 @@ func TestLimiter(t *testing.T) {
 
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
-			Clock:          fClock,
+			Clock:          f.clock,
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
 				{
@@ -2330,11 +2287,11 @@ func TestParseSubsystemRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{
-			ClusterName:         f.testSrv.ClusterName(),
-			Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-			RemoteClusterGetter: proxyClient,
-			SiteGetter:          reverseTunnelServer,
-			TracerProvider:      tracing.NoopProvider(),
+			ClusterName:      f.testSrv.ClusterName(),
+			Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+			LocalAccessPoint: proxyClient,
+			SiteGetter:       reverseTunnelServer,
+			TracerProvider:   tracing.NoopProvider(),
 		})
 		require.NoError(t, err)
 
@@ -2591,11 +2548,11 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -3012,11 +2969,11 @@ func TestHostUserCreationProxy(t *testing.T) {
 	defer reverseTunnelServer.Close()
 
 	router, err := libproxy.NewRouter(libproxy.RouterConfig{
-		ClusterName:         f.testSrv.ClusterName(),
-		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
-		RemoteClusterGetter: proxyClient,
-		SiteGetter:          reverseTunnelServer,
-		TracerProvider:      tracing.NoopProvider(),
+		ClusterName:      f.testSrv.ClusterName(),
+		Log:              utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		LocalAccessPoint: proxyClient,
+		SiteGetter:       reverseTunnelServer,
+		TracerProvider:   tracing.NoopProvider(),
 	})
 	require.NoError(t, err)
 
@@ -3065,13 +3022,13 @@ func TestHostUserCreationProxy(t *testing.T) {
 	reg, err := srv.NewSessionRegistry(srv.SessionRegistryConfig{Srv: proxy, SessionTrackerService: proxyClient})
 	require.NoError(t, err)
 
-	_, err = reg.TryWriteSudoersFile(srv.IdentityContext{
+	_, err = reg.WriteSudoersFile(srv.IdentityContext{
 		AccessChecker: &fakeAccessChecker{},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, sudoers.writeAttempts)
 
-	_, _, err = reg.TryCreateHostUser(srv.IdentityContext{
+	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
 		AccessChecker: &fakeAccessChecker{},
 	})
 	assert.NoError(t, err)

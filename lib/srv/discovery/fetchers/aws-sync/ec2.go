@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -38,6 +39,7 @@ import (
 func (a *awsFetcher) pollAWSEC2Instances(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
+
 		result.Instances, err = a.fetchAWSEC2Instances(ctx)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch instances"))
@@ -56,9 +58,10 @@ func (a *awsFetcher) pollAWSEC2Instances(ctx context.Context, result *Resources,
 // in all regions.
 func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceV1, error) {
 	var (
-		hosts   []*accessgraphv1alpha.AWSInstanceV1
-		hostsMu sync.Mutex
-		errs    []error
+		hosts    []*accessgraphv1alpha.AWSInstanceV1
+		hostsMu  sync.Mutex
+		errs     []error
+		existing = a.lastResult.Instances
 	)
 	eG, ctx := errgroup.WithContext(ctx)
 	// Set the limit to 5 to avoid too many concurrent requests.
@@ -77,9 +80,15 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 	for _, region := range a.Regions {
 		region := region
 		eG.Go(func() error {
+			prevIterationEc2 := sliceFilter(
+				existing,
+				func(h *accessgraphv1alpha.AWSInstanceV1) bool {
+					return h.Region == region && h.AccountId == a.AccountID
+				},
+			)
 			ec2Client, err := a.CloudClients.GetAWSEC2Client(ctx, region, a.getAWSOptions()...)
 			if err != nil {
-				collectHosts(nil, trace.Wrap(err))
+				collectHosts(prevIterationEc2, trace.Wrap(err))
 				return nil
 			}
 			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -98,7 +107,7 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 			})
 
 			if err != nil {
-				collectHosts(hosts, trace.Wrap(err))
+				collectHosts(prevIterationEc2, trace.Wrap(err))
 			}
 			return nil
 		})
@@ -132,12 +141,14 @@ func awsInstanceToProtoInstance(instance *ec2.Instance, region string, accountID
 		AccountId:             accountID,
 		Tags:                  tags,
 		LaunchTime:            awsTimeToProtoTime(instance.LaunchTime),
+		LastSyncTime:          timestamppb.Now(),
 	}
 }
 
 // fetchInstanceProfiles fetches instance profiles from all regions and returns them
 // as a slice of accessgraphv1alpha.AWSInstanceProfileV1.
 func (a *awsFetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceProfileV1, error) {
+	var existing = a.lastResult.InstanceProfiles
 	var profiles []*accessgraphv1alpha.AWSInstanceProfileV1
 	iamClient, err := a.CloudClients.GetAWSIAMClient(
 		ctx,
@@ -145,7 +156,7 @@ func (a *awsFetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv
 		a.getAWSOptions()...,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return existing, trace.Wrap(err)
 	}
 
 	err = iamClient.ListInstanceProfilesPagesWithContext(
@@ -163,6 +174,9 @@ func (a *awsFetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv
 			return !lastPage
 		},
 	)
+	if err != nil {
+		profiles = append(profiles, existing...)
+	}
 
 	return profiles, trace.Wrap(err)
 }
@@ -185,6 +199,7 @@ func awsInstanceProfileToProtoInstanceProfile(profile *iam.InstanceProfile, acco
 		AccountId:           accountID,
 		Tags:                tags,
 		CreatedAt:           awsTimeToProtoTime(profile.CreateDate),
+		LastSyncTime:        timestamppb.Now(),
 	}
 	for _, role := range profile.Roles {
 		if role == nil {
@@ -193,4 +208,24 @@ func awsInstanceProfileToProtoInstanceProfile(profile *iam.InstanceProfile, acco
 		out.Roles = append(out.Roles, awsRoleToProtoRole(role, accountID))
 	}
 	return out
+}
+
+func sliceFilter[T any](s []T, f func(T) bool) []T {
+	var out []T
+	for _, v := range s {
+		if f(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func sliceFilterPickFirst[T any](s []T, f func(T) bool) T {
+	for _, v := range s {
+		if f(v) {
+			return v
+		}
+	}
+	var v T
+	return v
 }

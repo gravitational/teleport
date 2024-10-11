@@ -45,6 +45,7 @@ type RuleHandler struct {
 
 	apiClient  teleport.Client
 	pluginType string
+	pluginName string
 
 	fetchRecipientCallback func(ctx context.Context, recipient string) (*common.Recipient, error)
 }
@@ -60,6 +61,7 @@ type RuleMap struct {
 type RuleHandlerConfig struct {
 	Client     teleport.Client
 	PluginType string
+	PluginName string
 
 	// FetchRecipientCallback is a callback that maps recipient strings to plugin Recipients.
 	FetchRecipientCallback func(ctx context.Context, recipient string) (*common.Recipient, error)
@@ -73,6 +75,7 @@ func NewRuleHandler(conf RuleHandlerConfig) *RuleHandler {
 		},
 		apiClient:              conf.Client,
 		pluginType:             conf.PluginType,
+		pluginName:             conf.PluginName,
 		fetchRecipientCallback: conf.FetchRecipientCallback,
 	}
 }
@@ -161,7 +164,7 @@ func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*ac
 	for {
 		var page []*accessmonitoringrulesv1.AccessMonitoringRule
 		var err error
-		page, nextToken, err = amrh.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken, []string{types.KindAccessRequest}, amrh.pluginType)
+		page, nextToken, err = amrh.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken, []string{types.KindAccessRequest}, amrh.pluginName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -187,7 +190,7 @@ func (amrh *RuleHandler) getAccessMonitoringRules() map[string]*accessmonitoring
 }
 
 func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-	if amr.Spec.Notification.Name != amrh.pluginType {
+	if amr.Spec.Notification.Name != amrh.pluginName {
 		return false
 	}
 	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {

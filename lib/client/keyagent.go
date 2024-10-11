@@ -302,11 +302,6 @@ func (a *LocalKeyAgent) GetKeyRing(clusterName string, opts ...CertOption) (*Key
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	trustedCerts, err := a.clientStore.GetTrustedCerts(idx.ProxyHost)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyRing.TrustedCerts = trustedCerts
 	return keyRing, nil
 }
 
@@ -627,7 +622,7 @@ func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
 			if err := k.checkCert(cert); err != nil {
 				return nil, trace.Wrap(err)
 			}
-			signer, err := sshutils.SSHSigner(cert, k.PrivateKey.Signer)
+			signer, err := sshutils.SSHSigner(cert, k.SSHPrivateKey.Signer)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

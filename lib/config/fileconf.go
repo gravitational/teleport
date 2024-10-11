@@ -512,8 +512,10 @@ type ConnectionRate struct {
 // ConnectionLimits sets up connection limiter
 type ConnectionLimits struct {
 	MaxConnections int64            `yaml:"max_connections"`
-	MaxUsers       int              `yaml:"max_users"`
 	Rates          []ConnectionRate `yaml:"rates,omitempty"`
+
+	// Deprecated: MaxUsers has no effect.
+	MaxUsers int `yaml:"max_users"`
 }
 
 // LegacyLog contains the old format of the 'format' field
@@ -798,6 +800,9 @@ type Auth struct {
 	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
 	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
 
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout types.Duration `yaml:"ssh_dial_timeout,omitempty"`
+
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
@@ -848,7 +853,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval
+		a.ProxyPingInterval != empty.ProxyPingInterval ||
+		a.SSHDialTimeout != empty.SSHDialTimeout
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -996,6 +1002,7 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 type AuthenticationConfig struct {
 	Type           string                     `yaml:"type"`
 	SecondFactor   constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	SecondFactors  []types.SecondFactorType   `yaml:"second_factors,omitempty"`
 	ConnectorName  string                     `yaml:"connector_name,omitempty"`
 	U2F            *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 	Webauthn       *Webauthn                  `yaml:"webauthn,omitempty"`
@@ -1025,12 +1032,14 @@ type AuthenticationConfig struct {
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
 	// Deprecated. HardwareKey.PIVSlot should be used instead.
-	// TODO(Joerger): DELETE IN 17.0.0
 	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
 	HardwareKey *HardwareKey `yaml:"hardware_key,omitempty"`
+
+	// SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `yaml:"signature_algorithm_suite"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1062,36 +1071,48 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	var h *types.HardwareKey
-	if a.HardwareKey != nil {
+	switch {
+	case a.HardwareKey != nil:
+		if a.PIVSlot != "" {
+			log.Warn(`Both "piv_slot" and "hardware_key" settings were populated, using "hardware_key" setting.`)
+		}
 		h, err = a.HardwareKey.Parse()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-
-	// TODO(Joerger): DELETE IN 17.0.0
-	if a.PIVSlot != "" {
-		log.Warn(`The "piv_slot" setting will be removed in 17.0.0, please set "hardware_key.piv_slot" instead.`)
+	case a.HardwareKey == nil && a.PIVSlot != "":
 		if err = a.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err, "failed to parse piv_slot")
 		}
+
+		h = &types.HardwareKey{
+			PIVSlot: string(a.PIVSlot),
+		}
+	default:
+	}
+
+	if a.SecondFactor != "" && a.SecondFactors != nil {
+		log.Warn(`` +
+			`second_factor and second_factors are both set. second_factors will take precedence. ` +
+			`second_factor should be unset to remove this warning.`)
 	}
 
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:              a.Type,
-		SecondFactor:      a.SecondFactor,
-		ConnectorName:     a.ConnectorName,
-		U2F:               u,
-		Webauthn:          w,
-		RequireMFAType:    a.RequireMFAType,
-		LockingMode:       a.LockingMode,
-		AllowLocalAuth:    a.LocalAuth,
-		AllowPasswordless: a.Passwordless,
-		AllowHeadless:     a.Headless,
-		DeviceTrust:       dt,
-		DefaultSessionTTL: a.DefaultSessionTTL,
-		PIVSlot:           string(a.PIVSlot),
-		HardwareKey:       h,
+		Type:                    a.Type,
+		SecondFactor:            a.SecondFactor,
+		SecondFactors:           a.SecondFactors,
+		ConnectorName:           a.ConnectorName,
+		U2F:                     u,
+		Webauthn:                w,
+		RequireMFAType:          a.RequireMFAType,
+		LockingMode:             a.LockingMode,
+		AllowLocalAuth:          a.LocalAuth,
+		AllowPasswordless:       a.Passwordless,
+		AllowHeadless:           a.Headless,
+		DeviceTrust:             dt,
+		DefaultSessionTTL:       a.DefaultSessionTTL,
+		HardwareKey:             h,
+		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
 	})
 }
 
@@ -1996,6 +2017,42 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string `yaml:"cloud,omitempty"`
+
+	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredApps []string `yaml:"required_apps,omitempty"`
+
+	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
+	// controlling how resources are shared across different origins.
+	CORS *CORS `yaml:"cors,omitempty"`
+}
+
+// CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
+// settings that control how the app responds to requests from different origins.
+type CORS struct {
+	// AllowedOrigins specifies the list of origins that are allowed to access the app.
+	// Example: "https://client.teleport.example.com:3080"
+	AllowedOrigins []string `yaml:"allowed_origins"`
+
+	// AllowedMethods specifies the HTTP methods that are allowed when accessing the app.
+	// Example: "POST", "GET", "OPTIONS", "PUT", "DELETE"
+	AllowedMethods []string `yaml:"allowed_methods"`
+
+	// AllowedHeaders specifies the HTTP headers that can be used when making requests to the app.
+	// Example: "Content-Type", "Authorization", "X-Custom-Header"
+	AllowedHeaders []string `yaml:"allowed_headers"`
+
+	// ExposedHeaders indicate which response headers should be made available to scripts running in
+	// the browser, in response to a cross-origin request.
+	ExposedHeaders []string `yaml:"exposed_headers"`
+
+	// AllowCredentials indicates whether credentials such as cookies or authorization headers
+	// are allowed to be included in the requests.
+	AllowCredentials bool `yaml:"allow_credentials"`
+
+	// MaxAge specifies how long (in seconds) the results of a preflight request can be cached.
+	// Example: 86400 (which equals 24 hours)
+	MaxAge uint `yaml:"max_age"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

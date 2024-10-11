@@ -264,7 +264,7 @@ type httpRequester interface {
 // If userTeams is not nil, only organizations that are both specified
 // in conn and in userTeams will be checked. If client is nil a
 // net/http.Client will be used.
-func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *utils.FnCache, client httpRequester) error {
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, orgCache *utils.FnCache, client httpRequester) error {
 	version := modules.GetModules().BuildType()
 	if version == modules.BuildEnterprise {
 		return nil
@@ -413,7 +413,9 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
+		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Setting deprecated field for older proxy clients.
+		SSHPubKey:         req.SshPublicKey,
+		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  req.CreateWebSession,
 		ClientRedirectURL: req.ClientRedirectURL,
@@ -612,49 +614,8 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
 	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
-	// exchange the authorization code received by the callback for an access token
-	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
+	userResp, teamsResp, err := a.getGithubUserAndTeams(ctx, connector, code, client, diagCtx, logger)
 	if err != nil {
-		return nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
-	}
-
-	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
-		TokenType: token.TokenType,
-		Expires:   int64(token.Expires),
-		Scope:     token.Scope,
-	}
-
-	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
-		token.TokenType, token.Expires, token.Scope)
-
-	// Get the Github organizations the user is a member of so we don't
-	// make unnecessary API requests
-	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ghClient := &githubAPIClient{
-		token:       token.AccessToken,
-		authServer:  a,
-		apiEndpoint: apiEndpoint,
-	}
-	userResp, err := ghClient.getUser()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query GitHub user info")
-	}
-	teamsResp, err := ghClient.getTeams(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query GitHub user teams")
-	}
-	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
-
-	// If we are running Teleport OSS, ensure that the Github organization
-	// the user is trying to authenticate with is not using external SSO.
-	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
-	// This is checked when Github auth connectors get created or updated, but
-	// check again here in case the organization enabled external SSO after
-	// the auth connector was created.
-	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -734,9 +695,32 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
-			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
+	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
+		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		req.SshPublicKey,
+		req.TlsPublicKey,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
+		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		keys.AttestationStatementFromProto(req.SshAttestationStatement),
+		keys.AttestationStatementFromProto(req.TlsAttestationStatement),
+	)
+	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
+		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
+			UserState:               userState,
+			SessionTTL:              params.SessionTTL,
+			SSHPubKey:               sshPublicKey,
+			TLSPubKey:               tlsPublicKey,
+			SSHAttestationStatement: sshAttestationStatement,
+			TLSAttestationStatement: tlsAttestationStatement,
+			Compatibility:           req.Compatibility,
+			RouteToCluster:          req.RouteToCluster,
+			KubernetesCluster:       req.KubernetesCluster,
+			LoginIP:                 req.ClientLoginIP,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
@@ -761,6 +745,69 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	return &auth, nil
+}
+
+func (a *Server) getGithubUserAndTeams(
+	ctx context.Context,
+	connector types.GithubConnector,
+	code string,
+	client *oauth2.Client,
+	diagCtx *SSODiagContext,
+	logger *logrus.Entry,
+) (*GithubUserResponse, []GithubTeamResponse, error) {
+	if a.GithubUserAndTeamsOverride != nil {
+		// Allow tests to override the user and teams response instead of
+		// calling out to GitHub.
+		return a.GithubUserAndTeamsOverride()
+	}
+
+	// exchange the authorization code received by the callback for an access token
+	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
+	}
+
+	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
+		TokenType: token.TokenType,
+		Expires:   int64(token.Expires),
+		Scope:     token.Scope,
+	}
+
+	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
+		token.TokenType, token.Expires, token.Scope)
+
+	// Get the Github organizations the user is a member of so we don't
+	// make unnecessary API requests
+	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	ghClient := &githubAPIClient{
+		token:       token.AccessToken,
+		authServer:  a,
+		apiEndpoint: apiEndpoint,
+	}
+	userResp, err := ghClient.getUser()
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to query GitHub user info")
+	}
+	teamsResp, err := ghClient.getTeams(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to query GitHub user teams")
+	}
+	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
+
+	// If we are running Teleport OSS, ensure that the Github organization
+	// the user is trying to authenticate with is not using external SSO.
+	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
+	// This is checked when Github auth connectors get created or updated, but
+	// check again here in case the organization enabled external SSO after
+	// the auth connector was created.
+	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return userResp, teamsResp, nil
 }
 
 // buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only
@@ -1013,7 +1060,7 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 
 // populateGithubClaims builds a GithubClaims using queried
 // user, organization and teams information.
-func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.GithubClaims, error) {
+func populateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) (*types.GithubClaims, error) {
 	orgToTeams := make(map[string][]string)
 	teamList := make([]string, 0, len(teams))
 	for _, team := range teams {
@@ -1046,20 +1093,20 @@ type githubAPIClient struct {
 	apiEndpoint string
 }
 
-// userResponse represents response from "user" API call
-type userResponse struct {
+// GithubUserResponse represents response from "user" API call
+type GithubUserResponse struct {
 	// Login is the username
 	Login string `json:"login"`
 }
 
 // getEmails retrieves a list of emails for authenticated user
-func (c *githubAPIClient) getUser() (*userResponse, error) {
+func (c *githubAPIClient) getUser() (*GithubUserResponse, error) {
 	// Ignore pagination links, we should never get more than a single user here.
 	bytes, _, err := c.get("user")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var user userResponse
+	var user GithubUserResponse
 	err = json.Unmarshal(bytes, &user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1067,25 +1114,25 @@ func (c *githubAPIClient) getUser() (*userResponse, error) {
 	return &user, nil
 }
 
-// teamResponse represents a single team entry in the "teams" API response
-type teamResponse struct {
+// GithubTeamResponse represents a single team entry in the "teams" API response
+type GithubTeamResponse struct {
 	// Name is the team name
 	Name string `json:"name"`
 	// Slug is the team ID
 	Slug string `json:"slug"`
 	// Org describes the organization this team is a part of
-	Org orgResponse `json:"organization"`
+	Org GithubOrgResponse `json:"organization"`
 }
 
-// orgResponse represents a Github organization
-type orgResponse struct {
+// GithubOrgResponse represents a Github organization
+type GithubOrgResponse struct {
 	// Login is the organization ID
 	Login string `json:"login"`
 }
 
 // getTeams retrieves a list of teams authenticated user belongs to.
-func (c *githubAPIClient) getTeams(ctx context.Context) ([]teamResponse, error) {
-	var result []teamResponse
+func (c *githubAPIClient) getTeams(ctx context.Context) ([]GithubTeamResponse, error) {
+	var result []GithubTeamResponse
 
 	bytes, nextPage, err := c.get("user/teams")
 	if err != nil {
@@ -1093,7 +1140,7 @@ func (c *githubAPIClient) getTeams(ctx context.Context) ([]teamResponse, error) 
 	}
 
 	// Extract the first page of results and append them to the full result set.
-	var teams []teamResponse
+	var teams []GithubTeamResponse
 	err = json.Unmarshal(bytes, &teams)
 	if err != nil {
 		return nil, trace.Wrap(err)

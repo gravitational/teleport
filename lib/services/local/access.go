@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"time"
@@ -113,7 +112,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				return true, nil
 			}
 
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -361,9 +360,9 @@ func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
 func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName string, newRemoteLocks []types.Lock) error {
 	return backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.Backend,
-			LockName: "ReplaceRemoteLocks/" + clusterName,
-			TTL:      time.Minute,
+			Backend:            s.Backend,
+			LockNameComponents: []string{"ReplaceRemoteLocks", clusterName},
+			TTL:                time.Minute,
 		},
 	}, func(ctx context.Context) error {
 		remoteLocksKey := backend.ExactKey(locksPrefix, clusterName)
@@ -374,8 +373,12 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 
 		newRemoteLocksToStore := make(map[string]backend.Item, len(newRemoteLocks))
 		for _, lock := range newRemoteLocks {
+			key := backend.NewKey(locksPrefix)
 			if !strings.HasPrefix(lock.GetName(), clusterName) {
+				key = key.AppendKey(backend.NewKey(clusterName, lock.GetName()))
 				lock.SetName(clusterName + "/" + lock.GetName())
+			} else {
+				key = key.AppendKey(backend.NewKey(lock.GetName()))
 			}
 			rev := lock.GetRevision()
 			value, err := services.MarshalLock(lock)
@@ -383,18 +386,18 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:      backend.NewKey(locksPrefix, lock.GetName()),
+				Key:      key,
 				Value:    value,
 				Expires:  lock.Expiry(),
 				Revision: rev,
 			}
-			newRemoteLocksToStore[string(item.Key)] = item
+			newRemoteLocksToStore[item.Key.String()] = item
 		}
 
 		for _, origLockItem := range origRemoteLocks.Items {
 			// If one of the new remote locks to store is already known,
 			// perform a CompareAndSwap.
-			key := string(origLockItem.Key)
+			key := origLockItem.Key.String()
 			if newLockItem, ok := newRemoteLocksToStore[key]; ok {
 				if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
 					return trace.Wrap(err)

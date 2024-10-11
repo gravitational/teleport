@@ -220,8 +220,8 @@ export default class Client extends EventEmitterWebAuthnSender {
             TdpClientEvent.TDP_ERROR
           );
           break;
-        case MessageType.NOTIFICATION:
-          this.handleTdpNotification(buffer);
+        case MessageType.ALERT:
+          this.handleTdpAlert(buffer);
           break;
         case MessageType.MFA_JSON:
           this.handleMfaChallenge(buffer);
@@ -297,17 +297,15 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleTdpNotification(buffer: ArrayBuffer) {
-    const notification = this.codec.decodeNotification(buffer);
-    if (notification.severity === Severity.Error) {
-      this.handleError(
-        new Error(notification.message),
-        TdpClientEvent.TDP_ERROR
-      );
-    } else if (notification.severity === Severity.Warning) {
-      this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+  handleTdpAlert(buffer: ArrayBuffer) {
+    const alert = this.codec.decodeAlert(buffer);
+    // TODO(zmb3): info and warning should use the same handler
+    if (alert.severity === Severity.Error) {
+      this.handleError(new Error(alert.message), TdpClientEvent.TDP_ERROR);
+    } else if (alert.severity === Severity.Warning) {
+      this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
-      this.handleInfo(notification.message);
+      this.handleInfo(alert.message);
     }
   }
 

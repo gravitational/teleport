@@ -30,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -40,7 +40,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -456,6 +455,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 		t.Run(backendDesc.name, func(t *testing.T) {
 			authPrefGetter := &fakeAuthPreferenceGetter{suite}
 			backendDesc.opts.AuthPreferenceGetter = authPrefGetter
+			currentSuiteGetter := cryptosuites.GetCurrentSuiteFromAuthPreference(authPrefGetter)
 			manager, err := NewManager(ctx, &backendDesc.config, backendDesc.opts)
 			require.NoError(t, err)
 
@@ -469,7 +469,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			sshPubKey, _, _, _, err := ssh.ParseAuthorizedKey(sshKeyPair.PublicKey)
 			require.NoError(t, err)
 			sshPub := sshPubKey.(ssh.CryptoPublicKey).CryptoPublicKey()
-			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.UserCASSH)
+			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.UserCASSH)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, sshPub)
 
@@ -477,7 +477,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			require.NoError(t, err)
 			tlsCert, err := tlsca.ParseCertificatePEM(tlsKeyPair.Cert)
 			require.NoError(t, err)
-			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.DatabaseClientCATLS)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.DatabaseClientCATLS)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, tlsCert.PublicKey)
 
@@ -485,7 +485,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			require.NoError(t, err)
 			jwtPubKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
 			require.NoError(t, err)
-			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.JWTCAJWT)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.JWTCAJWT)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, jwtPubKey)
 		})
@@ -547,11 +547,9 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		HostUUID:             hostUUID,
 		Logger:               logger,
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		CloudClients: &cloud.TestCloudClients{
-			KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
-			STS: &fakeAWSSTSClient{
-				account: "123456789012",
-			},
+		awsKMSClient:         newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+		awsSTSClient: &fakeAWSSTSClient{
+			account: "123456789012",
 		},
 		kmsClient:         testGCPKMSClient,
 		clockworkOverride: clock,
@@ -644,8 +642,9 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 
 	if config, ok := awsKMSTestConfig(t); ok {
 		opts := baseOpts
-		opts.CloudClients, err = cloud.NewClients()
-		require.NoError(t, err)
+		// Unset the fake clients so this test can use the real AWS clients.
+		opts.awsKMSClient = nil
+		opts.awsSTSClient = nil
 
 		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, &opts)
 		require.NoError(t, err)

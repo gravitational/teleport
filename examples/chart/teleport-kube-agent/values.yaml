@@ -1120,7 +1120,7 @@ extraLabels:
   # extraLabels.job(object) -- are labels to set on the post-delete Job created by the chart.
   job: {}
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
-  # Deployment or StatefulSet.
+  # Deployment, StatefulSet, or Job.
   pod: {}
   # extraLabels.podDisruptionBudget(object) -- are labels to set on the podDisruptionBudget.
   podDisruptionBudget: {}

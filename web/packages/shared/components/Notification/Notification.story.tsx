@@ -189,26 +189,6 @@ export const Notifications = () => {
           onRemove={() => {}}
           isAutoRemovable={false}
         />
-
-        <Notification
-          item={{
-            id: crypto.randomUUID(),
-            severity: 'warn',
-            content: 'Warning without title',
-          }}
-          onRemove={() => {}}
-          isAutoRemovable={false}
-        />
-
-        <Notification
-          item={{
-            id: crypto.randomUUID(),
-            severity: 'error',
-            content: 'Error without title',
-          }}
-          onRemove={() => {}}
-          isAutoRemovable={false}
-        />
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
@@ -218,38 +198,6 @@ export const Notifications = () => {
             severity: 'info',
             content: {
               title: 'Info with link',
-              description: loremIpsum,
-              action: {
-                href: 'https://goteleport.com',
-                content: 'Learn More',
-              },
-            },
-          }}
-          onRemove={() => {}}
-          isAutoRemovable={false}
-        />
-        <Notification
-          item={{
-            id: crypto.randomUUID(),
-            severity: 'warn',
-            content: {
-              title: 'Warning with link',
-              description: loremIpsum,
-              action: {
-                href: 'https://goteleport.com',
-                content: 'Learn More',
-              },
-            },
-          }}
-          onRemove={() => {}}
-          isAutoRemovable={false}
-        />
-        <Notification
-          item={{
-            id: crypto.randomUUID(),
-            severity: 'error',
-            content: {
-              title: 'Error with link',
               description: loremIpsum,
               action: {
                 href: 'https://goteleport.com',
@@ -275,30 +223,6 @@ export const Notifications = () => {
           onRemove={() => {}}
           isAutoRemovable={false}
         />
-        <Notification
-          item={{
-            id: crypto.randomUUID(),
-            severity: 'warn',
-            content: {
-              title: 'Warning with list',
-              list: [loremIpsum, loremIpsum],
-            },
-          }}
-          onRemove={() => {}}
-          isAutoRemovable={false}
-        />
-        <Notification
-          item={{
-            id: crypto.randomUUID(),
-            severity: 'error',
-            content: {
-              title: 'Error with list',
-              list: [loremIpsum, loremIpsum],
-            },
-          }}
-          onRemove={() => {}}
-          isAutoRemovable={false}
-        />
       </Flex>
 
       <Flex flexDirection="column" gap={4}>
@@ -312,6 +236,8 @@ export const Notifications = () => {
           onRemove={() => {}}
           isAutoRemovable={false}
         />
+      </Flex>
+      <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
             id: crypto.randomUUID(),
@@ -321,6 +247,32 @@ export const Notifications = () => {
                 'A very long title with a very long address that spans multiple lines tcp-postgres.foo.bar.baz.cloud.gravitational.io and some more text on another line',
               description:
                 'Long continuous strings. /Users/test/Library/ApplicationSupport/foobarbazio/barbazfoobarioloremoipsumoconfigurationobaziofoobazi/baz/lorem/ipsum/Electron/configuration.json',
+            },
+          }}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content: {
+              description: 'Info with description, without a title',
+            },
+          }}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content: {
+              list: ['Info with a list', 'But no title'],
             },
           }}
           onRemove={() => {}}

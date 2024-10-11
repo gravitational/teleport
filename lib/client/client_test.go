@@ -40,9 +40,9 @@ import (
 )
 
 func TestHelperFunctions(t *testing.T) {
-	assert.Equal(t, "one", nodeName(targetNode{addr: "one"}))
-	assert.Equal(t, "one", nodeName(targetNode{addr: "one:22"}))
-	assert.Equal(t, "example.com", nodeName(targetNode{addr: "one", hostname: "example.com"}))
+	assert.Equal(t, "one", nodeName(TargetNode{Addr: "one"}))
+	assert.Equal(t, "one", nodeName(TargetNode{Addr: "one:22"}))
+	assert.Equal(t, "example.com", nodeName(TargetNode{Addr: "one", Hostname: "example.com"}))
 }
 
 func TestNewSession(t *testing.T) {

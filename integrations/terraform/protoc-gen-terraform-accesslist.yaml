@@ -17,6 +17,7 @@ import_path_overrides:
     "timestamppb": "google.golang.org/protobuf/types/known/timestamppb"
     "v1": "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
     "v11": "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+    "github_com_gravitational_teleport_integrations_terraform_tfschema": "github.com/gravitational/teleport/integrations/terraform/tfschema"
 
 # id field is required for integration tests. It is not used by provider.
 # We have to add it manually (might be removed in the future versions).

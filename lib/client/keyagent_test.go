@@ -20,6 +20,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -33,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -44,8 +46,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -109,11 +111,7 @@ func makeSuite(t *testing.T, opts ...keyAgentTestSuiteFunc) *KeyAgentTestSuite {
 	s.tlsca, s.tlscaCert, err = newSelfSignedCA(pemBytes, settings.clusterName)
 	require.NoError(t, err)
 
-	keygen := testauthority.New()
-	priv, err := keygen.GeneratePrivateKey()
-	require.NoError(t, err)
-
-	s.keyRing = s.makeKeyRing(t, s.username, s.hostname, priv)
+	s.keyRing = s.makeKeyRing(t, s.username, s.hostname)
 
 	return s
 }
@@ -142,7 +140,8 @@ func TestAddKey(t *testing.T) {
 
 	// check that the key has been written to disk
 	expectedFiles := []string{
-		keypaths.UserKeyPath(s.keyDir, s.hostname, s.username),                        // private key
+		keypaths.UserSSHKeyPath(s.keyDir, s.hostname, s.username),                     // SSH private key
+		keypaths.UserTLSKeyPath(s.keyDir, s.hostname, s.username),                     // TLS private key
 		keypaths.TLSCertPath(s.keyDir, s.hostname, s.username),                        // Teleport TLS certificate
 		keypaths.SSHCertPath(s.keyDir, s.hostname, s.username, s.keyRing.ClusterName), // SSH certificate
 	}
@@ -160,22 +159,22 @@ func TestAddKey(t *testing.T) {
 	// and it's for the user we expected to add a certificate for
 	expectComment := teleportAgentKeyComment(s.keyRing.KeyRingIndex)
 	require.Len(t, teleportAgentKeys, 2)
-	require.Equal(t, ssh.CertAlgoRSAv01, teleportAgentKeys[0].Type())
-	require.Equal(t, expectComment, teleportAgentKeys[0].Comment)
-	require.Equal(t, "ssh-rsa", teleportAgentKeys[1].Type())
-	require.Equal(t, expectComment, teleportAgentKeys[1].Comment)
+	assert.Equal(t, ssh.CertAlgoED25519v01, teleportAgentKeys[0].Type())
+	assert.Equal(t, expectComment, teleportAgentKeys[0].Comment)
+	assert.Equal(t, "ssh-ed25519", teleportAgentKeys[1].Type())
+	assert.Equal(t, expectComment, teleportAgentKeys[1].Comment)
 
 	// check that we've loaded a cert as well as a private key into the system again
 	found := false
 	for _, sak := range systemAgentKeys {
-		if sak.Comment == expectComment && sak.Type() == "ssh-rsa" {
+		if sak.Comment == expectComment && sak.Type() == "ssh-ed25519" {
 			found = true
 		}
 	}
 	require.True(t, found)
 	found = false
 	for _, sak := range systemAgentKeys {
-		if sak.Comment == expectComment && sak.Type() == ssh.CertAlgoRSAv01 {
+		if sak.Comment == expectComment && sak.Type() == ssh.CertAlgoED25519v01 {
 			found = true
 		}
 	}
@@ -205,8 +204,8 @@ func TestLoadKey(t *testing.T) {
 	// Create 3 separate keyRings, with overlapping user and cluster names
 	keyRings := []*KeyRing{
 		s.keyRing,
-		s.genKeyRing(t, s.keyRing.Username, "other-proxy-host"),
-		s.genKeyRing(t, "other-user", s.keyRing.ProxyHost),
+		s.makeKeyRing(t, s.keyRing.Username, "other-proxy-host"),
+		s.makeKeyRing(t, "other-user", s.keyRing.ProxyHost),
 	}
 
 	// We should see two agent keys for each key added
@@ -270,9 +269,9 @@ func TestLoadKey(t *testing.T) {
 				require.NoError(t, err)
 
 				// verify data signed by both the teleport agent and system agent was signed correctly
-				err = keyRing.PrivateKey.SSHPublicKey().Verify(userdata, teleportAgentSignature)
+				err = keyRing.SSHPrivateKey.SSHPublicKey().Verify(userdata, teleportAgentSignature)
 				require.NoError(t, err)
-				err = keyRing.PrivateKey.SSHPublicKey().Verify(userdata, systemAgentSignature)
+				err = keyRing.SSHPrivateKey.SSHPublicKey().Verify(userdata, systemAgentSignature)
 				require.NoError(t, err)
 			}
 		})
@@ -708,7 +707,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 		addKey := *s.keyRing
 		addKey.DBTLSCredentials = map[string]TLSCredential{
 			"some-db": TLSCredential{
-				PrivateKey: addKey.PrivateKey,
+				PrivateKey: addKey.TLSPrivateKey,
 				Cert:       addKey.TLSCert,
 			},
 		}
@@ -721,8 +720,7 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	})
 }
 
-func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string, priv *keys.PrivateKey) *KeyRing {
-	keygen := testauthority.New()
+func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string) *KeyRing {
 	ttl := time.Minute
 
 	clock := clockwork.NewRealClock()
@@ -730,11 +728,16 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 		Username: username,
 	}
 
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	})
+	require.NoError(t, err)
+
 	subject, err := identity.Subject()
 	require.NoError(t, err)
 	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: priv.Public(),
+		PublicKey: tlsKey.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
@@ -746,10 +749,12 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 	caSigner, err := ssh.ParsePrivateKey(pemBytes)
 	require.NoError(t, err)
 
-	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	certificate, err := testauthority.New().GenerateUserCert(services.UserCertParams{
 		CertificateFormat:     constants.CertificateFormatStandard,
 		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
+		PublicUserKey:         ssh.MarshalAuthorizedKey(sshPub),
 		Username:              username,
 		AllowedLogins:         []string{username},
 		TTL:                   ttl,
@@ -759,22 +764,22 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 	})
 	require.NoError(t, err)
 
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	require.NoError(t, err)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	require.NoError(t, err)
+
 	return &KeyRing{
-		PrivateKey: priv,
-		Cert:       certificate,
-		TLSCert:    tlsCert,
+		SSHPrivateKey: sshPriv,
+		TLSPrivateKey: tlsPriv,
+		Cert:          certificate,
+		TLSCert:       tlsCert,
 		KeyRingIndex: KeyRingIndex{
 			ProxyHost:   proxyHost,
 			Username:    username,
 			ClusterName: s.clusterName,
 		},
 	}
-}
-
-func (s *KeyAgentTestSuite) genKeyRing(t *testing.T, username, proxyHost string) *KeyRing {
-	priv, err := native.GeneratePrivateKey()
-	require.NoError(t, err)
-	return s.makeKeyRing(t, username, proxyHost, priv)
 }
 
 func startDebugAgent(t *testing.T) error {
