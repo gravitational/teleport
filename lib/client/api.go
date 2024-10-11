@@ -47,6 +47,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/net/http2"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -93,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -2769,6 +2771,33 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+
+	// Get the width of the terminal so we can wrap properly.
+	var width int
+	if stdoutFile, ok := tc.Stdout.(*os.File); ok {
+		conn, err := stdoutFile.SyscallConn()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ctrlErr := conn.Control(func(fd uintptr) {
+			width, _, err = term.GetSize(int(fd))
+			// If stdout is not a terminal, continue with a zero width instead
+			// of failing.
+			if err != nil {
+				width = 0
+			}
+		})
+		if ctrlErr != nil {
+			return trace.Wrap(ctrlErr)
+		}
+	}
+
+	stdout := logutils.NewSharedWriter(tc.Stdout)
+	stderr := stdout
+	if tc.Stdout != tc.Stderr {
+		stderr = logutils.NewSharedWriter(tc.Stderr)
+	}
+
 	for _, node := range nodes {
 		node := node
 		g.Go(func() error {
@@ -2803,7 +2832,12 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			displayName := nodeName(node)
 			fmt.Printf("Running command on %v:\n", displayName)
 
-			if err := nodeClient.RunCommand(ctx, command, WithLabeledOutput()); err != nil && tc.ExitStatus == 0 {
+			if err := nodeClient.RunCommand(
+				ctx,
+				command,
+				WithLabeledOutput(width),
+				WithOutput(stdout, stderr),
+			); err != nil && tc.ExitStatus == 0 {
 				fmt.Fprintln(tc.Stderr, err)
 				return nil
 			}
