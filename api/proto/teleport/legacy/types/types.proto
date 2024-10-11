@@ -2951,7 +2951,7 @@ message RoleOptions {
     (gogoproto.customtype) = "BoolOption"
   ];
 
-  // CreateHostUser allows users to be automatically created on a host
+  // Deprecated: use CreateHostUserMode instead.
   BoolValue CreateHostUser = 20 [
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "create_host_user,omitempty",

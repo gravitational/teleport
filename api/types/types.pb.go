@@ -7870,7 +7870,7 @@ type RoleOptions struct {
 	// workstation and the remote desktop. It defaults to false unless explicitly set to
 	// true.
 	DesktopDirectorySharing *BoolOption `protobuf:"bytes,19,opt,name=DesktopDirectorySharing,proto3,customtype=BoolOption" json:"desktop_directory_sharing"`
-	// CreateHostUser allows users to be automatically created on a host
+	// Deprecated: use CreateHostUserMode instead.
 	CreateHostUser *BoolOption `protobuf:"bytes,20,opt,name=CreateHostUser,proto3,customtype=BoolOption" json:"create_host_user,omitempty"`
 	// PinSourceIP forces the same client IP for certificate generation and usage
 	PinSourceIP Bool `protobuf:"varint,21,opt,name=PinSourceIP,proto3,casttype=Bool" json:"pin_source_ip"`

@@ -2459,7 +2459,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						}),
 						"create_host_user": GenSchemaBoolOption(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Description: "CreateHostUser allows users to be automatically created on a host",
+							Description: "Deprecated: use CreateHostUserMode instead.",
 							Optional:    true,
 						}),
 						"create_host_user_default_shell": {
