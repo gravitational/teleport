@@ -216,8 +216,10 @@ team.
 
 ### Update Teleport RBAC to support automatic approvals
 
-Configure the Teleport `editor-requester` role and add the `datadog_auto_approvals`
-annotation. This annotation expects a list of Datadog team handle names.
+Configure the Teleport `editor-requester` role and add the `teleport.dev/schedules`
+annotation. The `teleport.dev/schedules` annotation is used to specify on-call
+schedules, services, and teams for auto-approval. For the Datadog plugin, this
+annotation expects a list of Datadog team handle names.
 
 Add the "teleport-access" team to the annotation. Access requests made by an
 on-call user of this team will be automatically approved.
@@ -231,7 +233,7 @@ spec:
   allow:
     request:
       annotations:
-        datadog_auto_approvals:
+        teleport.dev/schedules:
         - teleport-access
       roles: ['editor']
       thresholds:
