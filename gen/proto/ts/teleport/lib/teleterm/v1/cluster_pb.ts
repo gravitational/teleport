@@ -113,6 +113,13 @@ export interface Cluster {
      * @generated from protobuf field: teleport.lib.teleterm.v1.ShowResources show_resources = 11;
      */
     showResources: ShowResources;
+    /**
+     * profile_status_error is set if there was an error when reading the profile.
+     * This allows the app to be usable, when one or more profiles cannot be read.
+     *
+     * @generated from protobuf field: string profile_status_error = 12;
+     */
+    profileStatusError: string;
 }
 /**
  * LoggedInUser describes a logged-in user
@@ -369,7 +376,8 @@ class Cluster$Type extends MessageType<Cluster> {
             { no: 8, name: "features", kind: "message", T: () => Features },
             { no: 9, name: "auth_cluster_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "proxy_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 11, name: "show_resources", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ShowResources", ShowResources, "SHOW_RESOURCES_"] }
+            { no: 11, name: "show_resources", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ShowResources", ShowResources, "SHOW_RESOURCES_"] },
+            { no: 12, name: "profile_status_error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Cluster>): Cluster {
@@ -382,6 +390,7 @@ class Cluster$Type extends MessageType<Cluster> {
         message.authClusterId = "";
         message.proxyVersion = "";
         message.showResources = 0;
+        message.profileStatusError = "";
         if (value !== undefined)
             reflectionMergePartial<Cluster>(this, message, value);
         return message;
@@ -420,6 +429,9 @@ class Cluster$Type extends MessageType<Cluster> {
                     break;
                 case /* teleport.lib.teleterm.v1.ShowResources show_resources */ 11:
                     message.showResources = reader.int32();
+                    break;
+                case /* string profile_status_error */ 12:
+                    message.profileStatusError = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -463,6 +475,9 @@ class Cluster$Type extends MessageType<Cluster> {
         /* teleport.lib.teleterm.v1.ShowResources show_resources = 11; */
         if (message.showResources !== 0)
             writer.tag(11, WireType.Varint).int32(message.showResources);
+        /* string profile_status_error = 12; */
+        if (message.profileStatusError !== "")
+            writer.tag(12, WireType.LengthDelimited).string(message.profileStatusError);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
