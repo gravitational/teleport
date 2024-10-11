@@ -56,6 +56,8 @@ const (
 	proxyServerEnvVar = "TELEPORT_PROXY"
 	// updateGroupEnvVar allows the update group to be specified via env var.
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
+	// updateVersionEnvVar forces the version to specified value.
+	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
 )
 
 const (
@@ -76,23 +78,13 @@ func main() {
 }
 
 type cliConfig struct {
+	autoupdate.AgentUserConfig
+
 	// Debug logs enabled
 	Debug bool
-	// DataDir for Teleport (usually /var/lib/teleport)
-	DataDir string
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	// By default, this is `text`.
 	LogFormat string
-
-	// ProxyServer address, scheme and port optional.
-	// Overrides existing value if specified.
-	ProxyServer string
-	// Group identifier for updates (e.g., staging)
-	// Overrides existing value if specified.
-	Group string
-	// Template for the Teleport tgz download URL
-	// Overrides existing value if specified.
-	Template string
 }
 
 func (c *cliConfig) CheckAndSetDefaults() error {
@@ -124,15 +116,19 @@ func Run(args []string) error {
 
 	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial updates.")
 	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').
-		Envar(proxyServerEnvVar).StringVar(&ccfg.ProxyServer)
+		Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
 	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').
 		Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").
-		Short('t').Envar(templateEnvVar).StringVar(&ccfg.Template)
+		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
+	enableCmd.Flag("version", "Use the provided version instead of querying it from the Teleport cluster.").
+		Short('t').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
+	updateCmd.Flag("version", "Use the provided version instead of querying it from the Teleport cluster.").
+		Short('t').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
@@ -208,7 +204,42 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdEnable enables updates and triggers an initial update.
 func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
-	return trace.NotImplemented("TODO")
+	var (
+		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
+		updateYAML  = filepath.Join(versionsDir, configFileName)
+	)
+
+	// Ensure enable can't run concurrently.
+	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	client, err := newClient(&downloadConfig{
+		Pool: certPool,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer client.CloseIdleConnections()
+	updater := autoupdate.AgentUpdater{
+		Log:  plog,
+		HTTP: client,
+		Pool: certPool,
+	}
+	if err := updater.Enable(ctx, ccfg.AgentUserConfig, updateYAML); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.

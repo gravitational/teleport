@@ -20,14 +20,26 @@ package autoupdate
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/api/client/webclient"
+	libutils "github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	// cdnURITemplate is the default template for the Teleport tgz download.
+	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
 )
 
 const (
@@ -66,7 +78,103 @@ type AgentUpdateStatus struct {
 }
 
 type AgentUpdater struct {
-	Log *slog.Logger
+	Log  *slog.Logger
+	HTTP *http.Client
+	Pool *x509.CertPool
+}
+
+type AgentUserConfig struct {
+	// Proxy address, scheme and port optional.
+	// Overrides existing value if specified.
+	Proxy string
+	// Group identifier for updates (e.g., staging)
+	// Overrides existing value if specified.
+	Group string
+	// URLTemplate for the Teleport tgz download URL
+	// Overrides existing value if specified.
+	URLTemplate string
+	// ForceVersion to the specified version.
+	ForceVersion string
+	// DataDir for Teleport (usually /var/lib/teleport)
+	DataDir string
+}
+
+// Disable disables agent updates.
+// updatePath must be a path to the update.yaml file.
+func (u AgentUpdater) Enable(ctx context.Context, ccfg AgentUserConfig, updatePath string) error {
+	// Read configuration from updates.yaml and override any new values passed as flags.
+	cfg, err := u.readConfig(updatePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ccfg.Proxy != "" {
+		cfg.Spec.Proxy = ccfg.Proxy
+	}
+	if ccfg.Group != "" {
+		cfg.Spec.Group = ccfg.Group
+	}
+	if ccfg.URLTemplate != "" {
+		cfg.Spec.URLTemplate = ccfg.URLTemplate
+	}
+	cfg.Spec.Enabled = true
+	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Lookup target version from the proxy.
+
+	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
+	if err != nil {
+		return trace.Errorf("failed to parse proxy server address: %w", err)
+	}
+
+	desiredVersion := ccfg.ForceVersion
+	if desiredVersion == "" {
+		resp, err := webclient.Find(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: addr.Addr,
+			Timeout:   30 * time.Second,
+			Group:     cfg.Spec.Group,
+			Pool:      u.Pool,
+		})
+		if err != nil {
+			return trace.Errorf("failed to request version from proxy: %w", err)
+		}
+		desiredVersion, _ = "16.3.0", resp // field not implemented in API yet
+		//desiredVersion := resp.AgentVersion
+	}
+
+	// If the active version and target don't match, kick off upgrade.
+	if cfg.Status.ActiveVersion != desiredVersion {
+		template := cfg.Spec.URLTemplate
+		if template == "" {
+			template = cdnURITemplate
+		}
+		tv := TeleportVersion{
+			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
+			URLTemplate:    template,
+			DownloadClient: u.HTTP,
+		}
+		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
+		err = tv.Create(ctx, desiredVersion)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Status.ActiveVersion = desiredVersion
+	}
+
+	// Always write the configuration file if enable succeeds.
+	if err := u.writeConfig(updatePath, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func validateUpdatesSpec(spec *AgentUpdateSpec) error {
+	if spec.Proxy == "" {
+		return trace.Errorf("proxy URL must be specified with --proxy or present in updates.yaml")
+	}
+	return nil
 }
 
 // Disable disables agent updates.
