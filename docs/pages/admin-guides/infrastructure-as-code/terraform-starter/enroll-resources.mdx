@@ -360,7 +360,6 @@ provider "aws" {
 provider "teleport" {
   # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
-  identity_file_path = "terraform-identity/identity"
 }
 ```
 
@@ -370,7 +369,6 @@ Replace the following placeholders:
 |-----------------------|------------------------------------------------------------------------------|
 | AWS_REGION            | The AWS region where you will deploy Agents, e.g., `us-east-2`               |
 | PROXY_SERVICE_ADDRESS | The host and port of the Teleport Proxy Service, e.g., `example.teleport.sh:443` |
-| "terraform-identity/identity" | The path to the identity file created for Terraform. [Terraform Provider Auth](../../../reference/terraform-provider.mdx)  |
 
 </TabItem>
 <TabItem label="Google Cloud">
@@ -397,7 +395,6 @@ provider "google" {
 provider "teleport" {
   # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
-  identity_file_path = "terraform-identity/identity"
 }
 ```
 
@@ -428,7 +425,6 @@ terraform {
 }
 
 provider "teleport" {
-  identity_file_path = "terraform-identity/identity"
   # Update addr to point to your Teleport Cloud tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
