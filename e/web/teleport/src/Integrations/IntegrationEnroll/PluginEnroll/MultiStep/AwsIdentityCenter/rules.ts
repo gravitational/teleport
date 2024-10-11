@@ -122,3 +122,38 @@ export const requireUniqueIntegrationName =
       valid: true,
     };
   };
+
+/**
+ * requiredHttpsUrl validates if input is a valid HTTPs endpoint.
+ * @param urlInput is a url
+ * @returns ValidationResult
+ */
+export const requiredHttpsUrl: Rule = urlInput => () => {
+  if (!urlInput) {
+    return {
+      valid: false,
+      message: 'SCIM endpoint is required',
+    };
+  }
+
+  let url: URL;
+  try {
+    url = new URL(urlInput);
+  } catch {
+    return {
+      valid: false,
+      message: 'SCIM endpoint is invalid',
+    };
+  }
+
+  if (url.protocol !== 'https:') {
+    return {
+      valid: false,
+      message: 'SCIM endpoint must be an HTTPS endpoint',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
