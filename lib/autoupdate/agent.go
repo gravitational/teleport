@@ -26,7 +26,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/google/renameio/v2"
@@ -78,9 +77,15 @@ type AgentUpdateStatus struct {
 }
 
 type AgentUpdater struct {
-	Log  *slog.Logger
-	HTTP *http.Client
-	Pool *x509.CertPool
+	Log       *slog.Logger
+	HTTP      *http.Client
+	Pool      *x509.CertPool
+	Installer Installer
+}
+
+type Installer interface {
+	Install(ctx context.Context, version, template string) error
+	Remove(ctx context.Context, version string) error
 }
 
 type AgentUserConfig struct {
@@ -95,8 +100,6 @@ type AgentUserConfig struct {
 	URLTemplate string
 	// ForceVersion to the specified version.
 	ForceVersion string
-	// DataDir for Teleport (usually /var/lib/teleport)
-	DataDir string
 }
 
 // Disable disables agent updates.
@@ -150,13 +153,8 @@ func (u AgentUpdater) Enable(ctx context.Context, ccfg AgentUserConfig, updatePa
 		if template == "" {
 			template = cdnURITemplate
 		}
-		tv := TeleportVersion{
-			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
-			URLTemplate:    template,
-			DownloadClient: u.HTTP,
-		}
 		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
-		err = tv.Create(ctx, desiredVersion)
+		err = u.Installer.Install(ctx, desiredVersion, template)
 		if err != nil {
 			return trace.Wrap(err)
 		}

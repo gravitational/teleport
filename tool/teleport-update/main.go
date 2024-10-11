@@ -85,6 +85,8 @@ type cliConfig struct {
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	// By default, this is `text`.
 	LogFormat string
+	// DataDir for Teleport (usually /var/lib/teleport)
+	DataDir string
 }
 
 func (c *cliConfig) CheckAndSetDefaults() error {
@@ -235,6 +237,10 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		Log:  plog,
 		HTTP: client,
 		Pool: certPool,
+		Installer: &autoupdate.AgentInstaller{
+			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
+			DownloadClient: client,
+		},
 	}
 	if err := updater.Enable(ctx, ccfg.AgentUserConfig, updateYAML); err != nil {
 		return trace.Wrap(err)
