@@ -139,7 +139,8 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 	return result, nil
 }
 
-// StartHeadlessWatcher starts headless watcher
+// StartHeadlessWatcher starts a headless watcher.
+// If the watcher is already running, it is restarted.
 func (s *Handler) StartHeadlessWatcher(_ context.Context, req *api.StartHeadlessWatcherRequest) (*api.StartHeadlessWatcherResponse, error) {
 	// Don't wait for the headless watcher to initialize
 	err := s.DaemonService.StartHeadlessWatcher(req.RootClusterUri, false /* waitInit */)

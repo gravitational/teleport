@@ -141,7 +141,8 @@ export interface ITerminalServiceClient {
      */
     listLeafClusters(input: ListLeafClustersRequest, options?: RpcOptions): UnaryCall<ListLeafClustersRequest, ListClustersResponse>;
     /**
-     * StartHeadlessWatcher starts headless watcher
+     * StartHeadlessWatcher starts a headless watcher.
+     * If the watcher is already running, it is restarted.
      *
      * @generated from protobuf rpc: StartHeadlessWatcher(teleport.lib.teleterm.v1.StartHeadlessWatcherRequest) returns (teleport.lib.teleterm.v1.StartHeadlessWatcherResponse);
      */
@@ -465,7 +466,8 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
         return stackIntercept<ListLeafClustersRequest, ListClustersResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * StartHeadlessWatcher starts headless watcher
+     * StartHeadlessWatcher starts a headless watcher.
+     * If the watcher is already running, it is restarted.
      *
      * @generated from protobuf rpc: StartHeadlessWatcher(teleport.lib.teleterm.v1.StartHeadlessWatcherRequest) returns (teleport.lib.teleterm.v1.StartHeadlessWatcherResponse);
      */

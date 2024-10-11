@@ -134,7 +134,8 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     listLeafClusters: grpc.handleUnaryCall<ListLeafClustersRequest, ListClustersResponse>;
     /**
-     * StartHeadlessWatcher starts headless watcher
+     * StartHeadlessWatcher starts a headless watcher.
+     * If the watcher is already running, it is restarted.
      *
      * @generated from protobuf rpc: StartHeadlessWatcher(teleport.lib.teleterm.v1.StartHeadlessWatcherRequest) returns (teleport.lib.teleterm.v1.StartHeadlessWatcherResponse);
      */

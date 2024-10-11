@@ -104,7 +104,8 @@ type TerminalServiceClient interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
-	// StartHeadlessWatcher starts headless watcher
+	// StartHeadlessWatcher starts a headless watcher.
+	// If the watcher is already running, it is restarted.
 	StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error)
@@ -693,7 +694,8 @@ type TerminalServiceServer interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
-	// StartHeadlessWatcher starts headless watcher
+	// StartHeadlessWatcher starts a headless watcher.
+	// If the watcher is already running, it is restarted.
 	StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error)

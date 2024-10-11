@@ -58,7 +58,8 @@ service TerminalService {
   // ListLeafClusters lists leaf clusters
   // Does not include detailed cluster information that would require a network request.
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-  // StartHeadlessWatcher starts headless watcher
+  // StartHeadlessWatcher starts a headless watcher.
+  // If the watcher is already running, it is restarted.
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
   // GetDatabases returns a filtered and paginated list of databases
   rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
