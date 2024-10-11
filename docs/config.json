@@ -1716,11 +1716,6 @@
       "permanent": true
     },
     {
-      "source": "/access-controls/access-request-plugins/ssh-approval-datadog/",
-      "destination": "/admin-guides/access-controls/access-request-plugins/ssh-approval-datadog/",
-      "permanent": true
-    },
-    {
       "source": "/access-controls/access-requests/",
       "destination": "/admin-guides/access-controls/access-requests/",
       "permanent": true

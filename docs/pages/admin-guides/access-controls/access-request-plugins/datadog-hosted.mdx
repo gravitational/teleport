@@ -1,5 +1,5 @@
 ---
-title: Access Requests with Datadog Incident Management (Hosted)
+title: Access Requests with Datadog Incident Management
 description: How to set up Teleport's Datadog Incident Management plugin for privilege elevation approvals.
 ---
 
@@ -15,8 +15,6 @@ and approve or deny the requests via Teleport.
 
 This guide will explain how to set up Teleport's Access Request plugin for Datadog.
 
-![Datadog plugin architecture](../../../../img/enterprise/plugins/datadog/diagram.png)
-
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -31,7 +29,10 @@ This guide will explain how to set up Teleport's Access Request plugin for Datad
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Create Datadog team
+- Your Teleport user will require the `editor` role or a role that provides permissions
+  to create Teleport roles and grant them to users.
+
+## Step 1/6. Create Datadog team
 
 To demonstrate the Datadog Incident Management plugin, create a team in Datadog.
 In the Datadog web UI, navigate to the **Teams** tab and click on **New Team** to
@@ -40,7 +41,7 @@ create a new Datadog team. Name it "Teleport Access".
 We will configure the Datadog Incident Management plugin to route certain access
 requests to the "Teleport Access" team.
 
-## Step 2/5. Define RBAC resources
+## Step 2/6. Define RBAC resources
 
 Before you set up the Datadog Incident Management plugin, you will need to enable
 Role Access Requests in your Teleport cluster.
@@ -85,16 +86,16 @@ review access requests for the `editor` role. To edit your user roles navigate t
 **Management -> Access -> Users**, then for your user select **Options -> Edit**
 and add the `editor-reviewer` role.
 
-Next, create a user called `myuser` who has the `editor-requester` role. Later in
-this guide, you will create an Access Request as this user to test the Datadog
-plugin. To this user, navigate to **Management -> Access -> Users**. Then select
-**Enroll Users** and create a user with the `editor-requester` role.
+Next, create a user called `myuser@example.com` who has the `editor-requester` role.
+Later in this guide, you will create an Access Request as this user to test the
+Datadog plugin. To this user, navigate to **Management -> Access -> Users**. Then
+select **Enroll Users** and create a user with the `editor-requester` role.
 
 You should end up with two users that look like this:
 
 ![Teleport Users](../../../../img/enterprise/plugins/datadog/teleport-users.png)
 
-## Step 3/5. Generate Datadog credentials
+## Step 3/6. Generate Datadog credentials
 
 The Access Request plugin for Datadog receives Access Request events from the Teleport
 Auth Service, formats them into Datadog incidents, and sends them to the Datadog
@@ -126,7 +127,7 @@ to create a new Application key. Copy the Application key to paste in a later st
 
 ![Datadog dashboard for Application Keys](../../../../img/enterprise/plugins/datadog/dashboard-application-keys.png)
 
-## Step 4/5. Enroll the Datadog Incident Management plugin
+## Step 4/6. Enroll the Datadog Incident Management plugin
 
 At this point, you're now ready to enroll the Datadog Incident Management plugin.
 Navigate to **Access Management -> Enroll New Integration -> Datadog**.
@@ -139,7 +140,8 @@ This should be "teleport-access".
 
 The fallback recipient will be the default recipient for notifications. The recipient
 can be a Datadog user email, or a Datadog team handle. You can configure more custom
-notification routing rules afterwards using Access Monitoring Rules.
+notification routing rules afterwards using
+[Access Monitoring Rules](https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/notification-routing-rules).
 
 ![Datadog enrollment](../../../../img/enterprise/plugins/datadog/datadog-enrollment.png)
 
@@ -167,13 +169,15 @@ plugin will add these to the list of users to notify.
 
 </Details>
 
-## Step 5/5. Test your Datadog Incident Management plugin
+## Step 5/6. Test your Datadog Incident Management plugin
 
 ### Create an Access Request
 
-As the Teleport user `myuser`, create an Access Request for the `editor` role:
+As the Teleport user `myuser@example.com`, create an Access Request for the
+`editor` role. Navigate to the **Access Requests** tab and click on
+**New Access Request**:
 
-(!docs/pages/includes/plugins/create-request.mdx!)
+![New access request](../../../../img/enterprise/plugins/datadog/create-access-request.png)
 
 In Datadog, you will see a new incident containing information about the
 Access Request:
@@ -183,7 +187,10 @@ Request](../../../../img/enterprise/plugins/datadog/new-access-request-incident.
 
 ### Resolve the request
 
-(!docs/pages/includes/plugins/resolve-request.mdx!)
+Once you receive an Access Request message, click the link to visit Teleport and
+approve or deny the request:
+
+![Review access request](../../../../img/enterprise/plugins/datadog/review-access-request.png)
 
 <Admonition title="Auditing Access Requests">
 
@@ -197,6 +204,46 @@ When auditing Access Request reviews, check for events with the type `Access
 Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
+
+## Step 6/6. Configure Automatic Approvals
+
+### Setup a Datadog on-call schedule
+
+To enable automatic approvals for Access Requests, you will need to set up an
+on-call schedule for your Datadog team. Navigate to **On-Call -> Teams** and
+select **Add Team to On-Call** to set up an on-call schedule for the "Teleport Access"
+team.
+
+### Update Teleport RBAC to support automatic approvals
+
+Configure the Teleport `editor-requester` role and add the `datadog_auto_approvals`
+annotation. This annotation expects a list of Datadog team handle names.
+
+Add the "teleport-access" team to the annotation. Access requests made by an
+on-call user of this team will be automatically approved.
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: editor-requester
+spec:
+  allow:
+    request:
+      annotations:
+        datadog_auto_approvals:
+        - teleport-access
+      roles: ['editor']
+      thresholds:
+        - approve: 1
+          deny: 1
+```
+
+### Trigger an auto-approval
+
+To trigger an auto-approval, login to Teleport as the current on-call user in Datadog,
+and create an Access Request for the `editor` role. Automatic approvals requires
+that the Teleport username matches the Datadog on-call user email.
 
 ## Next steps
 
