@@ -20,15 +20,11 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -63,8 +59,6 @@ const (
 const (
 	// versionsDirName specifies the name of the subdirectory inside of the Teleport data dir for storing Teleport versions.
 	versionsDirName = "versions"
-	// configFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
-	configFileName = "update.yaml"
 	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
 	lockFileName = ".lock"
 )
@@ -184,10 +178,8 @@ func setupLogger(debug bool, format string) error {
 
 // cmdDisable disables updates.
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
-	var (
-		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
-		updateYAML  = filepath.Join(versionsDir, configFileName)
-	)
+	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
+
 	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
 		return trace.Wrap(err)
@@ -197,8 +189,14 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	updater := autoupdate.AgentUpdater{Log: plog}
-	if err := updater.Disable(ctx, updateYAML); err != nil {
+	updater, err := autoupdate.NewAgentUpdater(autoupdate.AgentConfig{
+		VersionsDir: versionsDir,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater.Log = plog
+	if err := updater.Disable(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -206,10 +204,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdEnable enables updates and triggers an initial update.
 func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
-	var (
-		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
-		updateYAML  = filepath.Join(versionsDir, configFileName)
-	)
+	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
 
 	// Ensure enable can't run concurrently.
 	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
@@ -222,27 +217,14 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 
-	certPool, err := x509.SystemCertPool()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	client, err := newClient(&downloadConfig{
-		Pool: certPool,
+	updater, err := autoupdate.NewAgentUpdater(autoupdate.AgentConfig{
+		VersionsDir: versionsDir,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer client.CloseIdleConnections()
-	updater := autoupdate.AgentUpdater{
-		Log:  plog,
-		HTTP: client,
-		Pool: certPool,
-		Installer: &autoupdate.AgentInstaller{
-			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
-			DownloadClient: client,
-		},
-	}
-	if err := updater.Enable(ctx, ccfg.AgentUserConfig, updateYAML); err != nil {
+	updater.Log = plog
+	if err := updater.Enable(ctx, ccfg.AgentUserConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -251,31 +233,4 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	return trace.NotImplemented("TODO")
-}
-
-//nolint:unused // scaffolding used in upcoming PR
-type downloadConfig struct {
-	// Insecure turns off TLS certificate verification when enabled.
-	Insecure bool
-	// Pool defines the set of root CAs to use when verifying server
-	// certificates.
-	Pool *x509.CertPool
-	// Timeout is a timeout for requests.
-	Timeout time.Duration
-}
-
-//nolint:unused // scaffolding used in upcoming PR
-func newClient(cfg *downloadConfig) (*http.Client, error) {
-	tr, err := libdefaults.Transport()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tr.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: cfg.Insecure,
-		RootCAs:            cfg.Pool,
-	}
-	return &http.Client{
-		Transport: tr,
-		Timeout:   cfg.Timeout,
-	}, nil
 }

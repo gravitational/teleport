@@ -142,7 +142,11 @@ func (ai *AgentInstaller) Install(ctx context.Context, version, template string)
 	if d := free - uint64(n); d < 0 {
 		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", versionPath, -d)
 	}
-	err = untar(tgz, versionPath)
+	zr, err := gzip.NewReader(tgz)
+	if err != nil {
+		return trace.Errorf("requires gzip-compressed body: %v", err)
+	}
+	err = utils.Extract(zr, versionPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}

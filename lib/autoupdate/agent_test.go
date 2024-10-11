@@ -20,7 +20,6 @@ package autoupdate
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -79,8 +78,6 @@ func TestAgentUpdater_Disable(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfgPath := filepath.Join(dir, "update.yaml")
-			err := os.MkdirAll(filepath.Dir(cfgPath), 0777)
-			require.NoError(t, err)
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -89,11 +86,12 @@ func TestAgentUpdater_Disable(t *testing.T) {
 				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
 			}
-
-			updater := AgentUpdater{
-				Log: slog.Default(),
-			}
-			err = updater.Disable(context.Background(), cfgPath)
+			updater, err := NewAgentUpdater(AgentConfig{
+				DownloadInsecure: true,
+				VersionsDir:      dir,
+			})
+			require.NoError(t, err)
+			err = updater.Disable(context.Background())
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -116,4 +114,139 @@ func TestAgentUpdater_Disable(t *testing.T) {
 			require.Equal(t, string(golden.Get(t)), string(data))
 		})
 	}
+}
+
+func TestAgentUpdater_Enable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      *AgentUpdateConfig // nil -> file not present
+		userCfg  AgentUserConfig
+		errMatch string
+	}{
+		{
+			name: "defaults",
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec:    AgentUpdateSpec{},
+			},
+		},
+		{
+			name: "user-provided values",
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec:    AgentUpdateSpec{},
+			},
+		},
+		{
+			name: "already enabled",
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec: AgentUpdateSpec{
+					Enabled: true,
+				},
+			},
+		},
+		{
+			name: "install forced version",
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec: AgentUpdateSpec{
+					Enabled: true,
+				},
+			},
+		},
+		{
+			name: "install cluster version",
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec: AgentUpdateSpec{
+					Enabled: true,
+				},
+			},
+		},
+		{
+			name: "version already installed",
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec: AgentUpdateSpec{
+					Enabled: true,
+				},
+			},
+		},
+		{
+			name: "config does not exist",
+		},
+		{
+			name: "invalid metadata",
+			cfg: &AgentUpdateConfig{
+				Spec: AgentUpdateSpec{
+					Enabled: true,
+				},
+			},
+			errMatch: "invalid",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "update.yaml")
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
+			updater, err := NewAgentUpdater(AgentConfig{
+				DownloadInsecure: true,
+				VersionsDir:      dir,
+			})
+			require.NoError(t, err)
+			updater.Installer = &fakeInstaller{}
+
+			err = updater.Enable(context.Background(), tt.userCfg)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+
+			data, err := os.ReadFile(cfgPath)
+
+			// If no config is present, disable should not create it
+			if tt.cfg == nil {
+				require.ErrorIs(t, err, os.ErrNotExist)
+				return
+			}
+			require.NoError(t, err)
+
+			if golden.ShouldSet() {
+				golden.Set(t, data)
+			}
+			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
+type fakeInstaller struct{}
+
+func (fakeInstaller) Install(ctx context.Context, version, template string) error {
+	return nil
+}
+
+func (fakeInstaller) Remove(ctx context.Context, version string) error {
+	return nil
 }

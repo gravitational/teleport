@@ -20,12 +20,14 @@ package autoupdate
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/renameio/v2"
@@ -33,12 +35,15 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
+	// configFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
+	configFileName = "update.yaml"
 )
 
 const (
@@ -76,14 +81,53 @@ type AgentUpdateStatus struct {
 	ActiveVersion string `yaml:"active_version"`
 }
 
-type AgentUpdater struct {
-	Log       *slog.Logger
-	HTTP      *http.Client
-	Pool      *x509.CertPool
-	Installer Installer
+func NewAgentUpdater(cfg AgentConfig) (*AgentUpdater, error) {
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tr, err := libdefaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tr.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: cfg.DownloadInsecure,
+		RootCAs:            certPool,
+	}
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   cfg.DownloadTimeout,
+	}
+	return &AgentUpdater{
+		Log:         slog.Default(),
+		HTTP:        client,
+		Pool:        certPool,
+		VersionsDir: cfg.VersionsDir,
+		Installer: &AgentInstaller{
+			VersionsDir:    cfg.VersionsDir,
+			DownloadClient: client,
+		},
+	}, nil
 }
 
-type Installer interface {
+type AgentUpdater struct {
+	Log         *slog.Logger
+	HTTP        *http.Client
+	Pool        *x509.CertPool
+	VersionsDir string
+	Installer   TeleportInstaller
+}
+
+type AgentConfig struct {
+	// DownloadInsecure turns off TLS certificate verification for download requests when enabled.
+	DownloadInsecure bool
+	// DownloadTimeout is a timeout for file download requests.
+	DownloadTimeout time.Duration
+	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions)
+	VersionsDir string
+}
+
+type TeleportInstaller interface {
 	Install(ctx context.Context, version, template string) error
 	Remove(ctx context.Context, version string) error
 }
@@ -102,22 +146,22 @@ type AgentUserConfig struct {
 	ForceVersion string
 }
 
-// Disable disables agent updates.
-// updatePath must be a path to the update.yaml file.
-func (u AgentUpdater) Enable(ctx context.Context, ccfg AgentUserConfig, updatePath string) error {
+// Enable enables agent updates.
+func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) error {
 	// Read configuration from updates.yaml and override any new values passed as flags.
+	updatePath := filepath.Join(u.VersionsDir, configFileName)
 	cfg, err := u.readConfig(updatePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if ccfg.Proxy != "" {
-		cfg.Spec.Proxy = ccfg.Proxy
+	if userCfg.Proxy != "" {
+		cfg.Spec.Proxy = userCfg.Proxy
 	}
-	if ccfg.Group != "" {
-		cfg.Spec.Group = ccfg.Group
+	if userCfg.Group != "" {
+		cfg.Spec.Group = userCfg.Group
 	}
-	if ccfg.URLTemplate != "" {
-		cfg.Spec.URLTemplate = ccfg.URLTemplate
+	if userCfg.URLTemplate != "" {
+		cfg.Spec.URLTemplate = userCfg.URLTemplate
 	}
 	cfg.Spec.Enabled = true
 	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
@@ -125,25 +169,24 @@ func (u AgentUpdater) Enable(ctx context.Context, ccfg AgentUserConfig, updatePa
 	}
 
 	// Lookup target version from the proxy.
-
 	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
 	if err != nil {
 		return trace.Errorf("failed to parse proxy server address: %w", err)
 	}
 
-	desiredVersion := ccfg.ForceVersion
+	desiredVersion := userCfg.ForceVersion
 	if desiredVersion == "" {
 		resp, err := webclient.Find(&webclient.Config{
 			Context:   ctx,
 			ProxyAddr: addr.Addr,
 			Timeout:   30 * time.Second,
-			Group:     cfg.Spec.Group,
-			Pool:      u.Pool,
+			//Group:     cfg.Spec.Group, // TODO(sclevine): add web API
+			Pool: u.Pool,
 		})
 		if err != nil {
 			return trace.Errorf("failed to request version from proxy: %w", err)
 		}
-		desiredVersion, _ = "16.3.0", resp // field not implemented in API yet
+		desiredVersion, _ = "16.3.0", resp // TODO(sclevine): add web API
 		//desiredVersion := resp.AgentVersion
 	}
 
@@ -176,8 +219,8 @@ func validateUpdatesSpec(spec *AgentUpdateSpec) error {
 }
 
 // Disable disables agent updates.
-// updatePath must be a path to the update.yaml file.
-func (u AgentUpdater) Disable(ctx context.Context, updatePath string) error {
+func (u *AgentUpdater) Disable(ctx context.Context) error {
+	updatePath := filepath.Join(u.VersionsDir, configFileName)
 	cfg, err := u.readConfig(updatePath)
 	if err != nil {
 		return trace.Errorf("failed to read updates.yaml: %w", err)
@@ -194,7 +237,7 @@ func (u AgentUpdater) Disable(ctx context.Context, updatePath string) error {
 }
 
 // readConfig reads update.yaml
-func (AgentUpdater) readConfig(path string) (*AgentUpdateConfig, error) {
+func (*AgentUpdater) readConfig(path string) (*AgentUpdateConfig, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return &AgentUpdateConfig{
@@ -220,7 +263,7 @@ func (AgentUpdater) readConfig(path string) (*AgentUpdateConfig, error) {
 }
 
 // writeConfig writes update.yaml atomically, ensuring the file cannot be corrupted.
-func (AgentUpdater) writeConfig(filename string, cfg *AgentUpdateConfig) error {
+func (*AgentUpdater) writeConfig(filename string, cfg *AgentUpdateConfig) error {
 	opts := []renameio.Option{
 		renameio.WithPermissions(0755),
 		renameio.WithExistingPermissions(),
