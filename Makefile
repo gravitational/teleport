@@ -1303,6 +1303,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'version.go' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'web/packages/teleport/src/ironrdp/**' \
+		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \

@@ -16,6 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import CardTerminal, { CardTerminalLogin } from './CardTerminal';
-export default CardTerminal;
-export { CardTerminalLogin };
+package cli
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestDBCommand(t *testing.T) {
+	testCommand(t, NewDBCommand, []testCommandCase[*DBCommand]{
+		{
+			name: "success",
+			args: []string{
+				"db",
+				"--proxy-server=example.com:22",
+				"--destination-dir=/tmp",
+				"--cluster=example.com",
+				"bar",
+				"buzz",
+				"boo",
+			},
+			assert: func(t *testing.T, got *DBCommand) {
+				require.Equal(t, "example.com:22", got.ProxyServer)
+				require.Equal(t, "/tmp", got.DestinationDir)
+				require.Equal(t, "example.com", got.Cluster)
+				require.Equal(t, []string{"bar", "buzz", "boo"}, *got.RemainingArgs)
+			},
+		},
+	})
+}

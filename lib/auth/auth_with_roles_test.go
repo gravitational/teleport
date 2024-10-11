@@ -7449,17 +7449,8 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	// Server used to create users and roles.
-	setupAuthContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestAdmin().I))
-	require.NoError(t, err)
-	setupServer := &ServerWithRoles{
-		authServer: srv.AuthServer,
-		alog:       srv.AuditLog,
-		context:    *setupAuthContext,
-	}
-
 	// Create a test user.
-	_, err = CreateUser(ctx, setupServer, "username")
+	_, err = CreateUser(ctx, srv.AuthServer.Services, "username")
 	require.NoError(t, err)
 
 	for _, tc := range []struct {

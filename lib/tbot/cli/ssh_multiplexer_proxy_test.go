@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,20 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+package cli
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-import { Text } from 'design';
+import (
+	"testing"
 
-export default {
-  title: 'Design/Onboard',
-};
+	"github.com/stretchr/testify/require"
+)
 
-export const Wrapper = () => (
-  <WelcomeWrapper>
-    <OnboardCard>
-      <Text>Some content</Text>
-    </OnboardCard>
-  </WelcomeWrapper>
-);
+func TestSSHMultiplexerProxyCommand(t *testing.T) {
+	testCommand(t, NewSSHMultiplexerProxyCommand, []testCommandCase[*SSHMultiplexerProxyCommand]{
+		{
+			name: "success",
+			args: []string{
+				"ssh-multiplexer-proxy-command",
+				"/tmp/sock",
+				"example.com:22",
+			},
+			assert: func(t *testing.T, got *SSHMultiplexerProxyCommand) {
+				require.Equal(t, "/tmp/sock", got.Socket)
+				require.Equal(t, "example.com:22", got.Data)
+			},
+		},
+	})
+}

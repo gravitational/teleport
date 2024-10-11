@@ -16,24 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { useLocation } from 'react-router';
 
 import CardIcon from 'design/CardIcon';
 import { Terminal } from 'design/Icon';
 
-export default function CardTerminal({ title, children }) {
-  return (
-    <CardIcon
-      title={title}
-      icon={<Terminal mb={3} size={64} color="accent.main" />}
-    >
-      {children}
-    </CardIcon>
-  );
-}
-
-export function CardTerminalLogin() {
+export function CardTerminal() {
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
   let provider = '';
@@ -41,9 +29,12 @@ export function CardTerminalLogin() {
     provider = ` by ${queryParams.get('auth')}`;
   }
   return (
-    <CardTerminal title="Continue in Terminal">
+    <CardIcon
+      title="Continue in Terminal"
+      icon={<Terminal mb={3} size={64} color="accent.main" />}
+    >
       You have been authenticated{provider}.<br />
       You can close this window and finish logging in at your terminal.
-    </CardTerminal>
+    </CardIcon>
   );
 }

@@ -16,26 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+package cli
 
-import { MemoryRouter } from 'react-router';
+type KubeCredentialsCommand struct {
+	*genericExecutorHandler[KubeCredentialsCommand]
 
-import cfg from 'teleport/config';
+	DestinationDir string
+}
 
-import CardTerminal, { CardTerminalLogin } from './index';
+// NewKubeCredentialsCommand initializes a kubernetes `credentials` command
+// and returns a struct that will contain the parse result.
+func NewKubeCredentialsCommand(parentCmd KingpinClause, action func(*KubeCredentialsCommand) error) *KubeCredentialsCommand {
+	cmd := parentCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
 
-export default {
-  title: 'Design/Card/Terminal',
-};
+	c := &KubeCredentialsCommand{}
+	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-export const Blank = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminal title="Some Title" />
-  </MemoryRouter>
-);
+	cmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&c.DestinationDir)
 
-export const Login = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminalLogin />
-  </MemoryRouter>
-);
+	return c
+}

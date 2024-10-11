@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Dialog from './Dialog';
+import { Dialog } from './Dialog';
 import DialogTitle from './DialogTitle';
 import DialogHeader from './DialogHeader';
 import DialogContent from './DialogContent';
