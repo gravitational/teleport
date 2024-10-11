@@ -535,6 +535,12 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 }
 
 func RunNetworking() (errw io.Writer, code int, err error) {
+	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
+	// existing exec sessions to close before ending the process. For this to
+	// work when closing the entire teleport process group, exec sessions must
+	// ignore SIGQUIT signals.
+	signal.Ignore(syscall.SIGQUIT)
+
 	// errorWriter is used to return any error message back to the client.
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
