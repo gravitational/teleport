@@ -199,17 +199,17 @@ installed version of client tools on endpoints.
 By defining the `proxy` flag, we can use the watch command without logging in.
 
 ```
-$ tctl autoupdate watch --proxy proxy.example.com
-{"tools_version": "1.0.0"}
-{"tools_version": "1.0.1"}
-{"tools_version": "2.0.0"}
+$ tctl autoupdate client-tools watch --proxy proxy.example.com
+{"target_version": "1.0.0"}
+{"target_version": "1.0.1"}
+{"target_version": "2.0.0"}
 
 [...]
 ```
 
 ```
-$ tctl autoupdate get --proxy proxy.example.com
-{"tools_version": "2.0.0"}
+$ tctl autoupdate client-tools get --proxy proxy.example.com
+{"target_version": "2.0.0"}
 ```
 
 ##### Cluster configuration
@@ -238,34 +238,36 @@ functions.
 ```yaml
 kind: autoupdate_config
 spec:
-  # tools_autoupdate allows turning client tools updates on or off at the
-  # cluster level. Only turn client tools automatic updates off if self-managed
-  # updates are in place.
-  tools_autoupdate: on|off
+  tools:
+    # tools mode allows to enable client tools updates or disable at the
+    # cluster level. Disable client tools automatic updates only if self-managed
+    # updates are in place.
+    mode: enabled|disabled
 
   [...]
 ```
 ```
-$ tctl autoupdate update --set-tools-autoupdate=off
+$ tctl autoupdate client-tools update --set-mode=disabled
 Automatic updates configuration has been updated.
 ```
 
-By default, all Cloud clusters will be opted into `tools_autoupdate: on`. All
-self-hosted clusters will be opted into `tools_autoupdate: off`.
+By default, all Cloud clusters will be opted into `tools.mode: enabled`. All
+self-hosted clusters will be opted into `tools.mode: disabled`.
 
 ```yaml
 kind: autoupdate_version
 spec:
-  # tools_version is the semver version of client tools the cluster will
-  # advertise.
-  tools_version: X.Y.Z
+  tools:
+    # target_version is the semver version of client tools the cluster will
+    # advertise.
+    target_version: X.Y.Z
 ```
 ```
-$ tctl autoupdate update --set-tools-version=1.0.1
+$ tctl autoupdate client-tools update --set-target-version=1.0.1
 Automatic updates configuration has been updated.
 ```
 
-For Cloud clusters, `tools_version` will always be `X.Y.Z`, with the version
+For Cloud clusters, `target_version` will always be `X.Y.Z`, with the version
 controlled by the Cloud team.
 
 The above configuration will then be available from the unauthenticated
@@ -277,8 +279,10 @@ cache state, the last known version of the resources should be used for the resp
 ```
 $ curl https://proxy.example.com/v1/webapi/find | jq .
 {
-    "tools_autoupdate": true,
-    "tools_version": "X.Y.Z",
+    "auto_update": {
+        "tools_mode": enabled,
+        "tools_version": "X.Y.Z",
+    }
     [...]
 }
 ```
