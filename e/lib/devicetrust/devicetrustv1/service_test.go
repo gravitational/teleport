@@ -18,7 +18,6 @@ import (
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -355,7 +355,7 @@ type alternatingLimiter struct {
 	keys map[string]struct{}
 }
 
-func (l *alternatingLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
+func (l *alternatingLimiter) RegisterRequestWithCustomRate(token string, customRate *limiter.RateSet) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
