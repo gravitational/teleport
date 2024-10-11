@@ -468,6 +468,7 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 			"iam:GetRole",
 			"iam:ListAttachedRolePolicies",
 			"iam:ListRolePolicies",
+			"iam:CreateSAMLProvider",
 
 			// AllowAccountAssignmentOnOwner
 			"iam:GetSAMLProvider",

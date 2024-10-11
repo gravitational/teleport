@@ -88,6 +88,7 @@ AssignPolicy: {
             "iam:GetRole",
             "iam:ListAttachedRolePolicies",
             "iam:ListRolePolicies",
+            "iam:CreateSAMLProvider",
             "iam:GetSAMLProvider",
             "iam:ListRoles"
         ],

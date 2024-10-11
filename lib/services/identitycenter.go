@@ -7,6 +7,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -172,4 +173,9 @@ type IdentityCenter interface {
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
 	IdentityCenterAccountAssignments
+}
+
+func MatchByOriginAWSIdentityCenterLabel[T types.Resource](resource T) bool {
+	origin, ok := resource.GetMetadata().Labels[types.OriginLabel]
+	return ok && origin == types.OriginAWSIdentityCenter
 }
