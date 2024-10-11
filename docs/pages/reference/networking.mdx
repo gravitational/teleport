@@ -36,21 +36,21 @@ following use cases:
 </TabItem>
 <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
-All Teleport services (e.g., the Application Service and Database Service) have
-an optional `public_addr` property that you can modify in each service's
-configuration file. The public address can take an IP or a DNS name. It can also
-be a list of values:
+For Teleport Enterprise Cloud all Teleport services (e.g. Kubernetes Service, 
+SSH Service,...) connect via reverse tunnels through the Teleport Proxy Service.
+The Teleport Proxy Service and Auth Service are provided so no specification
+is required for those. This makes the usage of `public_addr` limited to the Application Service.
+
+In the case of web applications the public address must be a subdomain of the tenant
+since the domain and TLS certificates are maintained by Teleport.
 
 ```yaml
-public_addr: ["service-one.example.com", "service-two.example.com"]
+public_addr: "myapp.example.teleport.sh"
 ```
 
-Specifying a public address for a Teleport agent may be useful in the
-following use cases:
+For TCP applications you can specify a fqdn outside of `teleport.sh` in combination
+with [VNet](../enroll-resources/application-access/guides/vnet.mdx) since that domain is served via your machine's local network.
 
-- You have multiple identical services behind a load balancer.
-- You want Teleport to issue an SSH certificate for the service with additional
-  principals, e.g., host names.
 </TabItem>
 </Tabs>
 
