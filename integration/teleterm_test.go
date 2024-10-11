@@ -452,6 +452,9 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
 	require.NoError(t, err)
 
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), false /* waitInit */)
+	require.NoError(t, err)
+
 	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
 
 	err = daemonService.StopHeadlessWatcher(cluster.URI.String())
