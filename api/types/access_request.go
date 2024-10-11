@@ -598,6 +598,11 @@ func (s AccessReview) GetAccessListTitle() string {
 	return s.AccessList.Title
 }
 
+// IsEqual t is equivalent to the provide AccessReviewThreshold.
+func (t *AccessReviewThreshold) IsEqual(o *AccessReviewThreshold) bool {
+	return deriveTeleportEqualAccessReviewThreshold(t, o)
+}
+
 // AccessRequestUpdate encompasses the parameters of a
 // SetAccessRequestState call.
 type AccessRequestUpdate struct {

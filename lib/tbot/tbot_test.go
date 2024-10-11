@@ -29,7 +29,6 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -37,7 +36,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgconn"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -733,132 +731,6 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 	)
 	require.NoError(t, err)
 	return kubeCluster
-}
-
-// TestBotSPIFFEWorkloadAPI is an end-to-end test of Workload ID's ability to
-// issue a SPIFFE SVID to a workload connecting via the SPIFFE Workload API.
-func TestBotSPIFFEWorkloadAPI(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
-
-	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
-
-	// Create a role that allows the bot to issue a SPIFFE SVID.
-	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			SPIFFE: []*types.SPIFFERoleCondition{
-				{
-					Path: "/*",
-					DNSSANs: []string{
-						"*",
-					},
-					IPSANs: []string{
-						"0.0.0.0/0",
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	role, err = rootClient.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	pid := os.Getpid()
-
-	tempDir := t.TempDir()
-	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
-	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
-	botConfig := defaultBotConfig(
-		t, process, onboarding, config.ServiceConfigs{
-			&config.SPIFFEWorkloadAPIService{
-				Listen: socketPath,
-				SVIDs: []config.SVIDRequestWithRules{
-					// Intentionally unmatching PID to ensure this SVID
-					// is not issued.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/bar",
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: ptr(0),
-								},
-							},
-						},
-					},
-					// SVID with rule that matches on PID.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
-							},
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: &pid,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
-		},
-	)
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
-
-	// Spin up goroutine for bot to run in
-	botCtx, cancelBot := context.WithCancel(ctx)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := b.Run(botCtx)
-		assert.NoError(t, err, "bot should not exit with error")
-		cancelBot()
-	}()
-	t.Cleanup(func() {
-		// Shut down bot and make sure it exits.
-		cancelBot()
-		wg.Wait()
-	})
-
-	// This has a little flexibility internally in terms of waiting for the
-	// socket to come up, so we don't need a manual sleep/retry here.
-	source, err := workloadapi.NewX509Source(
-		ctx,
-		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
-	)
-	require.NoError(t, err)
-	defer source.Close()
-
-	svid, err := source.GetX509SVID()
-	require.NoError(t, err)
-
-	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://root/foo", svid.ID.String())
-	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://root/foo", cert.URIs[0].String())
-	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
-	require.Equal(t, []string{"example.com"}, cert.DNSNames)
-	require.WithinRange(
-		t,
-		cert.NotAfter,
-		cert.NotBefore.Add(time.Hour-time.Minute),
-		cert.NotBefore.Add(time.Hour+time.Minute),
-	)
 }
 
 func TestBotDatabaseTunnel(t *testing.T) {

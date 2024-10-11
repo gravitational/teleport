@@ -19,6 +19,7 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
@@ -83,9 +84,8 @@ type AccessChecker interface {
 
 	// CheckAccessToSAMLIdP checks access to the SAML IdP.
 	//
-	// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(readonly.AuthPreference, ...AccessState) error
+	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -1059,11 +1059,8 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 
 		hostUserShell := role.GetOptions().CreateHostUserDefaultShell
+		shell = cmp.Or(shell, hostUserShell)
 		if hostUserShell != "" {
-			if shell != "" {
-				shell = hostUserShell
-			}
-
 			shellToRoles[hostUserShell] = append(shellToRoles[hostUserShell], role.GetName())
 		}
 

@@ -152,11 +152,12 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 	}
 
 	confReq := awsoidc.IdPIAMConfigureRequest{
-		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
-		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
-		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
-		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
-		AutoConfirm:        clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
+		Cluster:                 clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:         clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:         clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
+		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { arrayObjectIsEqual, mergeDeep } from './highbar';
+import { arrayObjectIsEqual, equalsDeep, mergeDeep } from './highbar';
 
 describe('mergeDeep can merge two', () => {
   it('objects together', () => {
@@ -219,5 +219,109 @@ describe('arrayObjectIsEqual correctly compares', () => {
     ];
 
     expect(arrayObjectIsEqual(a, b)).toBe(true);
+  });
+});
+
+describe('equalsDeep', () => {
+  it('compares primitive values', () => {
+    expect(equalsDeep(1, 2)).toBe(false);
+    expect(equalsDeep(2, 2)).toBe(true);
+  });
+
+  it('compares simple objects', () => {
+    expect(equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' })).toBe(false);
+    expect(equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' })).toBe(true);
+  });
+
+  it('compares complex objects', () => {
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 5, d: [2, { e: 'f' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [5, { e: 'f' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }, 3] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'z' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }], g: 'h' }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [{ e: 'f' }, 2] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', z: 1, d: [2, { e: 'f' }] }
+      )
+    ).toBe(false);
+
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }] }
+      )
+    ).toBe(true);
+  });
+
+  // A "real-world" example.
+  it('compares role options', () => {
+    const makeOptions = () => ({
+      cert_format: 'standard',
+      create_db_user: false,
+      create_desktop_user: false,
+      desktop_clipboard: true,
+      desktop_directory_sharing: true,
+      enhanced_recording: ['command', 'network'],
+      forward_agent: false,
+      idp: {
+        saml: {
+          enabled: true,
+        },
+      },
+      max_session_ttl: '30h0m0s',
+      pin_source_ip: false,
+      port_forwarding: true,
+      record_session: {
+        default: 'best_effort',
+        desktop: true,
+      },
+      ssh_file_copy: true,
+    });
+
+    expect(equalsDeep(makeOptions(), makeOptions())).toBe(true);
+    expect(
+      equalsDeep(makeOptions(), {
+        ...makeOptions(),
+        idp: { saml: { enabled: false } },
+      })
+    ).toBe(false);
+    expect(
+      equalsDeep(makeOptions(), {
+        ...makeOptions(),
+        unknown_option: 'foo',
+      })
+    ).toBe(false);
   });
 });

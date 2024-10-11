@@ -23,11 +23,11 @@ package accesspoint
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -124,7 +124,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Creating in-memory backend for %v.", cfg.CacheName)
+	slog.DebugContext(cfg.Context, "Creating in-memory backend cache.", "cache_name", cfg.CacheName)
 	mem, err := memory.New(memory.Config{
 		Context:   cfg.Context,
 		EventsOff: !cfg.EventsSystem,

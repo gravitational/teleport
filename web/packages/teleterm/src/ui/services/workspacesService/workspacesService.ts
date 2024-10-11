@@ -263,7 +263,10 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   getUnifiedResourcePreferences(
     rootClusterUri: RootClusterUri
   ): UnifiedResourcePreferences {
-    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+    return (
+      this.state.workspaces[rootClusterUri].unifiedResourcePreferences ||
+      getDefaultUnifiedResourcePreferences()
+    );
   }
 
   /**
@@ -274,7 +277,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    *
    * setActiveWorkspace never returns a rejected promise on its own.
    */
-  setActiveWorkspace(
+  async setActiveWorkspace(
     clusterUri: RootClusterUri,
     /**
      * Prefill values to be used in ClusterConnectDialog if the cluster is in the state but there's
@@ -316,7 +319,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       return Promise.resolve({ isAtDesiredWorkspace: true });
     }
 
-    const cluster = this.clustersService.findCluster(clusterUri);
+    let cluster = this.clustersService.findCluster(clusterUri);
     if (!cluster) {
       this.notificationsService.notifyError({
         title: 'Could not set cluster as active',
@@ -326,6 +329,28 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         `Could not find cluster with uri ${clusterUri} when changing active cluster`
       );
       return Promise.resolve({ isAtDesiredWorkspace: false });
+    }
+
+    if (cluster.profileStatusError) {
+      await this.clustersService.syncRootClustersAndCatchErrors();
+      // Update the cluster.
+      cluster = this.clustersService.findCluster(clusterUri);
+      // If the problem persists (because, for example, the user still hasn't
+      // connected the hardware key) show a notification and return early.
+      if (cluster.profileStatusError) {
+        const notificationId = this.notificationsService.notifyError({
+          title: 'Could not set cluster as active',
+          description: cluster.profileStatusError,
+          action: {
+            content: 'Retry',
+            onClick: () => {
+              this.notificationsService.removeNotification(notificationId);
+              this.setActiveWorkspace(clusterUri);
+            },
+          },
+        });
+        return { isAtDesiredWorkspace: false };
+      }
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -566,6 +591,7 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
     availableResourceMode: AvailableResourceMode.NONE,
   };
 }
+
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z
