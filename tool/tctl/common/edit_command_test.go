@@ -282,10 +282,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		}
 
 		expected.SetRevision(initial.GetRevision())
-		expected.SetSecondFactors(
-			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
-			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
-		)
+		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
 		collection := &authPrefCollection{authPref: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())

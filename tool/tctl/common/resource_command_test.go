@@ -1832,7 +1832,7 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factors: [otp]
+  second_factors: [otp, sso]
   type: local
 version: v2
 `
@@ -1849,17 +1849,18 @@ version: v2
 	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
 
-	expectSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP}
+	expectInitialSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP} // second factors defaults to [otp]
+	require.Equal(t, expectInitialSecondFactors, initial.GetSecondFactors())
 
-	var expected types.AuthPreferenceV2
-	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
-	require.NotEqual(t, expectSecondFactors, initial.GetSecondFactors())
-	require.Equal(t, expectSecondFactors, expected.GetSecondFactors())
+	var revised types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &revised))
+	expectRevisedSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO}
+	require.Equal(t, expectRevisedSecondFactors, revised.GetSecondFactors())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.
-	expected.SetRevision(uuid.NewString())
-	raw, err := services.MarshalAuthPreference(&expected, services.PreserveRevision())
+	revised.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&revised, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
 
