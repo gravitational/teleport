@@ -1399,6 +1399,11 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"second_factors": {
+					Description: "SecondFactors is a list of supported second factor types.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.Int64Type},
+				},
 				"signature_algorithm_suite": {
 					Description: "SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. The current default value is \"legacy\". This field is not yet fully supported.",
 					Optional:    true,
@@ -14096,6 +14101,33 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["second_factors"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.SecondFactors"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.SecondFactors", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.SecondFactors = make([]github_com_gravitational_teleport_api_types.SecondFactorType, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.SecondFactors", "github_com_hashicorp_terraform_plugin_framework_types.Int64"})
+										} else {
+											var t github_com_gravitational_teleport_api_types.SecondFactorType
+											if !v.Null && !v.Unknown {
+												t = github_com_gravitational_teleport_api_types.SecondFactorType(v.Value)
+											}
+											obj.SecondFactors[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -15290,6 +15322,59 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 							v.Value = int64(obj.SignatureAlgorithmSuite)
 							v.Unknown = false
 							tf.Attrs["signature_algorithm_suite"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["second_factors"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.SecondFactors"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.SecondFactors", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["second_factors"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SecondFactors)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SecondFactors))
+									}
+								}
+								if obj.SecondFactors != nil {
+									t := o.ElemType
+									if len(obj.SecondFactors) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.SecondFactors))
+									}
+									for k, a := range obj.SecondFactors {
+										v, ok := tf.Attrs["second_factors"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.SecondFactors", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.SecondFactors", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+											}
+											v.Null = int64(a) == 0
+										}
+										v.Value = int64(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.SecondFactors) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["second_factors"] = c
+							}
 						}
 					}
 				}

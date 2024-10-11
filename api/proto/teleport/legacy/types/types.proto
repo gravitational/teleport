@@ -2097,6 +2097,20 @@ message AuthPreferenceSpecV2 {
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
   // The current default value is "legacy". This field is not yet fully supported.
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
+
+  // SecondFactors is a list of supported second factor types.
+  repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
+}
+
+// SecondFactorType is a type of second factor.
+enum SecondFactorType {
+  SECOND_FACTOR_TYPE_UNSPECIFIED = 0;
+  // SECOND_FACTOR_TYPE_OTP is OTP second factor.
+  SECOND_FACTOR_TYPE_OTP = 1;
+  // SECOND_FACTOR_TYPE_WEBAUTHN is WebAuthn second factor.
+  SECOND_FACTOR_TYPE_WEBAUTHN = 2;
+  // SECOND_FACTOR_TYPE_SSO is SSO second factor.
+  SECOND_FACTOR_TYPE_SSO = 3;
 }
 
 // U2F defines settings for U2F device.
