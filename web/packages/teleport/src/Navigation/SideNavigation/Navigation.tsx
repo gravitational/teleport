@@ -397,20 +397,20 @@ function getCategoryStyles(theme: Theme, active: boolean, isExpanded: boolean) {
   if (active) {
     return css`
       color: ${theme.colors.brand};
-      background: ${theme.colors.interactive.tonal.primary[0].background};
+      background: ${theme.colors.interactive.tonal.primary[0]};
       &:hover,
       &:focus-visible {
-        background: ${theme.colors.interactive.tonal.primary[1].background};
-        color: ${theme.colors.interactive.tonal.primary[0].text};
+        background: ${theme.colors.interactive.tonal.primary[1]};
+        color: ${theme.colors.interactive.solid.primary.default};
       }
       &:active {
-        background: ${theme.colors.interactive.tonal.primary[2].background};
-        color: ${theme.colors.interactive.tonal.primary[1].text};
+        background: ${theme.colors.interactive.tonal.primary[2]};
+        color: ${theme.colors.interactive.solid.primary.active};
       }
       ${isExpanded &&
       `
-        background: ${theme.colors.interactive.tonal.primary[1].background};
-        color: ${theme.colors.interactive.tonal.primary[0].text};
+        background: ${theme.colors.interactive.tonal.primary[1]};
+        color: ${theme.colors.interactive.solid.primary.default};
         `}
     `;
   }
@@ -420,16 +420,16 @@ function getCategoryStyles(theme: Theme, active: boolean, isExpanded: boolean) {
     color: ${theme.colors.text.slightlyMuted};
     &:hover,
     &:focus-visible {
-      background: ${theme.colors.interactive.tonal.neutral[0].background};
+      background: ${theme.colors.interactive.tonal.neutral[0]};
       color: ${theme.colors.text.main};
     }
     &:active {
-      background: ${theme.colors.interactive.tonal.neutral[1].background};
+      background: ${theme.colors.interactive.tonal.neutral[1]};
       color: ${theme.colors.text.main};
     }
     ${isExpanded &&
     `
-      background: ${theme.colors.interactive.tonal.neutral[0].background};
+      background: ${theme.colors.interactive.tonal.neutral[0]};
       color: ${theme.colors.text.main};
       `}
   `;
@@ -439,18 +439,17 @@ function getSubsectionStyles(theme: Theme, active: boolean) {
   if (active) {
     return css`
       color: ${theme.colors.brand};
-      background: ${theme.colors.interactive.tonal.primary[0].background};
+      background: ${theme.colors.interactive.tonal.primary[0]};
       &:focus-visible {
-        outline: 2px solid
-          ${theme.colors.interactive.solid.primary.default.background};
+        outline: 2px solid ${theme.colors.interactive.solid.primary.default};
       }
       &:hover {
-        background: ${theme.colors.interactive.tonal.primary[1].background};
-        color: ${theme.colors.interactive.tonal.primary[0].text};
+        background: ${theme.colors.interactive.tonal.primary[1]};
+        color: ${theme.colors.interactive.solid.primary.default};
       }
       &:active {
-        background: ${theme.colors.interactive.tonal.primary[2].background};
-        color: ${theme.colors.interactive.tonal.primary[1].text};
+        background: ${theme.colors.interactive.tonal.primary[2]};
+        color: ${theme.colors.interactive.solid.primary.active};
       }
     `;
   }
