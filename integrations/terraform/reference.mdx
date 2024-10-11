@@ -130,7 +130,7 @@ To mitigate this, you should explicitly set the resource version.
 |  Name  |  Type  | Required |                  Description                   |
 |--------|--------|----------|------------------------------------------------|
 | header | object |          | header is the header for the resource.         |
-| spec   | object |          | spec is the specification for the access list. |
+| spec   | object |          | spec is the specification for the Access List. |
 
 ### header
 
@@ -150,7 +150,7 @@ metadata is resource metadata.
 |    Name     |      Type      | Required |                                                                                         Description                                                                                          |
 |-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | description | string         |          | description is object description.                                                                                                                                                           |
-| expires     | RFC3339 time   |          |                                                                                                                                                                                              |
+| expires     | RFC3339 time   |          | expires is a global expiry time header can be set on any resource in the system.                                                                                                             |
 | labels      | map of strings |          | labels is a set of labels.                                                                                                                                                                   |
 | name        | string         | *        | name is an object name.                                                                                                                                                                      |
 | namespace   | string         |          | namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.                                                                                       |
@@ -158,36 +158,36 @@ metadata is resource metadata.
 
 ### spec
 
-spec is the specification for the access list.
+spec is the specification for the Access List.
 
 |        Name         |  Type  | Required |                                                                                                                 Description                                                                                                                  |
 |---------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| audit               | object | *        | audit describes the frequency that this access list must be audited.                                                                                                                                                                         |
-| description         | string |          | description is an optional plaintext description of the access list.                                                                                                                                                                         |
-| grants              | object | *        | grants describes the access granted by membership to this access list.                                                                                                                                                                       |
-| membership_requires | object |          | membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list. |
-| owner_grants        | object |          | owner_grants describes the access granted by owners to this access list.                                                                                                                                                                     |
-| owners              | object | *        | owners is a list of owners of the access list.                                                                                                                                                                                               |
-| ownership_requires  | object |          | ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.       |
-| title               | string |          | title is a plaintext short description of the access list.                                                                                                                                                                                   |
+| audit               | object | *        | audit describes the frequency that this Access List must be audited.                                                                                                                                                                         |
+| description         | string |          | description is an optional plaintext description of the Access List.                                                                                                                                                                         |
+| grants              | object | *        | grants describes the access granted by membership to this Access List.                                                                                                                                                                       |
+| membership_requires | object |          | membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list. |
+| owner_grants        | object |          | owner_grants describes the access granted by owners to this Access List.                                                                                                                                                                     |
+| owners              | object | *        | owners is a list of owners of the Access List.                                                                                                                                                                                               |
+| ownership_requires  | object |          | ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.       |
+| title               | string |          | title is a plaintext short description of the Access List.                                                                                                                                                                                   |
 
 #### spec.audit
 
-audit describes the frequency that this access list must be audited.
+audit describes the frequency that this Access List must be audited.
 
-|      Name       |     Type     | Required |                       Description                       |
-|-----------------|--------------|----------|---------------------------------------------------------|
-| next_audit_date | RFC3339 time |          |                                                         |
-| notifications   | object       |          | notifications is the configuration for notifying users. |
-| recurrence      | object       | *        | recurrence is the recurrence definition                 |
+|      Name       |     Type     | Required |                          Description                           |
+|-----------------|--------------|----------|----------------------------------------------------------------|
+| next_audit_date | RFC3339 time |          | next_audit_date is when the next audit date should be done by. |
+| notifications   | object       |          | notifications is the configuration for notifying users.        |
+| recurrence      | object       | *        | recurrence is the recurrence definition                        |
 
 ##### spec.audit.notifications
 
 notifications is the configuration for notifying users.
 
-| Name  |   Type   | Required | Description |
-|-------|----------|----------|-------------|
-| start | duration |          |             |
+| Name  |   Type   | Required |                                     Description                                      |
+|-------|----------|----------|--------------------------------------------------------------------------------------|
+| start | duration |          | start specifies when to start notifying users that the next audit date is coming up. |
 
 ##### spec.audit.recurrence
 
@@ -200,16 +200,16 @@ recurrence is the recurrence definition
 
 #### spec.grants
 
-grants describes the access granted by membership to this access list.
+grants describes the access granted by membership to this Access List.
 
 |  Name  |       Type       | Required |                                     Description                                     |
 |--------|------------------|----------|-------------------------------------------------------------------------------------|
-| roles  | array of strings |          | roles are the roles that are granted to users who are members of the access list.   |
-| traits | object           |          | traits are the traits that are granted to users who are members of the access list. |
+| roles  | array of strings |          | roles are the roles that are granted to users who are members of the Access List.   |
+| traits | object           |          | traits are the traits that are granted to users who are members of the Access List. |
 
 ##### spec.grants.traits
 
-traits are the traits that are granted to users who are members of the access list.
+traits are the traits that are granted to users who are members of the Access List.
 
 |  Name  |       Type       | Required |             Description             |
 |--------|------------------|----------|-------------------------------------|
@@ -218,7 +218,7 @@ traits are the traits that are granted to users who are members of the access li
 
 #### spec.membership_requires
 
-membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list.
+membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.
 
 |  Name  |       Type       | Required |                                 Description                                  |
 |--------|------------------|----------|------------------------------------------------------------------------------|
@@ -236,16 +236,16 @@ traits are the traits that must be present for the user to obtain access.
 
 #### spec.owner_grants
 
-owner_grants describes the access granted by owners to this access list.
+owner_grants describes the access granted by owners to this Access List.
 
 |  Name  |       Type       | Required |                                     Description                                     |
 |--------|------------------|----------|-------------------------------------------------------------------------------------|
-| roles  | array of strings |          | roles are the roles that are granted to users who are members of the access list.   |
-| traits | object           |          | traits are the traits that are granted to users who are members of the access list. |
+| roles  | array of strings |          | roles are the roles that are granted to users who are members of the Access List.   |
+| traits | object           |          | traits are the traits that are granted to users who are members of the Access List. |
 
 ##### spec.owner_grants.traits
 
-traits are the traits that are granted to users who are members of the access list.
+traits are the traits that are granted to users who are members of the Access List.
 
 |  Name  |       Type       | Required |             Description             |
 |--------|------------------|----------|-------------------------------------|
@@ -254,7 +254,7 @@ traits are the traits that are granted to users who are members of the access li
 
 #### spec.owners
 
-owners is a list of owners of the access list.
+owners is a list of owners of the Access List.
 
 |    Name     |  Type  | Required |                                   Description                                    |
 |-------------|--------|----------|----------------------------------------------------------------------------------|
@@ -263,7 +263,7 @@ owners is a list of owners of the access list.
 
 #### spec.ownership_requires
 
-ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.
+ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.
 
 |  Name  |       Type       | Required |                                 Description                                  |
 |--------|------------------|----------|------------------------------------------------------------------------------|
@@ -444,26 +444,26 @@ Metadata is resource metadata
 
 Spec is an AuthPreference specification
 
-|          Name           |   Type   | Required |                                                              Description                                                               |
-|-------------------------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------|
-| allow_headless          | bool     |          |                                                                                                                                        |
-| allow_local_auth        | bool     |          |                                                                                                                                        |
-| allow_passwordless      | bool     |          |                                                                                                                                        |
-| connector_name          | string   |          | ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.     |
-| default_session_ttl     | duration |          | DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.                                              |
-| device_trust            | object   |          | DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.                                       |
-| disconnect_expired_cert | bool     |          |                                                                                                                                        |
-| hardware_key            | object   |          | HardwareKey are the settings for hardware key support.                                                                                 |
-| idp                     | object   |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                       |
-| locking_mode            | string   |          | LockingMode is the cluster-wide locking mode default.                                                                                  |
-| message_of_the_day      | string   |          |                                                                                                                                        |
-| okta                    | object   |          | Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.                                        |
-| piv_slot                | string   |          | TODO(Joerger): DELETE IN 17.0.0 Deprecated, replaced by HardwareKey settings.                                                          |
-| require_session_mfa     | number   |          | RequireMFAType is the type of MFA requirement enforced for this cluster: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch |
-| second_factor           | string   |          | SecondFactor is the type of second factor.                                                                                             |
-| type                    | string   |          | Type is the type of authentication.                                                                                                    |
-| u2f                     | object   |          | U2F are the settings for the U2F device.                                                                                               |
-| webauthn                | object   |          | Webauthn are the settings for server-side Web Authentication support.                                                                  |
+|          Name           |   Type   | Required |                                                                                   Description                                                                                    |
+|-------------------------|----------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| allow_headless          | bool     |          | AllowHeadless enables/disables headless support. Headless authentication requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise. |
+| allow_local_auth        | bool     |          | AllowLocalAuth is true if local authentication is enabled.                                                                                                                       |
+| allow_passwordless      | bool     |          | AllowPasswordless enables/disables passwordless support. Passwordless requires Webauthn to work. Defaults to true if the Webauthn is configured, defaults to false otherwise.    |
+| connector_name          | string   |          | ConnectorName is the name of the OIDC or SAML connector. If this value is not set the first connector in the backend will be used.                                               |
+| default_session_ttl     | duration |          | DefaultSessionTTL is the TTL to use for user certs when an explicit TTL is not requested.                                                                                        |
+| device_trust            | object   |          | DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.                                                                                 |
+| disconnect_expired_cert | bool     |          | DisconnectExpiredCert provides disconnect expired certificate setting - if true, connections with expired client certificates will get disconnected                              |
+| hardware_key            | object   |          | HardwareKey are the settings for hardware key support.                                                                                                                           |
+| idp                     | object   |          | IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.                                                                                 |
+| locking_mode            | string   |          | LockingMode is the cluster-wide locking mode default.                                                                                                                            |
+| message_of_the_day      | string   |          |                                                                                                                                                                                  |
+| okta                    | object   |          | Okta is a set of options related to the Okta service in Teleport. Requires Teleport Enterprise.                                                                                  |
+| piv_slot                | string   |          | TODO(Joerger): DELETE IN 17.0.0 Deprecated, replaced by HardwareKey settings.                                                                                                    |
+| require_session_mfa     | number   |          | RequireMFAType is the type of MFA requirement enforced for this cluster: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch                                           |
+| second_factor           | string   |          | SecondFactor is the type of mult-factor.                                                                                                                                         |
+| type                    | string   |          | Type is the type of authentication.                                                                                                                                              |
+| u2f                     | object   |          | U2F are the settings for the U2F device.                                                                                                                                         |
+| webauthn                | object   |          | Webauthn are the settings for server-side Web Authentication support.                                                                                                            |
 
 #### spec.device_trust
 
@@ -505,9 +505,9 @@ IDP is a set of options related to accessing IdPs within Teleport. Requires Tele
 
 SAML are options related to the Teleport SAML IdP.
 
-|  Name   | Type | Required | Description |
-|---------|------|----------|-------------|
-| enabled | bool |          |             |
+|  Name   | Type | Required |                                  Description                                  |
+|---------|------|----------|-------------------------------------------------------------------------------|
+| enabled | bool |          | Enabled is set to true if this option allows access to the Teleport SAML IdP. |
 
 #### spec.okta
 
@@ -521,11 +521,11 @@ Okta is a set of options related to the Okta service in Teleport. Requires Telep
 
 U2F are the settings for the U2F device.
 
-|          Name          |       Type       | Required |                                                                                                Description                                                                                                |
-|------------------------|------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| app_id                 | string           |          | AppID returns the application ID for universal second factor.                                                                                                                                             |
-| device_attestation_cas | array of strings |          | DeviceAttestationCAs contains the trusted attestation CAs for U2F devices.                                                                                                                                |
-| facets                 | array of strings |          | Facets returns the facets for universal second factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation. |
+|          Name          |       Type       | Required |                                                                                               Description                                                                                               |
+|------------------------|------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| app_id                 | string           |          | AppID returns the application ID for universal mult-factor.                                                                                                                                             |
+| device_attestation_cas | array of strings |          | DeviceAttestationCAs contains the trusted attestation CAs for U2F devices.                                                                                                                              |
+| facets                 | array of strings |          | Facets returns the facets for universal mult-factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation. |
 
 #### spec.webauthn
 
@@ -535,7 +535,7 @@ Webauthn are the settings for server-side Web Authentication support.
 |-------------------------|------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | attestation_allowed_cas | array of strings |          | Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.     |
 | attestation_denied_cas  | array of strings |          | Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don't match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied. |
-| rp_id                   | string           |          | RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the second factor will need to re-register.                                     |
+| rp_id                   | string           |          | RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the multi-factor will need to re-register.                                      |
 
 Example:
 
@@ -1314,25 +1314,25 @@ Metadata holds resource metadata.
 
 Spec is an OIDC connector specification.
 
-|            Name            |       Type       | Required |                                                                  Description                                                                  |
-|----------------------------|------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| acr_values                 | string           |          | ACR is an Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.   |
-| allow_unverified_email     | bool             |          | AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.                                                         |
-| claims_to_roles            | object           |          | ClaimsToRoles specifies a dynamic mapping from claims to roles.                                                                               |
-| client_id                  | string           |          | ClientID is the id of the authentication client (Teleport Auth server).                                                                       |
-| client_redirect_settings   | object           |          | ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.      |
-| client_secret              | string           |          | ClientSecret is used to authenticate the client.                                                                                              |
-| display                    | string           |          | Display is the friendly name for this provider.                                                                                               |
-| google_admin_email         | string           |          | GoogleAdminEmail is the email of a google admin to impersonate.                                                                               |
-| google_service_account     | string           |          | GoogleServiceAccount is a string containing google service account credentials.                                                               |
-| google_service_account_uri | string           |          | GoogleServiceAccountURI is a path to a google service account uri.                                                                            |
-| issuer_url                 | string           |          | IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.                                                                  |
-| max_age                    | duration         |          |                                                                                                                                               |
-| prompt                     | string           |          | Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility. |
-| provider                   | string           |          | Provider is the external identity provider.                                                                                                   |
-| redirect_url               | array of strings |          |                                                                                                                                               |
-| scope                      | array of strings |          | Scope specifies additional scopes set by provider.                                                                                            |
-| username_claim             | string           |          | UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.                                      |
+|            Name            |       Type       | Required |                                                                                                                                                                                     Description                                                                                                                                                                                      |
+|----------------------------|------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| acr_values                 | string           |          | ACR is an Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.                                                                                                                                                                                                                                          |
+| allow_unverified_email     | bool             |          | AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.                                                                                                                                                                                                                                                                                                |
+| claims_to_roles            | object           |          | ClaimsToRoles specifies a dynamic mapping from claims to roles.                                                                                                                                                                                                                                                                                                                      |
+| client_id                  | string           |          | ClientID is the id of the authentication client (Teleport Auth Service).                                                                                                                                                                                                                                                                                                             |
+| client_redirect_settings   | object           |          | ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.                                                                                                                                                                                                                                             |
+| client_secret              | string           |          | ClientSecret is used to authenticate the client.                                                                                                                                                                                                                                                                                                                                     |
+| display                    | string           |          | Display is the friendly name for this provider.                                                                                                                                                                                                                                                                                                                                      |
+| google_admin_email         | string           |          | GoogleAdminEmail is the email of a google admin to impersonate.                                                                                                                                                                                                                                                                                                                      |
+| google_service_account     | string           |          | GoogleServiceAccount is a string containing google service account credentials.                                                                                                                                                                                                                                                                                                      |
+| google_service_account_uri | string           |          | GoogleServiceAccountURI is a path to a google service account uri.                                                                                                                                                                                                                                                                                                                   |
+| issuer_url                 | string           |          | IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.                                                                                                                                                                                                                                                                                                         |
+| max_age                    | duration         |          |                                                                                                                                                                                                                                                                                                                                                                                      |
+| prompt                     | string           |          | Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.                                                                                                                                                                                                                                        |
+| provider                   | string           |          | Provider is the external identity provider.                                                                                                                                                                                                                                                                                                                                          |
+| redirect_url               | array of strings |          | RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used. |
+| scope                      | array of strings |          | Scope specifies additional scopes set by provider.                                                                                                                                                                                                                                                                                                                                   |
+| username_claim             | string           |          | UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.                                                                                                                                                                                                                                                                             |
 
 #### spec.claims_to_roles
 
@@ -1526,34 +1526,34 @@ Metadata is resource metadata
 
 Spec is a provisioning token V2 spec
 
-|              Name              |         Type         | Required |                                                                       Description                                                                       |
-|--------------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| allow                          | object               |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                      |
-| aws_iid_ttl                    | duration             |          | AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.                                           |
-| azure                          | object               |          | Azure allows the configuration of options specific to the "azure" join method.                                                                          |
-| bot_name                       | string               |          | BotName is the name of the bot this token grants access to, if any                                                                                      |
-| circleci                       | object               |          | CircleCI allows the configuration of options specific to the "circleci" join method.                                                                    |
-| gcp                            | object               |          | GCP allows the configuration of options specific to the "gcp" join method.                                                                              |
-| github                         | object               |          | GitHub allows the configuration of options specific to the "github" join method.                                                                        |
-| gitlab                         | object               |          | GitLab allows the configuration of options specific to the "gitlab" join method.                                                                        |
-| join_method                    | string               |          | JoinMethod is the joining method required in order to use this token. Supported joining methods include "token", "ec2", and "iam".                      |
-| kubernetes                     | object               |          | Kubernetes allows the configuration of options specific to the "kubernetes" join method.                                                                |
-| roles                          | array of strings     | *        | Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token |
-| spacelift                      | object               |          | Spacelift allows the configuration of options specific to the "spacelift" join method.                                                                  |
-| suggested_agent_matcher_labels | map of string arrays |          |                                                                                                                                                         |
-| suggested_labels               | map of string arrays |          |                                                                                                                                                         |
-| tpm                            | object               |          | TPM allows the configuration of options specific to the "tpm" join method.                                                                              |
+|              Name              |         Type         | Required |                                                                                                                                                                        Description                                                                                                                                                                        |
+|--------------------------------|----------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| allow                          | object               |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                                                                                                                                                                                                                        |
+| aws_iid_ttl                    | duration             |          | AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.                                                                                                                                                                                                                                             |
+| azure                          | object               |          | Azure allows the configuration of options specific to the "azure" join method.                                                                                                                                                                                                                                                                            |
+| bot_name                       | string               |          | BotName is the name of the bot this token grants access to, if any                                                                                                                                                                                                                                                                                        |
+| circleci                       | object               |          | CircleCI allows the configuration of options specific to the "circleci" join method.                                                                                                                                                                                                                                                                      |
+| gcp                            | object               |          | GCP allows the configuration of options specific to the "gcp" join method.                                                                                                                                                                                                                                                                                |
+| github                         | object               |          | GitHub allows the configuration of options specific to the "github" join method.                                                                                                                                                                                                                                                                          |
+| gitlab                         | object               |          | GitLab allows the configuration of options specific to the "gitlab" join method.                                                                                                                                                                                                                                                                          |
+| join_method                    | string               |          | JoinMethod is the joining method required in order to use this token. Supported joining methods include "token", "ec2", and "iam".                                                                                                                                                                                                                        |
+| kubernetes                     | object               |          | Kubernetes allows the configuration of options specific to the "kubernetes" join method.                                                                                                                                                                                                                                                                  |
+| roles                          | array of strings     | *        | Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token                                                                                                                                                                                                   |
+| spacelift                      | object               |          | Spacelift allows the configuration of options specific to the "spacelift" join method.                                                                                                                                                                                                                                                                    |
+| suggested_agent_matcher_labels | map of string arrays |          | SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion. |
+| suggested_labels               | map of string arrays |          | SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.                                                                                                                                             |
+| tpm                            | object               |          | TPM allows the configuration of options specific to the "tpm" join method.                                                                                                                                                                                                                                                                                |
 
 #### spec.allow
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|    Name     |       Type       | Required |                                                                Description                                                                |
-|-------------|------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                         |
-| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".            |
-| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                   |
-| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
+|    Name     |       Type       | Required |                                                              Description                                                               |
+|-------------|------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------|
+| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                      |
+| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".         |
+| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                |
+| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API. |
 
 #### spec.azure
 
@@ -1615,7 +1615,7 @@ GitHub allows the configuration of options specific to the "github" join method.
 |          Name          |  Type  | Required |                                                                                                                                                                                                                                                                                                                                        Description                                                                                                                                                                                                                                                                                                                                         |
 |------------------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | allow                  | object |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| enterprise_server_host | string |          | EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Server.                                                                                                                                                                                        |
+| enterprise_server_host | string |          | EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.                                                                                                                                                                                       |
 | enterprise_slug        | string |          | EnterpriseSlug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values. |
 
 ##### spec.github.allow
@@ -1646,24 +1646,24 @@ GitLab allows the configuration of options specific to the "gitlab" join method.
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|         Name          |  Type  | Required |                                                                                                                                                        Description                                                                                                                                                         |
-|-----------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ci_config_ref_uri     | string |          | CIConfigRefURI is the ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.                                                                                                                                                                  |
-| ci_config_sha         | string |          | CIConfigSHA is the git commit SHA for the ci_config_ref_uri.                                                                                                                                                                                                                                                               |
-| deployment_tier       | string |          | DeploymentTier is the deployment tier of the environment the job specifies                                                                                                                                                                                                                                                 |
-| environment           | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                                                                                                                                                                     |
-| environment_protected | bool   |          |                                                                                                                                                                                                                                                                                                                            |
-| namespace_path        | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                                    |
-| pipeline_source       | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                                                                                                                                                               |
-| project_path          | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                       |
-| project_visibility    | string |          | ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.                                                                                                                                                                                                     |
-| ref                   | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                         |
-| ref_protected         | bool   |          |                                                                                                                                                                                                                                                                                                                            |
-| ref_type              | string |          | RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`                                                                                                                                                                                                               |
-| sub                   | string |          | Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character. |
-| user_email            | string |          | UserEmail is the email of the user executing the job                                                                                                                                                                                                                                                                       |
-| user_id               | string |          | UserID is the ID of the user executing the job                                                                                                                                                                                                                                                                             |
-| user_login            | string |          | UserLogin is the username of the user executing the job                                                                                                                                                                                                                                                                    |
+|         Name          |  Type  | Required |                                                                                                                                                     Description                                                                                                                                                     |
+|-----------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ci_config_ref_uri     | string |          | CIConfigRefURI is the ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.                                                                                                                                                           |
+| ci_config_sha         | string |          | CIConfigSHA is the git commit SHA for the ci_config_ref_uri.                                                                                                                                                                                                                                                        |
+| deployment_tier       | string |          | DeploymentTier is the deployment tier of the environment the job specifies                                                                                                                                                                                                                                          |
+| environment           | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                                                                                                                                                              |
+| environment_protected | bool   |          | EnvironmentProtected is true if the Git ref is protected, false otherwise.                                                                                                                                                                                                                                          |
+| namespace_path        | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                                    |
+| pipeline_source       | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                                                                                                                                                        |
+| project_path          | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                                       |
+| project_visibility    | string |          | ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.                                                                                                                                                                                              |
+| ref                   | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.                                                         |
+| ref_protected         | bool   |          | RefProtected is true if the Git ref is protected, false otherwise.                                                                                                                                                                                                                                                  |
+| ref_type              | string |          | RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`                                                                                                                                                                                                        |
+| sub                   | string |          | Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character. |
+| user_email            | string |          | UserEmail is the email of the user executing the job                                                                                                                                                                                                                                                                |
+| user_id               | string |          | UserID is the ID of the user executing the job                                                                                                                                                                                                                                                                      |
+| user_login            | string |          | UserLogin is the username of the user executing the job                                                                                                                                                                                                                                                             |
 
 #### spec.kubernetes
 
@@ -1805,42 +1805,42 @@ Allow is the set of conditions evaluated to grant access.
 
 |               Name                |         Type         | Required |                                                                  Description                                                                  |
 |-----------------------------------|----------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| app_labels                        | map of string arrays |          |                                                                                                                                               |
+| app_labels                        | map of string arrays |          | AppLabels is a map of labels used as part of the RBAC system.                                                                                 |
 | app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                              |
 | aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                                        |
 | azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                                 |
-| cluster_labels                    | map of string arrays |          |                                                                                                                                               |
+| cluster_labels                    | map of string arrays |          | ClusterLabels is a map of node labels (used to dynamically grant access to clusters).                                                         |
 | cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                                      |
-| db_labels                         | map of string arrays |          |                                                                                                                                               |
+| db_labels                         | map of string arrays |          | DatabaseLabels are used in RBAC system to allow/deny access to databases.                                                                     |
 | db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                                    |
 | db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                                 |
 | db_permissions                    | object               |          | DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning. |
 | db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                                       |
-| db_service_labels                 | map of string arrays |          |                                                                                                                                               |
+| db_service_labels                 | map of string arrays |          | DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.                                                      |
 | db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                                     |
 | db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                                |
 | desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                                    |
 | gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                                          |
-| group_labels                      | map of string arrays |          |                                                                                                                                               |
+| group_labels                      | map of string arrays |          | GroupLabels is a map of labels used as part of the RBAC system.                                                                               |
 | group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                                     |
 | host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                               |
 | host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                                            |
 | impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.               |
 | join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                                        |
 | kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                                     |
-| kubernetes_labels                 | map of string arrays |          |                                                                                                                                               |
+| kubernetes_labels                 | map of string arrays |          | KubernetesLabels is a map of kubernetes cluster labels used for RBAC.                                                                         |
 | kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                                        |
 | kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                                   |
 | kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                                      |
 | logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                                       |
-| node_labels                       | map of string arrays |          |                                                                                                                                               |
+| node_labels                       | map of string arrays |          | NodeLabels is a map of node labels (used to dynamically grant access to nodes).                                                               |
 | node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                                        |
 | request                           | object               |          |                                                                                                                                               |
 | require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                                  |
 | review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                              |
 | rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                                   |
 | spiffe                            | object               |          | SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.                                                          |
-| windows_desktop_labels            | map of string arrays |          |                                                                                                                                               |
+| windows_desktop_labels            | map of string arrays |          | WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.                                                    |
 | windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                                       |
 | windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                                    |
 
@@ -1850,7 +1850,7 @@ DatabasePermissions specifies a set of permissions that will be granted to the d
 
 |    Name     |         Type         | Required |                                                   Description                                                    |
 |-------------|----------------------|----------|------------------------------------------------------------------------------------------------------------------|
-| match       | map of string arrays |          |                                                                                                                  |
+| match       | map of string arrays |          | Match is a list of object labels that must be matched for the permission to be granted.                          |
 | permissions | array of strings     |          | Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ... |
 
 ##### spec.allow.impersonate
@@ -1889,15 +1889,15 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 
 
 
-|        Name         |         Type         | Required |                                                                                                                    Description                                                                                                                    |
-|---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| annotations         | map of string arrays |          |                                                                                                                                                                                                                                                   |
-| claims_to_roles     | object               |          | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.                                                                                                                                                                         |
-| max_duration        | duration             |          | MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.                                                                                                                                  |
-| roles               | array of strings     |          | Roles is the name of roles which will match the request rule.                                                                                                                                                                                     |
-| search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request. |
-| suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                            |
-| thresholds          | object               |          | Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.                                        |
+|        Name         |         Type         | Required |                                                                                                                                                                                                                 Description                                                                                                                                                                                                                 |
+|---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| annotations         | map of string arrays |          | Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions. |
+| claims_to_roles     | object               |          | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.                                                                                                                                                                                                                                                                                                                                                                   |
+| max_duration        | duration             |          | MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.                                                                                                                                                                                                                                                                                                                            |
+| roles               | array of strings     |          | Roles is the name of roles which will match the request rule.                                                                                                                                                                                                                                                                                                                                                                               |
+| search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.                                                                                                                                                                                           |
+| suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                                                                                                                                                                                                                      |
+| thresholds          | object               |          | Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.                                                                                                                                                                                                                                  |
 
 ###### spec.allow.request.claims_to_roles
 
@@ -1981,42 +1981,42 @@ Deny is the set of conditions evaluated to deny access. Deny takes priority over
 
 |               Name                |         Type         | Required |                                                                  Description                                                                  |
 |-----------------------------------|----------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| app_labels                        | map of string arrays |          |                                                                                                                                               |
+| app_labels                        | map of string arrays |          | AppLabels is a map of labels used as part of the RBAC system.                                                                                 |
 | app_labels_expression             | string               |          | AppLabelsExpression is a predicate expression used to allow/deny access to Apps.                                                              |
 | aws_role_arns                     | array of strings     |          | AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.                                                                        |
 | azure_identities                  | array of strings     |          | AzureIdentities is a list of Azure identities this role is allowed to assume.                                                                 |
-| cluster_labels                    | map of string arrays |          |                                                                                                                                               |
+| cluster_labels                    | map of string arrays |          | ClusterLabels is a map of node labels (used to dynamically grant access to clusters).                                                         |
 | cluster_labels_expression         | string               |          | ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.                                      |
-| db_labels                         | map of string arrays |          |                                                                                                                                               |
+| db_labels                         | map of string arrays |          | DatabaseLabels are used in RBAC system to allow/deny access to databases.                                                                     |
 | db_labels_expression              | string               |          | DatabaseLabelsExpression is a predicate expression used to allow/deny access to Databases.                                                    |
 | db_names                          | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                                 |
 | db_permissions                    | object               |          | DatabasePermissions specifies a set of permissions that will be granted to the database user when using automatic database user provisioning. |
 | db_roles                          | array of strings     |          | DatabaseRoles is a list of databases roles for automatic user creation.                                                                       |
-| db_service_labels                 | map of string arrays |          |                                                                                                                                               |
+| db_service_labels                 | map of string arrays |          | DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.                                                      |
 | db_service_labels_expression      | string               |          | DatabaseServiceLabelsExpression is a predicate expression used to allow/deny access to Database Services.                                     |
 | db_users                          | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                                |
 | desktop_groups                    | array of strings     |          | DesktopGroups is a list of groups for created desktop users to be added to                                                                    |
 | gcp_service_accounts              | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                                          |
-| group_labels                      | map of string arrays |          |                                                                                                                                               |
+| group_labels                      | map of string arrays |          | GroupLabels is a map of labels used as part of the RBAC system.                                                                               |
 | group_labels_expression           | string               |          | GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.                                                     |
 | host_groups                       | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                               |
 | host_sudoers                      | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                                            |
 | impersonate                       | object               |          | Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.               |
 | join_sessions                     | object               |          | JoinSessions specifies policies to allow users to join other sessions.                                                                        |
 | kubernetes_groups                 | array of strings     |          | KubeGroups is a list of kubernetes groups                                                                                                     |
-| kubernetes_labels                 | map of string arrays |          |                                                                                                                                               |
+| kubernetes_labels                 | map of string arrays |          | KubernetesLabels is a map of kubernetes cluster labels used for RBAC.                                                                         |
 | kubernetes_labels_expression      | string               |          | KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.                                        |
 | kubernetes_resources              | object               |          | KubernetesResources is the Kubernetes Resources this Role grants access to.                                                                   |
 | kubernetes_users                  | array of strings     |          | KubeUsers is an optional kubernetes users to impersonate                                                                                      |
 | logins                            | array of strings     |          | Logins is a list of *nix system logins.                                                                                                       |
-| node_labels                       | map of string arrays |          |                                                                                                                                               |
+| node_labels                       | map of string arrays |          | NodeLabels is a map of node labels (used to dynamically grant access to nodes).                                                               |
 | node_labels_expression            | string               |          | NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.                                                        |
 | request                           | object               |          |                                                                                                                                               |
 | require_session_join              | object               |          | RequireSessionJoin specifies policies for required users to start a session.                                                                  |
 | review_requests                   | object               |          | ReviewRequests defines conditions for submitting access reviews.                                                                              |
 | rules                             | object               |          | Rules is a list of rules and their access levels. Rules are a high level construct used for access control.                                   |
 | spiffe                            | object               |          | SPIFFE is used to allow or deny access to a role holder to generating a SPIFFE SVID.                                                          |
-| windows_desktop_labels            | map of string arrays |          |                                                                                                                                               |
+| windows_desktop_labels            | map of string arrays |          | WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.                                                    |
 | windows_desktop_labels_expression | string               |          | WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.                                       |
 | windows_desktop_logins            | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                                    |
 
@@ -2026,7 +2026,7 @@ DatabasePermissions specifies a set of permissions that will be granted to the d
 
 |    Name     |         Type         | Required |                                                   Description                                                    |
 |-------------|----------------------|----------|------------------------------------------------------------------------------------------------------------------|
-| match       | map of string arrays |          |                                                                                                                  |
+| match       | map of string arrays |          | Match is a list of object labels that must be matched for the permission to be granted.                          |
 | permissions | array of strings     |          | Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ... |
 
 ##### spec.deny.impersonate
@@ -2065,15 +2065,15 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 
 
 
-|        Name         |         Type         | Required |                                                                                                                    Description                                                                                                                    |
-|---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| annotations         | map of string arrays |          |                                                                                                                                                                                                                                                   |
-| claims_to_roles     | object               |          | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.                                                                                                                                                                         |
-| max_duration        | duration             |          | MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.                                                                                                                                  |
-| roles               | array of strings     |          | Roles is the name of roles which will match the request rule.                                                                                                                                                                                     |
-| search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request. |
-| suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                            |
-| thresholds          | object               |          | Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.                                        |
+|        Name         |         Type         | Required |                                                                                                                                                                                                                 Description                                                                                                                                                                                                                 |
+|---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| annotations         | map of string arrays |          | Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions. |
+| claims_to_roles     | object               |          | ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.                                                                                                                                                                                                                                                                                                                                                                   |
+| max_duration        | duration             |          | MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.                                                                                                                                                                                                                                                                                                                            |
+| roles               | array of strings     |          | Roles is the name of roles which will match the request rule.                                                                                                                                                                                                                                                                                                                                                                               |
+| search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.                                                                                                                                                                                           |
+| suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                                                                                                                                                                                                                      |
+| thresholds          | object               |          | Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.                                                                                                                                                                                                                                  |
 
 ###### spec.deny.request.claims_to_roles
 
@@ -2160,13 +2160,13 @@ Options is for OpenSSH options like agent forwarding.
 | cert_extensions            | object           |          | CertExtensions specifies the key/values                                                                                                                                                                |
 | cert_format                | string           |          | CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.                                                                                    |
 | client_idle_timeout        | duration         |          | ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.                                                        |
-| create_db_user             | bool             |          |                                                                                                                                                                                                        |
+| create_db_user             | bool             |          | CreateDatabaseUser enabled automatic database user creation.                                                                                                                                           |
 | create_db_user_mode        | number           |          | CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".                               |
-| create_desktop_user        | bool             |          |                                                                                                                                                                                                        |
-| create_host_user           | bool             |          |                                                                                                                                                                                                        |
+| create_desktop_user        | bool             |          | CreateDesktopUser allows users to be automatically created on a Windows desktop                                                                                                                        |
+| create_host_user           | bool             |          | CreateHostUser allows users to be automatically created on a host                                                                                                                                      |
 | create_host_user_mode      | number           |          | CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop". |
-| desktop_clipboard          | bool             |          |                                                                                                                                                                                                        |
-| desktop_directory_sharing  | bool             |          |                                                                                                                                                                                                        |
+| desktop_clipboard          | bool             |          | DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.                             |
+| desktop_directory_sharing  | bool             |          | DesktopDirectorySharing indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.                      |
 | device_trust_mode          | string           |          | DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.                                                                                |
 | disconnect_expired_cert    | bool             |          | DisconnectExpiredCert sets disconnect clients on expired certificates.                                                                                                                                 |
 | enhanced_recording         | array of strings |          | BPF defines what events to record for the BPF-based session recorder.                                                                                                                                  |
@@ -2179,12 +2179,12 @@ Options is for OpenSSH options like agent forwarding.
 | max_sessions               | number           |          | MaxSessions defines the maximum number of concurrent sessions per connection.                                                                                                                          |
 | permit_x11_forwarding      | bool             |          | PermitX11Forwarding authorizes use of X11 forwarding.                                                                                                                                                  |
 | pin_source_ip              | bool             |          | PinSourceIP forces the same client IP for certificate generation and usage                                                                                                                             |
-| port_forwarding            | bool             |          |                                                                                                                                                                                                        |
+| port_forwarding            | bool             |          | PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer                                      |
 | record_session             | object           |          | RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.                                                                 |
 | request_access             | string           |          | RequestAccess defines the access request strategy (optional|note|always) where optional is the default.                                                                                                |
 | request_prompt             | string           |          | RequestPrompt is an optional message which tells users what they aught to request.                                                                                                                     |
 | require_session_mfa        | number           |          | RequireMFAType is the type of MFA requirement enforced for this role: 0:Off, 1:Session, 2:SessionAndHardwareKey, 3:HardwareKeyTouch                                                                    |
-| ssh_file_copy              | bool             |          |                                                                                                                                                                                                        |
+| ssh_file_copy              | bool             |          | SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.                                              |
 
 ##### spec.options.cert_extensions
 
@@ -2209,19 +2209,19 @@ IDP is a set of options related to accessing IdPs within Teleport. Requires Tele
 
 SAML are options related to the Teleport SAML IdP.
 
-|  Name   | Type | Required | Description |
-|---------|------|----------|-------------|
-| enabled | bool |          |             |
+|  Name   | Type | Required |                                  Description                                  |
+|---------|------|----------|-------------------------------------------------------------------------------|
+| enabled | bool |          | Enabled is set to true if this option allows access to the Teleport SAML IdP. |
 
 ##### spec.options.record_session
 
 RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.
 
-|  Name   |  Type  | Required |                      Description                      |
-|---------|--------|----------|-------------------------------------------------------|
-| default | string |          | Default indicates the default value for the services. |
-| desktop | bool   |          |                                                       |
-| ssh     | string |          | SSH indicates the session mode used on SSH sessions.  |
+|  Name   |  Type  | Required |                                                    Description                                                     |
+|---------|--------|----------|--------------------------------------------------------------------------------------------------------------------|
+| default | string |          | Default indicates the default value for the services.                                                              |
+| desktop | bool   |          | Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false. |
+| ssh     | string |          | SSH indicates the session mode used on SSH sessions.                                                               |
 
 Example:
 
@@ -2565,10 +2565,10 @@ Metadata is resource metadata
 
 Spec is a SessionRecordingConfig specification
 
-|          Name          |  Type  | Required |                     Description                      |
-|------------------------|--------|----------|------------------------------------------------------|
-| mode                   | string |          | Mode controls where (or if) the session is recorded. |
-| proxy_checks_host_keys | bool   |          |                                                      |
+|          Name          |  Type  | Required |                                           Description                                            |
+|------------------------|--------|----------|--------------------------------------------------------------------------------------------------|
+| mode                   | string |          | Mode controls where (or if) the session is recorded.                                             |
+| proxy_checks_host_keys | bool   |          | ProxyChecksHostKeys is used to control if the proxy will check host keys when in recording mode. |
 
 Example:
 
@@ -2742,14 +2742,14 @@ Metadata is resource metadata
 
 Spec is a user specification
 
-|        Name        |         Type         | Required |                                                              Description                                                              |
-|--------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------|
-| github_identities  | object               |          | GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity                     |
-| oidc_identities    | object               |          | OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity                     |
-| roles              | array of strings     |          | Roles is a list of roles assigned to user                                                                                             |
-| saml_identities    | object               |          | SAMLIdentities lists associated SAML identities that let user log in using externally verified identity                               |
-| traits             | map of string arrays |          |                                                                                                                                       |
-| trusted_device_ids | array of strings     |          | TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user. Managed by the Device Trust subsystem, avoid manual edits. |
+|        Name        |         Type         | Required |                                                                                              Description                                                                                              |
+|--------------------|----------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| github_identities  | object               |          | GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity                                                                                     |
+| oidc_identities    | object               |          | OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity                                                                                     |
+| roles              | array of strings     |          | Roles is a list of roles assigned to user                                                                                                                                                             |
+| saml_identities    | object               |          | SAMLIdentities lists associated SAML identities that let user log in using externally verified identity                                                                                               |
+| traits             | map of string arrays |          | Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables. |
+| trusted_device_ids | array of strings     |          | TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user. Managed by the Device Trust subsystem, avoid manual edits.                                                                 |
 
 #### spec.github_identities
 
@@ -2785,9 +2785,10 @@ SAMLIdentities lists associated SAML identities that let user log in using exter
 
 
 
-|      Name      |  Type  | Required |                                                                                                                                                                         Description                                                                                                                                                                         |
-|----------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| password_state | number |          | password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes! |
+|        Name        |  Type  | Required |                                                                                                                                                                         Description                                                                                                                                                                         |
+|--------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| mfa_weakest_device | number |          | mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a "best effort" property, in that it can be UNSPECIFIED.                                                                                                                                                                                           |
+| password_state     | number |          | password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes! |
 
 Example:
 
