@@ -875,6 +875,29 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	if !utils.IsDir(home) {
 		return io.Discard, teleport.HomeDirNotFound, nil
 	}
+
+	currentUser, err := user.Current()
+	if err != nil {
+		return io.Discard, teleport.HomeDirNotAccessible, nil
+	}
+
+	fileInfo, err := os.Stat(home)
+	if err != nil {
+		return io.Discard, teleport.HomeDirNotAccessible, nil
+	}
+
+	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return io.Discard, teleport.HomeDirNotAccessible, nil
+	}
+
+	uid := strconv.Itoa(int(stat.Uid))
+	gid := strconv.Itoa(int(stat.Gid))
+
+	if uid != currentUser.Uid && gid != currentUser.Gid {
+		return io.Discard, teleport.HomeDirNotAccessible, nil
+	}
+
 	return io.Discard, teleport.RemoteCommandSuccess, nil
 }
 
@@ -1197,7 +1220,28 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 // CheckHomeDir checks if the user's home dir exists
 func CheckHomeDir(localUser *user.User) (bool, error) {
 	if fi, err := os.Stat(localUser.HomeDir); err == nil {
-		return fi.IsDir(), nil
+		if !fi.IsDir() {
+			return false, nil
+		}
+
+		currentUser, err := user.Current()
+		if err != nil {
+			return false, nil
+		}
+
+		stat, ok := fi.Sys().(*syscall.Stat_t)
+		if !ok {
+			return false, nil
+		}
+
+		uid := strconv.Itoa(int(stat.Uid))
+		gid := strconv.Itoa(int(stat.Gid))
+
+		if uid != currentUser.Uid && gid != currentUser.Gid {
+			return false, nil
+		}
+
+		return true, nil
 	}
 
 	// In some environments, the user's home directory exists but isn't visible to
@@ -1229,12 +1273,10 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 	reexecCommandOSTweaks(cmd)
 
 	if err := cmd.Run(); err != nil {
-		if cmd.ProcessState.ExitCode() == teleport.HomeDirNotFound {
-			return false, nil
-		}
 		return false, trace.Wrap(err)
 	}
-	return true, nil
+
+	return cmd.ProcessState.ExitCode() == teleport.RemoteCommandSuccess, nil
 }
 
 // Spawns a process with the given credentials, outliving the context.
