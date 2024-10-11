@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/trace"
 )
 
 type stubUser struct {
@@ -409,4 +410,46 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	readXauthEntry, err := xauthCmd.ReadEntry(display)
 	require.NoError(t, err)
 	require.Equal(t, fakeXauthEntry, readXauthEntry)
+}
+
+func TestRootHasAccessibleHomeDir(t *testing.T) {
+	utils.RequireRoot(t)
+
+	uid := 1000
+	gid := 1000
+
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	noAccess := filepath.Join(tmp, "no_access")
+	file := filepath.Join(tmp, "file")
+	notFound := filepath.Join(tmp, "not_found")
+
+	require.NoError(t, os.Mkdir(home, 0700))
+	require.NoError(t, os.Mkdir(noAccess, 0700))
+	_, err := os.Create(file)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Chown(home, uid, gid))
+	require.NoError(t, os.Chown(file, uid, gid))
+
+	testUser := user.User{
+		Uid:     strconv.Itoa(uid),
+		Gid:     strconv.Itoa(gid),
+		HomeDir: home,
+	}
+
+	err = HasAccessibleHomeDir(&testUser)
+	require.NoError(t, err)
+
+	testUser.HomeDir = noAccess
+	err = HasAccessibleHomeDir(&testUser)
+	require.True(t, trace.IsAccessDenied(err))
+
+	testUser.HomeDir = file
+	err = HasAccessibleHomeDir(&testUser)
+	require.True(t, trace.IsNotFound(err))
+
+	testUser.HomeDir = notFound
+	err = HasAccessibleHomeDir(&testUser)
+	require.True(t, trace.IsNotFound(err))
 }

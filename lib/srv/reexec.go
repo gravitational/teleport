@@ -866,39 +866,24 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 	}
 }
 
-// runCheckHomeDir check's if the active user's $HOME dir exists.
+// runCheckHomeDir check's if the active user's $HOME dir exists and is accessible.
 func runCheckHomeDir() (errw io.Writer, code int, err error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return io.Discard, teleport.HomeDirNotFound, nil
-	}
-	if !utils.IsDir(home) {
-		return io.Discard, teleport.HomeDirNotFound, nil
-	}
-
 	currentUser, err := user.Current()
 	if err != nil {
 		return io.Discard, teleport.HomeDirNotAccessible, nil
 	}
 
-	fileInfo, err := os.Stat(home)
-	if err != nil {
-		return io.Discard, teleport.HomeDirNotAccessible, nil
+	err = HasAccessibleHomeDir(currentUser)
+	switch {
+	case trace.IsNotFound(err):
+		code = teleport.HomeDirNotFound
+	case trace.IsAccessDenied(err):
+		code = teleport.HomeDirNotAccessible
+	case err != nil:
+		code = teleport.HomeDirNotFound
 	}
 
-	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
-	if !ok {
-		return io.Discard, teleport.HomeDirNotAccessible, nil
-	}
-
-	uid := strconv.Itoa(int(stat.Uid))
-	gid := strconv.Itoa(int(stat.Gid))
-
-	if uid != currentUser.Uid && gid != currentUser.Gid {
-		return io.Discard, teleport.HomeDirNotAccessible, nil
-	}
-
-	return io.Discard, teleport.RemoteCommandSuccess, nil
+	return io.Discard, code, nil
 }
 
 // runPark does nothing, forever.
@@ -1217,31 +1202,42 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	}
 }
 
-// CheckHomeDir checks if the user's home dir exists
+// HasAccessibleHomeDir checks if the given User has access to an existing home directory.
+func HasAccessibleHomeDir(localUser *user.User) error {
+	fi, err := os.Stat(localUser.HomeDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !fi.IsDir() {
+		return trace.NotFound("user home is not a directory")
+	}
+
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return trace.AccessDenied("could not retrieve owner of home directory")
+	}
+
+	uid := strconv.Itoa(int(stat.Uid))
+	gid := strconv.Itoa(int(stat.Gid))
+
+	if uid == localUser.Uid && gid == localUser.Gid {
+		return nil
+	}
+
+	return trace.AccessDenied("user does not own configured home directory")
+}
+
+// CheckHomeDir checks if the user's home dir exists and is accessible. This also handles cases where
+// the home directory isn't visible to the root user, which HasAccessibleHomeDir doesn't account for.
 func CheckHomeDir(localUser *user.User) (bool, error) {
-	if fi, err := os.Stat(localUser.HomeDir); err == nil {
-		if !fi.IsDir() {
-			return false, nil
-		}
-
-		currentUser, err := user.Current()
-		if err != nil {
-			return false, nil
-		}
-
-		stat, ok := fi.Sys().(*syscall.Stat_t)
-		if !ok {
-			return false, nil
-		}
-
-		uid := strconv.Itoa(int(stat.Uid))
-		gid := strconv.Itoa(int(stat.Gid))
-
-		if uid != currentUser.Uid && gid != currentUser.Gid {
-			return false, nil
-		}
-
+	err := HasAccessibleHomeDir(localUser)
+	if err == nil {
 		return true, nil
+	}
+
+	if trace.IsAccessDenied(err) {
+		return false, nil
 	}
 
 	// In some environments, the user's home directory exists but isn't visible to
