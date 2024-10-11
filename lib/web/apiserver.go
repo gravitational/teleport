@@ -158,8 +158,8 @@ type Handler struct {
 	// userConns tracks amount of current active connections with user certificates.
 	userConns atomic.Int32
 
-	// ClusterFeatures contain flags for supported and unsupported features.
-	ClusterFeatures proto.Features
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
@@ -462,7 +462,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		log:                  newPackageLogger(),
 		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
-		ClusterFeatures:      cfg.ClusterFeatures,
+		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
