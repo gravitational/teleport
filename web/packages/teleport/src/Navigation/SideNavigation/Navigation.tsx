@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, useTheme } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
 import { NavLink } from 'react-router-dom';
 import { Text, Flex, Box } from 'design';
@@ -38,6 +38,7 @@ import { CategoryIcon } from './CategoryIcon';
 import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 export const zIndexMap = {
   topBar: 23,
@@ -472,6 +473,7 @@ function getSubsectionStyles(theme: Theme, active: boolean) {
 }
 
 function AGPLFooter() {
+  const theme = useTheme();
   return (
     <LicenseFooter
       title="AGPL Edition"
@@ -487,6 +489,7 @@ function AGPLFooter() {
             as="a"
             href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
+            color={theme.colors.interactive.solid.accent.default.background}
           >
             the Downloads page
           </Text>{' '}
@@ -498,6 +501,7 @@ function AGPLFooter() {
 }
 
 function CommunityFooter() {
+  const theme = useTheme();
   return (
     <LicenseFooter
       title="Community Edition"
@@ -508,6 +512,7 @@ function CommunityFooter() {
             as="a"
             href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
+            color={theme.colors.interactive.solid.accent.default.background}
           >
             Upgrade to Teleport Enterprise
           </Text>{' '}
@@ -532,10 +537,9 @@ function LicenseFooter({
     <StyledFooterBox py={3} px={4} onMouseLeave={() => setOpened(false)}>
       <Flex alignItems="center" gap={2}>
         <Text>{title}</Text>
-        <FooterContent onMouseEnter={() => setOpened(true)}>
-          <Icons.Info size={16} />
-          {opened && <TooltipContent>{infoContent}</TooltipContent>}
-        </FooterContent>
+        <ToolTipInfo position="right" sticky>
+          {infoContent}
+        </ToolTipInfo>
       </Flex>
       <SubText>{subText}</SubText>
     </StyledFooterBox>
