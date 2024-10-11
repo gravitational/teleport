@@ -20,8 +20,12 @@ package autoupdate
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -87,8 +91,8 @@ func TestAgentUpdater_Disable(t *testing.T) {
 				require.NoError(t, err)
 			}
 			updater, err := NewAgentUpdater(AgentConfig{
-				DownloadInsecure: true,
-				VersionsDir:      dir,
+				InsecureSkipVerify: true,
+				VersionsDir:        dir,
 			})
 			require.NoError(t, err)
 			err = updater.Disable(context.Background())
@@ -120,26 +124,50 @@ func TestAgentUpdater_Enable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		cfg      *AgentUpdateConfig // nil -> file not present
-		userCfg  AgentUserConfig
-		errMatch string
+		name    string
+		cfg     *AgentUpdateConfig // nil -> file not present
+		userCfg AgentUserConfig
+
+		installedVersion  string
+		installedTemplate string
+		errMatch          string
 	}{
 		{
-			name: "defaults",
+			name: "config from file",
 			cfg: &AgentUpdateConfig{
 				Version: agentUpdateConfigVersion,
 				Kind:    agentUpdateConfigKind,
-				Spec:    AgentUpdateSpec{},
+				Spec: AgentUpdateSpec{
+					Group:       "group",
+					URLTemplate: "template",
+				},
+				Status: AgentUpdateStatus{
+					ActiveVersion: "old",
+				},
 			},
+			installedVersion:  "16.3.0",
+			installedTemplate: "template",
 		},
 		{
-			name: "user-provided values",
+			name: "config from user",
 			cfg: &AgentUpdateConfig{
 				Version: agentUpdateConfigVersion,
 				Kind:    agentUpdateConfigKind,
-				Spec:    AgentUpdateSpec{},
+				Spec: AgentUpdateSpec{
+					Group:       "old-group",
+					URLTemplate: "old-template",
+				},
+				Status: AgentUpdateStatus{
+					ActiveVersion: "old",
+				},
 			},
+			userCfg: AgentUserConfig{
+				Group:        "group",
+				URLTemplate:  "template",
+				ForceVersion: "new",
+			},
+			installedVersion:  "new",
+			installedTemplate: "template",
 		},
 		{
 			name: "already enabled",
@@ -149,48 +177,31 @@ func TestAgentUpdater_Enable(t *testing.T) {
 				Spec: AgentUpdateSpec{
 					Enabled: true,
 				},
-			},
-		},
-		{
-			name: "install forced version",
-			cfg: &AgentUpdateConfig{
-				Version: agentUpdateConfigVersion,
-				Kind:    agentUpdateConfigKind,
-				Spec: AgentUpdateSpec{
-					Enabled: true,
+				Status: AgentUpdateStatus{
+					ActiveVersion: "old",
 				},
 			},
-		},
-		{
-			name: "install cluster version",
-			cfg: &AgentUpdateConfig{
-				Version: agentUpdateConfigVersion,
-				Kind:    agentUpdateConfigKind,
-				Spec: AgentUpdateSpec{
-					Enabled: true,
-				},
-			},
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
 		},
 		{
 			name: "version already installed",
 			cfg: &AgentUpdateConfig{
 				Version: agentUpdateConfigVersion,
 				Kind:    agentUpdateConfigKind,
-				Spec: AgentUpdateSpec{
-					Enabled: true,
+				Status: AgentUpdateStatus{
+					ActiveVersion: "16.3.0",
 				},
 			},
 		},
 		{
-			name: "config does not exist",
+			name:              "config does not exist",
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
 		},
 		{
-			name: "invalid metadata",
-			cfg: &AgentUpdateConfig{
-				Spec: AgentUpdateSpec{
-					Enabled: true,
-				},
-			},
+			name:     "invalid metadata",
+			cfg:      &AgentUpdateConfig{},
 			errMatch: "invalid",
 		},
 	}
@@ -209,29 +220,43 @@ func TestAgentUpdater_Enable(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// TODO(sclevine): add web API test including group verification
+				w.Write([]byte(`{}`))
+			}))
+			if tt.userCfg.Proxy == "" {
+				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
+			}
+
 			updater, err := NewAgentUpdater(AgentConfig{
-				DownloadInsecure: true,
-				VersionsDir:      dir,
+				InsecureSkipVerify: true,
+				VersionsDir:        dir,
 			})
 			require.NoError(t, err)
-			updater.Installer = &fakeInstaller{}
 
-			err = updater.Enable(context.Background(), tt.userCfg)
+			var installedVersion, installedTemplate string
+			updater.Installer = &fakeInstaller{
+				FuncInstall: func(_ context.Context, version, template string) error {
+					installedVersion = version
+					installedTemplate = template
+					return nil
+				},
+			}
+
+			ctx := context.Background()
+			err = updater.Enable(ctx, tt.userCfg)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
 				return
 			}
 			require.NoError(t, err)
+			require.Equal(t, tt.installedVersion, installedVersion)
+			require.Equal(t, tt.installedTemplate, installedTemplate)
 
 			data, err := os.ReadFile(cfgPath)
-
-			// If no config is present, disable should not create it
-			if tt.cfg == nil {
-				require.ErrorIs(t, err, os.ErrNotExist)
-				return
-			}
 			require.NoError(t, err)
+			data = blankTestAddr(data)
 
 			if golden.ShouldSet() {
 				golden.Set(t, data)
@@ -241,12 +266,21 @@ func TestAgentUpdater_Enable(t *testing.T) {
 	}
 }
 
-type fakeInstaller struct{}
+var serverRegexp = regexp.MustCompile("127.0.0.1:[0-9]+")
 
-func (fakeInstaller) Install(ctx context.Context, version, template string) error {
-	return nil
+func blankTestAddr(s []byte) []byte {
+	return serverRegexp.ReplaceAll(s, []byte("localhost"))
 }
 
-func (fakeInstaller) Remove(ctx context.Context, version string) error {
-	return nil
+type fakeInstaller struct {
+	FuncInstall func(ctx context.Context, version, template string) error
+	FuncRemove  func(ctx context.Context, version string) error
+}
+
+func (f *fakeInstaller) Install(ctx context.Context, version, template string) error {
+	return f.FuncInstall(ctx, version, template)
+}
+
+func (f *fakeInstaller) Remove(ctx context.Context, version string) error {
+	return f.FuncRemove(ctx, version)
 }

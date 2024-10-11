@@ -46,6 +46,7 @@ const (
 	configFileName = "update.yaml"
 )
 
+// AgentUpdateConfig metadata
 const (
 	agentUpdateConfigVersion = "v1"
 	agentUpdateConfigKind    = "update_config"
@@ -81,6 +82,8 @@ type AgentUpdateStatus struct {
 	ActiveVersion string `yaml:"active_version"`
 }
 
+// NewAgentUpdater returns a new AgentUpdater with a default slog logger,
+// HTTP Client with sane defaults, and an TeleportInstaller as the AgentInstaller.
 func NewAgentUpdater(cfg AgentConfig) (*AgentUpdater, error) {
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
@@ -91,7 +94,7 @@ func NewAgentUpdater(cfg AgentConfig) (*AgentUpdater, error) {
 		return nil, trace.Wrap(err)
 	}
 	tr.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: cfg.DownloadInsecure,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		RootCAs:            certPool,
 	}
 	client := &http.Client{
@@ -99,35 +102,41 @@ func NewAgentUpdater(cfg AgentConfig) (*AgentUpdater, error) {
 		Timeout:   cfg.DownloadTimeout,
 	}
 	return &AgentUpdater{
-		Log:         slog.Default(),
-		HTTP:        client,
-		Pool:        certPool,
-		VersionsDir: cfg.VersionsDir,
-		Installer: &AgentInstaller{
-			VersionsDir:    cfg.VersionsDir,
+		Log:                slog.Default(),
+		Pool:               certPool,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		VersionsDir:        cfg.VersionsDir,
+		Installer: &TeleportInstaller{
+			InstallDir:     cfg.VersionsDir,
 			DownloadClient: client,
 		},
 	}, nil
 }
 
+// AgentUpdater implements the agent-local logic for Teleport agent auto-updates.
 type AgentUpdater struct {
-	Log         *slog.Logger
-	HTTP        *http.Client
-	Pool        *x509.CertPool
+	// Log contains a logger
+	Log *slog.Logger
+	// Pool used for requests to the Teleport web API
+	Pool *x509.CertPool
+	// InsecureSkipVerify skips TLS verification
+	InsecureSkipVerify bool
+	// VersionsDir contains the agent auto-updates configuration
 	VersionsDir string
-	Installer   TeleportInstaller
+	// Installer manages installations of the Teleport agent
+	Installer AgentInstaller
 }
 
 type AgentConfig struct {
-	// DownloadInsecure turns off TLS certificate verification for download requests when enabled.
-	DownloadInsecure bool
+	// InsecureSkipVerify turns off TLS certificate verification.
+	InsecureSkipVerify bool
 	// DownloadTimeout is a timeout for file download requests.
 	DownloadTimeout time.Duration
 	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions)
 	VersionsDir string
 }
 
-type TeleportInstaller interface {
+type AgentInstaller interface {
 	Install(ctx context.Context, version, template string) error
 	Remove(ctx context.Context, version string) error
 }
@@ -179,6 +188,7 @@ func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) erro
 		resp, err := webclient.Find(&webclient.Config{
 			Context:   ctx,
 			ProxyAddr: addr.Addr,
+			Insecure:  u.InsecureSkipVerify,
 			Timeout:   30 * time.Second,
 			//Group:     cfg.Spec.Group, // TODO(sclevine): add web API
 			Pool: u.Pool,
@@ -187,9 +197,12 @@ func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) erro
 			return trace.Errorf("failed to request version from proxy: %w", err)
 		}
 		desiredVersion, _ = "16.3.0", resp // TODO(sclevine): add web API
-		//desiredVersion := resp.AgentVersion
+		//desiredVersion := resp.AutoUpdate.AgentVersion
 	}
 
+	if desiredVersion == "" {
+		return trace.Errorf("agent version not available from Teleport cluster")
+	}
 	// If the active version and target don't match, kick off upgrade.
 	if cfg.Status.ActiveVersion != desiredVersion {
 		template := cfg.Spec.URLTemplate
