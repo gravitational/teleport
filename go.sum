@@ -1514,8 +1514,6 @@ github.com/gravitational/go-mysql v1.9.1-teleport.3 h1:mGX/4bvWpqqpLKdNP0jG/gfWn
 github.com/gravitational/go-mysql v1.9.1-teleport.3/go.mod h1:pkllauQtJgHr2mTonYYysOznctozxiWgwpKAez0s+2U=
 github.com/gravitational/go-oidc v0.1.1 h1:T5nZxwkrfqfDMW4VPomCiG50Ae5ToaL9NFxEJHKURXc=
 github.com/gravitational/go-oidc v0.1.1/go.mod h1:A/IrBuKme/aPiJ9RIctJnSfPKUAzSQ4zaacIXDCQGx4=
-github.com/gravitational/go-ora/v2 v2.0.0-20230821114616-e2a9f1131a46 h1:k/tkK7NDSH7gjNbA5pdUfAalJXyIVazycM0RW7ZboxM=
-github.com/gravitational/go-ora/v2 v2.0.0-20230821114616-e2a9f1131a46/go.mod h1:EHxlY6x7y9HAsdfumurRfTd+v8NrEOTR3Xl4FWlH6xk=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8FcGwRACSHortU1UxCSo9nF0t34rPWjk9Nef3j2Ic=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFER/+0TfRypJhc9XeuggTtEZzhhe75DSVqMv/avHEU=
@@ -2095,6 +2093,8 @@ github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.8.8 h1:Zte3Oogkd8m+
 github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.8.8/go.mod h1:j00crVw6ki4/WViXflw0zWgNALrAzZT+GbIK8v7Xlz4=
 github.com/sigstore/timestamp-authority v1.2.2 h1:X4qyutnCQqJ0apMewFyx+3t7Tws00JQ/JonBiu3QvLE=
 github.com/sigstore/timestamp-authority v1.2.2/go.mod h1:nEah4Eq4wpliDjlY342rXclGSO7Kb9hoRrl9tqLW13A=
+github.com/sijms/go-ora/v2 v2.8.22 h1:3ABgRzVKxS439cEgSLjFKutIwOyhnyi4oOSBywEdOlU=
+github.com/sijms/go-ora/v2 v2.8.22/go.mod h1:QgFInVi3ZWyqAiJwzBQA+nbKYKH77tdp1PYoCqhR2dU=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.3.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
