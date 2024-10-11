@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 )
 
 // onSSHProxyCommand is meant to be used as an OpenSSH/PuTTY proxy command. While this
@@ -31,27 +31,27 @@ import (
 // `tsh proxy ssh` which results in much less memory and cpu consumption. This will
 // eventually supersede `tbot proxy ssh` as it becomes more feature rich and supports
 // all the edge cases.
-func onSSHProxyCommand(ctx context.Context, cf *config.CLIConf) error {
+func onSSHProxyCommand(ctx context.Context, globalCfg *cli.GlobalArgs, sshProxyCmd *cli.SSHProxyCommand) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if cf.Port == "" {
-		cf.Port = "0"
+	if sshProxyCmd.Port == "" {
+		sshProxyCmd.Port = "0"
 	}
 
 	proxySSHConfig := tbot.ProxySSHConfig{
-		DestinationPath:           cf.DestinationDir,
-		Insecure:                  cf.Insecure,
-		FIPS:                      cf.FIPS,
-		ProxyServer:               cf.ProxyServer,
-		Cluster:                   cf.Cluster,
-		User:                      cf.User,
-		Host:                      cf.Host,
-		Port:                      cf.Port,
-		EnableResumption:          cf.EnableResumption,
-		TLSRoutingEnabled:         cf.TLSRoutingEnabled,
-		ConnectionUpgradeRequired: cf.ConnectionUpgradeRequired,
-		TSHConfigPath:             cf.TSHConfigPath,
+		Insecure:                  globalCfg.Insecure,
+		FIPS:                      globalCfg.FIPS,
+		DestinationPath:           sshProxyCmd.DestinationDir,
+		ProxyServer:               sshProxyCmd.ProxyServer,
+		Cluster:                   sshProxyCmd.Cluster,
+		User:                      sshProxyCmd.User,
+		Host:                      sshProxyCmd.Host,
+		Port:                      sshProxyCmd.Port,
+		EnableResumption:          sshProxyCmd.EnableResumption,
+		TLSRoutingEnabled:         sshProxyCmd.TLSRoutingEnabled,
+		ConnectionUpgradeRequired: sshProxyCmd.ConnectionUpgradeRequired,
+		TSHConfigPath:             sshProxyCmd.TSHConfigPath,
 		Log:                       log,
 	}
 

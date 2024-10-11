@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -63,6 +64,9 @@ type PromptConfig struct {
 	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
+	// StdinFunc allows tests to override prompt.Stdin().
+	// If nil prompt.Stdin() is used.
+	StdinFunc func() prompt.StdinReader
 }
 
 // NewPromptConfig returns a prompt config that will induce default behavior.
@@ -93,7 +97,7 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !promptTOTP && !c.WebauthnSupported:
+	case !promptTOTP && promptWebauthn && !c.WebauthnSupported:
 		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 	case !c.WebauthnSupported:
 		// Do not prompt for hardware devices, it won't work.

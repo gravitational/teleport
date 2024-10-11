@@ -39,7 +39,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -48,6 +47,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/net/http2"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -75,6 +75,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -93,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -501,6 +503,14 @@ type Config struct {
 	// GenerateUnifiedKey indicates that the client should generate a single key
 	// for SSH and TLS instead of split keys.
 	GenerateUnifiedKey bool
+
+	// StdinFunc allows tests to override prompt.Stdin().
+	// If nil prompt.Stdin() is used.
+	StdinFunc func() prompt.StdinReader
+
+	// HasTouchIDCredentialsFunc allows tests to override touchid.HasCredentials.
+	// If nil touchid.HasCredentials is used.
+	HasTouchIDCredentialsFunc func(rpID, user string) bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1254,6 +1264,20 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	return tc, nil
+}
+
+func (tc *TeleportClient) stdin() prompt.StdinReader {
+	if tc.StdinFunc == nil {
+		return prompt.Stdin()
+	}
+	return tc.StdinFunc()
+}
+
+func (tc *TeleportClient) hasTouchIDCredentials(rpID, user string) bool {
+	if tc.HasTouchIDCredentialsFunc == nil {
+		return touchid.HasCredentials(rpID, user)
+	}
+	return tc.HasTouchIDCredentialsFunc(rpID, user)
 }
 
 func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
@@ -2747,6 +2771,33 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+
+	// Get the width of the terminal so we can wrap properly.
+	var width int
+	if stdoutFile, ok := tc.Stdout.(*os.File); ok {
+		conn, err := stdoutFile.SyscallConn()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ctrlErr := conn.Control(func(fd uintptr) {
+			width, _, err = term.GetSize(int(fd))
+			// If stdout is not a terminal, continue with a zero width instead
+			// of failing.
+			if err != nil {
+				width = 0
+			}
+		})
+		if ctrlErr != nil {
+			return trace.Wrap(ctrlErr)
+		}
+	}
+
+	stdout := logutils.NewSharedWriter(tc.Stdout)
+	stderr := stdout
+	if tc.Stdout != tc.Stderr {
+		stderr = logutils.NewSharedWriter(tc.Stderr)
+	}
+
 	for _, node := range nodes {
 		node := node
 		g.Go(func() error {
@@ -2781,7 +2832,12 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			displayName := nodeName(node)
 			fmt.Printf("Running command on %v:\n", displayName)
 
-			if err := nodeClient.RunCommand(ctx, command, WithLabeledOutput()); err != nil && tc.ExitStatus == 0 {
+			if err := nodeClient.RunCommand(
+				ctx,
+				command,
+				WithLabeledOutput(width),
+				WithOutput(stdout, stderr),
+			); err != nil && tc.ExitStatus == 0 {
 				fmt.Fprintln(tc.Stderr, err)
 				return nil
 			}
@@ -3682,9 +3738,6 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 	return clt, session, trace.Wrap(err)
 }
 
-// hasTouchIDCredentials provides indirection for tests.
-var hasTouchIDCredentials = touchid.HasCredentials
-
 // canDefaultToPasswordless checks without user interaction
 // if there is any registered passwordless login.
 func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) bool {
@@ -3707,7 +3760,7 @@ func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) b
 		user = tc.Username
 	}
 
-	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
+	return tc.hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
@@ -3919,77 +3972,11 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, secondFactor constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
-	var err error
-	var response *authclient.SSHLoginResponse
-
-	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
-	// (with a nop MFA challenge if no 2nd factor is required). That way we can
-	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		response, err = tc.directLogin(ctx, secondFactor, keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-		response, err = tc.mfaLocalLogin(ctx, keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
-	}
-
-	// Ignore username returned from proxy
-	response.Username = ""
-	return response, nil
-}
-
-// directLogin asks for a password + OTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+// localLogin asks for a password and performs an MFA ceremony.
+func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/directLogin",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	password, err := tc.AskPassword(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Only ask for a second factor if it's enabled.
-	var otpToken string
-	if secondFactorType == constants.SecondFactorOTP {
-		otpToken, err = tc.AskOTP(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sshLogin, err := tc.NewSSHLogin(keyRing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
-		SSHLogin: sshLogin,
-		User:     tc.Username,
-		Password: password,
-		OTPToken: otpToken,
-	})
-
-	return response, trace.Wrap(err)
-}
-
-// mfaLocalLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/mfaLocalLogin",
+		"teleportClient/localLogin",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -4010,7 +3997,6 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (
 		Password:             password,
 		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
-
 	return response, trace.Wrap(err)
 }
 
@@ -4057,58 +4043,40 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 // SSOLoginFunc is a function used in tests to mock SSO logins.
 type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.SSHLoginResponse, error)
 
-// TODO(atburke): DELETE in v17.0.0
-func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
-	switch proxyVersion.Major {
-	case 15:
-		return !proxyVersion.LessThan(*semver.New("15.2.5"))
-	case 14:
-		return !proxyVersion.LessThan(*semver.New("14.3.17"))
-	case 13:
-		return !proxyVersion.LessThan(*semver.New("13.4.22"))
-	default:
-		return proxyVersion.Major > 15
-	}
-}
-
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success
 // page and the resulting login session will be captured and returned.
-func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, protocol string) SSHLoginFunc {
+func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
 	return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
 		if tc.MockSSOLogin != nil {
 			// sso login response is being mocked for testing purposes
-			return tc.MockSSOLogin(ctx, connectorID, keyRing, protocol)
+			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
 		}
 
-		sshLogin, err := tc.NewSSHLogin(keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+		// Set SAMLSingleLogoutEnabled from server settings.
 		pr, err := tc.Ping(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		proxyVersion := semver.New(pr.ServerVersion)
-
-		if protocol == constants.SAML && pr.Auth.SAML != nil {
+		if connectorType == constants.SAML && pr.Auth.SAML != nil {
 			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
 		}
 
-		// ask the CA (via proxy) to sign our public key:
-		response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-			SSHLogin:                      sshLogin,
-			ConnectorID:                   connectorID,
-			ConnectorName:                 connectorName,
-			Protocol:                      protocol,
-			BindAddr:                      tc.BindAddr,
-			CallbackAddr:                  tc.CallbackAddr,
-			Browser:                       tc.Browser,
-			PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-			ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-		}, nil)
-		return response, trace.Wrap(err)
+		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer rd.Close()
+
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
+
+		resp, err := ssoCeremony.Run(ctx)
+		return resp, trace.Wrap(err)
 	}
 }
 
@@ -4135,7 +4103,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
@@ -4329,7 +4297,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		fmt.Fprintln(tc.Stderr, motd.Text)
 
 		// If possible, prompt the user for acknowledement before continuing.
-		if stdin := prompt.Stdin(); stdin.IsTerminal() {
+		if stdin := tc.stdin(); stdin.IsTerminal() {
 			// We're re-using the password reader for user acknowledgment for
 			// aesthetic purposes, because we want to hide any garbage the
 			// user might enter at the prompt. Whatever the user enters will
@@ -4710,11 +4678,11 @@ func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) 
 	)
 	defer span.End()
 
-	stdin := prompt.Stdin()
+	stdin := tc.stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform OTP login without a terminal")
 	}
-	return prompt.Password(ctx, tc.Stderr, prompt.Stdin(), "Enter your OTP token")
+	return prompt.Password(ctx, tc.Stderr, stdin, "Enter your OTP token")
 }
 
 // AskPassword prompts the user to enter the password
@@ -4726,7 +4694,7 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 	)
 	defer span.End()
 
-	stdin := prompt.Stdin()
+	stdin := tc.stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform password login without a terminal")
 	}
@@ -5173,7 +5141,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	fmt.Fprintf(tc.Stdout, "Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\n", headlessAuthn.ClientIpAddress)
 
 	if confirm {
-		ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), "Approve?")
+		ok, err := prompt.Confirmation(ctx, tc.Stdout, tc.stdin(), "Approve?")
 		if err != nil {
 			return trace.Wrap(err)
 		}

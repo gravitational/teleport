@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"log/slog"
+	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/provisioning"
+	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -49,6 +51,12 @@ type AWSAppAccessConfigureRequest struct {
 
 	// AccountID is the AWS Account ID.
 	AccountID string
+
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+
+	// stdout is used to override stdout output in tests.
+	stdout io.Writer
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -120,28 +128,20 @@ func ConfigureAWSAppAccess(ctx context.Context, awsClient AWSAppAccessConfigureC
 		return trace.Wrap(err)
 	}
 
-	awsAppAccessPolicyDocument, err := awslib.NewPolicyDocument(
+	policy := awslib.NewPolicyDocument(
 		awslib.StatementForAWSAppAccess(),
-	).Marshal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = awsClient.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     &req.IntegrationRoleAWSAppAccessPolicy,
-		RoleName:       &req.IntegrationRole,
-		PolicyDocument: &awsAppAccessPolicyDocument,
-	})
-	if err != nil {
-		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("role %q not found.", req.IntegrationRole)
-		}
-		return trace.Wrap(err)
-	}
-	slog.InfoContext(ctx, "IAM Inline Policy added to IAM Role",
-		"policy", req.IntegrationRoleAWSAppAccessPolicy,
-		"role", req.IntegrationRole,
 	)
+	putRolePolicy, err := awsactions.PutRolePolicy(awsClient, req.IntegrationRoleAWSAppAccessPolicy, req.IntegrationRole, policy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	return nil
+	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
+		Name: "aws-app-access-iam",
+		Actions: []provisioning.Action{
+			*putRolePolicy,
+		},
+		AutoConfirm: req.AutoConfirm,
+		Output:      req.stdout,
+	}))
 }

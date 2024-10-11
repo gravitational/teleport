@@ -45,7 +45,6 @@ import (
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -65,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -406,7 +406,6 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-
 }
 
 // Check if this request should be forwarded to an application handler to
@@ -517,8 +516,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				Burst:   defaults.LimiterBurst,
 			},
 		},
-		MaxConnections:   defaults.LimiterMaxConnections,
-		MaxNumberOfUsers: defaults.LimiterMaxConcurrentUsers,
+		MaxConnections: defaults.LimiterMaxConnections,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -532,8 +530,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				Burst:   defaults.LimiterHighBurst,
 			},
 		},
-		MaxConnections:   defaults.LimiterMaxConnections,
-		MaxNumberOfUsers: defaults.LimiterMaxConcurrentUsers,
+		MaxConnections: defaults.LimiterMaxConnections,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -778,7 +775,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
+	// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
 	h.POST("/webapi/ssh/certs", h.WithUnauthenticatedLimiter(h.createSSHCert))
+
+	h.POST("/webapi/headless/login", h.WithUnauthenticatedLimiter(h.headlessLogin))
 
 	// list available sites
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
@@ -870,7 +870,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
-	h.GET("/webapi/sites/:site/pods", h.WithClusterAuth(h.clusterKubePodsGet))
+	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -992,6 +992,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// SPIFFE Federation Trust Bundle
 	h.GET("/webapi/spiffe/bundle.json", h.WithLimiter(h.getSPIFFEBundle))
+	h.GET("/workload-identity/jwt-jwks.json", h.WithLimiter(h.getSPIFFEJWKS))
+	h.GET("/workload-identity/.well-known/openid-configuration", h.WithLimiter(h.getSPIFFEOIDCDiscoveryDocument))
 
 	// DiscoveryConfig CRUD
 	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
@@ -999,6 +1001,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigGet))
 	h.PUT("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigUpdate))
 	h.DELETE("/webapi/sites/:site/discoveryconfig/:name", h.WithClusterAuth(h.discoveryconfigDelete))
+
+	// User Tasks CRUD
+	// Listing Tasks by Integration: GET /webapi/sites/:site/usertask?integration=<integration-name>
+	h.GET("/webapi/sites/:site/usertask", h.WithClusterAuth(h.userTaskListByIntegration))
+	h.GET("/webapi/sites/:site/usertask/:name", h.WithClusterAuth(h.userTaskGet))
+	h.PUT("/webapi/sites/:site/usertask/:name/state", h.WithClusterAuth(h.userTaskStateUpdate))
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
@@ -1910,7 +1918,7 @@ func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
 
 // jwks returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) wellKnownJWKS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return h.jwks(r.Context(), types.JWTSigner)
+	return h.jwks(r.Context(), types.JWTSigner, true)
 }
 
 func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -1960,7 +1968,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	logger.Debug("Console login start.")
 
 	req := new(client.SSOLoginConsoleReq)
-	if err := httplib.ReadJSON(r, req); err != nil {
+	if err := httplib.ReadResourceJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
 		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
@@ -2099,9 +2107,12 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	feats := modules.GetModules().Features()
-	teleportPackage := teleport.ComponentTeleport
+	teleportPackage := types.PackageNameOSS
 	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
-		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
+		teleportPackage = types.PackageNameEnt
+		if h.cfg.FIPS {
+			teleportPackage = types.PackageNameEntFIPS
+		}
 	}
 
 	// By default, it uses the stable/v<majorVersion> channel.
@@ -2287,7 +2298,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *CreateSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2438,7 +2449,7 @@ type renewSessionRequest struct {
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2482,7 +2493,7 @@ type changeUserAuthenticationRequest struct {
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req changeUserAuthenticationRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2561,7 +2572,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 // This handler is also required for after creating new users.
 func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req authclient.CreateUserTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2638,7 +2649,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 // {"webauthn_challenge": {...}} // passwordless
 func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.MFAChallengeRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2647,12 +2658,20 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_Passwordless{
 			Passwordless: &proto.Passwordless{},
 		}
+
+		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		}
 	} else {
 		mfaReq.Request = &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 			UserCredentials: &proto.UserCredentials{
 				Username: req.User,
 				Password: []byte(req.Pass),
 			},
+		}
+
+		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		}
 	}
 
@@ -2681,7 +2700,7 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.AuthenticateSSHUserRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -2863,28 +2882,14 @@ type loginGetter interface {
 // When connecting to servers in a leaf cluster, the root certificate is used,
 // so we need to ensure that we only present the allowed logins that would
 // result in a successful connection, if any exists.
-func calculateSSHLogins(identity *tlsca.Identity, loginGetter loginGetter, r types.ResourceWithLabels, allowedLogins []string) ([]string, error) {
-	// TODO(tross) DELETE IN V17.0.0
-	// This is here for backward compatibility in case the auth server
-	// does not support enriched resources yet.
-	if len(allowedLogins) == 0 {
-		logins, err := loginGetter.GetAllowedLoginsForResource(r)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		slices.Sort(logins)
-		return logins, nil
-	}
-
-	localLogins := identity.Principals
-
+func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
 	allowed := make(map[string]struct{})
 	for _, login := range allowedLogins {
 		allowed[login] = struct{}{}
 	}
 
 	var logins []string
-	for _, local := range localLogins {
+	for _, local := range identity.Principals {
 		if _, ok := allowed[local]; ok {
 			logins = append(logins, local)
 		}
@@ -2892,22 +2897,6 @@ func calculateSSHLogins(identity *tlsca.Identity, loginGetter loginGetter, r typ
 
 	slices.Sort(logins)
 	return logins, nil
-}
-
-// calculateDesktopLogins determines the desktop logins allowed for the provided resource.
-// If no logins are provided, then the checker is interrogated to determine which logins
-// are allowed.
-//
-// TODO(tross) DELETE IN V17.0.0
-// This is here for backward compatibility if the auth server doesn't yet support enriching
-// resources with login information.
-func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels, allowedLogins []string) ([]string, error) {
-	if len(allowedLogins) > 0 {
-		return allowedLogins, nil
-	}
-
-	logins, err := loginGetter.GetAllowedLoginsForResource(r)
-	return logins, trace.Wrap(err)
 }
 
 // calculateAppLogins determines the app logins allowed for the provided
@@ -2991,7 +2980,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	for _, enriched := range page {
 		switch r := enriched.ResourceWithLabels.(type) {
 		case types.Server:
-			logins, err := calculateSSHLogins(identity, accessChecker, r, enriched.Logins)
+			logins, err := calculateSSHLogins(identity, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3066,12 +3055,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			logins, err := calculateDesktopLogins(accessChecker, r, enriched.Logins)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, logins, enriched.RequiresRequest))
+			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
@@ -3116,11 +3100,6 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := sctx.GetUserAccessChecker()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	uiServers := make([]ui.Server, 0, len(page.Resources))
 	for _, resource := range page.Resources {
 		server, ok := resource.ResourceWithLabels.(types.Server)
@@ -3128,7 +3107,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			continue
 		}
 
-		logins, err := calculateSSHLogins(identity, accessChecker, server, resource.Logins)
+		logins, err := calculateSSHLogins(identity, resource.Logins)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3197,7 +3176,7 @@ func (h *Handler) notificationsUpsertLastSeenTimestamp(w http.ResponseWriter, r 
 	}
 
 	var req *UpsertUserLastSeenNotificationRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3234,7 +3213,7 @@ func (h *Handler) notificationsUpsertNotificationState(w http.ResponseWriter, r 
 	}
 
 	var req *upsertUserNotificationStateRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3326,7 +3305,7 @@ func (h *Handler) createClusterLock(
 	site reversetunnelclient.RemoteSite,
 ) (interface{}, error) {
 	var req *createLockReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4095,6 +4074,8 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 // # Success response
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+//
+// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -4169,6 +4150,69 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return loginResp, nil
+}
+
+// headlessLogin is a web call that perform headless login based on a user's
+// name, returning new login certs if successful.
+//
+// POST /v1/webapi/headless/login
+//
+// { "user": "bob", "pub_key": "key to sign", "ttl": 1000000000 }
+//
+// # Success response
+//
+// { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req client.HeadlessLoginReq
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient := h.cfg.ProxyClient
+
+	authSSHUserReq := authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
+			Username:                 req.User,
+			SSHPublicKey:             req.SSHPubKey,
+			TLSPublicKey:             req.TLSPubKey,
+			ClientMetadata:           clientMetaFromReq(r),
+			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
+		},
+		CompatibilityMode:       req.Compatibility,
+		TTL:                     req.TTL,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		SSHAttestationStatement: req.SSHAttestationStatement,
+		TLSAttestationStatement: req.TLSAttestationStatement,
+	}
+
+	// We need to use the default callback timeout rather than the standard client timeout.
+	// However, authClient is shared across all Proxy->Auth requests, so we need to create
+	// a new client to avoid applying the callback timeout to other concurrent requests. To
+	// this end, we create a clone of the HTTP Client with the desired timeout instead.
+	httpClient, err := authClient.CloneHTTPClient(
+		authclient.ClientParamTimeout(defaults.HeadlessLoginTimeout),
+		authclient.ClientParamResponseHeaderTimeout(defaults.HeadlessLoginTimeout),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
+	if conn, err := authz.ConnFromContext(r.Context()); err == nil {
+		if err := conn.SetWriteDeadline(h.clock.Now().Add(defaults.HeadlessLoginTimeout)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	loginResp, err := httpClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4636,13 +4680,7 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 		return trace.Wrap(err)
 	}
 
-	err = limiter.RegisterRequest(remote, nil /* customRate */)
-	// MaxRateError doesn't play well with errors.Is, hence the type assertion.
-	var maxRateError *ratelimit.MaxRateError
-	if errors.As(err, &maxRateError) {
-		return trace.LimitExceeded(err.Error())
-	}
-	return trace.Wrap(err)
+	return trace.Wrap(limiter.RegisterRequest(remote, nil /* customRate */))
 }
 
 func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*SessionContext, error) {

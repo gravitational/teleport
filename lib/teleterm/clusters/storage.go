@@ -57,7 +57,7 @@ func (s *Storage) ListRootClusters() ([]*Cluster, error) {
 	clusters := make([]*Cluster, 0, len(pfNames))
 	for _, name := range pfNames {
 		cluster, _, err := s.fromProfile(name, "")
-		if err != nil {
+		if cluster == nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -232,20 +232,21 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	}
 
 	status, err := s.loadProfileStatusAndClusterKey(clusterClient, clusterNameForKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return &Cluster{
+	cluster := &Cluster{
 		URI:           clusterURI,
 		Name:          clusterClient.SiteName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
 		clock:         s.Clock,
-		status:        *status,
+		statusError:   err,
 		Log:           s.Log.WithField("cluster", clusterURI),
-	}, clusterClient, nil
+	}
+	if status != nil {
+		cluster.status = *status
+	}
+
+	return cluster, clusterClient, trace.Wrap(err)
 }
 
 func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportClient, clusterNameForKey string) (*client.ProfileStatus, error) {
@@ -281,6 +282,7 @@ func (s *Storage) makeDefaultClientConfig() *client.Config {
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
+	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
 	// Set AllowStdinHijack to true to enable daemon.mfaPrompt to ask for both TOTP and Webauthn at
 	// the same time if available.

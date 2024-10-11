@@ -21,8 +21,6 @@ import * as shared from 'shared/services/types';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
 
-export type PreferredMfaType = shared.PreferredMfaType;
-export type Auth2faType = shared.Auth2faType;
 export type AuthProviderType = shared.AuthProviderType;
 export type AuthType = shared.AuthType;
 
@@ -74,8 +72,6 @@ export type WebauthnLoginCredentialPrompt = {
 };
 
 export interface AuthSettings extends tsh.AuthSettings {
-  secondFactor: Auth2faType;
-  preferredMfa: PreferredMfaType;
   authType: AuthType;
   allowPasswordless: boolean;
   localConnectorName: string;

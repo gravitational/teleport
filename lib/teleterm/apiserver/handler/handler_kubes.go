@@ -24,8 +24,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination
@@ -41,6 +44,30 @@ func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.
 	}
 	for _, kube := range resp.Kubes {
 		response.Agents = append(response.Agents, newAPIKube(kube))
+	}
+
+	return response, nil
+}
+
+// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKubernetesResourcesRequest) (*api.ListKubernetesResourcesResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := s.DaemonService.ListKubernetesResources(ctx, clusterURI, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.ListKubernetesResourcesResponse{
+		NextKey: resp.NextKey,
+	}
+
+	for _, kubeResource := range resp.Resources {
+		response.Resources = append(response.Resources, newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI))
 	}
 
 	return response, nil
@@ -68,5 +95,25 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 		Name:   kube.KubernetesCluster.GetName(),
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
+	}
+}
+
+func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string, resourceURI uri.ResourceURI) *api.KubeResource {
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels())
+	apiLabels := APILabels{}
+	for _, uiLabel := range uiLabels {
+		apiLabels = append(apiLabels, &api.Label{
+			Name:  uiLabel.Name,
+			Value: uiLabel.Value,
+		})
+	}
+
+	return &api.KubeResource{
+		Uri:       resourceURI.AppendKube(kubeCluster).AppendKubeResourceNamespace(resource.GetName()).String(),
+		Kind:      resource.GetKind(),
+		Name:      resource.GetName(),
+		Labels:    apiLabels,
+		Namespace: resource.Spec.Namespace,
+		Cluster:   kubeCluster,
 	}
 }

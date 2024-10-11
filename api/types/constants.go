@@ -40,6 +40,8 @@ const (
 	PackageNameOSS = "teleport"
 	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
+	// PackageNameEntFIPS is the teleport package name for the Enterprise with FIPS enabled version.
+	PackageNameEntFIPS = "teleport-ent-fips"
 
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
@@ -583,7 +585,7 @@ const (
 )
 
 // PackageNameKinds is the list of valid teleport package names.
-var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -1027,6 +1029,11 @@ const (
 	// that's used by reverse tunnel agents to know which proxies in each proxy
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
+
+	// ProxyPeerQUICLabel is the internal-user label for proxy heartbeats that's
+	// used to signal that the proxy supports receiving proxy peering
+	// connections over QUIC.
+	ProxyPeerQUICLabel = TeleportInternalLabelPrefix + "proxy-peer-quic"
 
 	// OktaAppNameLabel is the individual app name label.
 	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"
