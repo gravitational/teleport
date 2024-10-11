@@ -1,9 +1,10 @@
 import React, { lazy } from 'react';
 import * as OSS from 'teleport/features';
 import {
-  ManagementSection,
   NavigationCategory,
+  ManagementSection,
 } from 'teleport/Navigation/categories';
+import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
 import {
   Add,
   Chart,
@@ -62,8 +63,11 @@ class FeatureUnifiedResources extends OSS.FeatureUnifiedResources {
 }
 
 class FeatureAccessRequests implements TeleportFeature {
-  route: TeleportFeatureRoute; // intentionally undefined
   category = NavigationCategory.Resources;
+  sideNavCategory = SideNavigationCategory.Identity;
+
+  route: TeleportFeatureRoute; // intentionally undefined
+
   navigationItem: TeleportFeatureNavigationItem = {
     isSelected: (clusterId: string, pathname: string) => {
       return (
@@ -87,6 +91,8 @@ class FeatureAccessRequests implements TeleportFeature {
 
 class FeatureNewAccessRequest implements TeleportFeature {
   category = NavigationCategory.Resources;
+  sideNavCategory = SideNavigationCategory.Identity;
+
   parent = FeatureAccessRequests;
 
   route = {
@@ -110,6 +116,7 @@ class FeatureNewAccessRequest implements TeleportFeature {
 
 class FeatureReviewAccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
+  sideNavCategory = SideNavigationCategory.Identity;
 
   parent = FeatureAccessRequests;
 
@@ -153,7 +160,6 @@ export class FeatureDiscoverE extends OSS.FeatureDiscover {
 // ****************************
 
 export class FeatureUsageSummary implements TeleportFeature {
-  category = NavigationCategory.Management;
   section = ManagementSection.Billing;
 
   route = {
@@ -168,9 +174,10 @@ export class FeatureUsageSummary implements TeleportFeature {
     );
   }
 
-  navigationItem = {
+  topMenuItem = {
     title: NavTitle.BillingSummary,
     icon: Chart,
+    exact: true,
     getLink(clusterId: string) {
       return cfg.getUsageSummarySummaryRoute(clusterId);
     },
@@ -227,6 +234,7 @@ class FeatureSupport implements TeleportFeature {
 class FeatureAccessMonitoring implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Identity;
+  sideNavCategory = SideNavigationCategory.Identity;
 
   route = {
     title: 'Access Monitoring',
@@ -260,6 +268,8 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
 class FeatureAccessListManagement implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Identity;
+  sideNavCategory = SideNavigationCategory.Identity;
+
   route = {
     title: 'Manage Access Lists',
     path: cfg.routes.accessLists,
@@ -284,8 +294,10 @@ class FeatureAccessListManagement implements TeleportFeature {
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Identity;
+  sideNavCategory = SideNavigationCategory.Identity;
+
   route = {
-    title: 'Manage Trusted Devices',
+    title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
     exact: true,
     component: DeviceTrust,
@@ -306,6 +318,8 @@ class FeatureDeviceTrust implements TeleportFeature {
 }
 
 class FeatureIntegrations extends OSS.FeatureIntegrations {
+  category = NavigationCategory.Management;
+
   route = {
     ...super.getRoute(),
     // Enterprise version includes the enterprise only
@@ -320,6 +334,8 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
 }
 
 class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
+  parent = FeatureIntegrations;
+
   route = {
     ...super.getRoute(),
     // Enterprise version includes creating both plugin
@@ -393,6 +409,7 @@ class FeatureUsersE extends OSS.FeatureUsers {
 class FeatureAccessGraph implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Permissions;
+  sideNavCategory = SideNavigationCategory.Policy;
 
   hideNavigation = true;
 
@@ -420,53 +437,50 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
     new FeatureUnifiedResources(),
-    new FeatureAccessRequests(),
-    new FeatureNewAccessRequest(),
-    new FeatureReviewAccessRequests(),
-    new OSS.FeatureSessions(),
 
     // Legacy links in the navigation for Houston
     new FeatureDownloadCenter(),
     new FeatureSupport(),
 
-    // Management
-
     // - Access
     new FeatureUsersE(),
+    new OSS.FeatureRoles(),
     new OSS.FeatureBots(),
     new OSS.FeatureAddBots(),
-    new FeatureAuthConnectors(),
     new OSS.FeatureJoinTokens(),
+    new FeatureAuthConnectors(),
     new FeatureIntegrations(),
-    new FeatureDiscoverE(),
     new FeatureIntegrationEnroll(),
     new FeatureIntegrationStatus(),
 
     // - Permissions
-    new OSS.FeatureRoles(),
-    new FeatureAccessGraph(),
+    new OSS.FeatureClusters(),
+    new OSS.FeatureTrust(),
 
     // - Identity
+    new FeatureAccessRequests(),
+    new FeatureNewAccessRequest(),
+    new FeatureReviewAccessRequests(),
     new FeatureAccessListManagement(),
     new OSS.FeatureLocks(),
     new FeatureNewLock(),
     new FeatureDeviceTrust(),
     new FeatureAccessMonitoring(),
 
-    // - Activity
-    new OSS.FeatureRecordings(),
+    // - Audit
     new OSS.FeatureAudit(),
+    new OSS.FeatureSessions(),
+    new OSS.FeatureRecordings(),
 
-    // - Usage / Billing
-    new FeatureUsageSummary(),
+    // - Policy
+    new FeatureAccessGraph(),
 
-    // - Clusters
-    new OSS.FeatureClusters(),
-    new OSS.FeatureTrust(),
+    new FeatureDiscoverE(),
 
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureUsageSummary(),
     new FeatureDeviceTrustWeb(),
   ];
 }

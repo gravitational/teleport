@@ -279,7 +279,6 @@ export function AccessLists() {
           <InputWrapper onSubmit={handleOnSubmitSearch}>
             <StyledInput
               placeholder="Search by title or description"
-              autoFocus
               max={100}
               defaultValue={searchValue}
               name="searchValue"
