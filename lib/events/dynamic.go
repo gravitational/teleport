@@ -438,6 +438,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CrownJewelUpdate{}
 	case CrownJewelDeleteEvent:
 		e = &events.CrownJewelDelete{}
+
+	case UserTaskCreateEvent:
+		e = &events.UserTaskCreate{}
+	case UserTaskUpdateEvent:
+		e = &events.UserTaskUpdate{}
+	case UserTaskDeleteEvent:
+		e = &events.UserTaskDelete{}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}
