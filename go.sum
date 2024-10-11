@@ -2093,8 +2093,6 @@ github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.8.8 h1:Zte3Oogkd8m+
 github.com/sigstore/sigstore/pkg/signature/kms/hashivault v1.8.8/go.mod h1:j00crVw6ki4/WViXflw0zWgNALrAzZT+GbIK8v7Xlz4=
 github.com/sigstore/timestamp-authority v1.2.2 h1:X4qyutnCQqJ0apMewFyx+3t7Tws00JQ/JonBiu3QvLE=
 github.com/sigstore/timestamp-authority v1.2.2/go.mod h1:nEah4Eq4wpliDjlY342rXclGSO7Kb9hoRrl9tqLW13A=
-github.com/sijms/go-ora/v2 v2.8.22-0.20241007173045-40067b5ae0ec h1:5cehPIMWAx+bhr9xptjgWMqXyJG2rPUquL/C1Ax0+G0=
-github.com/sijms/go-ora/v2 v2.8.22-0.20241007173045-40067b5ae0ec/go.mod h1:QgFInVi3ZWyqAiJwzBQA+nbKYKH77tdp1PYoCqhR2dU=
 github.com/sijms/go-ora/v2 v2.8.22 h1:3ABgRzVKxS439cEgSLjFKutIwOyhnyi4oOSBywEdOlU=
 github.com/sijms/go-ora/v2 v2.8.22/go.mod h1:QgFInVi3ZWyqAiJwzBQA+nbKYKH77tdp1PYoCqhR2dU=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
