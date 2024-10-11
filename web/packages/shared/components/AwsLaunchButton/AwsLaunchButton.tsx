@@ -108,7 +108,7 @@ function RoleItemList({
   closeMenu,
   onChange,
   onLaunchUrl,
-  isAwsIc
+  isAwsIc,
 }: Props & {
   closeMenu: () => void;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -121,7 +121,7 @@ function RoleItemList({
       text = `${text} (${name})`;
     }
     if (isAwsIc) {
-      text = name
+      text = name;
     }
     return (
       <StyledMenuItem

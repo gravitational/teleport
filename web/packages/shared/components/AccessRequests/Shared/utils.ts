@@ -41,7 +41,7 @@ export function getNumAddedResources(addedResources: ResourceMap) {
     Object.keys(addedResources.user_group).length +
     Object.keys(addedResources.windows_desktop).length +
     Object.keys(addedResources.saml_idp_service_provider).length +
-    Object.keys(addedResources.aws_iam_ic_account).length + 
+    Object.keys(addedResources.aws_iam_ic_account).length +
     Object.keys(addedResources.aws_iam_ic_account_assignment).length
   );
 }

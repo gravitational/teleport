@@ -160,25 +160,25 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     permission_sets,
   } = app;
   const { actions, userSamlIdPPerm } = useSamlAppAction();
-  
+
   if (awsConsole) {
     function getIcLaunchRoute(arn: string, display: string) {
-      return `${publicAddr}&role_name=${display}`
+      return `${publicAddr}&role_name=${display}`;
     }
     function getawsLaunchUrl(arn, display) {
       if (permission_sets) {
-      return getIcLaunchRoute(arn, display)
-        } else {
-          return cfg.getAppLauncherRoute({
-            fqdn,
-            clusterId,
-            publicAddr,
-            arn,
-          })
-        }
+        return getIcLaunchRoute(arn, display);
+      } else {
+        return cfg.getAppLauncherRoute({
+          fqdn,
+          clusterId,
+          publicAddr,
+          arn,
+        });
+      }
     }
 
-    const isAwsIc = !!permission_sets
+    const isAwsIc = !!permission_sets;
     return (
       <AwsLaunchButton
         width="123px"

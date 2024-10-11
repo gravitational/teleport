@@ -24,7 +24,6 @@ import Menu, { MenuItem } from 'design/Menu';
 
 import { PermissionSet } from 'shared/services/apps';
 
-
 type Props = {
   permissionSets: PermissionSet[];
   portalURL: string;
@@ -35,7 +34,7 @@ export class IdentityCenterLaunchButton extends React.Component<Props> {
   anchorEl: React.MutableRefObject<HTMLButtonElement> = React.createRef();
 
   render() {
-    const { permissionSets, portalURL,  } = this.props;
+    const { permissionSets, portalURL } = this.props;
     return (
       <>
         <ButtonBorder
@@ -46,7 +45,7 @@ export class IdentityCenterLaunchButton extends React.Component<Props> {
           href={this.props.portalURL}
         >
           Launch
-        </ButtonBorder>       
+        </ButtonBorder>
       </>
     );
   }

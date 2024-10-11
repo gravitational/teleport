@@ -18,7 +18,6 @@
 
 import { ResourceIdKind } from 'teleport/services/agents';
 
-
 /**
  * Maps a resource ID (usually agent name) to resource description (usually the
  * same, but not necessarily).

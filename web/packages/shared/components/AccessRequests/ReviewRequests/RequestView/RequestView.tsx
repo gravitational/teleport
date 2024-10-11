@@ -478,7 +478,7 @@ function Comment({
         >
           <StyledTable
             data={resources.map(resource => ({
-              clusterName: resource.id.clusterName,              
+              clusterName: resource.id.clusterName,
               kind: getPrettyResourceKind(resource.id.kind),
               friendlyName: resource.details.friendlyName,
               name: resource.details?.friendlyName || formattedName(resource),

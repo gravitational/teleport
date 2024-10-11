@@ -143,7 +143,6 @@ export const BlockedByStartTimeButton = ({
 /** Available request kinds for resource-based and role-based access requests. */
 export type ResourceKind = ResourceIdKind | 'role' | 'resource';
 
-
 export function getPrettyResourceKind(kind: ResourceKind): string {
   switch (kind) {
     case 'role':
@@ -167,7 +166,7 @@ export function getPrettyResourceKind(kind: ResourceKind): string {
     case 'aws_iam_ic_account':
       return 'AWS Identity Center Account';
     case 'aws_iam_ic_account_assignment':
-     return 'AWS Account Assignment';
+      return 'AWS Account Assignment';
     default:
       kind satisfies never;
       return kind;
