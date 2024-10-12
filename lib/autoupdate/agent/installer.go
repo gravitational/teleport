@@ -161,29 +161,6 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	return nil
 }
 
-func extract(dstDir string, src io.Reader, max uint64) error {
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return trace.Wrap(err)
-	}
-	free, err := utils.FreeDiskWithReserve(dstDir, reservedFreeDisk)
-	if err != nil {
-		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
-	}
-	// Bail if there's not enough free disk space at the target
-	if d := free - max; d < 0 {
-		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", dstDir, -d)
-	}
-	zr, err := gzip.NewReader(src)
-	if err != nil {
-		return trace.Errorf("requires gzip-compressed body: %v", err)
-	}
-	err = utils.Extract(zr, dstDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // makeURL to download the Teleport tgz.
 func makeURL(uriTmpl, version string, flags InstallFlags) (string, error) {
 	tmpl, err := template.New("uri").Parse(uriTmpl)
@@ -231,6 +208,7 @@ func readChecksum(path string) ([]byte, error) {
 func (li *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -302,6 +280,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 		return trace.Wrap(err)
 	}
 	free, err := utils.FreeDiskWithReserve(dstDir, li.ReservedFreeInstallDisk)
+
 	if err != nil {
 		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
 	}
