@@ -191,11 +191,11 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	}()
 	updater, err := autoupdate.NewAgentUpdater(autoupdate.AgentConfig{
 		VersionsDir: versionsDir,
+		Log:         plog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	updater.Log = plog
 	if err := updater.Disable(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -219,11 +219,11 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 
 	updater, err := autoupdate.NewAgentUpdater(autoupdate.AgentConfig{
 		VersionsDir: versionsDir,
+		Log:         plog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	updater.Log = plog
 	if err := updater.Enable(ctx, ccfg.AgentUserConfig); err != nil {
 		return trace.Wrap(err)
 	}

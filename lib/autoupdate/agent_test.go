@@ -224,6 +224,8 @@ func TestAgentUpdater_Enable(t *testing.T) {
 				// TODO(sclevine): add web API test including group verification
 				w.Write([]byte(`{}`))
 			}))
+			t.Cleanup(server.Close)
+
 			if tt.userCfg.Proxy == "" {
 				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
 			}

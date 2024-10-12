@@ -44,8 +44,6 @@ const (
 	checksumHexLen = 64
 )
 
-const reservedFreeDisk = 10_000_000 // 10 MiB
-
 // TeleportInstaller manages the creation and removal of installations
 // of Teleport.
 type TeleportInstaller struct {
@@ -53,8 +51,12 @@ type TeleportInstaller struct {
 	InstallDir string
 	// DownloadClient is an HTTP client for downloading Teleport.
 	DownloadClient *http.Client
-
+	// Log contains a logger.
 	Log *slog.Logger
+	// ReservedFreeTmpDisk is the amount of disk that must remain free in /tmp
+	ReservedFreeTmpDisk uint64
+	// ReservedFreeInstallDisk is the amount of disk that must remain free in the install directory.
+	ReservedFreeInstallDisk uint64
 }
 
 // Remove a Teleport version directory from InstallDir.
@@ -108,7 +110,8 @@ func (ti *TeleportInstaller) Install(ctx context.Context, version, template stri
 		}
 	}
 
-	freeTmp, err := utils.FreeDiskWithReserve(os.TempDir(), reservedFreeDisk)
+	// Verify that we have enough free temp space, then download tgz
+	freeTmp, err := utils.FreeDiskWithReserve(os.TempDir(), ti.ReservedFreeTmpDisk)
 	if err != nil {
 		return trace.Errorf("failed to calculate free disk: %w", err)
 	}
@@ -124,13 +127,13 @@ func (ti *TeleportInstaller) Install(ctx context.Context, version, template stri
 	}()
 	pathSum, err := ti.download(ctx, f, freeTmp, uri)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to download teleport: %w", err)
 	}
-	// Seek to the start of the temp file after writing
+
+	// Seek to the start of the tgz file after writing
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start of download: %w", err)
 	}
-
 	// Check integrity before decompression
 	if !bytes.Equal(newSum, pathSum) {
 		return trace.Errorf("mismatched checksum, download possibly corrupt")
@@ -138,42 +141,19 @@ func (ti *TeleportInstaller) Install(ctx context.Context, version, template stri
 	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(f)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to determine uncompressed size: %w", err)
 	}
 	// Seek to start of tgz after reading size
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start: %w", err)
 	}
-	if err := extract(versionDir, f, uint64(n)); err != nil {
-		return trace.Wrap(err)
+	if err := ti.extract(versionDir, f, uint64(n)); err != nil {
+		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
 	err = os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func extract(dstDir string, src io.Reader, max uint64) error {
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return trace.Wrap(err)
-	}
-	free, err := utils.FreeDiskWithReserve(dstDir, reservedFreeDisk)
-	if err != nil {
-		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
-	}
-	// Bail if there's not enough free disk space at the target
-	if d := free - max; d < 0 {
-		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", dstDir, -d)
-	}
-	zr, err := gzip.NewReader(src)
-	if err != nil {
-		return trace.Errorf("requires gzip-compressed body: %v", err)
-	}
-	err = utils.Extract(zr, dstDir)
-	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to write checksum: %w", err)
 	}
 	return nil
 }
@@ -215,6 +195,35 @@ func readChecksum(path string) ([]byte, error) {
 	return sum, nil
 }
 
+func (ti *TeleportInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := ti.DownloadClient.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
+	}
+
+	// Only attempt to read first 64 bytes
+	var buf bytes.Buffer
+	_, err = io.CopyN(&buf, resp.Body, 64)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sum, err := hex.DecodeString(buf.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sum, nil
+}
+
 func (ti *TeleportInstaller) download(ctx context.Context, w io.Writer, max uint64, url string) (sum []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -249,6 +258,29 @@ func (ti *TeleportInstaller) download(ctx context.Context, w io.Writer, max uint
 	return shaReader.Sum(nil), nil
 }
 
+func (ti *TeleportInstaller) extract(dstDir string, src io.Reader, max uint64) error {
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return trace.Wrap(err)
+	}
+	free, err := utils.FreeDiskWithReserve(dstDir, ti.ReservedFreeInstallDisk)
+	if err != nil {
+		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
+	}
+	// Bail if there's not enough free disk space at the target
+	if d := free - max; d < 0 {
+		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", dstDir, -d)
+	}
+	zr, err := gzip.NewReader(src)
+	if err != nil {
+		return trace.Errorf("requires gzip-compressed body: %v", err)
+	}
+	err = utils.Extract(zr, dstDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func uncompressedSize(f io.Reader) (int64, error) {
 	// NOTE: The gzip length trailer is very unreliable,
 	//   but we could optimize this in the future if
@@ -263,33 +295,4 @@ func uncompressedSize(f io.Reader) (int64, error) {
 		return 0, trace.Wrap(err)
 	}
 	return n, nil
-}
-
-func (ti *TeleportInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := ti.DownloadClient.Do(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
-	}
-
-	// Only attempt to read first 64 bytes
-	var buf bytes.Buffer
-	_, err = io.CopyN(&buf, resp.Body, 64)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sum, err := hex.DecodeString(buf.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sum, nil
 }

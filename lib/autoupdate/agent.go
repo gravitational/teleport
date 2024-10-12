@@ -42,8 +42,10 @@ import (
 const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
-	// configFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
+	// configFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
 	configFileName = "update.yaml"
+	// reservedFreeDisk is the minimum required free space left on disk during downloads.
+	reservedFreeDisk = 10_000_000
 )
 
 // AgentUpdateConfig metadata
@@ -101,14 +103,20 @@ func NewAgentUpdater(cfg AgentConfig) (*AgentUpdater, error) {
 		Transport: tr,
 		Timeout:   cfg.DownloadTimeout,
 	}
+	if cfg.Log == nil {
+		cfg.Log = slog.Default()
+	}
 	return &AgentUpdater{
-		Log:                slog.Default(),
+		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		VersionsDir:        cfg.VersionsDir,
 		Installer: &TeleportInstaller{
-			InstallDir:     cfg.VersionsDir,
-			DownloadClient: client,
+			InstallDir:              cfg.VersionsDir,
+			DownloadClient:          client,
+			Log:                     cfg.Log,
+			ReservedFreeTmpDisk:     reservedFreeDisk,
+			ReservedFreeInstallDisk: reservedFreeDisk,
 		},
 	}, nil
 }
@@ -128,6 +136,8 @@ type AgentUpdater struct {
 }
 
 type AgentConfig struct {
+	// Log contains a logger
+	Log *slog.Logger
 	// InsecureSkipVerify turns off TLS certificate verification.
 	InsecureSkipVerify bool
 	// DownloadTimeout is a timeout for file download requests.
