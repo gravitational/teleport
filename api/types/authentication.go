@@ -937,7 +937,6 @@ func (wal *WebauthnLocalAuth) Check() error {
 	return nil
 }
 
-
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
 	return r != RequireMFAType_OFF
