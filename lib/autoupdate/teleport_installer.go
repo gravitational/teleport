@@ -108,50 +108,70 @@ func (ti *TeleportInstaller) Install(ctx context.Context, version, template stri
 		}
 	}
 
-	tgz, pathSum, err := ti.download(ctx, uri)
+	freeTmp, err := utils.FreeDiskWithReserve(os.TempDir(), reservedFreeDisk)
+	if err != nil {
+		return trace.Errorf("failed to calculate free disk: %w", err)
+	}
+	f, err := os.CreateTemp("", "teleport-update-")
+	if err != nil {
+		return trace.Errorf("failed to create temporary file: %w", err)
+	}
+	defer func() {
+		_ = f.Close() // data never read after close
+		if err := os.Remove(f.Name()); err != nil {
+			ti.Log.WarnContext(ctx, "Failed to cleanup temporary download", "error", err)
+		}
+	}()
+	pathSum, err := ti.download(ctx, f, freeTmp, uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		if err := tgz.Close(); err != nil {
-			ti.Log.WarnContext(ctx, "Failed to cleanup temporary download after error", "error", err)
-		}
-	}()
+	// Seek to the start of the temp file after writing
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return trace.Errorf("failed seek to start of download: %w", err)
+	}
 
 	// Check integrity before decompression
 	if !bytes.Equal(newSum, pathSum) {
 		return trace.Errorf("mismatched checksum, download possibly corrupt")
 	}
 	// Get uncompressed size of the tgz
-	n, err := uncompressedSize(tgz)
+	n, err := uncompressedSize(f)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Seek to start of tgz after reading size
-	if _, err := tgz.Seek(0, io.SeekStart); err != nil {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start: %w", err)
 	}
-	if err := os.MkdirAll(versionDir, 0755); err != nil {
-		return trace.Wrap(err)
-	}
-	free, err := utils.FreeDiskWithReserve(versionDir, reservedFreeDisk)
-	if err != nil {
-		return trace.Errorf("failed to calculate free disk in %q: %w", versionDir, err)
-	}
-	// Bail if there's not enough free disk space at the target
-	if d := free - uint64(n); d < 0 {
-		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", versionDir, -d)
-	}
-	zr, err := gzip.NewReader(tgz)
-	if err != nil {
-		return trace.Errorf("requires gzip-compressed body: %v", err)
-	}
-	err = utils.Extract(zr, versionDir)
-	if err != nil {
+	if err := extract(versionDir, f, uint64(n)); err != nil {
 		return trace.Wrap(err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
 	err = os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func extract(dstDir string, src io.Reader, max uint64) error {
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return trace.Wrap(err)
+	}
+	free, err := utils.FreeDiskWithReserve(dstDir, reservedFreeDisk)
+	if err != nil {
+		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
+	}
+	// Bail if there's not enough free disk space at the target
+	if d := free - max; d < 0 {
+		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", dstDir, -d)
+	}
+	zr, err := gzip.NewReader(src)
+	if err != nil {
+		return trace.Errorf("requires gzip-compressed body: %v", err)
+	}
+	err = utils.Extract(zr, dstDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,78 +215,38 @@ func readChecksum(path string) ([]byte, error) {
 	return sum, nil
 }
 
-func (ti *TeleportInstaller) download(ctx context.Context, url string) (r io.ReadSeekCloser, sum []byte, err error) {
-	f, err := os.CreateTemp("", "teleport-update-")
-	if err != nil {
-		return nil, nil, trace.Errorf("failed to create temporary file: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			_ = f.Close()
-			if err := os.Remove(f.Name()); err != nil {
-				ti.Log.WarnContext(ctx, "Failed to cleanup temporary download after error", "error", err)
-			}
-		}
-	}()
-	free, err := utils.FreeDiskWithReserve(os.TempDir(), reservedFreeDisk)
-	if err != nil {
-		return nil, nil, trace.Errorf("failed to calculate free disk: %w", err)
-	}
-
+func (ti *TeleportInstaller) download(ctx context.Context, w io.Writer, max uint64, url string) (sum []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	resp, err := ti.DownloadClient.Do(req)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
+		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
 	}
-	ti.Log.InfoContext(ctx, "Downloading Teleport tarball", "path", f.Name(), "size", resp.ContentLength)
+	ti.Log.InfoContext(ctx, "Downloading Teleport tarball", "url", url, "size", resp.ContentLength)
 
 	// Ensure there's enough space in /tmp for the download.
 	size := resp.ContentLength
 	if size < 0 {
 		ti.Log.Warn("Content length missing from response, unable to verify Teleport download size")
-	} else if uint64(size) > free {
-		return nil, nil, trace.Errorf("size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, free)
+	} else if uint64(size) > max {
+		return nil, trace.Errorf("size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, max)
 	}
-
 	// Calculate checksum concurrently with download.
 	shaReader := sha256.New()
-	n, err := io.Copy(f, io.TeeReader(io.LimitReader(resp.Body, size), shaReader))
+	n, err := io.Copy(w, io.TeeReader(io.LimitReader(resp.Body, size), shaReader))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if resp.ContentLength >= 0 && n != resp.ContentLength {
-		return nil, nil, trace.Errorf("mismatch in Teleport download size")
+		return nil, trace.Errorf("mismatch in Teleport download size")
 	}
-
-	// Seek to the start of the temp file after writing
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return nil, nil, trace.Errorf("failed seek to start of download: %w", err)
-	}
-	return rmCloser{f}, shaReader.Sum(nil), nil
-}
-
-// rmCloser removes a file from disk after it is closed.
-type rmCloser struct {
-	*os.File
-}
-
-func (r rmCloser) Close() error {
-	err := r.File.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = os.Remove(r.File.Name())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return shaReader.Sum(nil), nil
 }
 
 func uncompressedSize(f io.Reader) (int64, error) {
