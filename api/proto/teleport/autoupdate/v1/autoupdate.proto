@@ -34,7 +34,26 @@ message AutoUpdateConfig {
 // AutoUpdateConfigSpec encodes the parameters of the autoupdate config object.
 message AutoUpdateConfigSpec {
   // ToolsAutoupdate encodes the feature flag to enable/disable tools autoupdates.
+  // Deprecated: use AutoUpdateConfigTools instead.
   bool tools_autoupdate = 1;
+
+  AutoUpdateConfigTools tools = 2;
+}
+
+// AutoUpdateConfigTools encodes the parameters for client tools auto updates.
+message AutoUpdateConfigTools {
+  // Mode defines state of the client tools auto update.
+  ToolsMode mode = 1;
+}
+
+// ToolsMode type for client tools enabling state.
+enum ToolsMode {
+  // TOOLS_MODE_UNSPECIFIED is undefined mode.
+  TOOLS_MODE_UNSPECIFIED = 0;
+  // TOOLS_MODE_ENABLED client tools auto update is enabled.
+  TOOLS_MODE_ENABLED = 1;
+  // TOOLS_MODE_DISABLED client tools auto update is disabled.
+  TOOLS_MODE_DISABLED = 2;
 }
 
 // AutoUpdateVersion is a resource singleton with version required for
@@ -51,5 +70,14 @@ message AutoUpdateVersion {
 // AutoUpdateVersionSpec encodes the parameters of the autoupdate versions.
 message AutoUpdateVersionSpec {
   // ToolsVersion is the semantic version required for tools autoupdates.
+  // Deprecated: use AutoUpdateVersionTools instead.
   string tools_version = 1;
+
+  AutoUpdateVersionTools tools = 2;
+}
+
+// AutoUpdateVersionTools encodes the parameters for client tools auto updates.
+message AutoUpdateVersionTools {
+  // TargetVersion is the semantic version required for tools autoupdates.
+  string target_version = 1;
 }
