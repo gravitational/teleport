@@ -140,13 +140,14 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		printMFADevices(devs, c.verbose)
+		asciiTable := mfaDevicesASCIITable(devs, c.verbose)
+		fmt.Fprintln(cf.Stdout(), asciiTable)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeMFADevices(devs, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", c.format)
 	}
@@ -165,7 +166,7 @@ func serializeMFADevices(devs []*types.MFADevice, format string) (string, error)
 	return string(out), trace.Wrap(err)
 }
 
-func printMFADevices(devs []*types.MFADevice, verbose bool) {
+func mfaDevicesASCIITable(devs []*types.MFADevice, verbose bool) string {
 	if verbose {
 		t := asciitable.MakeTable([]string{"Name", "ID", "Type", "Added at", "Last used"})
 		for _, dev := range devs {
@@ -177,19 +178,19 @@ func printMFADevices(devs []*types.MFADevice, verbose bool) {
 				dev.LastUsed.Format(time.RFC1123),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
-	} else {
-		t := asciitable.MakeTable([]string{"Name", "Type", "Added at", "Last used"})
-		for _, dev := range devs {
-			t.AddRow([]string{
-				dev.GetName(),
-				dev.MFAType(),
-				dev.AddedAt.Format(time.RFC1123),
-				dev.LastUsed.Format(time.RFC1123),
-			})
-		}
-		fmt.Println(t.AsBuffer().String())
+		return t.AsBuffer().String()
 	}
+
+	t := asciitable.MakeTable([]string{"Name", "Type", "Added at", "Last used"})
+	for _, dev := range devs {
+		t.AddRow([]string{
+			dev.GetName(),
+			dev.MFAType(),
+			dev.AddedAt.Format(time.RFC1123),
+			dev.LastUsed.Format(time.RFC1123),
+		})
+	}
+	return t.AsBuffer().String()
 }
 
 type mfaAddCommand struct {
