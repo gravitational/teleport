@@ -565,6 +565,8 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 		},
 		MFASettings: &types.SAMLConnectorMFASettings{
 			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
 		},
 	})
 	require.NoError(t, err)
