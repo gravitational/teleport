@@ -182,6 +182,7 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
     let username = from_c_string(params.go_username);
+    let client_id = from_c_string(params.go_client_id);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
@@ -190,6 +191,7 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
         ConnectParams {
             addr,
             username,
+            client_id,
             cert_der,
             key_der,
             screen_width: params.screen_width,
@@ -230,6 +232,7 @@ const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 pub struct CGOConnectParams {
     go_addr: *const c_char,
     go_username: *const c_char,
+    go_client_id: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,
@@ -244,6 +247,7 @@ pub struct CGOConnectParams {
 struct ConnectParams {
     addr: String,
     username: String,
+    client_id: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     screen_width: u16,
@@ -288,7 +292,7 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
         static_channels.push(cliprdr::CHANNEL_NAME.to_string())
     }
     mcs.connect(
-        "rdp-rs".to_string(),
+        params.client_id.clone(),
         params.screen_width,
         params.screen_height,
         KeyboardLayout::US,
@@ -304,6 +308,7 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
     }
     sec::connect(
         &mut mcs,
+        &params.client_id,
         &domain.to_string(),
         &params.username,
         &pin,
