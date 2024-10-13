@@ -60,6 +60,8 @@ Use this token to add an MDM service to Teleport.
 type TokensCommand struct {
 	config *servicecfg.Config
 
+	withSecrets bool
+
 	// format is the output format, e.g. text or json
 	format string
 
@@ -134,6 +136,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -382,6 +385,11 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 	// Sort by expire time.
 	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Expiry().Unix() < tokens[j].Expiry().Unix() })
 
+	nameFunc := (types.ProvisionToken).GetSafeName
+	if c.withSecrets {
+		nameFunc = (types.ProvisionToken).GetName
+	}
+
 	switch c.format {
 	case teleport.JSON:
 		err := utils.WriteJSONArray(c.stdout, tokens)
@@ -395,7 +403,7 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 		}
 	case teleport.Text:
 		for _, token := range tokens {
-			fmt.Fprintln(c.stdout, token.GetName())
+			fmt.Fprintln(c.stdout, nameFunc(token))
 		}
 	default:
 		tokensView := func() string {
@@ -403,12 +411,12 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
-				if !t.Expiry().IsZero() {
+				if !t.Expiry().IsZero() && t.Expiry().Unix() != 0 {
 					exptime := t.Expiry().Format(time.RFC822)
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
-				table.AddRow([]string{t.GetName(), t.GetRoles().String(), printMetadataLabels(t.GetMetadata().Labels), expiry})
+				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), printMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
 			return table.AsBuffer().String()
 		}
