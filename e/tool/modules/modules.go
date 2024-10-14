@@ -3,9 +3,7 @@ package modules
 import (
 	"context"
 	"crypto"
-	"crypto/sha256"
 	"fmt"
-	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -25,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -193,11 +192,7 @@ func (p *enterpriseModules) PrintVersion() {
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *enterpriseModules) IsBoringBinary() bool {
-	// Check the package name for one of the boring primitives, if the package
-	// path is from BoringCrypto, we know this binary was compiled against the
-	// dev.boringcrypto branch of Go.
-	hash := sha256.New()
-	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+	return native.IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key, either with the given statement or
