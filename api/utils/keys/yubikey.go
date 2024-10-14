@@ -692,29 +692,18 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 	defer c.mu.Unlock()
 
 	release := func() {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if c.activeConnections > 0 {
+		go func() {
+			time.Sleep(releaseConnectionDelay)
+
+			c.mu.Lock()
+			defer c.mu.Unlock()
+
 			c.activeConnections--
-		}
-
-		// If this is the last active connection, close after a delay,
-		// giving other callers a chance to claim the connection first.
-		if c.activeConnections == 0 {
-			go func() {
-				time.Sleep(releaseConnectionDelay)
-
-				c.mu.Lock()
-				defer c.mu.Unlock()
-
-				// Close the shared connection if there are still no new active connections,
-				// and the connection hasn't been yet closed by another goroutine.
-				if c.activeConnections == 0 && c.conn != nil {
-					c.conn.Close()
-					c.conn = nil
-				}
-			}()
-		}
+			if c.activeConnections == 0 {
+				c.conn.Close()
+				c.conn = nil
+			}
+		}()
 	}
 
 	if c.conn != nil {
