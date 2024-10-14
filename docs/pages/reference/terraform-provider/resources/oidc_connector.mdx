@@ -18,6 +18,7 @@ description: This page describes the supported values of the teleport_oidc_conne
 variable "oidc_secret" {}
 
 resource "teleport_oidc_connector" "example" {
+  version = "v3"
   metadata = {
     name = "example"
     labels = {
