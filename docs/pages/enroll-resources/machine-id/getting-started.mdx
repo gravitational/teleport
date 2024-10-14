@@ -74,9 +74,7 @@ database. For full details on how traits work in Teleport roles, see the
 [Teleport Access Controls
 Reference](../../reference/access-controls/roles.mdx).
 
-Machine ID can join with a token and multiple other join methods including the [IAM Method](../agents/join-services-to-your-cluster/aws-iam.mdx) on AWS.
-Using the IAM Method and other non-token join methods allows for re-joining if Machine-ID certificates expire. Certificates expire by default
-after an hour so a non-token method could be a better choice for machines that are shut down for long periods.
+Machine ID can join with a token or the [IAM Method](../agents/join-services-to-your-cluster/aws-iam.mdx) on AWS.
 
 Assuming that you are using the default `access` role, ensure that you use the 
 `--logins` flag when adding your bot to specify the SSH logins that you wish to 
