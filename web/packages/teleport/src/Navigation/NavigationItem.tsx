@@ -21,7 +21,7 @@ import styled, { css, keyframes } from 'styled-components';
 
 import { NavLink, useLocation } from 'react-router-dom';
 
-import { ExternalLinkIcon } from 'design/SVGIcon';
+import { ArrowSquareOut } from 'design/Icon';
 
 import { getIcon } from 'teleport/Navigation/utils';
 import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
@@ -249,7 +249,7 @@ export function NavigationItem(props: NavigationItemProps) {
             {navigationItem.title}
 
             <ExternalLinkIndicator>
-              <ExternalLinkIcon size={14} />
+              <ArrowSquareOut size="medium" />
             </ExternalLinkIndicator>
           </LinkContent>
         </ExternalLink>
