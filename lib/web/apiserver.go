@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -164,7 +165,7 @@ type Handler struct {
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
-	nodeWatcher *services.NodeWatcher
+	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
@@ -300,7 +301,7 @@ type Config struct {
 
 	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
-	NodeWatcher *services.NodeWatcher
+	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
@@ -3544,9 +3545,12 @@ func (h *Handler) siteNodeConnect(
 		WebsocketConn:      ws,
 		SSHDialTimeout:     dialTimeout,
 		HostNameResolver: func(serverID string) (string, error) {
-			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
+			matches, err := nw.CurrentResourcesWithFilter(r.Context(), func(n readonly.Server) bool {
 				return n.GetName() == serverID
 			})
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
 
 			if len(matches) != 1 {
 				return "", trace.NotFound("unable to resolve hostname for server %s", serverID)
