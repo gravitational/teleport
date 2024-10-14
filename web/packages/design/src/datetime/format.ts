@@ -40,7 +40,7 @@ export function displayDate(date: Date): string {
     }
     return format(date, DATE_FORMAT);
   } catch (err) {
-    logger.error('displayDate()', err);
+    logger.error('Could not format date', err);
     return 'undefined';
   }
 }
@@ -53,19 +53,10 @@ export function displayShortDate(date: Date): string {
     }
     return format(date, SHORT_DATE_FORMAT);
   } catch (err) {
-    logger.error('displayDate()', err);
+    logger.error('Could not format date', err);
     return 'undefined';
   }
 }
-
-/** Accepts a date and returns formatted as 'MM dd, yyyy'. */
-export function displayUnixShortDate(seconds: number): string {
-  // Multiply by 1000 b/c date constructor expects milliseconds.
-  const date = new Date(seconds * 1000);
-
-  return displayShortDate(date);
-}
-
 /** Accepts a date and returns formatted as 'yyyy-MM-dd HH:mm:ss'. */
 export function displayDateTime(date: Date): string {
   try {
@@ -74,7 +65,7 @@ export function displayDateTime(date: Date): string {
     }
     return format(date, DATE_TIME_FORMAT);
   } catch (err) {
-    logger.error('displayDateTime()', err);
+    logger.error('Could not format date', err);
     return 'undefined';
   }
 }
@@ -93,6 +84,11 @@ export function displayDateWithPrefixedTime(date: Date): string {
     logger.error('Could not format date', err);
     return 'undefined';
   }
+}
+
+/** Converts a UNIX timestamp do the Date object. */
+export function unixTimestampToDate(seconds: number): Date {
+  return new Date(seconds * 1000);
 }
 
 function dateToUtc(date: Date): Date {
