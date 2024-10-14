@@ -20,7 +20,12 @@ import { format } from 'date-fns';
 
 import { Logger } from 'design/logger';
 
-import { DATE_FORMAT, DATE_TIME_FORMAT, SHORT_DATE_FORMAT } from './constants';
+import {
+  DATE_FORMAT,
+  DATE_TIME_FORMAT,
+  SHORT_DATE_FORMAT,
+  DATE_WITH_PREFIXED_TIME_FORMAT,
+} from './constants';
 
 const DEFAULT_LOCALE = 'en-US';
 const isTest = process.env.NODE_ENV === 'test';
@@ -70,6 +75,22 @@ export function displayDateTime(date: Date): string {
     return format(date, DATE_TIME_FORMAT);
   } catch (err) {
     logger.error('displayDateTime()', err);
+    return 'undefined';
+  }
+}
+
+/**
+ * Accepts a date and returns formatted as `LL/dd/yyyy 'at' h:mma`.
+ * @TODO Consider removing this format https://github.com/gravitational/teleport/issues/39326.
+ * */
+export function displayDateWithPrefixedTime(date: Date): string {
+  try {
+    if (isTest) {
+      return format(dateToUtc(date), DATE_WITH_PREFIXED_TIME_FORMAT);
+    }
+    return format(date, DATE_WITH_PREFIXED_TIME_FORMAT);
+  } catch (err) {
+    logger.error('Could not format date', err);
     return 'undefined';
   }
 }

@@ -38,7 +38,7 @@ import {
 } from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import Table from 'design/DataTable';
-import { displayDateTime } from 'design/datetime';
+import { displayDateWithPrefixedTime } from 'design/datetime';
 
 import { LabelKind } from 'design/LabelState/LabelState';
 
@@ -161,9 +161,9 @@ export function RequestView({
     start: request.created,
     end: request.expires,
   });
-  let startingTime = displayDateTime(request.created);
+  let startingTime = displayDateWithPrefixedTime(request.created);
   if (request.assumeStartTime) {
-    startingTime = displayDateTime(request.assumeStartTime);
+    startingTime = displayDateWithPrefixedTime(request.assumeStartTime);
     requestedAccessTime = getFormattedDurationTxt({
       start: request.assumeStartTime,
       end: request.expires,

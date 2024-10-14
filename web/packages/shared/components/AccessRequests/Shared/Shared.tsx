@@ -19,7 +19,7 @@
 import React, { useState } from 'react';
 import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
 import { Info } from 'design/Icon';
-import { displayDate } from 'design/datetime';
+import { displayDateWithPrefixedTime } from 'design/datetime';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { AccessRequest } from 'shared/services/accessRequests';
@@ -116,7 +116,7 @@ export const ButtonPromotedInfo = ({
 };
 
 export function getAssumeStartTimeTooltipText(startTime: Date) {
-  const formattedDate = displayDate(startTime);
+  const formattedDate = displayDateWithPrefixedTime(startTime);
   return `Access is not available until the approved time of ${formattedDate}`;
 }
 

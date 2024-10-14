@@ -24,3 +24,6 @@ export const DATE_FORMAT = 'yyyy-MM-dd';
 
 /** Formats as "Dec 25, 2024". */
 export const SHORT_DATE_FORMAT = 'MMM dd, yyyy';
+
+/** Formats as "12/25/2024 at 12:00AM". */
+export const DATE_WITH_PREFIXED_TIME_FORMAT = `LL/dd/yyyy 'at' h:mma`;
