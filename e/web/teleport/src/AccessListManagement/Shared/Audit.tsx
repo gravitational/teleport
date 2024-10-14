@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { format } from 'date-fns';
 import styled from 'styled-components';
 import { Flex, LabelInput, Box } from 'design';
 import { Calendar as CalendarIcon } from 'design/Icon';
@@ -7,7 +6,7 @@ import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import cfg from 'shared/config';
+import { displayDate } from 'design/datetime';
 
 import {
   ReviewDayOfMonth,
@@ -140,7 +139,7 @@ export const CalendarDateSelect = ({
         borderRadius={2}
         dateSelected={Boolean(date)}
       >
-        <Box>{validDate ? format(date, cfg.dateFormat) : 'Select a Date'}</Box>
+        <Box>{validDate ? displayDate(date) : 'Select a Date'}</Box>
         <CalendarIcon />
       </CalendarInput>
       {showDatePicker && (

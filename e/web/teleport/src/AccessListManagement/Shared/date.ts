@@ -1,6 +1,4 @@
-import { format } from 'date-fns';
-
-import cfg from 'shared/config';
+import { displayDate } from 'design/datetime';
 
 export function getFormattedDate(d: Date) {
   if (!d || isNaN(d.getTime())) {
@@ -18,5 +16,5 @@ export function getFormattedDate(d: Date) {
     return '';
   }
 
-  return format(thisDate, cfg.dateFormat);
+  return displayDate(thisDate);
 }

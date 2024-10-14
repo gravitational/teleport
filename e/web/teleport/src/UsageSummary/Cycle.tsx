@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Flex, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 
-import { displayUnixShortDate } from 'shared/services/loc/loc';
+import { displayShortDate, unixTimestampToDate } from 'design/datetime';
 
 import { UsageQuota } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { CycleUsage } from 'e-teleport/UsageSummary/types';
@@ -24,8 +24,8 @@ export const Cycle = ({
   usageQuota: { mauMax, tprMax },
 }: CycleProps) => {
   const theme = useTheme();
-  const start = displayUnixShortDate(periodStart);
-  const end = displayUnixShortDate(periodEnd);
+  const start = displayShortDate(unixTimestampToDate(periodStart));
+  const end = displayShortDate(unixTimestampToDate(periodEnd));
 
   const mau = usageMau || 0;
   const pr = usagePr || 0;

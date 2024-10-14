@@ -1,9 +1,8 @@
 import React from 'react';
-import { format } from 'date-fns';
 
-import cfg from 'shared/config';
 import { Box, Flex, Text } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import { displayDateTime } from 'design/datetime';
 
 export const UpdatedAtDisplay = ({
   theme,
@@ -32,5 +31,5 @@ export const UpdatedAtDisplay = ({
 
 export function displayUnixDateTime(seconds: number) {
   // Multiply by 1000 b/c date constructor expects milliseconds.
-  return format(new Date(seconds * 1000), cfg.dateTimeFormat);
+  return displayDateTime(new Date(seconds * 1000));
 }
