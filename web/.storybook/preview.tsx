@@ -18,7 +18,7 @@
 
 import React, { ComponentType, PropsWithChildren } from 'react';
 import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
-import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
+import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
 import Box from '../packages/design/src/Box';
 import { StaticThemeProvider as TeletermThemeProvider } from '../packages/teleterm/src/ui/ThemeProvider';
 import {
@@ -49,7 +49,7 @@ function ThemeDecorator(props: PropsWithChildren<ThemeDecoratorProps>) {
     theme =
       props.theme === 'Dark Theme' ? teletermDarkTheme : teletermLightTheme;
   } else {
-    ThemeProvider = DefaultThemeProvider;
+    ThemeProvider = ConfiguredThemeProvider;
     switch (props.theme) {
       case 'Dark Theme':
         theme = darkTheme;

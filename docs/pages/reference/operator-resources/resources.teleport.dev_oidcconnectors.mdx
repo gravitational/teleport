@@ -29,7 +29,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |acr_values|string|ACR is an Authentication Context Class Reference value. The meaning of the ACR value is context-specific and varies for identity providers.|
 |allow_unverified_email|boolean|AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.|
 |claims_to_roles|[][object](#specclaims_to_roles-items)|ClaimsToRoles specifies a dynamic mapping from claims to roles.|
-|client_id|string|ClientID is the id of the authentication client (Teleport Auth server).|
+|client_id|string|ClientID is the id of the authentication client (Teleport Auth Service).|
 |client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |client_secret|string|ClientSecret is used to authenticate the client. This field supports secret lookup. See the operator documentation for more details.|
 |display|string|Display is the friendly name for this provider.|

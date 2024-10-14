@@ -42,6 +42,7 @@ export const EditorHeader = ({
       <H2>{isCreating ? 'Create a New Role' : role?.metadata.name}</H2>
       {!isCreating && (
         <HoverTooltip
+          position="bottom"
           tipContent={
             hasDeleteAccess
               ? 'Delete'

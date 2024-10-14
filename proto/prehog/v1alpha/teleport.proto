@@ -1398,6 +1398,38 @@ message DatabaseUserPermissionsUpdateEvent {
   int32 num_tables_permissions = 4;
 }
 
+// UserTaskStateEvent is emitted when a UserTask state changes.
+// This can happen when the Task is created, when it's manually
+// resolved by the user or when it changes back to being open
+// when the issue happens again.
+//
+// PostHog event: tp.usertask.state
+message UserTaskStateEvent {
+  // task_type is the identifier for the type of task.
+  // Eg, discover-ec2
+  //
+  // PostHog property: tp.usertask.task_type
+  string task_type = 1;
+
+  // issue_type is the identifier for the type of issue that occurred.
+  //
+  // PostHog property: tp.usertask.issue_type
+  string issue_type = 2;
+
+  // state identifies the new state for this task.
+  // One of: OPEN, RESOLVED
+  //
+  // PostHog property: tp.usertask.state
+  string state = 3;
+
+  // instances_count contains the number of instances that were affected by the issue
+  // This field is only present for the following task_types:
+  // - discover-ec2
+  //
+  // PostHog property: tp.usertask.discover_ec2.instances_count
+  int32 instances_count = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1550,6 +1582,8 @@ message SubmitEventRequest {
     AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
 
     UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+
+    UserTaskStateEvent user_task_state = 94;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

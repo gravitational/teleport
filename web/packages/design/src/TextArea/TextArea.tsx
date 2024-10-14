@@ -103,8 +103,7 @@ type StyledTextAreaProps = Omit<TextAreaProps, 'size'> & {
 const StyledTextArea = styled.textarea<StyledTextAreaProps>`
   appearance: none;
   border: 1px solid;
-  border-color: ${props =>
-    props.theme.colors.interactive.tonal.neutral[2].background};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -124,7 +123,7 @@ const StyledTextArea = styled.textarea<StyledTextAreaProps>`
 
   &:focus-visible {
     border-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+      props.theme.colors.interactive.solid.primary.default};
   }
 
   &::placeholder {
@@ -138,7 +137,7 @@ const StyledTextArea = styled.textarea<StyledTextAreaProps>`
 
   &:disabled {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     color: ${props => props.theme.colors.text.disabled};
     border-color: transparent;
   }
@@ -162,9 +161,9 @@ function error({
   }
 
   return {
-    borderColor: theme.colors.interactive.solid.danger.default.background,
+    borderColor: theme.colors.interactive.solid.danger.default,
     '&:hover': {
-      borderColor: theme.colors.interactive.solid.danger.default.background,
+      borderColor: theme.colors.interactive.solid.danger.default,
     },
   };
 }

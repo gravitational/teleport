@@ -70,6 +70,7 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
 	cfg.PreferOTP = tc.PreferOTP
 	cfg.AllowStdinHijack = tc.AllowStdinHijack
+	cfg.StdinFunc = tc.StdinFunc
 
 	if tc.WebauthnLogin != nil {
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin

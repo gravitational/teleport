@@ -283,6 +283,9 @@ const (
 	// ComponentProxySecureGRPC represents a secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
+	// ComponentUpdater represents the agent updater.
+	ComponentUpdater = "updater"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -407,10 +410,6 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
-
-	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
-	// todo(lxea): DELETE IN 17
-	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
 const (

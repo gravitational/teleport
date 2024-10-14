@@ -33,6 +33,7 @@ import {
 } from 'teleport/Integrations/shared';
 import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
 
 import { FinishDialog } from './FinishDialog';
 import { useAwsOidcIntegration } from './useAwsOidcIntegration';
@@ -146,7 +147,12 @@ export function AwsOidc() {
               ) : (
                 <ButtonSecondary
                   mb={3}
-                  onClick={() => generateAwsOidcConfigIdpScript(validator)}
+                  onClick={() =>
+                    generateAwsOidcConfigIdpScript(
+                      validator,
+                      AwsOidcPolicyPreset.Unspecified
+                    )
+                  }
                 >
                   Generate Command
                 </ButtonSecondary>

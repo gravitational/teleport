@@ -54,7 +54,7 @@ export const YamlEditor = ({
   }
 
   return (
-    <Flex flexDirection="column" flex="1" data-testid="yaml">
+    <Flex flexDirection="column" flex="1" data-testid="yaml-editor">
       <Flex flex="1" data-testid="text-editor-container">
         <TextEditor
           readOnly={isProcessing}
