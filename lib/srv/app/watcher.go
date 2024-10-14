@@ -65,7 +65,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to application resources and
 // registers/unregisters the proxied applications accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher, error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application], error) {
 	if len(s.c.ResourceMatchers) == 0 {
 		s.log.Debug("Not initializing application resource watcher.")
 		return nil, nil
@@ -78,6 +78,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 			// Log:       s.log,
 			Client: s.c.AccessPoint,
 		},
+		AppGetter: s.c.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -86,7 +87,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 		defer watcher.Close()
 		for {
 			select {
-			case apps := <-watcher.AppsC:
+			case apps := <-watcher.ResourcesC:
 				appsWithAddr := make(types.Apps, 0, len(apps))
 				for _, app := range apps {
 					appsWithAddr = append(appsWithAddr, s.guessPublicAddr(app))

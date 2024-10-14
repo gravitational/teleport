@@ -114,7 +114,7 @@ type server struct {
 
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
-	proxyWatcher *services.ProxyWatcher
+	proxyWatcher *services.GenericWatcher[types.Server]
 
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
@@ -307,9 +307,6 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		},
 		ProxiesC:    make(chan []types.Server, 10),
 		ProxyGetter: cfg.LocalAccessPoint,
-		ProxyDiffer: func(_, _ types.Server) bool {
-			return true // we always want to store the most recently heartbeated proxy
-		},
 	})
 	if err != nil {
 		cancel()
@@ -401,7 +398,7 @@ func (s *server) periodicFunctions() {
 			s.log.Debugf("Closing.")
 			return
 		// Proxies have been updated, notify connected agents about the update.
-		case proxies := <-s.proxyWatcher.ProxiesC:
+		case proxies := <-s.proxyWatcher.ResourcesC:
 			s.fanOutProxies(proxies)
 		case <-ticker.C:
 			if err := s.fetchClusterPeers(); err != nil {

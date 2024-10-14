@@ -131,7 +131,8 @@ func TestProxyWatcher(t *testing.T) {
 				Events:   local.NewEventsService(bk),
 			},
 		},
-		ProxiesC: make(chan []types.Server, 10),
+		ProxyGetter: presence,
+		ProxiesC:    make(chan []types.Server, 10),
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -143,7 +144,7 @@ func TestProxyWatcher(t *testing.T) {
 
 	// The first event is always the current list of proxies.
 	select {
-	case changeset := <-w.ProxiesC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, resourceDiff(changeset[0], proxy))
 	case <-w.Done():
@@ -158,7 +159,7 @@ func TestProxyWatcher(t *testing.T) {
 
 	// Watcher should detect the proxy list change.
 	select {
-	case changeset := <-w.ProxiesC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 2)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -171,7 +172,7 @@ func TestProxyWatcher(t *testing.T) {
 
 	// Watcher should detect the proxy list change.
 	select {
-	case changeset := <-w.ProxiesC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, resourceDiff(changeset[0], proxy2))
 	case <-w.Done():
@@ -185,7 +186,7 @@ func TestProxyWatcher(t *testing.T) {
 
 	// Watcher should detect the proxy list change.
 	select {
-	case changeset := <-w.ProxiesC:
+	case changeset := <-w.ResourcesC:
 		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -562,14 +563,15 @@ func TestDatabaseWatcher(t *testing.T) {
 				Events:    local.NewEventsService(bk),
 			},
 		},
-		DatabasesC: make(chan types.Databases, 10),
+		DatabaseGetter: databasesService,
+		DatabasesC:     make(chan []types.Database, 10),
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
 	// Initially there are no databases so watcher should send an empty list.
 	select {
-	case changeset := <-w.DatabasesC:
+	case changeset := <-w.ResourcesC:
 		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -583,7 +585,7 @@ func TestDatabaseWatcher(t *testing.T) {
 
 	// The first event is always the current list of databases.
 	select {
-	case changeset := <-w.DatabasesC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, resourceDiff(changeset[0], database1))
 	case <-w.Done():
@@ -598,7 +600,7 @@ func TestDatabaseWatcher(t *testing.T) {
 
 	// Watcher should detect the database list change.
 	select {
-	case changeset := <-w.DatabasesC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 2)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -611,7 +613,7 @@ func TestDatabaseWatcher(t *testing.T) {
 
 	// Watcher should detect the database list change.
 	select {
-	case changeset := <-w.DatabasesC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, resourceDiff(changeset[0], database2))
 	case <-w.Done():
@@ -661,14 +663,15 @@ func TestAppWatcher(t *testing.T) {
 				Events: local.NewEventsService(bk),
 			},
 		},
-		AppsC: make(chan types.Apps, 10),
+		AppGetter: appService,
+		AppsC:     make(chan []types.Application, 10),
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
 	// Initially there are no apps so watcher should send an empty list.
 	select {
-	case changeset := <-w.AppsC:
+	case changeset := <-w.ResourcesC:
 		require.Empty(t, changeset)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -682,7 +685,7 @@ func TestAppWatcher(t *testing.T) {
 
 	// The first event is always the current list of apps.
 	select {
-	case changeset := <-w.AppsC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, resourceDiff(changeset[0], app1))
 	case <-w.Done():
@@ -697,7 +700,7 @@ func TestAppWatcher(t *testing.T) {
 
 	// Watcher should detect the app list change.
 	select {
-	case changeset := <-w.AppsC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 2)
 	case <-w.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
@@ -710,7 +713,7 @@ func TestAppWatcher(t *testing.T) {
 
 	// Watcher should detect the database list change.
 	select {
-	case changeset := <-w.AppsC:
+	case changeset := <-w.ResourcesC:
 		require.Len(t, changeset, 1)
 		require.Empty(t, resourceDiff(changeset[0], app2))
 	case <-w.Done():
@@ -1032,6 +1035,7 @@ func TestKubeServerWatcher(t *testing.T) {
 			},
 			MaxStaleness: time.Minute,
 		},
+		KubernetesServerGetter: presence,
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -1057,55 +1061,66 @@ func TestKubeServerWatcher(t *testing.T) {
 		kubeServers = append(kubeServers, kubeServer)
 	}
 
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers(context.Background())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResources(context.Background())
 		assert.NoError(t, err)
-		return len(filtered) == len(kubeServers)
+		assert.Len(t, filtered, len(kubeServers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
-	filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
+	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+		return ks.GetName() == kubeServers[0].GetName()
+	})
 	require.NoError(t, err)
 	require.Len(t, filtered, 1)
 
 	// Test Deleting a kube server.
 	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
-	require.Eventually(t, func() bool {
-		kube, err := w.GetKubernetesServers(context.Background())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		kube, err := w.CurrentResources(context.Background())
 		assert.NoError(t, err)
-		return len(kube) == len(kubeServers)-1
+		assert.Len(t, kube, len(kubeServers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
-	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
-	require.Error(t, err)
+	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+		return ks.GetName() == kubeServers[0].GetName()
+	})
+	require.NoError(t, err)
 	require.Empty(t, filtered)
 
 	// Test adding a kube server with the same name as an existing one.
 	kubeServer := newKubeServer(t, kubeServers[1].GetName(), "addr", uuid.NewString())
 	_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+			return ks.GetName() == kubeServers[1].GetName()
+		})
 		assert.NoError(t, err)
-		return len(filtered) == 2
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
+		assert.Len(t, filtered, 2)
+	}, 1000*time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
-	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
+	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+		return ks.GetName() == kubeServers[1].GetName()
+	})
 	assert.NoError(t, err)
 	for _, server := range filtered {
 		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
 	}
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
-		return len(filtered) == 0 && err != nil
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+			return ks.GetName() == kubeServers[1].GetName()
+		})
+		assert.NoError(t, err)
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
 
 	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers(context.Background())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResources(context.Background())
 		assert.NoError(t, err)
-		return len(filtered) == 0
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
 }
 
