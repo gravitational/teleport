@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -267,7 +268,7 @@ type Server struct {
 	// cancelfn is used with ctx when stopping the discovery server
 	cancelfn context.CancelFunc
 	// nodeWatcher is a node watcher.
-	nodeWatcher *services.NodeWatcher
+	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// ec2Watcher periodically retrieves EC2 instances.
 	ec2Watcher *server.Watcher
@@ -777,13 +778,16 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	return nil
 }
 
-func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
-	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) error {
+	nodes, err := s.nodeWatcher.CurrentResourcesWithFilter(s.ctx, func(n readonly.Server) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]
 		return accountOK && instanceOK
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	var filtered []server.EC2Instance
 outer:
@@ -800,6 +804,7 @@ outer:
 		filtered = append(filtered, inst)
 	}
 	instances.Instances = filtered
+	return nil
 }
 
 func genEC2InstancesLogStr(instances []server.EC2Instance) string {
@@ -850,7 +855,9 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
 	totalInstancesFound := len(instances.Instances)
 	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
-		s.filterExistingEC2Nodes(instances)
+		if err := s.filterExistingEC2Nodes(instances); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	instancesAlreadyEnrolled := totalInstancesFound - len(instances.Instances)
@@ -904,9 +911,21 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 			continue
 		}
 
-		existingNode, err := s.nodeWatcher.GetNode(s.ctx, eiceNode.GetName())
+		existingNodes, err := s.nodeWatcher.CurrentResourcesWithFilter(s.ctx, func(s readonly.Server) bool {
+			return s.GetName() == eiceNode.GetName()
+		})
 		if err != nil && !trace.IsNotFound(err) {
 			s.Log.Warnf("Error finding the existing node with name %q: %v", eiceNode.GetName(), err)
+			continue
+		}
+
+		var existingNode types.Server
+		switch len(existingNodes) {
+		case 0:
+		case 1:
+			existingNode = existingNodes[0]
+		default:
+			s.Log.Warnf("Found multiple matching nodes with name %q", eiceNode.GetName())
 			continue
 		}
 
@@ -1064,7 +1083,7 @@ func (s *Server) findUnrotatedEC2Nodes(ctx context.Context) ([]types.Server, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	found := s.nodeWatcher.GetNodes(ctx, func(n services.Node) bool {
+	found, err := s.nodeWatcher.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool {
 		if n.GetSubKind() != types.SubKindOpenSSHNode {
 			return false
 		}
@@ -1077,6 +1096,9 @@ func (s *Server) findUnrotatedEC2Nodes(ctx context.Context) ([]types.Server, err
 
 		return mostRecentCertRotation.After(n.GetRotation().LastRotated)
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if len(found) == 0 {
 		return nil, trace.NotFound("no unrotated nodes found")
@@ -1118,13 +1140,18 @@ func (s *Server) handleEC2Discovery() {
 	}
 }
 
-func (s *Server) filterExistingAzureNodes(instances *server.AzureInstances) {
-	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+func (s *Server) filterExistingAzureNodes(instances *server.AzureInstances) error {
+	nodes, err := s.nodeWatcher.CurrentResourcesWithFilter(s.ctx, func(n readonly.Server) bool {
 		labels := n.GetAllLabels()
 		_, subscriptionOK := labels[types.SubscriptionIDLabel]
 		_, vmOK := labels[types.VMIDLabel]
 		return subscriptionOK && vmOK
 	})
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var filtered []*armcompute.VirtualMachine
 outer:
 	for _, inst := range instances.Instances {
@@ -1144,6 +1171,7 @@ outer:
 		filtered = append(filtered, inst)
 	}
 	instances.Instances = filtered
+	return nil
 }
 
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
@@ -1151,7 +1179,9 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.filterExistingAzureNodes(instances)
+	if err := s.filterExistingAzureNodes(instances); err != nil {
+		return trace.Wrap(err)
+	}
 	if len(instances.Instances) == 0 {
 		return trace.Wrap(errNoInstances)
 	}
@@ -1206,14 +1236,19 @@ func (s *Server) handleAzureDiscovery() {
 	}
 }
 
-func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
-	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) error {
+	nodes, err := s.nodeWatcher.CurrentResourcesWithFilter(s.ctx, func(n readonly.Server) bool {
 		labels := n.GetAllLabels()
 		_, projectIDOK := labels[types.ProjectIDLabelDiscovery]
 		_, zoneOK := labels[types.ZoneLabelDiscovery]
 		_, nameOK := labels[types.NameLabelDiscovery]
 		return projectIDOK && zoneOK && nameOK
 	})
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var filtered []*gcpimds.Instance
 outer:
 	for _, inst := range instances.Instances {
@@ -1230,6 +1265,7 @@ outer:
 		filtered = append(filtered, inst)
 	}
 	instances.Instances = filtered
+	return nil
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
@@ -1237,7 +1273,9 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.filterExistingGCPNodes(instances)
+	if err := s.filterExistingGCPNodes(instances); err != nil {
+		return trace.Wrap(err)
+	}
 	if len(instances.Instances) == 0 {
 		return trace.Wrap(errNoInstances)
 	}
@@ -1730,6 +1768,7 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 			Client:       s.AccessPoint,
 			MaxStaleness: time.Minute,
 		},
+		NodesGetter: s.AccessPoint,
 	})
 
 	return trace.Wrap(err)
