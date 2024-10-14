@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -2756,6 +2757,101 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 						t.Errorf("Audit event user mismatch: got=%q, want %q", event.User, test.token.User)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestService_CreateDeviceWebToken_unknownDevices(t *testing.T) {
+	const userTrustedDevices = "llama"
+	const userDevicesIndex = "alpaca"
+	allUsers := []string{userTrustedDevices, userDevicesIndex}
+
+	augmentWebFunc := &fakeAugmentWebFunc{}
+	emitter := &keyedEmitter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAugmentWebFunc(augmentWebFunc.function),
+		testenv.WithAuthorizer(&userAwareAuthorizer{
+			knownUsers:      allUsers,
+			authorizedUsers: allUsers,
+		}),
+		testenv.WithEmitter(emitter),
+	)
+
+	devicesService := env.DevicesService
+	identityService := env.IdentityService
+	ctx := context.Background()
+
+	// userTrustedDevices has:
+	// * 1 valid device (needed for a successful token)
+	// * 1 unknown device in its User.TrustedDeviceIDs list.
+	setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
+		user: userTrustedDevices,
+		devices: []*devicepb.Device{
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama-1",
+			},
+		},
+	})
+	const unknownDeviceID = "unknown-device-ID"
+	if _, err := identityService.UpdateAndSwapUser(ctx, userTrustedDevices, false /* withSecrets */, func(u types.User) (changed bool, err error) {
+		u.SetTrustedDeviceIDs(append(u.GetTrustedDeviceIDs(), unknownDeviceID))
+		return true, nil
+	}); err != nil {
+		t.Fatalf("UpdateAndSwapUser failed: %v", err)
+	}
+
+	// userDevicesIndex has:
+	// * 1 valid device (needed for a successful token)
+	// * 1 unknown device in its /devices/by_user index.
+	userDevicesIndexData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
+		user: userDevicesIndex,
+		devices: []*devicepb.Device{
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "alpaca-1",
+			},
+			{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "alpaca-2",
+			},
+		},
+	})
+	// A direct delete doesn't update the "/devices/by_user" index.
+	// High-level operations are well behaved, so we must resort to direct backend
+	// access.
+	key := backend.NewKey("devices", "id", userDevicesIndexData.devices[1].dev.Id)
+	be := identityService.Backend
+	if err := be.Delete(ctx, key); err != nil {
+		t.Fatalf("be.Delete(%q) failed: %v", key, err)
+	}
+
+	tests := []struct {
+		name string
+		user string
+	}{
+		{
+			name: "User.TrustedDeviceIDs has unknown device",
+			user: userTrustedDevices,
+		},
+		{
+			name: "/devices/by_user index has unknown device",
+			user: userDevicesIndex,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := devicesService.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+				Id:               unknownDeviceID,
+				WebSessionId:     "mysessionid", // unimportant
+				BrowserUserAgent: sampleUserAgentMacOS,
+				BrowserIp:        sampleIP,
+				User:             test.user,
+			}); err != nil {
+				t.Fatalf("CreateDeviceWebToken failed, want success: %v", err)
 			}
 		})
 	}

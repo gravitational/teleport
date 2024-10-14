@@ -1369,9 +1369,17 @@ func (s *Service) getDevicesByID(ctx context.Context, ids []string) ([]*devicepb
 		g.Go(func() error {
 			dev, err := s.storage.GetDeviceByID(ctx, id)
 			mu.Lock()
-			if err != nil {
+			switch {
+			case trace.IsNotFound(err):
+				// This could be for a few reasons:
+				// * Stale/manually edited User.TrustedDeviceIDs.
+				// * Stale /devices/by_user index.
+				// This has been observed in practice so it has to be handled
+				// gracefully.
+				s.logger.DebugContext(ctx, "Queried unknown device ID", "device_id", id)
+			case err != nil:
 				errs = append(errs, err)
-			} else {
+			default:
 				devs = append(devs, dev)
 			}
 			mu.Unlock()

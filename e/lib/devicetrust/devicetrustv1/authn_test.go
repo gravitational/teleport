@@ -1031,6 +1031,8 @@ func (u *userWebAuthnData) Close() {
 }
 
 func setupUserForDeviceWebAuthn(t *testing.T, env *testenv.E, opts setupUserWebAuthnOpts) *userWebAuthnData {
+	t.Helper()
+
 	devicesClient := env.DevicesClient
 	identity := env.IdentityService
 	ctx := context.Background()
