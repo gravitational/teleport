@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -254,18 +253,15 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		return nil, trace.BadParameter("plugin specified was not of type MsTeams")
 	}
 
-	msteams.ConfigureAppZip(targetDir, "app.zip", msteams.Payload{
+	w.Header().Add("Content-Type", "application/zip")
+	w.Header().Add("Content-Disposition", "attachment; filename=app.zip")
+	err = msteams.ConfigureAppZip(w, msteams.Payload{
 		AppID:      spec.Msteams.AppId,
 		TenantID:   spec.Msteams.TenantId,
 		TeamsAppID: spec.Msteams.TeamsAppId,
 	})
-
-	fileBytes, err := os.ReadFile(filepath.Join(targetDir, "app.zip"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	w.Header().Add("Content-Type", "application/zip")
-	w.Header().Add("Content-Disposition", "attachment; filename=app.zip")
-	w.Write(fileBytes)
 	return nil, nil
 }

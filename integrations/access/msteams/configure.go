@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -45,14 +46,15 @@ var (
 	zipFiles = []string{"manifest.json", "outline.png", "color.png"}
 )
 
-// Payload represents template Payload used by the manifest and config templates.
+// Payload represents template payloads used to generate config files
+// used by the Microsoft Teams plugin.
 type Payload struct {
 	// AppID is the Microsoft application ID.
-	AppID      string
+	AppID string
 	// AppSecret is the Microsoft application secret.
-	AppSecret  string
+	AppSecret string
 	// TenantID is the Microsoft Azure tenant ID.
-	TenantID   string
+	TenantID string
 	// TeamsAppID is the Microsoft Teams application ID.
 	TeamsAppID string
 }
@@ -91,7 +93,15 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 	if err := renderTemplateTo(configWriter, confTpl, p); err != nil {
 		return trace.Wrap(err)
 	}
-	ConfigureAppZip(targetDir, "app.zip", p)
+
+	zipWriter, err := os.Create(filepath.Join(targetDir, "app.zip"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer zipWriter.Close()
+
+	ConfigureAppZip(zipWriter, p)
+
 	printStep(&step, "Created app.zip")
 
 	fmt.Println()
@@ -104,65 +114,44 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 	return nil
 }
 
-func copyAssets(targetDir string) error {
+func ConfigureAppZip(zipWriter io.Writer, p Payload) error {
+
+	w := zip.NewWriter(zipWriter)
+	defer w.Close()
+
+	manifestWriter, err := w.Create("manifest.json")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := renderTemplateTo(manifestWriter, manifestTpl, p); err != nil {
+		return trace.Wrap(err)
+	}
+
+	copyAssets(w)
+	return nil
+}
+
+func copyAssets(zipWriter *zip.Writer) error {
 	a, err := assets.ReadDir("_tpl")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	for _, d := range a {
+		if !slices.Contains(zipFiles, d.Name()) {
+			continue
+		}
 		in, err := assets.Open(filepath.Join("_tpl", d.Name()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer in.Close()
 
-		out, err := os.Create(filepath.Join(targetDir, d.Name()))
+		out, err := zipWriter.Create(d.Name())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer out.Close()
 
-		_, err = io.Copy(out, in)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func ConfigureAppZip(targetDir, fileName string, p Payload) error {
-	manifestWriter, err := os.Create(filepath.Join(targetDir, "manifest.json"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer manifestWriter.Close()
-	if err := renderTemplateTo(manifestWriter, manifestTpl, p); err != nil {
-		return trace.Wrap(err)
-	}
-
-	copyAssets(targetDir)
-
-	z, err := os.Create(filepath.Join(targetDir, fileName))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer z.Close()
-
-	w := zip.NewWriter(z)
-	defer w.Close()
-
-	for _, n := range zipFiles {
-		in, err := os.Open(filepath.Join(targetDir, n))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer in.Close()
-
-		out, err := w.Create(n)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		_, err = io.Copy(out, in)
 		if err != nil {
 			return trace.Wrap(err)
