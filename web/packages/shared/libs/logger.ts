@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,10 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  displayDate,
-  displayDateTime,
-  displayUnixDate,
-  dateToUtc,
-} from './loc';
-export { displayDate, displayDateTime, displayUnixDate, dateToUtc };
+import { Logger } from 'design/logger';
+
+/** @deprecated Import { Logger } from 'design/logger'. */
+export { Logger };
+
+/**
+ * @deprecated Import { Logger } directly from 'design/logger' and create an instance
+ * Logger by calling `new Logger(name)` instead of using this factory method.
+ */
+export default {
+  create: (name?: string) => new Logger(name),
+};

@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,14 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-const cfg = {
-  dateTimeFormat: 'yyyy-MM-dd HH:mm:ss',
-  dateFormat: 'yyyy-MM-dd',
-  shortFormat: 'MMM dd, yyyy',
-  // Displays time as 12/25/2024 at 12:00AM
-  dateWithPrefixedTime: `LL/dd/yyyy 'at' h:mma`,
-  // Displays time as December 25, 2024
-  dateWithFullMonth: 'LLLL dd, yyyy',
-};
+import { displayDate, displayDateTime, dateTimeShortFormat } from './format';
 
-export default cfg;
+const testDate = new Date('2022-01-28T16:00:44.309Z');
+
+test('displayDate', () => {
+  const output = displayDate(testDate);
+
+  expect(output).toBe('2022-01-28');
+});
+
+test('displayDateTime', () => {
+  const output = displayDateTime(testDate);
+
+  expect(output).toBe('2022-01-28 16:00:44');
+});
+
+test('dateTimeShortFormat', () => {
+  expect(dateTimeShortFormat(testDate)).toEqual('4:00 PM');
+});

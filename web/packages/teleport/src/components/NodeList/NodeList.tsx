@@ -31,7 +31,22 @@ import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/Serv
 
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
-function NodeList(props: Props) {
+export function NodeList(props: {
+  nodes: Node[];
+  onLoginMenuOpen(serverId: string): { login: string; url: string }[];
+  onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
+  fetchNext: () => void;
+  fetchPrev: () => void;
+  fetchStatus: FetchStatus;
+  pageSize?: number;
+  params: ResourceFilter;
+  setParams: (params: ResourceFilter) => void;
+  setSort: (sort: SortType) => void;
+  pathname: string;
+  replaceHistory: (path: string) => void;
+  onLabelClick: (label: ResourceLabel) => void;
+  pageIndicators: PageIndicators;
+}) {
   const {
     nodes = [],
     onLoginMenuOpen,
@@ -139,7 +154,7 @@ const renderLoginCell = (
   );
 };
 
-export const renderAddressCell = ({ addr, tunnel }: Node) => (
+const renderAddressCell = ({ addr, tunnel }: Node) => (
   <Cell>{tunnel ? renderTunnel() : addr}</Cell>
 );
 
@@ -153,22 +168,3 @@ function renderTunnel() {
     </span>
   );
 }
-
-type Props = {
-  nodes: Node[];
-  onLoginMenuOpen(serverId: string): { login: string; url: string }[];
-  onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
-  fetchNext: () => void;
-  fetchPrev: () => void;
-  fetchStatus: FetchStatus;
-  pageSize?: number;
-  params: ResourceFilter;
-  setParams: (params: ResourceFilter) => void;
-  setSort: (sort: SortType) => void;
-  pathname: string;
-  replaceHistory: (path: string) => void;
-  onLabelClick: (label: ResourceLabel) => void;
-  pageIndicators: PageIndicators;
-};
-
-export default NodeList;
