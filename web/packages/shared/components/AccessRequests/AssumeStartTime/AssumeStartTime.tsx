@@ -26,7 +26,7 @@ import { Flex, Box, LabelInput, ButtonIcon } from 'design';
 import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
 import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 import { ButtonSecondary } from 'design/Button';
-import { displayDate } from 'design/datetime';
+import { displayShortDate } from 'design/datetime';
 
 import Validation from 'shared/components/Validation';
 import FieldSelect from 'shared/components/FieldSelect';
@@ -118,7 +118,7 @@ export function AssumeStartTime({
 
   const startOrRequestedDate = start || accessRequest.assumeStartTime;
   if (!wantImmediate && startOrRequestedDate) {
-    startDateText = displayDate(startOrRequestedDate);
+    startDateText = displayShortDate(startOrRequestedDate);
     startTime = convertStartToTimeOption(
       startOrRequestedDate,
       !start && !!accessRequest.assumeStartTime
