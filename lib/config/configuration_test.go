@@ -4346,6 +4346,53 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
+			desc:          "GCP section is filled with wildcard project ids",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"*"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"gke"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				ProjectIDs: []string{"*"},
+			}},
+		},
+		{
+			desc:          "GCP section mixes wildcard and specific project ids",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"p1", "*"},
+					},
+				}
+			},
+		},
+		{
 			desc:          "GCP section is filled with installer",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
