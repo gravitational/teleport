@@ -35,6 +35,8 @@ service NotificationService {
 
   // CreateGlobalNotification creates a global notification.
   rpc CreateGlobalNotification(CreateGlobalNotificationRequest) returns (GlobalNotification);
+  // UpsertGlobalNotification upserts a global notification by its name.
+  rpc UpsertGlobalNotification(UpsertGlobalNotificationRequest) returns (GlobalNotification);
   // DeleteGlobalNotification deletes a global notification.
   rpc DeleteGlobalNotification(DeleteGlobalNotificationRequest) returns (google.protobuf.Empty);
 
@@ -97,6 +99,12 @@ message ListNotificationsResponse {
 // CreateGlobalNotificationRequest is the request for creating a global notification.
 message CreateGlobalNotificationRequest {
   // global_notification is the global notification to create.
+  GlobalNotification global_notification = 1;
+}
+
+// UpsertGlobalNotificationRequest is the request for upserging a global notification.
+message UpsertGlobalNotificationRequest {
+  // global_notification is the global notification to upsert.
   GlobalNotification global_notification = 1;
 }
 

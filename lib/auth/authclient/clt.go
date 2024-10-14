@@ -731,6 +731,13 @@ func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notifications
 	return rsp, trace.Wrap(err)
 }
 
+// UpsertGlobalNotification upserts a global notification.
+func (c *Client) UpsertGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	return c.APIClient.UpsertGlobalNotification(ctx, &notificationsv1.UpsertGlobalNotificationRequest{
+		GlobalNotification: gn,
+	})
+}
+
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
@@ -804,11 +811,6 @@ func (c *Client) ListUserNotifications(ctx context.Context, pageSize int, startK
 // ListUserNotificationStates not implemented: can only be called locally.
 func (c *Client) ListUserNotificationStates(ctx context.Context, username string, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
 	return nil, "", trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertGlobalNotification not implemented: can only be called locally.
-func (c *Client) UpsertGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertUserNotification not implemented: can only be called locally.

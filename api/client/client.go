@@ -4989,6 +4989,12 @@ func (c *Client) CreateGlobalNotification(ctx context.Context, req *notification
 	return rsp, trace.Wrap(err)
 }
 
+// UpsertGlobalNotification upserts a global notification.
+func (c *Client) UpsertGlobalNotification(ctx context.Context, req *notificationsv1pb.UpsertGlobalNotificationRequest) (*notificationsv1pb.GlobalNotification, error) {
+	rsp, err := c.NotificationServiceClient().UpsertGlobalNotification(ctx, req)
+	return rsp, trace.Wrap(err)
+}
+
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, req *notificationsv1pb.CreateUserNotificationRequest) (*notificationsv1pb.Notification, error) {
 	rsp, err := c.NotificationServiceClient().CreateUserNotification(ctx, req)

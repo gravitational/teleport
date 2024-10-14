@@ -40,6 +40,7 @@ const (
 	NotificationService_CreateUserNotification_FullMethodName         = "/teleport.notifications.v1.NotificationService/CreateUserNotification"
 	NotificationService_DeleteUserNotification_FullMethodName         = "/teleport.notifications.v1.NotificationService/DeleteUserNotification"
 	NotificationService_CreateGlobalNotification_FullMethodName       = "/teleport.notifications.v1.NotificationService/CreateGlobalNotification"
+	NotificationService_UpsertGlobalNotification_FullMethodName       = "/teleport.notifications.v1.NotificationService/UpsertGlobalNotification"
 	NotificationService_DeleteGlobalNotification_FullMethodName       = "/teleport.notifications.v1.NotificationService/DeleteGlobalNotification"
 	NotificationService_ListNotifications_FullMethodName              = "/teleport.notifications.v1.NotificationService/ListNotifications"
 	NotificationService_UpsertUserNotificationState_FullMethodName    = "/teleport.notifications.v1.NotificationService/UpsertUserNotificationState"
@@ -58,6 +59,8 @@ type NotificationServiceClient interface {
 	DeleteUserNotification(ctx context.Context, in *DeleteUserNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateGlobalNotification creates a global notification.
 	CreateGlobalNotification(ctx context.Context, in *CreateGlobalNotificationRequest, opts ...grpc.CallOption) (*GlobalNotification, error)
+	// UpsertGlobalNotification upserts a global notification by its name.
+	UpsertGlobalNotification(ctx context.Context, in *UpsertGlobalNotificationRequest, opts ...grpc.CallOption) (*GlobalNotification, error)
 	// DeleteGlobalNotification deletes a global notification.
 	DeleteGlobalNotification(ctx context.Context, in *DeleteGlobalNotificationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListNotifications returns a paginated list of a user's notifications.
@@ -100,6 +103,16 @@ func (c *notificationServiceClient) CreateGlobalNotification(ctx context.Context
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GlobalNotification)
 	err := c.cc.Invoke(ctx, NotificationService_CreateGlobalNotification_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notificationServiceClient) UpsertGlobalNotification(ctx context.Context, in *UpsertGlobalNotificationRequest, opts ...grpc.CallOption) (*GlobalNotification, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GlobalNotification)
+	err := c.cc.Invoke(ctx, NotificationService_UpsertGlobalNotification_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +171,8 @@ type NotificationServiceServer interface {
 	DeleteUserNotification(context.Context, *DeleteUserNotificationRequest) (*emptypb.Empty, error)
 	// CreateGlobalNotification creates a global notification.
 	CreateGlobalNotification(context.Context, *CreateGlobalNotificationRequest) (*GlobalNotification, error)
+	// UpsertGlobalNotification upserts a global notification by its name.
+	UpsertGlobalNotification(context.Context, *UpsertGlobalNotificationRequest) (*GlobalNotification, error)
 	// DeleteGlobalNotification deletes a global notification.
 	DeleteGlobalNotification(context.Context, *DeleteGlobalNotificationRequest) (*emptypb.Empty, error)
 	// ListNotifications returns a paginated list of a user's notifications.
@@ -184,6 +199,9 @@ func (UnimplementedNotificationServiceServer) DeleteUserNotification(context.Con
 }
 func (UnimplementedNotificationServiceServer) CreateGlobalNotification(context.Context, *CreateGlobalNotificationRequest) (*GlobalNotification, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGlobalNotification not implemented")
+}
+func (UnimplementedNotificationServiceServer) UpsertGlobalNotification(context.Context, *UpsertGlobalNotificationRequest) (*GlobalNotification, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertGlobalNotification not implemented")
 }
 func (UnimplementedNotificationServiceServer) DeleteGlobalNotification(context.Context, *DeleteGlobalNotificationRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteGlobalNotification not implemented")
@@ -268,6 +286,24 @@ func _NotificationService_CreateGlobalNotification_Handler(srv interface{}, ctx 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NotificationServiceServer).CreateGlobalNotification(ctx, req.(*CreateGlobalNotificationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NotificationService_UpsertGlobalNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertGlobalNotificationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotificationServiceServer).UpsertGlobalNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NotificationService_UpsertGlobalNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotificationServiceServer).UpsertGlobalNotification(ctx, req.(*UpsertGlobalNotificationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -362,6 +398,10 @@ var NotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateGlobalNotification",
 			Handler:    _NotificationService_CreateGlobalNotification_Handler,
+		},
+		{
+			MethodName: "UpsertGlobalNotification",
+			Handler:    _NotificationService_UpsertGlobalNotification_Handler,
 		},
 		{
 			MethodName: "DeleteGlobalNotification",

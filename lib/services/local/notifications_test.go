@@ -166,6 +166,14 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	// Test deleting a notification.
 	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
 	require.NoError(t, err)
+
+	// Recreate notification using the same name.
+	_, err = service.UpsertGlobalNotification(ctx, globalNotification1)
+	require.NoError(t, err)
+	// Test deleting it again.
+	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
+	require.NoError(t, err)
+
 	// Test deleting a notification that doesn't exist.
 	err = service.DeleteGlobalNotification(ctx, "invalid-id")
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to notification invalid-id not existing", err)

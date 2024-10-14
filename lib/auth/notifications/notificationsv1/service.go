@@ -517,6 +517,29 @@ func (s *Service) CreateGlobalNotification(ctx context.Context, req *notificatio
 	return out, nil
 }
 
+// UpsertGlobalNotification upserts a global notification.
+func (s *Service) UpsertGlobalNotification(ctx context.Context, req *notificationsv1.UpsertGlobalNotificationRequest) (*notificationsv1.GlobalNotification, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := s.backend.UpsertGlobalNotification(ctx, req.GlobalNotification)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
 // CreateUserNotification creates a user-specific notification.
 func (s *Service) CreateUserNotification(ctx context.Context, req *notificationsv1.CreateUserNotificationRequest) (*notificationsv1.Notification, error) {
 	if req.Username == "" {
