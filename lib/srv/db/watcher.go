@@ -69,7 +69,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to database resources and
 // registers/unregisters the proxied databases accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWatcher, error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Database], error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
 		s.log.DebugContext(ctx, "Not starting database resource watcher.")
 		return nil, nil
@@ -81,6 +81,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 			Logger:    s.log,
 			Client:    s.cfg.AccessPoint,
 		},
+		DatabaseGetter: s.cfg.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -90,7 +91,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 		defer watcher.Close()
 		for {
 			select {
-			case databases := <-watcher.DatabasesC:
+			case databases := <-watcher.ResourcesC:
 				s.monitoredDatabases.setResources(databases)
 				select {
 				case s.reconcileCh <- struct{}{}:
