@@ -16,4 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+export { Navigation as SideNavigation } from './SideNavigation/Navigation';
 export { Navigation } from './Navigation';

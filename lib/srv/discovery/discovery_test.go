@@ -1162,6 +1162,24 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			},
 			wantEvents: 2,
 		},
+		{
+			name:                 "no clusters in auth server, import 3 prod clusters from GKE across multiple projects",
+			existingKubeClusters: []types.KubeCluster{},
+			gcpMatchers: []types.GCPMatcher{
+				{
+					Types:      []string{"gke"},
+					Locations:  []string{"*"},
+					ProjectIDs: []string{"*"},
+					Tags:       map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[4], mainDiscoveryGroup),
+			},
+			wantEvents: 3,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1175,6 +1193,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
 				GCPGKE:         newPopulatedGCPMock(),
+				GCPProjects:    newPopulatedGCPProjectsMock(),
 			}
 
 			ctx := context.Background()
@@ -1649,6 +1668,28 @@ var gkeMockClusters = []gcp.GKECluster{
 		Location:    "central-1",
 		Description: "desc1",
 	},
+	{
+		Name:   "cluster5",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "prod",
+			"location": "central-1",
+		},
+		ProjectID:   "p2",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster6",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "stg",
+			"location": "central-1",
+		},
+		ProjectID:   "p2",
+		Location:    "central-1",
+		Description: "desc1",
+	},
 }
 
 func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
@@ -1664,7 +1705,15 @@ type mockGKEAPI struct {
 }
 
 func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, location string) ([]gcp.GKECluster, error) {
-	return m.clusters, nil
+	var clusters []gcp.GKECluster
+	for _, cluster := range m.clusters {
+		if cluster.ProjectID != projectID {
+			continue
+		}
+		clusters = append(clusters, cluster)
+	}
+
+	return clusters, nil
 }
 
 func TestDiscoveryDatabase(t *testing.T) {
@@ -2550,12 +2599,21 @@ type mockGCPClient struct {
 	vms []*gcpimds.Instance
 }
 
-func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcpimds.Instance, error) {
-	return m.vms, nil
+func (m *mockGCPClient) getVMSForProject(projectID string) []*gcpimds.Instance {
+	var vms []*gcpimds.Instance
+	for _, vm := range m.vms {
+		if vm.ProjectID == projectID {
+			vms = append(vms, vm)
+		}
+	}
+	return vms
+}
+func (m *mockGCPClient) ListInstances(_ context.Context, projectID, _ string) ([]*gcpimds.Instance, error) {
+	return m.getVMSForProject(projectID), nil
 }
 
-func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcpimds.Instance] {
-	return stream.Slice(m.vms)
+func (m *mockGCPClient) StreamInstances(_ context.Context, projectID, _ string) stream.Stream[*gcpimds.Instance] {
+	return stream.Slice(m.getVMSForProject(projectID))
 }
 
 func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcpimds.InstanceRequest) (*gcpimds.Instance, error) {
@@ -2649,6 +2707,37 @@ func TestGCPVMDiscovery(t *testing.T) {
 			wantInstalledInstances: []string{"myinstance"},
 		},
 		{
+			name:       "no nodes present, 2 found for different projects",
+			presentVMs: []types.Server{},
+			foundGCPVMs: []*gcpimds.Instance{
+				{
+					ProjectID: "p1",
+					Zone:      "myzone",
+					Name:      "myinstance1",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+				{
+					ProjectID: "p2",
+					Zone:      "myzone",
+					Name:      "myinstance2",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			staticMatchers: Matchers{
+				GCP: []types.GCPMatcher{{
+					Types:      []string{"gce"},
+					ProjectIDs: []string{"*"},
+					Locations:  []string{"myzone"},
+					Labels:     types.Labels{"teleport": {"yes"}},
+				}},
+			},
+			wantInstalledInstances: []string{"myinstance1", "myinstance2"},
+		},
+		{
 			name: "nodes present, instance filtered",
 			presentVMs: []types.Server{
 				&types.ServerV2{
@@ -2733,6 +2822,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				GCPInstances: &mockGCPClient{
 					vms: tc.foundGCPVMs,
 				},
+				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
 
 			ctx := context.Background()
@@ -3172,5 +3262,29 @@ func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryGro
 		}
 	default:
 		require.FailNow(t, "unknown cloud resource type %T", r)
+	}
+}
+
+type mockProjectsAPI struct {
+	gcp.ProjectsClient
+	projects []gcp.Project
+}
+
+func (m *mockProjectsAPI) ListProjects(ctx context.Context) ([]gcp.Project, error) {
+	return m.projects, nil
+}
+
+func newPopulatedGCPProjectsMock() *mockProjectsAPI {
+	return &mockProjectsAPI{
+		projects: []gcp.Project{
+			{
+				ID:   "p1",
+				Name: "project1",
+			},
+			{
+				ID:   "p2",
+				Name: "project2",
+			},
+		},
 	}
 }

@@ -18,10 +18,10 @@
 
 import React from 'react';
 
-import { displayDate } from 'shared/services/loc';
-
 import { Label, Flex } from 'design';
 import * as Icons from 'design/Icon';
+
+import { displayDate } from '../datetime';
 
 import {
   ServersideProps,

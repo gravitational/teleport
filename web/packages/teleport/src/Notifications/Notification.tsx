@@ -300,11 +300,11 @@ function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
     return `
         background: transparent;
         &:hover {
-          background: ${theme.colors.interactive.tonal.neutral[0].background};
+          background: ${theme.colors.interactive.tonal.neutral[0]};
         }
         &:active {
           outline: none;
-          background: ${theme.colors.interactive.tonal.neutral[1].background};
+          background: ${theme.colors.interactive.tonal.neutral[1]};
         }
         &:focus {
           outline: ${theme.borders[2]} ${theme.colors.text.slightlyMuted};
@@ -313,16 +313,16 @@ function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
   }
 
   return `
-    background: ${theme.colors.interactive.tonal.primary[0].background};
+    background: ${theme.colors.interactive.tonal.primary[0]};
     &:hover {
-      background: ${theme.colors.interactive.tonal.primary[1].background};
+      background: ${theme.colors.interactive.tonal.primary[1]};
     }
     &:active {
       outline: none;
-      background: ${theme.colors.interactive.tonal.primary[2].background};
+      background: ${theme.colors.interactive.tonal.primary[2]};
     }
     &:focus {
-      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default.background};
+      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default};
     }
     `;
 }
@@ -372,28 +372,28 @@ function getIconColors(
   switch (type) {
     case 'success':
       return {
-        primary: theme.colors.interactive.solid.success.active.background,
-        secondary: theme.colors.interactive.tonal.success[0].background,
+        primary: theme.colors.interactive.solid.success.active,
+        secondary: theme.colors.interactive.tonal.success[0],
       };
     case 'success-alt':
       return {
-        primary: theme.colors.interactive.solid.accent.active.background,
-        secondary: theme.colors.interactive.tonal.informational[0].background,
+        primary: theme.colors.interactive.solid.accent.active,
+        secondary: theme.colors.interactive.tonal.informational[0],
       };
     case 'informational':
       return {
         primary: theme.colors.brand,
-        secondary: theme.colors.interactive.tonal.primary[0].background,
+        secondary: theme.colors.interactive.tonal.primary[0],
       };
     case `warning`:
       return {
-        primary: theme.colors.interactive.solid.alert.active.background,
-        secondary: theme.colors.interactive.tonal.alert[0].background,
+        primary: theme.colors.interactive.solid.alert.active,
+        secondary: theme.colors.interactive.tonal.alert[0],
       };
     case 'failure':
       return {
         primary: theme.colors.error.main,
-        secondary: theme.colors.interactive.tonal.danger[0].background,
+        secondary: theme.colors.interactive.tonal.danger[0],
       };
   }
 }

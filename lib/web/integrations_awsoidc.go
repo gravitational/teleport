@@ -620,11 +620,6 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := sctx.GetIdentity()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -632,10 +627,11 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 
 	servers := make([]ui.Server, 0, len(listResp.Servers))
 	for _, s := range listResp.Servers {
-		logins, err := calculateSSHLogins(identity, accessChecker, s, nil)
+		logins, err := accessChecker.GetAllowedLoginsForResource(s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		slices.Sort(logins)
 
 		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins, false /* requiresRequest */))
 	}

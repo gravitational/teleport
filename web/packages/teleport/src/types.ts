@@ -25,6 +25,8 @@ import {
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 
+import { NavigationCategory as SideNavigationCategory } from './Navigation/SideNavigation/categories';
+
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
@@ -82,7 +84,7 @@ export enum NavTitle {
   AuditLog = 'Audit Log',
 
   // Billing
-  BillingSummary = 'Summary',
+  BillingSummary = 'Billing Summary',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
@@ -106,6 +108,10 @@ export interface TeleportFeatureRoute {
 export interface TeleportFeature {
   parent?: new () => TeleportFeature | null;
   category?: NavigationCategory;
+  // TODO(rudream): Delete category field above and rename sideNavCategory field to category once old nav is removed.
+  sideNavCategory?: SideNavigationCategory;
+  /** standalone is whether this feature has no subsections */
+  standalone?: boolean;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
