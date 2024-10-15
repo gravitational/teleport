@@ -125,7 +125,7 @@ func (ai *LocalAgentInstaller) Install(ctx context.Context, version, template st
 			ai.Log.WarnContext(ctx, "Failed to cleanup temporary download.", "error", err)
 		}
 	}()
-	pathSum, err := ai.download(ctx, f, freeTmp, uri)
+	pathSum, err := ai.download(ctx, f, int64(freeTmp), uri)
 	if err != nil {
 		return trace.Errorf("failed to download teleport: %w", err)
 	}
@@ -147,7 +147,7 @@ func (ai *LocalAgentInstaller) Install(ctx context.Context, version, template st
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start: %w", err)
 	}
-	if err := ai.extract(ctx, versionDir, f, uint64(n)); err != nil {
+	if err := ai.extract(ctx, versionDir, f, n); err != nil {
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
@@ -224,7 +224,7 @@ func (ai *LocalAgentInstaller) getChecksum(ctx context.Context, url string) ([]b
 	return sum, nil
 }
 
-func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max uint64, url string) (sum []byte, err error) {
+func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max int64, url string) (sum []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -243,12 +243,13 @@ func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max ui
 	size := resp.ContentLength
 	if size < 0 {
 		ai.Log.Warn("Content length missing from response, unable to verify Teleport download size")
-	} else if uint64(size) > max {
+		size = max
+	} else if size > max {
 		return nil, trace.Errorf("size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, max)
 	}
 	// Calculate checksum concurrently with download.
 	shaReader := sha256.New()
-	n, err := io.Copy(w, io.TeeReader(io.LimitReader(resp.Body, size), shaReader))
+	n, err := io.CopyN(w, io.TeeReader(resp.Body, shaReader), size)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -258,7 +259,7 @@ func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max ui
 	return shaReader.Sum(nil), nil
 }
 
-func (ai *LocalAgentInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max uint64) error {
+func (ai *LocalAgentInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return trace.Wrap(err)
 	}
@@ -267,7 +268,7 @@ func (ai *LocalAgentInstaller) extract(ctx context.Context, dstDir string, src i
 		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
 	}
 	// Bail if there's not enough free disk space at the target
-	if d := free - max; d < 0 {
+	if d := int64(free) - max; d < 0 {
 		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", dstDir, -d)
 	}
 	zr, err := gzip.NewReader(src)
