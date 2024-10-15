@@ -70,6 +70,7 @@ export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   }
 
   return {
+    totpChallenge: json.totp_challenge,
     webauthnPublicKey: webauthnPublicKey,
   };
 }
