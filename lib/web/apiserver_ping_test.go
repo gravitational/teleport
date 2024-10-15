@@ -278,7 +278,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			name: "enable auto update",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigTools{
-					Mode: autoupdatev1pb.ToolsMode_TOOLS_MODE_ENABLED,
+					Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 				},
 			},
 			expected: webclient.AutoUpdateSettings{ToolsMode: "enabled"},
@@ -298,7 +298,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			name: "enable auto update and set version",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigTools{
-					Mode: autoupdatev1pb.ToolsMode_TOOLS_MODE_ENABLED,
+					Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 				},
 			},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
@@ -312,7 +312,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			name: "modify auto update config and version",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigTools{
-					Mode: autoupdatev1pb.ToolsMode_TOOLS_MODE_DISABLED,
+					Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
 				},
 			},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{

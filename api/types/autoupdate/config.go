@@ -63,11 +63,11 @@ func ValidateAutoUpdateConfig(c *autoupdate.AutoUpdateConfig) error {
 }
 
 // ToolsModeToAPI transforms client tools mode enum to API string representation.
-func ToolsModeToAPI(mode autoupdate.ToolsMode) string {
+func ToolsModeToAPI(mode autoupdate.ToolsUpdateMode) string {
 	switch mode {
-	case autoupdate.ToolsMode_TOOLS_MODE_ENABLED:
+	case autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED:
 		return "enabled"
-	case autoupdate.ToolsMode_TOOLS_MODE_DISABLED:
+	case autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED:
 		return "disabled"
 	default:
 		return ""
