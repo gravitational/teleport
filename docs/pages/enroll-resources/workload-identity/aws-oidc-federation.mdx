@@ -91,7 +91,10 @@ for your Teleport cluster.
 
 ### Create an OpenID Connect Identity Provider
 
-First, you'll need to create a
+First, you'll need to create an OIDC identity provider in AWS. This will define
+a trust relationship between AWS and your Teleport cluster's Workload Identity
+issuer. You can reuse this OIDC identity provider to grant different workloads
+using Teleport Workload Identity access to AWS services.
 
 When configuring the provider, you need to specify the issuer URI. This will be
 the public address of your Teleport Proxy Service with the path
@@ -101,8 +104,14 @@ by AWS in order for OIDC federation to work.
 <Tabs>
 <TabItem label="Terraform">
 
-When using the AWS Terraform Provider, you must also determine the thumbprint of
-the certificate used by the Teleport Proxy Service.
+Before you can configure the OIDC identity provider, you need to determine the
+thumbprint of the TLS certificate used by your Teleport Proxy Service. You can
+do this using `curl`:
+
+```code
+$ curl https://example.teleport.sh/webapi/thumbprint
+"example589ee4bf31a11b78c72b8d13f0example"%
+```
 
 ```hcl
 resource "aws_iam_openid_connect_provider" "leaf_tele_ottr_sh_workload_identity" {
@@ -115,21 +124,15 @@ resource "aws_iam_openid_connect_provider" "leaf_tele_ottr_sh_workload_identity"
     ]
 
     thumbprint_list = [
-        "5f28d9c589ee4bf31a11b78c72b8d13f079ddc45"
+        // Replace with the thumbprint you determined using curl.
+        "example589ee4bf31a11b78c72b8d13f0example"
     ]
 }
 ```
 
 </TabItem>
 <TabItem label="AWS Console">
-Use the `aws` CLI to create an OpenID connect identity provider:
 
-```code
-# Replace "workload-id-pool" with a meaningful, unique name.
-$ aws iam create-open-id-connect-provider \
-    --url "https://example.teleport.sh/workload-identity" \
-    --client-id-list "sts.amazonaws.com"
-```
 
 </TabItem>
 
@@ -137,71 +140,85 @@ $ aws iam create-open-id-connect-provider \
 
 ### Create an S3 bucket and RBAC
 
-For the purposes of this guide, we'll be granting the workload access to an
+For the purposes of this guide, you'll be granting the workload access to an
 AWS S3 bucket. You can substitute this step to grant access to a different
 service within AWS of your choice.
 
-To grant our workload access to the bucket, we'll create a new IAM role for it
-to assume, and create an IAM policy that grants the necessary permissions to
-bucket.
+First, you'll create an IAM role. This role will be assumed by the workload
+after it authenticates to AWS using the JWT SVID issued by Teleport Workload
+Identity.
 
-When creating the IAM role, we'll create a trust policy that controls which
+When creating the IAM role, you'll define a trust policy that controls which
 workload identities are able to assume the role. This policy will contain
 conditions which will be evaluated against the claims within the JWT SVID
 issued by Teleport Workload Identity.
+
+With the IAM role created, you will then attach an IAM policy to it to define
+what privileges the workload will have when it assumes the role.
 
 <Tabs>
 <TabItem label="Terraform">
 
 ```hcl
-resource "google_storage_bucket" "demo" {
-    // Replace with a meaningful, unique name.
-    name          = "example"
-    location      = "EU"
-    force_destroy = true
-
-    uniform_bucket_level_access = true
+// Create an S3 bucket
+resource "aws_s3_bucket" "example" {
+    // Replace "example" with a meaningful, unique name.
+    bucket = "workload-id-demo"
 }
 
-locals {
-    // Replace with the SPIFFE ID of the workload that will access the bucket.
-    allow_spiffe_id = "spiffe://example.teleport.sh/svc/example-service"
+// Create a role that the workload identity will assume.
+resource "aws_iam_role" "example" {
+    // Choose a unique, meaningful name that describes the role and the workload
+    // that will assume it.
+    name = "workload-id-demo"
+    assume_role_policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [{
+            Effect = "Allow"
+            Principal = {
+                Federated = aws_iam_openid_connect_provider.example.arn
+            }
+            Action = "sts:AssumeRoleWithWebIdentity"
+            Condition = {
+                StringEquals = {
+                    "${aws_iam_openid_connect_provider.example.url}:aud" = "sts.amazonaws.com"
+                    "${aws_iam_openid_connect_provider.example.url}:sub" = "spiffe://example.teleport.sh/svc/example-service"
+                }
+            }
+        }]
+    })
 }
 
-resource "google_storage_bucket_iam_binding" "binding" {
-    bucket = google_storage_bucket.demo.name
-    role = "roles/storage.admin"
-    members = [
-        "principal://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.leaf_cluster.workload_identity_pool_id}/subject/${local.allow_spiffe_id}",
-    ]
+resource "aws_iam_policy" "example" {
+    // Choose a unique, meaningful name that describes what the policy grants
+    // access to.
+    name        = "workload-id-s3-full-access"
+    path        = "/"
+
+    // This example policy grants full access to AWS S3. In production, you
+    // may wish to grant a less permissive policy.
+    policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [{
+            Action = "s3:*"
+            Effect = "Allow"
+            Resource = [
+                aws_s3_bucket.workload_id_demo.arn,
+                "${aws_s3_bucket.workload_id_demo.arn}/*"
+            ]
+        }]
+    })
+}
+
+// Attach the policy to the role
+resource "aws_iam_role_policy_attachment" "example" {
+    role       = aws_iam_role.example.name
+    policy_arn = aws_iam_policy.example.arn
 }
 ```
 
 </TabItem>
 <TabItem label="AWS Console">
-
-Create a storage bucket using the `gcloud` CLI:
-
-```code
-# Replace "example" with a meaningful, unique name.
-$ gcloud storage buckets create gs://example \
-    --location=EU \
-    --uniform-bucket-level-access
-```
-
-Use the `gcloud` CLI to grant our workload access to the bucket:
-
-```code
-$ ROLE="roles/storage.admin"
-# Replace PROJECT_NUMBER with your GCP project number.
-$ PROJECT_NUMBER="123456789000"
-# Replace POOL_ID with the ID of the Workload Identity Pool you created.
-$ POOL_ID="workload-id-pool"
-# Replace SPIFFE_ID with the SPIFFE ID of the workload that will access the bucket.
-$ SPIFFE_ID="spiffe://example.teleport.sh/svc/example-service"
-$ MEMBER="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/subject/${SPIFFE_ID}"
-$ gcloud storage buckets add-iam-policy-binding gs://example --member=$MEMBER --role=$ROLE
-```
 
 </TabItem>
 </Tabs>
@@ -217,7 +234,7 @@ Create `role.yaml` with the following content:
 kind: role
 version: v6
 metadata:
-  name: my-workload-gcp
+  name: my-workload-aws
 spec:
   allow:
     spiffe:
@@ -226,7 +243,7 @@ spec:
 
 Replace:
 
-- `my-workload-gcp` with a descriptive name for the role.
+- `my-workload-aws` with a descriptive name for the role.
 - `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
 
 Apply this role to your Teleport cluster using `tctl`:
@@ -238,24 +255,14 @@ $ tctl create -f role.yaml
 You now need to assign this role to the bot:
 
 ```code
-$ tctl bots update my-bot --add-roles my-workload-gcp
+$ tctl bots update my-bot --add-roles my-workload-aws
 ```
 
 ## Step 3/4. Issue Workload Identity JWTs
 
 You'll now configure `tbot` to issue and renew the short-lived JWT SVIDs for
 your workload. It'll write the JWT as a file on disk, where you can then
-configure GCP clients and SDKs to read it.
-
-Before configuring this, you'll need to determine the correct audience to
-request in the JWT SVIDs. This is specific to the Workload Identity Federation
-configuration you have just created and contains three components:
-
-- The project number of your GCP project
-- The name of your Workload Identity Federation pool as configured in GCP
-- The name of your Workload Identity Federation provider as configured in GCP
-
-It has the following format: `https://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL_NAME/providers/$PROVIDER_NAME`.
+configure AWS clients and SDKs to read it.
 
 Take your already deployed `tbot` service and configure it to issue SPIFFE SVIDs
 by adding the following to the `tbot` configuration file:
@@ -269,20 +276,18 @@ outputs:
     svid:
       path: /svc/example-service
     jwts:
-      - audience: https://iam.googleapis.com/projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc
-        file_name: gcp-jwt
+      - audience: sts.amazonaws.com
+        file_name: aws-jwt
 ```
 
 Replace:
 
-- `123456789000` with your GCP project number.
-- `workload-id-pool` with the name of your Workload Identity Federation pool.
-- `workload-id-oidc` with the name of your Workload Identity Federation provider.
+-
 
 Restart your `tbot` service to apply the new configuration. You should see a
-file created at `/opt/workload-identity/gcp-jwt` containing the JWT.
+file created at `/opt/workload-identity/aws-jwt` containing the JWT.
 
-## Step 4/4. Configure GCP CLIs and SDKs
+## Step 4/4. Configure AWS CLIs and SDKs
 
 Finally, you need to create a configuration file to configure the GCP CLIs and
 SDKs to authenticate using Workload Identity. This configuration file will
