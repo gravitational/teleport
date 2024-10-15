@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -213,4 +214,22 @@ func TestCreateTable(t *testing.T) {
 			require.True(t, tc.errorIsFn(err), err)
 		})
 	}
+}
+
+func TestKeyPrefix(t *testing.T) {
+	t.Run("leading separator in key", func(t *testing.T) {
+		prefixed := prependPrefix(backend.NewKey("test", "llama"))
+		assert.Equal(t, "teleport/test/llama", prefixed)
+
+		key := trimPrefix(prefixed)
+		assert.Equal(t, "/test/llama", key.String())
+	})
+
+	t.Run("no leading separator in key", func(t *testing.T) {
+		prefixed := prependPrefix(backend.Key(".locks/test/llama"))
+		assert.Equal(t, "teleport.locks/test/llama", prefixed)
+
+		key := trimPrefix(prefixed)
+		assert.Equal(t, ".locks/test/llama", key.String())
+	})
 }
