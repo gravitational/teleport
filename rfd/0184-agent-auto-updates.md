@@ -116,7 +116,7 @@ We will introduce two user-facing resources:
        start_version: v1
        target_version: v2
        schedule: regular
-       strategy: previous-must-succeed
+       strategy: halt-on-failure
        mode: enabled
    ```
 
@@ -291,7 +291,7 @@ spec:
     start_version: v1
     target_version: v2
     schedule: regular
-    strategy: previous-must-succeed
+    strategy: halt-on-failure
     mode: enabled
 status:
   groups:
@@ -634,10 +634,10 @@ spec:
     # strategy to use for the rollout
     # Supported values are:
     # - time-based
-    # - previous-must-succeed
-    # - previous-must-succeed-with-backpressure
-    # defaults to previous-must-succeed, might default to previous-must-succeed-with-backpressure after phase 6.
-    strategy: previous-must-succeed
+    # - halt-on-failure
+    # - halt-on-failure-with-backpressure
+    # defaults to halt-on-failure, might default to halt-on-failure-with-backpressure after phase 6.
+    strategy: halt-on-failure
     # agent_schedules specifies version rollout schedules for agents.
     # The schedule used is determined by the schedule associated
     # with the version in the autoupdate_version resource.
@@ -680,7 +680,7 @@ spec:
     mode: enabled
   agents:
     mode: enabled
-    strategy: previous-must-succeed
+    strategy: halt-on-failure
     alert_after: 4h
     schedules:
       regular:
@@ -736,7 +736,7 @@ spec:
     start_version: v1
     target_version: v2
     schedule: regular
-    strategy: previous-must-succeed
+    strategy: halt-on-failure
     mode: enabled
 status:
   groups:
@@ -818,7 +818,7 @@ message AutoUpdateConfigSpecAgents {
   // maintenance_window_minutes is the maintenance window duration in minutes. This can only be set if `strategy` is "time-based".
   int64 maintenance_window_minutes = 3;
   // alert_after_hours specifies the number of hours to wait before alerting that the rollout is not complete.
-  // This can only be set if `strategy` is "previous-must-succeed".
+  // This can only be set if `strategy` is "halt-on-failure".
   int64 alert_after_hours = 5;
   // agent_schedules specifies schedules for updates of grouped agents.
   AgentAutoUpdateSchedules agent_schedules = 6;
@@ -829,7 +829,7 @@ enum Strategy {
   // UNSPECIFIED update strategy
   STRATEGY_UNSPECIFIED = 0;
   // PREVIOUS_MUST_SUCCEED update strategy with no backpressure
-  STRATEGY_PREVIOUS_MUST_SUCCEED = 1;
+  STRATEGY_HALT_ON_FAILURE = 1;
   // TIME_BASED update strategy.
   STRATEGY_TIME_BASED = 2;
 }
@@ -848,7 +848,7 @@ message AgentAutoUpdateGroup {
   repeated Day days = 2;
   // start_hour to initiate update
   int32 start_hour = 3;
-  // wait_days after last group succeeds before this group can run. This can only be used when the strategy is "previous-must-finish".
+  // wait_days after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
   int64 wait_days = 4;
   // canary_count of agents to use in the canary deployment.
   int64 canary_count = 5;
@@ -1162,10 +1162,10 @@ message RollbackAgentGroupRequest {
 
 We support two rollout strategies, for two distinct use-cases:
 
-- `previous-must-succeed` for damage reduction of a faulty update
+- `halt-on-failure` for damage reduction of a faulty update
 - `time-based` for time-constrained maintenances
 
-In `previous-must-succeed`, the update proceeds from the first group to the last group, ensuring that each group
+In `halt-on-failure`, the update proceeds from the first group to the last group, ensuring that each group
 successfully updates before allowing the next group to proceed. By default, only 5 agent groups are allowed. This
 mitigates very long rollout plans. This is the strategy that offers the best availability. A group finishes its update
 once most of its agents are running the correct version. Agents that missed the group update will try to catch
@@ -1176,6 +1176,9 @@ between groups. This strategy allows Teleport users to setup reliable follow-the
 maintenance window more strictly. A group finishes its update at the end of the maintenance window, regardless
 of the new version adoption rate. Agents that missed the maintenance window will not attempt to
 update until the next maintenance window.
+
+After phase 6, a third strategy, `backpressure` will be added. This strategy will behave the same way `halt-on-failure`
+does, except the agents will be progressively rolled-out within a group.
 
 #### Agent update mode
 
@@ -1212,7 +1215,7 @@ A group can be in 5 states:
 - `done`: the group has been updated. New agents should run `v2`.
 - `rolledback`: the group has been rolledback. New agents should run `v1`, existing agents should update to `v1`.
 
-The finite state machine for the `previous-must-succeed` is the following:
+The finite state machine for the `halt-on-failure` is the following:
 
 ```mermaid
 flowchart TD
@@ -1264,7 +1267,7 @@ flowchart TD
 #### Starting a group
 
 A group can be started if the following criteria are met
-- for the `previous-must-succeed` strategy:
+- for the `halt-on-failure` strategy:
   - all of its previous group are in the `done` state
   - it has been at least `wait_days` since the previous group update started
   - the current week day is in the `days` list
@@ -1305,7 +1308,7 @@ An alert will eventually fire, warning the user about the stuck update.
 A group in `active` mode is currently being updated. The conditions to leave `active` mode and transition to the
 `done` mode will vary based on the phase and rollout strategy.
 
-- for the `previous-must-succeed` strategy:
+- for the `halt-on-failure` strategy:
   - Phase 3: we don't have any information about agents. The group transitions to `done` 60 minutes after its start.
   - Phase 4: we know about the connected agent count and the connected agent versions. The group transitions to `done` if:
     - at least `(100 - max_in_flight)%` of the agents are still connected 
@@ -1426,13 +1429,13 @@ Let `v1` be the previous version and `v2` the target version, the response matri
 
 ##### Rollout status: enabled
 
-| Group state | Version | Should update                                          |
-|-------------|---------|--------------------------------------------------------|
-| unstarted   | v1      | false                                                  |
-| canary      | v1      | false, except for canaries                             |
-| active      | v2      | true if UUID <= progress                               |
-| done        | v2      | true if `previous-must-succeed`, false if `time-based` |
-| rolledback  | v1      | true                                                   |
+| Group state | Version | Should update                                    |
+|-------------|---------|--------------------------------------------------|
+| unstarted   | v1      | false                                            |
+| canary      | v1      | false, except for canaries                       |
+| active      | v2      | true if UUID <= progress                         |
+| done        | v2      | true if `halt-on-failure`, false if `time-based` |
+| rolledback  | v1      | true                                             |
 
 #### Updater status reporting
 
