@@ -6350,6 +6350,8 @@ message PluginMSTeamsSettings {
   string teams_app_id = 3;
   // Region bot framework api AP region.
   string region = 4;
+  // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+  string defaultRecipient = 5;
 }
 
 message PluginBootstrapCredentialsV1 {

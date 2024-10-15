@@ -551,6 +551,9 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 			recipientSet.Add(recipient)
 		}
 	}
-
+	// Use default recipient if there are non suggested reviewers or Access Monitoring Rules that apply.
+	if recipientSet.Len() == 0 {
+		recipientSet.Add(a.conf.MSAPI.DefaultRecipient)
+	}
 	return recipientSet.ToSlice()
 }

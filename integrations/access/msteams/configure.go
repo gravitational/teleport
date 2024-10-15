@@ -46,9 +46,9 @@ var (
 	zipFiles = []string{"manifest.json", "outline.png", "color.png"}
 )
 
-// Payload represents template payloads used to generate config files
+// ConfigTemplatePayload represents template payloads used to generate config files
 // used by the Microsoft Teams plugin.
-type Payload struct {
+type ConfigTemplatePayload struct {
 	// AppID is the Microsoft application ID.
 	AppID string
 	// AppSecret is the Microsoft application secret.
@@ -63,7 +63,7 @@ type Payload struct {
 func Configure(targetDir, appID, appSecret, tenantID string) error {
 	var step byte = 1
 
-	p := Payload{
+	p := ConfigTemplatePayload{
 		AppID:      appID,
 		AppSecret:  appSecret,
 		TenantID:   tenantID,
@@ -114,7 +114,7 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 	return nil
 }
 
-func ConfigureAppZip(zipWriter io.Writer, p Payload) error {
+func ConfigureAppZip(zipWriter io.Writer, p ConfigTemplatePayload) error {
 
 	w := zip.NewWriter(zipWriter)
 	defer w.Close()

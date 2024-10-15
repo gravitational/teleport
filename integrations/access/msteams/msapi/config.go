@@ -34,6 +34,9 @@ type Config struct {
 	Region string `toml:"region"`
 	// TeamsAppID represents Teams App ID
 	TeamsAppID string `toml:"teams_app_id"`
+	// DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+	DefaultRecipient string `toml:"default_recipient"`
+
 	// url represents url configuration for testing
 	url struct {
 		tokenBaseURL        string

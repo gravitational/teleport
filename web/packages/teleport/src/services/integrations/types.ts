@@ -221,6 +221,7 @@ export type PluginMsTeamsSpec = {
   tenantID: string;
   teamsAppID: string;
   region: string;
+  defaultRecipient: string;
 };
 
 export type PluginOpsgenieSpec = {
