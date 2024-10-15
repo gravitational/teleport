@@ -54,8 +54,14 @@ func randomID() ([]byte, error) {
 }
 
 type LockConfiguration struct {
-	Backend  Backend
+	// Backend to create the lock in.
+	Backend Backend
+	// LockName the precomputed lock name.
+	// TODO(tross) DELETE WHEN teleport.e is updated to use LockNameComponents.
 	LockName string
+	// LockNameComponents are subcomponents to be used when constructing
+	// the lock name.
+	LockNameComponents []string
 	// TTL defines when lock will be released automatically
 	TTL time.Duration
 	// RetryInterval defines interval which is used to retry locking after
@@ -67,9 +73,14 @@ func (l *LockConfiguration) CheckAndSetDefaults() error {
 	if l.Backend == nil {
 		return trace.BadParameter("missing Backend")
 	}
-	if l.LockName == "" {
-		return trace.BadParameter("missing LockName")
+	if l.LockName == "" && len(l.LockNameComponents) == 0 {
+		return trace.BadParameter("missing LockName/LockNameComponents")
 	}
+
+	if len(l.LockNameComponents) == 0 {
+		l.LockNameComponents = []string{l.LockName}
+	}
+
 	if l.TTL == 0 {
 		return trace.BadParameter("missing TTL")
 	}
@@ -85,7 +96,7 @@ func AcquireLock(ctx context.Context, cfg LockConfiguration) (Lock, error) {
 	if err != nil {
 		return Lock{}, trace.Wrap(err)
 	}
-	key := LockKey(cfg.LockName)
+	key := LockKey(cfg.LockNameComponents...)
 	id, err := randomID()
 	if err != nil {
 		return Lock{}, trace.Wrap(err)

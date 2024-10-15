@@ -53,30 +53,30 @@ func TestLockConfiguration_CheckAndSetDefaults(t *testing.T) {
 		{
 			name: "minimum valid",
 			in: LockConfiguration{
-				Backend:  mockBackend{},
-				LockName: "lock",
-				TTL:      30 * time.Second,
+				Backend:            mockBackend{},
+				LockNameComponents: []string{"lock"},
+				TTL:                30 * time.Second,
 			},
 			want: LockConfiguration{
-				Backend:       mockBackend{},
-				LockName:      "lock",
-				TTL:           30 * time.Second,
-				RetryInterval: 250 * time.Millisecond,
+				Backend:            mockBackend{},
+				LockNameComponents: []string{"lock"},
+				TTL:                30 * time.Second,
+				RetryInterval:      250 * time.Millisecond,
 			},
 		},
 		{
 			name: "set RetryAcquireLockTimeout",
 			in: LockConfiguration{
-				Backend:       mockBackend{},
-				LockName:      "lock",
-				TTL:           30 * time.Second,
-				RetryInterval: 10 * time.Second,
+				Backend:            mockBackend{},
+				LockNameComponents: []string{"lock"},
+				TTL:                30 * time.Second,
+				RetryInterval:      10 * time.Second,
 			},
 			want: LockConfiguration{
-				Backend:       mockBackend{},
-				LockName:      "lock",
-				TTL:           30 * time.Second,
-				RetryInterval: 10 * time.Second,
+				Backend:            mockBackend{},
+				LockNameComponents: []string{"lock"},
+				TTL:                30 * time.Second,
+				RetryInterval:      10 * time.Second,
 			},
 		},
 		{
@@ -97,9 +97,9 @@ func TestLockConfiguration_CheckAndSetDefaults(t *testing.T) {
 		{
 			name: "missing TTL",
 			in: LockConfiguration{
-				Backend:  mockBackend{},
-				LockName: "lock",
-				TTL:      0,
+				Backend:            mockBackend{},
+				LockNameComponents: []string{"lock"},
+				TTL:                0,
 			},
 			wantErr: "missing TTL",
 		},
@@ -126,9 +126,9 @@ func TestRunWhileLockedConfigCheckAndSetDefaults(t *testing.T) {
 	ttl := 1 * time.Minute
 	minimumValidConfig := RunWhileLockedConfig{
 		LockConfiguration: LockConfiguration{
-			Backend:  mockBackend{},
-			LockName: lockName,
-			TTL:      ttl,
+			Backend:            mockBackend{},
+			LockNameComponents: []string{lockName},
+			TTL:                ttl,
 		},
 	}
 	tests := []struct {
@@ -144,10 +144,10 @@ func TestRunWhileLockedConfigCheckAndSetDefaults(t *testing.T) {
 			},
 			want: RunWhileLockedConfig{
 				LockConfiguration: LockConfiguration{
-					Backend:       mockBackend{},
-					LockName:      lockName,
-					TTL:           ttl,
-					RetryInterval: 250 * time.Millisecond,
+					Backend:            mockBackend{},
+					LockNameComponents: []string{lockName},
+					TTL:                ttl,
+					RetryInterval:      250 * time.Millisecond,
 				},
 				ReleaseCtxTimeout: time.Second,
 				// defaults to halft of TTL.
@@ -159,6 +159,7 @@ func TestRunWhileLockedConfigCheckAndSetDefaults(t *testing.T) {
 			input: func() RunWhileLockedConfig {
 				cfg := minimumValidConfig
 				cfg.LockName = ""
+				cfg.LockNameComponents = nil
 				return cfg
 			},
 			wantErr: "missing LockName",
