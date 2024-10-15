@@ -7451,6 +7451,10 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
+func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error) {
+	return nil, nil
+}
+
 func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Server, error) {
 	return []types.Server{&mock.server}, nil
 }
