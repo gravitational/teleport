@@ -86,7 +86,7 @@ We will introduce two user-facing resources:
      tools_autoupdate: true/false
      # new fields
      tools:
-       mode: enabled/disabled/suspended
+       mode: enabled/disabled
      agents:
        mode: enabled/disabled/suspended
        schedules:
@@ -116,7 +116,7 @@ We will introduce two user-facing resources:
        start_version: v1
        target_version: v2
        schedule: regular
-       strategy: grouped
+       strategy: previous-must-succeed
        mode: enabled
    ```
 
@@ -124,41 +124,32 @@ We will also introduce an internal resource, tracking the agent rollout status. 
 owned by Teleport. Users and cluster operators can read its content but cannot create/update/upsert/delete it.
 This resource is editable via select RPCs (e.g. start or rollback a group).
 
-```yaml
-kind: autoupdate_agent_rollout
-spec:
-  # content copied from the `autoupdate_version.spec.agents`
-  version_config:
-    start_version: v1
-    target_version: v2
-    schedule: regular
-    strategy: grouped
-    mode: enabled
-status:
-  groups:
-    - name: dev
-      start_time: 2020-12-09T16:09:53+00:00
-      initial_count: 100 # part of phase 4
-      present_count: 100 # part of phase 4
-      failed_count: 0 # part of phase 4
-      progress: 0
-      state: canaries
-      canaries: # part of phase 5
-        - updater_uuid: abc
-          host_uuid: def
-          hostname: foo.example.com
-          success: false
-      last_update_time: 2020-12-10T16:09:53+00:00
-      last_update_reason: canaryTesting
-    - name: prod
-      start_time: 0000-00-00
-      initial_count: 0
-      present_count: 0
-      failed_count: 0
-      progress: 0
-      state: unstarted
-      last_update_time: 2020-12-10T16:09:53+00:00
-      last_update_reason: newAgentPlan
+The system will look like:
+
+```mermaid
+flowchart TD
+    user(fa:fa-user User)
+    operator(fa:fa-user Operator)
+    auth[Auth Service]
+    proxy[Proxy Service]
+    updater[teleport-updater]
+    agent[Teleport Agent]
+
+    autoupdate_config@{shape: notch-rect}
+    autoupdate_version@{shape: notch-rect}
+    autoupdate_rollout@{shape: notch-rect}
+    updater_status@{shape: notch-rect, label: "updater.yaml"}
+
+    user -->|defines update schedule| autoupdate_config
+    operator -->|choses target version| autoupdate_version
+    autoupdate_config --> auth
+    autoupdate_version --> auth
+    auth -->|Describes desired state for each agent group| autoupdate_rollout
+    autoupdate_rollout --> proxy
+    proxy -->|Serves update instructions<br/> via /find| updater
+    updater -->|Writes status| updater_status
+    updater_status --> agent
+    agent -->|Reports version and status via HelloMessage and InstanceHeartbeat| auth
 ```
 
 You can find more details about each resource field [in the dedicated resource section](#teleport-resources).
@@ -300,7 +291,7 @@ spec:
     start_version: v1
     target_version: v2
     schedule: regular
-    strategy: grouped
+    strategy: previous-must-succeed
     mode: enabled
 status:
   groups:
@@ -634,12 +625,19 @@ spec:
   # existing field, deprecated
   tools_autoupdate: true
   tools:
-    mode: enabled/disabled/suspended
+    mode: enabled/disabled
   agents:
     # agent_auto_update allows turning agent updates on or off at the
     # cluster level. Only turn agent automatic updates off if self-managed
     # agent updates are in place. Setting this to pause will temporarily halt the rollout.
     mode: enabled/disabled/suspended
+    # strategy to use for the rollout
+    # Supported values are:
+    # - time-based
+    # - previous-must-succeed
+    # - previous-must-succeed-with-backpressure
+    # defaults to previous-must-succeed, might default to previous-must-succeed-with-backpressure after phase 6.
+    strategy: previous-must-succeed
     # agent_schedules specifies version rollout schedules for agents.
     # The schedule used is determined by the schedule associated
     # with the version in the autoupdate_version resource.
@@ -656,6 +654,7 @@ spec:
         #  default: 0
         start_hour: 0-23
         # wait_days specifies how many days to wait after the previous group finished before starting.
+        # This must be 0 when using the `time-based` strategy.
         #  default: 0
         wait_days: 0-1
         # canary_count specifies the desired number of canaries to update before any other agents
@@ -681,6 +680,8 @@ spec:
     mode: enabled
   agents:
     mode: enabled
+    strategy: previous-must-succeed
+    alert_after: 4h
     schedules:
       regular:
       - name: default
@@ -688,7 +689,6 @@ spec:
         start_hour: 0
         canary_count: 5
         max_in_flight: 20%
-        alert_after: 4h
 ```
 
 #### Autoupdate version
@@ -717,9 +717,6 @@ spec:
     target_version: v2
     # schedule to use for the rollout
     schedule: regular
-    # strategy to use for the rollout
-    # default: backpressure
-    strategy: grouped
     # paused specifies whether the rollout is paused
     # default: enabled
     mode: enabled|disabled|suspended
@@ -739,7 +736,7 @@ spec:
     start_version: v1
     target_version: v2
     schedule: regular
-    strategy: grouped
+    strategy: previous-must-succeed
     mode: enabled
 status:
   groups:
@@ -781,6 +778,8 @@ syntax = "proto3";
 package teleport.autoupdate.v1;
 
 import "teleport/header/v1/metadata.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
 
@@ -814,8 +813,25 @@ message AutoUpdateConfigSpecTools {
 message AutoUpdateConfigSpecAgents {
   // mode specifies whether agent autoupdates are enabled, disabled, or paused.
   Mode agent_auto_update_mode = 1;
+  // strategy to use for updating the agents.
+  Strategy strategy = 2;
+  // maintenance_window_minutes is the maintenance window duration in minutes. This can only be set if `strategy` is "time-based".
+  int64 maintenance_window_minutes = 3;
+  // alert_after_hours specifies the number of hours to wait before alerting that the rollout is not complete.
+  // This can only be set if `strategy` is "previous-must-succeed".
+  int64 alert_after_hours = 5;
   // agent_schedules specifies schedules for updates of grouped agents.
-  AgentAutoUpdateSchedules agent_schedules = 2;
+  AgentAutoUpdateSchedules agent_schedules = 6;
+}
+
+// Strategy type for the rollout
+enum Strategy {
+  // UNSPECIFIED update strategy
+  STRATEGY_UNSPECIFIED = 0;
+  // PREVIOUS_MUST_SUCCEED update strategy with no backpressure
+  STRATEGY_PREVIOUS_MUST_SUCCEED = 1;
+  // TIME_BASED update strategy.
+  STRATEGY_TIME_BASED = 2;
 }
 
 // AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
@@ -832,14 +848,12 @@ message AgentAutoUpdateGroup {
   repeated Day days = 2;
   // start_hour to initiate update
   int32 start_hour = 3;
-  // wait_days after last group succeeds before this group can run
+  // wait_days after last group succeeds before this group can run. This can only be used when the strategy is "previous-must-finish".
   int64 wait_days = 4;
-  // alert_after_hours specifies the number of hours to wait before alerting that the rollout is not complete.
-  int64 alert_after_hours = 5;
   // canary_count of agents to use in the canary deployment.
-  int64 canary_count = 6;
+  int64 canary_count = 5;
   // max_in_flight specifies agents that can be updated at the same time, by percent.
-  string max_in_flight = 7;
+  string max_in_flight = 6;
 }
 
 // Day of the week
@@ -912,10 +926,8 @@ message AutoUpdateVersionSpecAgents {
   string target_version = 2;
   // schedule to use for the rollout
   Schedule schedule = 3;
-  // strategy to use for the rollout
-  Strategy strategy = 4;
   // autoupdate_mode to use for the rollout
-  Mode autoupdate_mode = 5;
+  Mode autoupdate_mode = 4;
 }
 
 // AGENT ROLLOUT
@@ -930,7 +942,16 @@ message AutoUpdateAgentRollout {
 }
 
 message AutoUpdateAgentRolloutSpec {
-  AutoUpdateVersionSpecAgents version = 1;
+  // start_version is the version to update from.
+  string start_version = 1;
+  // target_version is the version to update to.
+  string target_version = 2;
+  // schedule to use for the rollout
+  Schedule schedule = 3;
+  // autoupdate_mode to use for the rollout
+  Mode autoupdate_mode = 4;
+  // strategy to use for updating the agents.
+  Strategy strategy = 5;
 }
 
 message AutoUpdateAgentRolloutStatus {
@@ -1137,8 +1158,24 @@ message RollbackAgentGroupRequest {
 
 ### Backend logic to progress the rollout
 
-The update proceeds from the first group to the last group, ensuring that each group successfully updates before
-allowing the next group to proceed. By default, only 5 agent groups are allowed. This mitigates very long rollout plans.
+#### Rollout strategies
+
+We support two rollout strategies, for two distinct use-cases:
+
+- `previous-must-succeed` for damage reduction of a faulty update
+- `time-based` for time-constrained maintenances
+
+In `previous-must-succeed`, the update proceeds from the first group to the last group, ensuring that each group
+successfully updates before allowing the next group to proceed. By default, only 5 agent groups are allowed. This
+mitigates very long rollout plans. This is the strategy that offers the best availability. A group finishes its update
+once most of its agents are running the correct version. Agents that missed the group update will try to catch
+back as soon as possible.
+
+In `time-based` maintenances, agents update as soon as their maintenance window starts. There is no dependency
+between groups. This strategy allows Teleport users to setup reliable follow-the-sun updates and enforce the
+maintenance window more strictly. A group finishes its update at the end of the maintenance window, regardless
+of the new version adoption rate. Agents that missed the maintenance window will not attempt to
+update until the next maintenance window.
 
 #### Agent update mode
 
@@ -1175,7 +1212,7 @@ A group can be in 5 states:
 - `done`: the group has been updated. New agents should run `v2`.
 - `rolledback`: the group has been rolledback. New agents should run `v1`, existing agents should update to `v1`.
 
-The finite state machine is the following:
+The finite state machine for the `previous-must-succeed` is the following:
 
 ```mermaid
 flowchart TD
@@ -1186,7 +1223,7 @@ flowchart TD
     rolledback((rolledback))
 
     unstarted -->|TriggerGroupRPC</br>Start conditions are met| canary
-    canary -->|Canary came back alive| active
+    canary -->|Canaries came back alive| active
     canary -->|ForceGroupRPC| done
     canary -->|RollbackGroupRPC| rolledback
     active -->|ForceGroupRPC</br>Success criteria met| done
@@ -1197,13 +1234,44 @@ flowchart TD
     active -->|ResetGroupRPC| active
 ```
 
+The finite state machine for the `time-based` is the following:
+```mermaid
+flowchart TD
+    unstarted((unstarted))
+    canary((canary))
+    active((active))
+    done((done))
+    rolledback((rolledback))
+
+    unstarted -->|TriggerGroupRPC</br>Start conditions are met| canary
+    canary -->|Canaries came back alive and window is still active| active
+    canary -->|ForceGroupRPC<br/>Canaries came back alive and window is over| done
+    canary -->|RollbackGroupRPC| rolledback
+    active -->|ForceGroupRPC</br>End of window| done
+    done -->|Beginning of window| active
+    done -->|RollbackGroupRPC| rolledback
+    active -->|RollbackGroupRPC| rolledback
+  
+    canary -->|ResetGroupRPC| canary
+```
+
+
+> [!NOTE]
+> Once we have a proper feedback mechanism (phase 5) we might introduce a new `unfinished` state, similar to done, but
+> which indicates that not all agents got updated when using the `time-based` strategy. This does not change the update
+> logic but might be clearer for the end user.
+
 #### Starting a group
 
 A group can be started if the following criteria are met
-- all of its previous group are in the `done` state
-- it has been at least `wait_days` since the previous group update started
-- the current week day is in the `days` list
-- the current hour equals the `hour` field
+- for the `previous-must-succeed` strategy:
+  - all of its previous group are in the `done` state
+  - it has been at least `wait_days` since the previous group update started
+  - the current week day is in the `days` list
+  - the current hour equals the `hour` field
+- for the `time-based` strategy:
+    - the current week day is in the `days` list
+    - the current hour equals the `hour` field
 
 When all those criteria are met, the auth will transition the group into a new state.
 If `canary_count` is not null, the group transitions to the `canary` state.
@@ -1237,11 +1305,16 @@ An alert will eventually fire, warning the user about the stuck update.
 A group in `active` mode is currently being updated. The conditions to leave `active` mode and transition to the
 `done` mode will vary based on the phase and rollout strategy.
 
-- Phase 3: we don't have any information about agents. The group transitions to `done` 60 minutes after its start.
-- Phase 4: we know about the connected agent count and the connected agent versions. The group transitions to `done` if:
-  - at least `(100 - max_in_flight)%` of the agents are still connected 
-  - at least `(100 - max_in_flight)%` of the agents are running the new version
-- Phase 6: we incrementally update the progress, this adds a new criteria: the group progress is at 100%
+- for the `previous-must-succeed` strategy:
+  - Phase 3: we don't have any information about agents. The group transitions to `done` 60 minutes after its start.
+  - Phase 4: we know about the connected agent count and the connected agent versions. The group transitions to `done` if:
+    - at least `(100 - max_in_flight)%` of the agents are still connected 
+    - at least `(100 - max_in_flight)%` of the agents are running the new version
+  - Phase 6: we incrementally update the progress, this adds a new criteria: the group progress is at 100%
+- for the `time-based` strategy:
+  - the group transitions to the `done` state `maintenance_window_minutes` minutes after the `active` transition.
+    The rollout's `start_time` must be used to do this transition, not the schedule's `start_hour`.
+    This will allow the user to trigger manual out-of-maintenance updates if needed.
 
 The phase 6 backpressure calculations are covered in the Backpressure Calculations section below..
 
@@ -1353,13 +1426,13 @@ Let `v1` be the previous version and `v2` the target version, the response matri
 
 ##### Rollout status: enabled
 
-| Group state | Version | Should update              |
-|-------------|---------|----------------------------|
-| unstarted   | v1      | false                      |
-| canary      | v1      | false, except for canaries |
-| active      | v2      | true if UUID <= progress   |
-| done        | v2      | true                       |
-| rolledback  | v1      | true                       |
+| Group state | Version | Should update                                          |
+|-------------|---------|--------------------------------------------------------|
+| unstarted   | v1      | false                                                  |
+| canary      | v1      | false, except for canaries                             |
+| active      | v2      | true if UUID <= progress                               |
+| done        | v2      | true if `previous-must-succeed`, false if `time-based` |
+| rolledback  | v1      | true                                                   |
 
 #### Updater status reporting
 
