@@ -60,6 +60,10 @@ export function createClusterServiceState(): types.ClustersServiceState {
   };
 }
 
+// A workaround to always return the same object so useEffect that relies on it
+// doesn't go into an endless loop.
+const EMPTY_ASSUMED_REQUESTS = {};
+
 export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
   state: types.ClustersServiceState = createClusterServiceState();
 
@@ -387,7 +391,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
-    return cluster?.loggedInUser?.assumedRequests || {};
+    return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
   }
 
   /** Assumes roles for the given requests. */
