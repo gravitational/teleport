@@ -3,10 +3,11 @@ title: Kubernetes With Role-Based Access Control
 description: Examples with Kubernetes and RBAC.
 ---
 
-In Teleport's flexible RBAC system, you can manage Kubernetes access securely. Define custom roles, and granularly control what users can do within your Kubernetes clusters. Limit access to specific namespaces, enforce read-only permissions, or restrict administrative actions. Here are a few common use cases to get you started.
+In Teleport's flexible RBAC system, you can manage Kubernetes access securely. Define custom roles, and granularly control what users can do within your Kubernetes clusters. 
+Limit access to specific namespaces, enforce read-only permissions, or restrict administrative actions. Here are a few common use cases to get you started.
 
 :Note:
-Please reference [Setting Up Teleport Access Controls for Kubernetes](../../enroll-resources/kubernetes-access/manage-access.mdx) before proceeding.
+Please reference [Setting Up Teleport Access Controls for Kubernetes](../../enroll-resources/kubernetes-access/manage-access.mdx) before proceeding, if you have not done so already.
 
 ## Use case 1: Example role for developers
 
@@ -34,13 +35,12 @@ spec:
       "environment": "prod"  # Deny access to production clusters
 ```
 
-In this example, the developers in the group dev-group are allowed to access the dev namespace's pods and services. Access to any production environments is explicitly denied.
+In this example, the developers in the group dev-group are allowed to access the `dev` namespace's pods and services. Access to any production environments is explicitly denied, using the `deny` directive.
 
-## Use case 2: read-only access for auditors
+## Use case 2: Read-only access for auditors
 
-In some scenarios, you may need to provide auditors with read-only access to a Kubernetes cluster for compliance purposes. The following role grants read-only access to all namespaces but does not allow any write operations.
-
-Example role for Auditors
+In some scenarios, you may need to provide auditors with read-only access to a Kubernetes cluster for compliance purposes. The following auditor role grants read-only access to all namespaces 
+but does not allow any write operations:
 
 ```code
 kind: role
@@ -129,7 +129,9 @@ spec:
         verbs: ["delete"]  # Prevent the pipeline from deleting deployments
 ```
 
-- `kubernetes_groups` assigns the user (or service account) to the cicd-group, which represents the CI/CD pipeline's identity in Teleport. 
+In this example we have:
+
+- `kubernetes_groups` which assigns the user (or service account) to the cicd-group, which represents the CI/CD pipeline's identity in Teleport. 
 - `kubernetes_labels` grants access to clusters labeled as "production" environments only. `kubernetes_resources` limits the pipeline’s actions to specific resources.
 - `Deployment` allows the pipeline to get, create, and update deployments in the prod namespace. Similar permissions for `service`, so the pipeline can manage services associated with deployments.
 - `Pod` allows listing and getting pods for status checks but denies permission to update or delete pods.
