@@ -34,6 +34,7 @@ import {
   IntegrationCreateRequest,
   IntegrationKind,
   integrationService,
+  AwsOidcPolicyPreset,
 } from 'teleport/services/integrations';
 
 type integrationConfig = {
@@ -109,7 +110,10 @@ export function useAwsOidcIntegration() {
     emitEvent(IntegrationEnrollEvent.Complete);
   }
 
-  function generateAwsOidcConfigIdpScript(validator: Validator) {
+  function generateAwsOidcConfigIdpScript(
+    validator: Validator,
+    policyPreset: AwsOidcPolicyPreset
+  ) {
     if (!validator.validate()) {
       return;
     }
@@ -119,6 +123,7 @@ export function useAwsOidcIntegration() {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName: integrationConfig.name,
       roleName: integrationConfig.roleName,
+      policyPreset,
     });
 
     setScriptUrl(newScriptUrl);

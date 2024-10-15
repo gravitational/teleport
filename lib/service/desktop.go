@@ -236,6 +236,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
 		Hostname:                     cfg.Hostname,
 		ConnectedProxyGetter:         proxyGetter,
+		ResourceMatchers:             cfg.WindowsDesktop.ResourceMatchers,
 	})
 	if err != nil {
 		return trace.Wrap(err)

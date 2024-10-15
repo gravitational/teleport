@@ -183,7 +183,7 @@ export const HelperTextLine = ({
       <div aria-live="polite">
         {hasError && (
           <HelperText
-            color={theme.colors.interactive.solid.danger.default.background}
+            color={theme.colors.interactive.solid.danger.default}
             style={{ display: hasError ? undefined : 'none' }}
             typography="body3"
             pt={1}

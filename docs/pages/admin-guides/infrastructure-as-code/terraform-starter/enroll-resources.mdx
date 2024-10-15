@@ -360,7 +360,6 @@ provider "aws" {
 provider "teleport" {
   # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
-  identity_file_path = "terraform-identity/identity"
 }
 ```
 
@@ -396,7 +395,6 @@ provider "google" {
 provider "teleport" {
   # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
-  identity_file_path = "terraform-identity/identity"
 }
 ```
 
@@ -427,7 +425,6 @@ terraform {
 }
 
 provider "teleport" {
-  identity_file_path = "terraform-identity/identity"
   # Update addr to point to your Teleport Cloud tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }

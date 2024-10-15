@@ -3269,8 +3269,8 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 	// verify that the required private key policy for the requested identity
 	// is met by the provided attestation statement.
 	attestedKeyPolicy = attestationData.PrivateKeyPolicy
-	if err := params.requiredKeyPolicy.VerifyPolicy(attestedKeyPolicy); err != nil {
-		return attestedKeyPolicy, trace.Wrap(err)
+	if !params.requiredKeyPolicy.IsSatisfiedBy(attestedKeyPolicy) {
+		return attestedKeyPolicy, keys.NewPrivateKeyPolicyError(params.requiredKeyPolicy)
 	}
 
 	var validateSerialNumber bool
@@ -3540,9 +3540,13 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN); err != nil {
 			return nil, trace.Wrap(ErrDone)
 		}
-
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
-		// TODO(Joerger): in v16.0.0, require scope to be specified in the request.
+
+		// Require that a scope was provided.
+		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, trace.BadParameter("scope not present in request")
+		}
+
 		var err error
 		username, err = authz.GetClientUsername(ctx)
 		if err != nil {

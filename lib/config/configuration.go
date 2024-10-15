@@ -395,6 +395,9 @@ type IntegrationConfAWSOIDCIdP struct {
 	ProxyPublicURL string
 	// AutoConfirm skips user confirmation of the operation plan if true.
 	AutoConfirm bool
+	// PolicyPreset is the name of a pre-defined policy statement which will be
+	// assigned to the AWS Role associate with the OIDC integration.
+	PolicyPreset string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -630,9 +633,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Limits.MaxConnections > 0 {
 			l.MaxConnections = fc.Limits.MaxConnections
 		}
-		if fc.Limits.MaxUsers > 0 {
-			l.MaxNumberOfUsers = fc.Limits.MaxUsers
-		}
+
 		for _, rate := range fc.Limits.Rates {
 			l.Rates = append(l.Rates, limiter.Rate{
 				Period:  rate.Period,
@@ -2244,6 +2245,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		})
 	}
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
+
+	for _, matcher := range fc.WindowsDesktop.ResourceMatchers {
+		cfg.WindowsDesktop.ResourceMatchers = append(cfg.WindowsDesktop.ResourceMatchers, services.ResourceMatcher{
+			Labels: matcher.Labels,
+		})
+	}
 
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
