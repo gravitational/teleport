@@ -21,8 +21,9 @@ package aws_sync
 import (
 	"fmt"
 
-	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"google.golang.org/protobuf/proto"
+
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
 func newResourceList() *accessgraphv1alpha.AWSResourceList {
