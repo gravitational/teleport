@@ -43,7 +43,7 @@ func TestProvisioningUpdate(t *testing.T) {
 	uut, err := NewProvisioningStateService(backend)
 	require.NoError(t, err)
 
-	t.Run("downstream is honoured", func(t *testing.T) {
+	t.Run("downstream is honored", func(t *testing.T) {
 		downstreamA := services.DownstreamID("a")
 		downstreamB := services.DownstreamID("b")
 
