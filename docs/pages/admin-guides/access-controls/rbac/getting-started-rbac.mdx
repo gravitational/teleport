@@ -5,17 +5,18 @@ description: Get started using Teleport Role-Based Access Control.
 
 In Teleport, any local, SSO, or robot user can be assigned one or several roles. Roles govern access to databases, SSH servers, Kubernetes clusters, Windows desktops, and web apps.
 
-## What is a role?
-
-In Teleport, a role defines the permissions and access controls assigned to users or groups of users. Roles determine what resources a user can access and what actions they can perform within the system. 
-By creating and assigning roles, administrators can enforce security policies, manage access, and ensure users have the appropriate level of privileges based on their responsibilities.
-Interactive and non-interactive users (bots) can assume one or many roles. Roles govern access to databases, SSH servers, Kubernetes clusters, web services and applications and Windows Desktops.
 
 ## What is RBAC in Teleport?
 
 In Teleport, RBAC (Role-Based Access Control) is a system that helps you manage who can access various resources such as databases, SSH servers, Kubernetes clusters, Windows desktops, and web apps. 
 Users—whether they are local, signed in via Single Sign-On (SSO), or robots—can be assigned one or more roles. 
 Each role defines specific permissions to ensure that users only have access to what they need. 
+
+## What is a role?
+
+In Teleport, a role defines the permissions and access controls assigned to users or groups of users. Roles determine what resources a user can access and what actions they can perform within the system. 
+By creating and assigning roles, administrators can enforce security policies, manage access, and ensure users have the appropriate level of privileges based on their responsibilities.
+Interactive and non-interactive users (bots, defined below) can assume one or many roles. Roles govern access to your entire infrastructure, such as databases, SSH servers, Kubernetes clusters, web services and applications and Windows Desktops.
 
 ## Teleport users
 
@@ -28,23 +29,22 @@ Internal users are created and managed directly within the Teleport cluster itse
 via the web UI. Their roles and traits can be modified directly in Teleport.
 
 Internal users can authenticate using credentials managed within Teleport, such as:
-    - Username and password
-    - Multi-factor authentication (MFA), such as TOTP (time-based one-time passwords).
+- Username and password
+- Multi-factor authentication (MFA), such as TOTP (time-based one-time passwords).
 
-  Internal users are assigned roles that define what resources they can access and what actions they can perform within the Teleport cluster.
-  They are typically used for small to mid-size deployments where user management is handled directly in Teleport without relying on external identity providers.
+Internal users are assigned roles that define what resources they can access and what actions they can perform within the cluster. They are typically used for small to mid-size deployments where user management 
+is handled directly in Teleport without relying on external identity providers.
 
 ### External users
 
 External users are authenticated via third-party identity providers, such as Single Sign-On (SSO) platforms, through protocols like SAML or OAuth (OIDC). These are often referred to as SSO users.
 
-External users authenticate using external Identity Providers (IdP) like:
-    - Okta, Google, GitHub, Microsoft Entra ID, or other SAML/OIDC providers.
-    - These users do not manage their passwords or credentials within Teleport itself. Instead, they authenticate using their external SSO credentials.
+External users authenticate using external Identity Providers (IdP), such as Okta, Google, GitHub, Microsoft Entra ID, or other SAML/OIDC providers.
+These users do not manage their passwords or credentials within Teleport itself. Instead, they authenticate using their external SSO credentials.
 
-  Instead of manually assigning roles in Teleport, external users’ roles are mapped based on attributes from the identity provider (e.g., groups in Okta or teams in GitHub). 
-  For example, a user in the "admin" group in Okta can be mapped to the admin role in Teleport. External users are useful for larger organizations or those that want to centralize 
-  identity management via an existing SSO provider. This is often preferred for enterprise environments where identity management is handled outside Teleport.
+Instead of manually assigning roles in Teleport, external users’ roles are mapped based on attributes from the identity provider (e.g., groups in Okta or teams in GitHub). 
+For example, a user in the "admin" group in Okta can be mapped to the admin role in Teleport. External users are useful for larger organizations or those that want to centralize 
+identity management via an existing SSO provider. This is often preferred for enterprise environments where identity management is handled outside Teleport.
 
 ### Bots
 
@@ -52,7 +52,7 @@ Machine ID provides machines with an identity that can authenticate to the Telep
 be created via the tctl bots add command. Unlike human users, who use a password, MFA, or SSO, bot users join the cluster as Teleport services using a join method. 
 They can still join even if local auth is disabled.
 
-See the [Machine ID introduction](../../enroll-resources/machine-id/introduction.mdx) for more information.
+See the [Machine ID introduction](../../../enroll-resources/machine-id/introduction.mdx for more information.
 
 ## Teleport roles
 
@@ -65,14 +65,14 @@ Users can be assigned one or more roles, and the permissions of multiple roles c
 
 Admins create and assign roles to manage who can access which parts of the infrastructure.
 
-    Some examples of roles include:
+Some examples of roles include:
 
-      - access: Grants basic access to resources.
-      - editor: Allows users to modify configuration settings.
-      - auditor: Allows users to view logs and auditing activities.
+- **access**: Grants basic access to resources.
+- **editor**: Allows users to modify configuration settings.
+- **auditor**: Allows users to view logs and auditing activities.
 
 Roles enforce Role-Based Access Control (RBAC), ensuring that users only have the permissions needed for their specific tasks. 
-See [Teleport Access Controls Reference](../../reference/access-controls/roles.mdx) for in-depth information about types of roles, options, and usage.
+See [Teleport Access Controls Reference](../../../reference/access-controls/roles.mdx) for in-depth information about types of roles, options, and usage.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -164,7 +164,7 @@ Teleport roles.
 <Tabs>
 <TabItem label="SAML">
 
-Follow our [SAML Okta Guide](./sso/okta.mdx) to
+Follow our [SAML Okta Guide](../../../admin-guides/access-controls/sso/okta.mdx) to
 create a SAML application.
 
 Save the file below as `okta.yaml` and update the `acs` field.
@@ -308,8 +308,8 @@ $ tctl get roles --format text
 
 ## Next steps
 
-- [Mapping SSO and local users traits with role templates](./guides/role-templates.mdx)
-- [Access Control for Servers](../../enroll-resources/server-access/rbac.mdx)
-- [Access Control for Kubernetes](../../enroll-resources/kubernetes-access/controls.mdx)
-- [Enroll a Kubernetes Cluster](../../enroll-resources/kubernetes-access/getting-started.mdx) 
-- [Create certs for CI/CD using impersonation](./guides/impersonation.mdx) 
+- [Mapping SSO and local users traits with role templates](../../access-controls/guides/role-templates.mdx)
+- [Access Control for Servers](../../../enroll-resources/server-access/rbac.mdx)
+- [Access Control for Kubernetes](../../../enroll-resources/kubernetes-access/controls.mdx)
+- [Enroll a Kubernetes Cluster](../../../enroll-resources/kubernetes-access/getting-started.mdx) 
+- [Create certs for CI/CD using impersonation](../../../admin-guides/access-controls/guides/impersonation.mdx) 
