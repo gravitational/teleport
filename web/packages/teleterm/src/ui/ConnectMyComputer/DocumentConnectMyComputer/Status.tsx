@@ -23,7 +23,6 @@ import {
   ButtonPrimary,
   Flex,
   Label,
-  Link,
   MenuItem,
   Text,
   ButtonSecondary,
@@ -160,24 +159,11 @@ export function Status(props: { closeDocument?: () => void }) {
       )}
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
-          css={`
-            display: block;
-          `}
-          details={
-            <>
-              {isAgentConfiguredAttempt.statusText} <br />
-              You can try to{' '}
-              <Link
-                onClick={replaceWithSetup}
-                css={`
-                  cursor: pointer;
-                `}
-              >
-                run the setup
-              </Link>{' '}
-              again.
-            </>
-          }
+          primaryAction={{
+            content: 'Run setup again',
+            onClick: replaceWithSetup,
+          }}
+          details={isAgentConfiguredAttempt.statusText}
         >
           An error occurred while reading the agent config file
         </Alert>

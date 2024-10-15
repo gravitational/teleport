@@ -20,10 +20,9 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex, ButtonText, Box } from 'design';
 import * as Alerts from 'design/Alert';
+import type { StepComponentProps } from 'design/StepSlider';
 import { StepSlider } from 'design/StepSlider';
 import { Attempt } from 'shared/hooks/useAsync';
-
-import { P } from 'design/Text/Text';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
@@ -35,7 +34,6 @@ import { FormLocal } from './FormLocal';
 
 import type { WebauthnLogin } from '../useClusterLogin';
 import type { PrimaryAuthType } from 'shared/services';
-import type { StepComponentProps } from 'design/StepSlider';
 
 export default function LoginForm(props: Props) {
   const {
@@ -75,11 +73,9 @@ export default function LoginForm(props: Props) {
   if (!localAuthEnabled) {
     return (
       <FlexBordered p={4}>
-        <Alerts.Danger>Login has not been enabled</Alerts.Danger>
-        <P>
-          The ability to login has not been enabled. Please contact your system
-          administrator for more information.
-        </P>
+        <Alerts.Danger details="The ability to login has not been enabled. Please contact your system administrator for more information.">
+          Login has not been enabled
+        </Alerts.Danger>
       </FlexBordered>
     );
   }

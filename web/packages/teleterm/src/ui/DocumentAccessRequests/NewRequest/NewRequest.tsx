@@ -83,6 +83,7 @@ function Inner(props: { rootCluster: Cluster }) {
     updateSearch,
     selectedResource,
     customSort,
+    fetch,
     fetchStatus,
     onAgentLabelClick,
     addedResources,
@@ -119,7 +120,13 @@ function Inner(props: { rootCluster: Cluster }) {
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} />
+        <Alert
+          kind="danger"
+          details={attempt.statusText}
+          primaryAction={{ content: 'Retry', onClick: fetch }}
+        >
+          Could not load resources
+        </Alert>
       )}
       <StyledMain>
         <Flex mt={3} mb={3}>
