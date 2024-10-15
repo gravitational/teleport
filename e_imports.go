@@ -81,7 +81,6 @@ import (
 	_ "github.com/google/uuid"
 	_ "github.com/gravitational/license"
 	_ "github.com/gravitational/license/generate"
-	_ "github.com/gravitational/oxy/ratelimit"
 	_ "github.com/gravitational/roundtrip"
 	_ "github.com/gravitational/trace"
 	_ "github.com/gravitational/trace/trail"

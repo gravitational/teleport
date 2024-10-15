@@ -256,8 +256,6 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		pageSize = int(s.pageLimit)
 	}
 
-	limit := pageSize + 1
-
 	var resources []T
 	var lastKey backend.Key
 	if err := backend.IterateRange(
@@ -265,7 +263,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		s.backend,
 		rangeStart,
 		rangeEnd,
-		limit,
+		pageSize+1,
 		func(items []backend.Item) (stop bool, err error) {
 			for _, item := range items {
 				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
@@ -275,12 +273,12 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 				if matcher(resource) {
 					lastKey = item.Key
 					resources = append(resources, resource)
-				}
-				if len(resources) == pageSize {
-					break
+					if len(resources) >= pageSize+1 {
+						return true, nil
+					}
 				}
 			}
-			return limit == len(resources), nil
+			return false, nil
 		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
