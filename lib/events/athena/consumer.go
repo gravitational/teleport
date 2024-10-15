@@ -253,8 +253,8 @@ func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProces
 		default:
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					Backend:  c.backend,
-					LockName: "athena_lock",
+					Backend:            c.backend,
+					LockNameComponents: []string{"athena_lock"},
 					// TTL is higher then batchMaxInterval because we want to optimize
 					// for low backend writes.
 					TTL: 5 * c.batchMaxInterval,

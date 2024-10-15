@@ -124,9 +124,9 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 	// so that no new EAS integrations can be concurrently created.
 	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
+			Backend:            s.backend,
+			LockNameComponents: []string{externalAuditStorageLockName},
+			TTL:                externalAuditStorageLockTTL,
 		},
 	}, func(ctx context.Context) error {
 		if err := notReferencedByEAS(ctx, s.backend, name); err != nil {
