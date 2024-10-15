@@ -9073,7 +9073,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: component,
-			Log:       log,
 			Client:    client,
 			Clock:     clock,
 		},
