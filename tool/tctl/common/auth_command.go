@@ -292,8 +292,6 @@ type certificateSigner interface {
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
 	Ping(context.Context) (proto.PingResponse, error)
-	// TODO (Joerger): DELETE IN 17.0.0
-	authclient.CreateAppSessionForV15Client
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
@@ -944,12 +942,6 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
 			URI:         server.GetApp().GetURI(),
-		}
-
-		// TODO (Joerger): DELETE IN v17.0.0
-		routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
-		if err != nil {
-			return trace.Wrap(err)
 		}
 
 		certUsage = proto.UserCertsRequest_App

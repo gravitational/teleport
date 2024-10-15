@@ -911,11 +911,6 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	s.tshdEventsClient = client
 	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
-	// Resume headless watchers for any active login sessions.
-	if err := s.StartHeadlessWatchers(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 

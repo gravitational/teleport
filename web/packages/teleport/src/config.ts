@@ -482,8 +482,20 @@ const cfg = {
     return 'sso';
   },
 
-  getDeviceTrustAuthorizeRoute(id: string, token: string) {
-    return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
+  getDeviceTrustAuthorizeRoute(id: string, token: string, redirect?: string) {
+    const path = generatePath(cfg.routes.deviceTrustAuthorize, {
+      id,
+      token,
+    });
+
+    const searchParams = new URLSearchParams();
+
+    if (redirect) {
+      searchParams.append('redirect_uri', redirect);
+    }
+
+    const searchString = searchParams.toString();
+    return searchString ? `${path}?${searchString}` : path;
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {

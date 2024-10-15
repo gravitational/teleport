@@ -22,12 +22,12 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -125,8 +125,11 @@ func (k *Keygen) GenerateHostCertWithoutValidation(c services.HostCertParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
-		c.Role, principals)
+	slog.DebugContext(
+		context.TODO(),
+		"Generated SSH host certificate.",
+		"role", c.Role, "principals", principals,
+	)
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
@@ -150,7 +153,13 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.TTL != 0 {
 		b := k.clock.Now().UTC().Add(c.TTL)
 		validBefore = uint64(b.Unix())
-		log.Debugf("generated user key for %v with expiry on (%v) %v", c.AllowedLogins, validBefore, b)
+		slog.DebugContext(
+			context.TODO(),
+			"Generated user key with expiry.",
+			"allowed_logins", c.AllowedLogins,
+			"valid_before_unix_ts", validBefore,
+			"valid_before", b,
+		)
 	}
 	cert := &ssh.Certificate{
 		// we have to use key id to identify teleport user

@@ -96,11 +96,11 @@ teleport:
     #  # The cache is enabled by default, it can be disabled with this flag
     #  enabled: true
 
-    # Teleport throttles all connections to avoid abuse. These settings allow
-    # you to adjust the default limits
+    # Teleport can limit the number of connections coming from each client
+    # IP address to avoid abuse. Note that these limits are enforced separately
+    # for each service (SSH, Kubernetes, etc.)
     connection_limits:
         max_connections: 1000
-        max_users: 250
 
     # Logging configuration. Possible output values to disk via
     # '/var/lib/teleport/teleport.log',
