@@ -1592,7 +1592,7 @@
     },
     {
       "source": "/access-controls/getting-started/",
-      "destination": "/admin-guides/access-controls/getting-started/",
+      "destination": "/admin-guides/access-controls/getting-started-rbac/",
       "permanent": true
     },
     {
