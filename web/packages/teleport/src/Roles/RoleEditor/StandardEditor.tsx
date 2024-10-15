@@ -308,7 +308,7 @@ const Section = ({
         {removable && (
           <Box
             borderRight={1}
-            borderColor={theme.colors.interactive.tonal.neutral[0].background}
+            borderColor={theme.colors.interactive.tonal.neutral[0]}
           >
             <HoverTooltip tipContent="Remove section">
               <ButtonIcon
@@ -318,9 +318,7 @@ const Section = ({
               >
                 <Icon.Trash
                   size="small"
-                  color={
-                    theme.colors.interactive.solid.danger.default.background
-                  }
+                  color={theme.colors.interactive.solid.danger.default}
                 />
               </ButtonIcon>
             </HoverTooltip>
