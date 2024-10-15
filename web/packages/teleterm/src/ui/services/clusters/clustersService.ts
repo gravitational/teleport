@@ -45,6 +45,7 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -407,7 +408,9 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
-  getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
+  getAssumedRequests(
+    rootClusterUri: uri.RootClusterUri
+  ): Record<string, AssumedRequest> {
     const cluster = this.state.clusters.get(rootClusterUri);
     return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
   }
