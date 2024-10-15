@@ -469,15 +469,17 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			// is not set and passwordless is disabled. Prevent them from deleting
 			// their last passkey to prevent them from being locked out further,
 			// in the case of passwordless being re-enabled.
-			name: "succeeds when passwordless is off",
-			setup: func(t *testing.T, _ string, _ *authclient.Client, _ *TestDevice) {
+			name: "OK other MFAs, but no password set, passwordless is off",
+			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				// Register a non-passwordless device without adding a password.
+				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+
 				authPref, err := authServer.GetAuthPreference(ctx)
 				require.NoError(t, err, "GetAuthPreference")
 
 				// Turn off passwordless authentication.
 				authPref.SetAllowPasswordless(false)
-				// Set second factor optional so that the user can delete their last MFA device.
-				authPref.SetSecondFactor(constants.SecondFactorOptional)
 				_, err = authServer.UpsertAuthPreference(ctx, authPref)
 				require.NoError(t, err, "UpsertAuthPreference")
 			},
@@ -535,7 +537,13 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
 			},
-			checkErr: require.Error,
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete the last MFA device for this user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
 		},
 		{
 			name: "NOK other MFAs, but no password set",
@@ -544,7 +552,13 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
 			},
-			checkErr: require.Error,
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete last passwordless credential for user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
 		},
 	}
 
