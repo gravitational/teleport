@@ -157,33 +157,46 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 
 var _ integrationpb.AWSOIDCServiceServer = (*AWSOIDCService)(nil)
 
-func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, region string) (*awsoidc.AWSClientRequest, error) {
+func (s *AWSOIDCService) roleARNForIntegration(ctx context.Context, integrationName string) (string, error) {
 	integration, err := s.integrationService.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
 		Name: integrationName,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
+		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
+		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
+	return integration.GetAWSOIDCIntegrationSpec().RoleARN, nil
+}
+
+func (s *AWSOIDCService) awsClientReqWithARN(ctx context.Context, integrationName, region, arn string) (*awsoidc.AWSClientRequest, error) {
 	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &awsoidc.AWSClientRequest{
-		IntegrationName: integrationName,
-		Token:           token.Token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          region,
+		Token:   token.Token,
+		RoleARN: arn,
+		Region:  region,
 	}, nil
+}
+
+func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, region string) (*awsoidc.AWSClientRequest, error) {
+	roleARN, err := s.roleARNForIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.awsClientReqWithARN(ctx, integrationName, region, roleARN)
+
 }
 
 // ListEICE returns a paginated list of EC2 Instance Connect Endpoints.
@@ -788,15 +801,20 @@ func (s *AWSOIDCService) Ping(ctx context.Context, req *integrationpb.PingReques
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Integration == "" {
-		return nil, trace.BadParameter("integration is required")
-	}
-
-	// Instead of asking the user for a region (or storing a default region), we use the sentinel value for the global region.
-	// This improves the UX, because it is one less input we require from the user.
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, awsutils.AWSGlobalRegion)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var awsClientReq *awsoidc.AWSClientRequest
+	switch {
+	case req.Arn != "":
+		awsClientReq, err = s.awsClientReqWithARN(ctx, req.Integration, awsutils.AWSGlobalRegion, req.Arn)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case req.Integration != "":
+		awsClientReq, err = s.awsClientReq(ctx, req.Integration, awsutils.AWSGlobalRegion)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("one of arn and integration is required")
 	}
 
 	awsClient, err := awsoidc.NewPingClient(ctx, awsClientReq)
