@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -99,7 +100,7 @@ func InitAggregatingUsageReporting(
 		} else if e := os.Getenv(envVarPreHogEndpoint); e != "" {
 			endpoint = e
 		} else {
-			log.Warnf("%q not set and no default available, PreHog aggregated usage reporting will not be enabled.", envVarPreHogAggregatingEndpoint)
+			log.WarnContext(process.ExitContext(), "PREHOG_AGGREGATING_ENDPOINT not set and no default available, PreHog aggregated usage reporting will not be enabled.")
 			return nil
 		}
 	}
@@ -123,8 +124,9 @@ func InitAggregatingUsageReporting(
 
 	reporter, err := aggregating.NewReporter(process.ExitContext(),
 		aggregating.ReporterConfig{
-			Backend:          process.GetBackend(),
-			Log:              log,
+			Backend: process.GetBackend(),
+			// TODO(tross): convert logging to slog
+			Log:              logrus.StandardLogger(),
 			ClusterName:      clusterName,
 			HostID:           process.GetAuthServer().ServerID,
 			AnonymizationKey: anonymizationKey,
@@ -134,9 +136,7 @@ func InitAggregatingUsageReporting(
 	}
 	AddReporter(process.GetAuthServer(), reporter)
 
-	emitter, err := usageevents.New(
-		reporter, log, process.GetAuthServer().GetEmitter(),
-	)
+	emitter, err := usageevents.New(reporter, log, process.GetAuthServer().GetEmitter())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -147,8 +147,9 @@ func InitAggregatingUsageReporting(
 		return trace.Wrap(err)
 	}
 	submitterCfg := aggregating.SubmitterConfig{
-		Backend:   process.GetBackend(),
-		Log:       log,
+		Backend: process.GetBackend(),
+		// TODO(tross): convert logging to slog
+		Log:       logrus.StandardLogger(),
 		Status:    process.GetAuthServer(),
 		Submitter: submitter,
 		HostID:    process.GetAuthServer().ServerID,
@@ -158,7 +159,7 @@ func InitAggregatingUsageReporting(
 	}
 	go aggregating.RunSubmitter(process.GracefulExitContext(), submitterCfg)
 
-	log.Info("Successfully started.")
+	log.InfoContext(process.ExitContext(), "Successfully started.")
 
 	return nil
 }
@@ -169,14 +170,14 @@ func ClearAggregatingUsageReportingAlert(process *service.TeleportProcess) {
 	log := usageReportingLog(process)
 	err := aggregating.ClearAlert(process.GracefulExitContext(), process.GetAuthServer())
 	if err == nil {
-		log.Infof("Deleted cluster alert.")
+		log.InfoContext(context.Background(), "Deleted cluster alert.")
 	} else if !trace.IsNotFound(err) {
-		log.WithError(err).Errorf("Failed to delete cluster alert.")
+		log.ErrorContext(context.Background(), "Failed to delete cluster alert.", "error", err)
 	}
 }
 
-func usageReportingLog(process *service.TeleportProcess) *logrus.Entry {
-	return process.Config.Log.WithField(
+func usageReportingLog(process *service.TeleportProcess) *slog.Logger {
+	return process.Config.Logger.With(
 		teleport.ComponentKey,
 		teleport.Component(
 			teleport.ComponentUsageReporting,
