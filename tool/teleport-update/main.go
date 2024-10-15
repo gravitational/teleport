@@ -111,14 +111,14 @@ func Run(args []string) error {
 	versionCmd := app.Command("version", "Print the version of your teleport-updater binary.")
 
 	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial updates.")
-	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').
-		Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
-	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').
-		Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
+	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").
+		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
+	enableCmd.Flag("group", "Update group, for staged updates.").
+		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").
 		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
 	enableCmd.Flag("version", "Use the provided version instead of querying it from the Teleport cluster.").
-		Short('t').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
+		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
