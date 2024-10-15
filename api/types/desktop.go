@@ -246,14 +246,6 @@ func (d *DynamicWindowsDesktopV1) IsEqual(i DynamicWindowsDesktop) bool {
 	return false
 }
 
-// Match checks if a given desktop request matches this filter.
-func (f *DynamicWindowsDesktopFilter) Match(req DynamicWindowsDesktop) bool {
-	if f.Name != "" && req.GetName() != f.Name {
-		return false
-	}
-	return true
-}
-
 // DynamicWindowsDesktops represents a list of Windows desktops.
 type DynamicWindowsDesktops []DynamicWindowsDesktop
 
