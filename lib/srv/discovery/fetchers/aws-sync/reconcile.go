@@ -21,15 +21,13 @@ package aws_sync
 import (
 	"fmt"
 
+	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
-
-	tag "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
 
-func newResourceList() *tag.AWSResourceList {
-	return &tag.AWSResourceList{
-		Resources: make([]*tag.AWSResource, 0),
+func newResourceList() *accessgraphv1alpha.AWSResourceList {
+	return &accessgraphv1alpha.AWSResourceList{
+		Resources: make([]*accessgraphv1alpha.AWSResource, 0),
 	}
 }
 
@@ -37,7 +35,7 @@ func newResourceList() *tag.AWSResourceList {
 // required to reconcile them into the new state.
 // It returns two AWSResourceList objects, one for resources to upsert and one
 // for resources to delete.
-func ReconcileResults(old *Resources, new *Resources) (upsert, delete *tag.AWSResourceList) {
+func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgraphv1alpha.AWSResourceList) {
 	upsert, delete = newResourceList(), newResourceList()
 	reconciledResources := []*reconcilePair{
 		reconcile(old.Users, new.Users, usersKey, usersWrap),
@@ -69,7 +67,7 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *tag.AWSRe
 }
 
 type reconcilePair struct {
-	upsert, delete *tag.AWSResourceList
+	upsert, delete *accessgraphv1alpha.AWSResourceList
 }
 
 func deduplicateSlice[T any](s []T, key func(T) string) []T {
@@ -85,24 +83,29 @@ func deduplicateSlice[T any](s []T, key func(T) string) []T {
 	return out
 }
 
-func reconcile[T protoreflect.ProtoMessage](
+func reconcile[T proto.Message](
 	oldItems []T,
 	newItems []T,
 	keyFn func(T) string,
-	wrapFn func(T) *tag.AWSResource,
+	wrapFn func(T) *accessgraphv1alpha.AWSResource,
 ) *reconcilePair {
 	// Remove duplicates from the new items
 	newItems = deduplicateSlice(newItems, keyFn)
 	upsertRes := newResourceList()
 	deleteRes := newResourceList()
 
-	// Return upsert if there are no old items, and vice versa
-	if len(newItems) == 0 || len(oldItems) == 0 {
-		for _, item := range newItems {
-			upsertRes.Resources = append(upsertRes.Resources, wrapFn(item))
-		}
+	// Delete all old items if there are no new items
+	if len(newItems) == 0 {
 		for _, item := range oldItems {
 			deleteRes.Resources = append(deleteRes.Resources, wrapFn(item))
+		}
+		return &reconcilePair{upsertRes, deleteRes}
+	}
+
+	// Create all new items if there are no old items
+	if len(oldItems) == 0 {
+		for _, item := range newItems {
+			upsertRes.Resources = append(upsertRes.Resources, wrapFn(item))
 		}
 		return &reconcilePair{upsertRes, deleteRes}
 	}
@@ -133,162 +136,162 @@ func reconcile[T protoreflect.ProtoMessage](
 	return &reconcilePair{upsertRes, deleteRes}
 }
 
-func instanceKey(instance *tag.AWSInstanceV1) string {
+func instanceKey(instance *accessgraphv1alpha.AWSInstanceV1) string {
 	return fmt.Sprintf("%s;%s", instance.InstanceId, instance.Region)
 }
 
-func instanceWrap(instance *tag.AWSInstanceV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_Instance{Instance: instance}}
+func instanceWrap(instance *accessgraphv1alpha.AWSInstanceV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Instance{Instance: instance}}
 }
 
-func usersKey(user *tag.AWSUserV1) string {
+func usersKey(user *accessgraphv1alpha.AWSUserV1) string {
 	return fmt.Sprintf("%s;%s", user.AccountId, user.Arn)
 }
 
-func usersWrap(user *tag.AWSUserV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_User{User: user}}
+func usersWrap(user *accessgraphv1alpha.AWSUserV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_User{User: user}}
 }
 
-func userInlinePolKey(policy *tag.AWSUserInlinePolicyV1) string {
+func userInlinePolKey(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetUser().GetUserName(), policy.PolicyName)
 }
 
-func userInlinePolWrap(policy *tag.AWSUserInlinePolicyV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_UserInlinePolicy{UserInlinePolicy: policy}}
+func userInlinePolWrap(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_UserInlinePolicy{UserInlinePolicy: policy}}
 }
 
-func userAttchPolKey(policy *tag.AWSUserAttachedPolicies) string {
+func userAttchPolKey(policy *accessgraphv1alpha.AWSUserAttachedPolicies) string {
 	return fmt.Sprintf("%s;%s", policy.AccountId, policy.User.Arn)
 }
 
-func userAttchPolWrap(policy *tag.AWSUserAttachedPolicies) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_UserAttachedPolicies{UserAttachedPolicies: policy}}
+func userAttchPolWrap(policy *accessgraphv1alpha.AWSUserAttachedPolicies) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_UserAttachedPolicies{UserAttachedPolicies: policy}}
 }
 
-func userGroupKey(group *tag.AWSUserGroupsV1) string {
+func userGroupKey(group *accessgraphv1alpha.AWSUserGroupsV1) string {
 	return fmt.Sprintf("%s;%s", group.User.AccountId, group.User.Arn)
 }
 
-func userGroupWrap(group *tag.AWSUserGroupsV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_UserGroups{UserGroups: group}}
+func userGroupWrap(group *accessgraphv1alpha.AWSUserGroupsV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_UserGroups{UserGroups: group}}
 }
 
-func groupKey(group *tag.AWSGroupV1) string {
+func groupKey(group *accessgraphv1alpha.AWSGroupV1) string {
 	return fmt.Sprintf("%s;%s", group.AccountId, group.Arn)
 }
 
-func groupWrap(group *tag.AWSGroupV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_Group{Group: group}}
+func groupWrap(group *accessgraphv1alpha.AWSGroupV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Group{Group: group}}
 }
 
-func grpInlinePolKey(policy *tag.AWSGroupInlinePolicyV1) string {
+func grpInlinePolKey(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s", policy.Group.Name, policy.PolicyName, policy.AccountId)
 }
 
-func grpInlinePolWrap(policy *tag.AWSGroupInlinePolicyV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_GroupInlinePolicy{GroupInlinePolicy: policy}}
+func grpInlinePolWrap(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_GroupInlinePolicy{GroupInlinePolicy: policy}}
 }
 
-func grpAttchPolKey(policy *tag.AWSGroupAttachedPolicies) string {
+func grpAttchPolKey(policy *accessgraphv1alpha.AWSGroupAttachedPolicies) string {
 	return fmt.Sprintf("%s;%s", policy.Group.GetAccountId(), policy.Group.Arn)
 }
 
-func grpAttchPolWrap(policy *tag.AWSGroupAttachedPolicies) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_GroupAttachedPolicies{GroupAttachedPolicies: policy}}
+func grpAttchPolWrap(policy *accessgraphv1alpha.AWSGroupAttachedPolicies) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_GroupAttachedPolicies{GroupAttachedPolicies: policy}}
 }
 
-func policyKey(policy *tag.AWSPolicyV1) string {
+func policyKey(policy *accessgraphv1alpha.AWSPolicyV1) string {
 	return fmt.Sprintf("%s;%s", policy.AccountId, policy.Arn)
 }
 
-func policyWrap(policy *tag.AWSPolicyV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_Policy{Policy: policy}}
+func policyWrap(policy *accessgraphv1alpha.AWSPolicyV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Policy{Policy: policy}}
 }
 
-func s3bucketKey(s3 *tag.AWSS3BucketV1) string {
+func s3bucketKey(s3 *accessgraphv1alpha.AWSS3BucketV1) string {
 	return fmt.Sprintf("%s;%s", s3.AccountId, s3.Name)
 }
 
-func s3bucketWrap(s3 *tag.AWSS3BucketV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_S3Bucket{S3Bucket: s3}}
+func s3bucketWrap(s3 *accessgraphv1alpha.AWSS3BucketV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_S3Bucket{S3Bucket: s3}}
 }
 
-func roleKey(role *tag.AWSRoleV1) string {
+func roleKey(role *accessgraphv1alpha.AWSRoleV1) string {
 	return fmt.Sprintf("%s;%s", role.AccountId, role.Arn)
 }
 
-func roleWrap(role *tag.AWSRoleV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_Role{Role: role}}
+func roleWrap(role *accessgraphv1alpha.AWSRoleV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Role{Role: role}}
 }
 
-func roleInlinePolKey(policy *tag.AWSRoleInlinePolicyV1) string {
+func roleInlinePolKey(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetAwsRole().Arn, policy.PolicyName)
 }
 
-func roleInlinePolWrap(policy *tag.AWSRoleInlinePolicyV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_RoleInlinePolicy{RoleInlinePolicy: policy}}
+func roleInlinePolWrap(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_RoleInlinePolicy{RoleInlinePolicy: policy}}
 }
 
-func roleAttchPolKey(policy *tag.AWSRoleAttachedPolicies) string {
+func roleAttchPolKey(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) string {
 	return fmt.Sprintf("%s;%s", policy.GetAwsRole().GetArn(), policy.AccountId)
 }
 
-func roleAttchPolWrap(policy *tag.AWSRoleAttachedPolicies) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_RoleAttachedPolicies{RoleAttachedPolicies: policy}}
+func roleAttchPolWrap(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_RoleAttachedPolicies{RoleAttachedPolicies: policy}}
 }
 
-func instanceProfKey(profile *tag.AWSInstanceProfileV1) string {
+func instanceProfKey(profile *accessgraphv1alpha.AWSInstanceProfileV1) string {
 	return fmt.Sprintf("%s;%s", profile.AccountId, profile.InstanceProfileId)
 }
 
-func instanceProfWrap(profile *tag.AWSInstanceProfileV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_InstanceProfile{InstanceProfile: profile}}
+func instanceProfWrap(profile *accessgraphv1alpha.AWSInstanceProfileV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_InstanceProfile{InstanceProfile: profile}}
 }
 
-func eksClusterKey(cluster *tag.AWSEKSClusterV1) string {
+func eksClusterKey(cluster *accessgraphv1alpha.AWSEKSClusterV1) string {
 	return fmt.Sprintf("%s;%s", cluster.AccountId, cluster.Arn)
 }
 
-func eksClusterWrap(cluster *tag.AWSEKSClusterV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_EksCluster{EksCluster: cluster}}
+func eksClusterWrap(cluster *accessgraphv1alpha.AWSEKSClusterV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_EksCluster{EksCluster: cluster}}
 }
 
-func assocAccPolKey(policy *tag.AWSEKSAssociatedAccessPolicyV1) string {
+func assocAccPolKey(policy *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) string {
 	return fmt.Sprintf("%s;%s;%s;%s", policy.AccountId, policy.Cluster.Arn, policy.PrincipalArn, policy.PolicyArn)
 }
 
-func assocAccPolWrap(policy *tag.AWSEKSAssociatedAccessPolicyV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_EksClusterAssociatedPolicy{EksClusterAssociatedPolicy: policy}}
+func assocAccPolWrap(policy *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_EksClusterAssociatedPolicy{EksClusterAssociatedPolicy: policy}}
 }
 
-func accessEntryKey(entry *tag.AWSEKSClusterAccessEntryV1) string {
+func accessEntryKey(entry *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) string {
 	return fmt.Sprintf("%s;%s;%s;%s", entry.AccountId, entry.Cluster.Arn, entry.PrincipalArn, entry.AccessEntryArn)
 }
 
-func accessEntryWrap(entry *tag.AWSEKSClusterAccessEntryV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_EksClusterAccessEntry{EksClusterAccessEntry: entry}}
+func accessEntryWrap(entry *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_EksClusterAccessEntry{EksClusterAccessEntry: entry}}
 }
 
-func rdsDbKey(db *tag.AWSRDSDatabaseV1) string {
+func rdsDbKey(db *accessgraphv1alpha.AWSRDSDatabaseV1) string {
 	return fmt.Sprintf("%s;%s", db.AccountId, db.Arn)
 }
 
-func rdsDbWrap(db *tag.AWSRDSDatabaseV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_Rds{Rds: db}}
+func rdsDbWrap(db *accessgraphv1alpha.AWSRDSDatabaseV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Rds{Rds: db}}
 }
 
-func samlProvKey(provider *tag.AWSSAMLProviderV1) string {
+func samlProvKey(provider *accessgraphv1alpha.AWSSAMLProviderV1) string {
 	return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
 }
 
-func samlProvWrap(provider *tag.AWSSAMLProviderV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_SamlProvider{SamlProvider: provider}}
+func samlProvWrap(provider *accessgraphv1alpha.AWSSAMLProviderV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_SamlProvider{SamlProvider: provider}}
 }
 
-func oidcProvKey(provider *tag.AWSOIDCProviderV1) string {
+func oidcProvKey(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
 	return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
 }
 
-func oidcProvWrap(provider *tag.AWSOIDCProviderV1) *tag.AWSResource {
-	return &tag.AWSResource{Resource: &tag.AWSResource_OidcProvider{OidcProvider: provider}}
+func oidcProvWrap(provider *accessgraphv1alpha.AWSOIDCProviderV1) *accessgraphv1alpha.AWSResource {
+	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_OidcProvider{OidcProvider: provider}}
 }
