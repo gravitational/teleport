@@ -413,9 +413,9 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 
 	// Once the lease parent context is canceled, the lease will be released.
 	ctxWithLease, cancel := context.WithCancel(lease)
-	defer cancel()
 
 	releaseFn = func() {
+		cancel()
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
 			s.Log.WithError(err).WithField("semaphore", userTaskName).Warn("error cleaning up UserTask semaphore")
