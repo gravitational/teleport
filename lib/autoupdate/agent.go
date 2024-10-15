@@ -239,12 +239,16 @@ func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) erro
 			return trace.Wrap(err)
 		}
 		cfg.Status.ActiveVersion = desiredVersion
+		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
+	} else {
+		u.Log.InfoContext(ctx, "Target version already installed.", "version", desiredVersion)
 	}
 
 	// Always write the configuration file if enable succeeds.
 	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
 		return trace.Errorf("failed to write update.yaml: %w", err)
 	}
+	u.Log.InfoContext(ctx, "Configuration updated.")
 	return nil
 }
 
@@ -268,7 +272,7 @@ func (u *AgentUpdater) Disable(ctx context.Context) error {
 		return trace.Errorf("failed to read update.yaml: %w", err)
 	}
 	if !cfg.Spec.Enabled {
-		u.Log.InfoContext(ctx, "Automatic updates already disabled")
+		u.Log.InfoContext(ctx, "Automatic updates already disabled.")
 		return nil
 	}
 	cfg.Spec.Enabled = false

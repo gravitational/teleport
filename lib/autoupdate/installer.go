@@ -96,15 +96,15 @@ func (ai *LocalAgentInstaller) Install(ctx context.Context, version, template st
 	oldSum, err := readChecksum(sumPath)
 	if err == nil {
 		if bytes.Equal(oldSum, newSum) {
-			ai.Log.InfoContext(ctx, "Version already present", "version", version)
+			ai.Log.InfoContext(ctx, "Version already present.", "version", version)
 			return nil
 		}
-		ai.Log.WarnContext(ctx, "Removing version that does not match checksum", "version", version)
+		ai.Log.WarnContext(ctx, "Removing version that does not match checksum.", "version", version)
 		if err := ai.Remove(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
-		ai.Log.WarnContext(ctx, "Removing version with unreadable checksum", "version", version, "error", err)
+		ai.Log.WarnContext(ctx, "Removing version with unreadable checksum.", "version", version, "error", err)
 		if err := ai.Remove(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
@@ -122,7 +122,7 @@ func (ai *LocalAgentInstaller) Install(ctx context.Context, version, template st
 	defer func() {
 		_ = f.Close() // data never read after close
 		if err := os.Remove(f.Name()); err != nil {
-			ai.Log.WarnContext(ctx, "Failed to cleanup temporary download", "error", err)
+			ai.Log.WarnContext(ctx, "Failed to cleanup temporary download.", "error", err)
 		}
 	}()
 	pathSum, err := ai.download(ctx, f, freeTmp, uri)
@@ -147,7 +147,7 @@ func (ai *LocalAgentInstaller) Install(ctx context.Context, version, template st
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start: %w", err)
 	}
-	if err := ai.extract(versionDir, f, uint64(n)); err != nil {
+	if err := ai.extract(ctx, versionDir, f, uint64(n)); err != nil {
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
@@ -237,7 +237,7 @@ func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max ui
 	if resp.StatusCode != http.StatusOK {
 		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
 	}
-	ai.Log.InfoContext(ctx, "Downloading Teleport tarball", "url", url, "size", resp.ContentLength)
+	ai.Log.InfoContext(ctx, "Downloading Teleport tarball.", "url", url, "size", resp.ContentLength)
 
 	// Ensure there's enough space in /tmp for the download.
 	size := resp.ContentLength
@@ -258,7 +258,7 @@ func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max ui
 	return shaReader.Sum(nil), nil
 }
 
-func (ai *LocalAgentInstaller) extract(dstDir string, src io.Reader, max uint64) error {
+func (ai *LocalAgentInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max uint64) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return trace.Wrap(err)
 	}
@@ -274,6 +274,8 @@ func (ai *LocalAgentInstaller) extract(dstDir string, src io.Reader, max uint64)
 	if err != nil {
 		return trace.Errorf("requires gzip-compressed body: %v", err)
 	}
+	ai.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
+
 	// TODO(sclevine): add variadic arg to Extract to extract teleport/ subdir into bin/.
 	err = utils.Extract(zr, dstDir)
 	if err != nil {
