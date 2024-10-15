@@ -274,6 +274,7 @@ func (ai *LocalAgentInstaller) extract(dstDir string, src io.Reader, max uint64)
 	if err != nil {
 		return trace.Errorf("requires gzip-compressed body: %v", err)
 	}
+	// TODO(sclevine): add variadic arg to Extract to extract teleport/ subdir into bin/.
 	err = utils.Extract(zr, dstDir)
 	if err != nil {
 		return trace.Wrap(err)

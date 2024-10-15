@@ -185,7 +185,7 @@ func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) erro
 	// Read configuration from updates.yaml and override any new values passed as flags.
 	cfg, err := u.readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to read update.yaml: %w", err)
 	}
 	if userCfg.Proxy != "" {
 		cfg.Spec.Proxy = userCfg.Proxy
@@ -243,7 +243,7 @@ func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) erro
 
 	// Always write the configuration file if enable succeeds.
 	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to write update.yaml: %w", err)
 	}
 	return nil
 }
@@ -265,7 +265,7 @@ func validateUpdatesSpec(spec *AgentUpdateSpec) error {
 func (u *AgentUpdater) Disable(ctx context.Context) error {
 	cfg, err := u.readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read updates.yaml: %w", err)
+		return trace.Errorf("failed to read update.yaml: %w", err)
 	}
 	if !cfg.Spec.Enabled {
 		u.Log.InfoContext(ctx, "Automatic updates already disabled")
@@ -273,7 +273,7 @@ func (u *AgentUpdater) Disable(ctx context.Context) error {
 	}
 	cfg.Spec.Enabled = false
 	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Errorf("failed to write updates.yaml: %w", err)
+		return trace.Errorf("failed to write update.yaml: %w", err)
 	}
 	return nil
 }

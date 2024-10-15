@@ -179,10 +179,13 @@ func setupLogger(debug bool, format string) error {
 // cmdDisable disables updates.
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
+	if err := os.MkdirAll(versionsDir, 0755); err != nil {
+		return trace.Errorf("failed to create versions directory: %w", err)
+	}
 
 	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}
 	defer func() {
 		if err := unlock(); err != nil {
@@ -194,7 +197,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 		Log:         plog,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to setup updater: %w", err)
 	}
 	if err := updater.Disable(ctx); err != nil {
 		return trace.Wrap(err)
@@ -205,11 +208,14 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 // cmdEnable enables updates and triggers an initial update.
 func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
+	if err := os.MkdirAll(versionsDir, 0755); err != nil {
+		return trace.Errorf("failed to create versions directory: %w", err)
+	}
 
 	// Ensure enable can't run concurrently.
 	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}
 	defer func() {
 		if err := unlock(); err != nil {
@@ -222,7 +228,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		Log:         plog,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to setup updater: %w", err)
 	}
 	if err := updater.Enable(ctx, ccfg.AgentUserConfig); err != nil {
 		return trace.Wrap(err)
