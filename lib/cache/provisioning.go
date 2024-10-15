@@ -80,14 +80,16 @@ func (provisioningStateExecutor) delete(ctx context.Context, cache *Cache, resou
 		return trace.BadParameter("wrapped resource must be a PrincipalState: %T", resource)
 	}
 
-	if principalState.Metadata == nil || principalState.Spec == nil {
+	principalStateID := principalState.GetMetadata().GetName()
+	downstreamID := principalState.GetSpec().GetDownstreamId()
+	if principalStateID == "" || downstreamID == "" {
 		return trace.BadParameter("malformed PrincipalState")
 	}
 
 	err := cache.provisioningStatesCache.DeleteProvisioningState(
 		ctx,
-		services.DownstreamID(principalState.Spec.DownstreamId),
-		services.ProvisioningStateID(principalState.Metadata.Name))
+		services.DownstreamID(downstreamID),
+		services.ProvisioningStateID(principalStateID))
 	return trace.Wrap(err)
 }
 

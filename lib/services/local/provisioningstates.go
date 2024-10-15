@@ -63,12 +63,8 @@ func NewProvisioningStateService(backendInstance backend.Backend) (*Provisioning
 }
 
 func validatePrincipalState(state *provisioningv1.PrincipalState) error {
-	if state.Spec == nil {
-		return trace.BadParameter("principal state missing spec")
-	}
-
-	if state.Spec.DownstreamId == "" {
-		return trace.BadParameter("principal state downstream id")
+	if state.GetSpec().GetDownstreamId() == "" {
+		return trace.BadParameter("principal state missing downstream id")
 	}
 
 	return nil
@@ -157,7 +153,7 @@ func (ss *ProvisioningStateService) ListAllProvisioningStates(ctx context.Contex
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	resp, nextPage, err := ss.service.ListResources(ctx, provisioningStatePageSize, token)
+	resp, nextPage, err := ss.service.ListResources(ctx, pageSize, token)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
