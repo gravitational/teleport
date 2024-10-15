@@ -44,7 +44,7 @@ const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
-	reservedFreeDisk = 10_000_000
+	reservedFreeDisk = 10_000_000 // 10 MB
 )
 
 const (
