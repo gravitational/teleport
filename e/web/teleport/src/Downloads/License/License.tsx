@@ -1,5 +1,5 @@
 import React from 'react';
-import { format } from 'date-fns';
+import { format, addMinutes } from 'date-fns';
 import {
   Box,
   Text,
@@ -76,7 +76,11 @@ export const License = ({
         </ButtonPrimary>
         {expiry && (
           <Text color="text.slightlyMuted">
-            Valid until {format(expiry, 'MM/dd/yyyy')}
+            Valid until{' '}
+            {format(
+              addMinutes(expiry, expiry.getTimezoneOffset()),
+              'MM/dd/yyyy'
+            )}
           </Text>
         )}
       </Flex>
