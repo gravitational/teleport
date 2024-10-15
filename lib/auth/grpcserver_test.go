@@ -465,27 +465,6 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			},
 		},
 		{
-			// TODO(Joerger): the user may already be locked out from login if a password
-			// is not set and passwordless is disabled. Prevent them from deleting
-			// their last passkey to prevent them from being locked out further,
-			// in the case of passwordless being re-enabled.
-			name: "OK other MFAs, but no password set, passwordless is off",
-			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
-				// Register a non-passwordless device without adding a password.
-				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
-				require.NoError(t, err, "RegisterTestDevice")
-
-				authPref, err := authServer.GetAuthPreference(ctx)
-				require.NoError(t, err, "GetAuthPreference")
-
-				// Turn off passwordless authentication.
-				authPref.SetAllowPasswordless(false)
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err, "UpsertAuthPreference")
-			},
-			checkErr: require.NoError,
-		},
-		{
 			name: "OK extra passwordless device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				_, err := RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, WithPasswordless())
@@ -551,6 +530,29 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 				_, err := RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete last passwordless credential for user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
+		},
+		{
+			name: "NOK other MFAs, but no password set, passwordless is off",
+			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				// Register a non-passwordless device without adding a password.
+				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err, "GetAuthPreference")
+
+				// Turn off passwordless authentication.
+				authPref.SetAllowPasswordless(false)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err, "UpsertAuthPreference")
 			},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
