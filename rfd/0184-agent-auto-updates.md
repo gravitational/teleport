@@ -1514,16 +1514,6 @@ $ tree /var/lib/teleport
    │  └── etc
    │     └── systemd
    │        └── teleport.service
-   ├── system # if installed via OS package
-   │  ├── bin
-   │  │  ├── tsh
-   │  │  ├── tbot
-   │  │  ├── ... # other binaries
-   │  │  ├── teleport-update
-   │  │  └── teleport
-   │  └── etc
-   │     └── systemd
-   │        └── teleport.service
    └── update.yaml
 
 $ ls -l /usr/local/bin/tsh
@@ -1705,11 +1695,11 @@ To ensure that SELinux permissions do not prevent the `teleport-update` binary f
 
 To ensure that backups are consistent, the updater will use the [SQLite backup API](https://www.sqlite.org/backup.html) to perform the backup.
 
-The `teleport` apt and yum packages contain a system installation of Teleport in `/var/lib/teleport/versions/system`.
+The `teleport` apt and yum packages will contain a system installation of Teleport in `/usr/local/teleport-system/`.
 Post package installation, the `link` subcommand is executed automatically to link the system installation when no auto-updater-managed version of Teleport is linked:
 ```
-/usr/local/bin/teleport -> /var/lib/teleport/versions/system/bin/teleport
-/usr/local/bin/teleport-update -> /var/lib/teleport/versions/system/bin/teleport-update
+/usr/local/bin/teleport -> /usr/local/teleport-system/bin/teleport
+/usr/local/bin/teleport-update -> /usr/local/teleport-system/bin/teleport-update
 ...
 ```
 
