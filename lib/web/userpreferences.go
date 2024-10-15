@@ -92,7 +92,7 @@ func (h *Handler) getUserClusterPreferences(_ http.ResponseWriter, r *http.Reque
 func (h *Handler) updateUserClusterPreferences(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	req := UserPreferencesResponse{}
 
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -160,7 +160,7 @@ func makePreferenceRequest(req UserPreferencesResponse) *userpreferencesv1.Upser
 func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	var req UserPreferencesResponse
 
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

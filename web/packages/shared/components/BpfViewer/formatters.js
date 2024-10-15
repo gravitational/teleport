@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { displayDateTime } from 'shared/services/loc';
+import { displayDateTime } from 'design/datetime';
 
 export function formatTabs(level) {
   const tabs = [];

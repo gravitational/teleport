@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -159,17 +158,6 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 		return nil, trace.Wrap(err)
 	}
 	return priv, nil
-}
-
-// GenerateRSAKeyRing generates a new unsigned RSA key ring.
-//
-// TODO(nklaassen): get away from hardcoding RSA here.
-func GenerateRSAKeyRing() (*KeyRing, error) {
-	priv, err := native.GeneratePrivateKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return NewKeyRing(priv, priv), nil
 }
 
 // NewKeyRing creates a new KeyRing for the given private keys.
