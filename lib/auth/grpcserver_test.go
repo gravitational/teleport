@@ -465,6 +465,25 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			},
 		},
 		{
+			// TODO(Joerger): the user may already be locked out from login if a password
+			// is not set and passwordless is disabled. Prevent them from deleting
+			// their last passkey to prevent them from being locked out further,
+			// in the case of passwordless being re-enabled.
+			name: "succeeds when passwordless is off",
+			setup: func(t *testing.T, _ string, _ *authclient.Client, _ *TestDevice) {
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err, "GetAuthPreference")
+
+				// Turn off passwordless authentication.
+				authPref.SetAllowPasswordless(false)
+				// Set second factor optional so that the user can delete their last MFA device.
+				authPref.SetSecondFactor(constants.SecondFactorOptional)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err, "UpsertAuthPreference")
+			},
+			checkErr: require.NoError,
+		},
+		{
 			name: "OK extra passwordless device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				_, err := RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, WithPasswordless())
@@ -950,8 +969,8 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	const origin = "https://" + rpID + ":3080" // matches RPID.
 	updateAuthPref(t, func(authPref types.AuthPreference) {
 		authPref.SetSecondFactors(
-			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
 			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
 		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
@@ -1162,8 +1181,8 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 	// Enable webauthn
 	updateAuthPref(t, func(authPref types.AuthPreference) {
 		authPref.SetSecondFactors(
-			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
 			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
 		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",

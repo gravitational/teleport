@@ -570,7 +570,7 @@ func (c *authPrefCollection) resources() (r []types.Resource) {
 func (c *authPrefCollection) writeText(w io.Writer, verbose bool) error {
 	var secondFactorStrings []string
 	for _, sf := range c.authPref.GetSecondFactors() {
-		sfString, err := sf.ToString()
+		sfString, err := sf.Encode()
 		if err != nil {
 			return trace.Wrap(err)
 		}

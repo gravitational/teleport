@@ -3828,7 +3828,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	isPassKey := func(d *types.MFADevice) bool {
+	isPasskey := func(d *types.MFADevice) bool {
 		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
 	}
 
@@ -3859,7 +3859,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			continue
 		}
 
-		if isPassKey(d) {
+		if isPasskey(d) {
 			remainingPassKeys++
 		}
 	}
@@ -3880,20 +3880,17 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// Check whether the device to delete is the last passwordless device,
 	// and whether deleting it would lockout the user from login.
 	//
-	// Note: the user may already be locked out from login if a password
+	// TODO(Joerger): the user may already be locked out from login if a password
 	// is not set and passwordless is disabled. Prevent them from deleting
 	// their last passkey to prevent them from being locked out further,
 	// in the case of passwordless being re-enabled.
-	if isPassKey(deviceToDelete) && remainingPassKeys == 0 {
+	if isPasskey(deviceToDelete) && remainingPassKeys == 0 && readOnlyAuthPref.GetAllowPasswordless() {
 		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		switch {
-		case u.GetUserType() == types.UserTypeSSO || u.GetPasswordState() == types.PasswordState_PASSWORD_STATE_SET:
-			// If the user is an SSO user, or has a password set, let them delete their passwordless device.
-		default:
+		if u.GetUserType() != types.UserTypeSSO && u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
 			return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 		}
 	}

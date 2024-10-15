@@ -18,6 +18,7 @@ package types
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -30,7 +31,7 @@ func secondFactorsFromLegacySecondFactor(sf constants.SecondFactorType) []Second
 	case constants.SecondFactorOff:
 		return nil
 	case constants.SecondFactorOptional, constants.SecondFactorOn:
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP}
+		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN}
 	case constants.SecondFactorOTP:
 		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}
 	case constants.SecondFactorWebauthn:
@@ -40,9 +41,32 @@ func secondFactorsFromLegacySecondFactor(sf constants.SecondFactorType) []Second
 	}
 }
 
+// LegacySecondFactorFromSecondFactors returns a suitable legacy second factor for the given list of second factors.
+func LegacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) constants.SecondFactorType {
+	hasOTP := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_OTP)
+	hasWebAuthn := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+	hasSSO := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_SSO)
+
+	switch {
+	case hasOTP && hasWebAuthn:
+		return constants.SecondFactorOn
+	case hasWebAuthn:
+		return constants.SecondFactorWebauthn
+	case hasOTP:
+		return constants.SecondFactorOTP
+	case hasSSO:
+		// In the WebUI, we can treat exclusive SSO MFA as disabled. In practice this means
+		// things like the "add MFA device" button is disabled, but SSO MFA prompts will still work.
+		// TODO(Joerger): Ensure that SSO MFA flows work in the WebUI with this change, once implemented.
+		return constants.SecondFactorOff
+	default:
+		return constants.SecondFactorOff
+	}
+}
+
 // MarshalJSON marshals SecondFactorType to string.
 func (s *SecondFactorType) MarshalYAML() (interface{}, error) {
-	val, err := s.encode()
+	val, err := s.Encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,7 +87,7 @@ func (s *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) erro
 
 // MarshalJSON marshals SecondFactorType to string.
 func (s *SecondFactorType) MarshalJSON() ([]byte, error) {
-	val, err := s.encode()
+	val, err := s.Encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,12 +116,8 @@ const (
 	secondFactorTypeSSOString = "sso"
 )
 
-func (s *SecondFactorType) ToString() (string, error) {
-	str, err := s.encode()
-	return str, trace.Wrap(err)
-}
-
-func (s *SecondFactorType) encode() (string, error) {
+// Encode encodes the SecondFactorType in string form.
+func (s *SecondFactorType) Encode() (string, error) {
 	switch *s {
 	case SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED:
 		return "", nil

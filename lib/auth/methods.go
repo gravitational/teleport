@@ -22,11 +22,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -303,7 +303,10 @@ func (a *Server) authenticateUserInternal(
 	if req.HeadlessAuthenticationID != "" {
 		mfaDev, err = a.authenticateHeadless(ctx, req)
 		if err != nil {
-			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
+			slog.DebugContext(ctx, "Headless authenticate failed while waiting for approval",
+				"user", user,
+				"error", err,
+			)
 			return nil, "", trace.Wrap(err)
 		}
 		return mfaDev, user, nil
@@ -327,10 +330,10 @@ func (a *Server) authenticateUserInternal(
 	case err != nil:
 		return nil, "", trace.Wrap(err)
 	case u.GetUserType() != types.UserTypeLocal:
-		log.WithFields(logrus.Fields{
-			"user":      user,
-			"user_type": u.GetUserType(),
-		}).Warn("Non-local user attempted local authentication")
+		slog.WarnContext(ctx, "Non-local user attempted local authentication",
+			"user", user,
+			"user_type", u.GetUserType(),
+		)
 		return nil, "", trace.Wrap(errSSOUserLocalAuth)
 	}
 
@@ -378,16 +381,22 @@ func (a *Server) authenticateUserInternal(
 		})
 		switch {
 		case err != nil:
-			log.Debugf("User %v failed to authenticate: %v.", user, err)
+			slog.DebugContext(ctx, "User failed to authenticate.",
+				"user", user,
+				"error", err,
+			)
 			if fieldErr := getErrorByTraceField(err); fieldErr != nil {
 				return nil, "", trace.Wrap(fieldErr)
 			}
 
 			return nil, "", trace.Wrap(authErr)
 		case mfaDev == nil:
-			log.Debugf(
-				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v, Headless = %v): %v.",
-				req.Webauthn != nil, req.OTP != nil, req.HeadlessAuthenticationID != "", err)
+			slog.DebugContext(ctx, "MFA authentication returned nil device.",
+				"webauthn", req.Webauthn != nil,
+				"totp", req.OTP != nil,
+				"headless", req.HeadlessAuthenticationID != "",
+				"error", err,
+			)
 			return nil, "", trace.Wrap(authErr)
 		default:
 			return mfaDev, user, nil
@@ -411,7 +420,7 @@ func (a *Server) authenticateUserInternal(
 		// Some form of MFA is required but none provided. Either client is
 		// buggy (didn't send MFA response) or someone is trying to bypass
 		// MFA.
-		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
+		slog.WarnContext(ctx, "MFA bypass attempt, access denied.", "user", user)
 		return nil, "", trace.AccessDenied("missing second factor")
 	case authPreference.IsSecondFactorEnabled():
 		// 2FA is optional. Make sure that a user does not have MFA devices
@@ -421,7 +430,7 @@ func (a *Server) authenticateUserInternal(
 			return nil, "", trace.Wrap(err)
 		}
 		if len(devs) != 0 {
-			log.Warningf("MFA bypass attempt by user %q, access denied.", user)
+			slog.WarnContext(ctx, "MFA bypass attempt, access denied.", "user", user)
 			return nil, "", trace.AccessDenied("missing second factor authentication")
 		}
 	default:
@@ -435,7 +444,10 @@ func (a *Server) authenticateUserInternal(
 		}
 		// provide obscure message on purpose, while logging the real
 		// error server side
-		log.Debugf("User %v failed to authenticate: %v.", user, err)
+		slog.DebugContext(ctx, "User failed to authenticate.",
+			"user", user,
+			"error", err,
+		)
 		return nil, "", trace.Wrap(authclient.InvalidUserPassError)
 	}
 	return nil, user, nil
