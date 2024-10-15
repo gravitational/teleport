@@ -52,7 +52,7 @@ func main() {
 		// Download and update the version of client tools required by the cluster.
 		// This is required if the user passed in the TELEPORT_TOOLS_VERSION explicitly.
 		err := updater.UpdateWithLock(ctx, toolsVersion)
-		if errors.Is(err, autoupdate.ErrCanceled) {
+		if errors.Is(err, context.Canceled) {
 			os.Exit(0)
 			return
 		}

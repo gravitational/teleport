@@ -20,46 +20,8 @@ package autoupdate
 
 import (
 	"fmt"
-	"io"
-	"os"
-	"os/signal"
 	"strings"
 )
-
-var (
-	// ErrCanceled represent the cancellation error for Ctrl-Break/Ctrl-C, depends on the platform.
-	ErrCanceled = fmt.Errorf("canceled")
-)
-
-// cancelableTeeReader is a copy of TeeReader with ability to react on signal notifier
-// to cancel reading process.
-func cancelableTeeReader(r io.Reader, w io.Writer, signals ...os.Signal) io.Reader {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, signals...)
-
-	return &teeReader{r, w, sigs}
-}
-
-type teeReader struct {
-	r    io.Reader
-	w    io.Writer
-	sigs chan os.Signal
-}
-
-func (t *teeReader) Read(p []byte) (n int, err error) {
-	select {
-	case <-t.sigs:
-		return 0, ErrCanceled
-	default:
-		n, err = t.r.Read(p)
-		if n > 0 {
-			if n, err := t.w.Write(p[:n]); err != nil {
-				return n, err
-			}
-		}
-	}
-	return
-}
 
 type progressWriter struct {
 	n     int64

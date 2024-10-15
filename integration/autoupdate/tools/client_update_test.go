@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package autoupdate_test
+package tools_test
 
 import (
 	"bytes"

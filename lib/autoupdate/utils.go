@@ -63,7 +63,7 @@ func ToolsDir() (string, error) {
 	return filepath.Join(filepath.Clean(home), ".tsh", "bin"), nil
 }
 
-func version(toolsDir string) (string, error) {
+func checkClientToolVersion(toolsDir string) (string, error) {
 	// Find the path to the current executable.
 	path, err := toolName(toolsDir)
 	if err != nil {
