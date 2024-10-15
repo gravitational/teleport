@@ -169,6 +169,8 @@ type Updater struct {
 type Installer interface {
 	// Install the Teleport agent at version from the download template.
 	Install(ctx context.Context, version, template string) error
+	// Link the Teleport agent at version to the system location.
+	Link(ctx context.Context, version string) error
 	// Remove the Teleport agent at version.
 	Remove(ctx context.Context, version string) error
 }
