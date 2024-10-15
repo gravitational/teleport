@@ -16,6 +16,7 @@ The Teleport Database Service currently supports the following protocols:
 - MongoDB
 - MySQL
 - Oracle
+- OpenSearch
 - PostgreSQL
 - Redis
 - Snowflake
@@ -58,17 +59,14 @@ This is useful when the Teleport Web UI is running behind an L7 load balancer
 (e.g. ALB in AWS), in which case the PostgreSQL/MySQL proxy needs to be exposed
 on a plain TCP load balancer (e.g. NLB in AWS).
 
+Using [TLS routing](../../reference/architecture/tls-routing.mdx) for the Teleport Proxy Service allows for all 
+database connections with the web public address.
+
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
-In Teleport Enterprise Cloud, the Proxy Service uses the following ports for
-Database Service client traffic:
-
-|Configuration setting|Port|
-|---|---|
-|`mysql_public_addr`|`3036`|
-|`postgres_public_addr`|`443`|
-|`mongo_public_addr`|`443`|
+In Teleport Enterprise (Cloud), database connections use the web public address
+since [TLS routing](../../reference/architecture/tls-routing.mdx) is applied.
 
 </TabItem>
 </Tabs>
