@@ -1434,6 +1434,7 @@ func getServiceURLs(dbServices []types.DatabaseService, accountID, region, telep
 }
 
 // awsOIDCPing performs an health check for the integration.
+// If ARN is present in the request body, that's the ARN that will be used instead of using the one stored in the integration.
 // Returns meta information: account id and assumed the ARN for the IAM Role.
 func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
@@ -1443,6 +1444,11 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
+	var req ui.AWSOIDCPingRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1450,6 +1456,7 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 
 	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{
 		Integration: integrationName,
+		Arn:         req.ARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
