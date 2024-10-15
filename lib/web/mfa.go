@@ -92,7 +92,7 @@ type addMFADeviceRequest struct {
 // addMFADeviceHandle adds a new mfa device for the user defined in the token.
 func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req addMFADeviceRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -143,7 +143,7 @@ type createAuthenticateChallengeRequest struct {
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
 	var req createAuthenticateChallengeRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -186,7 +186,12 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
 func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	chal, err := h.cfg.ProxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: p.ByName("token")},
+		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+			RecoveryStartTokenID: p.ByName("token"),
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -439,7 +444,7 @@ type isMfaRequiredResponse struct {
 // isMFARequired is the [ClusterHandler] implementer for checking if MFA is required for a given target.
 func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var httpReq *isMFARequiredRequest
-	if err := httplib.ReadJSON(r, &httpReq); err != nil {
+	if err := httplib.ReadResourceJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

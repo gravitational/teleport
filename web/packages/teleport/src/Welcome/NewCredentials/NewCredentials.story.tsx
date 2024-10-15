@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
+import { WelcomeWrapper } from 'teleport/components/Onboard';
 
 import {
   NewMfaDevice,

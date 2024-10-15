@@ -94,14 +94,15 @@ export const SelectSecurityGroups = ({
         })
         .then(({ securityGroups, nextToken }) => {
           const groupsWithTips = withTips(
-            securityGroups,
+            refresh
+              ? securityGroups
+              : [...sgTableData.items, ...securityGroups],
             dbMeta.selectedAwsRdsDb
           );
-          const combinedSgs = [...sgTableData.items, ...groupsWithTips];
           setSgTableData({
             nextToken,
             fetchStatus: nextToken ? '' : 'disabled',
-            items: refresh ? groupsWithTips : combinedSgs,
+            items: groupsWithTips,
           });
           if (refresh) {
             // Reset so user doesn't unintentionally keep a security group
@@ -202,7 +203,9 @@ function withTips(
   securityGroups: SecurityGroup[],
   db: AwsRdsDatabase
 ): SecurityGroupWithRecommendation[] {
-  if (!securityGroups) {
+  if (!db || !securityGroups) {
+    // return early without trying to add tips if there's no selected db or
+    // security groups given.
     return securityGroups;
   }
   const trustedGroups = getTrustedSecurityGroups(securityGroups, db);
@@ -249,7 +252,7 @@ function allowsOutbound(sg: SecurityGroup): boolean {
 function allowsOutboundToPorts(rule: SecurityGroupRule): boolean {
   const publicECRPort = 443;
   const proxyPort = window.location.port;
-  if (!proxyPort || proxyPort == '443') {
+  if (!proxyPort || proxyPort === '443') {
     // if proxy port is not found or it is 443, then we only check for
     // the HTTPS port.
     return ruleAllowsPort(rule, publicECRPort);

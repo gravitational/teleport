@@ -41,22 +41,6 @@ interface NotificationProps extends BoxProps {
   onRemove(): void;
 
   /**
-   * @deprecated It does nothing, the icon is determined based on severity and
-   * can be overridden using `item.content.icon` instead. This field is here
-   * only temporarily, so that Enterprise build doesn't break.
-   * TODO(bl-nero): Delete this field once Enterprise stops referencing it.
-   */
-  Icon?: React.ElementType;
-
-  /**
-   * @deprecated It does nothing, the color is determined based on severity.
-   * This field is here only temporarily, so that Enterprise build doesn't
-   * break.  TODO(bl-nero): Delete this field once Enterprise stops referencing
-   * it.
-   */
-  getColor?: (theme) => string;
-
-  /**
    * If defined, determines whether the notification is auto-dismissed after 5
    * seconds. If undefined, the decision is based on the notification severity:
    * only 'success', 'info', and 'neutral' notifications are removable by
@@ -202,23 +186,23 @@ const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
       };
     case 'error':
       return {
-        borderColor: theme.colors.interactive.solid.danger.default.background,
-        iconColor: theme.colors.interactive.solid.danger.default.background,
+        borderColor: theme.colors.interactive.solid.danger.default,
+        iconColor: theme.colors.interactive.solid.danger.default,
       };
     case 'warn':
       return {
-        borderColor: theme.colors.interactive.solid.alert.default.background,
-        iconColor: theme.colors.interactive.solid.alert.default.background,
+        borderColor: theme.colors.interactive.solid.alert.default,
+        iconColor: theme.colors.interactive.solid.alert.default,
       };
     case 'info':
       return {
-        borderColor: theme.colors.interactive.solid.accent.default.background,
-        iconColor: theme.colors.interactive.solid.accent.default.background,
+        borderColor: theme.colors.interactive.solid.accent.default,
+        iconColor: theme.colors.interactive.solid.accent.default,
       };
     case 'success':
       return {
-        borderColor: theme.colors.interactive.solid.success.default.background,
-        iconColor: theme.colors.interactive.solid.success.default.background,
+        borderColor: theme.colors.interactive.solid.success.default,
+        iconColor: theme.colors.interactive.solid.success.default,
       };
     default:
       severity satisfies never;

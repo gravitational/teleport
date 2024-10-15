@@ -156,7 +156,7 @@ const Passwordless = ({
       <Flex
         flexDirection="column"
         border={1}
-        borderColor="interactive.tonal.neutral.2.background"
+        borderColor="interactive.tonal.neutral.2"
         borderRadius={3}
         p={3}
         gap={3}
