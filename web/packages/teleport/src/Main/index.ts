@@ -20,7 +20,6 @@ export {
   Main,
   useContentMinWidthContext,
   useNoMinWidth,
-  HorizontalSplit,
   StyledIndicator,
 } from './Main';
 export { MainContainer } from './MainContainer';

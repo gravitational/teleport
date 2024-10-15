@@ -206,7 +206,7 @@ export const MobileSeparator = styled.div`
   margin-left: -${props => props.theme.space[6]}px;
   @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
     border-bottom: ${props =>
-      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2].background}`};
+      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
   }
 `;
 
@@ -215,8 +215,7 @@ export const IconBox = styled(Box)`
   padding: ${props => props.theme.space[2]}px;
   border-radius: ${props => props.theme.radii[3]}px;
   margin-right: ${props => props.theme.space[3]}px;
-  background: ${props =>
-    props.theme.colors.interactive.tonal.neutral[0].background};
+  background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
 
   @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
     background: transparent;

@@ -142,8 +142,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// this issue.
 		auth.WithLimiterConfig(
 			&limiter.Config{
-				MaxConnections:   100000,
-				MaxNumberOfUsers: 1000,
+				MaxConnections: 100000,
 			},
 		),
 	)
@@ -273,8 +272,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		TLS:           kubeServiceTLSConfig.Clone(),
 		AccessPoint:   client,
 		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		},
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
@@ -357,8 +355,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		AccessPoint:              client,
 		KubernetesServersWatcher: kubeServersWatcher,
 		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		},
 		Log:             log,
 		InventoryHandle: inventoryHandle,
