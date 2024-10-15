@@ -18,11 +18,12 @@
 
 import React from 'react';
 
-import { Box, ButtonBorder, Card, Text } from 'design';
+import { Box, ButtonBorder, Card, Text, Flex } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 import { RootClusterUri } from 'teleterm/ui/uri';
+import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
 
 export function RecentClusters() {
   const ctx = useAppContext();
@@ -37,6 +38,7 @@ export function RecentClusters() {
         userName: cluster.loggedInUser?.name,
         clusterName: cluster.name,
       }),
+      connectionProblemError: cluster.profileStatusError,
       uri: cluster.uri,
     }));
 
@@ -49,7 +51,7 @@ export function RecentClusters() {
   }
 
   return (
-    <Card p={3} maxWidth="480px" m="auto">
+    <Card p={3} maxWidth="580px" m="auto">
       <Text bold fontSize={3} mb={1}>
         Recent clusters
       </Text>
@@ -64,16 +66,21 @@ export function RecentClusters() {
               justify-content: space-between;
             `}
           >
-            <Text
-              color="text.main"
-              mr={2}
-              title={cluster.userWithClusterName}
-              css={`
-                white-space: nowrap;
-              `}
-            >
-              {cluster.userWithClusterName}
-            </Text>
+            <Flex flexDirection="column">
+              <Text
+                color="text.main"
+                mr={2}
+                title={cluster.userWithClusterName}
+                css={`
+                  white-space: nowrap;
+                `}
+              >
+                {cluster.userWithClusterName}
+              </Text>
+              {cluster.connectionProblemError && (
+                <ProfileStatusError error={cluster.connectionProblemError} />
+              )}
+            </Flex>
             <ButtonBorder
               size="small"
               onClick={() => connect(cluster.uri)}

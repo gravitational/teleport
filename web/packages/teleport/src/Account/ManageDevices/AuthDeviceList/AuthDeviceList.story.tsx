@@ -111,4 +111,13 @@ const devices: MfaDevice[] = [
     type: 'webauthn',
     usage: 'passwordless',
   },
+  {
+    id: '5',
+    description: 'sso provider',
+    name: 'okta',
+    registeredDate: new Date(1612493852000),
+    lastUsedDate: new Date(1614481052000),
+    type: 'sso',
+    usage: 'mfa',
+  },
 ];

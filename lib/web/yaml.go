@@ -50,7 +50,7 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 	}
 
 	var req yamlParseRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -89,7 +89,7 @@ func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params h
 		var req struct {
 			Resource *accessmonitoringrulesv1.AccessMonitoringRule `json:"resource"`
 		}
-		if err := httplib.ReadJSON(r, &req); err != nil {
+		if err := httplib.ReadResourceJSON(r, &req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		resource = req.Resource

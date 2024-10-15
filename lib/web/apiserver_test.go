@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -5169,7 +5168,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 		name    string
 		clt     *TestWebClient
 		ep      []string
-		reqBody client.MFAChallengeRequest
+		reqBody any
 	}{
 		{
 			name: "/webapi/mfa/authenticatechallenge/password",
@@ -5192,6 +5191,9 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			name: "/webapi/mfa/authenticatechallenge",
 			clt:  authnClt,
 			ep:   []string{"webapi", "mfa", "authenticatechallenge"},
+			reqBody: createAuthenticateChallengeRequest{
+				ChallengeScope: int(mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN),
+			},
 		},
 		{
 			name: "/webapi/mfa/token/:token/authenticatechallenge",
@@ -8936,9 +8938,7 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 				Burst:   burst,
 			},
 		},
-		Clock: &timetools.FreezedTime{
-			CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
-		},
+		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 	h := &Handler{limiter: limiter}
@@ -9127,8 +9127,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		AccessPoint:   client,
 		DynamicLabels: nil,
 		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		},
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
@@ -10563,63 +10562,31 @@ func TestCalculateSSHLogins(t *testing.T) {
 		allowedLogins     []string
 		grantedPrincipals []string
 		expectedLogins    []string
-		loginGetter       loginGetterFunc
 	}{
 		{
 			name:              "no matching logins",
 			allowedLogins:     []string{"llama"},
 			grantedPrincipals: []string{"fish"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:              "no matching logins ignores fallback",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"fish"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:              "identical logins",
 			allowedLogins:     []string{"llama", "shark", "goose"},
 			grantedPrincipals: []string{"shark", "goose", "llama"},
 			expectedLogins:    []string{"goose", "shark", "llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:              "subset of logins",
 			allowedLogins:     []string{"llama"},
 			grantedPrincipals: []string{"shark", "goose", "llama"},
 			expectedLogins:    []string{"llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:              "no allowed logins",
 			grantedPrincipals: []string{"shark", "goose", "llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:              "no allowed logins with fallback",
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"apple", "banana"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
 		},
 		{
 			name:          "no granted logins",
 			allowedLogins: []string{"shark", "goose", "llama"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
 		},
 	}
 
@@ -10627,48 +10594,7 @@ func TestCalculateSSHLogins(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			identity := &tlsca.Identity{Principals: test.grantedPrincipals}
 
-			logins, err := calculateSSHLogins(identity, test.loginGetter, nil, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
-}
-
-func TestCalculateDesktopLogins(t *testing.T) {
-	cases := []struct {
-		name           string
-		allowedLogins  []string
-		expectedLogins []string
-		loginGetter    loginGetterFunc
-	}{
-		{
-			name:           "allowed logins",
-			allowedLogins:  []string{"llama", "fish", "dog"},
-			expectedLogins: []string{"llama", "fish", "dog"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name: "no allowed logins",
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:           "no allowed logins with fallback",
-			expectedLogins: []string{"apple", "banana"},
-			loginGetter: func(resource services.AccessCheckable) ([]string, error) {
-				return []string{"apple", "banana"}, nil
-			},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			logins, err := calculateDesktopLogins(test.loginGetter, nil, test.allowedLogins)
+			logins, err := calculateSSHLogins(identity, test.allowedLogins)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
 				return strings.Compare(a, b) < 0

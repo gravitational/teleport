@@ -127,6 +127,10 @@ spec:
                   through this auth connector.
                 nullable: true
                 properties:
+                  cert:
+                    description: Cert is the identity provider certificate PEM. IDP
+                      signs `<Response>` responses using this certificate.
+                    type: string
                   enabled:
                     description: Enabled specified whether this SAML connector supports
                       MFA checks. Defaults to false.
@@ -134,7 +138,8 @@ spec:
                   entity_descriptor:
                     description: EntityDescriptor is XML with descriptor. It can be
                       used to supply configuration parameters in one XML file rather
-                      than supplying them in the individual elements.
+                      than supplying them in the individual elements. Usually set
+                      from EntityDescriptorUrl.
                     type: string
                   entity_descriptor_url:
                     description: EntityDescriptorUrl is a URL that supplies a configuration
@@ -147,6 +152,14 @@ spec:
                       NO if the IdP is setup to perform MFA checks on top of active
                       user sessions.
                     x-kubernetes-int-or-string: true
+                  issuer:
+                    description: Issuer is the identity provider issuer. Usually set
+                      from EntityDescriptor.
+                    type: string
+                  sso:
+                    description: SSO is the URL of the identity provider's SSO service.
+                      Usually set from EntityDescriptor.
+                    type: string
                 type: object
               provider:
                 description: Provider is the external identity provider.

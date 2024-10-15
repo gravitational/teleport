@@ -65,11 +65,13 @@ Init.parameters = {
 };
 
 export const InitWithAutoDiscover = () => {
+  const dbMeta = getDbMeta();
+  dbMeta.selectedAwsRdsDb = undefined; // there is no selection for discovery
   return (
     <TeleportProvider
       resourceKind={ResourceKind.Database}
       agentMeta={{
-        ...getDbMeta(),
+        ...dbMeta,
         autoDiscovery: {
           config: { name: '', discoveryGroup: '', aws: [] },
         },
