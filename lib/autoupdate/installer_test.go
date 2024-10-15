@@ -70,12 +70,12 @@ func TestTeleportInstaller_Install(t *testing.T) {
 		},
 		{
 			name:        "out of space in /tmp",
-			reservedTmp: reservedFreeDisk * 100_000,
+			reservedTmp: reservedFreeDisk * 1_000_000_000,
 			errMatch:    "no free space left",
 		},
 		{
 			name:            "out of space in install dir",
-			reservedInstall: reservedFreeDisk * 100_000,
+			reservedInstall: reservedFreeDisk * 1_000_000_000,
 			errMatch:        "no free space left",
 		},
 	}
