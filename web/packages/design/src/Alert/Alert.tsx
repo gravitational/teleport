@@ -49,22 +49,22 @@ const alertBorder = (props: ThemedAlertProps) => {
   switch (kind) {
     case 'success':
       return {
-        borderColor: theme.colors.interactive.solid.success.default.background,
+        borderColor: theme.colors.interactive.solid.success.default,
       };
     case 'danger':
     case 'outline-danger':
       return {
-        borderColor: theme.colors.interactive.solid.danger.default.background,
+        borderColor: theme.colors.interactive.solid.danger.default,
       };
     case 'info':
     case 'outline-info':
       return {
-        borderColor: theme.colors.interactive.solid.accent.default.background,
+        borderColor: theme.colors.interactive.solid.accent.default,
       };
     case 'warning':
     case 'outline-warn':
       return {
-        borderColor: theme.colors.interactive.solid.alert.default.background,
+        borderColor: theme.colors.interactive.solid.alert.default,
       };
     case 'neutral':
       return {
@@ -81,26 +81,26 @@ const backgroundColor = (props: ThemedAlertProps) => {
   switch (kind) {
     case 'success':
       return {
-        background: theme.colors.interactive.tonal.success[0].background,
+        background: theme.colors.interactive.tonal.success[0],
       };
     case 'danger':
     case 'outline-danger':
       return {
-        background: theme.colors.interactive.tonal.danger[0].background,
+        background: theme.colors.interactive.tonal.danger[0],
       };
     case 'info':
     case 'outline-info':
       return {
-        background: theme.colors.interactive.tonal.informational[0].background,
+        background: theme.colors.interactive.tonal.informational[0],
       };
     case 'warning':
     case 'outline-warn':
       return {
-        background: theme.colors.interactive.tonal.alert[0].background,
+        background: theme.colors.interactive.tonal.alert[0],
       };
     case 'neutral':
       return {
-        background: theme.colors.interactive.tonal.neutral[0].background,
+        background: theme.colors.interactive.tonal.neutral[0],
       };
     default:
       kind satisfies never;
@@ -280,28 +280,28 @@ const iconContainerStyles = ({
     case 'success':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.success.default.background,
+        background: theme.colors.interactive.solid.success.default,
         padding: `${theme.space[2]}px`,
       };
     case 'danger':
     case 'outline-danger':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.danger.default.background,
+        background: theme.colors.interactive.solid.danger.default,
         padding: `${theme.space[2]}px`,
       };
     case 'info':
     case 'outline-info':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.accent.default.background,
+        background: theme.colors.interactive.solid.accent.default,
         padding: `${theme.space[2]}px`,
       };
     case 'warning':
     case 'outline-warn':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.alert.default.background,
+        background: theme.colors.interactive.solid.alert.default,
         padding: `${theme.space[2]}px`,
       };
     case 'neutral':
@@ -481,9 +481,8 @@ const bannerColors = (theme: Theme, kind: BannerKind) => {
   switch (kind) {
     case 'primary':
       return {
-        backgroundColor: theme.colors.interactive.tonal.primary[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.primary.default.background,
+        backgroundColor: theme.colors.interactive.tonal.primary[2],
+        foregroundColor: theme.colors.interactive.solid.primary.default,
         iconColor: theme.colors.text.main,
       };
     case 'neutral':
@@ -494,32 +493,27 @@ const bannerColors = (theme: Theme, kind: BannerKind) => {
       };
     case 'danger':
       return {
-        backgroundColor: theme.colors.interactive.tonal.danger[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.danger.default.background,
-        iconColor: theme.colors.interactive.solid.danger.default.background,
+        backgroundColor: theme.colors.interactive.tonal.danger[2],
+        foregroundColor: theme.colors.interactive.solid.danger.default,
+        iconColor: theme.colors.interactive.solid.danger.default,
       };
     case 'warning':
       return {
-        backgroundColor: theme.colors.interactive.tonal.alert[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.alert.default.background,
-        iconColor: theme.colors.interactive.solid.alert.default.background,
+        backgroundColor: theme.colors.interactive.tonal.alert[2],
+        foregroundColor: theme.colors.interactive.solid.alert.default,
+        iconColor: theme.colors.interactive.solid.alert.default,
       };
     case 'info':
       return {
-        backgroundColor:
-          theme.colors.interactive.tonal.informational[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.accent.default.background,
-        iconColor: theme.colors.interactive.solid.accent.default.background,
+        backgroundColor: theme.colors.interactive.tonal.informational[2],
+        foregroundColor: theme.colors.interactive.solid.accent.default,
+        iconColor: theme.colors.interactive.solid.accent.default,
       };
     case 'success':
       return {
-        backgroundColor: theme.colors.interactive.tonal.success[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.success.default.background,
-        iconColor: theme.colors.interactive.solid.success.default.background,
+        backgroundColor: theme.colors.interactive.tonal.success[2],
+        foregroundColor: theme.colors.interactive.solid.success.default,
+        iconColor: theme.colors.interactive.solid.success.default,
       };
     default:
       kind satisfies never;
