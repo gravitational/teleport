@@ -159,18 +159,19 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
 	log := logger.Get(ctx)
 
-	// Fetch all on-call teams
-	oncallTeams, err := b.datadog.GetOncallTeams(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
 	teamNames, err := common.GetNamesFromAnnotations(req, annotationKey)
 	if err != nil {
 		log.Debug("Automatic approvals annotation is empty or unspecified.")
 		return nil, nil
 	}
+
+	// Fetch all on-call teams
+	oncallTeams, err := b.datadog.GetOncallTeams(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var oncallUserIDs []string
 	for _, oncallTeam := range oncallTeams.Data {
 		// Filter the list of teams to only the teams that match the datadog annotation.
