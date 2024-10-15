@@ -274,6 +274,7 @@ type SharedResourceAccessRequestKind =
   | 'node'
   | 'kube_cluster'
   | 'saml_idp_service_provider'
+  | 'aws_iam_ic_account_assignment'
   | 'aws_iam_ic_account';
 
 /**
@@ -351,6 +352,30 @@ export function toResourceRequest({
         kind: 'app',
       };
     case 'saml_idp_service_provider':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: true,
+        },
+        kind: 'app',
+      };
+    case 'aws_iam_ic_account':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: true,
+        },
+        kind: 'app',
+      };
+    case 'aws_iam_ic_account_assignment':
       return {
         resource: {
           uri: routing.getAppUri({

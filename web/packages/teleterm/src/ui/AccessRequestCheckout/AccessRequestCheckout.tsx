@@ -151,6 +151,12 @@ export function AccessRequestCheckout() {
                       case 'saml_idp_service_provider':
                         resource.Icon = Icon.Application;
                         break;
+                      case 'aws_iam_ic_account':
+                        resource.Icon = Icon.Application;
+                        break;
+                      case 'aws_iam_ic_account_assignment':
+                        resource.Icon = Icon.Application;
+                        break;
                       case 'node':
                         resource.Icon = Icon.Server;
                         break;

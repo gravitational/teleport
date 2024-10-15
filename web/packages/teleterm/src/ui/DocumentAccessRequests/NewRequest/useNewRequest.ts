@@ -348,7 +348,13 @@ function getDefaultSort(kind: ResourceKind): SortType {
 export type ResourceKind =
   | Extract<
       ResourceIdKind,
-      'node' | 'app' | 'db' | 'kube_cluster' | 'saml_idp_service_provider'
+      | 'node'
+      | 'app'
+      | 'db'
+      | 'kube_cluster'
+      | 'saml_idp_service_provider'
+      | 'aws_iam_ic_account'
+      | 'aws_iam_ic_account_assignment'
     >
   | 'role';
 

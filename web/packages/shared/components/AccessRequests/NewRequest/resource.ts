@@ -26,6 +26,9 @@ export type ResourceMap = {
   [K in ResourceIdKind | 'role']: Record<string, string>;
 };
 
+/** Available request kinds for resource-based and role-based access requests. */
+export type ResourceKind = ResourceIdKind | 'role' | 'resource';
+
 export function getEmptyResourceState(): ResourceMap {
   return {
     node: {},

@@ -23,7 +23,7 @@ import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
-import { IdentityCenterAccount } from '../identitycenter';
+
 import { UserGroup } from '../userGroups';
 
 import type { MfaAuthnResponse } from '../mfa';
@@ -35,8 +35,7 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | UserGroup
-  | IdentityCenterAccount;
+  | UserGroup;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 

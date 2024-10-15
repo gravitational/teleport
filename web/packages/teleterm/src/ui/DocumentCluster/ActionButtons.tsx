@@ -19,7 +19,6 @@
 import React from 'react';
 import { MenuLogin, MenuLoginProps } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { IdentityCenterLaunchButton } from 'shared/components/IdentityCenterLaunchButton';
 import { ButtonBorder, ButtonWithMenu, MenuItem, ButtonPrimary } from 'design';
 
 import {

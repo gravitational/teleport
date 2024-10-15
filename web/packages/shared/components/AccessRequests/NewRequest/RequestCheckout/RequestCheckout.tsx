@@ -54,6 +54,7 @@ import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
+import { getPrettyResourceKind } from '../../Shared';
 
 import { ReviewerOption } from './types';
 
@@ -64,9 +65,8 @@ import { AdditionalOptions } from './AdditionalOptions';
 import type { TransitionStatus } from 'react-transition-group';
 
 import type { AccessRequest } from 'shared/services/accessRequests';
-import type { ResourceKind } from '../resource';
 
-import { getPrettyResourceKind } from '../../Shared';
+import type { ResourceKind } from '../../Shared';
 
 export function RequestCheckoutWithSlider<
   T extends PendingListItem = PendingListItem,

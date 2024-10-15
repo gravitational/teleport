@@ -60,6 +60,7 @@ import {
   getAssumeStartTimeTooltipText,
 } from '../../Shared/Shared';
 import { getFormattedDurationTxt } from '../../Shared/utils';
+import { getPrettyResourceKind } from '../../Shared';
 
 import { formattedName } from '../formattedName';
 
@@ -72,8 +73,6 @@ import type {
   RequestFlags,
   SubmitReview,
 } from '../../ReviewRequests/RequestView/types';
-
-import { getPrettyResourceKind } from '../../Shared';
 
 export interface RequestViewProps {
   user: string;

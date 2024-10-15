@@ -37,8 +37,8 @@ export function makeUnifiedResource(json: any): UnifiedResource {
       return makeNode(json);
     case 'windows_desktop':
       return makeDesktop(json);
-    case 'aws_iam_ic_account':
-      return makeApp(json);
+    // case 'aws_iam_ic_account':
+    //   return makeApp(json);
     default:
       throw new Error(`Unknown unified resource kind: "${json.kind}"`);
   }

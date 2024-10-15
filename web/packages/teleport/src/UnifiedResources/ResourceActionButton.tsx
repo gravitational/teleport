@@ -20,7 +20,6 @@ import React, { useState } from 'react';
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
-import { IdentityCenterLaunchButton } from 'shared/components/IdentityCenterLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
@@ -160,24 +159,23 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     permission_sets,
   } = app;
   const { actions, userSamlIdPPerm } = useSamlAppAction();
+  function getIcLaunchRoute(arn: string, display: string) {
+    return `${publicAddr}&role_name=${display}`;
+  }
+  function getawsLaunchUrl(arn, display) {
+    if (permission_sets) {
+      return getIcLaunchRoute(arn, display);
+    } else {
+      return cfg.getAppLauncherRoute({
+        fqdn,
+        clusterId,
+        publicAddr,
+        arn,
+      });
+    }
+  }
 
   if (awsConsole) {
-    function getIcLaunchRoute(arn: string, display: string) {
-      return `${publicAddr}&role_name=${display}`;
-    }
-    function getawsLaunchUrl(arn, display) {
-      if (permission_sets) {
-        return getIcLaunchRoute(arn, display);
-      } else {
-        return cfg.getAppLauncherRoute({
-          fqdn,
-          clusterId,
-          publicAddr,
-          arn,
-        });
-      }
-    }
-
     const isAwsIc = !!permission_sets;
     return (
       <AwsLaunchButton
