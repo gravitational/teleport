@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import Box from 'design/Box';
-
 import { H1 } from 'design/Text';
 
-import { FieldRadio } from '.';
+import { FieldRadio } from './FieldRadio';
 
 export default {
   title: 'Shared',

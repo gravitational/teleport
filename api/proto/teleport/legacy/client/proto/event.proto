@@ -191,8 +191,10 @@ message Event {
     teleport.usertasks.v1.UserTask UserTask = 67;
     // AutoUpdateAgentPlan is a resource for planning agent automatic updates.
     teleport.autoupdate.v1.AutoUpdateAgentPlan AutoUpdateAgentPlan = 68;
+    // DynamicWindowsDesktop is a resource for dynamic Windows desktop host.
+    types.DynamicWindowsDesktopV1 DynamicWindowsDesktop = 69;
     // ProvisioningPrincipalState is a resource for tracking the provisioning of
     // users and groups into downstream systems.
-    teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 69;
+    teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 70;
   }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,6 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { SlidePanel } from './SlidePanel';
+/** Formats as "2024-12-25 14:35:22" */
+export const DATE_TIME_FORMAT = 'yyyy-MM-dd HH:mm:ss';
 
-export default SlidePanel;
+/** Formats as "2024-12-25". */
+export const DATE_FORMAT = 'yyyy-MM-dd';
+
+/** Formats as "Dec 25, 2024". */
+export const SHORT_DATE_FORMAT = 'MMM dd, yyyy';
+
+/** Formats as "12/25/2024 at 12:00AM". */
+export const DATE_WITH_PREFIXED_TIME_FORMAT = `LL/dd/yyyy 'at' h:mma`;

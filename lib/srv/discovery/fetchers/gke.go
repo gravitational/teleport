@@ -35,8 +35,10 @@ import (
 
 // GKEFetcherConfig configures the GKE fetcher.
 type GKEFetcherConfig struct {
-	// Client is the GCP GKE client.
-	Client gcp.GKEClient
+	// GKEClient is the GCP GKE client.
+	GKEClient gcp.GKEClient
+	// ProjectClient is the GCP project client.
+	ProjectClient gcp.ProjectsClient
 	// ProjectID is the projectID the cluster should belong to.
 	ProjectID string
 	// Location is the GCP's location where the clusters should be located.
@@ -50,8 +52,11 @@ type GKEFetcherConfig struct {
 
 // CheckAndSetDefaults validates and sets the defaults values.
 func (c *GKEFetcherConfig) CheckAndSetDefaults() error {
-	if c.Client == nil {
+	if c.GKEClient == nil {
 		return trace.BadParameter("missing Client field")
+	}
+	if c.ProjectClient == nil {
+		return trace.BadParameter("missing ProjectClient field")
 	}
 	if len(c.Location) == 0 {
 		return trace.BadParameter("missing Location field")
@@ -73,7 +78,7 @@ type gkeFetcher struct {
 }
 
 // NewGKEFetcher creates a new GKE fetcher configuration.
-func NewGKEFetcher(cfg GKEFetcherConfig) (common.Fetcher, error) {
+func NewGKEFetcher(ctx context.Context, cfg GKEFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,19 +87,31 @@ func NewGKEFetcher(cfg GKEFetcherConfig) (common.Fetcher, error) {
 }
 
 func (a *gkeFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	clusters, err := a.getGKEClusters(ctx)
+
+	// Get the project IDs that this fetcher is configured to query.
+	projectIDs, err := a.getProjectIDs(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	a.Log.Debugf("Fetching GKE clusters for project IDs: %v", projectIDs)
+	var clusters types.KubeClusters
+	for _, projectID := range projectIDs {
+		lClusters, err := a.getGKEClusters(ctx, projectID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusters = append(clusters, lClusters...)
 	}
 
 	a.rewriteKubeClusters(clusters)
 	return clusters.AsResources(), nil
 }
 
-func (a *gkeFetcher) getGKEClusters(ctx context.Context) (types.KubeClusters, error) {
+func (a *gkeFetcher) getGKEClusters(ctx context.Context, projectID string) (types.KubeClusters, error) {
 	var clusters types.KubeClusters
 
-	gkeClusters, err := a.Client.ListClusters(ctx, a.ProjectID, a.Location)
+	gkeClusters, err := a.GKEClient.ListClusters(ctx, projectID, a.Location)
 	for _, gkeCluster := range gkeClusters {
 		cluster, err := a.getMatchingKubeCluster(gkeCluster)
 		// trace.CompareFailed is returned if the cluster did not match the matcher filtering labels
@@ -159,4 +176,24 @@ func (a *gkeFetcher) getMatchingKubeCluster(gkeCluster gcp.GKECluster) (types.Ku
 	}
 
 	return cluster, nil
+}
+
+// getProjectIDs returns the project ids that this fetcher is configured to query.
+// This will make an API call to list project IDs when the fetcher is configured to match "*" projectID,
+// in order to discover and query new projectID.
+// Otherwise, a list containing the fetcher's non-wildcard project is returned.
+func (a *gkeFetcher) getProjectIDs(ctx context.Context) ([]string, error) {
+	if a.ProjectID != types.Wildcard {
+		return []string{a.ProjectID}, nil
+	}
+
+	gcpProjects, err := a.ProjectClient.ListProjects(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var projectIDs []string
+	for _, prj := range gcpProjects {
+		projectIDs = append(projectIDs, prj.ID)
+	}
+	return projectIDs, nil
 }

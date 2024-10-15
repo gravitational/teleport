@@ -16,26 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { forwardRef, ReactNode, ChangeEvent } from 'react';
+import styled from 'styled-components';
+
 import Box from 'design/Box';
 import { RadioButtonSize, RadioButton } from 'design/RadioButton';
 import Flex from 'design/Flex';
 import LabelInput from 'design/LabelInput';
 import Text from 'design/Text';
 import { SpaceProps } from 'design/system';
-import React, { forwardRef } from 'react';
-import styled from 'styled-components';
 
 interface FieldRadioProps extends SpaceProps {
   name?: string;
-  label?: React.ReactNode;
-  helperText?: React.ReactNode;
+  label?: ReactNode;
+  helperText?: ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
   disabled?: boolean;
   size?: RadioButtonSize;
   value?: string;
   autoFocus?: boolean;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
 }
 
 /** Renders a radio button with an associated label and an optional helper text. */
