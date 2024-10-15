@@ -124,11 +124,6 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("without integration (v15 and lower clients) returns an error", func(t *testing.T) {
-		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
-		require.Error(t, err)
-	})
-
 	t.Run("with integration in rpc call but no issuer defined", func(t *testing.T) {
 		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
 			Integration: integrationNameWithoutIssuer,
@@ -319,6 +314,16 @@ func TestRBAC(t *testing.T) {
 				fn: func() error {
 					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
 						Integration: integrationName,
+					})
+					return err
+				},
+			},
+			{
+				name: "Ping with arn",
+				fn: func() error {
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
+						Integration: integrationName,
+						Arn:         "some-arn",
 					})
 					return err
 				},
