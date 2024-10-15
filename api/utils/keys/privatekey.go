@@ -421,3 +421,15 @@ func X509Certificate(certPEMBlock []byte) (*x509.Certificate, [][]byte, error) {
 	}
 	return x509Cert, rawCerts, nil
 }
+
+// MarshalSoftwarePrivateKeyPKCS8DER marshals the provided private key as PKCS#8 DER.
+func MarshalSoftwarePrivateKeyPKCS8DER(signer crypto.Signer) ([]byte, error) {
+	switch k := signer.(type) {
+	case *PrivateKey:
+		return MarshalSoftwarePrivateKeyPKCS8DER(k.Signer)
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		return x509.MarshalPKCS8PrivateKey(k)
+	default:
+		return nil, trace.BadParameter("unsupported key type: %T", signer)
+	}
+}

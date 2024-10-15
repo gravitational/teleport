@@ -1442,9 +1442,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case login.FullCommand():
 		err = onLogin(&cf)
 	case logout.FullCommand():
-		if err := refuseArgs(logout.FullCommand(), args); err != nil {
-			return trace.Wrap(err)
-		}
 		err = onLogout(&cf)
 	case show.FullCommand():
 		err = onShow(&cf)
@@ -2213,9 +2210,10 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		fmt.Printf("Logged out all users from all proxies.\n")
-	default:
-		fmt.Printf("Specify --proxy and --user to remove keys for specific user ")
-		fmt.Printf("from a proxy or neither to log out all users from all proxies.\n")
+	case proxyHost != "" && cf.Username == "":
+		fmt.Printf("Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+	case proxyHost == "" && cf.Username != "":
+		fmt.Printf("Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
 	}
 	return nil
 }
@@ -4403,19 +4401,6 @@ func parseCertificateCompatibilityFlag(compatibility string, certificateFormat s
 	default:
 		return "", trace.BadParameter("--compat or --cert-format must be specified")
 	}
-}
-
-// refuseArgs helper makes sure that 'args' (list of CLI arguments)
-// does not contain anything other than command
-func refuseArgs(command string, args []string) error {
-	for _, arg := range args {
-		if arg == command || strings.HasPrefix(arg, "-") {
-			continue
-		} else {
-			return trace.BadParameter("unexpected argument: %s", arg)
-		}
-	}
-	return nil
 }
 
 // flattenIdentity reads an identity file and flattens it into a tsh profile on disk.

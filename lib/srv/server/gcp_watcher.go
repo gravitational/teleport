@@ -91,13 +91,14 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 }
 
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient) []Fetcher {
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient) []Fetcher {
 	fetchers := make([]Fetcher, 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
-			Matcher:   matcher,
-			GCPClient: gcpClient,
+			Matcher:        matcher,
+			GCPClient:      gcpClient,
+			projectsClient: projectsClient,
 		}))
 	}
 
@@ -105,8 +106,9 @@ func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.In
 }
 
 type gcpFetcherConfig struct {
-	Matcher   types.GCPMatcher
-	GCPClient gcp.InstancesClient
+	Matcher        types.GCPMatcher
+	GCPClient      gcp.InstancesClient
+	projectsClient gcp.ProjectsClient
 }
 
 type gcpInstanceFetcher struct {
@@ -117,6 +119,7 @@ type gcpInstanceFetcher struct {
 	ServiceAccounts []string
 	Labels          types.Labels
 	Parameters      map[string]string
+	projectsClient  gcp.ProjectsClient
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
@@ -126,6 +129,7 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 		ProjectIDs:      cfg.Matcher.ProjectIDs,
 		ServiceAccounts: cfg.Matcher.ServiceAccounts,
 		Labels:          cfg.Matcher.GetLabels(),
+		projectsClient:  cfg.projectsClient,
 	}
 	if cfg.Matcher.Params != nil {
 		fetcher.Parameters = map[string]string{
@@ -145,7 +149,11 @@ func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Ins
 func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
 	// Key by project ID, then by zone.
 	instanceMap := make(map[string]map[string][]*gcpimds.Instance)
-	for _, projectID := range f.ProjectIDs {
+	projectIDs, err := f.getProjectIDs(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, projectID := range projectIDs {
 		instanceMap[projectID] = make(map[string][]*gcpimds.Instance)
 		for _, zone := range f.Zones {
 			instanceMap[projectID][zone] = make([]*gcpimds.Instance, 0)
@@ -184,4 +192,24 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instan
 	}
 
 	return instances, nil
+}
+
+// getProjectIDs returns the project ids that this fetcher is configured to query.
+// This will make an API call to list project IDs when the fetcher is configured to match "*" projectID,
+// in order to discover and query new projectID.
+// Otherwise, a list containing the fetcher's non-wildcard project is returned.
+func (f *gcpInstanceFetcher) getProjectIDs(ctx context.Context) ([]string, error) {
+	if len(f.ProjectIDs) != 1 || len(f.ProjectIDs) == 1 && f.ProjectIDs[0] != types.Wildcard {
+		return f.ProjectIDs, nil
+	}
+
+	gcpProjects, err := f.projectsClient.ListProjects(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var projectIDs []string
+	for _, prj := range gcpProjects {
+		projectIDs = append(projectIDs, prj.ID)
+	}
+	return projectIDs, nil
 }

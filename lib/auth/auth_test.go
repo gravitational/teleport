@@ -1227,60 +1227,6 @@ func TestUpdateConfig(t *testing.T) {
 	}}))
 }
 
-func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	user, err := types.NewUser("some-user")
-	require.NoError(t, err)
-
-	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-
-	// test create user, happy path
-	user.SetCreatedBy(types.CreatedBy{
-		User: types.UserRef{Name: "some-auth-user"},
-	})
-	user, err = s.a.CreateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
-	createEvt := s.mockEmitter.LastEvent().(*apievents.UserCreate)
-	require.Equal(t, "some-auth-user", createEvt.User)
-	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
-	s.mockEmitter.Reset()
-
-	// test create user with existing user
-	_, err = s.a.CreateUser(ctx, user)
-	require.True(t, trace.IsAlreadyExists(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test createdBy gets set to default
-	user2, err := types.NewUser("some-other-user")
-	require.NoError(t, err)
-	_, err = s.a.CreateUser(ctx, user2)
-	require.NoError(t, err)
-	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
-	createEvt = s.mockEmitter.LastEvent().(*apievents.UserCreate)
-	require.Equal(t, teleport.UserSystem, createEvt.User)
-	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
-	s.mockEmitter.Reset()
-
-	// test update on non-existent user
-	user3, err := types.NewUser("non-existent-user")
-	require.NoError(t, err)
-	_, err = s.a.UpdateUser(ctx, user3)
-	require.True(t, trace.IsNotFound(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test update user
-	_, err = s.a.UpdateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, events.UserUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	updateEvt := s.mockEmitter.LastEvent().(*apievents.UserUpdate)
-	require.Equal(t, teleport.UserSystem, updateEvt.User)
-	require.Equal(t, clientAddr.String(), updateEvt.ConnectionMetadata.RemoteAddr)
-}
-
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)

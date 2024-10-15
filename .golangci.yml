@@ -155,29 +155,35 @@ linters-settings:
           - "!$test"
           - '**/tool/tbot/**'
           - '**/lib/client/**'
+          - '!**/lib/integrations/**'
+          - '**/integrations/**'
         deny:
-          - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
-            desc: '"devicetrust/authn" requires CGO on darwin'
-          - pkg: github.com/gravitational/teleport/lib/devicetrust/enroll
-            desc: '"devicetrust/enroll" requires CGO on darwin'
-          - pkg: github.com/gravitational/teleport/lib/devicetrust/native
-            desc: '"devicetrust/native" requires CGO on darwin'
           - pkg: github.com/gravitational/teleport/lib/bpf
             desc: '"lib/bpf" requires CGO'
-          - pkg: github.com/gravitational/teleport/lib/vnet/daemon
-            desc: '"vnet/daemon" requires CGO'
-          - pkg: github.com/gravitational/teleport/lib/system/signal
-            desc: '"lib/system/signal" requires CGO'
-          - pkg: github.com/gravitational/teleport/lib/inventory/metadata
-            desc: '"lib/inventory/metadata" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/backend/lite
+            desc: '"lib/backend/lite" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/cgroup
+            desc: '"lib/cgroup" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/config
+            desc: '"lib/config" requires CGO via "lib/pam" and "lib/backend/lite"'
           - pkg: github.com/gravitational/teleport/lib/desktop/rdp/rdpclient
             desc: '"lib/desktop/rdp/rdpclient" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
+            desc: '"lib/devicetrust/authn" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/enroll
+            desc: '"lib/devicetrust/enroll" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/native
+            desc: '"lib/devicetrust/native" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/inventory/metadata
+            desc: '"lib/inventory/metadata" requires CGO'
           - pkg: github.com/gravitational/teleport/lib/pam
             desc: '"lib/pam" requires CGO'
           - pkg: github.com/gravitational/teleport/lib/srv/uacc
             desc: '"lib/srv/uacc" requires CGO'
-          - pkg: github.com/gravitational/teleport/lib/cgroup
-            desc: '"lib/cgroup" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/system/signal
+            desc: '"lib/system/signal" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/vnet/daemon
+            desc: '"vnet/daemon" requires CGO'
   errorlint:
     comparison: true
     asserts: true

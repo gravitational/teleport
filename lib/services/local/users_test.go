@@ -1431,6 +1431,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+	oldRevision := got.GetMetadata().Revision
 
 	u2fDev := &types.MFADevice{
 		Metadata: types.Metadata{
@@ -1451,6 +1452,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+	require.Equal(t, oldRevision, got.GetMetadata().Revision, "revision should not change")
 
 	// Create webauthn device but state should still be MFA_DEVICE_KIND_TOTP
 	// because it shows the weakest state.
@@ -1477,6 +1479,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+	require.Equal(t, oldRevision, got.GetMetadata().Revision, "revision should not change")
 
 	// Delete the TOTP device and the state should be MFA_DEVICE_KIND_WEBAUTHN
 	err = identity.DeleteMFADevice(ctx, "bob", totpDevice.Id)
@@ -1485,6 +1488,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN, got.GetWeakestDevice())
+	oldRevision = got.GetMetadata().Revision
 
 	// Delete the U2F device and the state should be MFA_DEVICE_KIND_WEBAUTHN
 	err = identity.DeleteMFADevice(ctx, "bob", u2fDev.Id)
@@ -1493,6 +1497,7 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN, got.GetWeakestDevice())
+	require.Equal(t, oldRevision, got.GetMetadata().Revision, "revision should not change")
 
 	// Delete the Webauthn device and the state should be MFA_DEVICE_KIND_UNSET
 	err = identity.DeleteMFADevice(ctx, "bob", webauthnDevice.Id)
