@@ -143,7 +143,7 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.svc.RunWhileLocked(ctx, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL,
+	return trace.Wrap(s.svc.RunWhileLocked(ctx, []string{samlIDPServiceProviderModifyLock}, samlIDPServiceProviderModifyLockTTL,
 		func(ctx context.Context, backend backend.Backend) error {
 			if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
 				return trace.Wrap(err)
@@ -181,7 +181,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.svc.RunWhileLocked(ctx, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL,
+	return trace.Wrap(s.svc.RunWhileLocked(ctx, []string{samlIDPServiceProviderModifyLock}, samlIDPServiceProviderModifyLockTTL,
 		func(ctx context.Context, backend backend.Backend) error {
 			if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
 				return trace.Wrap(err)
