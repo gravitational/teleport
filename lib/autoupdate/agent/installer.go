@@ -49,6 +49,7 @@ const (
 type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
+	// LinkDir contains symlinks to the
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
 	// Log contains a logger.
@@ -293,8 +294,14 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
-	// TODO(sclevine): add variadic arg to Extract to extract teleport/ subdir into bin/.
-	err = utils.Extract(zr, dstDir)
+	err = utils.Extract(zr, dstDir, []utils.ExtractPath{
+		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service"},
+		{Src: "teleport/examples", Skip: true},
+		{Src: "teleport/README.md", Dst: "share/README.md"},
+		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md"},
+		{Src: "teleport/VERSION", Dst: "share/VERSION"},
+		{Src: "teleport", Dst: "bin"},
+	}...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -315,4 +322,21 @@ func uncompressedSize(f io.Reader) (int64, error) {
 		return 0, trace.Wrap(err)
 	}
 	return n, nil
+}
+
+func (ai *LocalInstaller) Link(ctx context.Context, version string, linkDir string) error {
+	binDir := filepath.Join(ai.InstallDir, version, "bin")
+
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		os.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(linkDir, entry.Name()))
+
+	}
+	return nil
 }

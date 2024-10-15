@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -36,7 +37,9 @@ import (
 // resulting files and directories are created using the current user context.
 // Extract will only unarchive files into dir, and will fail if the tarball
 // tries to write files outside of dir.
-func Extract(r io.Reader, dir string) error {
+// If paths are specified, only the specified paths are extracted.
+// The destination specified in the first matching path is used.
+func Extract(r io.Reader, dir string, paths ...ExtractPath) error {
 	tarball := tar.NewReader(r)
 
 	for {
@@ -46,7 +49,9 @@ func Extract(r io.Reader, dir string) error {
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
-
+		if ok := filterHeader(header, paths); !ok {
+			continue
+		}
 		err = sanitizeTarPath(header, dir)
 		if err != nil {
 			return trace.Wrap(err)
@@ -57,6 +62,45 @@ func Extract(r io.Reader, dir string) error {
 		}
 	}
 	return nil
+}
+
+// ExtractPath specifies a path to be extracted.
+type ExtractPath struct {
+	// Src path prefix and Dst path within the archive to extract files to.
+	// Src path directories are not included in the extraction dir.
+	// Trialing slashes are always ignores.
+	Src, Dst string
+	// Skip the path entirely.
+	Skip bool
+}
+
+func filterHeader(hdr *tar.Header, paths []ExtractPath) (ok bool) {
+	name := path.Clean(hdr.Name)
+	for _, p := range paths {
+		src := path.Clean(p.Src)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if src != "/" {
+				src += "/"
+			}
+			if !strings.HasPrefix(name, src) {
+				continue
+			}
+			dst := path.Join(p.Dst, strings.TrimPrefix(name, src))
+			if dst != "/" {
+				dst += "/"
+			}
+			hdr.Name = dst
+			return !p.Skip
+		default:
+			if src != name {
+				continue
+			}
+			hdr.Name = path.Clean(p.Dst)
+			return !p.Skip
+		}
+	}
+	return len(paths) == 0
 }
 
 // extractFile extracts a single file or directory from tarball into dir.

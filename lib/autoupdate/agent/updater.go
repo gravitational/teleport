@@ -161,6 +161,8 @@ type Installer interface {
 	// Install the Teleport agent at version from the download template.
 	// This function must be idempotent.
 	Install(ctx context.Context, version, template string, flags InstallFlags) error
+	// Link the Teleport agent at version to the system location.
+	Link(ctx context.Context, version string) error
 	// Remove the Teleport agent at version.
 	// This function must be idempotent.
 	Remove(ctx context.Context, version string) error
