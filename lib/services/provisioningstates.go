@@ -41,8 +41,8 @@ type DownstreamProvisioningStates interface {
 	GetProvisioningState(context.Context, DownstreamID, ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 
 	// ListProvisioningStates lists all provisioning state records for a given
-	// downstream receiver
-	ListProvisioningStates(context.Context, DownstreamID, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
+	// downstream receiver.
+	ListProvisioningStates(context.Context, DownstreamID, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
 
 	// Creates a new backend PrincipalState record. The target DownstreamID is
 	// drawn from the supplied record.
@@ -77,7 +77,7 @@ type ProvisioningStates interface {
 	// downstream receivers. Note that the returned record names may not be unique
 	// across all downstream receivers. Check the records' `DownstreamID` field
 	// to disambiguate.
-	ListAllProvisioningStates(context.Context, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
+	ListAllProvisioningStates(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
 
 	// DeleteAllProvisioningStates deletes all provisioning state records for
 	// all downstream receivers.

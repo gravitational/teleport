@@ -62,7 +62,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 		var result []*provisioningv1.PrincipalState
 		var pageToken pagination.PageRequestToken
 		for {
-			page, nextPage, err := src.ListAllProvisioningStates(ctx, &pageToken)
+			page, nextPage, err := src.ListAllProvisioningStates(ctx, 0, &pageToken)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -102,7 +102,7 @@ func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context,
 	return updatedState, nil
 }
 
-// UpdateProvisioningState performs an unconditional update of the supplied
+// UpsertProvisioningState performs an unconditional update of the supplied
 // provisioning state
 func (ss *ProvisioningStateService) UpsertProvisioningState(ctx context.Context, state *provisioningv1.PrincipalState) (*provisioningv1.PrincipalState, error) {
 	if err := validatePrincipalState(state); err != nil {
@@ -128,23 +128,31 @@ func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, do
 
 // GetProvisioningState fetches a provisioning state record from the supplied
 // downstream
-func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, downstreamID services.DownstreamID, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, downstreamID services.DownstreamID, pageSize int, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+	if pageSize == 0 {
+		pageSize = provisioningStatePageSize
+	}
+
 	token, err := page.Consume()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	resp, nextPage, err := ss.service.WithPrefix(string(downstreamID)).ListResources(ctx, provisioningStatePageSize, token)
+	resp, nextPage, err := ss.service.WithPrefix(string(downstreamID)).ListResources(ctx, pageSize, token)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
 	return resp, pagination.NextPageToken(nextPage), nil
 }
 
-// ListProvisioningStates lists all provisioning state records for all
+// ListAllProvisioningStates lists all provisioning state records for all
 // downstream receivers. Note that the returned record names may not be unique
 // across all downstream receivers. Check the records' `DownstreamID` field
 // to disambiguate.
-func (ss *ProvisioningStateService) ListAllProvisioningStates(ctx context.Context, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+func (ss *ProvisioningStateService) ListAllProvisioningStates(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+	if pageSize == 0 {
+		pageSize = provisioningStatePageSize
+	}
+
 	token, err := page.Consume()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
