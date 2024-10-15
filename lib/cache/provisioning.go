@@ -19,11 +19,12 @@ package cache
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
-	"github.com/gravitational/trace"
 )
 
 type provisioningStateGetter interface {
@@ -34,19 +35,19 @@ type provisioningStateGetter interface {
 type provisioningStateExecutor struct{}
 
 func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*provisioningv1.PrincipalState, error) {
+	if cache == nil {
+		return nil, trace.BadParameter("cache is nil")
+	}
+
+	if cache.ProvisioningStates == nil {
+		return nil, trace.BadParameter("cache provisioning state source is not set")
+	}
+
 	var page pagination.PageRequestToken
 	var resources []*provisioningv1.PrincipalState
 	for {
 		var resourcesPage []*provisioningv1.PrincipalState
 		var err error
-
-		if cache == nil {
-			panic("Cache is nil")
-		}
-
-		if cache.ProvisioningStates == nil {
-			panic("Cache ProvisioningStates is nil")
-		}
 
 		resourcesPage, nextPage, err := cache.ProvisioningStates.ListAllProvisioningStates(ctx, &page)
 		if err != nil {
@@ -64,17 +65,29 @@ func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadS
 }
 
 func (provisioningStateExecutor) upsert(ctx context.Context, cache *Cache, resource *provisioningv1.PrincipalState) error {
-	_, err := cache.provisioningStatesCache.UpdateProvisioningState(ctx, resource)
+	_, err := cache.provisioningStatesCache.UpsertProvisioningState(ctx, resource)
 	return trace.Wrap(err)
 }
 
 func (provisioningStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	unwrapper, ok := resource.(types.Resource153Unwrapper)
+	if !ok {
+		return trace.BadParameter("resource must implement Resource153Unwrapper: %T", resource)
+	}
+
+	principalState, ok := unwrapper.Unwrap().(*provisioningv1.PrincipalState)
+	if !ok {
+		return trace.BadParameter("wrapped resource must be a PrincipalState: %T", resource)
+	}
+
+	if principalState.Metadata == nil || principalState.Spec == nil {
+		return trace.BadParameter("malformed PrincipalState")
+	}
+
 	err := cache.provisioningStatesCache.DeleteProvisioningState(
 		ctx,
-		// The PrincipalState event parser smuggles the DownstreamID back to us
-		// via the Description field
-		services.DownstreamID(resource.GetMetadata().Description),
-		services.ProvisioningStateID(resource.GetName()))
+		services.DownstreamID(principalState.Spec.DownstreamId),
+		services.ProvisioningStateID(principalState.Metadata.Name))
 	return trace.Wrap(err)
 }
 

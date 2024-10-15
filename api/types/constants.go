@@ -548,9 +548,9 @@ const (
 	// a managed device.
 	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
 
-	// KindProvisioningState is a resource that tracks provisioning of a user or access
+	// KindProvisioningPrincipalState is a resource that tracks provisioning of a user or access
 	// list in a downstream SCIM server
-	KindProvisioningState = "provisioning_state"
+	KindProvisioningPrincipalState = "provisioning_principal_state"
 
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"

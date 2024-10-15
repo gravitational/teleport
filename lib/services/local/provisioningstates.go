@@ -19,17 +19,18 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils/pagination"
-	"github.com/gravitational/trace"
 )
 
 const (
-	provisioningStatePrefix   = "provisioning_state"
+	provisioningStatePrefix   = "provisioning_principal_state"
 	provisioningStatePageSize = 100
 )
 
@@ -45,7 +46,7 @@ var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
 func NewProvisioningStateService(backendInstance backend.Backend) (*ProvisioningStateService, error) {
 	userStatusSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*provisioningv1.PrincipalState]{
 		Backend:       backendInstance,
-		ResourceKind:  types.KindProvisioningState,
+		ResourceKind:  types.KindProvisioningPrincipalState,
 		BackendPrefix: backend.NewKey(provisioningStatePrefix),
 		MarshalFunc:   services.MarshalProtoResource[*provisioningv1.PrincipalState],
 		UnmarshalFunc: services.UnmarshalProtoResource[*provisioningv1.PrincipalState],

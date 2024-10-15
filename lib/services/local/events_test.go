@@ -143,7 +143,7 @@ func TestWatchers(t *testing.T) {
 		},
 		{
 			name: "provisioning principal state PUT",
-			kind: types.KindProvisioningState,
+			kind: types.KindProvisioningPrincipalState,
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an empty backend, WHEN I create a new provisioning
 				// PrincipalState
@@ -171,7 +171,7 @@ func TestWatchers(t *testing.T) {
 		},
 		{
 			name: "provisioning principal state DELETE",
-			kind: types.KindProvisioningState,
+			kind: types.KindProvisioningPrincipalState,
 			init: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an existing provisioning PrincipalState
 				svc, err := NewProvisioningStateService(backend)
@@ -197,9 +197,11 @@ func TestWatchers(t *testing.T) {
 				m := event.Resource.GetMetadata()
 				require.Equal(subtestT, "u-alice", m.Name)
 
-				// EXPECT that the upstream ID is funneled back via the `Description`
-				// field
-				require.Equal(subtestT, "foocorp", m.Description)
+				// EXPECT that the supplied resource is a PrincipalState record
+				// containing the downstream ID of the deleted resource
+				principalState := unwrapResource153[*provisioningv1.PrincipalState](subtestT, event.Resource)
+				require.NotNil(t, principalState.Spec)
+				require.Equal(subtestT, "foocorp", principalState.Spec.DownstreamId)
 			},
 		},
 	}

@@ -190,6 +190,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindUserTask},
+		{Kind: types.KindProvisioningPrincipalState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
