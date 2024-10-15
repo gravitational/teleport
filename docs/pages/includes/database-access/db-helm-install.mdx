@@ -1,53 +1,22 @@
 {{ dbName="test" }}
-<Tabs>
-<TabItem label="Self-Hosted" scope={["oss", "enterprise"]}>
-Install the Teleport Kube Agent into your Kubernetes Cluster
-with the Teleport Database Service configuration.
 
-```code
-$ JOIN_TOKEN=$(cat /tmp/token)
-$ helm install teleport-kube-agent teleport/teleport-kube-agent \
-  --create-namespace \
-  --namespace teleport-agent \
-  --set roles=db \
-  --set proxyAddr=teleport.example.com:443 \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "databases[0].name={{ dbName }}" \
-  --set "databases[0].uri={{ databaseAddress }}" \
-  --set "databases[0].protocol={{ dbProtocol }}" \
-  --set "databases[0].static_labels.env=dev" \
-  --version (=teleport.version=)
+Install a Teleport agent into your Kubernetes Cluster with the Teleport Database
+Service configuration.
+
+Create a file called `values.yaml` with the following content. Update <Var
+name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
+Service and <Var name="JOIN_TOKEN" /> to the join token you created earlier:
+
+```yaml
+roles: db
+proxyAddr: <Var name="example.teleport.sh" />
+# Set to false if using Teleport Community Edition
+enterprise: true
+authToken: "<Var name="JOIN_TOKEN" />"
+databases:
+  - name: {{ dbName }}
+    uri: {{ databaseAddress }}
+    protocol: {{ dbProtocol }}
+    static_labels:
+      env: dev
 ```
-
-</TabItem>
-<TabItem label="Cloud-Hosted"scope={["cloud","team"]}>
-Install the Teleport Kube Agent into your Kubernetes Cluster
-with the Teleport Database Service configuration.
-
-```code
-$ JOIN_TOKEN=$(cat /tmp/token)
-$ helm install teleport-kube-agent teleport/teleport-kube-agent \
-  --create-namespace \
-  --namespace teleport-agent \
-  --set roles=db \
-  --set proxyAddr=mytenant.teleport.sh:443 \
-  --set authToken=${JOIN_TOKEN?} \
-  --set "databases[0].name={{ dbName }}" \
-  --set "databases[0].uri={{ databaseAddress }}" \
-  --set "databases[0].protocol={{ dbProtocol }}" \
-  --set "databases[0].static_labels.env=dev" \
-  --version (=cloud.version=)
-```
-
-</TabItem>
-</Tabs>
-
-Make sure that the Teleport agent pod is running. You should see one
-`teleport-kube-agent` pod with a single ready container:
-
-```code
-$ kubectl -n teleport-agent get pods
-NAME                    READY   STATUS    RESTARTS   AGE
-teleport-kube-agent-0   1/1     Running   0          32s
-```
-
