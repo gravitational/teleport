@@ -4898,18 +4898,16 @@ func TestSerializeMFADevices(t *testing.T) {
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
-		{"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
+		{"metadata":{"Name":"my device","Namespace":"default"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z","kind":"mfa_device","totp":{"key":"key"},"version":"v1"}
 	]
 	`
 
-	dev := &types.MFADevice{
-		Metadata: types.Metadata{
-			Name: "my device",
+	dev, err := types.NewMFADevice("my device", "id", aTime, &types.MFADevice_Totp{
+		Totp: &types.TOTPDevice{
+			Key: "key",
 		},
-		Id:       "id",
-		AddedAt:  aTime,
-		LastUsed: aTime,
-	}
+	})
+	require.NoError(t, err)
 
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeMFADevices([]*types.MFADevice{dev}, f)

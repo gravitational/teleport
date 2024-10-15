@@ -639,21 +639,117 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 			require.NoError(t, err)
 
 			if !test.expectSSODevice {
-				require.Empty(t, devs)
-			} else {
-				expectSSODevice, err := types.NewMFADevice(test.connectorRef.ID, test.connectorRef.ID, clock.Now().UTC(), &types.MFADevice_Sso{
-					Sso: &types.SSOMFADevice{
-						ConnectorId:   test.connectorRef.ID,
-						ConnectorType: test.connectorRef.Type,
-					},
-				})
-				require.NoError(t, err)
-
-				require.Len(t, devs, 1)
-				require.Equal(t, devs[0], expectSSODevice)
+				assert.Empty(t, devs)
+				return
 			}
+			expectSSODevice, err := types.NewMFADevice(test.connectorRef.ID, test.connectorRef.ID, clock.Now().UTC(), &types.MFADevice_Sso{
+				Sso: &types.SSOMFADevice{
+					ConnectorId:   test.connectorRef.ID,
+					ConnectorType: test.connectorRef.Type,
+				},
+			})
+			require.NoError(t, err)
+			assert.Equal(t, devs, []*types.MFADevice{expectSSODevice})
 		})
 	}
+}
+
+func TestIdentityService_UpsertMFADevice_SSO(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	connectorName := "saml"
+	connectorType := "saml"
+	samlConnector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	username := "alice"
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{
+		Time: clock.Now().UTC(),
+		Connector: &types.ConnectorRef{
+			Type: connectorType,
+			ID:   connectorName,
+		},
+	})
+	_, err = identity.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	ssoDevice, err := types.NewMFADevice(connectorName, connectorName, clock.Now().UTC(), &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   connectorName,
+			ConnectorType: connectorType,
+		},
+	})
+	require.NoError(t, err)
+
+	upsertErr := identity.UpsertMFADevice(ctx, username, ssoDevice)
+	assert.ErrorAs(t, upsertErr, new(*trace.BadParameterError), "expected BadParameterError upserting SSO MFA device")
+	assert.ErrorContains(t, upsertErr, "cannot create SSO MFA device", "unexpected error upserting SSO MFA device")
+}
+
+func TestIdentityService_DeleteMFADevice_SSO(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	connectorName := "saml"
+	connectorType := "saml"
+	samlConnector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	username := "alice"
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{
+		Time: clock.Now().UTC(),
+		Connector: &types.ConnectorRef{
+			Type: connectorType,
+			ID:   connectorName,
+		},
+	})
+	_, err = identity.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	deleteErr := identity.DeleteMFADevice(ctx, username, connectorName)
+	assert.ErrorAs(t, deleteErr, new(*trace.BadParameterError), "expected BadParameterError upserting SSO MFA device")
+	assert.ErrorContains(t, deleteErr, "cannot delete ephemeral SSO MFA device", "unexpected error upserting SSO MFA device")
 }
 
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
