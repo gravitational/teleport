@@ -28,7 +28,12 @@ import (
 // SessionKind is a type of session.
 type SessionKind string
 
+// These represent the possible values for the kind field in session trackers.
 const (
+	// SSHSessionKind is the kind used for session tracking with the
+	// session_tracker resource used in Teleport 9+. Note that it is
+	// different from the legacy [types.KindSSHSession] value that was
+	// used prior to the introduction of moderated sessions.
 	SSHSessionKind            SessionKind = "ssh"
 	KubernetesSessionKind     SessionKind = "k8s"
 	DatabaseSessionKind       SessionKind = "db"
