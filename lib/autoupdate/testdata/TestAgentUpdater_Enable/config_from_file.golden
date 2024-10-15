@@ -3,7 +3,7 @@ kind: update_config
 spec:
     proxy: localhost
     group: group
-    url_template: template
+    url_template: https://example.com
     enabled: true
 status:
     active_version: 16.3.0

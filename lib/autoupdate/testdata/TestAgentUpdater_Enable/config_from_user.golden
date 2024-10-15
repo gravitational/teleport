@@ -2,8 +2,8 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
-    group: group
-    url_template: template
+    group: new-group
+    url_template: https://example.com/new
     enabled: true
 status:
-    active_version: new
+    active_version: new-version

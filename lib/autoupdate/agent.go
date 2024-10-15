@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/renameio/v2"
@@ -42,14 +43,15 @@ import (
 const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
-	// configFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
-	configFileName = "update.yaml"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	reservedFreeDisk = 10_000_000
 )
 
-// AgentUpdateConfig metadata
 const (
+	// agentUpdateConfigName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
+	agentUpdateConfigName = "update.yaml"
+
+	// AgentUpdateConfig metadata
 	agentUpdateConfigVersion = "v1"
 	agentUpdateConfigKind    = "update_config"
 )
@@ -84,9 +86,11 @@ type AgentUpdateStatus struct {
 	ActiveVersion string `yaml:"active_version"`
 }
 
-// NewAgentUpdater returns a new AgentUpdater with a default slog logger,
-// HTTP Client with sane defaults, and an TeleportInstaller as the AgentInstaller.
-func NewAgentUpdater(cfg AgentConfig) (*AgentUpdater, error) {
+// NewLocalAgentUpdater returns a new AgentUpdater that auto-updates local
+// installations of the Teleport agent.
+// The AutoUpdater uses an HTTP client with sane defaults for downloads, and
+// will not fill disk to within 10 MB of available capacity.
+func NewLocalAgentUpdater(cfg LocalAgentUpdaterConfig) (*AgentUpdater, error) {
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -110,47 +114,55 @@ func NewAgentUpdater(cfg AgentConfig) (*AgentUpdater, error) {
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		VersionsDir:        cfg.VersionsDir,
-		Installer: &TeleportInstaller{
-			InstallDir:              cfg.VersionsDir,
-			DownloadClient:          client,
-			Log:                     cfg.Log,
+		ConfigPath:         filepath.Join(cfg.VersionsDir, agentUpdateConfigName),
+		Installer: &LocalAgentInstaller{
+			InstallDir: cfg.VersionsDir,
+			HTTP:       client,
+			Log:        cfg.Log,
+
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
 		},
 	}, nil
 }
 
-// AgentUpdater implements the agent-local logic for Teleport agent auto-updates.
-type AgentUpdater struct {
-	// Log contains a logger
-	Log *slog.Logger
-	// Pool used for requests to the Teleport web API
-	Pool *x509.CertPool
-	// InsecureSkipVerify skips TLS verification
-	InsecureSkipVerify bool
-	// VersionsDir contains the agent auto-updates configuration
-	VersionsDir string
-	// Installer manages installations of the Teleport agent
-	Installer AgentInstaller
-}
-
-type AgentConfig struct {
-	// Log contains a logger
+// LocalAgentUpdaterConfig specifies configuration for managing local agent auto-updates.
+type LocalAgentUpdaterConfig struct {
+	// Log contains a slog logger.
+	// Defaults to slog.Default() if nil.
 	Log *slog.Logger
 	// InsecureSkipVerify turns off TLS certificate verification.
 	InsecureSkipVerify bool
 	// DownloadTimeout is a timeout for file download requests.
+	// Defaults to no timeout.
 	DownloadTimeout time.Duration
-	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions)
+	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions).
 	VersionsDir string
 }
 
+// AgentUpdater implements the agent-local logic for Teleport agent auto-updates.
+type AgentUpdater struct {
+	// Log contains a logger.
+	Log *slog.Logger
+	// Pool used for requests to the Teleport web API.
+	Pool *x509.CertPool
+	// InsecureSkipVerify skips TLS verification.
+	InsecureSkipVerify bool
+	// ConfigPath contains the path to the agent auto-updates configuration.
+	ConfigPath string
+	// Installer manages installations of the Teleport agent.
+	Installer AgentInstaller
+}
+
+// AgentInstaller provides an API for installing Teleport agents.
 type AgentInstaller interface {
+	// Install the Teleport agent at version from the download template.
 	Install(ctx context.Context, version, template string) error
+	// Remove the Teleport agent at version.
 	Remove(ctx context.Context, version string) error
 }
 
+// AgentUserConfig contains user overrides for installing Teleport agents.
 type AgentUserConfig struct {
 	// Proxy address, scheme and port optional.
 	// Overrides existing value if specified.
@@ -165,11 +177,13 @@ type AgentUserConfig struct {
 	ForceVersion string
 }
 
-// Enable enables agent updates.
+// Enable enables agent updates and attempts an initial update.
+// If the initial update succeeds, auto-updates are enabled and the configuration is persisted.
+// Otherwise, the auto-updates configuration is not changed.
+// This function is idempotent.
 func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) error {
 	// Read configuration from updates.yaml and override any new values passed as flags.
-	updatePath := filepath.Join(u.VersionsDir, configFileName)
-	cfg, err := u.readConfig(updatePath)
+	cfg, err := u.readConfig(u.ConfigPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -228,23 +242,28 @@ func (u *AgentUpdater) Enable(ctx context.Context, userCfg AgentUserConfig) erro
 	}
 
 	// Always write the configuration file if enable succeeds.
-	if err := u.writeConfig(updatePath, cfg); err != nil {
+	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
 func validateUpdatesSpec(spec *AgentUpdateSpec) error {
+	if spec.URLTemplate != "" &&
+		!strings.HasPrefix(strings.ToLower(spec.URLTemplate), "https://") {
+		return trace.Errorf("Teleport download URL must use TLS (https://)")
+	}
+
 	if spec.Proxy == "" {
-		return trace.Errorf("proxy URL must be specified with --proxy or present in updates.yaml")
+		return trace.Errorf("Teleport proxy URL must be specified with --proxy or present in updates.yaml")
 	}
 	return nil
 }
 
-// Disable disables agent updates.
+// Disable disables agent auto-updates.
+// This function is idempotent.
 func (u *AgentUpdater) Disable(ctx context.Context) error {
-	updatePath := filepath.Join(u.VersionsDir, configFileName)
-	cfg, err := u.readConfig(updatePath)
+	cfg, err := u.readConfig(u.ConfigPath)
 	if err != nil {
 		return trace.Errorf("failed to read updates.yaml: %w", err)
 	}
@@ -253,7 +272,7 @@ func (u *AgentUpdater) Disable(ctx context.Context) error {
 		return nil
 	}
 	cfg.Spec.Enabled = false
-	if err := u.writeConfig(updatePath, cfg); err != nil {
+	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
 		return trace.Errorf("failed to write updates.yaml: %w", err)
 	}
 	return nil

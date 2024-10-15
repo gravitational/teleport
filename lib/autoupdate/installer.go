@@ -44,13 +44,13 @@ const (
 	checksumHexLen = 64
 )
 
-// TeleportInstaller manages the creation and removal of installations
+// LocalAgentInstaller manages the creation and removal of installations
 // of Teleport.
-type TeleportInstaller struct {
+type LocalAgentInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
-	// DownloadClient is an HTTP client for downloading Teleport.
-	DownloadClient *http.Client
+	// HTTP is an HTTP client for downloading Teleport.
+	HTTP *http.Client
 	// Log contains a logger.
 	Log *slog.Logger
 	// ReservedFreeTmpDisk is the amount of disk that must remain free in /tmp
@@ -60,8 +60,8 @@ type TeleportInstaller struct {
 }
 
 // Remove a Teleport version directory from InstallDir.
-func (ti *TeleportInstaller) Remove(ctx context.Context, version string) error {
-	versionDir := filepath.Join(ti.InstallDir, version)
+func (ai *LocalAgentInstaller) Remove(ctx context.Context, version string) error {
+	versionDir := filepath.Join(ai.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// invalidate checksum first, to protect against partially-removed
@@ -76,8 +76,8 @@ func (ti *TeleportInstaller) Remove(ctx context.Context, version string) error {
 }
 
 // Install a Teleport version directory in InstallDir.
-func (ti *TeleportInstaller) Install(ctx context.Context, version, template string) error {
-	versionDir := filepath.Join(ti.InstallDir, version)
+func (ai *LocalAgentInstaller) Install(ctx context.Context, version, template string) error {
+	versionDir := filepath.Join(ai.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// generate download URI from template
@@ -89,29 +89,29 @@ func (ti *TeleportInstaller) Install(ctx context.Context, version, template stri
 	// Get new and old checksums. If they match, skip download.
 	// Otherwise, clear the old version directory and re-download.
 	checksumURI := uri + "." + checksumType
-	newSum, err := ti.getChecksum(ctx, checksumURI)
+	newSum, err := ai.getChecksum(ctx, checksumURI)
 	if err != nil {
 		return trace.Errorf("failed to download checksum from %s: %w", checksumURI, err)
 	}
 	oldSum, err := readChecksum(sumPath)
 	if err == nil {
 		if bytes.Equal(oldSum, newSum) {
-			ti.Log.InfoContext(ctx, "Version already present", "version", version)
+			ai.Log.InfoContext(ctx, "Version already present", "version", version)
 			return nil
 		}
-		ti.Log.WarnContext(ctx, "Removing version that does not match checksum", "version", version)
-		if err := ti.Remove(ctx, version); err != nil {
+		ai.Log.WarnContext(ctx, "Removing version that does not match checksum", "version", version)
+		if err := ai.Remove(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
-		ti.Log.WarnContext(ctx, "Removing version with unreadable checksum", "version", version, "error", err)
-		if err := ti.Remove(ctx, version); err != nil {
+		ai.Log.WarnContext(ctx, "Removing version with unreadable checksum", "version", version, "error", err)
+		if err := ai.Remove(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	// Verify that we have enough free temp space, then download tgz
-	freeTmp, err := utils.FreeDiskWithReserve(os.TempDir(), ti.ReservedFreeTmpDisk)
+	freeTmp, err := utils.FreeDiskWithReserve(os.TempDir(), ai.ReservedFreeTmpDisk)
 	if err != nil {
 		return trace.Errorf("failed to calculate free disk: %w", err)
 	}
@@ -122,10 +122,10 @@ func (ti *TeleportInstaller) Install(ctx context.Context, version, template stri
 	defer func() {
 		_ = f.Close() // data never read after close
 		if err := os.Remove(f.Name()); err != nil {
-			ti.Log.WarnContext(ctx, "Failed to cleanup temporary download", "error", err)
+			ai.Log.WarnContext(ctx, "Failed to cleanup temporary download", "error", err)
 		}
 	}()
-	pathSum, err := ti.download(ctx, f, freeTmp, uri)
+	pathSum, err := ai.download(ctx, f, freeTmp, uri)
 	if err != nil {
 		return trace.Errorf("failed to download teleport: %w", err)
 	}
@@ -147,7 +147,7 @@ func (ti *TeleportInstaller) Install(ctx context.Context, version, template stri
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start: %w", err)
 	}
-	if err := ti.extract(versionDir, f, uint64(n)); err != nil {
+	if err := ai.extract(versionDir, f, uint64(n)); err != nil {
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
@@ -195,14 +195,14 @@ func readChecksum(path string) ([]byte, error) {
 	return sum, nil
 }
 
-func (ti *TeleportInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
+func (ai *LocalAgentInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := ti.DownloadClient.Do(req)
+	resp, err := ai.HTTP.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,12 +224,12 @@ func (ti *TeleportInstaller) getChecksum(ctx context.Context, url string) ([]byt
 	return sum, nil
 }
 
-func (ti *TeleportInstaller) download(ctx context.Context, w io.Writer, max uint64, url string) (sum []byte, err error) {
+func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max uint64, url string) (sum []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := ti.DownloadClient.Do(req)
+	resp, err := ai.HTTP.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -237,12 +237,12 @@ func (ti *TeleportInstaller) download(ctx context.Context, w io.Writer, max uint
 	if resp.StatusCode != http.StatusOK {
 		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
 	}
-	ti.Log.InfoContext(ctx, "Downloading Teleport tarball", "url", url, "size", resp.ContentLength)
+	ai.Log.InfoContext(ctx, "Downloading Teleport tarball", "url", url, "size", resp.ContentLength)
 
 	// Ensure there's enough space in /tmp for the download.
 	size := resp.ContentLength
 	if size < 0 {
-		ti.Log.Warn("Content length missing from response, unable to verify Teleport download size")
+		ai.Log.Warn("Content length missing from response, unable to verify Teleport download size")
 	} else if uint64(size) > max {
 		return nil, trace.Errorf("size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, max)
 	}
@@ -258,11 +258,11 @@ func (ti *TeleportInstaller) download(ctx context.Context, w io.Writer, max uint
 	return shaReader.Sum(nil), nil
 }
 
-func (ti *TeleportInstaller) extract(dstDir string, src io.Reader, max uint64) error {
+func (ai *LocalAgentInstaller) extract(dstDir string, src io.Reader, max uint64) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return trace.Wrap(err)
 	}
-	free, err := utils.FreeDiskWithReserve(dstDir, ti.ReservedFreeInstallDisk)
+	free, err := utils.FreeDiskWithReserve(dstDir, ai.ReservedFreeInstallDisk)
 	if err != nil {
 		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
 	}

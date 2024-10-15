@@ -189,7 +189,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	updater, err := autoupdate.NewAgentUpdater(autoupdate.AgentConfig{
+	updater, err := autoupdate.NewLocalAgentUpdater(autoupdate.LocalAgentUpdaterConfig{
 		VersionsDir: versionsDir,
 		Log:         plog,
 	})
@@ -217,7 +217,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 
-	updater, err := autoupdate.NewAgentUpdater(autoupdate.AgentConfig{
+	updater, err := autoupdate.NewLocalAgentUpdater(autoupdate.LocalAgentUpdaterConfig{
 		VersionsDir: versionsDir,
 		Log:         plog,
 	})

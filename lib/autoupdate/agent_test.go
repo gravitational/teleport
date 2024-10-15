@@ -90,7 +90,7 @@ func TestAgentUpdater_Disable(t *testing.T) {
 				err = os.WriteFile(cfgPath, b, 0600)
 				require.NoError(t, err)
 			}
-			updater, err := NewAgentUpdater(AgentConfig{
+			updater, err := NewLocalAgentUpdater(LocalAgentUpdaterConfig{
 				InsecureSkipVerify: true,
 				VersionsDir:        dir,
 			})
@@ -139,14 +139,14 @@ func TestAgentUpdater_Enable(t *testing.T) {
 				Kind:    agentUpdateConfigKind,
 				Spec: AgentUpdateSpec{
 					Group:       "group",
-					URLTemplate: "template",
+					URLTemplate: "https://example.com",
 				},
 				Status: AgentUpdateStatus{
-					ActiveVersion: "old",
+					ActiveVersion: "old-version",
 				},
 			},
 			installedVersion:  "16.3.0",
-			installedTemplate: "template",
+			installedTemplate: "https://example.com",
 		},
 		{
 			name: "config from user",
@@ -155,19 +155,19 @@ func TestAgentUpdater_Enable(t *testing.T) {
 				Kind:    agentUpdateConfigKind,
 				Spec: AgentUpdateSpec{
 					Group:       "old-group",
-					URLTemplate: "old-template",
+					URLTemplate: "https://example.com/old",
 				},
 				Status: AgentUpdateStatus{
-					ActiveVersion: "old",
+					ActiveVersion: "old-version",
 				},
 			},
 			userCfg: AgentUserConfig{
-				Group:        "group",
-				URLTemplate:  "template",
-				ForceVersion: "new",
+				Group:        "new-group",
+				URLTemplate:  "https://example.com/new",
+				ForceVersion: "new-version",
 			},
-			installedVersion:  "new",
-			installedTemplate: "template",
+			installedVersion:  "new-version",
+			installedTemplate: "https://example.com/new",
 		},
 		{
 			name: "already enabled",
@@ -178,11 +178,22 @@ func TestAgentUpdater_Enable(t *testing.T) {
 					Enabled: true,
 				},
 				Status: AgentUpdateStatus{
-					ActiveVersion: "old",
+					ActiveVersion: "old-version",
 				},
 			},
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+		},
+		{
+			name: "insecure URL",
+			cfg: &AgentUpdateConfig{
+				Version: agentUpdateConfigVersion,
+				Kind:    agentUpdateConfigKind,
+				Spec: AgentUpdateSpec{
+					URLTemplate: "http://example.com",
+				},
+			},
+			errMatch: "URL must use TLS",
 		},
 		{
 			name: "version already installed",
@@ -230,14 +241,14 @@ func TestAgentUpdater_Enable(t *testing.T) {
 				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
 			}
 
-			updater, err := NewAgentUpdater(AgentConfig{
+			updater, err := NewLocalAgentUpdater(LocalAgentUpdaterConfig{
 				InsecureSkipVerify: true,
 				VersionsDir:        dir,
 			})
 			require.NoError(t, err)
 
 			var installedVersion, installedTemplate string
-			updater.Installer = &fakeInstaller{
+			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, version, template string) error {
 					installedVersion = version
 					installedTemplate = template
@@ -274,15 +285,15 @@ func blankTestAddr(s []byte) []byte {
 	return serverRegexp.ReplaceAll(s, []byte("localhost"))
 }
 
-type fakeInstaller struct {
+type testInstaller struct {
 	FuncInstall func(ctx context.Context, version, template string) error
 	FuncRemove  func(ctx context.Context, version string) error
 }
 
-func (f *fakeInstaller) Install(ctx context.Context, version, template string) error {
-	return f.FuncInstall(ctx, version, template)
+func (ti *testInstaller) Install(ctx context.Context, version, template string) error {
+	return ti.FuncInstall(ctx, version, template)
 }
 
-func (f *fakeInstaller) Remove(ctx context.Context, version string) error {
-	return f.FuncRemove(ctx, version)
+func (ti *testInstaller) Remove(ctx context.Context, version string) error {
+	return ti.FuncRemove(ctx, version)
 }
