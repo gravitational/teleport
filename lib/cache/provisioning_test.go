@@ -62,7 +62,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 		var result []*provisioningv1.PrincipalState
 		var pageToken pagination.PageRequestToken
 		for {
-			page, nextPage, err := src.ListAllProvisioningStates(ctx, 0, &pageToken)
+			page, nextPage, err := src.ListProvisioningStatesForAllDownstreams(ctx, 0, &pageToken)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -82,28 +82,28 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			return newProvisioningPrincipalState(s), nil
 		},
 		create: func(ctx context.Context, item *provisioningv1.PrincipalState) error {
-			_, err := fixturePack.provisioningStatesS.CreateProvisioningState(ctx, item)
+			_, err := fixturePack.provisioningStates.CreateProvisioningState(ctx, item)
 			return trace.Wrap(err)
 		},
 		update: func(ctx context.Context, item *provisioningv1.PrincipalState) error {
-			_, err := fixturePack.provisioningStatesS.UpdateProvisioningState(ctx, item)
+			_, err := fixturePack.provisioningStates.UpdateProvisioningState(ctx, item)
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return collect(ctx, fixturePack.provisioningStatesS)
+			return collect(ctx, fixturePack.provisioningStates)
 		},
 		delete: func(ctx context.Context, id string) error {
-			return trace.Wrap(fixturePack.provisioningStatesS.DeleteProvisioningState(
+			return trace.Wrap(fixturePack.provisioningStates.DeleteProvisioningState(
 				ctx, testDownstreamID, services.ProvisioningStateID(id)))
 		},
 		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(fixturePack.provisioningStatesS.DeleteAllProvisioningStates(ctx))
+			return trace.Wrap(fixturePack.provisioningStates.DeleteAllProvisioningStates(ctx))
 		},
 		cacheList: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
 			return collect(ctx, fixturePack.cache.provisioningStatesCache)
 		},
 		cacheGet: func(ctx context.Context, id string) (*provisioningv1.PrincipalState, error) {
-			r, err := fixturePack.provisioningStatesS.GetProvisioningState(
+			r, err := fixturePack.provisioningStates.GetProvisioningState(
 				ctx, testDownstreamID, services.ProvisioningStateID(id))
 			return r, trace.Wrap(err)
 		},

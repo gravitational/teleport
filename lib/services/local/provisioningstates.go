@@ -140,11 +140,15 @@ func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, 
 	return resp, pagination.NextPageToken(nextPage), nil
 }
 
-// ListAllProvisioningStates lists all provisioning state records for all
+// ListProvisioningStatesForAllDownstreams lists all provisioning state records for all
 // downstream receivers. Note that the returned record names may not be unique
 // across all downstream receivers. Check the records' `DownstreamID` field
 // to disambiguate.
-func (ss *ProvisioningStateService) ListAllProvisioningStates(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
+func (ss *ProvisioningStateService) ListProvisioningStatesForAllDownstreams(
+	ctx context.Context,
+	pageSize int,
+	page *pagination.PageRequestToken,
+) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error) {
 	if pageSize == 0 {
 		pageSize = provisioningStatePageSize
 	}

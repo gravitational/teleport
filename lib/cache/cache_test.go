@@ -138,7 +138,7 @@ type testPack struct {
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
 	autoUpdateService       services.AutoUpdateService
-	provisioningStatesS     services.ProvisioningStates
+	provisioningStates      services.ProvisioningStates
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -382,7 +382,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.provisioningStatesS, err = local.NewProvisioningStateService(p.backend)
+	p.provisioningStates, err = local.NewProvisioningStateService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -437,7 +437,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseObjects:         p.databaseObjects,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStatesS,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -846,7 +846,7 @@ func TestCompletenessInit(t *testing.T) {
 			SPIFFEFederations:       p.spiffeFederations,
 			StaticHostUsers:         p.staticHostUsers,
 			AutoUpdateService:       p.autoUpdateService,
-			ProvisioningStates:      p.provisioningStatesS,
+			ProvisioningStates:      p.provisioningStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -928,7 +928,7 @@ func TestCompletenessReset(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStatesS,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1136,7 +1136,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStatesS,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1229,7 +1229,7 @@ func initStrategy(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStatesS,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))

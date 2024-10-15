@@ -29,7 +29,7 @@ import (
 
 type provisioningStateGetter interface {
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
-	ListAllProvisioningStates(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
+	ListProvisioningStatesForAllDownstreams(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
 }
 
 type provisioningStateExecutor struct{}
@@ -49,7 +49,7 @@ func (provisioningStateExecutor) getAll(ctx context.Context, cache *Cache, loadS
 		var resourcesPage []*provisioningv1.PrincipalState
 		var err error
 
-		resourcesPage, nextPage, err := cache.ProvisioningStates.ListAllProvisioningStates(ctx, 0, &page)
+		resourcesPage, nextPage, err := cache.ProvisioningStates.ListProvisioningStatesForAllDownstreams(ctx, 0, &page)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

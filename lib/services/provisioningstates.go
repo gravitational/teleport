@@ -73,11 +73,11 @@ type DownstreamProvisioningStates interface {
 type ProvisioningStates interface {
 	DownstreamProvisioningStates
 
-	// ListProvisioningStates lists all provisioning state records for all
-	// downstream receivers. Note that the returned record names may not be unique
-	// across all downstream receivers. Check the records' `DownstreamID` field
-	// to disambiguate.
-	ListAllProvisioningStates(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
+	// ListProvisioningStatesForAllDownstreams lists all provisioning state
+	// records for all downstream receivers. Note that the returned record names
+	// may not be unique across all downstream receivers. Check the records'
+	// `DownstreamID` field to disambiguate.
+	ListProvisioningStatesForAllDownstreams(context.Context, int, *pagination.PageRequestToken) ([]*provisioningv1.PrincipalState, pagination.NextPageToken, error)
 
 	// DeleteAllProvisioningStates deletes all provisioning state records for
 	// all downstream receivers.

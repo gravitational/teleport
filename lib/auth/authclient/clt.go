@@ -625,10 +625,6 @@ func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
 }
 
-func (c *Client) ProvisioningStatesClient() services.ProvisioningStates {
-	return nil
-}
-
 func (c *Client) SCIMClient() services.SCIM {
 	return c.APIClient.SCIMClient()
 }
@@ -1877,8 +1873,4 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-
-	// ProvisioningStatesClient manages access to the downstream user and group
-	// provisioning state storage service
-	ProvisioningStatesClient() services.ProvisioningStates
 }
