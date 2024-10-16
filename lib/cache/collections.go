@@ -3197,7 +3197,7 @@ func (accessListMemberExecutor) getReader(cache *Cache, cacheOK bool) accessList
 }
 
 type accessListMembersGetter interface {
-	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error)
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)

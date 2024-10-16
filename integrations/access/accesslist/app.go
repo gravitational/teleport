@@ -249,10 +249,25 @@ func (a *App) getRecipientsRequiringReminders(ctx context.Context, accessList *a
 func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.AccessList, now, notificationStart time.Time) map[string]common.Recipient {
 	log := logger.Get(ctx)
 
-	allRecipients := make(map[string]common.Recipient, len(accessList.Spec.Owners))
+	var allOwners []*accesslist.Owner
+
+	allOwners, err := a.apiClient.GetAccessListOwners(ctx, accessList.GetName())
+	if err != nil {
+		// TODO(kiosion): Remove in v18; protecting against server not having `GetAccessListOwners` func.
+		if trace.IsNotImplemented(err) {
+			log.WithError(err).Warnf("Error getting nested owners for access list '%v', continuing with only explicit owners", accessList.GetName())
+			for _, owner := range accessList.Spec.Owners {
+				allOwners = append(allOwners, &owner)
+			}
+		} else {
+			log.WithError(err).Errorf("Error getting owners for access list '%v'", accessList.GetName())
+		}
+	}
+
+	allRecipients := make(map[string]common.Recipient, len(allOwners))
 
 	// Get the owners from the bot as recipients.
-	for _, owner := range accessList.Spec.Owners {
+	for _, owner := range allOwners {
 		recipient, err := a.bot.FetchRecipient(ctx, owner.Name)
 		if err != nil {
 			log.Debugf("error getting recipient %s", owner.Name)

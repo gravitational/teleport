@@ -2560,16 +2560,17 @@ func TestAccessListMembers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	count, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
+	count, listCount, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
 	require.NoError(t, err)
 	require.Equal(t, uint32(40), count)
+	require.Equal(t, uint32(0), listCount)
 
 	// Eventually, this should be reflected in the cache.
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
-		count, err := p.cache.CountAccessListMembers(ctx, al.GetName())
+		count, listCount, err := p.cache.CountAccessListMembers(ctx, al.GetName())
 		assert.NoError(t, err)
-		return count == uint32(40)
+		return count == uint32(40) && listCount == uint32(0)
 	}, time.Second*2, time.Millisecond*250)
 }
 

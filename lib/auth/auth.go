@@ -5206,13 +5206,13 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 
 	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
 	for _, promotion := range promotions.Promotions {
-		accessList, err := accessLists.GetAccessList(ctx, promotion.AccessListName)
+		allOwners, err := accessLists.GetAccessListOwners(ctx, promotion.AccessListName)
 		if err != nil {
-			log.WithError(err).Warn("Failed to get access list, skipping additional reviewers")
+			log.WithError(err).Warnf("Failed to get nested access list owners for %v, skipping additional reviewers", promotion.AccessListName)
 			break
 		}
 
-		for _, owner := range accessList.GetOwners() {
+		for _, owner := range allOwners {
 			additionalReviewers[owner.Name] = struct{}{}
 		}
 	}

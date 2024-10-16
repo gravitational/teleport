@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -136,6 +137,12 @@ func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...Serv
 func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	accessLists, err := a.service.GetResources(ctx)
 	return accessLists, trace.Wrap(err)
+}
+
+// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
+// This is not implemented in the local service.
+func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
+	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
 
 // ListAccessLists returns a paginated list of access lists.
@@ -248,15 +255,26 @@ func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessR
 }
 
 // CountAccessListMembers will count all access list members.
-func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
 	count := uint(0)
-	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	listCount := uint(0)
+	err = a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		var err error
-		count, err = a.memberService.WithPrefix(accessListName).CountResources(ctx)
-		return trace.Wrap(err)
+		members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, member := range members {
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				listCount++
+			} else {
+				count++
+			}
+		}
+		return nil
 	})
 
-	return uint32(count), trace.Wrap(err)
+	return uint32(count), uint32(listCount), trace.Wrap(err)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -301,6 +319,30 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 		return trace.Wrap(err)
 	})
 	return member, trace.Wrap(err)
+}
+
+// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+//
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	accessLists, err := a.GetAccessLists(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting access lists")
+	}
+	hierarchy, err := accesslists.NewHierarchy(ctx, accesslists.HierarchyConfig{
+		AccessLists: accessLists,
+		Members:     a,
+		Locks:       nil,
+		Clock:       a.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating hierarchy")
+	}
+	owners, err := hierarchy.GetOwners(accessListName)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting owners")
+	}
+	return owners, nil
 }
 
 // UpsertAccessListMember creates or updates an access list member resource.
@@ -350,10 +392,9 @@ func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessLi
 }
 
 // DeleteAllAccessListMembersForAccessList hard deletes all access list members
-// for an access list. Note that deleting all members is the only member
-// operation allowed on a list with implicit membership, as it provides a
-// mechanism for cleaning out the user list if a list is converted from explicit
-// to implicit.
+// for an access list. Note that deleting all members is the only member operation
+// allowed on a list with implicit membership, as it provides a mechanism for
+// cleaning out the user list if a list is converted from explicit to implicit.
 func (a *AccessListService) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		_, err := a.service.GetResource(ctx, accessList)
@@ -367,7 +408,6 @@ func (a *AccessListService) DeleteAllAccessListMembersForAccessList(ctx context.
 
 // DeleteAllAccessListMembers hard deletes all access list members.
 func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) error {
-
 	// Locks are not used here as this operation is more likely to be used by the cache.
 	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
 }

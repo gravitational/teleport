@@ -132,9 +132,24 @@ func (a *AccessListService) DeleteAllAccessLists(ctx context.Context) error {
 }
 
 // CountAccessListMembers will count all access list members.
-func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
-	count, err := a.memberService.WithPrefix(accessListName).CountResources(ctx)
-	return uint32(count), trace.Wrap(err)
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
+	members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
+	if err != nil {
+		return 0, 0, trace.Wrap(err)
+	}
+
+	var count uint32
+	var listCount uint32
+
+	for _, member := range members {
+		if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			listCount++
+		} else {
+			count++
+		}
+	}
+
+	return count, listCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
