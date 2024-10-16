@@ -5,24 +5,16 @@ import styled from 'styled-components';
 import Box from 'design/Box';
 
 import { Cycle } from 'e-teleport/UsageSummary/Cycle';
-
-import { BillingSummaryInformation } from 'e-teleport/services/cloud';
+import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
 
 export interface SummaryProps {
-  data: BillingSummaryInformation;
+  summary: UsageSummary;
 }
 
-export const SummaryPage = ({
-  data: { productName, stripeCurrentUsage, usageUpdatedAt, usageQuota },
-}: SummaryProps) => (
+export const SummaryPage = ({ summary }: SummaryProps) => (
   <>
-    {stripeCurrentUsage ? (
-      <Cycle
-        currentUsage={stripeCurrentUsage}
-        productName={productName}
-        usageUpdatedAt={usageUpdatedAt}
-        usageQuota={usageQuota}
-      />
+    {summary ? (
+      <Cycle summary={summary} />
     ) : (
       <StyledBox>
         Usage data is being gathered. This page updates every 12 hours.

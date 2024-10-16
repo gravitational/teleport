@@ -1,15 +1,15 @@
 import React from 'react';
-
 import { Box, Flex, Text } from 'design';
 import { ToolTipInfo } from 'shared/components/ToolTip';
-import { displayDateTime } from 'design/datetime';
 
 export const UpdatedAtDisplay = ({
   theme,
   usageUpdatedAt,
+  usageUpdatedAtFormatted,
 }: {
   theme: any;
   usageUpdatedAt: number;
+  usageUpdatedAtFormatted: string;
 }) => {
   return (
     <Text
@@ -19,7 +19,7 @@ export const UpdatedAtDisplay = ({
     >
       {usageUpdatedAt > 0 ? (
         <Flex alignItems="center">
-          <Box mr="2">Last updated: {displayUnixDateTime(usageUpdatedAt)}</Box>
+          <Box mr="2">Last updated: {usageUpdatedAtFormatted}</Box>
           <ToolTipInfo children="Updated every 12 hours." />
         </Flex>
       ) : (
@@ -28,8 +28,3 @@ export const UpdatedAtDisplay = ({
     </Text>
   );
 };
-
-export function displayUnixDateTime(seconds: number) {
-  // Multiply by 1000 b/c date constructor expects milliseconds.
-  return displayDateTime(new Date(seconds * 1000));
-}

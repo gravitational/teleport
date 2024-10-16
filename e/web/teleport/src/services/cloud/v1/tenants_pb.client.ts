@@ -15,6 +15,8 @@ import type { UpdateCardRequest } from "./tenants_pb";
 import type { RemoveCardRequest } from "./tenants_pb";
 import type { AddCardRequest } from "./tenants_pb";
 import type { CreateSetupIntentResponse } from "./tenants_pb";
+import type { GetUpdatedLicenseResponse } from "./tenants_pb";
+import type { GetUpdatedLicenseRequest } from "./tenants_pb";
 import type { ClusterAlertInfoResponse } from "./tenants_pb";
 import type { SendTeleportInviteRequest } from "./tenants_pb";
 import type { SetSurveyResultsRequest } from "./tenants_pb";
@@ -120,6 +122,13 @@ export interface ITenantsServiceClient {
      */
     clusterAlertInfo(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, ClusterAlertInfoResponse>;
     /**
+     * GetUpdatedLicense returns the customer's license if it is different from the license
+     * provided as the mTLS peer certificate.
+     *
+     * @generated from protobuf rpc: GetUpdatedLicense(gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest) returns (gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse);
+     */
+    getUpdatedLicense(input: GetUpdatedLicenseRequest, options?: RpcOptions): UnaryCall<GetUpdatedLicenseRequest, GetUpdatedLicenseResponse>;
+    /**
      * CreateSetupIntent creates an intent in stripe and returns the client secret
      *
      * @deprecated
@@ -134,7 +143,7 @@ export interface ITenantsServiceClient {
      */
     addCard(input: AddCardRequest, options?: RpcOptions): UnaryCall<AddCardRequest, EmptyResponse>;
     /**
-     * RemoveCardRequest removes a credit card from tenant account
+     * RemoveCard removes a credit card from tenant account
      *
      * @deprecated
      * @generated from protobuf rpc: RemoveCard(gravitational.cloud.tenants.v1.RemoveCardRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
@@ -321,13 +330,23 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
         return stackIntercept<EmptyRequest, ClusterAlertInfoResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * GetUpdatedLicense returns the customer's license if it is different from the license
+     * provided as the mTLS peer certificate.
+     *
+     * @generated from protobuf rpc: GetUpdatedLicense(gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest) returns (gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse);
+     */
+    getUpdatedLicense(input: GetUpdatedLicenseRequest, options?: RpcOptions): UnaryCall<GetUpdatedLicenseRequest, GetUpdatedLicenseResponse> {
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetUpdatedLicenseRequest, GetUpdatedLicenseResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * CreateSetupIntent creates an intent in stripe and returns the client secret
      *
      * @deprecated
      * @generated from protobuf rpc: CreateSetupIntent(gravitational.cloud.tenants.v1.EmptyRequest) returns (gravitational.cloud.tenants.v1.CreateSetupIntentResponse);
      */
     createSetupIntent(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, CreateSetupIntentResponse> {
-        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        const method = this.methods[14], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, CreateSetupIntentResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -337,17 +356,17 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: AddCard(gravitational.cloud.tenants.v1.AddCardRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     addCard(input: AddCardRequest, options?: RpcOptions): UnaryCall<AddCardRequest, EmptyResponse> {
-        const method = this.methods[14], opt = this._transport.mergeOptions(options);
+        const method = this.methods[15], opt = this._transport.mergeOptions(options);
         return stackIntercept<AddCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * RemoveCardRequest removes a credit card from tenant account
+     * RemoveCard removes a credit card from tenant account
      *
      * @deprecated
      * @generated from protobuf rpc: RemoveCard(gravitational.cloud.tenants.v1.RemoveCardRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     removeCard(input: RemoveCardRequest, options?: RpcOptions): UnaryCall<RemoveCardRequest, EmptyResponse> {
-        const method = this.methods[15], opt = this._transport.mergeOptions(options);
+        const method = this.methods[16], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -357,7 +376,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateCard(gravitational.cloud.tenants.v1.UpdateCardRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     updateCard(input: UpdateCardRequest, options?: RpcOptions): UnaryCall<UpdateCardRequest, EmptyResponse> {
-        const method = this.methods[16], opt = this._transport.mergeOptions(options);
+        const method = this.methods[17], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -367,7 +386,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetPaymentsInvoicesInformation(gravitational.cloud.tenants.v1.EmptyRequest) returns (gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse);
      */
     getPaymentsInvoicesInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetPaymentsInvoicesInformationResponse> {
-        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetPaymentsInvoicesInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -377,7 +396,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetInvoiceSettingsInformation(gravitational.cloud.tenants.v1.EmptyRequest) returns (gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse);
      */
     getInvoiceSettingsInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetInvoiceSettingsInformationResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetInvoiceSettingsInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -387,7 +406,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateStripeAddress(gravitational.cloud.tenants.v1.StripeBillingAddressRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     updateStripeAddress(input: StripeBillingAddressRequest, options?: RpcOptions): UnaryCall<StripeBillingAddressRequest, EmptyResponse> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<StripeBillingAddressRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -397,7 +416,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateEmail(gravitational.cloud.tenants.v1.UpdateEmailRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     updateEmail(input: UpdateEmailRequest, options?: RpcOptions): UnaryCall<UpdateEmailRequest, EmptyResponse> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateEmailRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -407,7 +426,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdatePurchaseOrderPrefix(gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     updatePurchaseOrderPrefix(input: UpdatePurchaseOrderPrefixRequest, options?: RpcOptions): UnaryCall<UpdatePurchaseOrderPrefixRequest, EmptyResponse> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdatePurchaseOrderPrefixRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -417,7 +436,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CancelSubscription(gravitational.cloud.tenants.v1.EmptyRequest) returns (gravitational.cloud.tenants.v1.EmptyResponse);
      */
     cancelSubscription(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, EmptyResponse> {
-        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
 }

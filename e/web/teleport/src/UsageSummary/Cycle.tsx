@@ -2,50 +2,44 @@ import React from 'react';
 import { Box, Flex, Text } from 'design';
 import styled, { useTheme } from 'styled-components';
 
-import { displayShortDate, unixTimestampToDate } from 'design/datetime';
-
-import { UsageQuota } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { CycleUsage } from 'e-teleport/UsageSummary/types';
-import { StripeUsage } from 'e-teleport/services/cloud';
 
 import { UpdatedAtDisplay } from './UpdatedAtDisplay';
 import { UsageBar } from './UsageBar';
 
 export interface CycleProps {
-  currentUsage: StripeUsage;
-  productName: string;
-  usageUpdatedAt: number;
-  usageQuota: UsageQuota;
+  summary: UsageSummary;
 }
 
 export const Cycle = ({
-  currentUsage: { periodStart, periodEnd, usageMau, usagePr },
-  usageUpdatedAt,
-  usageQuota: { mauMax, tprMax },
+  summary: {
+    cycleEndFormatted,
+    cycleStartFormatted,
+    mau,
+    tpr,
+    usageUpdatedAt,
+    usageUpdatedAtFormatted,
+  },
 }: CycleProps) => {
   const theme = useTheme();
-  const start = displayShortDate(unixTimestampToDate(periodStart));
-  const end = displayShortDate(unixTimestampToDate(periodEnd));
-
-  const mau = usageMau || 0;
-  const pr = usagePr || 0;
 
   const usage: CycleUsage[] = [
     {
       name: 'Active Users',
-      total: mau,
-      percentage: Math.round((mau / mauMax) * 100),
-      percentageMax: mauMax,
-      hardMax: mauMax,
+      total: mau.cycleCount,
+      percentage: ~~Math.round((mau.cycleCount / mau.maximum) * 100),
+      percentageMax: mau.maximum,
+      hardMax: mau.maximum,
       hasFreeTier: false,
       info: 'Any unique human or machine user, local or SSO username or email with recorded activity during a month.',
     },
     {
       name: 'Teleport Protected Resources',
-      total: pr,
-      percentage: Math.round((pr / tprMax) * 100),
-      percentageMax: tprMax,
-      hardMax: tprMax,
+      total: tpr.cycleCount,
+      percentage: ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
+      percentageMax: tpr.maximum,
+      hardMax: tpr.maximum,
       hasFreeTier: false,
       info: 'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.',
     },
@@ -56,9 +50,13 @@ export const Cycle = ({
       <UsageGroup>
         <Flex alignItems="center" justifyContent="space-between" mr={5}>
           <h2>
-            Current Cycle: {start} - {end}
+            Current Cycle: {cycleStartFormatted} - {cycleEndFormatted}
           </h2>
-          <UpdatedAtDisplay theme={theme} usageUpdatedAt={usageUpdatedAt} />
+          <UpdatedAtDisplay
+            theme={theme}
+            usageUpdatedAt={usageUpdatedAt}
+            usageUpdatedAtFormatted={usageUpdatedAtFormatted}
+          />
         </Flex>
         <Text>Monthly usage will reset at the end of this cycle.</Text>
         <Flex flexWrap="wrap">
@@ -66,7 +64,6 @@ export const Cycle = ({
             <UsageBar key={u.name} usage={u} />
           ))}
         </Flex>
-        {/* TODO: show IGS CTA if IGS is not active */}
       </UsageGroup>
     </Box>
   );

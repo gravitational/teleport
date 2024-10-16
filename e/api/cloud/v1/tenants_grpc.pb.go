@@ -50,6 +50,9 @@ type TenantsServiceClient interface {
 	// ClusterAlertInfo returns information about a cluster that will determine if the Teleport usage reporter should
 	// generate a cluster alert; e/lib/cloud/usagereporter/reporter.go.
 	ClusterAlertInfo(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*ClusterAlertInfoResponse, error)
+	// GetUpdatedLicense returns the customer's license if it is different from the license
+	// provided as the mTLS peer certificate.
+	GetUpdatedLicense(ctx context.Context, in *GetUpdatedLicenseRequest, opts ...grpc.CallOption) (*GetUpdatedLicenseResponse, error)
 	// Deprecated: Do not use.
 	// CreateSetupIntent creates an intent in stripe and returns the client secret
 	CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error)
@@ -57,7 +60,7 @@ type TenantsServiceClient interface {
 	// AddCard adds a new credit card to customer account
 	AddCard(ctx context.Context, in *AddCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// Deprecated: Do not use.
-	// RemoveCardRequest removes a credit card from tenant account
+	// RemoveCard removes a credit card from tenant account
 	RemoveCard(ctx context.Context, in *RemoveCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// Deprecated: Do not use.
 	// UpdateCard updates tenant credit card
@@ -207,6 +210,15 @@ func (c *tenantsServiceClient) ClusterAlertInfo(ctx context.Context, in *EmptyRe
 	return out, nil
 }
 
+func (c *tenantsServiceClient) GetUpdatedLicense(ctx context.Context, in *GetUpdatedLicenseRequest, opts ...grpc.CallOption) (*GetUpdatedLicenseResponse, error) {
+	out := new(GetUpdatedLicenseResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetUpdatedLicense", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Deprecated: Do not use.
 func (c *tenantsServiceClient) CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error) {
 	out := new(CreateSetupIntentResponse)
@@ -339,6 +351,9 @@ type TenantsServiceServer interface {
 	// ClusterAlertInfo returns information about a cluster that will determine if the Teleport usage reporter should
 	// generate a cluster alert; e/lib/cloud/usagereporter/reporter.go.
 	ClusterAlertInfo(context.Context, *EmptyRequest) (*ClusterAlertInfoResponse, error)
+	// GetUpdatedLicense returns the customer's license if it is different from the license
+	// provided as the mTLS peer certificate.
+	GetUpdatedLicense(context.Context, *GetUpdatedLicenseRequest) (*GetUpdatedLicenseResponse, error)
 	// Deprecated: Do not use.
 	// CreateSetupIntent creates an intent in stripe and returns the client secret
 	CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error)
@@ -346,7 +361,7 @@ type TenantsServiceServer interface {
 	// AddCard adds a new credit card to customer account
 	AddCard(context.Context, *AddCardRequest) (*EmptyResponse, error)
 	// Deprecated: Do not use.
-	// RemoveCardRequest removes a credit card from tenant account
+	// RemoveCard removes a credit card from tenant account
 	RemoveCard(context.Context, *RemoveCardRequest) (*EmptyResponse, error)
 	// Deprecated: Do not use.
 	// UpdateCard updates tenant credit card
@@ -414,6 +429,9 @@ func (UnimplementedTenantsServiceServer) SendTeleportInvite(context.Context, *Se
 }
 func (UnimplementedTenantsServiceServer) ClusterAlertInfo(context.Context, *EmptyRequest) (*ClusterAlertInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClusterAlertInfo not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetUpdatedLicense(context.Context, *GetUpdatedLicenseRequest) (*GetUpdatedLicenseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUpdatedLicense not implemented")
 }
 func (UnimplementedTenantsServiceServer) CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSetupIntent not implemented")
@@ -692,6 +710,24 @@ func _TenantsService_ClusterAlertInfo_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_GetUpdatedLicense_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUpdatedLicenseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetUpdatedLicense(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetUpdatedLicense",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetUpdatedLicense(ctx, req.(*GetUpdatedLicenseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TenantsService_CreateSetupIntent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EmptyRequest)
 	if err := dec(in); err != nil {
@@ -930,6 +966,10 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClusterAlertInfo",
 			Handler:    _TenantsService_ClusterAlertInfo_Handler,
+		},
+		{
+			MethodName: "GetUpdatedLicense",
+			Handler:    _TenantsService_GetUpdatedLicense_Handler,
 		},
 		{
 			MethodName: "CreateSetupIntent",

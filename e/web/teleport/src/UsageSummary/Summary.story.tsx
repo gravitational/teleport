@@ -6,58 +6,60 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { MemoryRouter } from 'react-router';
 
-import { StripeUsage } from 'e-teleport/services/cloud';
-import { SummaryPage, SummaryProps } from 'e-teleport/UsageSummary/SummaryPage';
+import { SummaryPage } from 'e-teleport/UsageSummary/SummaryPage';
+import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
 
 export default {
   title: 'TeleportE/Billing/Enterprise Usage-Based',
 };
 
 const ctx = createTeleportContext();
-const defaultUsage: StripeUsage = {
-  invoiceId: 'some-invoiceId',
-  status: 'some-status',
-  periodEnd: 0,
-  periodStart: 0,
-  usageMau: 31,
-  usagePr: 351,
-};
 
-const defaultProps = (): SummaryProps => ({
-  data: {
-    usageBasedBilling: true,
-    productName: 'Team',
-    stripeCurrentUsage: defaultUsage,
-    usageUpdatedAt: 1682900000,
-    usageQuota: {
-      mauMax: 30,
-      mauInc: 30,
-      tprMax: 500,
-      tprInc: 500,
+export function SummaryPageViewWithUsage() {
+  const props = makeUsageSummary({
+    cycleStart: 1727762400,
+    cycleStartFormatted: 'Oct 01, 2024',
+    cycleEnd: 1730354400,
+    cycleEndFormatted: 'Oct 31, 2024',
+    usageUpdatedAt: 1728926640,
+    usageUpdatedAtFormatted: 'Oct 14, 2024 11:24',
+    mau: {
+      maximum: 1000,
+      cycleCount: 45,
+      free: 0,
+      perMau: 0,
     },
-  },
-});
-
-export function SummaryPageView() {
-  const props = defaultProps();
+    tpr: {
+      maximum: 44004,
+      cycleCount: 500,
+      free: 0,
+      perMau: 5,
+    },
+  });
 
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <SummaryPage {...props} />
+        <SummaryPage summary={props} />
       </ContextProvider>
     </MemoryRouter>
   );
 }
 
 export function EmptySummaryPageView() {
-  const props = defaultProps();
-  props.data.stripeCurrentUsage = null;
+  const props = makeUsageSummary({
+    cycleStart: 1727762400,
+    cycleStartFormatted: 'Oct 01, 2024',
+    cycleEnd: 1730354400,
+    cycleEndFormatted: 'Oct 31, 2024',
+    usageUpdatedAt: 0,
+    usageUpdatedAtFormatted: '',
+  });
 
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <SummaryPage {...props} />
+        <SummaryPage summary={props} />
       </ContextProvider>
     </MemoryRouter>
   );

@@ -9,20 +9,19 @@ import { Alert, Box, Indicator } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { SummaryPage } from 'e-teleport/UsageSummary/SummaryPage';
-import { BillingSummaryInformation } from 'e-teleport/services/cloud';
 import useTeleport from 'e-teleport/useTeleportE';
+import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
 
 export const SummaryLoader = (): React.ReactElement => {
   const ctx = useTeleport();
   const { attempt, run } = useAttempt('processing');
-  const [billingSummary, setBillingSummary] =
-    useState<BillingSummaryInformation>(null);
+  const [usageSummary, setUsageSummary] = useState<UsageSummary>(null);
 
   useEffect(() => {
     run(() =>
       ctx.cloudService
         .fetchBillingSummaryInformation()
-        .then(bililngSummaryData => setBillingSummary(bililngSummaryData))
+        .then(data => setUsageSummary(data.usageSummary))
     );
   }, [run, ctx.cloudService]);
 
@@ -39,7 +38,7 @@ export const SummaryLoader = (): React.ReactElement => {
         </Box>
       )}
 
-      {attempt.status === 'success' && <SummaryPage data={billingSummary} />}
+      {attempt.status === 'success' && <SummaryPage summary={usageSummary} />}
     </FeatureBox>
   );
 };

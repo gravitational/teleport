@@ -3,32 +3,49 @@ import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle';
+import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
 
 describe('cycle', () => {
   let props: CycleProps;
 
   beforeEach(() => {
     props = {
-      currentUsage: {
-        invoiceId: 'some-invoiceId',
-        status: 'some-status',
-        periodEnd: 1682989332,
-        periodStart: 1672989632,
-        usageMau: 0,
-        usagePr: 0,
-      },
-      productName: 'some-product',
-      usageUpdatedAt: 0,
-      usageQuota: {
-        mauMax: 2,
-        tprMax: 20,
-        mauInc: 2,
-        tprInc: 20,
-      },
+      summary: makeUsageSummary({
+        cycleEnd: 1682989332,
+        cycleEndFormatted: 'May 02, 2023',
+        cycleStart: 1672989632,
+        cycleStartFormatted: 'Jan 06, 2023',
+        usageUpdatedAt: 0,
+        mau: {
+          maximum: 2,
+          free: 2,
+          perMau: 0,
+          cycleCount: 1,
+        },
+        tpr: {
+          maximum: 20,
+          free: 20,
+          perMau: 0,
+          cycleCount: 0,
+        },
+      }),
     };
   });
 
-  test('renders cycle overview', () => {
+  test('renders cycle overview, handles 0', () => {
+    props.summary.tpr = {
+      maximum: 0,
+      free: 0,
+      perMau: 0,
+      cycleCount: 0,
+    };
+    props.summary.mau = {
+      maximum: 0,
+      free: 0,
+      perMau: 0,
+      cycleCount: 0,
+    };
+
     render(<Cycle {...props} />);
 
     expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
@@ -38,10 +55,20 @@ describe('cycle', () => {
     expect(
       screen.getByText(/Monthly usage will reset at the end of this cycle./i)
     ).toBeInTheDocument();
+
+    const mau = screen.getByTestId(/Active Users/i);
+
+    expect(within(mau).getByText(/0 of 0/i)).toBeInTheDocument();
+    expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
+
+    const pr = screen.getByTestId(/Teleport Protected Resources/i);
+
+    expect(within(pr).getByText(/0 of 0/i)).toBeInTheDocument();
+    expect(within(pr).getByText(/\(0%\)/i)).toBeInTheDocument();
   });
 
   test('info icon popovers', async () => {
-    props.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
+    props.summary.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
     render(<Cycle {...props} />);
 
     const mau = screen.getByTestId(/Active Users/i);
@@ -78,29 +105,34 @@ describe('cycle', () => {
   });
 
   test('renders usage', () => {
-    props.currentUsage.usageMau = 0;
-    props.currentUsage.usagePr = 80;
-    props.usageUpdatedAt = 0;
+    props.summary.mau.cycleCount = 0;
+    props.summary.tpr.cycleCount = 80;
+    props.summary.usageUpdatedAt = 0;
 
     render(<Cycle {...props} />);
     const mau = screen.getByTestId(/Active Users/i);
+
     expect(within(mau).getByText(/0 of 2/i)).toBeInTheDocument();
     expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
 
     const pr = screen.getByTestId(/Teleport Protected Resources/i);
+
     expect(within(pr).getByText(/80 of 20/i)).toBeInTheDocument();
     expect(within(pr).getByText(/\(400%\)/i)).toBeInTheDocument();
   });
 
-  test('renders usage updated at value', () => {
-    props.usageUpdatedAt = 0;
+  test('renders usage updated at with no value', () => {
+    props.summary.usageUpdatedAt = 0;
     render(<Cycle {...props} />);
-    expect(screen.getByText('Updated every 12 hours')).toBeInTheDocument();
 
-    props.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
+    expect(screen.getByText('Updated every 12 hours')).toBeInTheDocument();
+  });
+
+  test('renders usage updated at with value', () => {
+    props.summary.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
+    props.summary.usageUpdatedAtFormatted = 'Nov 09, 2023';
     render(<Cycle {...props} />);
-    expect(
-      screen.getByText('Last updated: 2023-11-09 14:00:55')
-    ).toBeInTheDocument();
+
+    expect(screen.getByText('Last updated: Nov 09, 2023')).toBeInTheDocument();
   });
 });

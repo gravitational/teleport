@@ -724,6 +724,12 @@ export interface GetFeaturesResponse {
     entitlements: {
         [key: string]: EntitlementInfo;
     };
+    /**
+     * cloud_anonymization_key is a hash of the Salesforce ID used to anonymize usage events
+     *
+     * @generated from protobuf field: bytes cloud_anonymization_key = 28;
+     */
+    cloudAnonymizationKey: Uint8Array;
 }
 /**
  * EntitlementInfo is the state and limits of a particular entitlement
@@ -821,6 +827,143 @@ export interface GetBillingSummaryInformationResponse {
      * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageQuota usage_quota = 13;
      */
     usageQuota?: UsageQuota;
+    /**
+     * salesforce_id_updated_at is the last time the salesforce ID updated, causing a change in the cloud usage events anonymization key;
+     * relevant to Cloud customers only (not self-hosted)
+     *
+     * @generated from protobuf field: int64 salesforce_id_updated_at = 14;
+     */
+    salesforceIdUpdatedAt: number;
+    /**
+     * usage_summary returns the information needed to display the billing summary page to customers
+     * Usage Summary has a 1:1 match in sales.proto in order to surface the same UI to sales center.
+     * deprecates stripe_current_usage and usage_quota
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageSummary usage_summary = 15;
+     */
+    usageSummary?: UsageSummary;
+}
+/**
+ * UsageSummary is a billing cycle, including billing metrics and cycle start and end dates
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UsageSummary
+ */
+export interface UsageSummary {
+    /**
+     * cycle_start is the date in which the cycle started
+     *
+     * @generated from protobuf field: int64 cycle_start = 1;
+     */
+    cycleStart: number;
+    /**
+     * cycle_start_formatted is the formatted date in which the cycle started; this is the opinionated and consistent way
+     * to display this field in the UI, do not format cycle_start. Format: Jan 02, 2026
+     *
+     * @generated from protobuf field: string cycle_start_formatted = 2;
+     */
+    cycleStartFormatted: string;
+    /**
+     * cycle_end is the last day of the cycle
+     *
+     * @generated from protobuf field: int64 cycle_end = 3;
+     */
+    cycleEnd: number;
+    /**
+     * cycle_end_formatted is the formatted last day of the cycle; this is the opinionated and consistent way
+     * to display this field in the UI, do not format cycle_end. Format: Jan 02, 2026
+     *
+     * @generated from protobuf field: string cycle_end_formatted = 4;
+     */
+    cycleEndFormatted: string;
+    /**
+     * salesforce_id_updated_at is the last time the salesforce ID updated, causing a change in the cloud usage events anonymization key;
+     * relevant to Cloud customers only (not self-hosted)
+     *
+     * @generated from protobuf field: int64 salesforce_id_updated_at = 5;
+     */
+    salesforceIdUpdatedAt: number;
+    /**
+     * salesforce_id_updated_at_formatted is the last time the salesforce ID updated, causing a change in the cloud usage events anonymization key;
+     * relevant to Cloud customers only (not self-hosted); this is the opinionated and consistent way
+     * to display this field in the UI, do not format salesforce_id_updated_at. Format: Jan 02, 2026 03:04 PM
+     *
+     * @generated from protobuf field: string salesforce_id_updated_at_formatted = 6;
+     */
+    salesforceIdUpdatedAtFormatted: string;
+    /**
+     * usage_updated_at is the timestamp of the last usage record received
+     *
+     * @generated from protobuf field: int64 usage_updated_at = 7;
+     */
+    usageUpdatedAt: number;
+    /**
+     * usage_updated_at_formatted is the timestamp of the last usage record received; this is the opinionated and consistent way
+     * to display this field in the UI, do not format usage_updated_at. Format: Jan 02, 2026 03:04 PM
+     *
+     * @generated from protobuf field: string usage_updated_at_formatted = 8;
+     */
+    usageUpdatedAtFormatted: string;
+    /**
+     * cloud indicates the subscription is teleport cloud hosted (not self-hosted)
+     *
+     * @generated from protobuf field: bool cloud = 9;
+     */
+    cloud: boolean;
+    /**
+     * has_cloud_anonymization_key indicates that a cloud anonymization key is set on the account
+     *
+     * @generated from protobuf field: bool has_cloud_anonymization_key = 10;
+     */
+    hasCloudAnonymizationKey: boolean;
+    /**
+     * usage_based indicates the plan leverages usage metrics
+     *
+     * @generated from protobuf field: bool usage_based = 11;
+     */
+    usageBased: boolean;
+    /**
+     * MAU represents the monthly active users metric
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageMetricPerCycle mau = 12;
+     */
+    mau?: UsageMetricPerCycle;
+    /**
+     * TPR represents the Teleport Protected Resources metric
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.UsageMetricPerCycle tpr = 13;
+     */
+    tpr?: UsageMetricPerCycle;
+}
+/**
+ * UsageMetricPerCycle contains a metrics details
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.UsageMetricPerCycle
+ */
+export interface UsageMetricPerCycle {
+    /**
+     * maximum allotted amount; 0 indicates no limit
+     *
+     * @generated from protobuf field: int64 maximum = 1;
+     */
+    maximum: number;
+    /**
+     * included/free amount
+     *
+     * @generated from protobuf field: int64 free = 2;
+     */
+    free: number;
+    /**
+     * UI multiplier
+     *
+     * @generated from protobuf field: int64 per_mau = 3;
+     */
+    perMau: number;
+    /**
+     * cycle_count is the count of usage per cycle
+     *
+     * @generated from protobuf field: int64 cycle_count = 4;
+     */
+    cycleCount: number;
 }
 /**
  * Amount of usage allotted to the customer
@@ -1131,6 +1274,38 @@ export interface ClusterAlertInfoResponse {
      * @generated from protobuf field: bool upsell_alert = 3;
      */
     upsellAlert: boolean;
+}
+/**
+ * GetUpdatedLicenseRequest is the request of a GetUpdatedLicense.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
+ */
+export interface GetUpdatedLicenseRequest {
+    /**
+     * auth_version is the version of the auth server requesting the license
+     *
+     * @generated from protobuf field: string auth_version = 1 [json_name = "auth_version"];
+     */
+    authVersion: string;
+    /**
+     * server_id is a unique identifier for the auth service in the cluster
+     *
+     * @generated from protobuf field: string server_id = 2 [json_name = "server_id"];
+     */
+    serverId: string;
+}
+/**
+ * GetUpdatedLicenseResponse is the return of GetUpdatedLicense.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
+ */
+export interface GetUpdatedLicenseResponse {
+    /**
+     * pem is the license pem
+     *
+     * @generated from protobuf field: string pem = 1;
+     */
+    pem: string;
 }
 /**
  * @generated from protobuf message gravitational.cloud.tenants.v1.EmptyResponse
@@ -2514,7 +2689,8 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
             { no: 24, name: "support_type", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.SupportType", SupportType, "SUPPORT_TYPE_"] },
             { no: 25, name: "join_active_sessions", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 26, name: "mobile_device_management", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 27, name: "entitlements", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => EntitlementInfo } }
+            { no: 27, name: "entitlements", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => EntitlementInfo } },
+            { no: 28, name: "cloud_anonymization_key", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
         ]);
     }
     create(value?: PartialMessage<GetFeaturesResponse>): GetFeaturesResponse {
@@ -2546,6 +2722,7 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
         message.joinActiveSessions = false;
         message.mobileDeviceManagement = false;
         message.entitlements = {};
+        message.cloudAnonymizationKey = new Uint8Array(0);
         if (value !== undefined)
             reflectionMergePartial<GetFeaturesResponse>(this, message, value);
         return message;
@@ -2635,6 +2812,9 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
                     break;
                 case /* map<string, gravitational.cloud.tenants.v1.EntitlementInfo> entitlements */ 27:
                     this.binaryReadMap27(message.entitlements, reader, options);
+                    break;
+                case /* bytes cloud_anonymization_key */ 28:
+                    message.cloudAnonymizationKey = reader.bytes();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2749,6 +2929,9 @@ class GetFeaturesResponse$Type extends MessageType<GetFeaturesResponse> {
             EntitlementInfo.internalBinaryWrite(message.entitlements[k], writer, options);
             writer.join().join();
         }
+        /* bytes cloud_anonymization_key = 28; */
+        if (message.cloudAnonymizationKey.length)
+            writer.tag(28, WireType.LengthDelimited).bytes(message.cloudAnonymizationKey);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2909,7 +3092,9 @@ class GetBillingSummaryInformationResponse$Type extends MessageType<GetBillingSu
             { no: 4, name: "stripe_current_usage", kind: "message", T: () => StripeUsage },
             { no: 8, name: "product_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 12, name: "usage_updated_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
-            { no: 13, name: "usage_quota", kind: "message", T: () => UsageQuota }
+            { no: 13, name: "usage_quota", kind: "message", T: () => UsageQuota },
+            { no: 14, name: "salesforce_id_updated_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 15, name: "usage_summary", kind: "message", T: () => UsageSummary }
         ]);
     }
     create(value?: PartialMessage<GetBillingSummaryInformationResponse>): GetBillingSummaryInformationResponse {
@@ -2917,6 +3102,7 @@ class GetBillingSummaryInformationResponse$Type extends MessageType<GetBillingSu
         message.usageBasedBilling = false;
         message.productName = "";
         message.usageUpdatedAt = 0;
+        message.salesforceIdUpdatedAt = 0;
         if (value !== undefined)
             reflectionMergePartial<GetBillingSummaryInformationResponse>(this, message, value);
         return message;
@@ -2940,6 +3126,12 @@ class GetBillingSummaryInformationResponse$Type extends MessageType<GetBillingSu
                     break;
                 case /* gravitational.cloud.tenants.v1.UsageQuota usage_quota */ 13:
                     message.usageQuota = UsageQuota.internalBinaryRead(reader, reader.uint32(), options, message.usageQuota);
+                    break;
+                case /* int64 salesforce_id_updated_at */ 14:
+                    message.salesforceIdUpdatedAt = reader.int64().toNumber();
+                    break;
+                case /* gravitational.cloud.tenants.v1.UsageSummary usage_summary */ 15:
+                    message.usageSummary = UsageSummary.internalBinaryRead(reader, reader.uint32(), options, message.usageSummary);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2968,6 +3160,12 @@ class GetBillingSummaryInformationResponse$Type extends MessageType<GetBillingSu
         /* gravitational.cloud.tenants.v1.UsageQuota usage_quota = 13; */
         if (message.usageQuota)
             UsageQuota.internalBinaryWrite(message.usageQuota, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
+        /* int64 salesforce_id_updated_at = 14; */
+        if (message.salesforceIdUpdatedAt !== 0)
+            writer.tag(14, WireType.Varint).int64(message.salesforceIdUpdatedAt);
+        /* gravitational.cloud.tenants.v1.UsageSummary usage_summary = 15; */
+        if (message.usageSummary)
+            UsageSummary.internalBinaryWrite(message.usageSummary, writer.tag(15, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2978,6 +3176,218 @@ class GetBillingSummaryInformationResponse$Type extends MessageType<GetBillingSu
  * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse
  */
 export const GetBillingSummaryInformationResponse = new GetBillingSummaryInformationResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UsageSummary$Type extends MessageType<UsageSummary> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UsageSummary", [
+            { no: 1, name: "cycle_start", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 2, name: "cycle_start_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "cycle_end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 4, name: "cycle_end_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "salesforce_id_updated_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 6, name: "salesforce_id_updated_at_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "usage_updated_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 8, name: "usage_updated_at_formatted", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "cloud", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 10, name: "has_cloud_anonymization_key", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 11, name: "usage_based", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 12, name: "mau", kind: "message", T: () => UsageMetricPerCycle },
+            { no: 13, name: "tpr", kind: "message", T: () => UsageMetricPerCycle }
+        ]);
+    }
+    create(value?: PartialMessage<UsageSummary>): UsageSummary {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cycleStart = 0;
+        message.cycleStartFormatted = "";
+        message.cycleEnd = 0;
+        message.cycleEndFormatted = "";
+        message.salesforceIdUpdatedAt = 0;
+        message.salesforceIdUpdatedAtFormatted = "";
+        message.usageUpdatedAt = 0;
+        message.usageUpdatedAtFormatted = "";
+        message.cloud = false;
+        message.hasCloudAnonymizationKey = false;
+        message.usageBased = false;
+        if (value !== undefined)
+            reflectionMergePartial<UsageSummary>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UsageSummary): UsageSummary {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int64 cycle_start */ 1:
+                    message.cycleStart = reader.int64().toNumber();
+                    break;
+                case /* string cycle_start_formatted */ 2:
+                    message.cycleStartFormatted = reader.string();
+                    break;
+                case /* int64 cycle_end */ 3:
+                    message.cycleEnd = reader.int64().toNumber();
+                    break;
+                case /* string cycle_end_formatted */ 4:
+                    message.cycleEndFormatted = reader.string();
+                    break;
+                case /* int64 salesforce_id_updated_at */ 5:
+                    message.salesforceIdUpdatedAt = reader.int64().toNumber();
+                    break;
+                case /* string salesforce_id_updated_at_formatted */ 6:
+                    message.salesforceIdUpdatedAtFormatted = reader.string();
+                    break;
+                case /* int64 usage_updated_at */ 7:
+                    message.usageUpdatedAt = reader.int64().toNumber();
+                    break;
+                case /* string usage_updated_at_formatted */ 8:
+                    message.usageUpdatedAtFormatted = reader.string();
+                    break;
+                case /* bool cloud */ 9:
+                    message.cloud = reader.bool();
+                    break;
+                case /* bool has_cloud_anonymization_key */ 10:
+                    message.hasCloudAnonymizationKey = reader.bool();
+                    break;
+                case /* bool usage_based */ 11:
+                    message.usageBased = reader.bool();
+                    break;
+                case /* gravitational.cloud.tenants.v1.UsageMetricPerCycle mau */ 12:
+                    message.mau = UsageMetricPerCycle.internalBinaryRead(reader, reader.uint32(), options, message.mau);
+                    break;
+                case /* gravitational.cloud.tenants.v1.UsageMetricPerCycle tpr */ 13:
+                    message.tpr = UsageMetricPerCycle.internalBinaryRead(reader, reader.uint32(), options, message.tpr);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UsageSummary, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int64 cycle_start = 1; */
+        if (message.cycleStart !== 0)
+            writer.tag(1, WireType.Varint).int64(message.cycleStart);
+        /* string cycle_start_formatted = 2; */
+        if (message.cycleStartFormatted !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.cycleStartFormatted);
+        /* int64 cycle_end = 3; */
+        if (message.cycleEnd !== 0)
+            writer.tag(3, WireType.Varint).int64(message.cycleEnd);
+        /* string cycle_end_formatted = 4; */
+        if (message.cycleEndFormatted !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.cycleEndFormatted);
+        /* int64 salesforce_id_updated_at = 5; */
+        if (message.salesforceIdUpdatedAt !== 0)
+            writer.tag(5, WireType.Varint).int64(message.salesforceIdUpdatedAt);
+        /* string salesforce_id_updated_at_formatted = 6; */
+        if (message.salesforceIdUpdatedAtFormatted !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.salesforceIdUpdatedAtFormatted);
+        /* int64 usage_updated_at = 7; */
+        if (message.usageUpdatedAt !== 0)
+            writer.tag(7, WireType.Varint).int64(message.usageUpdatedAt);
+        /* string usage_updated_at_formatted = 8; */
+        if (message.usageUpdatedAtFormatted !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.usageUpdatedAtFormatted);
+        /* bool cloud = 9; */
+        if (message.cloud !== false)
+            writer.tag(9, WireType.Varint).bool(message.cloud);
+        /* bool has_cloud_anonymization_key = 10; */
+        if (message.hasCloudAnonymizationKey !== false)
+            writer.tag(10, WireType.Varint).bool(message.hasCloudAnonymizationKey);
+        /* bool usage_based = 11; */
+        if (message.usageBased !== false)
+            writer.tag(11, WireType.Varint).bool(message.usageBased);
+        /* gravitational.cloud.tenants.v1.UsageMetricPerCycle mau = 12; */
+        if (message.mau)
+            UsageMetricPerCycle.internalBinaryWrite(message.mau, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* gravitational.cloud.tenants.v1.UsageMetricPerCycle tpr = 13; */
+        if (message.tpr)
+            UsageMetricPerCycle.internalBinaryWrite(message.tpr, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UsageSummary
+ */
+export const UsageSummary = new UsageSummary$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UsageMetricPerCycle$Type extends MessageType<UsageMetricPerCycle> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.UsageMetricPerCycle", [
+            { no: 1, name: "maximum", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 2, name: "free", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 3, name: "per_mau", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 4, name: "cycle_count", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UsageMetricPerCycle>): UsageMetricPerCycle {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.maximum = 0;
+        message.free = 0;
+        message.perMau = 0;
+        message.cycleCount = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UsageMetricPerCycle>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UsageMetricPerCycle): UsageMetricPerCycle {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int64 maximum */ 1:
+                    message.maximum = reader.int64().toNumber();
+                    break;
+                case /* int64 free */ 2:
+                    message.free = reader.int64().toNumber();
+                    break;
+                case /* int64 per_mau */ 3:
+                    message.perMau = reader.int64().toNumber();
+                    break;
+                case /* int64 cycle_count */ 4:
+                    message.cycleCount = reader.int64().toNumber();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UsageMetricPerCycle, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int64 maximum = 1; */
+        if (message.maximum !== 0)
+            writer.tag(1, WireType.Varint).int64(message.maximum);
+        /* int64 free = 2; */
+        if (message.free !== 0)
+            writer.tag(2, WireType.Varint).int64(message.free);
+        /* int64 per_mau = 3; */
+        if (message.perMau !== 0)
+            writer.tag(3, WireType.Varint).int64(message.perMau);
+        /* int64 cycle_count = 4; */
+        if (message.cycleCount !== 0)
+            writer.tag(4, WireType.Varint).int64(message.cycleCount);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.UsageMetricPerCycle
+ */
+export const UsageMetricPerCycle = new UsageMetricPerCycle$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UsageQuota$Type extends MessageType<UsageQuota> {
     constructor() {
@@ -3627,6 +4037,108 @@ class ClusterAlertInfoResponse$Type extends MessageType<ClusterAlertInfoResponse
  */
 export const ClusterAlertInfoResponse = new ClusterAlertInfoResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class GetUpdatedLicenseRequest$Type extends MessageType<GetUpdatedLicenseRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest", [
+            { no: 1, name: "auth_version", kind: "scalar", jsonName: "auth_version", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "server_id", kind: "scalar", jsonName: "server_id", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetUpdatedLicenseRequest>): GetUpdatedLicenseRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.authVersion = "";
+        message.serverId = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetUpdatedLicenseRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetUpdatedLicenseRequest): GetUpdatedLicenseRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string auth_version = 1 [json_name = "auth_version"];*/ 1:
+                    message.authVersion = reader.string();
+                    break;
+                case /* string server_id = 2 [json_name = "server_id"];*/ 2:
+                    message.serverId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetUpdatedLicenseRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string auth_version = 1 [json_name = "auth_version"]; */
+        if (message.authVersion !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.authVersion);
+        /* string server_id = 2 [json_name = "server_id"]; */
+        if (message.serverId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.serverId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
+ */
+export const GetUpdatedLicenseRequest = new GetUpdatedLicenseRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetUpdatedLicenseResponse$Type extends MessageType<GetUpdatedLicenseResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse", [
+            { no: 1, name: "pem", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetUpdatedLicenseResponse>): GetUpdatedLicenseResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.pem = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetUpdatedLicenseResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetUpdatedLicenseResponse): GetUpdatedLicenseResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string pem */ 1:
+                    message.pem = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetUpdatedLicenseResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string pem = 1; */
+        if (message.pem !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.pem);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
+ */
+export const GetUpdatedLicenseResponse = new GetUpdatedLicenseResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class EmptyResponse$Type extends MessageType<EmptyResponse> {
     constructor() {
         super("gravitational.cloud.tenants.v1.EmptyResponse", []);
@@ -3693,6 +4205,7 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "SetSurveyResults", options: {}, I: SetSurveyResultsRequest, O: EmptyResponse },
     { name: "SendTeleportInvite", options: {}, I: SendTeleportInviteRequest, O: EmptyResponse },
     { name: "ClusterAlertInfo", options: {}, I: EmptyRequest, O: ClusterAlertInfoResponse },
+    { name: "GetUpdatedLicense", options: {}, I: GetUpdatedLicenseRequest, O: GetUpdatedLicenseResponse },
     { name: "CreateSetupIntent", options: {}, I: EmptyRequest, O: CreateSetupIntentResponse },
     { name: "AddCard", options: {}, I: AddCardRequest, O: EmptyResponse },
     { name: "RemoveCard", options: {}, I: RemoveCardRequest, O: EmptyResponse },
