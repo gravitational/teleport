@@ -210,21 +210,9 @@ func TestServiceAccess(t *testing.T) {
 		})
 	}
 
-	// TODO(hugoShaka): remove this exclusion list once the methods are implemented
-	var notImplementedYetMethods = []string{
-		"GetAutoUpdateAgentPlan",
-		"CreateAutoUpdateAgentPlan",
-		"UpdateAutoUpdateAgentPlan",
-		"UpsertAutoUpdateAgentPlan",
-		"DeleteAutoUpdateAgentPlan",
-	}
-
 	// verify that all declared methods have matching test cases
 	t.Run("verify coverage", func(t *testing.T) {
 		for _, method := range autoupdate.AutoUpdateService_ServiceDesc.Methods {
-			if slices.Contains(notImplementedYetMethods, method.MethodName) {
-				continue
-			}
 			t.Run(method.MethodName, func(t *testing.T) {
 				match := false
 				for _, testCase := range testCases {
