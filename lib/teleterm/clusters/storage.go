@@ -161,11 +161,12 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, nil, trace.BadParameter("cluster directory is missing")
 	}
 
-	cfg := s.makeDefaultClientConfig()
-	cfg.WebProxyAddr = webProxyAddress
-
 	profileName := parseName(webProxyAddress)
 	clusterURI := uri.NewClusterURI(profileName)
+
+	cfg := s.makeDefaultClientConfig(clusterURI)
+	cfg.WebProxyAddr = webProxyAddress
+
 	clusterClient, err := client.NewClient(cfg)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -215,7 +216,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 
 	profileStore := client.NewFSProfileStore(s.Dir)
 
-	cfg := s.makeDefaultClientConfig()
+	cfg := s.makeDefaultClientConfig(clusterURI)
 	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -276,7 +277,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	return status, nil
 }
 
-func (s *Storage) makeDefaultClientConfig() *client.Config {
+func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
 	cfg := client.MakeDefaultConfig()
 
 	cfg.HomePath = s.Dir
@@ -295,6 +296,7 @@ func (s *Storage) makeDefaultClientConfig() *client.Config {
 	// true.
 	cfg.AllowStdinHijack = true
 
+	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg

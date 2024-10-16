@@ -2399,6 +2399,8 @@ type WindowsDesktopService struct {
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
 	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+	// ResourceMatchers match dynamic Windows desktop resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // Check checks whether the WindowsDesktopService is valid or not

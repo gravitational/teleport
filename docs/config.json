@@ -1521,6 +1521,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/access-request-plugins/datadog-hosted/",
+      "destination": "/admin-guides/access-controls/access-request-plugins/datadog-hosted/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/access-requests/",
       "destination": "/admin-guides/access-controls/access-requests/",
       "permanent": true

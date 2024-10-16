@@ -279,7 +279,7 @@ function RoleEditorAdapter({
       p={4}
       borderLeft={1}
       borderColor={theme.colors.interactive.tonal.neutral[0]}
-      width="800px"
+      width="900px"
     >
       {convertAttempt.status === 'processing' && (
         <Flex
