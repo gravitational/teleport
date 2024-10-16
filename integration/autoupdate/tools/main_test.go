@@ -101,6 +101,10 @@ func serve256File(w http.ResponseWriter, _ *http.Request, filePath string) {
 	w.Header().Set("Content-Type", "plain/text")
 
 	file, err := os.Open(filePath)
+	if errors.Is(err, os.ErrNotExist) {
+		http.Error(w, "file not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		http.Error(w, "failed to open file", http.StatusInternalServerError)
 		return
@@ -160,7 +164,7 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 	}
 	switch runtime.GOOS {
 	case "darwin":
-		archivePath := filepath.Join(path, fmt.Sprintf("tsh-%s.pkg", version))
+		archivePath := filepath.Join(path, fmt.Sprintf("teleport-%s.pkg", version))
 		return trace.Wrap(helpers.CompressDirToPkgFile(ctx, versionPath, archivePath, "com.example.pkgtest"))
 	case "windows":
 		archivePath := filepath.Join(path, fmt.Sprintf("teleport-v%s-windows-amd64-bin.zip", version))

@@ -225,7 +225,7 @@ func (u *ClientUpdater) UpdateWithLock(ctx context.Context, toolsVersion string)
 // with defined updater directory suffix.
 func (u *ClientUpdater) Update(ctx context.Context, toolsVersion string) error {
 	// Get platform specific download URLs.
-	archiveURL, hashURL, err := urls(u.baseUrl, toolsVersion)
+	packages, err := teleportPackageURLs(u.baseUrl, toolsVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -233,13 +233,29 @@ func (u *ClientUpdater) Update(ctx context.Context, toolsVersion string) error {
 	signalCtx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Download the archive and validate against the hash. Download to a
-	// temporary path within tools directory.
-	hash, err := u.downloadHash(signalCtx, hashURL)
+	for _, pkg := range packages {
+		if err := u.update(signalCtx, pkg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// update downloads the archive and validate against the hash. Download to a
+// temporary path within tools directory.
+func (u *ClientUpdater) update(ctx context.Context, pkg packageURL) error {
+	hash, err := u.downloadHash(ctx, pkg.Hash)
+	if pkg.Optional && trace.IsNotFound(err) {
+		return nil
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	archivePath, archiveHash, err := u.downloadArchive(signalCtx, u.toolsDir, archiveURL)
+	archivePath, archiveHash, err := u.downloadArchive(ctx, u.toolsDir, pkg.Archive)
+	if pkg.Optional && trace.IsNotFound(err) {
+		return nil
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -311,6 +327,9 @@ func (u *ClientUpdater) downloadHash(ctx context.Context, url string) (string, e
 		return "", trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return "", trace.NotFound("hash file is not found: %v", resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", trace.BadParameter("bad status when downloading archive hash: %v", resp.StatusCode)
 	}
@@ -337,6 +356,9 @@ func (u *ClientUpdater) downloadArchive(ctx context.Context, downloadDir string,
 		return "", "", trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return "", "", trace.NotFound("archive file is not found: %v", resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", "", trace.BadParameter("bad status when downloading archive: %v", resp.StatusCode)
 	}

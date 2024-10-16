@@ -114,15 +114,31 @@ func checkClientToolVersion(toolsDir string) (string, error) {
 	return "", trace.BadParameter("unable to determine version")
 }
 
-// urls returns the URL for the Teleport archive to download. The format is:
+// packageURL defines URLs to the archive and their archive sha256 hash file, and marks
+// if this package is optional, for such case download needs to be ignored if package
+// not found in CDN.
+type packageURL struct {
+	Archive  string
+	Hash     string
+	Optional bool
+}
+
+// teleportPackageURLs returns the URL for the Teleport archive to download. The format is:
 // https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
-func urls(baseUrl, toolsVersion string) (string, string, error) {
-	var archive string
+func teleportPackageURLs(baseUrl, toolsVersion string) ([]packageURL, error) {
 	switch runtime.GOOS {
 	case "darwin":
-		archive = baseUrl + "/tsh-" + toolsVersion + ".pkg"
+		tsh := baseUrl + "/tsh-" + toolsVersion + ".pkg"
+		teleport := baseUrl + "/teleport-" + toolsVersion + ".pkg"
+		return []packageURL{
+			{Archive: teleport, Hash: teleport + ".sha256"},
+			{Archive: tsh, Hash: tsh + ".sha256", Optional: true},
+		}, nil
 	case "windows":
-		archive = baseUrl + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
+		archive := baseUrl + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
+		return []packageURL{
+			{Archive: archive, Hash: archive + ".sha256"},
+		}, nil
 	case "linux":
 		var b strings.Builder
 		b.WriteString(baseUrl + "/teleport-")
@@ -134,12 +150,13 @@ func urls(baseUrl, toolsVersion string) (string, string, error) {
 			b.WriteString("fips-")
 		}
 		b.WriteString("bin.tar.gz")
-		archive = b.String()
+		archive := b.String()
+		return []packageURL{
+			{Archive: archive, Hash: archive + ".sha256"},
+		}, nil
 	default:
-		return "", "", trace.BadParameter("unsupported runtime: %v", runtime.GOOS)
+		return nil, trace.BadParameter("unsupported runtime: %v", runtime.GOOS)
 	}
-
-	return archive, archive + ".sha256", nil
 }
 
 // toolName returns the path to {tsh, tctl} for the executable that started
