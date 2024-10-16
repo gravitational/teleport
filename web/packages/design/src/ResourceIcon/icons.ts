@@ -105,6 +105,7 @@ import eks from './assets/eks.svg';
 import elastic from './assets/elastic.svg';
 import emailDark from './assets/email-dark.svg';
 import emailLight from './assets/email-light.svg';
+import entraid from './assets/entra-id.svg';
 import eventbrite from './assets/eventbrite.svg';
 import excalidraw from './assets/excalidraw.svg';
 import figma from './assets/figma.svg';
@@ -384,6 +385,7 @@ export {
   elastic,
   emailDark,
   emailLight,
+  entraid,
   eventbrite,
   excalidraw,
   figma,

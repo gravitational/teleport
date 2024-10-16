@@ -132,7 +132,7 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	// make sure it's really gone
 	err = trustService.DeleteRemoteCluster(ctx, "foo")
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound("key \"/remoteClusters/foo\" is not found"))
+	require.ErrorIs(t, err, trace.NotFound(`key "/remoteClusters/foo" is not found`))
 }
 
 func TestPresenceService_PatchRemoteCluster(t *testing.T) {
@@ -318,5 +318,5 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	// make sure it's really gone
 	_, err = trustService.GetTrustedCluster(ctx, "foo")
 	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound("key /trustedclusters/foo is not found"))
+	require.ErrorIs(t, err, trace.NotFound(`key "/trustedclusters/foo" is not found`))
 }

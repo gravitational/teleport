@@ -261,7 +261,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           &:hover,
           &:focus-visible {
             background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[0].background};
+              p.theme.colors.interactive.tonal.primary[0]};
           }
           align-items: center;
         `}
@@ -312,8 +312,7 @@ const NavigationButton = ({
 }) => {
   const theme = useTheme();
   const selectedBorder = `2px solid ${theme.colors.brand}`;
-  const selectedBackground =
-    theme.colors.interactive.tonal.neutral[0].background;
+  const selectedBackground = theme.colors.interactive.tonal.neutral[0];
 
   return (
     <HoverTooltip

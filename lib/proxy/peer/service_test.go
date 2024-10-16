@@ -20,11 +20,11 @@ package peer
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -52,7 +52,7 @@ func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
 	require.NoError(t, err)
 
 	proxyService := &proxyService{
-		log: logrus.New(),
+		log: slog.Default(),
 	}
 	proto.RegisterProxyServiceServer(server, proxyService)
 

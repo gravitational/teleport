@@ -74,8 +74,9 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
-			Log:       s.log,
-			Client:    s.c.AccessPoint,
+			// TODO(tross): update this once converted to use slog
+			// Log:       s.log,
+			Client: s.c.AccessPoint,
 		},
 	})
 	if err != nil {

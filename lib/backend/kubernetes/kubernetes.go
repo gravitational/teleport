@@ -268,7 +268,7 @@ func (b *Backend) readSecretData(ctx context.Context, key backend.Key) (*backend
 
 	data, ok := secret.Data[backendKeyToSecret(key)]
 	if !ok || len(data) == 0 {
-		return nil, trace.NotFound("key [%s] not found in secret %s", string(key), b.SecretName)
+		return nil, trace.NotFound("key [%s] not found in secret %s", key.String(), b.SecretName)
 	}
 
 	return &backend.Item{
@@ -353,7 +353,7 @@ func generateSecretAnnotations(namespace, releaseNameEnv string) map[string]stri
 // backendKeyToSecret replaces the "/" with "."
 // "/" chars are not allowed in Kubernetes Secret keys.
 func backendKeyToSecret(k backend.Key) string {
-	return strings.ReplaceAll(string(k), "/", ".")
+	return strings.ReplaceAll(k.String(), string(backend.Separator), ".")
 }
 
 func updateDataMap(data map[string][]byte, items ...backend.Item) {

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/native"
 )
@@ -89,6 +90,8 @@ const (
 
 	// DatabaseClient represents a key used for a database client.
 	DatabaseClient
+	// DatabaseServer represents a key used for a database server.
+	DatabaseServer
 
 	// HostSSH represents a host SSH key.
 	HostSSH
@@ -166,6 +169,7 @@ var (
 		UserSSH:                 RSA2048,
 		UserTLS:                 RSA2048,
 		DatabaseClient:          RSA2048,
+		DatabaseServer:          RSA2048,
 		HostSSH:                 RSA2048,
 		HostIdentity:            RSA2048,
 		BotImpersonatedIdentity: RSA2048,
@@ -193,11 +197,12 @@ var (
 		OIDCIdPCAJWT:            RSA2048,
 		SAMLIdPCATLS:            RSA2048,
 		SPIFFECATLS:             ECDSAP256,
-		SPIFFECAJWT:             ECDSAP256,
+		SPIFFECAJWT:             RSA2048,
 		OktaCAJWT:               ECDSAP256,
 		UserSSH:                 Ed25519,
 		UserTLS:                 ECDSAP256,
 		DatabaseClient:          RSA2048,
+		DatabaseServer:          RSA2048,
 		HostSSH:                 Ed25519,
 		HostIdentity:            ECDSAP256,
 		BotImpersonatedIdentity: ECDSAP256,
@@ -222,11 +227,12 @@ var (
 		OIDCIdPCAJWT:            RSA2048,
 		SAMLIdPCATLS:            RSA2048,
 		SPIFFECATLS:             ECDSAP256,
-		SPIFFECAJWT:             ECDSAP256,
+		SPIFFECAJWT:             RSA2048,
 		OktaCAJWT:               ECDSAP256,
 		UserSSH:                 ECDSAP256,
 		UserTLS:                 ECDSAP256,
 		DatabaseClient:          RSA2048,
+		DatabaseServer:          RSA2048,
 		HostSSH:                 ECDSAP256,
 		HostIdentity:            ECDSAP256,
 		BotImpersonatedIdentity: ECDSAP256,
@@ -253,11 +259,12 @@ var (
 		OIDCIdPCAJWT:            RSA2048,
 		SAMLIdPCATLS:            RSA2048,
 		SPIFFECATLS:             ECDSAP256,
-		SPIFFECAJWT:             ECDSAP256,
+		SPIFFECAJWT:             RSA2048,
 		OktaCAJWT:               ECDSAP256,
 		UserSSH:                 Ed25519,
 		UserTLS:                 ECDSAP256,
 		DatabaseClient:          RSA2048,
+		DatabaseServer:          RSA2048,
 		HostSSH:                 Ed25519,
 		HostIdentity:            ECDSAP256,
 		BotImpersonatedIdentity: ECDSAP256,
@@ -291,6 +298,25 @@ func GetCurrentSuiteFromAuthPreference(authPrefGetter AuthPreferenceGetter) GetS
 			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
 		}
 		return authPref.GetSignatureAlgorithmSuite(), nil
+	})
+}
+
+// Pinger is an interface for pinging the auth server.
+type Pinger interface {
+	// Ping returns a Ping response containing the current signature algorithm
+	// suite.
+	Ping(context.Context) (proto.PingResponse, error)
+}
+
+// GetCurrentSuiteFromPing returns a [GetSuiteFunc] that fetches the signature
+// algorithm suite currently configured in the cluster via the ping endpoint.
+func GetCurrentSuiteFromPing(pinger Pinger) GetSuiteFunc {
+	return GetSuiteFunc(func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		pingResp, err := pinger.Ping(ctx)
+		if err != nil {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
+		}
+		return pingResp.SignatureAlgorithmSuite, nil
 	})
 }
 
