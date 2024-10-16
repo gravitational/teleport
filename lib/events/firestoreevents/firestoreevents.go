@@ -19,6 +19,7 @@
 package firestoreevents
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -202,6 +203,8 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 	}
 	cfg.ProjectID = projectIDParamString
 
+	cfg.DatabaseID = url.Query().Get("databaseID")
+
 	eventRetentionPeriodParamString := url.Query().Get(eventRetentionPeriodPropertyKey)
 	if eventRetentionPeriodParamString == "" {
 		cfg.RetentionPeriod = defaultEventRetentionPeriod
@@ -286,7 +289,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	})
 	l.Info("Initializing event backend.")
 	closeCtx, cancel := context.WithCancel(context.Background())
-	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
+	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.DatabaseID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -576,7 +579,8 @@ type searchEventsFilter struct {
 }
 
 func (l *Log) getIndexParent() string {
-	return "projects/" + l.ProjectID + "/databases/(default)/collectionGroups/" + l.CollectionName
+	database := cmp.Or(l.Config.DatabaseID, "(default)")
+	return "projects/" + l.ProjectID + "/databases/" + database + "/collectionGroups/" + l.CollectionName
 }
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
