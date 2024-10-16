@@ -27,7 +27,6 @@ import {
   ButtonBorder,
   ResourceIcon,
 } from 'design';
-import Image from 'design/Image';
 
 import cfg from 'teleport/config';
 
