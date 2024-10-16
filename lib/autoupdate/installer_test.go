@@ -113,7 +113,7 @@ func TestTeleportInstaller_Install(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
-			installer := &LocalAgentInstaller{
+			installer := &LocalInstaller{
 				InstallDir:              dir,
 				HTTP:                    http.DefaultClient,
 				Log:                     slog.Default(),

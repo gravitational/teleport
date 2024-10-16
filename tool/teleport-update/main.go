@@ -72,7 +72,7 @@ func main() {
 }
 
 type cliConfig struct {
-	autoupdate.AgentUserConfig
+	autoupdate.UserConfig
 
 	// Debug logs enabled
 	Debug bool
@@ -192,7 +192,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	updater, err := autoupdate.NewLocalAgentUpdater(autoupdate.LocalAgentUpdaterConfig{
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		Log:         plog,
 	})
@@ -223,14 +223,14 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		}
 	}()
 
-	updater, err := autoupdate.NewLocalAgentUpdater(autoupdate.LocalAgentUpdaterConfig{
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
 		Log:         plog,
 	})
 	if err != nil {
 		return trace.Errorf("failed to setup updater: %w", err)
 	}
-	if err := updater.Enable(ctx, ccfg.AgentUserConfig); err != nil {
+	if err := updater.Enable(ctx, ccfg.UserConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

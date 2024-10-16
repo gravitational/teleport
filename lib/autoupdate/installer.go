@@ -41,12 +41,12 @@ import (
 
 const (
 	checksumType   = "sha256"
-	checksumHexLen = 64
+	checksumHexLen = sha256.Size * 2 // bytes to hex
 )
 
-// LocalAgentInstaller manages the creation and removal of installations
+// LocalInstaller manages the creation and removal of installations
 // of Teleport.
-type LocalAgentInstaller struct {
+type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
 	// HTTP is an HTTP client for downloading Teleport.
@@ -60,7 +60,7 @@ type LocalAgentInstaller struct {
 }
 
 // Remove a Teleport version directory from InstallDir.
-func (ai *LocalAgentInstaller) Remove(ctx context.Context, version string) error {
+func (ai *LocalInstaller) Remove(ctx context.Context, version string) error {
 	versionDir := filepath.Join(ai.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
 
@@ -76,7 +76,7 @@ func (ai *LocalAgentInstaller) Remove(ctx context.Context, version string) error
 }
 
 // Install a Teleport version directory in InstallDir.
-func (ai *LocalAgentInstaller) Install(ctx context.Context, version, template string) error {
+func (ai *LocalInstaller) Install(ctx context.Context, version, template string) error {
 	versionDir := filepath.Join(ai.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
 
@@ -195,7 +195,7 @@ func readChecksum(path string) ([]byte, error) {
 	return sum, nil
 }
 
-func (ai *LocalAgentInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
+func (ai *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -224,7 +224,7 @@ func (ai *LocalAgentInstaller) getChecksum(ctx context.Context, url string) ([]b
 	return sum, nil
 }
 
-func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max int64, url string) (sum []byte, err error) {
+func (ai *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, url string) (sum []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -259,7 +259,7 @@ func (ai *LocalAgentInstaller) download(ctx context.Context, w io.Writer, max in
 	return shaReader.Sum(nil), nil
 }
 
-func (ai *LocalAgentInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64) error {
+func (ai *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return trace.Wrap(err)
 	}
