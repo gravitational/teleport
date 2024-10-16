@@ -269,3 +269,9 @@ func TestNewDiscoverEC2UserTask(t *testing.T) {
 		})
 	}
 }
+
+func TestAllDescriptions(t *testing.T) {
+	for _, issueType := range usertasks.DiscoverEC2IssueTypes {
+		require.NotEmpty(t, usertasks.DescriptionForDiscoverEC2Issue(issueType), "issue type %q is missing descriptions/%s.md file", issueType, issueType)
+	}
+}

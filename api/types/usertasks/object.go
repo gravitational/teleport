@@ -19,7 +19,9 @@
 package usertasks
 
 import (
+	"embed"
 	"encoding/binary"
+	"fmt"
 	"slices"
 	"time"
 
@@ -117,8 +119,23 @@ const (
 	AutoDiscoverEC2IssueSSMInvocationFailure = "ec2-ssm-invocation-failure"
 )
 
-// discoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
-var discoverEC2IssueTypes = []string{
+//go:embed descriptions/*.md
+var descriptionsFS embed.FS
+
+// DescriptionForDiscoverEC2Issue returns the description of the issue and fixing steps.
+// The returned string contains a markdown document.
+// If issue type is not recognized or doesn't have a specific description, them an empty string is returned.
+func DescriptionForDiscoverEC2Issue(issueType string) string {
+	filename := fmt.Sprintf("descriptions/%s.md", issueType)
+	bs, err := descriptionsFS.ReadFile(filename)
+	if err != nil {
+		return ""
+	}
+	return string(bs)
+}
+
+// DiscoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
+var DiscoverEC2IssueTypes = []string{
 	AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 	AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
@@ -184,8 +201,8 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 		)
 	}
 
-	if !slices.Contains(discoverEC2IssueTypes, ut.GetSpec().IssueType) {
-		return trace.BadParameter("invalid issue type state, allowed values: %v", discoverEC2IssueTypes)
+	if !slices.Contains(DiscoverEC2IssueTypes, ut.GetSpec().IssueType) {
+		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEC2IssueTypes)
 	}
 
 	if len(ut.Spec.DiscoverEc2.Instances) == 0 {

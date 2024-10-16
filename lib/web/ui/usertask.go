@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	"github.com/gravitational/teleport/api/types/usertasks"
 )
 
 // UserTask describes UserTask fields.
@@ -41,8 +42,10 @@ type UserTask struct {
 
 // UserTaskDetail contains all the details for a User Task.
 type UserTaskDetail struct {
-	// UserTask has the basic fields that all taks include.
+	// UserTask has the basic fields that all tasks include.
 	UserTask
+	// Description is a markdown document that explains the issue and how to fix it.
+	Description string `json:"description,omitempty"`
 	// DiscoverEC2 contains the task details for the DiscoverEC2 tasks.
 	DiscoverEC2 *usertasksv1.DiscoverEC2 `json:"discoverEc2,omitempty"`
 }
@@ -87,6 +90,7 @@ func MakeUserTasks(uts []*usertasksv1.UserTask) []UserTask {
 func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 	return UserTaskDetail{
 		UserTask:    MakeUserTask(ut),
+		Description: usertasks.DescriptionForDiscoverEC2Issue(ut.GetSpec().GetIssueType()),
 		DiscoverEC2: ut.GetSpec().GetDiscoverEc2(),
 	}
 }
