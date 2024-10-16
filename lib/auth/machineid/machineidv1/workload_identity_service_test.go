@@ -32,7 +32,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
@@ -93,7 +93,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	privateKey, err := native.GenerateRSAPrivateKey()
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
 	require.NoError(t, err)
