@@ -42,8 +42,8 @@ var (
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	ctx, _ = signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
-	signalCtx, _ := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	updater := tools.NewUpdater(
 		clientTools(),
 		toolsDir,
@@ -54,7 +54,7 @@ func main() {
 	if reExec {
 		// Download and update the version of client tools required by the cluster.
 		// This is required if the user passed in the TELEPORT_TOOLS_VERSION explicitly.
-		err := updater.UpdateWithLock(signalCtx, toolsVersion)
+		err := updater.UpdateWithLock(ctx, toolsVersion)
 		if errors.Is(err, context.Canceled) {
 			os.Exit(0)
 			return

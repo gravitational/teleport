@@ -91,7 +91,10 @@ type Updater struct {
 	client  *http.Client
 }
 
-// NewUpdater initiate updater for the client tools auto updates.
+// NewUpdater initializes the updater for client tools auto updates. We need to specify the list
+// of tools (e.g., `tsh`, `tctl`) that should be updated, the tools directory path where we
+// download, extract package archives with the new version, and replace symlinks (e.g., `$TELEPORT_HOME/bin`).
+// The base URL of the CDN with Teleport packages and the `http.Client` can be customized via options.
 func NewUpdater(tools []string, toolsDir string, localVersion string, options ...Option) *Updater {
 	updater := &Updater{
 		tools:        tools,
@@ -183,7 +186,8 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (string, bo
 	return toolsVersion, false, nil
 }
 
-// UpdateWithLock acquires filesystem lock, downloads requested version package, unarchive and replace existing one.
+// UpdateWithLock acquires filesystem lock, downloads requested version package,
+// unarchive and replace existing one.
 func (u *Updater) UpdateWithLock(ctx context.Context, toolsVersion string) (err error) {
 	// Create tools directory if it does not exist.
 	if err := os.MkdirAll(u.toolsDir, 0o755); err != nil {
