@@ -105,6 +105,35 @@ func (s *Service) GetDynamicWindowsDesktop(ctx context.Context, request *dynamic
 	return desktop, nil
 }
 
+// ListDynamicWindowsDesktops returns list of dynamic Windows desktops.
+func (s *Service) ListDynamicWindowsDesktops(ctx context.Context, request *dynamicwindowspb.ListDynamicWindowsDesktopsRequest) (*dynamicwindowspb.ListDynamicWindowsDesktopsResponse, error) {
+	auth, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktops, next, err := s.backend.ListDynamicWindowsDesktops(ctx, int(request.PageSize), request.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &dynamicwindowspb.ListDynamicWindowsDesktopsResponse{
+		NextPageToken: next,
+	}
+	for _, d := range desktops {
+		desktop, ok := d.(*types.DynamicWindowsDesktopV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", d)
+		}
+		response.Desktops = append(response.Desktops, desktop)
+	}
+
+	return response, nil
+}
+
 // CreateDynamicWindowsDesktop registers a new dynamic Windows desktop.
 func (s *Service) CreateDynamicWindowsDesktop(ctx context.Context, req *dynamicwindowspb.CreateDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error) {
 	auth, err := s.authorizer.Authorize(ctx)
