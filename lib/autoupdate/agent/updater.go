@@ -112,6 +112,12 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
+	if cfg.LinkDir == "" {
+		cfg.LinkDir = "/usr/local/bin"
+	}
+	if cfg.VersionsDir == "" {
+		cfg.VersionsDir = "/var/lib/teleport/versions"
+	}
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
@@ -119,6 +125,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		ConfigPath:         filepath.Join(cfg.VersionsDir, updateConfigName),
 		Installer: &LocalInstaller{
 			InstallDir: cfg.VersionsDir,
+			LinkDir:    cfg.LinkDir,
 			HTTP:       client,
 			Log:        cfg.Log,
 
@@ -140,6 +147,8 @@ type LocalUpdaterConfig struct {
 	DownloadTimeout time.Duration
 	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions).
 	VersionsDir string
+	// LinkDir for installing Teleport (usually /usr/local/bin).
+	LinkDir string
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
@@ -161,7 +170,7 @@ type Installer interface {
 	// Install the Teleport agent at version from the download template.
 	// This function must be idempotent.
 	Install(ctx context.Context, version, template string, flags InstallFlags) error
-	// Link the Teleport agent at version to the system location.
+	// Link the Teleport agent at version into the system location.
 	Link(ctx context.Context, version string) error
 	// Remove the Teleport agent at version.
 	// This function must be idempotent.
@@ -251,7 +260,11 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	}
 	err = u.Installer.Install(ctx, desiredVersion, template, 0) // TODO(sclevine): add web API for flags
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to install: %w", err)
+	}
+	err = u.Installer.Link(ctx, desiredVersion)
+	if err != nil {
+		return trace.Errorf("failed to link: %w", err)
 	}
 	if cfg.Status.ActiveVersion != desiredVersion {
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)

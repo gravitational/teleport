@@ -34,6 +34,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,7 +50,8 @@ const (
 type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
-	// LinkDir contains symlinks to the
+	// LinkDir contains symlinks to the most recently linked installation.
+	LinkDir string
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
 	// Log contains a logger.
@@ -155,7 +157,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
-	err = os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
+	err = renameio.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
 	if err != nil {
 		return trace.Errorf("failed to write checksum: %w", err)
 	}
@@ -324,9 +326,8 @@ func uncompressedSize(f io.Reader) (int64, error) {
 	return n, nil
 }
 
-func (ai *LocalInstaller) Link(ctx context.Context, version string, linkDir string) error {
+func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
 	binDir := filepath.Join(ai.InstallDir, version, "bin")
-
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return trace.Wrap(err)
@@ -335,8 +336,10 @@ func (ai *LocalInstaller) Link(ctx context.Context, version string, linkDir stri
 		if entry.IsDir() {
 			continue
 		}
-		os.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(linkDir, entry.Name()))
-
+		err := renameio.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(ai.LinkDir, entry.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }

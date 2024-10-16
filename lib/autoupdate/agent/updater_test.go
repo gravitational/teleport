@@ -263,12 +263,16 @@ func TestUpdater_Enable(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			var installedVersion, installedTemplate string
+			var installedVersion, installedTemplate, linkedVersion string
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, version, template string, _ InstallFlags) error {
 					installedVersion = version
 					installedTemplate = template
 					return tt.installErr
+				},
+				FuncLink: func(_ context.Context, version string) error {
+					linkedVersion = version
+					return nil
 				},
 			}
 
@@ -282,6 +286,7 @@ func TestUpdater_Enable(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.installedVersion, installedVersion)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
+			require.Equal(t, tt.installedVersion, linkedVersion)
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
@@ -304,6 +309,7 @@ func blankTestAddr(s []byte) []byte {
 type testInstaller struct {
 	FuncInstall func(ctx context.Context, version, template string, flags InstallFlags) error
 	FuncRemove  func(ctx context.Context, version string) error
+	FuncLink    func(ctx context.Context, version string) error
 }
 
 func (ti *testInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
@@ -312,4 +318,8 @@ func (ti *testInstaller) Install(ctx context.Context, version, template string, 
 
 func (ti *testInstaller) Remove(ctx context.Context, version string) error {
 	return ti.FuncRemove(ctx, version)
+}
+
+func (ti *testInstaller) Link(ctx context.Context, version string) error {
+	return ti.FuncLink(ctx, version)
 }
