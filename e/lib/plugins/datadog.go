@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/datadog"
@@ -33,6 +34,7 @@ func datadogInstanceFactory(_ context.Context, plugin *types.PluginV1, deps inst
 			Recipients: common.RawRecipientsMap{
 				types.Wildcard: []string{datadogSpec.FallbackRecipient},
 			},
+			TeleportUser: teleport.SystemAccessApproverUserName,
 		},
 		Datadog: datadog.DatadogConfig{
 			APIEndpoint:    datadogSpec.ApiEndpoint,

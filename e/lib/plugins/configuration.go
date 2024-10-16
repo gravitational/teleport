@@ -19,6 +19,9 @@ type pluginConfiguration struct {
 	// the plugin configuration.
 	defaultRoutes []string
 	pluginType    types.PluginType
+	// teleportUser is the name of the teleport user that acts as the
+	// access request approver.
+	teleportUser string
 }
 
 func (p *pluginConfiguration) GetRecipients() common.RawRecipientsMap {
@@ -41,6 +44,10 @@ func (p *pluginConfiguration) NewBot(clusterName string, webProxyAddr string) (c
 // GetPluginType returns the type of plugin this config is for.
 func (p *pluginConfiguration) GetPluginType() types.PluginType {
 	return p.pluginType
+}
+
+func (p *pluginConfiguration) GetTeleportUser() string {
+	return p.teleportUser
 }
 
 type pluginConfig interface {

@@ -1426,7 +1426,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'datadog',
     name: 'Datadog',
     icon: 'datadog',
-    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-datadog/',
+    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/datadog-hosted/',
     fullName: 'Datadog Incident Management',
     cloudHostable: true,
     selfHostable: true,
