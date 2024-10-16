@@ -108,6 +108,7 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 	// There is no need to update the ecs service if the ecs service is already
 	// running the latest stable version of teleport.
 	if currentTeleportImage == teleportImage {
+		log.InfoContext(ctx, "ECS service version already matches, not updating")
 		return nil
 	}
 
