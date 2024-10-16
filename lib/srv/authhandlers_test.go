@@ -139,7 +139,7 @@ func TestRBAC(t *testing.T) {
 	}
 
 	// create User CA
-	userCAPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -242,7 +242,7 @@ func TestRBACJoinMFA(t *testing.T) {
 	const username = "testuser"
 
 	// create User CA
-	userCAPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -379,7 +379,7 @@ func TestRBACJoinMFA(t *testing.T) {
 			accessPoint.authPref = tt.authPref
 
 			// create SSH certificate
-			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+			caSigner, err := ssh.NewSignerFromSigner(userCAPriv.Signer)
 			require.NoError(t, err)
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
@@ -387,7 +387,7 @@ func TestRBACJoinMFA(t *testing.T) {
 			keygen := testauthority.New()
 			c, err := keygen.GenerateUserCert(services.UserCertParams{
 				CASigner:      caSigner,
-				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+				PublicUserKey: privateKey.MarshalSSHPublicKey(),
 				Username:      username,
 				AllowedLogins: []string{username},
 				Traits: wrappers.Traits{
