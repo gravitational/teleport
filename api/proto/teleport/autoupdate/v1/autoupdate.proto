@@ -74,6 +74,7 @@ message AutoUpdateVersionSpec {
 
 // AutoUpdateVersionTools encodes the parameters for client tools auto updates.
 message AutoUpdateVersionTools {
-  // TargetVersion is the semantic version required for tools autoupdates.
+  // TargetVersion specifies the semantic version required for tools to establish a connection with the cluster.
+  // Client tools after connection to the cluster going to be updated to this version automatically.
   string target_version = 1;
 }

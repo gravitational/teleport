@@ -391,7 +391,8 @@ type AutoUpdateVersionTools struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// TargetVersion is the semantic version required for tools autoupdates.
+	// TargetVersion specifies the semantic version required for tools to establish a connection with the cluster.
+	// Client tools after connection to the cluster going to be updated to this version automatically.
 	TargetVersion string `protobuf:"bytes,1,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
 }
 
