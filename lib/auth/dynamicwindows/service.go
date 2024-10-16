@@ -111,6 +111,9 @@ func (s *Service) CreateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := auth.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -133,6 +136,9 @@ func (s *Service) UpdateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := auth.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,6 +159,9 @@ func (s *Service) UpdateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 func (s *Service) DeleteDynamicWindowsDesktop(ctx context.Context, req *dynamicwindowspb.DeleteDynamicWindowsDesktopRequest) (*emptypb.Empty, error) {
 	auth, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbDelete); err != nil {
