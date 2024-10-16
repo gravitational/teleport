@@ -3879,6 +3879,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 		IssuerURL:    "https://auth.example.com",
 		RedirectURLs: []string{"https://cluster.example.com"},
 		ClientID:     "fake-client",
+		ClientSecret: "fake-secret",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "groups",

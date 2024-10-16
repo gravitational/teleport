@@ -71,9 +71,8 @@ type AuthPreference interface {
 	// SetType sets the type of authentication: local, saml, or oidc.
 	SetType(string)
 
-	// GetSecondFactor gets the type of second factor.
-	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
+	// Deprecated: only used in tests to set the deprecated off/optional values.
 	SetSecondFactor(constants.SecondFactorType)
 	// GetSecondFactors gets a list of supported second factors.
 	GetSecondFactors() []SecondFactorType
@@ -319,16 +318,6 @@ func (c *AuthPreferenceV2) GetType() string {
 // SetType sets the type of authentication.
 func (c *AuthPreferenceV2) SetType(s string) {
 	c.Spec.Type = s
-}
-
-// GetSecondFactor returns the type of second factor.
-func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
-	// SecondFactors takes priority if set.
-	if len(c.Spec.SecondFactors) > 0 {
-		return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
-	}
-
-	return c.Spec.SecondFactor
 }
 
 // SetSecondFactor sets the type of second factor.
@@ -863,7 +852,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
-	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.GetSecondFactor())
+	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactors=%q)", c.Spec.Type, c.GetSecondFactors())
 }
 
 // Clone returns a copy of the AuthPreference resource.

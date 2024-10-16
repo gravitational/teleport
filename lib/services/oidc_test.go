@@ -109,6 +109,7 @@ func TestOIDCUnmarshal(t *testing.T) {
 				},
 				"spec": {
 					"client_id": "id-from-google.apps.googleusercontent.com",
+					"client_secret": "secret-key-from-google",
 					"claims_to_roles": [
 						{
 							"claim": "roles",
@@ -125,6 +126,7 @@ func TestOIDCUnmarshal(t *testing.T) {
 			}`,
 			expectSpec: types.OIDCConnectorSpecV3{
 				ClientID:      "id-from-google.apps.googleusercontent.com",
+				ClientSecret:  "secret-key-from-google",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 				RedirectURLs: []string{
 					"https://localhost:3080/v1/webapi/oidc/callback",
@@ -159,6 +161,7 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 			desc: "basic spec and defaults",
 			spec: types.OIDCConnectorSpecV3{
 				ClientID:      "id-from-google.apps.googleusercontent.com",
+				ClientSecret:  "some-client-secret",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 				RedirectURLs:  []string{"https://localhost:3080/v1/webapi/oidc/callback"},
 			},
@@ -175,6 +178,7 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 			desc: "omit prompt",
 			spec: types.OIDCConnectorSpecV3{
 				ClientID:      "id-from-google.apps.googleusercontent.com",
+				ClientSecret:  "some-client-secret",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 				RedirectURLs: []string{
 					"https://localhost:3080/v1/webapi/oidc/callback",
@@ -191,6 +195,7 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 			desc: "invalid claims to roles",
 			spec: types.OIDCConnectorSpecV3{
 				ClientID:      "id-from-google.apps.googleusercontent.com",
+				ClientSecret:  "some-client-secret",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user"}},
 				RedirectURLs: []string{
 					"https://localhost:3080/v1/webapi/oidc/callback",
@@ -215,6 +220,7 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 func TestOIDCGetRedirectURL(t *testing.T) {
 	conn, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:      "id-from-google.apps.googleusercontent.com",
+		ClientSecret:  "some-client-secret",
 		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 		RedirectURLs: []string{
 			"https://proxy.example.com/v1/webapi/oidc/callback",
