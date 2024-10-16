@@ -2751,6 +2751,10 @@ message DatabaseSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // PostgresPID is the Postgres backend PID that was created for a Postgres
+  // connection. This can be useful for backend process cancellation or
+  // termination and it is not a sensitive or secret value.
+  uint32 PostgresPID = 8 [(gogoproto.jsontag) = "postgres_pid,omitempty"];
 }
 
 // DatabaseSessionQuery is emitted when a user executes a database query.

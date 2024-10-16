@@ -146,6 +146,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		cancelAutoUserLease()
 		return trace.Wrap(err)
 	}
+	sessionCtx.PostgresPID = hijackedConn.PID
+	e.Log = e.Log.WithField("pg_backend_pid", hijackedConn.PID)
 	e.rawServerConn = hijackedConn.Conn
 	// Release the auto-users semaphore now that we've successfully connected.
 	cancelAutoUserLease()
