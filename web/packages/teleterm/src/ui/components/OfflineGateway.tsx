@@ -55,7 +55,7 @@ export function OfflineGateway(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
-      maxWidth="500px"
+      px={4}
       css={`
         top: 11%;
         position: relative;
@@ -66,8 +66,8 @@ export function OfflineGateway(props: {
         The {props.gatewayKind} connection is {statusDescription}
       </Text>
       {props.connectAttempt.status === 'error' && (
-        <Alerts.Danger mt={2} mb={0}>
-          {props.connectAttempt.statusText}
+        <Alerts.Danger mt={2} mb={0} details={props.connectAttempt.statusText}>
+          Could not establish the connection
         </Alerts.Danger>
       )}
       <Flex

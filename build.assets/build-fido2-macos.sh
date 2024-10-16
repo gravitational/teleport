@@ -11,7 +11,7 @@
 # Written mainly for macOS builders.
 set -eu
 
-readonly MACOS_VERSION_MIN=10.15
+readonly MACOS_VERSION_MIN=11.0
 
 # Cross-architecture building
 # Set C_ARCH to $(uname -m) if unset, and validate supported architecture

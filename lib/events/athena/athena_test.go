@@ -93,13 +93,15 @@ func TestConfig_SetFromURL(t *testing.T) {
 		},
 		{
 			name: "params to batcher",
-			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxInterval=10s",
+			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxInterval=10s&consumerLockName=mylock&consumerDisabled=true",
 			want: Config{
 				TableName:        "tbl",
 				Database:         "db",
 				QueueURL:         "https://queueURL",
 				BatchMaxItems:    1000,
 				BatchMaxInterval: 10 * time.Second,
+				ConsumerLockName: "mylock",
+				ConsumerDisabled: true,
 			},
 		},
 		{
@@ -187,6 +189,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				GetQueryResultsInterval:    100 * time.Millisecond,
 				BatchMaxItems:              20000,
 				BatchMaxInterval:           1 * time.Minute,
+				ConsumerLockName:           "",
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
@@ -212,6 +215,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				GetQueryResultsInterval:    100 * time.Millisecond,
 				BatchMaxItems:              20000,
 				BatchMaxInterval:           1 * time.Minute,
+				ConsumerLockName:           "",
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
@@ -310,7 +314,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "Logger", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}

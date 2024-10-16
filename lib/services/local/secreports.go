@@ -33,15 +33,15 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const (
+var (
 	// AuditQueryPrefix is the prefix for audit queries.
-	AuditQueryPrefix = "security_report/audit_query"
+	AuditQueryPrefix = backend.NewKey("security_report", "audit_query")
 	// SecurityReportPrefix is the prefix for security reports.
-	SecurityReportPrefix = "security_report/report"
+	SecurityReportPrefix = backend.NewKey("security_report", "report")
 	// SecurityReportStatePrefix  is the prefix for security report states.
-	SecurityReportStatePrefix = "security_report/state"
+	SecurityReportStatePrefix = backend.NewKey("security_report", "state")
 	// SecurityReportCostLimiterPrefix is the prefix for security report cost limiter.
-	SecurityReportCostLimiterPrefix = "security_report/cost_limiter"
+	SecurityReportCostLimiterPrefix = backend.NewKey("security_report", "cost_limiter")
 )
 
 // SecReportsService is the local implementation of the SecReports service.

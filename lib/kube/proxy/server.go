@@ -499,7 +499,7 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
-func (t *TLSServer) startHeartbeat(ctx context.Context, name string) error {
+func (t *TLSServer) startHeartbeat(name string) error {
 	heartbeat, err := srv.NewKubernetesServerHeartbeat(srv.HeartbeatV2Config[*types.KubernetesServerV3]{
 		InventoryHandle: t.InventoryHandle,
 		Announcer:       t.TLSServerConfig.AuthClient,
@@ -538,7 +538,7 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 		t.KubeServiceType == LegacyProxyService {
 		t.log.Debugf("Starting kubernetes_service heartbeats for %q", t.Component)
 		for _, cluster := range t.fwd.kubeClusters() {
-			if err := t.startHeartbeat(t.closeContext, cluster.GetName()); err != nil {
+			if err := t.startHeartbeat(cluster.GetName()); err != nil {
 				return trace.Wrap(err)
 			}
 		}

@@ -33,7 +33,7 @@ test('render', async () => {
 
   expect(screen.getByText(/amazon web services/i)).toBeInTheDocument();
   expect(screen.queryByText(/no permission/i)).not.toBeInTheDocument();
-  expect(screen.getAllByTestId('svg')).toHaveLength(2);
+  expect(screen.getAllByTestId('res-icon-aws')).toHaveLength(2);
   expect(screen.getAllByRole('link')).toHaveLength(2);
 
   const tile = screen.getByTestId('tile-aws-oidc');

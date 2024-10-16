@@ -29,13 +29,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 var (
@@ -55,11 +56,6 @@ var (
 )
 
 const (
-	// distrolessTeleportOSS is the distroless image of the OSS version of Teleport
-	distrolessTeleportOSS = "public.ecr.aws/gravitational/teleport-distroless"
-	// distrolessTeleportEnt is the distroless image of the Enterprise version of Teleport
-	distrolessTeleportEnt = "public.ecr.aws/gravitational/teleport-ent-distroless"
-
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
 	// clusterStatusInactive is the string representing an INACTIVE ECS Cluster.
@@ -322,11 +318,11 @@ type DeployServiceClient interface {
 	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
 	TokenService
 
-	callerIdentityGetter
+	CallerIdentityGetter
 }
 
 type defaultDeployServiceClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	*ecs.Client
 	tokenServiceClient TokenService
 }
@@ -355,7 +351,7 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, to
 
 	return &defaultDeployServiceClient{
 		Client:               ecsClient,
-		callerIdentityGetter: stsClient,
+		CallerIdentityGetter: stsClient,
 		tokenServiceClient:   tokenServiceClient,
 	}, nil
 }
@@ -472,7 +468,10 @@ type upsertTaskRequest struct {
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequest) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := getDistrolessTeleportImage(req.TeleportVersionTag)
+	taskAgentContainerImage, err := getDistrolessTeleportImage(req.TeleportVersionTag)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	taskDefIn := &ecs.RegisterTaskDefinitionInput{
 		Family: aws.String(req.TaskName),
@@ -760,10 +759,11 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 }
 
 // getDistrolessTeleportImage returns the distroless teleport image string
-func getDistrolessTeleportImage(version string) string {
-	teleportImage := distrolessTeleportOSS
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		teleportImage = distrolessTeleportEnt
+func getDistrolessTeleportImage(version string) (string, error) {
+	semVer, err := semver.NewVersion(version)
+	if err != nil {
+		return "", trace.BadParameter("invalid version tag %s", version)
 	}
-	return fmt.Sprintf("%s:%s", teleportImage, version)
+
+	return teleportassets.DistrolessImage(*semVer), nil
 }

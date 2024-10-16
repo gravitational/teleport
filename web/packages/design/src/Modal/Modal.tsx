@@ -20,7 +20,7 @@ import React, { createRef, cloneElement } from 'react';
 import styled, { StyleFunction } from 'styled-components';
 import { createPortal } from 'react-dom';
 
-type Props = {
+export type Props = {
   /**
    * If `true`, the modal is open.
    */
@@ -223,7 +223,7 @@ export default class Modal extends React.Component<Props> {
   }
 }
 
-type BackdropProps = {
+export type BackdropProps = {
   /**
    * Allows backdrop to keep bg color of parent eg: popup menu
    */
@@ -258,7 +258,7 @@ const StyledBackdrop = styled.div<BackdropProps>`
 
 const StyledModal = styled.div<{
   modalCss: StyleFunction<any>;
-  ref: React.ForwardedRef<HTMLElement>;
+  ref: React.RefObject<HTMLElement>;
 }>`
   position: fixed;
   z-index: 1200;

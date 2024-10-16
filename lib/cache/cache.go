@@ -191,6 +191,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindUserTask},
+		{Kind: types.KindProvisioningPrincipalState},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -539,6 +540,7 @@ type Cache struct {
 	accessMontoringRuleCache     services.AccessMonitoringRules
 	spiffeFederationCache        spiffeFederationCacher
 	staticHostUsersCache         *local.StaticHostUserService
+	provisioningStatesCache      *local.ProvisioningStateService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -764,6 +766,10 @@ type Config struct {
 	// EnableRelativeExpiry turns on purging expired items from the cache even
 	// if delete events have not been received from the backend.
 	EnableRelativeExpiry bool
+
+	// ProvisioningStates is the upstream ProvisioningStates service that we're
+	// caching
+	ProvisioningStates services.ProvisioningStates
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -883,6 +889,12 @@ func New(config Config) (*Cache, error) {
 	}
 
 	oktaCache, err := local.NewOktaService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1028,6 +1040,7 @@ func New(config Config) (*Cache, error) {
 		kubeWaitingContsCache:        kubeWaitingContsCache,
 		spiffeFederationCache:        spiffeFederationCache,
 		staticHostUsersCache:         staticHostUserCache,
+		provisioningStatesCache:      provisioningStatesCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -2161,19 +2174,6 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	return rg.reader.GetAuthServers()
 }
 
-// GetReverseTunnels is a part of auth.Cache implementation
-func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.reverseTunnels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetReverseTunnels(ctx, opts...)
-}
-
 // GetProxies is a part of auth.Cache implementation
 func (c *Cache) GetProxies() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")
@@ -3005,6 +3005,19 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey strin
 	}
 	defer rg.Release()
 	return rg.reader.ListUserTasks(ctx, pageSize, nextKey)
+}
+
+// ListUserTasksByIntegration returns a list of UserTask resources filtered by an integration.
+func (c *Cache) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextKey string, integration string) ([]*usertasksv1.UserTask, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasksByIntegration")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.userTasks)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListUserTasksByIntegration(ctx, pageSize, nextKey, integration)
 }
 
 // GetUserTask returns the specified UserTask resource.

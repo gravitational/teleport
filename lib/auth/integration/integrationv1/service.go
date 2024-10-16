@@ -22,10 +22,10 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -66,7 +66,7 @@ type ServiceConfig struct {
 	Backend         services.Integrations
 	Cache           Cache
 	KeyStoreManager KeyStoreManager
-	Logger          *logrus.Entry
+	Logger          *slog.Logger
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
 }
@@ -96,7 +96,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.WithField(teleport.ComponentKey, "integrations.service")
+		s.Logger = slog.With(teleport.ComponentKey, "integrations.service")
 	}
 
 	if s.Clock == nil {
@@ -113,7 +113,7 @@ type Service struct {
 	cache           Cache
 	keyStoreManager KeyStoreManager
 	backend         services.Integrations
-	logger          *logrus.Entry
+	logger          *slog.Logger
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
 }
@@ -209,7 +209,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
-		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
+		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationCreate{
@@ -225,7 +225,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WithError(err).Warn("Failed to emit integration create event.")
+		s.logger.WarnContext(ctx, "Failed to emit integration create event.", "error", err)
 	}
 
 	igV1, ok := ig.(*types.IntegrationV1)
@@ -254,7 +254,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
-		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
+		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationUpdate{
@@ -270,7 +270,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WithError(err).Warn("Failed to emit integration update event.")
+		s.logger.WarnContext(ctx, "Failed to emit integration update event.", "error", err)
 	}
 
 	igV1, ok := ig.(*types.IntegrationV1)
@@ -303,7 +303,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
-		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
+		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationDelete{
@@ -318,7 +318,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WithError(err).Warn("Failed to emit integration delete event.")
+		s.logger.WarnContext(ctx, "Failed to emit integration delete event.", "error", err)
 	}
 
 	return &emptypb.Empty{}, nil

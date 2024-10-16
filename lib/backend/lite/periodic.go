@@ -85,7 +85,7 @@ func (l *Backend) removeExpiredKeys() error {
 		defer rows.Close()
 		var keys []backend.Key
 		for rows.Next() {
-			var key []byte
+			var key backend.Key
 			if err := rows.Scan(&key); err != nil {
 				return trace.Wrap(err)
 			}

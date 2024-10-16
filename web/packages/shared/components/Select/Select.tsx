@@ -17,12 +17,20 @@
  */
 
 import React from 'react';
-import ReactSelect, { GroupBase } from 'react-select';
+import ReactSelect, {
+  ClearIndicatorProps,
+  DropdownIndicatorProps,
+  GroupBase,
+  MultiValueRemoveProps,
+} from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import CreatableSelect from 'react-select/creatable';
 import ReactSelectCreatableAsync from 'react-select/async-creatable';
 import styled from 'styled-components';
-import { width, WidthProps, space, SpaceProps } from 'design/system';
+import { width, space } from 'design/system';
+
+import { Theme } from 'design/theme/themes/types';
+import { ChevronDown, Cross } from 'design/Icon';
 
 import {
   Props,
@@ -30,6 +38,7 @@ import {
   CreatableProps,
   Option,
   AsyncCreatableProps,
+  SelectSize,
 } from './types';
 
 export default function Select<
@@ -38,15 +47,19 @@ export default function Select<
   Group extends GroupBase<Opt> = GroupBase<Opt>,
 >(props: Props<Opt, IsMulti, Group>) {
   const {
+    size = 'medium',
     hasError = false,
     elevated = false,
     stylesConfig,
     closeMenuOnSelect = true,
+    components,
+    customProps,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect hasError={hasError} elevated={elevated}>
+    <StyledSelect selectSize={size} hasError={hasError} elevated={elevated}>
       <ReactSelect<Opt, IsMulti, Group>
+        components={{ ...defaultComponents, ...components }}
         menuPlacement="auto"
         className="react-select-container"
         classNamePrefix="react-select"
@@ -55,6 +68,7 @@ export default function Select<
         closeMenuOnSelect={closeMenuOnSelect}
         placeholder="Select..."
         styles={stylesConfig}
+        customProps={{ size, ...customProps }}
         {...restOfProps}
       />
     </StyledSelect>
@@ -66,10 +80,17 @@ export function SelectAsync<
   IsMulti extends boolean = false,
   Group extends GroupBase<Opt> = GroupBase<Opt>,
 >(props: AsyncProps<Opt, IsMulti, Group>) {
-  const { hasError = false, ...restOfProps } = props;
+  const {
+    size = 'medium',
+    hasError = false,
+    components,
+    customProps,
+    ...restOfProps
+  } = props;
   return (
-    <StyledSelect hasError={hasError}>
+    <StyledSelect selectSize={size} hasError={hasError}>
       <ReactSelectAsync<Opt, IsMulti, Group>
+        components={{ ...defaultComponents, ...components }}
         className="react-select-container"
         classNamePrefix="react-select"
         isClearable={false}
@@ -78,6 +99,7 @@ export function SelectAsync<
         cacheOptions={false}
         defaultMenuIsOpen={false}
         placeholder="Select..."
+        customProps={{ size, ...customProps }}
         {...restOfProps}
       />
     </StyledSelect>
@@ -89,13 +111,22 @@ export function SelectCreatable<
   IsMulti extends boolean = false,
   Group extends GroupBase<Opt> = GroupBase<Opt>,
 >(props: CreatableProps<Opt, IsMulti, Group>) {
-  const { hasError = false, stylesConfig, ...restOfProps } = props;
+  const {
+    size = 'medium',
+    hasError = false,
+    stylesConfig,
+    components,
+    customProps,
+    ...restOfProps
+  } = props;
   return (
-    <StyledSelect hasError={hasError}>
+    <StyledSelect selectSize={size} hasError={hasError}>
       <CreatableSelect<Opt, IsMulti, Group>
+        components={{ ...defaultComponents, ...components }}
         className="react-select-container"
         classNamePrefix="react-select"
         styles={stylesConfig}
+        customProps={{ size, ...customProps }}
         {...restOfProps}
       />
     </StyledSelect>
@@ -107,10 +138,18 @@ export function SelectCreatableAsync<
   IsMulti extends boolean = false,
   Group extends GroupBase<Opt> = GroupBase<Opt>,
 >(props: AsyncCreatableProps<Opt, IsMulti, Group>) {
-  const { hasError = false, stylesConfig, ...restOfProps } = props;
+  const {
+    size = 'medium',
+    hasError = false,
+    stylesConfig,
+    components,
+    customProps,
+    ...restOfProps
+  } = props;
   return (
-    <StyledSelect hasError={hasError}>
+    <StyledSelect selectSize={size} hasError={hasError}>
       <ReactSelectCreatableAsync<Opt, IsMulti, Group>
+        components={{ ...defaultComponents, ...components }}
         className="react-select-container"
         classNamePrefix="react-select"
         styles={stylesConfig}
@@ -119,82 +158,163 @@ export function SelectCreatableAsync<
         defaultOptions={false}
         cacheOptions={false}
         defaultMenuIsOpen={false}
+        customProps={{ size, ...customProps }}
         {...restOfProps}
       />
     </StyledSelect>
   );
 }
 
-interface StyledSelectProps extends WidthProps, SpaceProps {
-  hasError?: boolean;
-  elevated?: boolean;
+function DropdownIndicator({ selectProps }: DropdownIndicatorProps) {
+  const { size = 'medium' } = selectProps.customProps;
+  const { indicatorPadding } = selectGeometry[size];
+  return (
+    <ChevronDown
+      className="react-select__indicator react-select__dropdown-indicator"
+      size={18}
+      p={`${indicatorPadding}px`}
+    />
+  );
 }
 
-export const StyledSelect = styled.div<StyledSelectProps>`
+function ClearIndicator({ selectProps, clearValue }: ClearIndicatorProps) {
+  const { size = 'medium' } = selectProps.customProps;
+  const { indicatorPadding } = selectGeometry[size];
+  return (
+    <Cross
+      className="react-select__indicator react-select__clear-indicator"
+      size={18}
+      p={`${indicatorPadding}px`}
+      onClick={clearValue}
+    />
+  );
+}
+
+function MultiValueRemove(props: MultiValueRemoveProps) {
+  return (
+    <Cross
+      className="react-select__multi-value__remove"
+      padding="0 12px 0 6px"
+      size={14}
+      onClick={props.innerProps.onClick}
+    />
+  );
+}
+
+const defaultComponents = {
+  DropdownIndicator,
+  ClearIndicator,
+  MultiValueRemove,
+};
+
+const selectGeometry: {
+  [s in SelectSize]: {
+    height: number;
+    indicatorPadding: number;
+    typography: keyof Theme['typography'];
+    multiValueTypography: keyof Theme['typography'];
+  };
+} = {
+  large: {
+    height: 48,
+    indicatorPadding: 12,
+    typography: 'body1',
+    multiValueTypography: 'body2',
+  },
+  medium: {
+    height: 40,
+    indicatorPadding: 10,
+    typography: 'body2',
+    multiValueTypography: 'body3',
+  },
+  small: {
+    height: 32,
+    indicatorPadding: 6,
+    typography: 'body3',
+    multiValueTypography: 'body4',
+  },
+};
+
+function error({ hasError, theme }: { hasError?: boolean; theme: Theme }) {
+  if (!hasError) {
+    return;
+  }
+
+  return {
+    borderRadius: 'inherit !important',
+    borderWidth: '1px !important',
+    borderColor: theme.colors.interactive.solid.danger.default,
+    '&:hover': {
+      borderColor: `${theme.colors.interactive.solid.danger.default} !important`,
+    },
+  };
+}
+
+/**
+ * Don't use directly. If you need to apply a custom style to a dropdown, just
+ * apply it to a regular Select component.
+ */
+const StyledSelect = styled.div<{
+  selectSize: SelectSize;
+  hasError?: boolean;
+  elevated?: boolean;
+  isDisabled?: boolean;
+}>`
   .react-select-container {
     box-sizing: border-box;
     display: block;
-    font-size: 14px;
     outline: none;
     width: 100%;
     color: ${props => props.theme.colors.text.main};
     background-color: transparent;
     margin-bottom: 0px;
     border-radius: 4px;
+
+    ${props =>
+      props.theme.typography[selectGeometry[props.selectSize].typography]}
   }
 
   .react-select__control {
     outline: none;
-    min-height: 40px;
+    min-height: ${props => selectGeometry[props.selectSize].height}px;
     height: fit-content;
-    border: 1px solid ${props => props.theme.colors.text.muted};
+    border: 1px solid;
+    border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
     border-radius: 4px;
     background-color: transparent;
     box-shadow: none;
-    ${({ hasError, theme }) => {
-      if (hasError) {
-        return {
-          borderRadius: 'inherit !important',
-          borderWidth: '2px !important',
-          border: `2px solid ${theme.colors.error.main} !important`,
-        };
-      }
-    }}
+
+    ${error}
 
     .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.muted};
+      color: ${props =>
+        props.isDisabled
+          ? props.theme.colors.text.disabled
+          : props.theme.colors.text.slightlyMuted};
     }
-
-    &:hover,
-    &:focus,
-    &:active {
-      border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
-      background-color: ${props => props.theme.colors.spotBackground[0]};
+    &:hover {
+      border: 1px solid ${props => props.theme.colors.text.muted};
       cursor: pointer;
-
-      .react-select__dropdown-indicator {
-        color: ${props => props.theme.colors.text.main};
-      }
-    }
-
-    .react-select__indicator,
-    .react-select__dropdown-indicator {
-      &:hover,
-      &:focus,
-      &:active {
-        color: ${props => props.theme.colors.text.main};
-      }
     }
   }
 
   .react-select__control--is-focused {
-    border-color: ${props => props.theme.colors.text.slightlyMuted};
-    background-color: ${props => props.theme.colors.spotBackground[0]};
+    border-color: ${props =>
+      props.theme.colors.interactive.solid.primary.default};
     cursor: pointer;
 
     .react-select__dropdown-indicator {
       color: ${props => props.theme.colors.text.main};
     }
+
+    &:hover {
+      border-color: ${props =>
+        props.theme.colors.interactive.solid.primary.default};
+    }
+  }
+
+  .react-select__value-container {
+    padding: 0 0 0 12px;
   }
 
   .react-select__single-value {
@@ -206,42 +326,62 @@ export const StyledSelect = styled.div<StyledSelectProps>`
   }
 
   .react-select__multi-value {
-    background-color: ${props => props.theme.colors.spotBackground[1]};
+    background-color: ${props =>
+      props.theme.colors.interactive.tonal.neutral[0]};
+    border-radius: 1000px;
+    padding: 0 0 0 12px;
+    overflow: hidden;
     .react-select__multi-value__label {
       color: ${props => props.theme.colors.text.main};
-      padding: 0 6px;
+      padding: 0 2px 0 0;
+      ${props =>
+        props.theme.typography[
+          selectGeometry[props.selectSize].multiValueTypography
+        ]}
     }
     .react-select__multi-value__remove {
-      color: ${props => props.theme.colors.text.main};
+      color: ${props => props.theme.colors.text.slightlyMuted};
       &:hover {
-        background-color: ${props => props.theme.colors.spotBackground[0]};
-        color: ${props => props.theme.colors.error.main};
+        background-color: ${props =>
+          props.theme.colors.interactive.tonal.neutral[0]};
+        color: ${props => props.theme.colors.interactive.solid.danger.default};
       }
     }
   }
 
+  .react-select__multi-value--is-disabled {
+    .react-select__multi-value__label,
+    .react-select__multi-value__remove {
+      color: ${props => props.theme.colors.text.disabled};
+    }
+  }
+
   .react-select__option {
+    cursor: pointer;
     &:hover {
-      cursor: pointer;
-      background-color: ${props => props.theme.colors.spotBackground[0]};
+      background-color: ${props =>
+        props.theme.colors.interactive.tonal.neutral[0]};
     }
   }
 
   .react-select__option--is-focused {
-    background-color: ${props => props.theme.colors.spotBackground[0]};
+    background-color: ${props =>
+      props.theme.colors.interactive.tonal.neutral[0]};
     &:hover {
-      cursor: pointer;
-      background-color: ${props => props.theme.colors.spotBackground[0]};
+      background-color: ${props =>
+        props.theme.colors.interactive.tonal.neutral[0]};
     }
   }
 
   .react-select__option--is-selected {
-    background-color: ${props => props.theme.colors.spotBackground[1]};
+    background-color: ${props =>
+      props.theme.colors.interactive.tonal.neutral[1]};
     color: inherit;
     font-weight: 500;
 
     &:hover {
-      background-color: ${props => props.theme.colors.spotBackground[1]};
+      background-color: ${props =>
+        props.theme.colors.interactive.tonal.neutral[1]};
     }
   }
 
@@ -249,24 +389,27 @@ export const StyledSelect = styled.div<StyledSelectProps>`
     color: ${props => props.theme.colors.text.slightlyMuted};
     &:hover,
     &:focus {
-      background-color: ${props => props.theme.colors.spotBackground[0]};
-      svg {
-        color: ${props => props.theme.colors.error.main};
-      }
+      background-color: ${props =>
+        props.theme.colors.interactive.tonal.neutral[0]};
+      color: ${props => props.theme.colors.interactive.solid.danger.default};
     }
   }
-
   .react-select__menu {
     margin-top: 0px;
     // If the component is on an elevated platform (such as a dialog), use a lighter background.
     background-color: ${props =>
       props.elevated
         ? props.theme.colors.levels.popout
-        : props.theme.colors.levels.elevated};
+        : props.theme.colors.levels.surface};
     box-shadow: ${props => props.theme.boxShadow[1]};
 
+    ${props =>
+      props.selectSize === 'small'
+        ? props.theme.typography.body3
+        : props.theme.typography.body2}
+
     .react-select__menu-list::-webkit-scrollbar-thumb {
-      background: ${props => props.theme.colors.spotBackground[1]};
+      background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
       border-radius: 4px;
     }
   }
@@ -280,8 +423,10 @@ export const StyledSelect = styled.div<StyledSelectProps>`
   }
 
   .react-select__control--is-disabled {
+    background-color: ${props =>
+      props.theme.colors.interactive.tonal.neutral[0]};
     color: ${props => props.theme.colors.text.disabled};
-    border: 1px solid ${props => props.theme.colors.text.disabled};
+    border: 1px solid transparent;
     .react-select__single-value,
     .react-select__placeholder {
       color: ${props => props.theme.colors.text.disabled};
