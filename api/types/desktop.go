@@ -539,7 +539,7 @@ func checkNameAndScreenSize(name string, screenSize *Resolution) error {
 
 	if screenSize != nil {
 		if screenSize.Width > MaxRDPScreenWidth || screenSize.Height > MaxRDPScreenHeight {
-			return trace.BadParameter("invalid screen size %dx%d (maximum %dx%d)",
+			return trace.BadParameter("screen size %dx%d too big (maximum %dx%d)",
 				screenSize.Width, screenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
 		}
 	}
