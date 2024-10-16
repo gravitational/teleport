@@ -521,6 +521,11 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 	}, nil
 }
 
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
+}
+
 func userResult(resp *resty.Response) (User, error) {
 	result := resp.Result()
 	ptr, ok := result.(*User)
