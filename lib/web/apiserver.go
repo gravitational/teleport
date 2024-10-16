@@ -2184,7 +2184,7 @@ type AuthParams struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
-	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	// MFAToken is an SSO MFA token.
 	MFAToken string
 }
 
@@ -5025,7 +5025,7 @@ type SSOCallbackResponse struct {
 	// ClientRedirectURL is the URL to redirect back to on completion of
 	// the SSO login process.
 	ClientRedirectURL string
-	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	// MFAToken is an SSO MFA token.
 	MFAToken string
 }
 

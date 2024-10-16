@@ -638,7 +638,7 @@ type OIDCAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
-	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
 }
 
@@ -710,7 +710,7 @@ type SAMLAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// TLSCert is TLS certificate authority certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
-	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
 }
 

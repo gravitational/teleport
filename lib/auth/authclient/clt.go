@@ -896,7 +896,7 @@ type OIDCAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
-	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
 }
 
@@ -943,7 +943,7 @@ type SAMLAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
-	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
 }
 
@@ -1489,7 +1489,7 @@ type SSHLoginResponse struct {
 	HostSigners []TrustedCerts `json:"host_signers"`
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
-	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
 }
 
