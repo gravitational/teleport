@@ -38,6 +38,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -205,7 +206,13 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Traits:   p.Traits,
 	}
 
-	return k.sign(claims, nil)
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	so := &jose.SignerOptions{}
+	if v, ok := k.config.PublicKey.(*rsa.PublicKey); ok {
+		so.WithHeader("kid", KeyID(v))
+	}
+	return k.sign(claims, so)
 }
 
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
@@ -242,6 +249,77 @@ func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
 	// but it seems to (NB: educated guess) require it if JWKS has multiple JWK-s with different `kid`-s.
 	opts := (&jose.SignerOptions{}).
 		WithHeader(jose.HeaderKey("kid"), "")
+
+	return k.sign(claims, opts)
+}
+
+// SignParamsJWTSVID are the parameters needed to sign a JWT SVID token.
+type SignParamsJWTSVID struct {
+	// JTI is the unique JWT ID.
+	JTI string
+	// SPIFFEID is the SPIFFE ID of the workload to which it is issued.
+	SPIFFEID spiffeid.ID
+	// Audiences are the audiences to include in the token as the expected
+	// recipients of the token.
+	Audiences []string
+	// TTL is the time to live for the token.
+	TTL time.Duration
+	// Issuer is the value that should be included in the `iss` claim of the
+	// created token.
+	Issuer string
+}
+
+// SignJWTSVID signs a JWT SVID token.
+// See https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md
+func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
+	// Record time here for consistency between exp and iat.
+	now := k.config.Clock.Now()
+	claims := jwt.Claims{
+		// > 3.1. Subject:
+		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
+		Subject: p.SPIFFEID.String(),
+		// > 3.2. Audience:
+		// > The aud claim MUST be present, containing one or more values.
+		Audience: p.Audiences,
+		// > 3.3. Expiration Time:
+		// > The exp claim MUST be set
+		Expiry: jwt.NewNumericDate(now.Add(p.TTL)),
+		// The spec makes no comment on inclusion of `iat`, but the SPIRE
+		// implementation does set this value and it feels like a good idea.
+		IssuedAt: jwt.NewNumericDate(now),
+		// > 7.1. Replay Protection
+		// > the jti claim is permitted by this specification, it should be
+		// > noted that JWT-SVID validators are not required to track jti
+		// > uniqueness.
+		ID: p.JTI,
+		// The SPIFFE specification makes no comment on the inclusion of `iss`,
+		// however, we provide this value so that the issued token can be a
+		// valid OIDC ID token and used with non-SPIFFE aware systems that do
+		// understand OIDC.
+		Issuer: p.Issuer,
+	}
+
+	// > 2.2. Key ID:
+	// >The kid header is optional.
+	//
+	// Whilst optional, the SPIRE reference implementation does set this value
+	// and it will be beneficial for compatibility with a range of consumers
+	// which may require this value.
+	rsaPubKey, ok := k.config.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return "", trace.BadParameter("expected an RSA public key")
+	}
+	kid := KeyID(rsaPubKey)
+
+	opts := (&jose.SignerOptions{}).
+		WithHeader("kid", kid)
+
+	// > 2.3. Type
+	// > The typ header is optional. If set, its value MUST be either JWT or
+	// > JOSE.
+	//
+	// We will omit the inclusion of the type header until we can validate the
+	// ramifications of including it.
 
 	return k.sign(claims, opts)
 }

@@ -40,6 +40,10 @@ type DefaultPrompt struct {
 	AcknowledgeTouchMessage               string
 	PromptCredentialMessage               string
 
+	// StdinFunc allows tests to override prompt.Stdin().
+	// If nil prompt.Stdin() is used.
+	StdinFunc func() prompt.StdinReader
+
 	ctx context.Context
 	out io.Writer
 
@@ -61,9 +65,16 @@ func NewDefaultPrompt(ctx context.Context, out io.Writer) *DefaultPrompt {
 	}
 }
 
+func (p *DefaultPrompt) stdin() prompt.StdinReader {
+	if p.StdinFunc == nil {
+		return prompt.Stdin()
+	}
+	return p.StdinFunc()
+}
+
 // PromptPIN prompts the user for a PIN.
 func (p *DefaultPrompt) PromptPIN() (string, error) {
-	return prompt.Password(p.ctx, p.out, prompt.Stdin(), p.PINMessage)
+	return prompt.Password(p.ctx, p.out, p.stdin(), p.PINMessage)
 }
 
 // PromptTouch prompts the user for a security key touch, using different
@@ -105,7 +116,7 @@ func (p *DefaultPrompt) PromptCredential(creds []*CredentialInfo) (*CredentialIn
 	}
 
 	for {
-		numOrName, err := prompt.Input(p.ctx, p.out, prompt.Stdin(), p.PromptCredentialMessage)
+		numOrName, err := prompt.Input(p.ctx, p.out, p.stdin(), p.PromptCredentialMessage)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

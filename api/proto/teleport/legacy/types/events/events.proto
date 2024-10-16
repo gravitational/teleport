@@ -6617,6 +6617,12 @@ message SPIFFESVIDIssued {
   string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
   // Hint is the hint of the issued SVID
   string Hint = 9 [(gogoproto.jsontag) = "hint"];
+  // JTI is the JTI of the issued SVID.
+  // Only present if the SVID is a JWT.
+  string JTI = 10 [(gogoproto.jsontag) = "jti,omitempty"];
+  // Audiences is the list of audiences in the issued SVID.
+  // Only present if the SVID is a JWT.
+  repeated string Audiences = 11 [(gogoproto.jsontag) = "audiences,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.

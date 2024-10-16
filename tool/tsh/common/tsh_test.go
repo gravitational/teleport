@@ -4384,15 +4384,14 @@ func TestSerializeProfilesNoOthers(t *testing.T) {
 	expected := `
 	{
 		"active": {
-      "profile_url": "example.com",
-      "username": "test",
-      "cluster": "main",
-      "kubernetes_enabled": false,
-      "valid_until": "1970-01-01T00:00:00Z"
-    },
+			"profile_url": "example.com",
+			"username": "test",
+			"cluster": "main",
+			"kubernetes_enabled": false,
+			"valid_until": "1970-01-01T00:00:00Z"
+		},
 		"profiles": []
-	}
-	`
+	}`
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	p, err := url.Parse("example.com")
 	require.NoError(t, err)
@@ -4479,26 +4478,25 @@ func TestSerializeAccessRequests(t *testing.T) {
 
 	expected := `
 	{
-    "kind": "access_request",
-    "version": "v3",
-    "metadata": {
-      "name": "test"
-    },
-    "spec": {
-      "user": "user",
-      "roles": [
-        "a",
-        "b",
-        "c"
-      ],
-      "state": 1,
-      "created": "0001-01-01T00:00:00Z",
-      "expires": "0001-01-01T00:00:00Z",
-      "max_duration": "0001-01-01T00:00:00Z",
-      "session_ttl": "0001-01-01T00:00:00Z"
-    }
-  }
-	`
+		"kind": "access_request",
+		"version": "v3",
+		"metadata": {
+			"name": "test"
+		},
+		"spec": {
+			"user": "user",
+			"roles": [
+				"a",
+				"b",
+				"c"
+			],
+			"state": 1,
+			"created": "0001-01-01T00:00:00Z",
+			"expires": "0001-01-01T00:00:00Z",
+			"max_duration": "0001-01-01T00:00:00Z",
+			"session_ttl": "0001-01-01T00:00:00Z"
+		}
+	}`
 	req, err := types.NewAccessRequest("test", "user", "a", "b", "c")
 	require.NoError(t, err)
 	testSerialization(t, expected, func(f string) (string, error) {
@@ -4516,68 +4514,67 @@ func TestSerializeKubeSessions(t *testing.T) {
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
-  {
-    "kind": "session_tracker",
-    "version": "v1",
-    "metadata": {
-      "name": "id",
-      "expires": "1970-01-01T00:00:00Z"
-    },
-    "spec": {
-      "session_id": "id",
-      "kind": "session-kind",
-      "state": 1,
-      "created": "1970-01-01T00:00:00Z",
-      "expires": "1970-01-01T00:00:00Z",
-      "attached": "arbitrary attached data",
-      "reason": "some reason",
-      "invited": [
-        "a",
-        "b",
-        "c"
-      ],
-      "target_hostname": "example.com",
-      "target_address": "https://example.com",
-      "cluster_name": "cluster",
-      "login": "login",
-      "participants": [
-        {
-          "id": "some-id",
-          "user": "test",
-          "mode": "mode",
-          "last_active": "1970-01-01T00:00:00Z"
-        }
-      ],
-      "kubernetes_cluster": "kc",
-      "host_user": "test",
-      "host_roles": [
-        {
-          "name": "policy",
-          "version": "v1",
-          "require_session_join": [
-            {
-              "name": "policy",
-              "filter": "filter",
-              "kinds": [
-                "x",
-                "y",
-                "z"
-              ],
-              "count": 1,
-              "modes": [
-                "mode",
-                "mode-1",
-                "mode-2"
-              ],
-              "on_leave": "do something"
-            }
-          ]
-        }
-      ]
-    }
-  }
-]
-	`
+		{
+			"kind": "session_tracker",
+			"version": "v1",
+			"metadata": {
+				"name": "id",
+				"expires": "1970-01-01T00:00:00Z"
+			},
+			"spec": {
+				"session_id": "id",
+				"kind": "session-kind",
+				"state": 1,
+				"created": "1970-01-01T00:00:00Z",
+				"expires": "1970-01-01T00:00:00Z",
+				"attached": "arbitrary attached data",
+				"reason": "some reason",
+				"invited": [
+					"a",
+					"b",
+					"c"
+				],
+				"target_hostname": "example.com",
+				"target_address": "https://example.com",
+				"cluster_name": "cluster",
+				"login": "login",
+				"participants": [
+					{
+						"id": "some-id",
+						"user": "test",
+						"mode": "mode",
+						"last_active": "1970-01-01T00:00:00Z"
+					}
+				],
+				"kubernetes_cluster": "kc",
+				"host_user": "test",
+				"host_roles": [
+					{
+						"name": "policy",
+						"version": "v1",
+						"require_session_join": [
+							{
+								"name": "policy",
+								"filter": "filter",
+								"kinds": [
+									"x",
+									"y",
+									"z"
+								],
+								"count": 1,
+								"modes": [
+									"mode",
+									"mode-1",
+									"mode-2"
+								],
+								"on_leave": "do something"
+							}
+						]
+					}
+				]
+			}
+		}
+	]`
 	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
 		SessionID:    "id",
 		Kind:         "session-kind",
@@ -4681,7 +4678,7 @@ func TestSerializeMFADevices(t *testing.T) {
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
-  {"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
+		{"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
 	]
 	`
 	dev := types.NewMFADevice("my device", "id", aTime)
@@ -5121,68 +5118,67 @@ func TestShowSessions(t *testing.T) {
 	t.Parallel()
 
 	expected := `[
-    {
-        "ei": 0,
-        "event": "",
-        "uid": "someID1",
-        "time": "0001-01-01T00:00:00Z",
-        "sid": "",
-        "server_id": "",
-        "enhanced_recording": false,
-        "interactive": false,
-        "participants": [
-            "someParticipant"
-        ],
-        "session_start": "0001-01-01T00:00:00Z",
-        "session_stop": "0001-01-01T00:00:00Z"
-    },
-    {
-        "ei": 0,
-        "event": "",
-        "uid": "someID2",
-        "time": "0001-01-01T00:00:00Z",
-        "sid": "",
-        "server_id": "",
-        "enhanced_recording": false,
-        "interactive": false,
-        "participants": [
-            "someParticipant"
-        ],
-        "session_start": "0001-01-01T00:00:00Z",
-        "session_stop": "0001-01-01T00:00:00Z"
-    },
-    {
-        "ei": 0,
-        "event": "",
-        "uid": "someID3",
-        "time": "0001-01-01T00:00:00Z",
-        "sid": "",
-        "windows_desktop_service": "",
-        "desktop_addr": "",
-        "windows_domain": "",
-        "windows_user": "",
-        "desktop_labels": null,
-        "session_start": "0001-01-01T00:00:00Z",
-        "session_stop": "0001-01-01T00:00:00Z",
-        "desktop_name": "",
-        "recorded": false,
-        "participants": [
-            "someParticipant"
-        ]
-    },
-    {
-        "ei": 0,
-        "event": "",
-        "uid": "someID4",
-        "time": "0001-01-01T00:00:00Z",
-        "user": "someUser",
-        "sid": "",
-        "db_protocol": "postgres",
-        "db_uri": "",
-        "session_start": "0001-01-01T00:00:00Z",
-        "session_stop": "0001-01-01T00:00:00Z"
-    }
-]`
+	{
+		"ei": 0,
+		"event": "",
+		"uid": "someID1",
+		"time": "0001-01-01T00:00:00Z",
+		"sid": "",
+		"server_id": "",
+		"enhanced_recording": false,
+		"interactive": false,
+		"participants": [
+			"someParticipant"
+		],
+		"session_start": "0001-01-01T00:00:00Z",
+		"session_stop": "0001-01-01T00:00:00Z"
+	},
+	{
+		"ei": 0,
+		"event": "",
+		"uid": "someID2",
+		"time": "0001-01-01T00:00:00Z",
+		"sid": "",
+		"server_id": "",
+		"enhanced_recording": false,
+		"interactive": false,
+		"participants": [
+			"someParticipant"
+		],
+		"session_start": "0001-01-01T00:00:00Z",
+		"session_stop": "0001-01-01T00:00:00Z"
+	},
+	{
+		"ei": 0,
+		"event": "",
+		"uid": "someID3",
+		"time": "0001-01-01T00:00:00Z",
+		"sid": "",
+		"windows_desktop_service": "",
+		"desktop_addr": "",
+		"windows_domain": "",
+		"windows_user": "",
+		"desktop_labels": null,
+		"session_start": "0001-01-01T00:00:00Z",
+		"session_stop": "0001-01-01T00:00:00Z",
+		"desktop_name": "",
+		"recorded": false,
+		"participants": [
+			"someParticipant"
+		]
+	},
+	{
+		"ei": 0,
+		"event": "",
+		"uid": "someID4",
+		"time": "0001-01-01T00:00:00Z",
+		"user": "someUser",
+		"sid": "",
+		"db_protocol": "postgres",
+		"db_uri": "",
+		"session_start": "0001-01-01T00:00:00Z",
+		"session_stop": "0001-01-01T00:00:00Z"
+    } ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
 			Metadata: events.Metadata{
@@ -5225,7 +5221,7 @@ func TestShowSessions(t *testing.T) {
 	var buf bytes.Buffer
 	err := common.ShowSessions(sessions, teleport.JSON, &buf)
 	require.NoError(t, err)
-	require.Equal(t, expected, buf.String())
+	require.JSONEq(t, expected, buf.String())
 }
 
 func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {

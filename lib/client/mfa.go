@@ -25,8 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 )
 
@@ -51,8 +49,9 @@ func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *
 	return rootClient.CreateAuthenticateChallenge(ctx, req)
 }
 
-// WebauthnLoginFunc matches the signature of [wancli.Login].
-type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+// WebauthnLoginFunc is a function that performs WebAuthn login.
+// Mimics the signature of [webauthncli.Login].
+type WebauthnLoginFunc = libmfa.WebauthnLoginFunc
 
 // NewMFAPrompt creates a new MFA prompt from client settings.
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
@@ -71,6 +70,7 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
 	cfg.PreferOTP = tc.PreferOTP
 	cfg.AllowStdinHijack = tc.AllowStdinHijack
+	cfg.StdinFunc = tc.StdinFunc
 
 	if tc.WebauthnLogin != nil {
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
