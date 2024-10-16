@@ -349,6 +349,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			Okta:                    svces.Okta,
 			Presence:                svces.PresenceInternal,
 			Provisioner:             svces.Provisioner,
+			ProvisioningStates:      svces.ProvisioningStates,
 			Restrictions:            svces.Restrictions,
 			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
 			SAMLIdPSession:          svces.Identity,

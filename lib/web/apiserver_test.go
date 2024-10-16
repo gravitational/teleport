@@ -7805,6 +7805,10 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
+func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error) {
+	return nil, nil
+}
+
 func (mock authProviderMock) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	return &mock.server, nil
 }
@@ -9069,7 +9073,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: component,
-			Log:       log,
 			Client:    client,
 			Clock:     clock,
 		},

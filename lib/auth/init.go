@@ -322,6 +322,10 @@ type InitConfig struct {
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
 
+	// ProvisioningStates is a service that manages the storage and retrieval of
+	// downstream User and Access List provisioning records
+	ProvisioningStates services.ProvisioningStates
+
 	// Logger is the logger instance for the auth service to use.
 	Logger *slog.Logger
 }
@@ -531,7 +535,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	cfg.ClusterName = cn
 
 	// Apply any outstanding migrations.
-	if err := migration.Apply(ctx, cfg.Backend); err != nil {
+	if err := migration.Apply(ctx, asrv.logger, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
 

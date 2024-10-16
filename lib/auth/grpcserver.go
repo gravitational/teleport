@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -5091,6 +5092,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "db_obj_import_rule"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating database objectImportRule service")
@@ -5100,6 +5102,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dbObjectService, err := dbobjectv1.NewDatabaseObjectService(dbobjectv1.DatabaseObjectServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "db_object"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating database object service")
@@ -5164,6 +5167,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
 		Clock:           cfg.AuthServer.clock,
 		Emitter:         cfg.Emitter,
+		Logger:          cfg.AuthServer.logger.With(teleport.ComponentKey, "integrations.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5186,6 +5190,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
+		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
+		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
+		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5197,6 +5204,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Backend:    cfg.AuthServer.Services,
 		Clock:      cfg.AuthServer.clock,
 		Emitter:    cfg.Emitter,
+		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

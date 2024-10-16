@@ -173,7 +173,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentKube,
-			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 			Client:    conn.Client,
 		},
 	})

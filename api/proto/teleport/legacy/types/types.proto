@@ -2097,6 +2097,20 @@ message AuthPreferenceSpecV2 {
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
   // The current default value is "legacy". This field is not yet fully supported.
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
+
+  // SecondFactors is a list of supported second factor types.
+  repeated SecondFactorType SecondFactors = 21 [(gogoproto.jsontag) = "second_factors,omitempty"];
+}
+
+// SecondFactorType is a type of second factor.
+enum SecondFactorType {
+  SECOND_FACTOR_TYPE_UNSPECIFIED = 0;
+  // SECOND_FACTOR_TYPE_OTP is OTP second factor.
+  SECOND_FACTOR_TYPE_OTP = 1;
+  // SECOND_FACTOR_TYPE_WEBAUTHN is WebAuthn second factor.
+  SECOND_FACTOR_TYPE_WEBAUTHN = 2;
+  // SECOND_FACTOR_TYPE_SSO is SSO second factor.
+  SECOND_FACTOR_TYPE_SSO = 3;
 }
 
 // U2F defines settings for U2F device.
@@ -2937,7 +2951,7 @@ message RoleOptions {
     (gogoproto.customtype) = "BoolOption"
   ];
 
-  // CreateHostUser allows users to be automatically created on a host
+  // Deprecated: use CreateHostUserMode instead.
   BoolValue CreateHostUser = 20 [
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "create_host_user,omitempty",
@@ -5472,6 +5486,36 @@ message WindowsDesktopSpecV3 {
   string Domain = 2 [(gogoproto.jsontag) = "domain"];
   // HostID is the ID of the host the Windows Desktop Service proxying the desktop.
   string HostID = 3 [(gogoproto.jsontag) = "host_id"];
+  // NonAD marks this desktop as a standalone host that is
+  // not joined to an Active Directory domain.
+  bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
+  // ScreenSize specifies the size of the screen to use for sessions
+  // on this host. In most cases this should be unspecified, in which
+  // case Teleport will fill the browser window.
+  Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
+}
+
+// DynamicWindowsDesktopV1 represents a dynamic windows host for desktop access.
+message DynamicWindowsDesktopV1 {
+  // Header is the common resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the DynamicWindows host spec.
+  DynamicWindowsDesktopSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DynamicWindowsDesktopSpecV1 is the dynamic windows host spec.
+message DynamicWindowsDesktopSpecV1 {
+  // Addr is the address that this host can be reached at.
+  string Addr = 1 [(gogoproto.jsontag) = "addr"];
+  // Domain is the ActiveDirectory domain that this host belongs to.
+  string Domain = 2 [(gogoproto.jsontag) = "domain"];
   // NonAD marks this desktop as a standalone host that is
   // not joined to an Active Directory domain.
   bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];

@@ -1002,6 +1002,7 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 type AuthenticationConfig struct {
 	Type           string                     `yaml:"type"`
 	SecondFactor   constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	SecondFactors  []types.SecondFactorType   `yaml:"second_factors,omitempty"`
 	ConnectorName  string                     `yaml:"connector_name,omitempty"`
 	U2F            *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 	Webauthn       *Webauthn                  `yaml:"webauthn,omitempty"`
@@ -1090,9 +1091,16 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	default:
 	}
 
+	if a.SecondFactor != "" && a.SecondFactors != nil {
+		log.Warn(`` +
+			`second_factor and second_factors are both set. second_factors will take precedence. ` +
+			`second_factor should be unset to remove this warning.`)
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                    a.Type,
 		SecondFactor:            a.SecondFactor,
+		SecondFactors:           a.SecondFactors,
 		ConnectorName:           a.ConnectorName,
 		U2F:                     u,
 		Webauthn:                w,
@@ -2391,6 +2399,8 @@ type WindowsDesktopService struct {
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
 	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+	// ResourceMatchers match dynamic Windows desktop resources.
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 }
 
 // Check checks whether the WindowsDesktopService is valid or not

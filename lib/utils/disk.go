@@ -53,6 +53,7 @@ func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA4003. False positive on macOS.
 	if stat.Bsize < 0 {
 		return 0, trace.Errorf("invalid size")
 	}
