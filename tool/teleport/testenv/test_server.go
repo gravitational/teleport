@@ -569,7 +569,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	require.NoError(t, err)
 
 	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
+	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)
 	w, err := authServer.NewWatcher(timedCtx, types.Watch{
 		Name: "node-create watcher",
