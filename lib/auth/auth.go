@@ -3888,11 +3888,11 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// Check whether the device to delete is the last passwordless device,
 	// and whether deleting it would lockout the user from login.
 	//
-	// TODO(Joerger): the user may already be locked out from login if a password
+	// Note: the user may already be locked out from login if a password
 	// is not set and passwordless is disabled. Prevent them from deleting
 	// their last passkey to prevent them from being locked out further,
 	// in the case of passwordless being re-enabled.
-	if isPasskey(deviceToDelete) && remainingPasskeys == 0 && readOnlyAuthPref.GetAllowPasswordless() {
+	if isPasskey(deviceToDelete) && remainingPasskeys == 0 {
 		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
