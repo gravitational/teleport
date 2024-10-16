@@ -40,9 +40,20 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
+var (
+	featureFlag int
+)
+
+const (
+	// flagEnt represents enterprise version.
+	flagEnt = 1 << iota
+	// flagFIPS represents enterprise version with fips feature enabled.
+	flagFIPS
+)
+
 const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
-	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
+	cdnURITemplate = "https://cdn.teleport.dev/teleport{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
 	reservedFreeDisk = 10_000_000 // 10 MB
 )

@@ -167,7 +167,14 @@ func makeURL(uriTmpl, version string) (string, error) {
 	var uriBuf bytes.Buffer
 	params := struct {
 		OS, Version, Arch string
-	}{runtime.GOOS, version, runtime.GOARCH}
+		FIPS, Enterprise  bool
+	}{
+		OS:         runtime.GOOS,
+		Version:    version,
+		Arch:       runtime.GOARCH,
+		FIPS:       featureFlag&flagFIPS != 0,
+		Enterprise: featureFlag&(flagEnt|flagFIPS) != 0,
+	}
 	err = tmpl.Execute(&uriBuf, params)
 	if err != nil {
 		return "", trace.Wrap(err)
