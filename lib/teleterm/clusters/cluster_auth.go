@@ -233,9 +233,9 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 				RouteToCluster:    c.clusterClient.SiteName,
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
-			User:      user,
-			Password:  password,
-			PromptMFA: c.clusterClient.NewMFAPrompt(),
+			User:                 user,
+			Password:             password,
+			MFAPromptConstructor: c.clusterClient.NewMFAPrompt,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
