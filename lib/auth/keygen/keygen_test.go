@@ -52,19 +52,11 @@ func setupNativeContext(ctx context.Context, _ *testing.T) *nativeContext {
 	tt.suite = &test.AuthSuite{
 		A: New(ctx, SetClock(clock)),
 		Keygen: func() ([]byte, []byte, error) {
-			key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			privateKey, err := keys.NewSoftwarePrivateKey(key)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			privPEM, err := privateKey.MarshalSSHPrivateKey()
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			return privPEM, privateKey.MarshalSSHPublicKey(), nil
+			return privateKey.PrivateKeyPEM(), privateKey.MarshalSSHPublicKey(), nil
 		},
 		Clock: clock,
 	}

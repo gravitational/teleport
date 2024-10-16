@@ -345,12 +345,9 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 
 	// generate instance secrets (keys):
 	if cfg.Priv == nil || cfg.Pub == nil {
-		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		fatalIf(err)
-		privateKey, err := keys.NewSoftwarePrivateKey(key)
-		fatalIf(err)
-		cfg.Priv, err = privateKey.MarshalSSHPrivateKey()
-		fatalIf(err)
+		cfg.Priv = privateKey.PrivateKeyPEM()
 		cfg.Pub = privateKey.MarshalSSHPublicKey()
 	}
 	key, err := keys.ParsePrivateKey(cfg.Priv)
