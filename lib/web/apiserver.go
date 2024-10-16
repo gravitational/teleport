@@ -35,6 +35,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -2800,28 +2801,37 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// current cluster data
+	clusterName, err := clt.GetClusterName()
+	authServers, err := clt.GetAuthServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// sort auth servers newest first, so we get the most up to date version
+	authVersion := ""
+	sort.Slice(authServers, func(i, j int) bool {
+		return authServers[i].Expiry().After(authServers[j].Expiry())
+	})
+	if len(authServers) > 0 {
+		authVersion = authServers[0].GetTeleportVersion()
+	}
+
+	currentCluster := ui.Cluster{
+		Name:        clusterName.GetClusterName(),
+		AuthVersion: authVersion,
+	}
+	// remove clusters
 	remoteClusters, err := clt.GetRemoteClusters(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := clt.GetClusterName()
+	out, err := ui.NewClustersFromRemote(remoteClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rc, err := types.NewRemoteCluster(clusterName.GetClusterName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc.SetLastHeartbeat(time.Now().UTC())
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	clusters := make([]types.RemoteCluster, 0, len(remoteClusters)+1)
-	clusters = append(clusters, rc)
-	clusters = append(clusters, remoteClusters...)
-	out, err := ui.NewClustersFromRemote(clusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return out, nil
+	return append(out, currentCluster), nil
 }
 
 type getSiteNamespacesResponse struct {
