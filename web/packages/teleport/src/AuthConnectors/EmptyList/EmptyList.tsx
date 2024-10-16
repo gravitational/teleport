@@ -17,8 +17,7 @@
  */
 
 import React from 'react';
-import { Card, Flex, Text } from 'design';
-import { GitHubIcon } from 'design/SVGIcon';
+import { Card, Flex, ResourceIcon, Text } from 'design';
 import { AuthProviderType } from 'shared/services';
 
 import { ConnectorBox } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
@@ -62,7 +61,7 @@ function renderGithubConnector(onCreate) {
     <ConnectorBox as="button" onClick={onCreate}>
       <Flex width="100%">
         <Flex height="72px" alignItems="center">
-          <GitHubIcon style={{ textAlign: 'center' }} size={48} />
+          <ResourceIcon name="github" width="48px" />
         </Flex>
       </Flex>
 
@@ -83,13 +82,7 @@ function renderLockedItem(kind: AuthProviderType) {
   return (
     <ConnectorBox as="button" disabled={true}>
       <Flex width="100%">
-        <SsoIcon
-          fontSize="50px"
-          style={{
-            left: 0,
-            fontSize: '72px',
-          }}
-        />
+        <SsoIcon />
       </Flex>
 
       <Text typography="body2" mt={4} fontSize={4} color="text.primary" bold>
