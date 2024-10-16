@@ -30,16 +30,17 @@ import (
 // DynamicWindowsDesktops defines an interface for managing dynamic Windows desktops.
 type DynamicWindowsDesktops interface {
 	DynamicWindowsDesktopGetter
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 	CreateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	UpdateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	UpsertDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	DeleteDynamicWindowsDesktop(ctx context.Context, name string) error
-	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+	DeleteAllDynamicWindowsDesktops(ctx context.Context) error
 }
 
 // DynamicWindowsDesktopGetter is an interface for fetching DynamicWindowsDesktop resources.
 type DynamicWindowsDesktopGetter interface {
-	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
 // MarshalDynamicWindowsDesktop marshals the DynamicWindowsDesktop resource to JSON.

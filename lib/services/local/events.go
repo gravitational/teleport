@@ -1866,7 +1866,19 @@ type dynamicWindowsDesktopsParser struct {
 func (p *dynamicWindowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindDynamicWindowsDesktop, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(dynamicWindowsDesktopsPrefix, "")).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindDynamicWindowsDesktop,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalDynamicWindowsDesktop(
 			event.Item.Value,

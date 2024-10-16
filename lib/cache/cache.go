@@ -523,6 +523,7 @@ type Cache struct {
 	webSessionCache              types.WebSessionInterface
 	webTokenCache                types.WebTokenInterface
 	windowsDesktopsCache         services.WindowsDesktops
+	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
@@ -693,6 +694,8 @@ type Config struct {
 	WebToken types.WebTokenInterface
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
+	// DynamicWindowsDesktops is a dynamic Windows desktop service.
+	DynamicWindowsDesktops services.DynamicWindowsDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
@@ -996,6 +999,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dynamicDesktopsService, err := local.NewDynamicWindowsDesktopService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -1022,6 +1031,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:              identityService.WebSessions(),
 		webTokenCache:                identityService.WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
+		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
@@ -2838,30 +2848,17 @@ func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (type
 	return rg.reader.GetDynamicWindowsDesktop(ctx, name)
 }
 
-// GetDynamicWindowsDesktops returns all registered dynamic Windows desktop.
-func (c *Cache) GetDynamicWindowsDesktops(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktops")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDynamicWindowsDesktops(ctx)
-}
-
 // ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
-func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, req types.ListDynamicWindowsDesktopsRequest) (*types.ListDynamicWindowsDesktopsResponse, error) {
+func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
 	defer span.End()
 
 	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.ListDynamicWindowsDesktops(ctx, req)
+	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.

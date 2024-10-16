@@ -22,6 +22,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 
@@ -2331,34 +2332,44 @@ var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExe
 type dynamicWindowsDesktopsExecutor struct{}
 
 func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
-	return cache.WindowsDesktops.GetDynamicWindowsDesktops(ctx)
+	var desktops []types.DynamicWindowsDesktop
+	next := ""
+	for ok := true; ok; ok = next != "" {
+		d, n, err := cache.dynamicWindowsDesktopsCache.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+		if err != nil {
+			return nil, err
+		}
+		desktops = append(desktops, d...)
+		next = n
+	}
+	return desktops, nil
 }
 
 func (dynamicWindowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.DynamicWindowsDesktop) error {
-	return cache.windowsDesktopsCache.UpsertDynamicWindowsDesktop(ctx, resource)
+	_, err := cache.dynamicWindowsDesktopsCache.UpsertDynamicWindowsDesktop(ctx, resource)
+	return err
 }
 
 func (dynamicWindowsDesktopsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.windowsDesktopsCache.DeleteAllDynamicWindowsDesktops(ctx)
+	return cache.dynamicWindowsDesktopsCache.DeleteAllDynamicWindowsDesktops(ctx)
 }
 
 func (dynamicWindowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.windowsDesktopsCache.DeleteDynamicWindowsDesktop(ctx, resource.GetName())
+	return cache.dynamicWindowsDesktopsCache.DeleteDynamicWindowsDesktop(ctx, resource.GetName())
 }
 
 func (dynamicWindowsDesktopsExecutor) isSingleton() bool { return false }
 
 func (dynamicWindowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) dynamicWindowsDesktopsGetter {
 	if cacheOK {
-		return cache.windowsDesktopsCache
+		return cache.dynamicWindowsDesktopsCache
 	}
-	return cache.Config.WindowsDesktops
+	return cache.Config.DynamicWindowsDesktops
 }
 
 type dynamicWindowsDesktopsGetter interface {
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
-	GetDynamicWindowsDesktops(context.Context) ([]types.DynamicWindowsDesktop, error)
-	ListDynamicWindowsDesktops(ctx context.Context, req types.ListDynamicWindowsDesktopsRequest) (*types.ListDynamicWindowsDesktopsResponse, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
 var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dynamicWindowsDesktopsExecutor{}
