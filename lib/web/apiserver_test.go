@@ -9076,6 +9076,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Client:    client,
 			Clock:     clock,
 		},
+		KubernetesServerGetter: client,
 	})
 	require.NoError(t, err)
 

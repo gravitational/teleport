@@ -51,6 +51,7 @@ import (
 // AccessPoint is the subset of the auth cache consumed by the [Client].
 type AccessPoint interface {
 	types.Events
+	services.ProxyGetter
 }
 
 // ClientConfig configures a Client instance.
@@ -417,6 +418,7 @@ func (c *Client) sync() {
 			// TODO(tross): use the configured logger after updating peering to use slog
 			// Logger:       c.config.Logger,
 		},
+		ProxyGetter: c.config.AccessPoint,
 		ProxyDiffer: func(old, new types.Server) bool {
 			return old.GetPeerAddr() != new.GetPeerAddr()
 		},
@@ -435,7 +437,7 @@ func (c *Client) sync() {
 		case <-proxyWatcher.Done():
 			c.config.Log.Debug("Stopping peer proxy sync: proxy watcher done.")
 			return
-		case proxies := <-proxyWatcher.ProxiesC:
+		case proxies := <-proxyWatcher.ResourcesC:
 			if err := c.updateConnections(proxies); err != nil {
 				c.config.Log.Errorf("Error syncing peer proxies: %+v.", err)
 			}

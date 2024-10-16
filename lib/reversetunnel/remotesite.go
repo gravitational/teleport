@@ -85,7 +85,7 @@ type remoteSite struct {
 	remoteAccessPoint authclient.RemoteProxyAccessPoint
 
 	// nodeWatcher provides access the node set for the remote site
-	nodeWatcher *services.NodeWatcher
+	nodeWatcher *services.GenericWatcher[types.Server, types.ReadOnlyServer]
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -164,7 +164,7 @@ func (s *remoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, er
 }
 
 // NodeWatcher returns the services.NodeWatcher for the remote cluster.
-func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
+func (s *remoteSite) NodeWatcher() (*services.GenericWatcher[types.Server, types.ReadOnlyServer], error) {
 	return s.nodeWatcher, nil
 }
 
@@ -429,7 +429,11 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
+			proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to get proxy set")
+			}
+			req.SetProxies(proxies)
 
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -458,9 +462,12 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			if firstHeartbeat {
 				// as soon as the agent connects and sends a first heartbeat
 				// send it the list of current proxies back
-				current := s.srv.proxyWatcher.GetCurrent()
-				if len(current) > 0 {
-					conn.updateProxies(current)
+				proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+				if err != nil {
+					logger.WithError(err).Warn("Failed to get proxy set")
+				}
+				if len(proxies) > 0 {
+					conn.updateProxies(proxies)
 				}
 				firstHeartbeat = false
 			}
