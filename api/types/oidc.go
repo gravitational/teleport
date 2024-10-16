@@ -110,6 +110,8 @@ type OIDCConnector interface {
 	GetClientRedirectSettings() *SSOClientRedirectSettings
 	// GetMFASettings returns the connector's MFA settings.
 	GetMFASettings() OIDCConnectorMFASettings
+	// SetMFASettings sets the connector's MFA settings.
+	SetMFASettings(s *OIDCConnectorMFASettings)
 	// IsMFAEnabled returns whether the connector has MFA enabled.
 	IsMFAEnabled() bool
 	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
@@ -513,6 +515,11 @@ func (o *OIDCConnectorV3) GetMFASettings() OIDCConnectorMFASettings {
 		}
 	}
 	return *o.Spec.MFASettings
+}
+
+// SetMFASettings sets the connector's MFA settings.
+func (o *OIDCConnectorV3) SetMFASettings(s *OIDCConnectorMFASettings) {
+	o.Spec.MFASettings = s
 }
 
 // IsMFAEnabled returns whether the connector has MFA enabled.
