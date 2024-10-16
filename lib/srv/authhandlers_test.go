@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -139,8 +139,7 @@ func TestRBAC(t *testing.T) {
 	}
 
 	// create User CA
-	userTA := testauthority.New()
-	userCAPriv, err := userTA.GeneratePrivateKey()
+	userCAPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -211,7 +210,7 @@ func TestRBAC(t *testing.T) {
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
 			keygen := testauthority.New()
-			privateKey, err := native.GeneratePrivateKey()
+			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
 			c, err := keygen.GenerateUserCert(services.UserCertParams{
@@ -243,8 +242,7 @@ func TestRBACJoinMFA(t *testing.T) {
 	const username = "testuser"
 
 	// create User CA
-	userTA := testauthority.New()
-	userCAPriv, err := userTA.GeneratePrivateKey()
+	userCAPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -383,10 +381,10 @@ func TestRBACJoinMFA(t *testing.T) {
 			// create SSH certificate
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
-			keygen := testauthority.New()
-			privateKey, err := native.GeneratePrivateKey()
+			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
+			keygen := testauthority.New()
 			c, err := keygen.GenerateUserCert(services.UserCertParams{
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),

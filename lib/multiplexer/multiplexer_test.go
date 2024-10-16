@@ -48,7 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -66,7 +66,7 @@ func TestMain(m *testing.M) {
 // TestMux tests multiplexing protocols
 // using the same listener.
 func TestMux(t *testing.T) {
-	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	// TestMux tests basic use case of multiplexing TLS
@@ -736,22 +736,22 @@ func TestMux(t *testing.T) {
 		certPool.AppendCertsFromPEM(caCert)
 
 		// Sign server certificate.
-		serverRSAKey, err := native.GenerateRSAPrivateKey()
+		serverKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		require.NoError(t, err)
 		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   pkix.Name{CommonName: "localhost"},
-			PublicKey: serverRSAKey.Public(),
+			PublicKey: serverKey.Public(),
 			NotAfter:  time.Now().Add(time.Hour),
 			DNSNames:  []string{"127.0.0.1"},
 		})
 		require.NoError(t, err)
-		serverKeyPEM, err := keys.MarshalPrivateKey(serverRSAKey)
+		serverKeyPEM, err := keys.MarshalPrivateKey(serverKey)
 		require.NoError(t, err)
 		serverCert, err := tls.X509KeyPair(serverPEM, serverKeyPEM)
 		require.NoError(t, err)
 
 		// Sign client certificate with database access identity.
-		clientRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+		clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		require.NoError(t, err)
 		subject, err := (&tlsca.Identity{
 			Username: "alice",
@@ -763,11 +763,11 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 		clientPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   subject,
-			PublicKey: clientRSAKey.Public(),
+			PublicKey: clientKey.Public(),
 			NotAfter:  time.Now().Add(time.Hour),
 		})
 		require.NoError(t, err)
-		clientKeyPEM, err := keys.MarshalPrivateKey(clientRSAKey)
+		clientKeyPEM, err := keys.MarshalPrivateKey(clientKey)
 		require.NoError(t, err)
 		clientCert, err := tls.X509KeyPair(clientPEM, clientKeyPEM)
 		require.NoError(t, err)

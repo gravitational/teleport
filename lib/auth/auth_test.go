@@ -2580,7 +2580,7 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	role, ok := r.(*types.RoleV6)
 	require.True(t, ok)
 
-	priv, err := native.GeneratePrivateKey()
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
 	reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
@@ -2692,7 +2692,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 	hostID := uuid.New().String()
 	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
+	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)

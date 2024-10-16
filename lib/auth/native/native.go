@@ -46,15 +46,6 @@ var precomputedKeys = make(chan *rsa.PrivateKey, 25)
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
 
-// GenerateKeyPair generates a new RSA key pair.
-func GenerateKeyPair() ([]byte, []byte, error) {
-	priv, err := GeneratePrivateKey()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return priv.PrivateKeyPEM(), priv.MarshalSSHPublicKey(), nil
-}
-
 // GenerateEICEKey generates a key that can be send to an Amazon EC2 instance using the ec2instanceconnect.SendSSHPublicKey method.
 func GenerateEICEKey() (publicKey any, privateKey any, err error) {
 	if IsBoringBinary() {
