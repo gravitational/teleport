@@ -151,7 +151,7 @@ type Server struct {
 	reconcileCh chan struct{}
 
 	// watcher monitors changes to application resources.
-	watcher *services.GenericWatcher[types.Application]
+	watcher *services.GenericWatcher[types.Application, types.Application]
 }
 
 // monitoredApps is a collection of applications from different sources
