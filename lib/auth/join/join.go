@@ -426,12 +426,12 @@ func registerThroughAuth(
 		client, err = insecureRegisterClient(params)
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "building auth client")
 	}
 	defer client.Close()
 
 	result, err = registerThroughAuthClient(ctx, token, params, client)
-	return result, trace.Wrap(err)
+	return result, trace.Wrap(err, "registering through auth client")
 }
 
 // AuthJoinClient is a client that allows access to the Auth Servers join
@@ -450,7 +450,7 @@ func registerThroughAuthClient(
 ) (result *RegisterResult, err error) {
 	hostKeys, err := generateHostKeysForAuth(ctx, client)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "generating host keys")
 	}
 
 	var certs *proto.Certs
@@ -468,7 +468,7 @@ func registerThroughAuthClient(
 		certs, err = client.RegisterUsingToken(ctx, registerUsingTokenRequestForParams(token, hostKeys, params))
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "registering with %s method", params.JoinMethod)
 	}
 	return &RegisterResult{
 		Certs:      certs,
@@ -506,7 +506,7 @@ func insecureRegisterClient(params RegisterParams) (*authclient.Client, error) {
 		CircuitBreakerConfig: params.CircuitBreakerConfig,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating insecure auth client")
 	}
 
 	return client, nil
@@ -665,10 +665,9 @@ func registerUsingIAMMethod(
 		// create the signed sts:GetCallerIdentity request and include the challenge
 		signedRequest, err := iam.CreateSignedSTSIdentityRequest(ctx, challenge,
 			iam.WithFIPSEndpoint(params.FIPS),
-			iam.WithRegionalEndpoint(true),
 		)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "creating signed sts:GetCallerIdentity request")
 		}
 
 		// send the register request including the challenge response
@@ -679,7 +678,7 @@ func registerUsingIAMMethod(
 	})
 	if err != nil {
 		log.WithError(err).Infof("Failed to register %s using regional STS endpoint", params.ID.Role)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "registering via IAM method streaming RPC")
 	}
 
 	log.Infof("Successfully registered %s with IAM method using regional STS endpoint", params.ID.Role)

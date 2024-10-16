@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -71,20 +71,20 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 }
 
 func setupDirsForTest(t *testing.T, testTempDir string, distroConfig map[string]string) {
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/etc"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/local/bin"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/share"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/var/lock"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "etc"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "usr/local/bin"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "usr/share"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "var/lock"), fs.ModePerm))
 
 	for fileName, contents := range distroConfig {
 		isDir := strings.HasSuffix(fileName, "/")
 		if isDir {
 			require.Empty(t, contents, "expected no contents for directory %q", fileName)
-			require.NoError(t, os.MkdirAll(path.Join(testTempDir, fileName), fs.ModePerm))
+			require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, fileName), fs.ModePerm))
 		} else {
-			filePathWithoutParent := path.Base(fileName)
-			require.NoError(t, os.MkdirAll(path.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
-			require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
+			filePathWithoutParent := filepath.Base(fileName)
+			require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
+			require.NoError(t, os.WriteFile(filepath.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
 		}
 	}
 }
@@ -130,6 +130,48 @@ func TestAutoDiscoverNode(t *testing.T) {
 			return azure.NewInstanceMetadataClient(azure.WithBaseURL(azureIMDSServer.URL)), nil
 		},
 	}
+
+	t.Run("check and set defaults", func(t *testing.T) {
+		t.Run("oss package is not allowed with auto upgrades", func(t *testing.T) {
+			installerConfig := &AutoDiscoverNodeInstallerConfig{
+				RepositoryChannel: "stable/rolling",
+				AutoUpgrades:      true,
+				ProxyPublicAddr:   "proxy.example.com",
+				TeleportPackage:   "teleport",
+				TokenName:         "my-token",
+				AzureClientID:     "azure-client-id",
+			}
+
+			_, err := NewAutoDiscoverNodeInstaller(installerConfig)
+			require.Error(t, err)
+		})
+		t.Run("fips package is allowed", func(t *testing.T) {
+			installerConfig := &AutoDiscoverNodeInstallerConfig{
+				RepositoryChannel: "stable/rolling",
+				AutoUpgrades:      false,
+				ProxyPublicAddr:   "proxy.example.com",
+				TeleportPackage:   "teleport-ent-fips",
+				TokenName:         "my-token",
+				AzureClientID:     "azure-client-id",
+			}
+
+			_, err := NewAutoDiscoverNodeInstaller(installerConfig)
+			require.NoError(t, err)
+		})
+		t.Run("fips is not allowed with auto upgrades", func(t *testing.T) {
+			installerConfig := &AutoDiscoverNodeInstallerConfig{
+				RepositoryChannel: "stable/rolling",
+				AutoUpgrades:      true,
+				ProxyPublicAddr:   "proxy.example.com",
+				TeleportPackage:   "teleport-ent-fips",
+				TokenName:         "my-token",
+				AzureClientID:     "azure-client-id",
+			}
+
+			_, err := NewAutoDiscoverNodeInstaller(installerConfig)
+			require.Error(t, err)
+		})
+	})
 
 	t.Run("well known distros", func(t *testing.T) {
 		for distroName, distroVersions := range wellKnownOS {

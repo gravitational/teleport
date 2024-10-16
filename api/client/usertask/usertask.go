@@ -47,6 +47,20 @@ func (c *Client) ListUserTasks(ctx context.Context, pageSize int64, nextToken st
 	return resp.UserTasks, resp.NextPageToken, nil
 }
 
+// ListUserTasksByIntegration returns a list of User Tasks filtered by an integration.
+func (c *Client) ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertaskv1.UserTask, string, error) {
+	resp, err := c.grpcClient.ListUserTasksByIntegration(ctx, &usertaskv1.ListUserTasksByIntegrationRequest{
+		PageSize:    pageSize,
+		PageToken:   nextToken,
+		Integration: integration,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return resp.UserTasks, resp.NextPageToken, nil
+}
+
 // CreateUserTask creates a new User Task.
 func (c *Client) CreateUserTask(ctx context.Context, req *usertaskv1.UserTask) (*usertaskv1.UserTask, error) {
 	rsp, err := c.grpcClient.CreateUserTask(ctx, &usertaskv1.CreateUserTaskRequest{

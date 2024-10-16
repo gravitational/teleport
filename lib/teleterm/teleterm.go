@@ -32,6 +32,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -53,8 +55,12 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                cfg.HomeDir,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		Clock:              clock,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		AddKeysToAgent:     cfg.AddKeysToAgent,
+		HardwareKeyPromptConstructor: func(clusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)

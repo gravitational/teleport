@@ -154,17 +154,6 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 			},
 			errCheck: isBadParamErrFn,
 		},
-		{
-			name: "trying to inject escape sequence into query params",
-			reqQuery: url.Values{
-				"awsAccountID":    []string{"123456789012"},
-				"awsRegion":       []string{"us-east-1"},
-				"role":            []string{"role"},
-				"taskRole":        []string{"taskRole"},
-				"integrationName": []string{"'; rm -rf /tmp/dir; echo '"},
-			},
-			errCheck: isBadParamErrFn,
-		},
 	}
 
 	for _, tc := range tests {
@@ -637,6 +626,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"integrationName": []string{"myintegration"},
 				"s3Bucket":        []string{"my-bucket"},
 				"s3Prefix":        []string{"prefix"},
+				"policyPreset":    []string{""},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
@@ -678,6 +668,22 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"--s3-jwks-base64=" + jwksBase64,
 		},
 		{
+			name: "valid with supported policy preset",
+			reqQuery: url.Values{
+				"awsRegion":       []string{"us-east-1"},
+				"role":            []string{"myRole"},
+				"integrationName": []string{"myintegration"},
+				"policyPreset":    []string{"aws-identity-center"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure awsoidc-idp " +
+				"--cluster=localhost " +
+				"--name=myintegration " +
+				"--role=myRole " +
+				"--policy-preset=aws-identity-center " +
+				"--proxy-public-url=" + proxyPublicURL.String(),
+		},
+		{
 			name: "missing role",
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},
@@ -714,13 +720,11 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
-			name: "trying to inject escape sequence into query params",
+			name: "missing policy preset",
 			reqQuery: url.Values{
-				"awsRegion":       []string{"us-east-1"},
+				"integrationName": []string{"myintegration"},
 				"role":            []string{"role"},
-				"integrationName": []string{"'; rm -rf /tmp/dir; echo '"},
 				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
 			},
 			errCheck: isBadParamErrFn,
 		},
