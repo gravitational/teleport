@@ -3851,6 +3851,8 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			deviceToDelete = d
 			switch d.Device.(type) {
 			case *types.MFADevice_Totp, *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			case *types.MFADevice_Sso:
+				return nil, trace.BadParameter("cannot delete ephemeral SSO MFA device")
 			default:
 				return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
 			}
@@ -3862,6 +3864,8 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_OTP]++
 		case *types.MFADevice_U2F, *types.MFADevice_Webauthn:
 			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN]++
+		case *types.MFADevice_Sso:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_SSO]++
 		default:
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
@@ -6765,6 +6769,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
+	SSO      *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
@@ -6781,6 +6786,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 			if groupWebauthn {
 				res.Webauthn = append(res.Webauthn, dev)
 			}
+		case *types.MFADevice_Sso:
+			res.SSO = dev
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
