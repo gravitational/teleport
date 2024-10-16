@@ -42,7 +42,7 @@ func TestEncodeDecodeSecondFactorType(t *testing.T) {
 	} {
 		t.Run(tt.secondFactorType.String(), func(t *testing.T) {
 			t.Run("encode", func(t *testing.T) {
-				encoded, err := tt.secondFactorType.encode()
+				encoded, err := tt.secondFactorType.Encode()
 				assert.NoError(t, err)
 				assert.Equal(t, tt.encoded, encoded)
 			})
@@ -57,7 +57,7 @@ func TestEncodeDecodeSecondFactorType(t *testing.T) {
 	}
 }
 
-func TestLegacySecondFactorsFromLegacySecondFactor(t *testing.T) {
+func TestSecondFactorsFromLegacySecondFactor(t *testing.T) {
 	for _, tt := range []struct {
 		sf  constants.SecondFactorType
 		sfs []SecondFactorType
@@ -72,11 +72,11 @@ func TestLegacySecondFactorsFromLegacySecondFactor(t *testing.T) {
 		},
 		{
 			sf:  constants.SecondFactorOptional,
-			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP},
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN},
 		},
 		{
 			sf:  constants.SecondFactorOn,
-			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP},
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN},
 		},
 		{
 			sf:  constants.SecondFactorOTP,
@@ -89,6 +89,46 @@ func TestLegacySecondFactorsFromLegacySecondFactor(t *testing.T) {
 	} {
 		t.Run(string(tt.sf), func(t *testing.T) {
 			assert.Equal(t, tt.sfs, secondFactorsFromLegacySecondFactor(tt.sf))
+		})
+	}
+}
+
+func TestLegacySecondFactorFromSecondFactors(t *testing.T) {
+	for _, tt := range []struct {
+		sfs []SecondFactorType
+		sf  constants.SecondFactorType
+	}{
+		{
+			sfs: nil,
+			sf:  constants.SecondFactorOff,
+		},
+		{
+			sfs: []SecondFactorType{},
+			sf:  constants.SecondFactorOff,
+		},
+		{
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP},
+			sf:  constants.SecondFactorOTP,
+		},
+		{
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN},
+			sf:  constants.SecondFactorWebauthn,
+		},
+		{
+			sfs: []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_SSO},
+			sf:  constants.SecondFactorOff,
+		},
+		{
+			sfs: []SecondFactorType{
+				SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+				SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+			},
+			sf: constants.SecondFactorOn,
+		},
+	} {
+		t.Run(string(tt.sfs), func(t *testing.T) {
+			assert.Equal(t, tt.sf, LegacySecondFactorFromSecondFactors(tt.sfs))
 		})
 	}
 }
