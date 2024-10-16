@@ -289,10 +289,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   async syncAndWatchRootClusterWithErrorHandling(
     clusterUri: uri.RootClusterUri
   ) {
-    const cluster = this.findCluster(clusterUri);
-    const clusterName =
-      cluster?.name || routing.parseClusterUri(clusterUri).params.rootClusterId;
-
     try {
       await this.syncRootCluster(clusterUri);
     } catch (e) {
@@ -319,9 +315,22 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     try {
       await this.client.startHeadlessWatcher({ rootClusterUri: clusterUri });
     } catch (e) {
-      this.notificationsService.notifyError({
+      const cluster = this.findCluster(clusterUri);
+      const clusterName =
+        cluster?.name ||
+        routing.parseClusterUri(clusterUri).params.rootClusterId;
+
+      const notificationId = this.notificationsService.notifyError({
         title: `Could not start headless requests watcher for ${clusterName}`,
         description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            // retry the entire call
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
       });
     }
   }
