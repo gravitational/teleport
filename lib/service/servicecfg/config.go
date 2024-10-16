@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -307,6 +308,10 @@ type ConfigTesting struct {
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
 	KubeMultiplexerIgnoreSelfConnections bool
+
+	// HTTPTransport is an optional HTTP round tripper to used in tests
+	// to mock HTTP requests to the third party services like Okta integration
+	HTTPTransport http.RoundTripper
 }
 
 // AccessGraphConfig represents TAG server config
