@@ -19,8 +19,6 @@
 package tlsca
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -36,9 +34,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
@@ -86,7 +84,7 @@ func TestPrincipals(t *testing.T) {
 			ca, err := test.createFunc()
 			require.NoError(t, err)
 
-			privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
 			hostnames := []string{"localhost", "example.com"}
@@ -122,7 +120,7 @@ func TestRenewableIdentity(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	identity := Identity{
@@ -159,7 +157,7 @@ func TestKubeExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -209,7 +207,7 @@ func TestDatabaseExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -254,7 +252,7 @@ func TestAzureExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -360,7 +358,7 @@ func TestGCPExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
