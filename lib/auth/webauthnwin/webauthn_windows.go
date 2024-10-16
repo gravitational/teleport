@@ -220,6 +220,8 @@ func isUVPlatformAuthenticatorAvailable() (bool, error) {
 
 // bytesFromCBytes gets slice of bytes from C type and copies it to new slice
 // so that it won't interfere when main objects is free.
+//
+// TODO(codingllama): can we use C.GoBytes() here instead?
 func bytesFromCBytes(size uint32, p *byte) []byte {
 	if p == nil {
 		return nil
