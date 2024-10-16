@@ -44,11 +44,10 @@ func TestNew(t *testing.T) {
 	protoEvent, err := eventToProto(events.AuditEvent(e))
 	require.NoError(t, err)
 
-	event, err := NewTeleportEvent(protoEvent, "cursor")
+	event, err := NewTeleportEvent(protoEvent)
 	require.NoError(t, err)
 	assert.Equal(t, "test", event.ID)
 	assert.Equal(t, "mock", event.Type)
-	assert.Equal(t, "cursor", event.Cursor)
 }
 
 func TestGenID(t *testing.T) {
@@ -57,7 +56,7 @@ func TestGenID(t *testing.T) {
 	protoEvent, err := eventToProto(events.AuditEvent(e))
 	require.NoError(t, err)
 
-	event, err := NewTeleportEvent(protoEvent, "cursor")
+	event, err := NewTeleportEvent(protoEvent)
 	require.NoError(t, err)
 	assert.NotEmpty(t, event.ID)
 }
@@ -75,7 +74,7 @@ func TestSessionEnd(t *testing.T) {
 	protoEvent, err := eventToProto(events.AuditEvent(e))
 	require.NoError(t, err)
 
-	event, err := NewTeleportEvent(protoEvent, "cursor")
+	event, err := NewTeleportEvent(protoEvent)
 	require.NoError(t, err)
 	assert.NotEmpty(t, event.ID)
 	assert.NotEmpty(t, event.SessionID)
@@ -95,7 +94,7 @@ func TestFailedLogin(t *testing.T) {
 	protoEvent, err := eventToProto(events.AuditEvent(e))
 	require.NoError(t, err)
 
-	event, err := NewTeleportEvent(protoEvent, "cursor")
+	event, err := NewTeleportEvent(protoEvent)
 	require.NoError(t, err)
 	assert.NotEmpty(t, event.ID)
 	assert.True(t, event.IsFailedLogin)
@@ -114,7 +113,7 @@ func TestSuccessLogin(t *testing.T) {
 	protoEvent, err := eventToProto(events.AuditEvent(e))
 	require.NoError(t, err)
 
-	event, err := NewTeleportEvent(protoEvent, "cursor")
+	event, err := NewTeleportEvent(protoEvent)
 	require.NoError(t, err)
 	assert.NotEmpty(t, event.ID)
 	assert.False(t, event.IsFailedLogin)
