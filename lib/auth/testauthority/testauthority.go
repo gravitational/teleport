@@ -53,11 +53,7 @@ func (n *Keygen) GenerateKeyPair() (priv []byte, pub []byte, err error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	privPEM, err := privateKey.MarshalSSHPrivateKey()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return privPEM, privateKey.MarshalSSHPublicKey(), nil
+	return privateKey.PrivateKeyPEM(), privateKey.MarshalSSHPublicKey(), nil
 }
 
 func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
