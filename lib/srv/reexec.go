@@ -1236,14 +1236,13 @@ func hasAccessibleHomeDir() error {
 		return trace.BadParameter("%q is not a directory", currentUser.HomeDir)
 	}
 
-	executable, err := os.Executable()
+	cwd, err := os.Getwd()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// attemping to cd into the target directory is the easiest, cross-platform way to test
 	// whether or not the current user has access
-	cwd := filepath.Dir(executable)
 	if err := os.Chdir(currentUser.HomeDir); err != nil {
 		return trace.Wrap(coerceHomeDirError(currentUser, err))
 	}

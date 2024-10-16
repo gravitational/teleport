@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
-	"github.com/gravitational/trace"
 )
 
 type stubUser struct {
@@ -416,6 +415,9 @@ func TestRootCheckHomeDirAccess(t *testing.T) {
 	utils.RequireRoot(t)
 
 	tmp := t.TempDir()
+	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
+	require.NoError(t, os.Chmod(tmp, 0777))
+
 	home := filepath.Join(tmp, "home")
 	noAccess := filepath.Join(tmp, "no_access")
 	file := filepath.Join(tmp, "file")
@@ -450,29 +452,31 @@ func TestRootCheckHomeDirAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, hasAccess)
 
-	changeHomeDir(testUser.Name, noAccess)
+	changeHomeDir(t, login, file)
 	hasAccess, err = CheckHomeDirAccess(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 
-	changeHomeDir(testUser.Name, file)
+	changeHomeDir(t, login, notFound)
 	hasAccess, err = CheckHomeDirAccess(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 
-	changeHomeDir(testUser.Name, notFound)
+	changeHomeDir(t, login, noAccess)
 	hasAccess, err = CheckHomeDirAccess(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
+
+	// change back to accessible home so deletion works
+	changeHomeDir(t, login, home)
 }
 
-func changeHomeDir(username, home string) (int, error) {
+func changeHomeDir(t *testing.T, username, home string) {
 	usermodBin, err := exec.LookPath("usermod")
-	if err != nil {
-		return -1, trace.Wrap(err, "cant find usermod binary")
-	}
-	// usermod -G (replace groups) (username)
+	require.NoError(t, err, "usermod binary must be present")
+
 	cmd := exec.Command(usermodBin, "--home", home, username)
 	_, err = cmd.CombinedOutput()
-	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
+	require.NoError(t, err, "changing home should not error")
+	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
 }
