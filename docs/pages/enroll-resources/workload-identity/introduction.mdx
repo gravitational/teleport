@@ -1,38 +1,31 @@
 ---
 title: Introduction to Workload Identity
-description: Describes Teleport Workload Identity, which securely issues flexible, short-lived identities to workloads and non-human identities.
+description: Describes Teleport Workload Identity, which securely issues flexible, short-lived cryptographic identities to workloads and non-human identities.
 ---
 
 (!/docs/pages/includes/workload-id-preview.mdx!)
 
-Teleport Workload Identity securely issues flexible, short-lived cryptographic 
-identities to workloads.
+Teleport Workload Identity securely issues short-lived cryptographic identities
+to workloads. It is a flexible foundation for workload identity across your 
+infrastructure, creating a uniform way for your workloads to authenticate 
+regardless of where they are running.
 
-The flexible nature of Teleport Workload Identity means it can be leveraged for
-a wide range of use-cases, including:
+The flexible nature of Teleport Workload Identity enables it to be used for a
+range of purposes, including:
 
-- Replacing long-lived shared secrets for authentication to third-party APIs
-  (e.g AWS, GCP, Azure etc.), regardless of which platform the workload is
-  running on.
-- Issuing X.509 certificates and distributing certificate authorities to enable
-  secure mTLS between services within your infrastructure as part of a wider
-  zero-trust implementation.
+- Workload authentication to third-party APIs on cloud platforms such as AWS, 
+  GCP and Azure.
+- Providing X.509 certificates for mutual TLS authentication between workloads
+  within your infrastructure as part of a Zero Trust strategy.
+- Workload authentication between services within your infrastructure. 
 
+Teleport Workload Identity is compatible with the open-source
+[Secure Production Identity Framework For Everyone (SPIFFE)](./spiffe.mdx)
+standard. This enables interoperability between workload identity
+implementations and also provides a wealth of off-the-shelf tools and SDKs to
+simplify integration with your workloads. 
 
-
-The identities and API implement the open-source
-[Secure Production Identity Framework For Everyone (SPIFFE) standard](./spiffe.mdx),
-allowing interoperability for authentication between workloads using different
-workload identity implementations and enabling the use of a number of
-off-the-shelf SPIFFE-compatible tools and SDKs.
-
-Teleport Workload Identity brings a number of Teleport features you are
-already familiar with, such as:
-
-- Auditing of the issuance of workload identities.
-- Powerful RBAC for controlling the issuance of workload identities.
-- Rotation and management of the workload identity CA, including support for
-  HSMs.
+## How it works
 
 ## Teleport Workload Identity vs Machine ID
 
