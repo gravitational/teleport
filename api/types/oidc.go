@@ -110,7 +110,7 @@ type OIDCConnector interface {
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
 	// GetMFASettings returns the connector's MFA settings.
-	GetMFASettings() OIDCConnectorMFASettings
+	GetMFASettings() *OIDCConnectorMFASettings
 	// IsMFAEnabled returns whether the connector has MFA enabled.
 	IsMFAEnabled() bool
 	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
@@ -465,7 +465,17 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("max_age cannot be negative")
 		}
 		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age must be a multiple of seconds")
+			return trace.BadParameter("max_age %q is invalid, cannot have sub-second units", maxAge.String())
+		}
+	}
+
+	if o.Spec.MFASettings != nil {
+		maxAge := o.Spec.MFASettings.MaxAge.Duration()
+		if maxAge < 0 {
+			return trace.BadParameter("max_age cannot be negative")
+		}
+		if maxAge.Round(time.Second) != maxAge {
+			return trace.BadParameter("max_age %q invalid, cannot have sub-second units", maxAge.String())
 		}
 	}
 
@@ -514,18 +524,14 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // GetMFASettings returns the connector's MFA settings.
-func (o *OIDCConnectorV3) GetMFASettings() OIDCConnectorMFASettings {
-	if o.Spec.MFASettings == nil {
-		return OIDCConnectorMFASettings{
-			Enabled: false,
-		}
-	}
-	return *o.Spec.MFASettings
+func (o *OIDCConnectorV3) GetMFASettings() *OIDCConnectorMFASettings {
+	return o.Spec.MFASettings
 }
 
 // IsMFAEnabled returns whether the connector has MFA enabled.
 func (o *OIDCConnectorV3) IsMFAEnabled() bool {
-	return o.GetMFASettings().Enabled
+	mfa := o.GetMFASettings()
+	return mfa != nil && mfa.Enabled
 }
 
 // WithMFASettings returns the connector will some settings overwritten set from MFA settings.
@@ -538,6 +544,9 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
 	o.Spec.ACR = o.Spec.MFASettings.AcrValues
 	o.Spec.Prompt = o.Spec.MFASettings.Prompt
+	o.Spec.MaxAge = &MaxAge{
+		Value: o.Spec.MFASettings.MaxAge,
+	}
 	return nil
 }
 

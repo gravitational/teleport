@@ -4600,6 +4600,10 @@ message OIDCConnectorMFASettings {
   // Prompt is an optional OIDC prompt. An empty string omits prompt.
   // If not specified, it defaults to select_account for backwards compatibility.
   string prompt = 5;
+  // MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to
+  // 0 to always force re-authentication for MFA checks. This should only be set to a non-zero
+  // value if the IdP is setup to perform MFA checks on top of active user sessions.
+  int64 max_age = 6 [(gogoproto.casttype) = "Duration"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
