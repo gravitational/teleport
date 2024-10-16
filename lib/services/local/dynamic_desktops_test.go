@@ -50,7 +50,8 @@ func setupDynamicDesktopTest(t *testing.T) (context.Context, *DynamicWindowsDesk
 		Clock:   clock,
 	})
 	require.NoError(t, err)
-	service := NewDynamicWindowsDesktopService(backend.NewSanitizer(mem))
+	service, err := NewDynamicWindowsDesktopService(backend.NewSanitizer(mem))
+	require.NoError(t, err)
 	return ctx, service
 }
 
