@@ -121,9 +121,9 @@ function error({ hasError, theme }: { hasError?: boolean; theme: Theme }) {
   }
 
   return {
-    borderColor: theme.colors.interactive.solid.danger.default.background,
+    borderColor: theme.colors.interactive.solid.danger.default,
     '&:hover': {
-      borderColor: theme.colors.interactive.solid.danger.default.background,
+      borderColor: theme.colors.interactive.solid.danger.default,
     },
   };
 }
@@ -258,8 +258,7 @@ const IconWrapper = styled.div`
 const StyledInput = styled.input<{ hasIcon: boolean; inputSize: InputSize }>`
   appearance: none;
   border: ${borderSize}px solid;
-  border-color: ${props =>
-    props.theme.colors.interactive.tonal.neutral[2].background};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -278,7 +277,7 @@ const StyledInput = styled.input<{ hasIcon: boolean; inputSize: InputSize }>`
 
   &:focus-visible {
     border-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+      props.theme.colors.interactive.solid.primary.default};
   }
 
   &::-ms-clear {
@@ -301,7 +300,7 @@ const StyledInput = styled.input<{ hasIcon: boolean; inputSize: InputSize }>`
 
   &:disabled {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     color: ${props => props.theme.colors.text.disabled};
     border-color: transparent;
   }
@@ -316,8 +315,7 @@ const StyledInput = styled.input<{ hasIcon: boolean; inputSize: InputSize }>`
 const ErrorIcon = styled(Icon.WarningCircle)`
   position: absolute;
   right: ${errorIconHorizontalPadding + borderSize}px;
-  color: ${props =>
-    props.theme.colors.interactive.solid.danger.default.background};
+  color: ${props => props.theme.colors.interactive.solid.danger.default};
   top: 0;
   bottom: 0;
 `;

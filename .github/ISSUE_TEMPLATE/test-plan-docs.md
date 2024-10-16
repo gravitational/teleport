@@ -9,6 +9,13 @@ Perform the following checks on the Teleport documentation whenever we roll out
 a new major version of Teleport on Teleport Cloud. Use `/docs/upcoming-releases`
 to determine the rollout date.
 
+## Is the internal documentation coverage record up to date?
+
+- [ ] Identify features within the new release that we want to include as topics
+  in our measurement of documentation coverage. Update our internal
+  documentation coverage record to include the new topics. See our internal
+  knowledge base for the location of the coverage record.
+
 ## Is the docs site configuration accurate?
 
 > [!IMPORTANT] 

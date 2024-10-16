@@ -43,8 +43,7 @@ const OverlappingChip = styled.span`
   display: inline-block;
   background: ${props => props.theme.colors.levels.surface};
   border: ${props => props.theme.borders[1]};
-  border-color: ${props =>
-    props.theme.colors.interactive.tonal.neutral[2].background};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
   border-radius: 50%;
   margin-right: -6px;
 `;

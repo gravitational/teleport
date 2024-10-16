@@ -63,7 +63,7 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 	}
 
 	var req client.HeadlessRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

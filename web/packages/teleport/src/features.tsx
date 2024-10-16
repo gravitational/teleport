@@ -42,9 +42,10 @@ import {
 import cfg from 'teleport/config';
 
 import {
-  ManagementSection,
   NavigationCategory,
+  ManagementSection,
 } from 'teleport/Navigation/categories';
+import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 
 import { NavTitle } from './types';
@@ -74,6 +75,7 @@ import type { FeatureFlags, TeleportFeature } from './types';
 
 class AccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
+  sideNavCategory = SideNavigationCategory.Resources;
 
   route = {
     title: 'Access Requests',
@@ -101,6 +103,7 @@ class AccessRequests implements TeleportFeature {
 export class FeatureJoinTokens implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
+  sideNavCategory = SideNavigationCategory.Access;
   navigationItem = {
     title: NavTitle.JoinTokens,
     icon: Key,
@@ -123,6 +126,11 @@ export class FeatureJoinTokens implements TeleportFeature {
 }
 
 export class FeatureUnifiedResources implements TeleportFeature {
+  category = NavigationCategory.Resources;
+  sideNavCategory = SideNavigationCategory.Resources;
+  // TODO(rudream): Remove this once shortcuts to pinned/nodes/apps/dbs/desktops/kubes are implemented.
+  standalone = true;
+
   route = {
     title: 'Resources',
     path: cfg.routes.unifiedResources,
@@ -139,8 +147,6 @@ export class FeatureUnifiedResources implements TeleportFeature {
     },
   };
 
-  category = NavigationCategory.Resources;
-
   hasAccess() {
     return !cfg.isDashboard;
   }
@@ -152,6 +158,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
 
 export class FeatureSessions implements TeleportFeature {
   category = NavigationCategory.Resources;
+  sideNavCategory = SideNavigationCategory.Audit;
 
   route = {
     title: 'Active Sessions',
@@ -184,6 +191,7 @@ export class FeatureSessions implements TeleportFeature {
 export class FeatureUsers implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
+  sideNavCategory = SideNavigationCategory.Access;
 
   route = {
     title: 'Manage Users',
@@ -213,6 +221,7 @@ export class FeatureUsers implements TeleportFeature {
 export class FeatureBots implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
+  sideNavCategory = SideNavigationCategory.Access;
 
   route = {
     title: 'Manage Bots',
@@ -242,6 +251,7 @@ export class FeatureBots implements TeleportFeature {
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
+  sideNavCategory = SideNavigationCategory.Access;
   hideFromNavigation = true;
 
   route = {
@@ -263,6 +273,7 @@ export class FeatureAddBots implements TeleportFeature {
 export class FeatureRoles implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Permissions;
+  sideNavCategory = SideNavigationCategory.Access;
 
   route = {
     title: 'Manage User Roles',
@@ -288,6 +299,7 @@ export class FeatureRoles implements TeleportFeature {
 export class FeatureAuthConnectors implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
+  sideNavCategory = SideNavigationCategory.Access;
 
   route = {
     title: 'Manage Auth Connectors',
@@ -313,9 +325,10 @@ export class FeatureAuthConnectors implements TeleportFeature {
 export class FeatureLocks implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Identity;
+  sideNavCategory = SideNavigationCategory.Identity;
 
   route = {
-    title: 'Manage Session & Identity Locks',
+    title: 'Session & Identity Locks',
     path: cfg.routes.locks,
     exact: true,
     component: Locks,
@@ -355,6 +368,11 @@ export class FeatureNewLock implements TeleportFeature {
 }
 
 export class FeatureDiscover implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+  sideNavCategory = SideNavigationCategory.AddNew;
+  standalone = true;
+
   route = {
     title: 'Enroll New Resource',
     path: cfg.routes.discover,
@@ -371,9 +389,6 @@ export class FeatureDiscover implements TeleportFeature {
     },
   };
 
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-
   hasAccess(flags: FeatureFlags) {
     return flags.discover;
   }
@@ -384,6 +399,7 @@ export class FeatureDiscover implements TeleportFeature {
 }
 
 export class FeatureIntegrations implements TeleportFeature {
+  sideNavCategory = SideNavigationCategory.Access;
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
 
@@ -415,6 +431,8 @@ export class FeatureIntegrations implements TeleportFeature {
 export class FeatureIntegrationEnroll implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
+  sideNavCategory = SideNavigationCategory.Access;
+  parent = FeatureIntegrations;
 
   route = {
     title: 'Enroll New Integration',
@@ -447,6 +465,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 export class FeatureRecordings implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Activity;
+  sideNavCategory = SideNavigationCategory.Audit;
 
   route = {
     title: 'Session Recordings',
@@ -472,6 +491,7 @@ export class FeatureRecordings implements TeleportFeature {
 export class FeatureAudit implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Activity;
+  sideNavCategory = SideNavigationCategory.Audit;
 
   route = {
     title: 'Audit Log',
@@ -497,6 +517,7 @@ export class FeatureAudit implements TeleportFeature {
 export class FeatureClusters implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Clusters;
+  sideNavCategory = SideNavigationCategory.Access;
 
   route = {
     title: 'Clusters',
@@ -522,6 +543,7 @@ export class FeatureClusters implements TeleportFeature {
 export class FeatureTrust implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Clusters;
+  sideNavCategory = SideNavigationCategory.Access;
 
   route = {
     title: 'Trusted Root Clusters',
@@ -545,8 +567,9 @@ export class FeatureTrust implements TeleportFeature {
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Identity;
+  sideNavCategory = SideNavigationCategory.Identity;
   route = {
-    title: 'Manage Trusted Devices',
+    title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
     exact: true,
     component: DeviceTrustLocked,
@@ -615,37 +638,35 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
+    // TODO(rudream): Implement shortcuts to pinned/nodes/apps/dbs/desktops/kubes.
     new FeatureUnifiedResources(),
-    new AccessRequests(),
-    new FeatureSessions(),
 
     // Management
 
     // - Access
     new FeatureUsers(),
+    new FeatureRoles(),
     new FeatureBots(),
     new FeatureAddBots(),
+    new FeatureJoinTokens(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
-    new FeatureJoinTokens(),
-    new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
-
-    // - Permissions
-    new FeatureRoles(),
+    new FeatureClusters(),
+    new FeatureTrust(),
 
     // - Identity
+    new AccessRequests(),
     new FeatureLocks(),
     new FeatureNewLock(),
     new FeatureDeviceTrust(),
 
-    // - Activity
-    new FeatureRecordings(),
+    // - Audit
     new FeatureAudit(),
+    new FeatureRecordings(),
+    new FeatureSessions(),
 
-    // - Clusters
-    new FeatureClusters(),
-    new FeatureTrust(),
+    new FeatureDiscover(),
 
     // Other
     new FeatureAccount(),

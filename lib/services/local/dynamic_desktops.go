@@ -20,134 +20,81 @@ package local
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // DynamicWindowsDesktopService manages dynamic Windows desktop resources in the backend.
 type DynamicWindowsDesktopService struct {
-	backend.Backend
+	service *generic.Service[types.DynamicWindowsDesktop]
 }
 
 // NewDynamicWindowsDesktopService creates a new WindowsDesktopsService.
-func NewDynamicWindowsDesktopService(backend backend.Backend) *DynamicWindowsDesktopService {
-	return &DynamicWindowsDesktopService{Backend: backend}
+func NewDynamicWindowsDesktopService(b backend.Backend) (*DynamicWindowsDesktopService, error) {
+	service, err := generic.NewService(&generic.ServiceConfig[types.DynamicWindowsDesktop]{
+		Backend:       b,
+		ResourceKind:  types.KindDynamicWindowsDesktop,
+		PageLimit:     defaults.MaxIterationLimit,
+		BackendPrefix: backend.NewKey(dynamicWindowsDesktopsPrefix),
+		MarshalFunc:   services.MarshalDynamicWindowsDesktop,
+		UnmarshalFunc: services.UnmarshalDynamicWindowsDesktop,
+		ValidateFunc: func(desktop types.DynamicWindowsDesktop) error {
+			return services.CheckAndSetDefaults(desktop)
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &DynamicWindowsDesktopService{
+		service: service,
+	}, nil
 }
 
 // GetDynamicWindowsDesktop returns dynamic Windows desktops by name.
 func (s *DynamicWindowsDesktopService) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	item, err := s.Get(ctx, backend.NewKey(dynamicWindowsDesktopsPrefix, name))
+	desktop, err := s.service.GetResource(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	desktop, err := services.UnmarshalDynamicWindowsDesktop(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return desktop, nil
+	return desktop, err
 }
 
 // CreateDynamicWindowsDesktop creates a dynamic Windows desktop resource.
 func (s *DynamicWindowsDesktopService) CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
-	if err := services.CheckAndSetDefaults(desktop); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	value, err := services.MarshalDynamicWindowsDesktop(desktop)
+	d, err := s.service.CreateResource(ctx, desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:     backend.NewKey(dynamicWindowsDesktopsPrefix, desktop.GetName()),
-		Value:   value,
-		Expires: desktop.Expiry(),
-	}
-	lease, err := s.Create(ctx, item)
-	if trace.IsAlreadyExists(err) {
-		return nil, trace.AlreadyExists("dynamic windows desktop %q already exist", desktop.GetName())
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newDesktop := desktop.Copy()
-	newDesktop.SetRevision(lease.Revision)
-
-	return newDesktop, nil
+	return d, err
 }
 
 // UpdateDynamicWindowsDesktop updates a dynamic Windows desktop resource.
 func (s *DynamicWindowsDesktopService) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
-	if err := services.CheckAndSetDefaults(desktop); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rev := desktop.GetRevision()
-	value, err := services.MarshalDynamicWindowsDesktop(desktop)
+	d, err := s.service.UpdateResource(ctx, desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:      backend.NewKey(dynamicWindowsDesktopsPrefix, desktop.GetName()),
-		Value:    value,
-		Expires:  desktop.Expiry(),
-		Revision: rev,
-	}
-	lease, err := s.Update(ctx, item)
-	if trace.IsNotFound(err) {
-		return nil, trace.NotFound("windows desktop %q doesn't exist", desktop.GetName())
-	}
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newDesktop := desktop.Copy()
-	newDesktop.SetRevision(lease.Revision)
-
-	return newDesktop, nil
+	return d, err
 }
 
 // UpsertDynamicWindowsDesktop updates a dynamic Windows desktop resource, creating it if it doesn't exist.
 func (s *DynamicWindowsDesktopService) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
-	if err := services.CheckAndSetDefaults(desktop); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rev := desktop.GetRevision()
-	value, err := services.MarshalDynamicWindowsDesktop(desktop)
+	d, err := s.service.UpsertResource(ctx, desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:      backend.NewKey(dynamicWindowsDesktopsPrefix, desktop.GetName()),
-		Value:    value,
-		Expires:  desktop.Expiry(),
-		Revision: rev,
-	}
-	lease, err := s.Put(ctx, item)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newDesktop := desktop.Copy()
-	newDesktop.SetRevision(lease.Revision)
-
-	return newDesktop, nil
+	return d, err
 }
 
 // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop resource.
 func (s *DynamicWindowsDesktopService) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
-	if name == "" {
-		return trace.Errorf("name must not be empty")
-	}
-
-	key := backend.NewKey(dynamicWindowsDesktopsPrefix, name)
-
-	err := s.Delete(ctx, key)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("windows desktop \"%s\" doesn't exist", name)
-		}
+	if err := s.service.DeleteResource(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -155,9 +102,7 @@ func (s *DynamicWindowsDesktopService) DeleteDynamicWindowsDesktop(ctx context.C
 
 // DeleteAllDynamicWindowsDesktops removes all dynamic Windows desktop resources.
 func (s *DynamicWindowsDesktopService) DeleteAllDynamicWindowsDesktops(ctx context.Context) error {
-	startKey := backend.ExactKey(dynamicWindowsDesktopsPrefix)
-	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
+	if err := s.service.DeleteAllResources(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -165,44 +110,11 @@ func (s *DynamicWindowsDesktopService) DeleteAllDynamicWindowsDesktops(ctx conte
 
 // ListDynamicWindowsDesktops returns all dynamic Windows desktops matching filter.
 func (s *DynamicWindowsDesktopService) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
-	reqLimit := pageSize
-	if reqLimit <= 0 {
-		return nil, "", trace.BadParameter("nonpositive parameter limit")
-	}
-
-	rangeStart := backend.NewKey(dynamicWindowsDesktopsPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(dynamicWindowsDesktopsPrefix))
-
-	// Get most limit+1 results to determine if there will be a next key.
-	maxLimit := reqLimit + 1
-	var desktops []types.DynamicWindowsDesktop
-	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(desktops) == maxLimit {
-				break
-			}
-
-			desktop, err := services.UnmarshalDynamicWindowsDesktop(item.Value,
-				services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-			desktops = append(desktops, desktop)
-		}
-
-		return len(desktops) == maxLimit, nil
-	}); err != nil {
+	desktops, next, err := s.service.ListResources(ctx, pageSize, pageToken)
+	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
-	var nextKey string
-	if len(desktops) > reqLimit {
-		nextKey = backend.GetPaginationKey(desktops[len(desktops)-1])
-		// Truncate the last item that was used to determine next row existence.
-		desktops = desktops[:reqLimit]
-	}
-
-	return desktops, nextKey, nil
+	return desktops, next, nil
 }
 
 const (

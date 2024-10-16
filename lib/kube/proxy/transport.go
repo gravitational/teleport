@@ -59,56 +59,46 @@ type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 // The transport is cached in the forwarder so that it can be reused for future
 // requests. If the transport is not cached, a new one is created and cached.
 func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, *tls.Config, error) {
-	// transportCacheTTL is the TTL for the transport cache.
-	const transportCacheTTL = 5 * time.Hour
 	// If the cluster is remote, the key is the teleport cluster name.
 	// If the cluster is local, the key is the teleport cluster name and the kubernetes
 	// cluster name: <teleport-cluster-name>/<kubernetes-cluster-name>.
 	key := transportCacheKey(sess)
 
-	// Check if the transport is cached.
-	f.cachedTransportMu.Lock()
-	cachedI, ok := f.cachedTransport.Get(key)
-	f.cachedTransportMu.Unlock()
-	if ok {
-		if cached, ok := cachedI.(cachedTransportEntry); ok {
-			return cached.transport, cached.tlsConfig.Clone(), nil
+	t, err := utils.FnCacheGet(f.ctx, f.cachedTransport, key, func(ctx context.Context) (*cachedTransportEntry, error) {
+		var (
+			httpTransport http.RoundTripper
+			tlsConfig     *tls.Config
+			err           error
+		)
+		if sess.teleportCluster.isRemote {
+			// If the cluster is remote, create a new transport for the remote cluster.
+			httpTransport, tlsConfig, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
+		} else if sess.kubeAPICreds != nil {
+			// If agent is running in agent mode, get the transport from the configured cluster
+			// credentials.
+			httpTransport, tlsConfig = sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig()
+		} else if f.cfg.ReverseTunnelSrv != nil {
+			// If agent is running in proxy mode, create a new transport for the local cluster.
+			httpTransport, tlsConfig, err = f.newLocalClusterTransport(sess.kubeClusterName)
+		} else {
+			return nil, trace.BadParameter("no reverse tunnel server or credentials provided")
 		}
-	}
 
-	var (
-		httpTransport http.RoundTripper
-		err           error
-		tlsConfig     *tls.Config
-	)
-	if sess.teleportCluster.isRemote {
-		// If the cluster is remote, create a new transport for the remote cluster.
-		httpTransport, tlsConfig, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
-	} else if sess.kubeAPICreds != nil {
-		// If agent is running in agent mode, get the transport from the configured cluster
-		// credentials.
-		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
-	} else if f.cfg.ReverseTunnelSrv != nil {
-		// If agent is running in proxy mode, create a new transport for the local cluster.
-		httpTransport, tlsConfig, err = f.newLocalClusterTransport(sess.kubeClusterName)
-	} else {
-		return nil, nil, trace.BadParameter("no reverse tunnel server or credentials provided")
-	}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &cachedTransportEntry{
+			transport: httpTransport,
+			tlsConfig: tlsConfig,
+		}, nil
+	})
+
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Cache the transport.
-	f.cachedTransportMu.Lock()
-	f.cachedTransport.Set(key,
-		cachedTransportEntry{
-			transport: httpTransport,
-			tlsConfig: tlsConfig,
-		},
-		transportCacheTTL)
-	f.cachedTransportMu.Unlock()
-
-	return httpTransport, tlsConfig.Clone(), nil
+	return t.transport, t.tlsConfig.Clone(), nil
 }
 
 // transportCacheKey returns a key used to cache transports.

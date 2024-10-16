@@ -20,15 +20,17 @@ package local
 
 import (
 	"context"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
-	"testing"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 func newDynamicDesktop(t *testing.T, name string) types.DynamicWindowsDesktop {
@@ -48,7 +50,8 @@ func setupDynamicDesktopTest(t *testing.T) (context.Context, *DynamicWindowsDesk
 		Clock:   clock,
 	})
 	require.NoError(t, err)
-	service := NewDynamicWindowsDesktopService(backend.NewSanitizer(mem))
+	service, err := NewDynamicWindowsDesktopService(backend.NewSanitizer(mem))
+	require.NoError(t, err)
 	return ctx, service
 }
 
@@ -221,5 +224,5 @@ func TestDynamicWindowsService_DeleteAllDynamicDesktop(t *testing.T) {
 	require.NoError(t, err)
 	desktops, _, err = service.ListDynamicWindowsDesktops(ctx, 5, "")
 	require.NoError(t, err)
-	require.Len(t, desktops, 0)
+	require.Empty(t, desktops)
 }

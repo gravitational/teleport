@@ -39,8 +39,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -1218,6 +1220,10 @@ func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 
+	if _, ok := d.Device.(*types.MFADevice_Sso); ok {
+		return trace.BadParameter("cannot create SSO MFA device")
+	}
+
 	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1282,6 +1288,10 @@ func (s *IdentityService) upsertUserStatusMFADevice(ctx context.Context, user st
 		user,
 		false, /*withSecrets*/
 		func(u types.User) (bool, error) {
+			// If the user already has the weakest device, don't update.
+			if u.GetWeakestDevice() == mfaState {
+				return false, nil
+			}
 			u.SetWeakestDevice(mfaState)
 			return true, nil
 		})
@@ -1350,6 +1360,12 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 	}
 
 	err := s.Delete(ctx, backend.NewKey(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
+	if trace.IsNotFound(err) {
+		if _, err := s.getSSOMFADevice(ctx, user); err == nil {
+			return trace.BadParameter("cannot delete ephemeral SSO MFA device")
+		}
+		return trace.Wrap(err)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1364,6 +1380,41 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		return nil, trace.BadParameter("missing parameter user")
 	}
 
+	// get normal MFA devices and SSO mfa device concurrently, returning the first error we get.
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	var devices []*types.MFADevice
+	eg.Go(func() error {
+		var err error
+		devices, err = s.getMFADevices(egCtx, user, withSecrets)
+		return trace.Wrap(err)
+	})
+
+	var ssoDev *types.MFADevice
+	eg.Go(func() error {
+		var err error
+		ssoDev, err = s.getSSOMFADevice(egCtx, user)
+		if trace.IsNotFound(err) {
+			return nil // OK, SSO device may not exist.
+		}
+		return trace.Wrap(err)
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ssoDev != nil {
+		devices = append(devices, ssoDev)
+	}
+
+	return devices, nil
+}
+
+// getMFADevices reads devices from storage. Devices from other sources, such as
+// the ephemeral SSO devices, are not returned by it.
+// See getSSOMFADevice and GetMFADevices (which returns all devices).
+func (s *IdentityService) getMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user, mfaDevicePrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -1385,6 +1436,61 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		devices = append(devices, &d)
 	}
 	return devices, nil
+}
+
+// getSSOMFADevice returns the user's SSO MFA device. This device is ephemeral, meaning it
+// does not actually appear in the backend under the user's mfa key. Instead it is fetched
+// by checking related user and cluster configuration settings.
+func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*types.MFADevice, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	u, err := s.GetUser(ctx, user, false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cb := u.GetCreatedBy()
+	if cb.Connector == nil {
+		return nil, trace.NotFound("no SSO MFA device found; user was not created by an auth connector")
+	}
+
+	var mfaConnector interface {
+		IsMFAEnabled() bool
+		GetDisplay() string
+	}
+
+	const ssoMFADisabledErr = "no SSO MFA device found; user's auth connector does not have MFA enabled"
+	switch cb.Connector.Type {
+	case constants.SAML:
+		mfaConnector, err = s.GetSAMLConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+	case constants.OIDC:
+		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+	case constants.Github:
+		// Github connectors do not support SSO MFA.
+		return nil, trace.NotFound(ssoMFADisabledErr)
+	default:
+		return nil, trace.NotFound("user created by unknown auth connector type %v", cb.Connector.Type)
+	}
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("user created by unknown %v auth connector %v", cb.Connector.Type, cb.Connector.ID)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !mfaConnector.IsMFAEnabled() {
+		return nil, trace.NotFound(ssoMFADisabledErr)
+	}
+
+	return types.NewMFADevice(mfaConnector.GetDisplay(), cb.Connector.ID, cb.Time.UTC(), &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   cb.Connector.ID,
+			ConnectorType: cb.Connector.Type,
+		},
+	})
 }
 
 // UpsertOIDCConnector upserts OIDC Connector

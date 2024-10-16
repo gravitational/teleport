@@ -23,6 +23,7 @@ import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { CheckboxInput } from 'design/Checkbox';
 import { FetchStatus } from 'design/DataTable/types';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -31,9 +32,14 @@ import { SecurityGroupRule } from 'teleport/services/integrations';
 
 import { SecurityGroupRulesDialog } from './SecurityGroupRulesDialog';
 
+export type SecurityGroupWithRecommendation = SecurityGroup & {
+  recommended?: boolean;
+  tips?: string[];
+};
+
 type Props = {
   attempt: Attempt;
-  items: SecurityGroup[];
+  items: SecurityGroupWithRecommendation[];
   fetchStatus: FetchStatus;
   fetchNextPage(): void;
   onSelectSecurityGroup: (
@@ -67,6 +73,8 @@ export const SecurityGroupPicker = ({
   if (attempt.status === 'failed') {
     return <Danger>{attempt.statusText}</Danger>;
   }
+
+  const hasRecommendSGs = items.some(item => item.recommended);
 
   return (
     <>
@@ -146,6 +154,30 @@ export const SecurityGroupPicker = ({
               );
             },
           },
+          ...(hasRecommendSGs
+            ? [
+                {
+                  altKey: 'tooltip',
+                  headerText: '',
+                  render: (sg: SecurityGroupWithRecommendation) => {
+                    if (sg.recommended) {
+                      return (
+                        <Cell>
+                          <ToolTipInfo>
+                            <ul>
+                              {sg.tips.map((tip, index) => (
+                                <li key={index}>{tip}</li>
+                              ))}
+                            </ul>
+                          </ToolTipInfo>
+                        </Cell>
+                      );
+                    }
+                    return null;
+                  },
+                },
+              ]
+            : []),
         ]}
         emptyText="No Security Groups Found"
         pagination={{ pageSize: 5 }}

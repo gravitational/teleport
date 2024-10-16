@@ -20,9 +20,11 @@ package dynamicwindows
 
 import (
 	"context"
+
+	"github.com/gravitational/trace"
+
 	dynamicwindows "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
 // Client is a DynamicWindowsDesktop client.
@@ -38,9 +40,6 @@ func NewClient(grpcClient dynamicwindows.DynamicWindowsServiceClient) *Client {
 }
 
 func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing name")
-	}
 	desktop, err := c.grpcClient.GetDynamicWindowsDesktop(ctx, &dynamicwindows.GetDynamicWindowsDesktopRequest{
 		Name: name,
 	})
@@ -87,9 +86,6 @@ func (c *Client) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.
 }
 
 func (c *Client) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
-	if name == "" {
-		return trace.BadParameter("missing name")
-	}
 	_, err := c.grpcClient.DeleteDynamicWindowsDesktop(ctx, &dynamicwindows.DeleteDynamicWindowsDesktopRequest{
 		Name: name,
 	})

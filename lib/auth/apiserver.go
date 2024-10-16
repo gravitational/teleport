@@ -109,10 +109,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	// Operations on users
-	// TODO(tross): DELETE IN 17.0.0
-	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
-
 	// Passwords and sessions
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
@@ -483,30 +479,6 @@ func (s *APIServer) authenticateSSHUser(auth *ServerWithRoles, w http.ResponseWr
 	}
 	req.Username = p.ByName("user")
 	return auth.AuthenticateSSHUser(r.Context(), req)
-}
-
-type upsertUserRawReq struct {
-	User json.RawMessage `json:"user"`
-}
-
-func (s *APIServer) upsertUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertUserRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	user, err := services.UnmarshalUser(req.User)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, err = auth.UpsertUser(r.Context(), user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("'%v' user upserted", user.GetName())), nil
 }
 
 func rawMessage(data []byte, err error) (interface{}, error) {

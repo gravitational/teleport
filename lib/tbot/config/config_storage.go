@@ -61,3 +61,8 @@ func (sc *StorageConfig) UnmarshalYAML(node *yaml.Node) error {
 	sc.Destination = dest
 	return nil
 }
+
+// GetDefaultStoragePath returns the default internal storage path for tbot.
+func GetDefaultStoragePath() string {
+	return defaultStoragePath
+}
