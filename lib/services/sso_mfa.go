@@ -27,11 +27,11 @@ type SSOMFASessionData struct {
 	RequestID string `json:"request_id,omitempty"`
 	// Username is the Teleport username.
 	Username string `json:"username,omitempty"`
-	// Token is the token used to identify and utilize this SSO MFA session data.
+	// Token is an active token used to verify the owner of this SSO MFA session data.
 	Token string `json:"token,omitempty"`
 	// ConnectorID is id of the corresponding Auth connector.
 	ConnectorID string `json:"connector_id,omitempty"`
-	// ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC, or Github).
+	// ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC).
 	ConnectorType string `json:"connector_type,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this SSO MFA session.
 	ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`

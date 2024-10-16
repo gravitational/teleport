@@ -2113,8 +2113,8 @@ const (
 	webauthnGlobalSessionData = "sessionData"
 	webauthnLocalAuthPrefix   = "webauthnlocalauth"
 	webauthnSessionData       = "webauthnsessiondata"
+	ssoMFASessionData         = "ssomfasessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	attestationsPrefix        = "key_attestations"
 	userPreferencesPrefix     = "user_preferences"
-	ssoMFASessionData         = "ssomfasessiondata"
 )
