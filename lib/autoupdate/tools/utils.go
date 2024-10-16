@@ -125,23 +125,23 @@ type packageURL struct {
 
 // teleportPackageURLs returns the URL for the Teleport archive to download. The format is:
 // https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
-func teleportPackageURLs(baseUrl, toolsVersion string) ([]packageURL, error) {
+func teleportPackageURLs(baseURL, toolsVersion string) ([]packageURL, error) {
 	switch runtime.GOOS {
 	case "darwin":
-		tsh := baseUrl + "/tsh-" + toolsVersion + ".pkg"
-		teleport := baseUrl + "/teleport-" + toolsVersion + ".pkg"
+		tsh := baseURL + "/tsh-" + toolsVersion + ".pkg"
+		teleport := baseURL + "/teleport-" + toolsVersion + ".pkg"
 		return []packageURL{
 			{Archive: teleport, Hash: teleport + ".sha256"},
 			{Archive: tsh, Hash: tsh + ".sha256", Optional: true},
 		}, nil
 	case "windows":
-		archive := baseUrl + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
+		archive := baseURL + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
 		return []packageURL{
 			{Archive: archive, Hash: archive + ".sha256"},
 		}, nil
 	case "linux":
 		var b strings.Builder
-		b.WriteString(baseUrl + "/teleport-")
+		b.WriteString(baseURL + "/teleport-")
 		if featureFlag&(FlagEnt|FlagFips) != 0 {
 			b.WriteString("ent-")
 		}

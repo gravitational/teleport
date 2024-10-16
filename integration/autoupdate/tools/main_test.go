@@ -182,7 +182,7 @@ func buildBinary(output string, toolsDir string, version string, baseURL string)
 		"-ldflags", strings.Join([]string{
 			fmt.Sprintf("-X 'main.toolsDir=%s'", toolsDir),
 			fmt.Sprintf("-X 'main.version=%s'", version),
-			fmt.Sprintf("-X 'main.baseUrl=http://%s'", baseURL),
+			fmt.Sprintf("-X 'main.baseURL=http://%s'", baseURL),
 		}, " "),
 		"./updater",
 	)

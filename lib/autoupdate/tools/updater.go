@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -69,9 +68,9 @@ var (
 type Option func(u *Updater)
 
 // WithBaseURL defines custom base url for the updater.
-func WithBaseURL(baseUrl string) Option {
+func WithBaseURL(baseURL string) Option {
 	return func(u *Updater) {
-		u.baseUrl = baseUrl
+		u.baseURL = baseURL
 	}
 }
 
@@ -88,7 +87,7 @@ type Updater struct {
 	localVersion string
 	tools        []string
 
-	baseUrl string
+	baseURL string
 	client  *http.Client
 }
 
@@ -98,7 +97,7 @@ func NewUpdater(tools []string, toolsDir string, localVersion string, options ..
 		tools:        tools,
 		toolsDir:     toolsDir,
 		localVersion: localVersion,
-		baseUrl:      baseURL,
+		baseURL:      baseURL,
 		client:       http.DefaultClient,
 	}
 	for _, option := range options {
@@ -223,16 +222,13 @@ func (u *Updater) UpdateWithLock(ctx context.Context, toolsVersion string) (err 
 // with defined updater directory suffix.
 func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 	// Get platform specific download URLs.
-	packages, err := teleportPackageURLs(u.baseUrl, toolsVersion)
+	packages, err := teleportPackageURLs(u.baseURL, toolsVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	signalCtx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
-
 	for _, pkg := range packages {
-		if err := u.update(signalCtx, pkg); err != nil {
+		if err := u.update(ctx, pkg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -333,7 +329,7 @@ func (u *Updater) downloadHash(ctx context.Context, url string) (string, error) 
 	}
 
 	var buf bytes.Buffer
-	_, err = io.CopyN(&buf, resp.Body, sha256.Size*2)
+	_, err = io.CopyN(&buf, resp.Body, sha256.Size*2) // SHA bytes to hex
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
