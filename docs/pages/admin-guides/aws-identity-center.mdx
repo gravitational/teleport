@@ -17,9 +17,10 @@ Stability notice: For internal testing only.
 ## Prerequisites
 
 - Teleport version:
-  - Pull the branch `sshah/idc-dev` branch from `telepeort` and `telepeort.e` repository and
-  deploy to staging tenant. Cloud hosting is required as the integration depends on AWS OIDC
-  integration to authenticate itslef to AWS API.
+  - Cloud staging tenant `awsic-dev.cloud.gravitational.io` is patched with version `17.0.0-dev.awsic.5`
+  that features the identity center serivce. To test it in your own cluster, pull the branch `sshah/idc-dev` 
+  from `telepeort` and `telepeort.e` repository and deploy to staging tenant. Cloud hosting is required as 
+  the integration depends on AWS OIDC integration to authenticate itslef to AWS API.
 - Administrative access in Telepert with the following permissions.
   - `read`, `list`, `create`, `update`, `delete` access to `saml_idp_service_provider` resource.
   - `read`, `list`, `create`, `update`, `delete` access to `access_list` resource.
@@ -49,8 +50,18 @@ In the first step, you need to provide
 
 The Web UI will then let you generate integration script.
 
-In production, the command generated from the Web UI will configure all the required AWS OIDC integration for you.
+Note: Pasting this command directly in the AWS console fails for now as the generated script expects teleport binary to be 
+available in the `cdn.teleport.dev` (which is used in production) but the dev
+releases are only available in `cdn.cloud.gravitational.io`.
 
+As a work around, you can do the following:
+1. copy the script URL and download it in the aws cloud shell `curl 'https://copied_script_url' -o awsoidc.sh`
+2. replace the CDN URL `sed -i 's~https://cdn.teleport.dev~https://cdn.cloud.gravitational.io~g' awsoidc.sh ` (or manually replace  `cdn.teleport.dev` with `cdn.cloud.gravitational.io`
+3. `chmod +x awsoidc.sh`
+4. `./awsoidc.sh`
+
+
+<Notice type="info">
 To accommodate permissions required for the Identity Center integration, the
 `teleport integration configure awsoidc-idp` has been updated with `--policy-preset=aws-identity-center` flag that
 configures required permissions for Identity Center integration:
@@ -58,52 +69,8 @@ configures required permissions for Identity Center integration:
 $ teleport integration configure awsoidc-idp --cluster=example.cloud.gravitational.io --proxy-public-url=https://example.cloud.gravitational.io --name=teleport-aws-ic --role=teleport-aws-ic --policy-preset=aws-identity-center 
 ```
 
-However, since this version is not released yet, you will have to compile a linux build and upload to AWS cloud
-shell and run the command manually.
-
-Alternatively, you can run existing Teleport OIDC configuration command
-```bash
-$ teleport integration configure awsoidc-idp --cluster=example.cloud.gravitational.io --proxy-public-url=https://example.cloud.gravitational.io --name=teleport-aws-ic --role=teleport-aws-ic
-```
-and then update the role `teleport-aws-ic` with the following inline policy statement:
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "TeleportIdentityCenterClient",
-            "Effect": "Allow",
-            "Action": [
-                "organizations:ListAccounts",
-                "organizations:ListAccountsForParent",
-                "identitystore:ListUsers",
-                "identitystore:ListGroups",
-                "identitystore:ListGroupMemberships",
-                "sso:DescribeInstance",
-                "sso:DescribePermissionSet",
-                "sso:ListPermissionSets",
-                "sso:ListAccountAssignmentsForPrincipal",
-                "sso:CreateAccountAssignment",
-                "sso:DescribeAccountAssignmentCreationStatus",
-                "sso:DeleteAccountAssignment",
-                "sso:DescribeAccountAssignmentDeletionStatus",
-                "iam:AttachRolePolicy",
-                "iam:CreateRole",
-                "iam:GetRole",
-                "iam:ListAttachedRolePolicies",
-                "iam:ListRolePolicies",
-                "iam:GetSAMLProvider",
-                "iam:ListRoles",
-                "iam:CreateSAMLProvider"
-            ],
-            "Resource": [
-                "*"
-            ]
-        }
-    ]
-}
-```
+The command is available in the dev release `v17.0.0-dev.awsic.5`: https://cdn.cloud.gravitational.io/teleport-ent-v17.0.0-dev.awsic.5-linux-amd64-bin.tar.gz
+</Notice>
 
 Once a new AWS IAM role is created and updated with permissions, you will need to copy the ARN 
 of that role paste it to the Web UI.
@@ -148,7 +115,11 @@ After you install the plugin, the identity center service will
 - Import Identity Center accounts. They will be available in Teleport Web UI as an AWS application.
 - Import permission assignment. They will be availble in Teleport as roles, which can be used to
   request or grant access to the AWS accounts.
-- Import groups as Access List (not supported yet)
+- Import groups as Access List. 
+  - Groups without permission assignments are likely to fail at this time
+since Access List creation requires one role/trait grant by default. We will filter such groups in the 
+next iteration. 
+  - Groups members available in the AWS are not currently reflected in Teleport Access List. 
 
 
 ## Step 2/2. Test Access Request and permission provisioning.
@@ -272,3 +243,18 @@ spec:
 
 Upon Access Request approval, Teleport provisions permission assignment in Identity Center.
 Usually, the assignment is provisioned immidiately but sometime may take up to a minute or more.
+
+
+## Step 2/2. Test Access List and permission provisioning.
+
+Adding members to an Access List associated with Identity Center should reflect that member
+in the AWS Identity Center group. 
+
+Adding a role that contains Identity Center permission to an Access List should update the permission 
+assignment for the associated group in the Identity Center.
+
+
+
+## Limitations
+
+Currently known limitations are logged in the tracker https://github.com/gravitational/teleport.e/issues/4839#issuecomment-2401205006 
