@@ -58,6 +58,10 @@ type Datadog struct {
 	// simpler to integrate with the existing framework. Consider using the official
 	// datadog api client package: https://github.com/DataDog/datadog-api-client-go.
 	client *resty.Client
+
+	// TODO: Remove clientUnstable once on-call API is merged into official API.
+	// See: https://docs.datadoghq.com/api/latest/
+	clientUnstable *resty.Client
 }
 
 // NewDatadogClient creates a new Datadog client for managing incidents.
@@ -83,9 +87,30 @@ func NewDatadogClient(conf DatadogConfig, webProxyAddr string, statusSink common
 		}).
 		OnAfterResponse(onAfterDatadogResponse(statusSink))
 
+	apiEndpointUnstable, err := url.JoinPath(conf.APIEndpoint, APIUnstable)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientUnstable := resty.NewWithClient(&http.Client{
+		Timeout: datadogHTTPTimeout,
+		Transport: &http.Transport{
+			MaxConnsPerHost:     datadogMaxConns,
+			MaxIdleConnsPerHost: datadogMaxConns,
+		}}).
+		SetBaseURL(apiEndpointUnstable).
+		SetHeader("Accept", "application/json").
+		SetHeader("Content-Type", "application/json").
+		SetHeader("DD-API-KEY", conf.APIKey).
+		SetHeader("DD-APPLICATION-KEY", conf.ApplicationKey).
+		OnBeforeRequest(func(_ *resty.Client, req *resty.Request) error {
+			req.SetError(&ErrorResult{})
+			return nil
+		}).OnAfterResponse(onAfterDatadogResponse(statusSink))
+
 	return &Datadog{
-		DatadogConfig: conf,
-		client:        client,
+		DatadogConfig:  conf,
+		client:         client,
+		clientUnstable: clientUnstable,
 	}, nil
 }
 
@@ -129,6 +154,8 @@ func (d *Datadog) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, permission := range result.Data {
+		// TODO: Verify on-call/teams permissions once required permissions have
+		// been published.
 		if permission.Attributes.Name == IncidentWritePermissions {
 			if permission.Attributes.Restricted {
 				return trace.AccessDenied("missing incident_write permissions")
@@ -249,4 +276,14 @@ func (d *Datadog) ResolveIncident(ctx context.Context, incidentID, state string)
 		SetPathParam("incident_id", incidentID).
 		Patch("incidents/{incident_id}")
 	return trace.Wrap(err)
+}
+
+// GetOncallTeams gets current on call teams.
+func (d *Datadog) GetOncallTeams(ctx context.Context) (OncallTeamsBody, error) {
+	var result OncallTeamsBody
+	_, err := d.clientUnstable.NewRequest().
+		SetContext(ctx).
+		SetResult(&result).
+		Get("on-call/teams")
+	return result, trace.Wrap(err)
 }

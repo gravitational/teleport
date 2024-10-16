@@ -24,6 +24,7 @@ import (
 	"regexp"
 
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -65,6 +66,8 @@ type WindowsDesktopConfig struct {
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
 	HostLabels HostLabelRules
 	Labels     map[string]string
+	// ResourceMatchers match dynamic Windows desktop resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // WindowsHost is configuration for single Windows desktop host

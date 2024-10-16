@@ -2056,9 +2056,11 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			logger.Debug("GitHub WebSession created with device web token")
 			// if a device web token is present, we must send the user to the device authorize page
 			// to upgrade the session.
-			// TODO (avatus) the web client currently doesn't handle any redirects after authorizing a web
-			// session with device trust. Once it does, append a redirect_url here as a query parameter
-			return fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+			redirectPath, err := BuildDeviceWebRedirectPath(dwt, res.ClientRedirectURL)
+			if err != nil {
+				logger.WithError(err).Debug("Invalid device web token.")
+			}
+			return redirectPath
 		}
 		return res.ClientRedirectURL
 	}
@@ -2085,6 +2087,28 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return redirectURL.String()
+}
+
+// BuildDeviceWebRedirectPath constructs the redirect path for device web authorization.
+// It takes a DeviceWebToken and an optional client redirect URL as input.
+// The function formats a redirect path with the device ID and token from the provided DeviceWebToken.
+// If the clientRedirectURL is provided, it's appended to the redirect path
+// as a query parameter named "redirect_uri".
+// Will always at least return "/web" path.
+func BuildDeviceWebRedirectPath(dwt *types.DeviceWebToken, clientRedirectURL string) (string, error) {
+	const basePath = "/web"
+
+	if dwt == nil {
+		return basePath, trace.BadParameter("DeviceWebToken cannot be nil")
+	}
+	if dwt.Id == "" || dwt.Token == "" {
+		return basePath, trace.BadParameter("DeviceWebToken ID and Token cannot be empty")
+	}
+	redirectPath := fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+	if clientRedirectURL != "" {
+		redirectPath = fmt.Sprintf("%s?redirect_uri=%s", redirectPath, clientRedirectURL)
+	}
+	return redirectPath, nil
 }
 
 func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

@@ -17,12 +17,13 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, useTheme } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
 import { NavLink } from 'react-router-dom';
 import { Text, Flex, Box } from 'design';
-import * as Icons from 'design/Icon';
 import { Theme } from 'design/theme/themes/types';
+
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import cfg from 'teleport/config';
 
@@ -471,6 +472,7 @@ function getSubsectionStyles(theme: Theme, active: boolean) {
 }
 
 function AGPLFooter() {
+  const theme = useTheme();
   return (
     <LicenseFooter
       title="AGPL Edition"
@@ -486,6 +488,7 @@ function AGPLFooter() {
             as="a"
             href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
+            color={theme.colors.interactive.solid.accent.default}
           >
             the Downloads page
           </Text>{' '}
@@ -497,6 +500,7 @@ function AGPLFooter() {
 }
 
 function CommunityFooter() {
+  const theme = useTheme();
   return (
     <LicenseFooter
       title="Community Edition"
@@ -507,6 +511,7 @@ function CommunityFooter() {
             as="a"
             href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
+            color={theme.colors.interactive.solid.accent.default}
           >
             Upgrade to Teleport Enterprise
           </Text>{' '}
@@ -526,15 +531,13 @@ function LicenseFooter({
   subText: string;
   infoContent: JSX.Element;
 }) {
-  const [opened, setOpened] = useState(false);
   return (
-    <StyledFooterBox py={3} px={4} onMouseLeave={() => setOpened(false)}>
+    <StyledFooterBox py={3} px={4}>
       <Flex alignItems="center" gap={2}>
         <Text>{title}</Text>
-        <FooterContent onMouseEnter={() => setOpened(true)}>
-          <Icons.Info size={16} />
-          {opened && <TooltipContent>{infoContent}</TooltipContent>}
-        </FooterContent>
+        <ToolTipInfo position="right" sticky>
+          {infoContent}
+        </ToolTipInfo>
       </Flex>
       <SubText>{subText}</SubText>
     </StyledFooterBox>
@@ -550,20 +553,4 @@ const StyledFooterBox = styled(Box)`
 const SubText = styled(Text)`
   color: ${props => props.theme.colors.text.disabled};
   font-size: ${props => props.theme.fontSizes[1]}px;
-`;
-
-const TooltipContent = styled(Box)`
-  width: max-content;
-  position: absolute;
-  bottom: 0;
-  left: 24px;
-  padding: 12px 16px 12px 16px;
-  box-shadow: ${p => p.theme.boxShadow[1]};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  color: ${props => props.theme.colors.text.primaryInverse};
-  z-index: ${zIndexMap.sideNavExpandedPanel + 1};
-`;
-
-const FooterContent = styled(Flex)`
-  position: relative;
 `;

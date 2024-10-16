@@ -24,11 +24,11 @@ import (
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
-func getOrGenerateYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
+func getOrGenerateYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot, _ HardwareKeyPrompt) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 
-func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*PrivateKey, error) {
+func parseYubiKeyPrivateKeyData(keyDataBytes []byte, _ HardwareKeyPrompt) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

@@ -5495,6 +5495,36 @@ message WindowsDesktopSpecV3 {
   Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
 }
 
+// DynamicWindowsDesktopV1 represents a dynamic windows host for desktop access.
+message DynamicWindowsDesktopV1 {
+  // Header is the common resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the DynamicWindows host spec.
+  DynamicWindowsDesktopSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DynamicWindowsDesktopSpecV1 is the dynamic windows host spec.
+message DynamicWindowsDesktopSpecV1 {
+  // Addr is the address that this host can be reached at.
+  string Addr = 1 [(gogoproto.jsontag) = "addr"];
+  // Domain is the ActiveDirectory domain that this host belongs to.
+  string Domain = 2 [(gogoproto.jsontag) = "domain"];
+  // NonAD marks this desktop as a standalone host that is
+  // not joined to an Active Directory domain.
+  bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
+  // ScreenSize specifies the size of the screen to use for sessions
+  // on this host. In most cases this should be unspecified, in which
+  // case Teleport will fill the browser window.
+  Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
+}
+
 message Resolution {
   uint32 Width = 1 [(gogoproto.jsontag) = "width,omitempty"];
   uint32 Height = 2 [(gogoproto.jsontag) = "height,omitempty"];

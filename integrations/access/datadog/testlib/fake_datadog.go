@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -46,6 +47,7 @@ type FakeDatadog struct {
 	objects               sync.Map
 	incidentIDCounter     uint64
 	incidentNoteIDCounter uint64
+	userIDCounter         uint64
 }
 
 func NewFakeDatadog(concurrency int) *FakeDatadog {
@@ -60,9 +62,14 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 
 	// Ignore api version for tests
 	const apiPrefix = "/" + datadog.APIVersion
+	const unstablePrefix = "/" + datadog.APIUnstable
 	router.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, apiPrefix) {
 			http.StripPrefix(apiPrefix, router).ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, unstablePrefix) {
+			http.StripPrefix(unstablePrefix, router).ServeHTTP(w, r)
 			return
 		}
 		http.NotFound(w, r)
@@ -136,6 +143,58 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 		panicIf(err)
 	})
 
+	router.GET("/on-call/teams", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.Header().Add("Content-Type", "application/json")
+
+		oncallTeams, found := mock.GetOncallTeams()
+		if !found {
+			rw.WriteHeader(http.StatusNotFound)
+			err := json.NewEncoder(rw).Encode(&datadog.ErrorResult{Errors: []string{"On-call Teams not found"}})
+			panicIf(err)
+			return
+		}
+
+		body := datadog.OncallTeamsBody{
+			Data:     []datadog.OncallTeamsData{},
+			Included: []datadog.OncallTeamsIncluded{},
+		}
+
+		for team, users := range oncallTeams {
+			oncallUsers := make([]datadog.OncallUsersData, 0, len(users))
+
+			for _, user := range users {
+				userID := strconv.FormatUint(atomic.AddUint64(&mock.userIDCounter, 1), 10)
+				oncallUsers = append(oncallUsers, datadog.OncallUsersData{
+					Metadata: datadog.Metadata{
+						ID: userID,
+					},
+				})
+				body.Included = append(body.Included, datadog.OncallTeamsIncluded{
+					Metadata: datadog.Metadata{
+						ID: userID,
+					},
+					Attributes: datadog.OncallTeamsIncludedAttributes{
+						Email: user,
+					},
+				})
+			}
+
+			body.Data = append(body.Data, datadog.OncallTeamsData{
+				Attributes: datadog.OncallTeamsAttributes{
+					Handle: team,
+				},
+				Relationships: datadog.OncallTeamsRelationships{
+					OncallUsers: datadog.OncallUsers{
+						Data: oncallUsers,
+					},
+				},
+			})
+		}
+
+		err := json.NewEncoder(rw).Encode(body)
+		panicIf(err)
+	})
+
 	return mock
 }
 
@@ -199,6 +258,25 @@ func (d *FakeDatadog) CheckNewIncidentNote(ctx context.Context) (datadog.Timelin
 	case <-ctx.Done():
 		return datadog.TimelineBody{}, trace.Wrap(ctx.Err())
 	}
+}
+
+func (d *FakeDatadog) StoreOncallTeams(teamName string, users []string) map[string][]string {
+	oncallTeams, ok := d.GetOncallTeams()
+	if !ok {
+		oncallTeams = make(map[string][]string)
+	}
+	oncallTeams[teamName] = users
+
+	d.objects.Store("on-call-teams", oncallTeams)
+	return oncallTeams
+}
+
+func (d *FakeDatadog) GetOncallTeams() (map[string][]string, bool) {
+	if obj, ok := d.objects.Load("on-call-teams"); ok {
+		oncallTeams, ok := obj.(map[string][]string)
+		return oncallTeams, ok
+	}
+	return nil, false
 }
 
 func panicIf(err error) {

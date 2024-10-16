@@ -34,21 +34,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AutoUpdateService_GetAutoUpdateConfig_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateConfig"
-	AutoUpdateService_CreateAutoUpdateConfig_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateConfig"
-	AutoUpdateService_UpdateAutoUpdateConfig_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateConfig"
-	AutoUpdateService_UpsertAutoUpdateConfig_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateConfig"
-	AutoUpdateService_DeleteAutoUpdateConfig_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateConfig"
-	AutoUpdateService_GetAutoUpdateVersion_FullMethodName      = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateVersion"
-	AutoUpdateService_CreateAutoUpdateVersion_FullMethodName   = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateVersion"
-	AutoUpdateService_UpdateAutoUpdateVersion_FullMethodName   = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateVersion"
-	AutoUpdateService_UpsertAutoUpdateVersion_FullMethodName   = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateVersion"
-	AutoUpdateService_DeleteAutoUpdateVersion_FullMethodName   = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateVersion"
-	AutoUpdateService_GetAutoUpdateAgentPlan_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateAgentPlan"
-	AutoUpdateService_CreateAutoUpdateAgentPlan_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateAgentPlan"
-	AutoUpdateService_UpdateAutoUpdateAgentPlan_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentPlan"
-	AutoUpdateService_UpsertAutoUpdateAgentPlan_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentPlan"
-	AutoUpdateService_DeleteAutoUpdateAgentPlan_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentPlan"
+	AutoUpdateService_GetAutoUpdateConfig_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateConfig"
+	AutoUpdateService_CreateAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateConfig"
+	AutoUpdateService_UpdateAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateConfig"
+	AutoUpdateService_UpsertAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateConfig"
+	AutoUpdateService_DeleteAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateConfig"
+	AutoUpdateService_GetAutoUpdateVersion_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateVersion"
+	AutoUpdateService_CreateAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateVersion"
+	AutoUpdateService_UpdateAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateVersion"
+	AutoUpdateService_UpsertAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateVersion"
+	AutoUpdateService_DeleteAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateVersion"
 )
 
 // AutoUpdateServiceClient is the client API for AutoUpdateService service.
@@ -77,16 +72,6 @@ type AutoUpdateServiceClient interface {
 	UpsertAutoUpdateVersion(ctx context.Context, in *UpsertAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error)
 	// DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
 	DeleteAutoUpdateVersion(ctx context.Context, in *DeleteAutoUpdateVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// GetAutoUpdateAgentPlan gets the current autoupdate version singleton.
-	GetAutoUpdateAgentPlan(ctx context.Context, in *GetAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error)
-	// CreateAutoUpdateAgentPlan creates a new AutoUpdateAgentPlan.
-	CreateAutoUpdateAgentPlan(ctx context.Context, in *CreateAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error)
-	// UpdateAutoUpdateAgentPlan updates AutoUpdateAgentPlan singleton.
-	UpdateAutoUpdateAgentPlan(ctx context.Context, in *UpdateAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error)
-	// UpsertAutoUpdateAgentPlan creates a new AutoUpdateAgentPlan or replaces an existing AutoUpdateAgentPlan.
-	UpsertAutoUpdateAgentPlan(ctx context.Context, in *UpsertAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error)
-	// DeleteAutoUpdateAgentPlan hard deletes the specified AutoUpdateAgentPlanRequest.
-	DeleteAutoUpdateAgentPlan(ctx context.Context, in *DeleteAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type autoUpdateServiceClient struct {
@@ -197,56 +182,6 @@ func (c *autoUpdateServiceClient) DeleteAutoUpdateVersion(ctx context.Context, i
 	return out, nil
 }
 
-func (c *autoUpdateServiceClient) GetAutoUpdateAgentPlan(ctx context.Context, in *GetAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoUpdateAgentPlan)
-	err := c.cc.Invoke(ctx, AutoUpdateService_GetAutoUpdateAgentPlan_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *autoUpdateServiceClient) CreateAutoUpdateAgentPlan(ctx context.Context, in *CreateAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoUpdateAgentPlan)
-	err := c.cc.Invoke(ctx, AutoUpdateService_CreateAutoUpdateAgentPlan_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *autoUpdateServiceClient) UpdateAutoUpdateAgentPlan(ctx context.Context, in *UpdateAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoUpdateAgentPlan)
-	err := c.cc.Invoke(ctx, AutoUpdateService_UpdateAutoUpdateAgentPlan_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *autoUpdateServiceClient) UpsertAutoUpdateAgentPlan(ctx context.Context, in *UpsertAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*AutoUpdateAgentPlan, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoUpdateAgentPlan)
-	err := c.cc.Invoke(ctx, AutoUpdateService_UpsertAutoUpdateAgentPlan_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *autoUpdateServiceClient) DeleteAutoUpdateAgentPlan(ctx context.Context, in *DeleteAutoUpdateAgentPlanRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AutoUpdateService_DeleteAutoUpdateAgentPlan_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AutoUpdateServiceServer is the server API for AutoUpdateService service.
 // All implementations must embed UnimplementedAutoUpdateServiceServer
 // for forward compatibility.
@@ -273,16 +208,6 @@ type AutoUpdateServiceServer interface {
 	UpsertAutoUpdateVersion(context.Context, *UpsertAutoUpdateVersionRequest) (*AutoUpdateVersion, error)
 	// DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
 	DeleteAutoUpdateVersion(context.Context, *DeleteAutoUpdateVersionRequest) (*emptypb.Empty, error)
-	// GetAutoUpdateAgentPlan gets the current autoupdate version singleton.
-	GetAutoUpdateAgentPlan(context.Context, *GetAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error)
-	// CreateAutoUpdateAgentPlan creates a new AutoUpdateAgentPlan.
-	CreateAutoUpdateAgentPlan(context.Context, *CreateAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error)
-	// UpdateAutoUpdateAgentPlan updates AutoUpdateAgentPlan singleton.
-	UpdateAutoUpdateAgentPlan(context.Context, *UpdateAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error)
-	// UpsertAutoUpdateAgentPlan creates a new AutoUpdateAgentPlan or replaces an existing AutoUpdateAgentPlan.
-	UpsertAutoUpdateAgentPlan(context.Context, *UpsertAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error)
-	// DeleteAutoUpdateAgentPlan hard deletes the specified AutoUpdateAgentPlanRequest.
-	DeleteAutoUpdateAgentPlan(context.Context, *DeleteAutoUpdateAgentPlanRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAutoUpdateServiceServer()
 }
 
@@ -322,21 +247,6 @@ func (UnimplementedAutoUpdateServiceServer) UpsertAutoUpdateVersion(context.Cont
 }
 func (UnimplementedAutoUpdateServiceServer) DeleteAutoUpdateVersion(context.Context, *DeleteAutoUpdateVersionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateVersion not implemented")
-}
-func (UnimplementedAutoUpdateServiceServer) GetAutoUpdateAgentPlan(context.Context, *GetAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAutoUpdateAgentPlan not implemented")
-}
-func (UnimplementedAutoUpdateServiceServer) CreateAutoUpdateAgentPlan(context.Context, *CreateAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateAutoUpdateAgentPlan not implemented")
-}
-func (UnimplementedAutoUpdateServiceServer) UpdateAutoUpdateAgentPlan(context.Context, *UpdateAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateAutoUpdateAgentPlan not implemented")
-}
-func (UnimplementedAutoUpdateServiceServer) UpsertAutoUpdateAgentPlan(context.Context, *UpsertAutoUpdateAgentPlanRequest) (*AutoUpdateAgentPlan, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertAutoUpdateAgentPlan not implemented")
-}
-func (UnimplementedAutoUpdateServiceServer) DeleteAutoUpdateAgentPlan(context.Context, *DeleteAutoUpdateAgentPlanRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateAgentPlan not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) mustEmbedUnimplementedAutoUpdateServiceServer() {}
 func (UnimplementedAutoUpdateServiceServer) testEmbeddedByValue()                           {}
@@ -539,96 +449,6 @@ func _AutoUpdateService_DeleteAutoUpdateVersion_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoUpdateService_GetAutoUpdateAgentPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAutoUpdateAgentPlanRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).GetAutoUpdateAgentPlan(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AutoUpdateService_GetAutoUpdateAgentPlan_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).GetAutoUpdateAgentPlan(ctx, req.(*GetAutoUpdateAgentPlanRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AutoUpdateService_CreateAutoUpdateAgentPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateAutoUpdateAgentPlanRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).CreateAutoUpdateAgentPlan(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AutoUpdateService_CreateAutoUpdateAgentPlan_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).CreateAutoUpdateAgentPlan(ctx, req.(*CreateAutoUpdateAgentPlanRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AutoUpdateService_UpdateAutoUpdateAgentPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateAutoUpdateAgentPlanRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).UpdateAutoUpdateAgentPlan(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AutoUpdateService_UpdateAutoUpdateAgentPlan_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).UpdateAutoUpdateAgentPlan(ctx, req.(*UpdateAutoUpdateAgentPlanRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AutoUpdateService_UpsertAutoUpdateAgentPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertAutoUpdateAgentPlanRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).UpsertAutoUpdateAgentPlan(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AutoUpdateService_UpsertAutoUpdateAgentPlan_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).UpsertAutoUpdateAgentPlan(ctx, req.(*UpsertAutoUpdateAgentPlanRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AutoUpdateService_DeleteAutoUpdateAgentPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAutoUpdateAgentPlanRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).DeleteAutoUpdateAgentPlan(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AutoUpdateService_DeleteAutoUpdateAgentPlan_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).DeleteAutoUpdateAgentPlan(ctx, req.(*DeleteAutoUpdateAgentPlanRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AutoUpdateService_ServiceDesc is the grpc.ServiceDesc for AutoUpdateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -675,26 +495,6 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAutoUpdateVersion",
 			Handler:    _AutoUpdateService_DeleteAutoUpdateVersion_Handler,
-		},
-		{
-			MethodName: "GetAutoUpdateAgentPlan",
-			Handler:    _AutoUpdateService_GetAutoUpdateAgentPlan_Handler,
-		},
-		{
-			MethodName: "CreateAutoUpdateAgentPlan",
-			Handler:    _AutoUpdateService_CreateAutoUpdateAgentPlan_Handler,
-		},
-		{
-			MethodName: "UpdateAutoUpdateAgentPlan",
-			Handler:    _AutoUpdateService_UpdateAutoUpdateAgentPlan_Handler,
-		},
-		{
-			MethodName: "UpsertAutoUpdateAgentPlan",
-			Handler:    _AutoUpdateService_UpsertAutoUpdateAgentPlan_Handler,
-		},
-		{
-			MethodName: "DeleteAutoUpdateAgentPlan",
-			Handler:    _AutoUpdateService_DeleteAutoUpdateAgentPlan_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

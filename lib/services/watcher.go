@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -88,8 +90,10 @@ func watchKindsString(kinds []types.WatchKind) string {
 type ResourceWatcherConfig struct {
 	// Component is a component used in logs.
 	Component string
-	// Log is a logger.
+	// TODO(tross): remove this once e has been updated.
 	Log logrus.FieldLogger
+	// Logger emits log messages.
+	Logger *slog.Logger
 	// MaxRetryPeriod is the maximum retry period on failed watchers.
 	MaxRetryPeriod time.Duration
 	// Clock is used to control time.
@@ -110,8 +114,8 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Component == "" {
 		return trace.BadParameter("missing parameter Component")
 	}
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 	if cfg.MaxRetryPeriod == 0 {
 		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
@@ -146,7 +150,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.Log = cfg.Log.WithField("resource-kind", watchKindsString(collector.resourceKinds()))
+	cfg.Logger = cfg.Logger.With("resource_kinds", watchKindsString(collector.resourceKinds()))
 	ctx, cancel := context.WithCancel(ctx)
 	p := &resourceWatcher{
 		ResourceWatcherConfig: cfg,
@@ -220,7 +224,7 @@ func (p *resourceWatcher) WaitInitialization() error {
 		case <-p.collector.initializationChan():
 			return nil
 		case <-t.C:
-			p.Log.Debug("ResourceWatcher is not yet initialized.")
+			p.Logger.DebugContext(p.ctx, "ResourceWatcher is not yet initialized.")
 		case <-p.ctx.Done():
 			return trace.BadParameter("ResourceWatcher %s failed to initialize.", watchKindsString(p.collector.resourceKinds()))
 		}
@@ -246,7 +250,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Log.Debug("Starting watch.")
+		p.Logger.DebugContext(p.ctx, "Starting watch.")
 		err := p.watch()
 
 		select {
@@ -261,7 +265,7 @@ func (p *resourceWatcher) runWatchLoop() {
 			p.failureStartedAt = p.Clock.Now()
 		}
 		if p.hasStaleView() {
-			p.Log.Warningf("Maximum staleness of %v exceeded, failure started at %v.", p.MaxStaleness, p.failureStartedAt)
+			p.Logger.WarnContext(p.ctx, "Maximum staleness of period exceeded.", "max_staleness", p.MaxStaleness, "failure_started", p.failureStartedAt)
 			p.collector.notifyStale()
 		}
 
@@ -275,19 +279,19 @@ func (p *resourceWatcher) runWatchLoop() {
 		startedWaiting := p.Clock.Now()
 		select {
 		case t := <-p.retry.After():
-			p.Log.Debugf("Attempting to restart watch after waiting %v.", t.Sub(startedWaiting))
+			p.Logger.DebugContext(p.ctx, "Attempting to restart watch after waiting", "waited", t.Sub(startedWaiting))
 			p.retry.Inc()
 		case <-p.ctx.Done():
-			p.Log.Debug("Closed, returning from watch loop.")
+			p.Logger.DebugContext(p.ctx, "Closed, returning from watch loop.")
 			return
 		case <-p.StaleC:
 			// Used for testing that the watch routine is waiting for the
 			// next restart attempt. We don't want to wait for the full
 			// retry period in tests so we trigger the restart immediately.
-			p.Log.Debug("Stale view, continue watch loop.")
+			p.Logger.DebugContext(p.ctx, "Stale view, continue watch loop.")
 		}
 		if err != nil {
-			p.Log.Warningf("Restart watch on error: %v.", err)
+			p.Logger.WarnContext(p.ctx, "Restart watch on error", "error", err)
 		}
 	}
 }
@@ -495,7 +499,7 @@ func (p *proxyCollector) processEventsAndUpdateCurrent(ctx context.Context, even
 
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindProxy {
-			p.Log.Warningf("Unexpected event: %v.", event)
+			p.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 
@@ -507,7 +511,7 @@ func (p *proxyCollector) processEventsAndUpdateCurrent(ctx context.Context, even
 		case types.OpPut:
 			server, ok := event.Resource.(types.Server)
 			if !ok {
-				p.Log.Warningf("Unexpected type %T.", event.Resource)
+				p.Logger.WarnContext(ctx, "Received unexpected type", "resource", event.Resource.GetKind())
 				continue
 			}
 			current, exists := p.current[server.GetName()]
@@ -516,7 +520,7 @@ func (p *proxyCollector) processEventsAndUpdateCurrent(ctx context.Context, even
 				updated = true
 			}
 		default:
-			p.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+			p.Logger.WarnContext(ctx, "Skipping unsupported event type", "event_type", event.Type)
 		}
 	}
 
@@ -531,7 +535,7 @@ func (p *proxyCollector) broadcastUpdate(ctx context.Context) {
 	for k := range p.current {
 		names = append(names, k)
 	}
-	p.Log.Debugf("List of known proxies updated: %q.", names)
+	p.Logger.DebugContext(ctx, "List of known proxies updated", "proxies", names)
 
 	select {
 	case p.ProxiesC <- serverMapValues(p.current):
@@ -747,7 +751,7 @@ func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 	eventsToEmit := events[:0]
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindLock {
-			p.Log.Warningf("Unexpected event: %v.", event)
+			p.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 
@@ -758,7 +762,7 @@ func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 		case types.OpPut:
 			lock, ok := event.Resource.(types.Lock)
 			if !ok {
-				p.Log.Warningf("Unexpected resource type %T.", event.Resource)
+				p.Logger.WarnContext(ctx, "Unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 			if lock.IsInForce(p.Clock.Now()) {
@@ -768,7 +772,7 @@ func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 				delete(p.current, lock.GetName())
 			}
 		default:
-			p.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+			p.Logger.WarnContext(ctx, "Skipping unsupported event type", "event_type", event.Type)
 		}
 	}
 	p.fanout.Emit(eventsToEmit...)
@@ -929,7 +933,7 @@ func (p *databaseCollector) processEventsAndUpdateCurrent(ctx context.Context, e
 	var updated bool
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindDatabase {
-			p.Log.Warnf("Unexpected event: %v.", event)
+			p.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 		switch event.Type {
@@ -939,13 +943,13 @@ func (p *databaseCollector) processEventsAndUpdateCurrent(ctx context.Context, e
 		case types.OpPut:
 			database, ok := event.Resource.(types.Database)
 			if !ok {
-				p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				p.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 			p.current[database.GetName()] = database
 			updated = true
 		default:
-			p.Log.Warnf("Unsupported event type %s.", event.Type)
+			p.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 
@@ -1068,7 +1072,7 @@ func (p *appCollector) processEventsAndUpdateCurrent(ctx context.Context, events
 	defer p.lock.Unlock()
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindApp {
-			p.Log.Warnf("Unexpected event: %v.", event)
+			p.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 		switch event.Type {
@@ -1084,7 +1088,7 @@ func (p *appCollector) processEventsAndUpdateCurrent(ctx context.Context, events
 		case types.OpPut:
 			app, ok := event.Resource.(types.Application)
 			if !ok {
-				p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				p.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 			p.current[app.GetName()] = app
@@ -1094,7 +1098,7 @@ func (p *appCollector) processEventsAndUpdateCurrent(ctx context.Context, events
 			case p.AppsC <- resourcesToSlice(p.current):
 			}
 		default:
-			p.Log.Warnf("Unsupported event type %s.", event.Type)
+			p.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 }
@@ -1220,7 +1224,7 @@ func (k *kubeCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 	defer k.lock.Unlock()
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindKubernetesCluster {
-			k.Log.Warnf("Unexpected event: %v.", event)
+			k.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 		switch event.Type {
@@ -1236,7 +1240,7 @@ func (k *kubeCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 		case types.OpPut:
 			cluster, ok := event.Resource.(types.KubeCluster)
 			if !ok {
-				k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				k.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 			k.current[cluster.GetName()] = cluster
@@ -1246,7 +1250,7 @@ func (k *kubeCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 			case k.KubeClustersC <- resourcesToSlice(k.current):
 			}
 		default:
-			k.Log.Warnf("Unsupported event type %s.", event.Type)
+			k.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 }
@@ -1425,7 +1429,7 @@ func (k *kubeServerCollector) processEventsAndUpdateCurrent(ctx context.Context,
 
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindKubeServer {
-			k.Log.Warnf("Unexpected event: %v.", event)
+			k.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 
@@ -1440,7 +1444,7 @@ func (k *kubeServerCollector) processEventsAndUpdateCurrent(ctx context.Context,
 		case types.OpPut:
 			server, ok := event.Resource.(types.KubeServer)
 			if !ok {
-				k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				k.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 
@@ -1450,7 +1454,7 @@ func (k *kubeServerCollector) processEventsAndUpdateCurrent(ctx context.Context,
 			}
 			k.current[key] = server
 		default:
-			k.Log.Warnf("Unsupported event type %s.", event.Type)
+			k.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 }
@@ -1653,7 +1657,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindCertAuthority {
-			c.Log.Warnf("Unexpected event: %v.", event)
+			c.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 		switch event.Type {
@@ -1668,7 +1672,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 		case types.OpPut:
 			ca, ok := event.Resource.(types.CertAuthority)
 			if !ok {
-				c.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				c.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 
@@ -1684,7 +1688,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			c.cas[ca.GetType()][ca.GetName()] = ca
 			eventsToEmit = append(eventsToEmit, event)
 		default:
-			c.Log.Warnf("Unsupported event type %s.", event.Type)
+			c.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 
@@ -1940,7 +1944,7 @@ func (n *nodeCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindNode {
-			n.Log.Warningf("Unexpected event: %v.", event)
+			n.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 
@@ -1950,13 +1954,13 @@ func (n *nodeCollector) processEventsAndUpdateCurrent(ctx context.Context, event
 		case types.OpPut:
 			server, ok := event.Resource.(types.Server)
 			if !ok {
-				n.Log.Warningf("Unexpected type %T.", event.Resource)
+				n.Logger.WarnContext(ctx, "Received unexpected type", "resource", event.Resource.GetKind())
 				continue
 			}
 
 			n.current[server.GetName()] = server
 		default:
-			n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+			n.Logger.WarnContext(ctx, "Skipping unsupported event type", "event_type", event.Type)
 		}
 	}
 }
@@ -2085,7 +2089,7 @@ func (p *accessRequestCollector) processEventsAndUpdateCurrent(ctx context.Conte
 
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindAccessRequest {
-			p.Log.Warnf("Unexpected event: %v.", event)
+			p.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 		switch event.Type {
@@ -2098,7 +2102,7 @@ func (p *accessRequestCollector) processEventsAndUpdateCurrent(ctx context.Conte
 		case types.OpPut:
 			accessRequest, ok := event.Resource.(types.AccessRequest)
 			if !ok {
-				p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				p.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 			p.current[accessRequest.GetName()] = accessRequest
@@ -2108,7 +2112,7 @@ func (p *accessRequestCollector) processEventsAndUpdateCurrent(ctx context.Conte
 			}
 
 		default:
-			p.Log.Warnf("Unsupported event type %s.", event.Type)
+			p.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 }
@@ -2152,7 +2156,7 @@ func NewOktaAssignmentWatcher(ctx context.Context, cfg OktaAssignmentWatcherConf
 		return nil, trace.Wrap(err)
 	}
 	collector := &oktaAssignmentCollector{
-		log:             cfg.RWCfg.Log,
+		logger:          cfg.RWCfg.Logger,
 		cfg:             cfg,
 		initializationC: make(chan struct{}),
 	}
@@ -2189,7 +2193,7 @@ func (o *OktaAssignmentWatcher) Done() <-chan struct{} {
 
 // oktaAssignmentCollector accompanies resourceWatcher when monitoring Okta assignment resources.
 type oktaAssignmentCollector struct {
-	log logrus.FieldLogger
+	logger *slog.Logger
 	// OktaAssignmentWatcherConfig is the watcher configuration.
 	cfg OktaAssignmentWatcherConfig
 	// mu guards "current"
@@ -2260,7 +2264,7 @@ func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Cont
 
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
-			c.log.Warnf("Unexpected event: %v.", event)
+			c.logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 		switch event.Type {
@@ -2274,7 +2278,7 @@ func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Cont
 		case types.OpPut:
 			oktaAssignment, ok := event.Resource.(types.OktaAssignment)
 			if !ok {
-				c.log.Warnf("Unexpected resource type %T.", event.Resource)
+				c.logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 			c.current[oktaAssignment.GetName()] = oktaAssignment
@@ -2286,7 +2290,7 @@ func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Cont
 			}
 
 		default:
-			c.log.Warnf("Unsupported event type %s.", event.Type)
+			c.logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 }
