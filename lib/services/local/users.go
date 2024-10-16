@@ -1386,28 +1386,27 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 	go func() {
 		var err error
 		devices, err = s.getMFADevices(ctx, user, withSecrets)
-		if err != nil {
-			errC <- trace.Wrap(err)
-			return
-		}
-		errC <- nil
+		errC <- trace.Wrap(err)
 	}()
 
 	var ssoDev *types.MFADevice
 	go func() {
 		var err error
 		ssoDev, err = s.getSSOMFADevice(ctx, user)
-		if !trace.IsNotFound(err) {
-			errC <- trace.Wrap(err)
+		if trace.IsNotFound(err) {
+			errC <- nil // OK, SSO device may not exist.
 			return
 		}
-		errC <- nil
+		errC <- trace.Wrap(err)
 	}()
 
+	var errs []error
 	for i := 0; i < 2; i++ {
-		if err := <-errC; err != nil {
-			return nil, trace.Wrap(err)
-		}
+		errs = append(errs, <-errC)
+	}
+
+	if err := trace.NewAggregate(errs...); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if ssoDev != nil {
@@ -1417,6 +1416,9 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 	return devices, nil
 }
 
+// getMFADevices reads devices from storage. Devices from other sources, such as
+// the ephemeral SSO devices, are not returned by it.
+// See getSSOMFADevice and GetMFADevices (which returns all devices).
 func (s *IdentityService) getMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user, mfaDevicePrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)

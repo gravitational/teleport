@@ -748,8 +748,8 @@ func TestIdentityService_DeleteMFADevice_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	deleteErr := identity.DeleteMFADevice(ctx, username, connectorName)
-	assert.ErrorAs(t, deleteErr, new(*trace.BadParameterError), "expected BadParameterError upserting SSO MFA device")
-	assert.ErrorContains(t, deleteErr, "cannot delete ephemeral SSO MFA device", "unexpected error upserting SSO MFA device")
+	assert.ErrorAs(t, deleteErr, new(*trace.BadParameterError), "expected BadParameterError deleting SSO MFA device")
+	assert.ErrorContains(t, deleteErr, "cannot delete ephemeral SSO MFA device", "unexpected error deleting SSO MFA device")
 }
 
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
