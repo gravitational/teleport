@@ -36,7 +36,7 @@ type Service struct {
 	dynamicwindowspb.UnimplementedDynamicWindowsServiceServer
 
 	authorizer authz.Authorizer
-	backend    dynamicWindowsReadWriter
+	backend    Backend
 	logger     *slog.Logger
 }
 
@@ -45,12 +45,12 @@ type ServiceConfig struct {
 	// Authorizer is the authorizer service which checks access to resources.
 	Authorizer authz.Authorizer
 	// Backend will be used reading and writing the dynamic Windows desktop resources.
-	Backend dynamicWindowsReadWriter
+	Backend Backend
 	// Logger is the logger instance to use.
 	Logger *slog.Logger
 }
 
-type dynamicWindowsReadWriter interface {
+type Backend interface {
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 	CreateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
