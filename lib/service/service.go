@@ -4347,7 +4347,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				TLSCipherSuites:   cfg.CipherSuites,
 				GetTLSCertificate: conn.ClientGetCertificate,
 				GetTLSRoots:       conn.ClientGetPool,
-				Log:               process.log,
+				Log:               process.logger,
 				Clock:             process.Clock,
 				ClusterName:       clusterName,
 				QUICTransport:     peerQUICTransport,
