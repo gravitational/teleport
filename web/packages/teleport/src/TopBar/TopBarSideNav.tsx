@@ -117,7 +117,7 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           transition: background-color 0.1s linear;
           &:hover {
             background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[0].background};
+              p.theme.colors.interactive.tonal.primary[0]};
           }
           align-items: center;
         `}

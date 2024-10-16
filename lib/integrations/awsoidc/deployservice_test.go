@@ -238,7 +238,9 @@ func TestUpsertTask(t *testing.T) {
 		},
 	}
 
-	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{})
+	semVer := *teleport.SemVersion
+	semVer.PreRelease = ""
+	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{TeleportVersionTag: semVer.String()})
 	require.NoError(t, err)
 	require.Equal(t, expected, taskDefinition.ContainerDefinitions[0].Environment)
 }

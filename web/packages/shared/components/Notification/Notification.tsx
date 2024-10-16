@@ -186,23 +186,23 @@ const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
       };
     case 'error':
       return {
-        borderColor: theme.colors.interactive.solid.danger.default.background,
-        iconColor: theme.colors.interactive.solid.danger.default.background,
+        borderColor: theme.colors.interactive.solid.danger.default,
+        iconColor: theme.colors.interactive.solid.danger.default,
       };
     case 'warn':
       return {
-        borderColor: theme.colors.interactive.solid.alert.default.background,
-        iconColor: theme.colors.interactive.solid.alert.default.background,
+        borderColor: theme.colors.interactive.solid.alert.default,
+        iconColor: theme.colors.interactive.solid.alert.default,
       };
     case 'info':
       return {
-        borderColor: theme.colors.interactive.solid.accent.default.background,
-        iconColor: theme.colors.interactive.solid.accent.default.background,
+        borderColor: theme.colors.interactive.solid.accent.default,
+        iconColor: theme.colors.interactive.solid.accent.default,
       };
     case 'success':
       return {
-        borderColor: theme.colors.interactive.solid.success.default.background,
-        iconColor: theme.colors.interactive.solid.success.default.background,
+        borderColor: theme.colors.interactive.solid.success.default,
+        iconColor: theme.colors.interactive.solid.success.default,
       };
     default:
       severity satisfies never;

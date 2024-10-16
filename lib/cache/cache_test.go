@@ -138,6 +138,7 @@ type testPack struct {
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
 	autoUpdateService       services.AutoUpdateService
+	provisioningStates      services.ProvisioningStates
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -381,6 +382,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.provisioningStates, err = local.NewProvisioningStateService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -431,6 +437,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseObjects:         p.databaseObjects,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -839,6 +846,7 @@ func TestCompletenessInit(t *testing.T) {
 			SPIFFEFederations:       p.spiffeFederations,
 			StaticHostUsers:         p.staticHostUsers,
 			AutoUpdateService:       p.autoUpdateService,
+			ProvisioningStates:      p.provisioningStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -920,6 +928,7 @@ func TestCompletenessReset(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1127,6 +1136,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1219,6 +1229,7 @@ func initStrategy(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
+		ProvisioningStates:      p.provisioningStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2944,6 +2955,16 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			out, err := funcs.cacheList(ctx)
 			assert.NoError(collect, err)
+
+			// If the cache is expected to be empty, then test explicitly for
+			// *that* rather than do an equality test. An equality test here
+			// would be overly-pedantic about a service returning `nil` rather
+			// than an empty slice.
+			if len(expected) == 0 {
+				assert.Empty(collect, out)
+				return
+			}
+
 			assert.Empty(collect, cmp.Diff(expected, out, cmpOpts...))
 		}, 2*time.Second, 250*time.Millisecond)
 	}
@@ -3369,68 +3390,69 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	}
 
 	events := map[string]types.Resource{
-		types.KindCertAuthority:           &types.CertAuthorityV2{},
-		types.KindClusterName:             &types.ClusterNameV2{},
-		types.KindClusterAuditConfig:      types.DefaultClusterAuditConfig(),
-		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
-		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
-		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
-		types.KindUIConfig:                &types.UIConfigV1{},
-		types.KindStaticTokens:            &types.StaticTokensV2{},
-		types.KindToken:                   &types.ProvisionTokenV2{},
-		types.KindUser:                    &types.UserV2{},
-		types.KindRole:                    &types.RoleV6{Version: types.V4},
-		types.KindNamespace:               &types.Namespace{},
-		types.KindNode:                    &types.ServerV2{},
-		types.KindProxy:                   &types.ServerV2{},
-		types.KindAuthServer:              &types.ServerV2{},
-		types.KindReverseTunnel:           &types.ReverseTunnelV2{},
-		types.KindTunnelConnection:        &types.TunnelConnectionV2{},
-		types.KindAccessRequest:           &types.AccessRequestV3{},
-		types.KindAppServer:               &types.AppServerV3{},
-		types.KindApp:                     &types.AppV3{},
-		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
-		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
-		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
-		types.KindSAMLIdPSession:          &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
-		types.KindWebToken:                &types.WebTokenV3{},
-		types.KindRemoteCluster:           &types.RemoteClusterV3{},
-		types.KindKubeServer:              &types.KubernetesServerV3{},
-		types.KindDatabaseService:         &types.DatabaseServiceV1{},
-		types.KindDatabaseServer:          &types.DatabaseServerV3{},
-		types.KindDatabase:                &types.DatabaseV3{},
-		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
-		types.KindLock:                    &types.LockV2{},
-		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
-		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
-		types.KindInstaller:               &types.InstallerV1{},
-		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
-		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
-		types.KindUserGroup:               &types.UserGroupV1{},
-		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
-		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
-		types.KindIntegration:             &types.IntegrationV1{},
-		types.KindDiscoveryConfig:         newDiscoveryConfig(t, "discovery-config"),
-		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
-		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
-		types.KindAuditQuery:              newAuditQuery(t, "audit-query"),
-		types.KindSecurityReport:          newSecurityReport(t, "security-report"),
-		types.KindSecurityReportState:     newSecurityReport(t, "security-report-state"),
-		types.KindAccessList:              newAccessList(t, "access-list", clock),
-		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
-		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
-		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
-		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
-		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
-		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
-		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
-		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
-		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
-		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
-		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
-		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
-		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t)),
+		types.KindCertAuthority:              &types.CertAuthorityV2{},
+		types.KindClusterName:                &types.ClusterNameV2{},
+		types.KindClusterAuditConfig:         types.DefaultClusterAuditConfig(),
+		types.KindClusterNetworkingConfig:    types.DefaultClusterNetworkingConfig(),
+		types.KindClusterAuthPreference:      types.DefaultAuthPreference(),
+		types.KindSessionRecordingConfig:     types.DefaultSessionRecordingConfig(),
+		types.KindUIConfig:                   &types.UIConfigV1{},
+		types.KindStaticTokens:               &types.StaticTokensV2{},
+		types.KindToken:                      &types.ProvisionTokenV2{},
+		types.KindUser:                       &types.UserV2{},
+		types.KindRole:                       &types.RoleV6{Version: types.V4},
+		types.KindNamespace:                  &types.Namespace{},
+		types.KindNode:                       &types.ServerV2{},
+		types.KindProxy:                      &types.ServerV2{},
+		types.KindAuthServer:                 &types.ServerV2{},
+		types.KindReverseTunnel:              &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:           &types.TunnelConnectionV2{},
+		types.KindAccessRequest:              &types.AccessRequestV3{},
+		types.KindAppServer:                  &types.AppServerV3{},
+		types.KindApp:                        &types.AppV3{},
+		types.KindWebSession:                 &types.WebSessionV2{SubKind: types.KindWebSession},
+		types.KindAppSession:                 &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindSnowflakeSession:           &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindSAMLIdPSession:             &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
+		types.KindWebToken:                   &types.WebTokenV3{},
+		types.KindRemoteCluster:              &types.RemoteClusterV3{},
+		types.KindKubeServer:                 &types.KubernetesServerV3{},
+		types.KindDatabaseService:            &types.DatabaseServiceV1{},
+		types.KindDatabaseServer:             &types.DatabaseServerV3{},
+		types.KindDatabase:                   &types.DatabaseV3{},
+		types.KindNetworkRestrictions:        &types.NetworkRestrictionsV4{},
+		types.KindLock:                       &types.LockV2{},
+		types.KindWindowsDesktopService:      &types.WindowsDesktopServiceV3{},
+		types.KindWindowsDesktop:             &types.WindowsDesktopV3{},
+		types.KindInstaller:                  &types.InstallerV1{},
+		types.KindKubernetesCluster:          &types.KubernetesClusterV3{},
+		types.KindSAMLIdPServiceProvider:     &types.SAMLIdPServiceProviderV1{},
+		types.KindUserGroup:                  &types.UserGroupV1{},
+		types.KindOktaImportRule:             &types.OktaImportRuleV1{},
+		types.KindOktaAssignment:             &types.OktaAssignmentV1{},
+		types.KindIntegration:                &types.IntegrationV1{},
+		types.KindDiscoveryConfig:            newDiscoveryConfig(t, "discovery-config"),
+		types.KindHeadlessAuthentication:     &types.HeadlessAuthentication{},
+		types.KindUserLoginState:             newUserLoginState(t, "user-login-state"),
+		types.KindAuditQuery:                 newAuditQuery(t, "audit-query"),
+		types.KindSecurityReport:             newSecurityReport(t, "security-report"),
+		types.KindSecurityReportState:        newSecurityReport(t, "security-report-state"),
+		types.KindAccessList:                 newAccessList(t, "access-list", clock),
+		types.KindAccessListMember:           newAccessListMember(t, "access-list", "member"),
+		types.KindAccessListReview:           newAccessListReview(t, "access-list", "review"),
+		types.KindKubeWaitingContainer:       newKubeWaitingContainer(t),
+		types.KindNotification:               types.Resource153ToLegacy(newUserNotification(t, "test")),
+		types.KindGlobalNotification:         types.Resource153ToLegacy(newGlobalNotification(t, "test")),
+		types.KindAccessMonitoringRule:       types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindCrownJewel:                 types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindDatabaseObject:             types.Resource153ToLegacy(newDatabaseObject(t, "test")),
+		types.KindAccessGraphSettings:        types.Resource153ToLegacy(newAccessGraphSettings(t)),
+		types.KindSPIFFEFederation:           types.Resource153ToLegacy(newSPIFFEFederation("test")),
+		types.KindStaticHostUser:             types.Resource153ToLegacy(newStaticHostUser(t, "test")),
+		types.KindAutoUpdateConfig:           types.Resource153ToLegacy(newAutoUpdateConfig(t)),
+		types.KindAutoUpdateVersion:          types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindUserTask:                   types.Resource153ToLegacy(newUserTasks(t)),
+		types.KindProvisioningPrincipalState: types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 	}
 
 	for name, cfg := range cases {

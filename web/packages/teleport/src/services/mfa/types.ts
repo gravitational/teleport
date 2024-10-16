@@ -45,7 +45,7 @@ export type SaveNewHardwareDeviceRequest = {
   credential: Credential;
 };
 
-export type DeviceType = 'totp' | 'webauthn';
+export type DeviceType = 'totp' | 'webauthn' | 'sso';
 
 // MfaAuthnResponse is a response to a MFA device challenge.
 export type MfaAuthnResponse =
