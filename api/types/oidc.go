@@ -20,6 +20,7 @@ import (
 	"net/netip"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -403,7 +404,14 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	if o.Spec.ClientID == "" {
-		return trace.BadParameter("ClientID: missing client id")
+		return trace.BadParameter("OIDC connector is missing required client_id")
+	}
+
+	if o.Spec.ClientSecret == "" {
+		return trace.BadParameter("OIDC connector is missing required client_secret")
+	}
+	if strings.HasPrefix(o.Spec.ClientSecret, "file://") {
+		return trace.BadParameter("the client_secret must be a literal value, file:// URLs are not supported")
 	}
 
 	if len(o.GetClaimsToRoles()) == 0 {
