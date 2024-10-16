@@ -942,13 +942,14 @@ the session recording backend. This requires either a self-hosted Teleport
 cluster or [external audit
 storage](../admin-guides/management/external-audit-storage.mdx).
 
-The `tsh play` command can print recordings in three formats, depending on the
+The `tsh play` command can print recordings in several formats, depending on the
 kind of resource the recorded session interacts with. To choose a format, use
 the `--format` flag of `tsh play`:
 
 | `--format` value | Supported resources | Description |
 |------------------|---------------------|-------------|
 | `pty` (default)  | Servers, Kubernetes clusters | `tsh` opens a pseudo-terminal to play each command executed in the session. |
+| `text` | Servers, Kubernetes clusters | `tsh` dumps the entire recording directly to standard out. Timing data is ignored. |
 | `json` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a JSON-serialized list of audit events, separated by newlines. |
 | `yaml` | Servers, Kubernetes clusters, applications, databases | `tsh` prints a YAML-serialized list of audit events, separated by `---` characters. |
 

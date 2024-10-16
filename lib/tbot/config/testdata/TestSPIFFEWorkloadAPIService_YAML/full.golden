@@ -30,3 +30,4 @@ attestors:
       ca_path: /path/to/ca.pem
       skip_verify: true
       anonymous: true
+jwt_svid_ttl: 5m0s

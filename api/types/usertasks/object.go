@@ -90,19 +90,6 @@ const (
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
 // The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
 const (
-	// AutoDiscoverEC2IssueEICEFailedToCreateNode is used when the EICE flow fails to create a node.
-	// This can happen when the Node does not have a valid PrivateIPAddress.
-	// This is very unlikely and should only happen if the AWS API returns an unexpected response.
-	AutoDiscoverEC2IssueEICEFailedToCreateNode = "ec2-eice-create-node"
-
-	// AutoDiscoverEC2IssueEICEFailedToUpsertNode is used when the EICE flow fails to upsert a node into the cluster.
-	// This is very unlikely and should only happen
-	// - if the Discovery system role was changed
-	// - if the Node resource validation was changed on the Auth and not on the DiscoveryService
-	// - if Teleport backend is offline or in failing mode
-	// - or because of a network error
-	AutoDiscoverEC2IssueEICEFailedToUpsertNode = "ec2-eice-upsert-node"
-
 	// AutoDiscoverEC2IssueScriptInstanceNotRegistered is used to identify instances that failed to auto-enroll
 	// because they are not present in Amazon Systems Manager.
 	// This usually means that the Instance does not have the SSM Agent running,
@@ -132,8 +119,6 @@ const (
 
 // discoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
 var discoverEC2IssueTypes = []string{
-	AutoDiscoverEC2IssueEICEFailedToCreateNode,
-	AutoDiscoverEC2IssueEICEFailedToUpsertNode,
 	AutoDiscoverEC2IssueScriptInstanceNotRegistered,
 	AutoDiscoverEC2IssueScriptInstanceConnectionLost,
 	AutoDiscoverEC2IssueScriptInstanceUnsupportedOS,

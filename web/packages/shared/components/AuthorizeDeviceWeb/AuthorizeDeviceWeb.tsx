@@ -20,7 +20,7 @@ import { useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Flex, ButtonPrimary, Text, ButtonLink } from 'design';
 import { Link } from 'react-router-dom';
-import { useParams } from 'react-router';
+import { useParams, useLocation } from 'react-router';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -32,14 +32,18 @@ import {
   DownloadLink,
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
+import { processRedirectUri } from 'shared/redirects';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
 export const PassthroughPage = () => {
   const ctx = useTeleport();
+  const { search } = useLocation();
   const { id, token } = useParams<{
     id: string;
     token: string;
   }>();
+  const redirect_uri = new URLSearchParams(search).get('redirect_uri');
+
   const { cluster, username } = ctx.storeUser.state;
   const deviceTrustAuthorize = makeDeepLinkWithSafeInput({
     proxyHost: cluster?.publicURL,
@@ -48,6 +52,7 @@ export const PassthroughPage = () => {
     searchParams: {
       id,
       token,
+      redirect_uri,
     },
   });
   const platform = getPlatform();
@@ -70,6 +75,7 @@ export const PassthroughPage = () => {
 
   return (
     <DeviceTrustConnectPassthrough
+      redirectUri={redirect_uri}
       downloadLinks={downloadLinks}
       authorizeWebDeviceDeepLink={deviceTrustAuthorize}
     />
@@ -78,9 +84,11 @@ export const PassthroughPage = () => {
 
 export const DeviceTrustConnectPassthrough = ({
   authorizeWebDeviceDeepLink,
+  redirectUri,
   downloadLinks,
 }: {
   authorizeWebDeviceDeepLink: string;
+  redirectUri?: string;
   downloadLinks: Array<DownloadLink>;
 }) => {
   return (
@@ -123,7 +131,7 @@ export const DeviceTrustConnectPassthrough = ({
               css={`
                 text-decoration: none;
               `}
-              to={cfg.routes.root}
+              to={processRedirectUri(redirectUri)}
             >
               continue without device trust{' '}
             </Link>

@@ -206,7 +206,13 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Traits:   p.Traits,
 	}
 
-	return k.sign(claims, nil)
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	so := &jose.SignerOptions{}
+	if v, ok := k.config.PublicKey.(*rsa.PublicKey); ok {
+		so.WithHeader("kid", KeyID(v))
+	}
+	return k.sign(claims, so)
 }
 
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
@@ -258,6 +264,9 @@ type SignParamsJWTSVID struct {
 	Audiences []string
 	// TTL is the time to live for the token.
 	TTL time.Duration
+	// Issuer is the value that should be included in the `iss` claim of the
+	// created token.
+	Issuer string
 }
 
 // SignJWTSVID signs a JWT SVID token.
@@ -283,6 +292,11 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 		// > noted that JWT-SVID validators are not required to track jti
 		// > uniqueness.
 		ID: p.JTI,
+		// The SPIFFE specification makes no comment on the inclusion of `iss`,
+		// however, we provide this value so that the issued token can be a
+		// valid OIDC ID token and used with non-SPIFFE aware systems that do
+		// understand OIDC.
+		Issuer: p.Issuer,
 	}
 
 	// > 2.2. Key ID:

@@ -1144,7 +1144,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	// Set cluster features and return successfully with a working connector.
 	// TODO(michellescripts) remove clone & compatibility check in v18
 	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
-	supportEntitlementsCompatibility(cloned)
+	entitlements.BackfillFeatures(cloned)
 	process.setClusterFeatures(cloned)
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())
@@ -1154,70 +1154,6 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 		ServerIdentity: serverIdentity,
 		Client:         clt,
 	}, nil
-}
-
-// supportEntitlementsCompatibility ensures entitlements are backwards compatible
-// If Entitlements are present, there are no changes
-// If Entitlements are not present, sets the entitlements fields to legacy field values
-// TODO(michellescripts) remove in v18
-func supportEntitlementsCompatibility(features *proto.Features) {
-	if len(features.Entitlements) > 0 {
-		return
-	}
-
-	features.Entitlements = getBaseEntitlements(features.GetEntitlements())
-
-	// Entitlements: All records are {enabled: false}; update to equal legacy feature value
-	features.Entitlements[string(entitlements.ExternalAuditStorage)] = &proto.EntitlementInfo{Enabled: features.GetExternalAuditStorage()}
-	features.Entitlements[string(entitlements.FeatureHiding)] = &proto.EntitlementInfo{Enabled: features.GetFeatureHiding()}
-	features.Entitlements[string(entitlements.Identity)] = &proto.EntitlementInfo{Enabled: features.GetIdentityGovernance()}
-	features.Entitlements[string(entitlements.JoinActiveSessions)] = &proto.EntitlementInfo{Enabled: features.GetJoinActiveSessions()}
-	features.Entitlements[string(entitlements.MobileDeviceManagement)] = &proto.EntitlementInfo{Enabled: features.GetMobileDeviceManagement()}
-	features.Entitlements[string(entitlements.OIDC)] = &proto.EntitlementInfo{Enabled: features.GetOIDC()}
-	features.Entitlements[string(entitlements.Policy)] = &proto.EntitlementInfo{Enabled: features.GetPolicy().GetEnabled()}
-	features.Entitlements[string(entitlements.SAML)] = &proto.EntitlementInfo{Enabled: features.GetSAML()}
-	features.Entitlements[string(entitlements.K8s)] = &proto.EntitlementInfo{Enabled: features.GetKubernetes()}
-	features.Entitlements[string(entitlements.App)] = &proto.EntitlementInfo{Enabled: features.GetApp()}
-	features.Entitlements[string(entitlements.DB)] = &proto.EntitlementInfo{Enabled: features.GetDB()}
-	features.Entitlements[string(entitlements.Desktop)] = &proto.EntitlementInfo{Enabled: features.GetDesktop()}
-	features.Entitlements[string(entitlements.HSM)] = &proto.EntitlementInfo{Enabled: features.GetHSM()}
-
-	// set default Identity fields to legacy feature value
-	features.Entitlements[string(entitlements.AccessLists)] = &proto.EntitlementInfo{Enabled: true, Limit: features.GetAccessList().GetCreateLimit()}
-	features.Entitlements[string(entitlements.AccessMonitoring)] = &proto.EntitlementInfo{Enabled: features.GetAccessMonitoring().GetEnabled(), Limit: features.GetAccessMonitoring().GetMaxReportRangeLimit()}
-	features.Entitlements[string(entitlements.AccessRequests)] = &proto.EntitlementInfo{Enabled: features.GetAccessRequests().MonthlyRequestLimit > 0, Limit: features.GetAccessRequests().GetMonthlyRequestLimit()}
-	features.Entitlements[string(entitlements.DeviceTrust)] = &proto.EntitlementInfo{Enabled: features.GetDeviceTrust().GetEnabled(), Limit: features.GetDeviceTrust().GetDevicesUsageLimit()}
-	// override Identity Package features if Identity is enabled: set true and clear limit
-	if features.GetIdentityGovernance() {
-		features.Entitlements[string(entitlements.AccessLists)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.AccessMonitoring)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.AccessRequests)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.DeviceTrust)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.OktaSCIM)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.OktaUserSync)] = &proto.EntitlementInfo{Enabled: true}
-		features.Entitlements[string(entitlements.SessionLocks)] = &proto.EntitlementInfo{Enabled: true}
-	}
-}
-
-// getBaseEntitlements takes a cloud entitlement set and returns a modules Entitlement set
-func getBaseEntitlements(protoEntitlements map[string]*proto.EntitlementInfo) map[string]*proto.EntitlementInfo {
-	all := entitlements.AllEntitlements
-	result := make(map[string]*proto.EntitlementInfo, len(all))
-
-	for _, e := range all {
-		al, ok := protoEntitlements[string(e)]
-		if !ok {
-			result[string(e)] = &proto.EntitlementInfo{}
-			continue
-		}
-
-		result[string(e)] = &proto.EntitlementInfo{
-			Enabled: al.Enabled,
-			Limit:   al.Limit,
-		}
-	}
-
-	return result
 }
 
 // newClient attempts to connect to either the proxy server or auth server

@@ -18,21 +18,16 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/credentials"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
@@ -41,23 +36,25 @@ const (
 	lockMessage = "User is locked due to too many failed login attempts"
 )
 
-// TeleportSearchEventsClient is an interface for client.Client, required for testing
-type TeleportSearchEventsClient interface {
-	// SearchEvents searches for events in the audit log and returns them using their protobuf representation.
-	SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error)
-	// StreamSessionEvents returns session events stream for a given session ID using their protobuf representation.
-	StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error)
-	// SearchUnstructuredEvents searches for events in the audit log and returns them using an unstructured representation (structpb.Struct).
-	SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error)
-	// StreamUnstructuredSessionEvents returns session events stream for a given session ID using an unstructured representation (structpb.Struct).
-	StreamUnstructuredSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan *auditlogpb.EventUnstructured, chan error)
-	UpsertLock(ctx context.Context, lock types.Lock) error
-	Ping(ctx context.Context) (proto.PingResponse, error)
-	Close() error
+// LegacyCursorValue represents the cursor data used by the LegacyEventsWatcher to
+// resume from where it left off.
+type LegacyCursorValues struct {
+	Cursor          string
+	ID              string
+	WindowStartTime time.Time
 }
 
-// TeleportEventsWatcher represents wrapper around Teleport client to work with events
-type TeleportEventsWatcher struct {
+// IsEmpty returns true if all cursor values are empty.
+func (c *LegacyCursorValues) IsEmpty() bool {
+	return c.Cursor == "" && c.ID == "" && c.WindowStartTime.IsZero()
+}
+
+func (c *LegacyCursorValues) Equals(other LegacyCursorValues) bool {
+	return c.Cursor == other.Cursor && c.ID == other.ID && c.WindowStartTime.Equal(other.WindowStartTime)
+}
+
+// LegacyEventsWatcher represents wrapper around Teleport client to work with events
+type LegacyEventsWatcher struct {
 	// client is an instance of GRPC Teleport client
 	client TeleportSearchEventsClient
 	// cursor current page cursor value
@@ -69,94 +66,74 @@ type TeleportEventsWatcher struct {
 	// pos current virtual cursor position within a batch
 	pos int
 	// batch current events batch
-	batch []*TeleportEvent
+	batch []*LegacyTeleportEvent
 	// config is teleport config
 	config *StartCmdConfig
+	// export is the callback that is invoked for each event. it is retried indefinitely
+	// until it returns nil.
+	export func(context.Context, *TeleportEvent) error
+
+	// exportedCursor is a pointer to the cursor values of the most recently
+	// exported event. the values mirror above fields, but those are only accessible
+	// to the main event processing goroutine. these values are meant to be read
+	// by concurrently.
+	exportedCursor atomic.Pointer[LegacyCursorValues]
 
 	// windowStartTime is event time frame start
 	windowStartTime   time.Time
 	windowStartTimeMu sync.Mutex
 }
 
-// NewTeleportEventsWatcher builds Teleport client instance
-func NewTeleportEventsWatcher(
-	ctx context.Context,
+// NewLegacyEventsWatcher builds Teleport client instance
+func NewLegacyEventsWatcher(
 	c *StartCmdConfig,
-	windowStartTime time.Time,
-	cursor string,
-	id string,
-) (*TeleportEventsWatcher, error) {
-	var creds []client.Credentials
-	switch {
-	case c.TeleportIdentityFile != "" && !c.TeleportRefreshEnabled:
-		creds = []client.Credentials{client.LoadIdentityFile(c.TeleportIdentityFile)}
-	case c.TeleportIdentityFile != "" && c.TeleportRefreshEnabled:
-		cred, err := lib.NewIdentityFileWatcher(ctx, c.TeleportIdentityFile, c.TeleportRefreshInterval)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		creds = []client.Credentials{cred}
-	case c.TeleportCert != "" && c.TeleportKey != "" && c.TeleportCA != "":
-		creds = []client.Credentials{client.LoadKeyPair(c.TeleportCert, c.TeleportKey, c.TeleportCA)}
-	default:
-		return nil, trace.BadParameter("no credentials configured")
-	}
-
-	if validCred, err := credentials.CheckIfExpired(creds); err != nil {
-		log.Warn(err)
-		if !validCred {
-			return nil, trace.BadParameter(
-				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
-			)
-		}
-		log.Info("At least one non-expired credential has been found, continuing startup")
-	}
-
-	config := client.Config{
-		Addrs:       []string{c.TeleportAddr},
-		Credentials: creds,
-	}
-
-	teleportClient, err := client.New(ctx, config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tc := TeleportEventsWatcher{
-		client:          teleportClient,
+	client TeleportSearchEventsClient,
+	cursorValues LegacyCursorValues,
+	export func(context.Context, *TeleportEvent) error,
+) *LegacyEventsWatcher {
+	w := &LegacyEventsWatcher{
+		client:          client,
 		pos:             -1,
-		cursor:          cursor,
+		cursor:          cursorValues.Cursor,
 		config:          c,
-		id:              id,
-		windowStartTime: windowStartTime,
+		export:          export,
+		id:              cursorValues.ID,
+		windowStartTime: cursorValues.WindowStartTime,
 	}
 
-	return &tc, nil
+	w.exportedCursor.Store(&cursorValues)
+
+	return w
 }
 
 // Close closes connection to Teleport
-func (t *TeleportEventsWatcher) Close() {
+func (t *LegacyEventsWatcher) Close() {
 	t.client.Close()
 }
 
+func (t *LegacyEventsWatcher) GetCursorValues() LegacyCursorValues {
+	// exported cursor values ptr is never nil
+	return *t.exportedCursor.Load()
+}
+
 // flipPage flips the current page
-func (t *TeleportEventsWatcher) flipPage() bool {
+func (t *LegacyEventsWatcher) flipPage() bool {
 	if t.nextCursor == "" {
 		return false
 	}
 
 	t.cursor = t.nextCursor
 	t.pos = -1
-	t.batch = make([]*TeleportEvent, 0)
+	t.batch = make([]*LegacyTeleportEvent, 0)
 
 	return true
 }
 
 // fetch fetches the page and sets the position to the event after latest known
-func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
+func (t *LegacyEventsWatcher) fetch(ctx context.Context) error {
 	log := logger.Get(ctx)
 	// Zero batch
-	t.batch = make([]*TeleportEvent, 0, t.config.BatchSize)
+	t.batch = make([]*LegacyTeleportEvent, 0, t.config.BatchSize)
 	nextCursor, err := t.getEvents(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -183,7 +160,6 @@ func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 		for i, e := range t.batch {
 			if e.ID == t.id {
 				pos = i + 1
-				t.id = e.ID
 			}
 		}
 	}
@@ -200,8 +176,9 @@ func (t *TeleportEventsWatcher) fetch(ctx context.Context) error {
 // It returns a slice of events, a cursor for the next page and an error.
 // If the cursor is out of the range, it advances the windowStartTime to the next day.
 // It only advances the windowStartTime if no events are found until the last complete day.
-func (t *TeleportEventsWatcher) getEvents(ctx context.Context) (string, error) {
-	rangeSplitByDay := splitRangeByDay(t.getWindowStartTime(), time.Now().UTC(), t.config.WindowSize)
+func (t *LegacyEventsWatcher) getEvents(ctx context.Context) (string, error) {
+	wst := t.getWindowStartTime()
+	rangeSplitByDay := splitRangeByDay(wst, time.Now().UTC(), t.config.WindowSize)
 	for i := 1; i < len(rangeSplitByDay); i++ {
 		startTime := rangeSplitByDay[i-1]
 		endTime := rangeSplitByDay[i]
@@ -217,7 +194,7 @@ func (t *TeleportEventsWatcher) getEvents(ctx context.Context) (string, error) {
 				log.WithField("event", e).Debug("Skipping event")
 				continue
 			}
-			evt, err := NewTeleportEvent(e, t.cursor)
+			evt, err := NewLegacyTeleportEvent(e, t.cursor, wst)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
@@ -238,7 +215,7 @@ func (t *TeleportEventsWatcher) getEvents(ctx context.Context) (string, error) {
 	return t.cursor, nil
 }
 
-func (t *TeleportEventsWatcher) canSkipToNextWindow(i int, rangeSplitByDay []time.Time, cursor string) bool {
+func (t *LegacyEventsWatcher) canSkipToNextWindow(i int, rangeSplitByDay []time.Time, cursor string) bool {
 	if cursor != "" {
 		return false
 
@@ -267,7 +244,7 @@ func (t *TeleportEventsWatcher) canSkipToNextWindow(i int, rangeSplitByDay []tim
 
 // getEvents calls Teleport client and loads events from the audit log.
 // It returns a slice of events, a cursor for the next page and an error.
-func (t *TeleportEventsWatcher) getEventsInWindow(ctx context.Context, from, to time.Time) ([]*auditlogpb.EventUnstructured, string, error) {
+func (t *LegacyEventsWatcher) getEventsInWindow(ctx context.Context, from, to time.Time) ([]*auditlogpb.EventUnstructured, string, error) {
 	evts, cursor, err := t.client.SearchUnstructuredEvents(
 		ctx,
 		from,
@@ -291,7 +268,7 @@ func splitRangeByDay(from, to time.Time, windowSize time.Duration) []time.Time {
 }
 
 // pause sleeps for timeout seconds
-func (t *TeleportEventsWatcher) pause(ctx context.Context) error {
+func (t *LegacyEventsWatcher) pause(ctx context.Context) error {
 	log := logger.Get(ctx)
 	log.Debugf("No new events, pause for %v seconds", t.config.Timeout)
 
@@ -303,13 +280,13 @@ func (t *TeleportEventsWatcher) pause(ctx context.Context) error {
 	}
 }
 
-// Next returns next event from a batch or requests next batch if it has been ended
-func (t *TeleportEventsWatcher) Events(ctx context.Context) (chan *TeleportEvent, chan error) {
-	ch := make(chan *TeleportEvent, t.config.BatchSize)
+// ExportEvents exports events from Teleport to the export function provided on initialization. The atomic
+// cursor value is updated after each successful export call, and failed export calls are retried indefinitely.
+func (t *LegacyEventsWatcher) ExportEvents(ctx context.Context) error {
+	ch := make(chan *LegacyTeleportEvent, t.config.BatchSize)
 	e := make(chan error, 1)
 
 	go func() {
-		defer close(ch)
 		defer close(e)
 
 		logLimiter := rate.NewLimiter(rate.Every(time.Minute), 6)
@@ -396,48 +373,46 @@ func (t *TeleportEventsWatcher) Events(ctx context.Context) (chan *TeleportEvent
 		}
 	}()
 
-	return ch, e
-}
+	for {
+		select {
+		case evt := <-ch:
+		Export:
+			for {
+				// retry export of event indefinitely until event export either succeeds or
+				// exporter is closed.
+				err := t.export(ctx, evt.TeleportEvent)
+				if err == nil {
+					break Export
+				}
 
-// StreamSessionEvents returns session event stream, that's the simple delegate to an API function
-func (t *TeleportEventsWatcher) StreamUnstructuredSessionEvents(ctx context.Context, id string, index int64) (chan *auditlogpb.EventUnstructured, chan error) {
-	return t.client.StreamUnstructuredSessionEvents(ctx, id, index)
-}
-
-// UpsertLock upserts user lock
-func (t *TeleportEventsWatcher) UpsertLock(ctx context.Context, user string, login string, period time.Duration) error {
-	var expires *time.Time
-
-	if period > 0 {
-		t := time.Now()
-		t = t.Add(period)
-		expires = &t
+				log.WithError(err).Error("Failed to export event, retrying...")
+				select {
+				case <-ctx.Done():
+					return trace.Wrap(ctx.Err())
+				case <-time.After(5 * time.Second): // TODO(fspmarshall): add real backoff
+				}
+			}
+			// store updated cursor values after successful export
+			t.exportedCursor.Store(&LegacyCursorValues{
+				Cursor:          evt.Cursor,
+				ID:              evt.ID,
+				WindowStartTime: evt.Window,
+			})
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case err := <-e:
+			return trace.Wrap(err)
+		}
 	}
-
-	lock := &types.LockV2{
-		Metadata: types.Metadata{
-			Name: fmt.Sprintf("event-handler-auto-lock-%v-%v", user, login),
-		},
-		Spec: types.LockSpecV2{
-			Target: types.LockTarget{
-				Login: login,
-				User:  user,
-			},
-			Message: lockMessage,
-			Expires: expires,
-		},
-	}
-
-	return t.client.UpsertLock(ctx, lock)
 }
 
-func (t *TeleportEventsWatcher) getWindowStartTime() time.Time {
+func (t *LegacyEventsWatcher) getWindowStartTime() time.Time {
 	t.windowStartTimeMu.Lock()
 	defer t.windowStartTimeMu.Unlock()
 	return t.windowStartTime
 }
 
-func (t *TeleportEventsWatcher) setWindowStartTime(time time.Time) {
+func (t *LegacyEventsWatcher) setWindowStartTime(time time.Time) {
 	t.windowStartTimeMu.Lock()
 	defer t.windowStartTimeMu.Unlock()
 	t.windowStartTime = time

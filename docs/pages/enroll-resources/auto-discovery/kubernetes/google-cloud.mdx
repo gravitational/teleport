@@ -454,8 +454,18 @@ value, `gke`.
 #### `discovery_service.gcp[0].project_ids`
 
 In your matcher, replace `myproject` with the ID of your Google Cloud project.
-The `project_ids` field must include at least one value, and it must not be the
-wildcard character (`*`).
+
+Ensure that the `project_ids` field follows these rules:
+- It must include at least one value.
+- It must not combine the wildcard character (`*`) with other values.
+
+##### Examples of valid configurations
+- `["p1", "p2"]`
+- `["*"]`
+- `["p1"]`
+
+##### Example of an invalid configuration
+- `["p1", "*"]`
 
 #### `discovery_service.gcp[0].locations`
 
