@@ -3834,7 +3834,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 	var deviceToDelete *types.MFADevice
 	remainingDevices := make(map[types.SecondFactorType]int)
-	var remainingPassKeys int
+	var remainingPasskeys int
 
 	// Find the device to delete and count devices.
 	for _, d := range mfaDevices {
@@ -3860,7 +3860,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		}
 
 		if isPasskey(d) {
-			remainingPassKeys++
+			remainingPasskeys++
 		}
 	}
 	if deviceToDelete == nil {
@@ -3884,7 +3884,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// is not set and passwordless is disabled. Prevent them from deleting
 	// their last passkey to prevent them from being locked out further,
 	// in the case of passwordless being re-enabled.
-	if isPasskey(deviceToDelete) && remainingPassKeys == 0 && readOnlyAuthPref.GetAllowPasswordless() {
+	if isPasskey(deviceToDelete) && remainingPasskeys == 0 && readOnlyAuthPref.GetAllowPasswordless() {
 		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
