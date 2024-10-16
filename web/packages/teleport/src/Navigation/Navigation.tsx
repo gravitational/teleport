@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import styled, { useTheme } from 'styled-components';
 import { matchPath, useLocation, useHistory } from 'react-router';
 import { Box, Text, Flex } from 'design';
-import { Info } from 'design/Icon';
+
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import cfg from 'teleport/config';
 import {
@@ -33,7 +34,6 @@ import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCateg
 import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
-import { ToolTipInfo } from 'shared/components/ToolTip';
 
 const NavigationContainer = styled.div`
   background: ${p => p.theme.colors.levels.surface};
@@ -148,7 +148,7 @@ function AGPLFooter() {
             as="a"
             href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
-            color={theme.colors.interactive.solid.accent.default.background}
+            color={theme.colors.interactive.solid.accent.default}
           >
             the Downloads page
           </Text>{' '}
@@ -171,7 +171,7 @@ function CommunityFooter() {
             as="a"
             href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
             target="_blank"
-            color={theme.colors.interactive.solid.accent.default.background}
+            color={theme.colors.interactive.solid.accent.default}
           >
             Upgrade to Teleport Enterprise
           </Text>{' '}
@@ -191,9 +191,8 @@ function LicenseFooter({
   subText: string;
   infoContent: JSX.Element;
 }) {
-  const [opened, setOpened] = useState(false);
   return (
-    <StyledFooterBox py={3} px={4} onMouseLeave={() => setOpened(false)}>
+    <StyledFooterBox py={3} px={4}>
       <Flex alignItems="center" gap={2}>
         <Text>{title}</Text>
         <ToolTipInfo position="right" sticky>
