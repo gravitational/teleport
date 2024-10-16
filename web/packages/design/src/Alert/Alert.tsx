@@ -194,6 +194,9 @@ export const Alert = ({
         <Box
           flex="1"
           css={`
+            // This preserves white spaces from Go errors (mainly in Teleport Connect).
+            // Thanks to it, each error line is nicely indented with tab,
+            //  instead od being treated as a one, long line.
             white-space: pre-wrap;
           `}
         >
