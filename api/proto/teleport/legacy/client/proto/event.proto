@@ -29,6 +29,7 @@ import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
+import "teleport/provisioning/v1/provisioning.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
@@ -192,5 +193,8 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateAgentPlan AutoUpdateAgentPlan = 68;
     // DynamicWindowsDesktop is a resource for dynamic Windows desktop host.
     types.DynamicWindowsDesktopV1 DynamicWindowsDesktop = 69;
+    // ProvisioningPrincipalState is a resource for tracking the provisioning of
+    // users and groups into downstream systems.
+    teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 70;
   }
 }
