@@ -412,11 +412,8 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	require.Equal(t, fakeXauthEntry, readXauthEntry)
 }
 
-func TestRootHasAccessibleHomeDir(t *testing.T) {
+func TestRootCheckHomeDirAccess(t *testing.T) {
 	utils.RequireRoot(t)
-
-	uid := 1000
-	gid := 1000
 
 	tmp := t.TempDir()
 	home := filepath.Join(tmp, "home")
@@ -429,27 +426,53 @@ func TestRootHasAccessibleHomeDir(t *testing.T) {
 	_, err := os.Create(file)
 	require.NoError(t, err)
 
+	login := utils.GenerateLocalUsername(t)
+	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
+	})
+
+	testUser, err := user.Lookup(login)
+	require.NoError(t, err)
+
+	uid, err := strconv.Atoi(testUser.Uid)
+	require.NoError(t, err)
+
+	gid, err := strconv.Atoi(testUser.Gid)
+	require.NoError(t, err)
+
 	require.NoError(t, os.Chown(home, uid, gid))
 	require.NoError(t, os.Chown(file, uid, gid))
 
-	testUser := user.User{
-		Uid:     strconv.Itoa(uid),
-		Gid:     strconv.Itoa(gid),
-		HomeDir: home,
-	}
-
-	err = HasAccessibleHomeDir(&testUser)
+	hasAccess, err := CheckHomeDirAccess(testUser)
 	require.NoError(t, err)
+	require.True(t, hasAccess)
 
-	testUser.HomeDir = noAccess
-	err = HasAccessibleHomeDir(&testUser)
-	require.True(t, trace.IsAccessDenied(err))
+	changeHomeDir(testUser.Name, noAccess)
+	hasAccess, err = CheckHomeDirAccess(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
 
-	testUser.HomeDir = file
-	err = HasAccessibleHomeDir(&testUser)
-	require.True(t, trace.IsNotFound(err))
+	changeHomeDir(testUser.Name, file)
+	hasAccess, err = CheckHomeDirAccess(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
 
-	testUser.HomeDir = notFound
-	err = HasAccessibleHomeDir(&testUser)
-	require.True(t, trace.IsNotFound(err))
+	changeHomeDir(testUser.Name, notFound)
+	hasAccess, err = CheckHomeDirAccess(testUser)
+	require.NoError(t, err)
+	require.False(t, hasAccess)
+}
+
+func changeHomeDir(username, home string) (int, error) {
+	usermodBin, err := exec.LookPath("usermod")
+	if err != nil {
+		return -1, trace.Wrap(err, "cant find usermod binary")
+	}
+	// usermod -G (replace groups) (username)
+	cmd := exec.Command(usermodBin, "--home", home, username)
+	_, err = cmd.CombinedOutput()
+	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
