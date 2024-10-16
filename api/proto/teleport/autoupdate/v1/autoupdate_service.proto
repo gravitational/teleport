@@ -18,7 +18,6 @@ package teleport.autoupdate.v1;
 
 import "google/protobuf/empty.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
-import "teleport/autoupdate/v1/autoupdate_agent_plan.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
 
@@ -53,21 +52,6 @@ service AutoUpdateService {
 
   // DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
   rpc DeleteAutoUpdateVersion(DeleteAutoUpdateVersionRequest) returns (google.protobuf.Empty);
-
-  // GetAutoUpdateAgentPlan gets the current autoupdate version singleton.
-  rpc GetAutoUpdateAgentPlan(GetAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-
-  // CreateAutoUpdateAgentPlan creates a new AutoUpdateAgentPlan.
-  rpc CreateAutoUpdateAgentPlan(CreateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-
-  // UpdateAutoUpdateAgentPlan updates AutoUpdateAgentPlan singleton.
-  rpc UpdateAutoUpdateAgentPlan(UpdateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-
-  // UpsertAutoUpdateAgentPlan creates a new AutoUpdateAgentPlan or replaces an existing AutoUpdateAgentPlan.
-  rpc UpsertAutoUpdateAgentPlan(UpsertAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-
-  // DeleteAutoUpdateAgentPlan hard deletes the specified AutoUpdateAgentPlanRequest.
-  rpc DeleteAutoUpdateAgentPlan(DeleteAutoUpdateAgentPlanRequest) returns (google.protobuf.Empty);
 }
 
 // Request for GetAutoUpdateConfig.
@@ -111,24 +95,3 @@ message UpsertAutoUpdateVersionRequest {
 
 // Request for DeleteAutoUpdateVersion.
 message DeleteAutoUpdateVersionRequest {}
-
-// Request for GetAutoUpdateAgentPlan.
-message GetAutoUpdateAgentPlanRequest {}
-
-// Request for CreateAutoUpdateAgentPlan.
-message CreateAutoUpdateAgentPlanRequest {
-  AutoUpdateAgentPlan plan = 1;
-}
-
-// Request for UpdateAutoUpdateConfig.
-message UpdateAutoUpdateAgentPlanRequest {
-  AutoUpdateAgentPlan plan = 1;
-}
-
-// Request for UpsertAutoUpdateAgentPlan.
-message UpsertAutoUpdateAgentPlanRequest {
-  AutoUpdateAgentPlan plan = 1;
-}
-
-// Request for DeleteAutoUpdateAgentPlan.
-message DeleteAutoUpdateAgentPlanRequest {}
