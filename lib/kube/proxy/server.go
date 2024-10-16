@@ -98,7 +98,7 @@ type TLSServerConfig struct {
 	// kubernetes cluster name. Proxy uses this map to route requests to the correct
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
-	KubernetesServersWatcher *services.GenericWatcher[types.KubeServer]
+	KubernetesServersWatcher *services.GenericWatcher[types.KubeServer, types.KubeServer]
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 	// InventoryHandle is used to send kube server heartbeats via the inventory control stream.
@@ -170,7 +170,7 @@ type TLSServer struct {
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 	// kubeClusterWatcher monitors changes to kube cluster resources.
-	kubeClusterWatcher *services.GenericWatcher[types.KubeCluster]
+	kubeClusterWatcher *services.GenericWatcher[types.KubeCluster, types.KubeCluster]
 	// reconciler reconciles proxied kube clusters with kube_clusters resources.
 	reconciler *services.Reconciler[types.KubeCluster]
 	// monitoredKubeClusters contains all kube clusters the proxied kube_clusters are

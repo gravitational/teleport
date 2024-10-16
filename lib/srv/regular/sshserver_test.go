@@ -2865,7 +2865,7 @@ func newLockWatcher(ctx context.Context, t testing.TB, client types.Events) *ser
 	return lockWatcher
 }
 
-func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.NodeWatcher {
+func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.GenericWatcher[types.Server, types.ReadOnlyServer] {
 	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",

@@ -123,7 +123,7 @@ type RemoteSite interface {
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error)
 	// NodeWatcher returns the node watcher that maintains the node set for the site
-	NodeWatcher() (*services.NodeWatcher, error)
+	NodeWatcher() (*services.GenericWatcher[types.Server, types.ReadOnlyServer], error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int

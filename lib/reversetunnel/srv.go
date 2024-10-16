@@ -114,7 +114,7 @@ type server struct {
 
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
-	proxyWatcher *services.GenericWatcher[types.Server]
+	proxyWatcher *services.GenericWatcher[types.Server, types.ReadOnlyServer]
 
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
@@ -201,7 +201,7 @@ type Config struct {
 	LockWatcher *services.LockWatcher
 
 	// NodeWatcher is a node watcher.
-	NodeWatcher *services.NodeWatcher
+	NodeWatcher *services.GenericWatcher[types.Server, types.ReadOnlyServer]
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher

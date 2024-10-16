@@ -912,6 +912,7 @@ func TestNodeWatcherFallback(t *testing.T) {
 			},
 			MaxStaleness: time.Minute,
 		},
+		NodesGetter: presence,
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -925,15 +926,14 @@ func TestNodeWatcherFallback(t *testing.T) {
 		nodes = append(nodes, node)
 	}
 
-	require.Empty(t, w.NodeCount())
+	require.Empty(t, w.ResourceCount())
 	require.False(t, w.IsInitialized())
 
-	got := w.GetNodes(ctx, func(n services.Node) bool {
-		return true
-	})
+	got, err := w.CurrentResources(ctx)
+	require.NoError(t, err)
 	require.Len(t, nodes, len(got))
 
-	require.Len(t, nodes, w.NodeCount())
+	require.Len(t, nodes, w.ResourceCount())
 	require.False(t, w.IsInitialized())
 }
 
@@ -964,6 +964,7 @@ func TestNodeWatcher(t *testing.T) {
 			},
 			MaxStaleness: time.Minute,
 		},
+		NodesGetter: presence,
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
@@ -977,25 +978,27 @@ func TestNodeWatcher(t *testing.T) {
 		nodes = append(nodes, node)
 	}
 
-	require.Eventually(t, func() bool {
-		filtered := w.GetNodes(ctx, func(n services.Node) bool {
-			return true
-		})
-		return len(filtered) == len(nodes)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
-	require.Len(t, w.GetNodes(ctx, func(n services.Node) bool { return n.GetUseTunnel() }), 3)
+	filtered, err := w.CurrentResourcesWithFilter(ctx, func(n types.ReadOnlyServer) bool { return n.GetUseTunnel() })
+	require.NoError(t, err)
+	require.Len(t, filtered, 3)
 
 	require.NoError(t, presence.DeleteNode(ctx, apidefaults.Namespace, nodes[0].GetName()))
 
-	require.Eventually(t, func() bool {
-		filtered := w.GetNodes(ctx, func(n services.Node) bool {
-			return true
-		})
-		return len(filtered) == len(nodes)-1
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		filtered, err := w.CurrentResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
-	require.Empty(t, w.GetNodes(ctx, func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
+	filtered, err = w.CurrentResourcesWithFilter(ctx, func(n types.ReadOnlyServer) bool { return n.GetName() == nodes[0].GetName() })
+	require.NoError(t, err)
+	require.Empty(t, filtered)
 }
 
 func newNodeServer(t *testing.T, name, hostname, addr string, tunnel bool) types.Server {
