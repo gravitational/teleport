@@ -182,10 +182,10 @@ type UserConfig struct {
 // Otherwise, the auto-updates configuration is not changed.
 // This function is idempotent.
 func (u *Updater) Enable(ctx context.Context, userCfg UserConfig) error {
-	// Read configuration from updates.yaml and override any new values passed as flags.
+	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := u.readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read update.yaml: %w", err)
+		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
 	}
 	if userCfg.Proxy != "" {
 		cfg.Spec.Proxy = userCfg.Proxy
@@ -246,7 +246,7 @@ func (u *Updater) Enable(ctx context.Context, userCfg UserConfig) error {
 
 	// Always write the configuration file if enable succeeds.
 	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Errorf("failed to write update.yaml: %w", err)
+		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
 	return nil
@@ -259,7 +259,7 @@ func validateUpdatesSpec(spec *UpdateSpec) error {
 	}
 
 	if spec.Proxy == "" {
-		return trace.Errorf("Teleport proxy URL must be specified with --proxy or present in updates.yaml")
+		return trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", updateConfigName)
 	}
 	return nil
 }
@@ -269,7 +269,7 @@ func validateUpdatesSpec(spec *UpdateSpec) error {
 func (u *Updater) Disable(ctx context.Context) error {
 	cfg, err := u.readConfig(u.ConfigPath)
 	if err != nil {
-		return trace.Errorf("failed to read update.yaml: %w", err)
+		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
 	}
 	if !cfg.Spec.Enabled {
 		u.Log.InfoContext(ctx, "Automatic updates already disabled.")
@@ -277,7 +277,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 	}
 	cfg.Spec.Enabled = false
 	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
-		return trace.Errorf("failed to write update.yaml: %w", err)
+		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
 	}
 	return nil
 }

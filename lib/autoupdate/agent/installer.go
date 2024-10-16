@@ -207,6 +207,9 @@ func (ai *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, trace.Errorf("checksum not found: %s", url)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
 	}
@@ -234,6 +237,9 @@ func (ai *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, trace.Errorf("Teleport download not found: %s", url)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
 	}
