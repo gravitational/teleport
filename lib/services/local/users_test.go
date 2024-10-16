@@ -649,7 +649,7 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			assert.Equal(t, devs, []*types.MFADevice{expectSSODevice})
+			assert.Equal(t, []*types.MFADevice{expectSSODevice}, devs)
 		})
 	}
 }
