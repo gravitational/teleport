@@ -342,6 +342,7 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 		a.users, err = a.oktaClient.ListUsers(ctx)
 		if err != nil {
 			err = trace.Wrap(err)
+			return
 		}
 
 		// Assignment can be stale and refer to deactivated user.
@@ -354,6 +355,10 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 		if err != nil {
 			err = trace.Wrap(err)
 			return
+		}
+
+		if a.users == nil {
+			a.users = make(map[api.UserName]api.OktaUserID)
 		}
 		maps.Copy(a.users, deactivatedUsers)
 	})

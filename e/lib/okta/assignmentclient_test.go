@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	oktaquery "github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -245,6 +247,33 @@ func TestAssignmentClient(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, isAssigned)
 	})
+
+	t.Run("okta error during initialization", func(t *testing.T) {
+		assignmentClient := newAssignmentClient(log, &badOktaUserLister{err: errors.New("nope")})
+		require.NotPanics(t, func() {
+			_, _ = assignmentClient.userID(context.Background(), "bob")
+		})
+	})
+
+	t.Run("nil map returned by ListUsers", func(t *testing.T) {
+		assignmentClient := newAssignmentClient(log, &badOktaUserLister{err: nil})
+		require.NotPanics(t, func() {
+			_, _ = assignmentClient.userID(context.Background(), "bob")
+		})
+	})
+}
+
+type badOktaUserLister struct {
+	api.Client
+	err error
+}
+
+func (b *badOktaUserLister) ListUsers(ctx context.Context, paramOpts ...oktaquery.ParamOptions) (map[api.UserName]api.OktaUserID, error) {
+	if len(paramOpts) > 0 {
+		// listing deactivated users
+		return map[api.UserName]api.OktaUserID{"alice": "al1ce"}, nil
+	}
+	return nil, b.err
 }
 
 // testAssignmentOktaServer is a fixture for testing parallel calls to the Okta
