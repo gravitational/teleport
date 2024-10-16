@@ -1,0 +1,51 @@
+---
+name: Publish install scripts
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to use for publishing.
+        type: environment
+        default: publish-stage
+      oss-teleport-ref:
+        description: "Git SHA, tag or branch of the revision of OSS teleport to use. Ignored for production releases."
+        default: master
+        type: string
+
+env:
+  ASSETS_PATH: assets/install-scripts/shim
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Only master branch can publish to production
+          ref: ${{ inputs.environment == 'publish-prod' && 'master' || inputs.oss-teleport-ref }}
+          repository: gravitational/teleport
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /${{ env.ASSETS_PATH }}/*.sh
+      - name: List files to upload
+        run: ls -lah "${ASSETS_PATH}"
+      - name: Authenticate with AWS
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.PUBLISH_INSTALL_SCRIPTS_ROLE_ARN }}
+          role-session-name: "publish-install-scripts-${{ github.run_number }}"
+          role-duration-seconds: 3600
+      - name: Upload to S3
+        env:
+          CDN_BUCKET: ${{ vars.CDN_BUCKET }}
+        run: >-
+          aws s3 cp 
+          "${ASSETS_PATH}" "s3://${CDN_BUCKET}/public/"
+          --recursive
+          --sse AES256
+          --content-type application/x-sh
+          --metadata-directive REPLACE
