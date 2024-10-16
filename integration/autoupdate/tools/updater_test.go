@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 )
 
 var (
@@ -50,11 +50,11 @@ func TestUpdate(t *testing.T) {
 	defer cancel()
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
-	updater := autoupdate.NewClientUpdater(
+	updater := tools.NewUpdater(
 		clientTools(),
 		toolsDir,
 		testVersions[0],
-		autoupdate.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
+		tools.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
@@ -92,11 +92,11 @@ func TestParallelUpdate(t *testing.T) {
 	defer cancel()
 
 	// Initial fetch the updater binary un-archive and replace.
-	updater := autoupdate.NewClientUpdater(
+	updater := tools.NewUpdater(
 		clientTools(),
 		toolsDir,
 		testVersions[0],
-		autoupdate.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
+		tools.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
@@ -166,11 +166,11 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	defer cancel()
 
 	// Initial fetch the updater binary un-archive and replace.
-	updater := autoupdate.NewClientUpdater(
+	updater := tools.NewUpdater(
 		clientTools(),
 		toolsDir,
 		testVersions[0],
-		autoupdate.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
+		tools.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)

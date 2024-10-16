@@ -1,3 +1,6 @@
+//go:build fips
+// +build fips
+
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -16,28 +19,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package autoupdate
+package tools
 
-import (
-	"fmt"
-	"strings"
-)
-
-type progressWriter struct {
-	n     int64
-	limit int64
-}
-
-func (w *progressWriter) Write(p []byte) (int, error) {
-	w.n = w.n + int64(len(p))
-
-	n := int((w.n*100)/w.limit) / 10
-	bricks := strings.Repeat("▒", n) + strings.Repeat(" ", 10-n)
-	fmt.Print("\rUpdate progress: [" + bricks + "] (Ctrl-C to cancel update)")
-
-	if w.n == w.limit {
-		fmt.Print("\n")
-	}
-
-	return len(p), nil
+func init() {
+	featureFlag |= FlagFips
 }

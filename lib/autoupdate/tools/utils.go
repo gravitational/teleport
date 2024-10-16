@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package autoupdate
+package tools
 
 import (
 	"bufio"
@@ -49,8 +49,8 @@ var (
 	featureFlag int
 )
 
-// ToolsDir returns the path to {tsh, tctl} in $TELEPORT_HOME/bin.
-func ToolsDir() (string, error) {
+// Dir returns the path to client tools in $TELEPORT_HOME/bin.
+func Dir() (string, error) {
 	home := os.Getenv(types.HomeEnvVar)
 	if home == "" {
 		var err error
@@ -63,7 +63,7 @@ func ToolsDir() (string, error) {
 	return filepath.Join(filepath.Clean(home), ".tsh", "bin"), nil
 }
 
-func checkClientToolVersion(toolsDir string) (string, error) {
+func checkToolVersion(toolsDir string) (string, error) {
 	// Find the path to the current executable.
 	path, err := toolName(toolsDir)
 	if err != nil {

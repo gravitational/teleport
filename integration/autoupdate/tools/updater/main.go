@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 )
 
 var (
@@ -41,11 +41,11 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	updater := autoupdate.NewClientUpdater(
+	updater := tools.NewUpdater(
 		clientTools(),
 		toolsDir,
 		version,
-		autoupdate.WithBaseURL(baseUrl),
+		tools.WithBaseURL(baseUrl),
 	)
 	toolsVersion, reExec := updater.CheckLocal()
 	if reExec {
