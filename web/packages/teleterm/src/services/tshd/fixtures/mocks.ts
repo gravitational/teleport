@@ -107,6 +107,8 @@ export class MockTshClient implements TshdClient {
   getConnectMyComputerNodeName = () => new MockedUnaryCall({ name: '' });
   listUnifiedResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
+  listKubernetesResources = () =>
+    new MockedUnaryCall({ resources: [], nextKey: '' });
   getUserPreferences = () => new MockedUnaryCall({});
   updateUserPreferences = () => new MockedUnaryCall({});
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
