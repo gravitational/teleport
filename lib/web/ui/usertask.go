@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/lib/usertasks"
 )
 
 // UserTask describes UserTask fields.
