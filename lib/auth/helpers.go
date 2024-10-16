@@ -364,6 +364,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			WebSession:              svces.Identity.WebSessions(),
 			WebToken:                svces.WebTokens(),
 			WindowsDesktops:         svces.WindowsDesktops,
+			IdentityCenter:          svces.IdentityCenter,
+			ProvisioningStates:      svces.ProvisioningStates,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
