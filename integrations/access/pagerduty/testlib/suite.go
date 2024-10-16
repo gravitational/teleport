@@ -430,10 +430,13 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
-	ruleName := "test-pagerduty-amr"
-	lastRuleUpdated := ""
+	const ruleName = "test-pagerduty-amr"
+	var collectedNames []string
+	var mu sync.Mutex
 	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(_ types.OpType, name string, _ *accessmonitoringrulesv1.AccessMonitoringRule) error {
-		lastRuleUpdated = ruleName
+	        mu.Lock()
+		collectedNames=append(collectedNames, name)
+		mu.Unlock()
 		return nil
 	}
 	s.startApp()
