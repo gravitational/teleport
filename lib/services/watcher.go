@@ -1041,12 +1041,15 @@ func (p *dynamicWindowsDesktopCollector) initializationChan() <-chan struct{} {
 func (p *dynamicWindowsDesktopCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	var dynamicWindowsDesktops []types.DynamicWindowsDesktop
 	next := ""
-	for ok := true; ok; ok = next != "" {
+	for {
 		desktops, token, err := p.DynamicWindowsDesktopGetter.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		dynamicWindowsDesktops = append(dynamicWindowsDesktops, desktops...)
+		if token == "" {
+			break
+		}
 		next = token
 	}
 	newCurrent := make(map[string]types.DynamicWindowsDesktop, len(dynamicWindowsDesktops))

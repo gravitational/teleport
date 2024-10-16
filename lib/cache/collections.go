@@ -2334,13 +2334,16 @@ type dynamicWindowsDesktopsExecutor struct{}
 func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
 	var desktops []types.DynamicWindowsDesktop
 	next := ""
-	for ok := true; ok; ok = next != "" {
-		d, n, err := cache.dynamicWindowsDesktopsCache.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+	for {
+		d, token, err := cache.dynamicWindowsDesktopsCache.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
 		if err != nil {
 			return nil, err
 		}
 		desktops = append(desktops, d...)
-		next = n
+		if token == "" {
+			break
+		}
+		next = token
 	}
 	return desktops, nil
 }
