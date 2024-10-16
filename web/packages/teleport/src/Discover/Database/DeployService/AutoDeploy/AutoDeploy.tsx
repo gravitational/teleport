@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import {
   Box,
   ButtonSecondary,
@@ -62,6 +62,9 @@ import {
   Header,
   AlternateInstructionButton,
 } from '../../../Shared';
+import awsEcsLight from '../../aws-ecs-light.svg';
+import awsEcsDark from '../../aws-ecs-dark.svg';
+import awsEcsBblp from '../../aws-ecs-bblp.svg';
 
 import { DeployServiceProp } from '../DeployService';
 
@@ -349,6 +352,11 @@ const Heading = ({
   region: string;
   wantAutoDiscover: boolean;
 }) => {
+  const theme = useTheme();
+  let img = theme.type === 'light' ? awsEcsLight : awsEcsDark;
+  if (theme.isCustomTheme && theme.name === 'bblp') {
+    img = awsEcsBblp;
+  }
   return (
     <>
       <Header>Automatically Deploy a Database Service</Header>
@@ -358,9 +366,11 @@ const Heading = ({
         ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
         the ability to access databases in this region (<Mark>{region}</Mark>).
         You will only need to do this once per geographical region.
+        <Box mt={3}>
+          <img src={img} width="60%" />
+        </Box>
         {!wantAutoDiscover && (
           <>
-            <br />
             <br />
             Want to deploy a database service manually from one of your existing
             servers?{' '}
