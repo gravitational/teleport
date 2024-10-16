@@ -78,7 +78,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 	watcher, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       s.logrusLogger,
+			Logger:    s.log,
 			Client:    s.cfg.AccessPoint,
 		},
 	})

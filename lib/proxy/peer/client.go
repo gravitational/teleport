@@ -414,7 +414,8 @@ func (c *Client) sync() {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.Component(teleport.ComponentProxyPeer),
 			Client:    c.config.AccessPoint,
-			Log:       c.config.Log,
+			// TODO(tross): use the configured logger after updating peering to use slog
+			// Logger:       c.config.Logger,
 		},
 		ProxyDiffer: func(old, new types.Server) bool {
 			return old.GetPeerAddr() != new.GetPeerAddr()

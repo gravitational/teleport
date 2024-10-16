@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -122,9 +122,14 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
-	if log == nil {
-		log = logrus.StandardLogger()
+// TODO(tross): change the log type once e has been updated
+func NewStreamingUsageReporter(log any, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+	logger := slog.Default()
+
+	if log != nil {
+		if l, ok := log.(*slog.Logger); ok {
+			logger = l
+		}
 	}
 
 	if anonymizationKey == "" {
@@ -143,7 +148,7 @@ func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.Cluster
 	clock := clockwork.NewRealClock()
 
 	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1a.SubmitEventRequest]{
-		Log:           log,
+		Logger:        logger,
 		Submit:        submitter,
 		MinBatchSize:  usageReporterMinBatchSize,
 		MaxBatchSize:  usageReporterMaxBatchSize,
