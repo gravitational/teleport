@@ -39,6 +39,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -1380,38 +1381,27 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 	}
 
 	// get normal MFA devices and SSO mfa device concurrently, returning the first error we get.
-	errC := make(chan error)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	eg, egCtx := errgroup.WithContext(ctx)
 
 	var devices []*types.MFADevice
-	go func() {
+	eg.Go(func() error {
 		var err error
-		devices, err = s.getMFADevices(ctx, user, withSecrets)
-		errC <- trace.Wrap(err)
-	}()
+		devices, err = s.getMFADevices(egCtx, user, withSecrets)
+		return trace.Wrap(err)
+	})
 
 	var ssoDev *types.MFADevice
-	go func() {
+	eg.Go(func() error {
 		var err error
-		ssoDev, err = s.getSSOMFADevice(ctx, user)
+		ssoDev, err = s.getSSOMFADevice(egCtx, user)
 		if trace.IsNotFound(err) {
-			errC <- nil // OK, SSO device may not exist.
-			return
+			return nil // OK, SSO device may not exist.
 		}
-		errC <- trace.Wrap(err)
-	}()
+		return trace.Wrap(err)
+	})
 
-	var errs []error
-	for i := 0; i < 2; i++ {
-		if err := <-errC; err != nil {
-			errs = append(errs, err)
-			cancel()
-		}
-	}
-
-	if len(errs) != 0 {
-		return nil, trace.NewAggregate(errs...)
+	if err := eg.Wait(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if ssoDev != nil {
