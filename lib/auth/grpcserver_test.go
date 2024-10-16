@@ -504,46 +504,15 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 
 	// prepare a passwordless device.
 	passkeyName := "passkey"
-	passkey, err := mocku2f.Create()
-	require.NoError(t, err)
-	passkey.PreferRPID = true
-	passkey.SetPasswordless()
+	passkey, err := RegisterTestDevice(ctx, userClient, passkeyName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, WithPasswordless())
+	require.NoError(t, err, "RegisterTestDevice")
 
-	passkeyRegisterHandler := func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
-		ccr, err := passkey.SignCredentialCreation(webOrigin, wantypes.CredentialCreationFromProto(challenge.GetWebauthn()))
-		require.NoError(t, err)
-
-		return &proto.MFARegisterResponse{
-			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
-			},
-		}
+	passkeyWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+		mfaResp, err := passkey.SolveAuthn(challenge)
+		require.NoError(t, err, "SolveAuthn")
+		return mfaResp
 	}
-
-	passkeyAuthHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-		car, err := passkey.SignAssertion(webOrigin, wantypes.CredentialAssertionFromProto(challenge.GetWebauthnChallenge()))
-		require.NoError(t, err)
-
-		return &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
-			},
-		}
-	}
-
-	// SSO user should be able to add their first MFA device without any currently registered.
-	testAddMFADevice(ctx, t, userClient, mfaAddTestOpts{
-		deviceName:  passkeyName,
-		deviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		deviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
-		authHandler: func(t *testing.T, mc *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-			// no mfa device registered, empty challenge and response
-			return nil
-		},
-		registerHandler:  passkeyRegisterHandler,
-		checkAuthErr:     require.NoError,
-		checkRegisterErr: require.NoError,
-	})
 
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
@@ -576,7 +545,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 
 	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
 		deviceName:  "saml",
-		authHandler: passkeyAuthHandler,
+		authHandler: passkeyWebAuthnHandler,
 		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
 			assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
@@ -586,7 +555,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 	// Last non-SSO, passwordless device can be deleted now.
 	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
 		deviceName:  passkeyName,
-		authHandler: passkeyAuthHandler,
+		authHandler: passkeyWebAuthnHandler,
 		checkErr:    require.NoError,
 	})
 }
