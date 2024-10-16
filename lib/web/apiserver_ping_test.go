@@ -277,7 +277,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		{
 			name: "enable auto update",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
-				Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 				},
 			},
@@ -287,7 +287,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		{
 			name: "set auto update version",
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
-				Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3",
 				},
 			},
@@ -297,12 +297,12 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		{
 			name: "enable auto update and set version",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
-				Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 				},
 			},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
-				Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3",
 				},
 			},
@@ -311,12 +311,12 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		{
 			name: "modify auto update config and version",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
-				Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
 				},
 			},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
-				Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "3.2.1",
 				},
 			},

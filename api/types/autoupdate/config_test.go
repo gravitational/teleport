@@ -41,7 +41,7 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 		{
 			name: "success tools autoupdate disabled",
 			spec: &autoupdate.AutoUpdateConfigSpec{
-				Tools: &autoupdate.AutoUpdateConfigTools{
+				Tools: &autoupdate.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
 				},
 			},
@@ -55,7 +55,7 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 					Name: types.MetaNameAutoUpdateConfig,
 				},
 				Spec: &autoupdate.AutoUpdateConfigSpec{
-					Tools: &autoupdate.AutoUpdateConfigTools{
+					Tools: &autoupdate.AutoUpdateConfigSpecTools{
 						Mode: autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
 					},
 				},
@@ -64,7 +64,7 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 		{
 			name: "success tools autoupdate enabled",
 			spec: &autoupdate.AutoUpdateConfigSpec{
-				Tools: &autoupdate.AutoUpdateConfigTools{
+				Tools: &autoupdate.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 				},
 			},
@@ -78,7 +78,7 @@ func TestNewAutoUpdateConfig(t *testing.T) {
 					Name: types.MetaNameAutoUpdateConfig,
 				},
 				Spec: &autoupdate.AutoUpdateConfigSpec{
-					Tools: &autoupdate.AutoUpdateConfigTools{
+					Tools: &autoupdate.AutoUpdateConfigSpecTools{
 						Mode: autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 					},
 				},

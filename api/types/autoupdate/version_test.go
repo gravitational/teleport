@@ -41,7 +41,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 		{
 			name: "success tools autoupdate version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				Tools: &autoupdate.AutoUpdateVersionTools{
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3-dev",
 				},
 			},
@@ -55,7 +55,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					Name: types.MetaNameAutoUpdateVersion,
 				},
 				Spec: &autoupdate.AutoUpdateVersionSpec{
-					Tools: &autoupdate.AutoUpdateVersionTools{
+					Tools: &autoupdate.AutoUpdateVersionSpecTools{
 						TargetVersion: "1.2.3-dev",
 					},
 				},
@@ -64,7 +64,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 		{
 			name: "invalid empty tools version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				Tools: &autoupdate.AutoUpdateVersionTools{
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
 					TargetVersion: "",
 				},
 			},
@@ -75,7 +75,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 		{
 			name: "invalid semantic tools version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				Tools: &autoupdate.AutoUpdateVersionTools{
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
 					TargetVersion: "17-0-0",
 				},
 			},

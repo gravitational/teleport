@@ -557,14 +557,14 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 			Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 		},
 	})
 	require.NoError(t, err)
 
 	initial, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 			Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
 		},
 	})
@@ -599,14 +599,14 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
 	expected, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 			TargetVersion: "3.2.1",
 		},
 	})
 	require.NoError(t, err)
 
 	initial, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 			TargetVersion: "1.2.3",
 		},
 	})

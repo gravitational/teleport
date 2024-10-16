@@ -3981,7 +3981,7 @@ func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
-		Tools: &autoupdate.AutoUpdateConfigTools{
+		Tools: &autoupdate.AutoUpdateConfigSpecTools{
 			Mode: autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 		},
 	})
@@ -3993,7 +3993,7 @@ func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
-		Tools: &autoupdate.AutoUpdateVersionTools{
+		Tools: &autoupdate.AutoUpdateVersionSpecTools{
 			TargetVersion: "1.2.3",
 		},
 	})

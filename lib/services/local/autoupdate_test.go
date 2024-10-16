@@ -52,7 +52,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateConfig},
 		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
-			Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 				Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 			},
 		},
@@ -76,7 +76,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigTools{
+	config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{
 		Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
 	}
 	updated, err := service.UpdateAutoUpdateConfig(ctx, config)
@@ -114,7 +114,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateVersion},
 		Spec: &autoupdatev1pb.AutoUpdateVersionSpec{
-			Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+			Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 				TargetVersion: "1.2.3",
 			},
 		},
@@ -138,7 +138,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionTools{
+	version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{
 		TargetVersion: "3.2.1",
 	}
 	updated, err := service.UpdateAutoUpdateVersion(ctx, version)
@@ -176,7 +176,7 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-config-name"},
 		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
-			Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 				Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 			},
 		},
@@ -191,7 +191,7 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-version-name"},
 		Spec: &autoupdatev1pb.AutoUpdateVersionSpec{
-			Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+			Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 				TargetVersion: "1.2.3",
 			},
 		},
@@ -217,7 +217,7 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 
 	// Validate the config update restriction.
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: &autoupdatev1pb.AutoUpdateConfigTools{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 			Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
 		},
 	})
@@ -234,7 +234,7 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 
 	// Validate the version update restriction.
 	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		Tools: &autoupdatev1pb.AutoUpdateVersionTools{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 			TargetVersion: "1.2.3",
 		},
 	})
