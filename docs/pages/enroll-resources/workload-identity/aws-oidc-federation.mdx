@@ -75,7 +75,7 @@ SPIFFE ID. This is a URI that uniquely identifies the entity that the identity
 represents. The scheme is always `spiffe://`, and the host will be the name of
 your Teleport cluster. The structure of the path of this URI is up to you.
 
-For the purposes of this guide, we will be granting access to GCP to the
+For the purposes of this guide, we will be granting access to AWS to the
 `spiffe://example.teleport.sh/svc/example-service` SPIFFE ID.
 
 If you have already deployed Teleport Workload Identity, then you will already
@@ -351,81 +351,76 @@ outputs:
 
 Replace:
 
--
+- /opt/workload-identity with the directory where you want the JWT to be
+  written.
+- /svc/example-service with the SPIFFE ID you have chosen.
 
 Restart your `tbot` service to apply the new configuration. You should see a
 file created at `/opt/workload-identity/aws-jwt` containing the JWT.
 
 ## Step 4/4. Configure AWS CLIs and SDKs
 
-Finally, you need to create a configuration file to configure the GCP CLIs and
-SDKs to authenticate using Workload Identity. This configuration file will
-specify the path to the JWT file that `tbot` is writing and will specify which
-Workload Identity Federation pool and provider to use.
+Finally, you need to configure the AWS CLIs and SDKs to use the JWT SVID for 
+authentication.
 
-You can generate this configuration file using the `gcloud` CLI:
+This can be done using the configuration file located at `~/.aws/config` or by
+using environment variables.
 
-```code
-$ gcloud iam workload-identity-pools create-cred-config \
-    projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc \
-    --output-file=gcp-workload-identity.json \
-    --credential-source-file=/opt/workload-identity/gcp-jwt \
-    --credential-source-type=text
+To proceed, you'll need to know the ARN of the role you created earlier.
+
+<Tabs>
+<TabItem label="Configuration File">
+
+Add the following to your `~/.aws/config` file:
+
+```ini
+# You can replace "workload-id-demo" with a recognisable name that identifies
+# your use-case.
+[profile workload-id-demo]
+# Replace with the ARN of the role you created earlier.
+role_arn=arn:aws:iam:123456789012:role/workload-id-demo
+# Replace with the directory and file name you configured `tbot` to write the
+# JWT to.
+web_identity_token_file=/opt/workload-identity/aws-jwt
 ```
 
-Replace:
+</TabItem>
+<TabItem label="Environment Variables">
 
-- `123456789000` with your GCP project number.
-- `workload-id-pool` with the name of your Workload Identity Federation pool.
-- `workload-id-oidc` with the name of your Workload Identity Federation provider.
-- `/opt/workload-identity/gcp-jwt` with the path to the JWT file that `tbot` is
-  writing.
+Configure the following environment variables:
 
-The command should have created a file called `gcp-workload-identity.json` in
-the current directory.
+- `AWS_ROLE_ARN`: The ARN of the role you created earlier, e.g 
+  `arn:aws:iam::123456789012:role/workload-id-demo`
+- `AWS_WEB_IDENTITY_TOKEN_FILE`: The path to the JWT file that `tbot` is writing,
+  e.g `/opt/workload-identity/aws-jwt`
 
-### `gcloud` CLI
+</TabItem>
+</Tabs>
 
-To configure the `gcloud` CLI to authenticate using Workload Identity, you use
-the `gcloud auth login` command and specify the path to the configuration file
-that you have just created:
-
-```code
-$ gcloud auth login --cred-file gcp-workload-identity.json
-```
-
-You can now test authenticating to the GCP Storage API. Create a file which
-you can upload to your bucket:
+You can now test authenticating to the AWS S3 API. Create a file which you can
+upload to your bucket:
 
 ```code
 $ echo "Hello, World!" > hello.txt
 ```
 
-Now, use the `gcloud` CLI to upload this file to your bucket:
+Now, use the AWS CLI to upload this file to your bucket:
 
 ```code
-$ gcloud storage cp hello.txt gs://example
+$ aws s3 cp hello.txt s3://workload-id-demo
 ```
 
 If everything is configured correctly, you should see this file uploaded to your
-bucket. Inspecting the audit logs on GCP should indicate that the request was
-authenticated using Workload Identity and specify the SPIFFE ID of the workload
-that made the request.
-
-### GCP SDKs
-
-To configure the GCP SDKs to authenticate using Workload Identity, you need to
-set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of the
-configuration file that you have just created:
-
-```code
-$ export GOOGLE_APPLICATION_CREDENTIALS=gcp-workload-identity.json
-```
+bucket. Inspecting the audit logs on CloudTrail should indicate that the request
+was authenticated using Workload Identity and specify the SPIFFE ID of the
+workload that made the request.
 
 ## Next steps
 
-- [AWS OIC Federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html):
+- [AWS OIDC Federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html):
 The official AWS documentation for OIDC federation.
+- [AWS CLI documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-role.html#cli-configure-role-oidc):
+The official AWS CLI documentation for configuring a role to be assumed.
 - [Workload Identity Overview](./introduction.mdx): Overview of Teleport
 Workload Identity.
 - [JWT SVID Overview](./jwt-svids.mdx): Overview of the JWT SVIDs issued by
