@@ -383,7 +383,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 // site is the minimum interface needed to match servers
 // for a reversetunnelclient.RemoteSite. It makes testing easier.
 type site interface {
-	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
+	GetNodes(ctx context.Context, fn func(n types.ReadOnlyServer) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 }
 
@@ -394,13 +394,13 @@ type remoteSite struct {
 }
 
 // GetNodes uses the wrapped sites NodeWatcher to filter nodes
-func (r remoteSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
+func (r remoteSite) GetNodes(ctx context.Context, fn func(n types.ReadOnlyServer) bool) ([]types.Server, error) {
 	watcher, err := r.site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return watcher.GetNodes(ctx, fn), nil
+	return watcher.CurrentResourcesWithFilter(ctx, fn)
 }
 
 // GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
@@ -450,7 +450,7 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 
 	var maxScore int
 	scores := make(map[string]int)
-	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
+	matches, err := site.GetNodes(ctx, func(server types.ReadOnlyServer) bool {
 		score := routeMatcher.RouteToServerScore(server)
 		if score < 1 {
 			return false

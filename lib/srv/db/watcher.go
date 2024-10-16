@@ -69,7 +69,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to database resources and
 // registers/unregisters the proxied databases accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Database], error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Database, types.Database], error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
 		s.log.DebugContext(ctx, "Not starting database resource watcher.")
 		return nil, nil
