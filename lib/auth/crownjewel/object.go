@@ -60,7 +60,7 @@ func ValidateCrownJewel(jewel *crownjewelv1.CrownJewel) error {
 		return trace.BadParameter("crown jewel name is empty")
 	case jewel.Spec == nil:
 		return trace.BadParameter("crown jewel spec is nil")
-	case len(jewel.Spec.TeleportMatchers) == 0 && len(jewel.Spec.AwsMatchers) == 0:
+	case len(jewel.Spec.TeleportMatchers) == 0 && len(jewel.Spec.AwsMatchers) == 0 && jewel.Spec.Query == "":
 		return trace.BadParameter("crown jewel must have at least one matcher")
 	}
 

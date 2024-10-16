@@ -165,7 +165,7 @@ export const NonInteractiveItem = styled.div`
     background-color: rgba(0, 158, 255, 0.4); // Accent/Link at 40%
   }
 
-  :not(:last-of-type) {
+  &:not(:last-of-type) {
     border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 
@@ -173,7 +173,7 @@ export const NonInteractiveItem = styled.div`
   color: ${props => props.theme.colors.text.main};
 `;
 
-const InteractiveItem = styled(NonInteractiveItem)`
+const InteractiveItem = styled(NonInteractiveItem)<{ active?: boolean }>`
   cursor: pointer;
 
   &:hover,

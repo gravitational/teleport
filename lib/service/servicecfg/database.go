@@ -123,9 +123,10 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		URI:      d.URI,
 		CACert:   string(d.TLS.CACert),
 		TLS: types.DatabaseTLS{
-			CACert:     string(d.TLS.CACert),
-			ServerName: d.TLS.ServerName,
-			Mode:       d.TLS.Mode.ToProto(),
+			CACert:              string(d.TLS.CACert),
+			ServerName:          d.TLS.ServerName,
+			Mode:                d.TLS.Mode.ToProto(),
+			TrustSystemCertPool: d.TLS.TrustSystemCertPool,
 		},
 		MySQL: types.MySQLOptions{
 			ServerVersion: d.MySQL.ServerVersion,
@@ -204,6 +205,9 @@ type DatabaseTLS struct {
 	ServerName string
 	// CACert is an optional database CA certificate.
 	CACert []byte
+	// TrustSystemCertPool allows Teleport to trust certificate authorities
+	// available on the host system.
+	TrustSystemCertPool bool
 }
 
 // DatabaseAWS contains AWS specific settings for RDS/Aurora databases.

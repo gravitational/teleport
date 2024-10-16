@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ButtonPrimary } from 'design';
+import { Button } from 'design';
 
 import cfg from 'teleport/config';
 
@@ -28,7 +28,9 @@ export function IntegrationsAddButton({
   canCreate: boolean;
 }) {
   return (
-    <ButtonPrimary
+    <Button
+      intent="primary"
+      fill="border"
       as={Link}
       ml="auto"
       width="240px"
@@ -36,7 +38,7 @@ export function IntegrationsAddButton({
       to={cfg.getIntegrationEnrollRoute()}
       title={canCreate ? '' : 'You do not have access to add new integrations'}
     >
-      Enroll new integration
-    </ButtonPrimary>
+      Enroll New Integration
+    </Button>
   );
 }

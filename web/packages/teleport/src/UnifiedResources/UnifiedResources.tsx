@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';
@@ -50,20 +50,26 @@ import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering'
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { FeatureFlags } from 'teleport/types';
 import { UnifiedResource } from 'teleport/services/agents';
+import {
+  useSamlAppAction,
+  SamlAppActionProvider,
+} from 'teleport/SamlApplications/useSamlAppActions';
+import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 
 import { ResourceActionButton } from './ResourceActionButton';
-import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
 
   return (
     <FeatureBox px={4}>
-      <ClusterResources
-        key={clusterId} // when the current cluster changes, remount the component
-        clusterId={clusterId}
-        isLeafCluster={isLeafCluster}
-      />
+      <SamlAppActionProvider>
+        <ClusterResources
+          key={clusterId} // when the current cluster changes, remount the component
+          clusterId={clusterId}
+          isLeafCluster={isLeafCluster}
+        />
+      </SamlAppActionProvider>
     </FeatureBox>
   );
 }
@@ -149,7 +155,12 @@ export function ClusterResources({
     getClusterPinnedResources: getCurrentClusterPinnedResources,
   };
 
-  const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+  const {
+    fetch,
+    resources: unfilteredResources,
+    attempt,
+    clear,
+  } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
         const response = await teleCtx.resourceService.fetchUnifiedResources(
@@ -186,6 +197,21 @@ export function ClusterResources({
       ]
     ),
   });
+  const { samlAppToDelete } = useSamlAppAction();
+  const resources = useMemo(
+    () =>
+      samlAppToDelete?.backendDeleted
+        ? unfilteredResources.filter(
+            res =>
+              !(
+                res.kind === 'app' &&
+                res.samlApp &&
+                res.name === samlAppToDelete.name
+              )
+          )
+        : unfilteredResources,
+    [samlAppToDelete, unfilteredResources]
+  );
 
   // This state is used to recognize when the `params` value has changed,
   // and reset the overall state of `useUnifiedResourcesFetch` hook. It's tempting to use a
@@ -249,22 +275,21 @@ export function ClusterResources({
           setParams(newParams);
           const isAdvancedSearch = !!newParams.query;
           replaceHistory(
-            encodeUrlQueryParams(
+            encodeUrlQueryParams({
               pathname,
-              isAdvancedSearch ? newParams.query : newParams.search,
-              newParams.sort,
-              newParams.kinds,
+              searchString: isAdvancedSearch
+                ? newParams.query
+                : newParams.search,
+              sort: newParams.sort,
+              kinds: newParams.kinds,
               isAdvancedSearch,
-              newParams.pinnedOnly
-            )
+              pinnedOnly: newParams.pinnedOnly,
+            })
           );
         }}
         Header={
           <>
             <FeatureHeader
-              css={`
-                border-bottom: none;
-              `}
               mb={1}
               alignItems="center"
               justifyContent="space-between"
@@ -281,8 +306,8 @@ export function ClusterResources({
                 )}
               </Flex>
             </FeatureHeader>
-            <Flex alignItems="center" justifyContent="space-between">
-              <SearchPanel
+            <Flex alignItems="center" justifyContent="space-between" mb={3}>
+              <ServersideSearchPanel
                 params={params}
                 pathname={pathname}
                 replaceHistory={replaceHistory}
@@ -304,5 +329,4 @@ export const emptyStateInfo: EmptyStateInfo = {
     title: 'No Resources Found',
     resource: 'resources',
   },
-  resourceType: 'unified_resource',
 };

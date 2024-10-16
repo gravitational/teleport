@@ -1,0 +1,52 @@
+---
+title: TeleportGithubConnector
+description: Provides a comprehensive list of fields in the TeleportGithubConnector resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportGithubConnector`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v3
+
+**apiVersion:** resources.teleport.dev/v3
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|GithubConnector resource definition v3 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|api_endpoint_url|string|APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.|
+|client_id|string|ClientID is the Github OAuth app client ID.|
+|client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
+|client_secret|string|ClientSecret is the Github OAuth app client secret. This field supports secret lookup. See the operator documentation for more details.|
+|display|string|Display is the connector display name.|
+|endpoint_url|string|EndpointURL is the URL of the GitHub instance this connector is for.|
+|redirect_url|string|RedirectURL is the authorization callback URL.|
+|teams_to_roles|[][object](#specteams_to_roles-items)|TeamsToRoles maps Github team memberships onto allowed roles.|
+
+### spec.client_redirect_settings
+
+|Field|Type|Description|
+|---|---|---|
+|allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
+|insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
+
+### spec.teams_to_roles items
+
+|Field|Type|Description|
+|---|---|---|
+|organization|string|Organization is a Github organization a user belongs to.|
+|roles|[]string|Roles is a list of allowed logins for this org/team.|
+|team|string|Team is a team within the organization a user belongs to.|
+

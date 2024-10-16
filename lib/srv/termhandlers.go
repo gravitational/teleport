@@ -89,9 +89,7 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		}
 		scx.SetTerm(term)
 		scx.termAllocated = true
-		if term.TTY() != nil {
-			scx.ttyName = term.TTY().Name()
-		}
+		scx.ttyName = term.TTYName()
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
 		scx.Errorf("Failed setting window size: %v", err)
@@ -143,7 +141,7 @@ func (t *TermHandlers) HandleFileTransferDecision(ctx context.Context, ch ssh.Ch
 
 	session := scx.getSession()
 	if session == nil {
-		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		t.SessionRegistry.logger.DebugContext(ctx, "Unable to create file transfer Request, no session found in context.")
 		return nil
 	}
 
@@ -166,7 +164,7 @@ func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Cha
 
 	session := scx.getSession()
 	if session == nil {
-		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		t.SessionRegistry.logger.DebugContext(ctx, "Unable to create file transfer Request, no session found in context.")
 		return nil
 	}
 

@@ -27,7 +27,7 @@ install -d -m 0755 -o teleport -g adm /run/teleport /etc/teleport.d
 # Extract tarball to /tmp/teleport to get the binaries out
 mkdir /tmp/teleport
 tar -C /tmp/teleport -x -z -f /tmp/teleport.tar.gz --strip-components=1
-install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot} /usr/local/bin
+install -m 755 /tmp/teleport/{tctl,tsh,teleport,tbot,fdpass-teleport} /usr/local/bin
 rm -rf /tmp/teleport /tmp/teleport.tar.gz
 
 if [[ "${TELEPORT_FIPS}" == 1 ]]; then

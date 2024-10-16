@@ -300,7 +300,7 @@ func (e *Engine) getClientLocked(ctx context.Context) (spannerpb.SpannerClient, 
 		return spannerpb.NewSpannerClient(e.gcloudClient), nil
 	}
 
-	tlsCfg, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	tlsCfg, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx.GetExpiry(), e.sessionCtx.Database, e.sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,7 +311,7 @@ func (e *Engine) getClientLocked(ctx context.Context) (spannerpb.SpannerClient, 
 	// reason someone would want to use the full service account name, like for
 	// a service account in a different project?
 	dbUser := databaseUserToGCPServiceAccount(e.sessionCtx)
-	ts, err := e.Auth.GetSpannerTokenSource(e.clientConnContext, e.sessionCtx.WithUser(dbUser))
+	ts, err := e.Auth.GetSpannerTokenSource(e.clientConnContext, dbUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -396,7 +396,7 @@ func (e *Engine) authorizeRPCRequest(ctx context.Context, targetID, procedure st
 
 	args, err := rpcRequestToStruct(req)
 	if err != nil {
-		e.Log.WithError(err).Debug("failed to convert Spanner RPC args to audit event info")
+		e.Log.DebugContext(e.Context, "failed to convert Spanner RPC args to audit event info", "error", err)
 		if authzErr == nil {
 			// if there is no access error, but we can't fully audit what they
 			// are doing, then report an access denied error in the audit log

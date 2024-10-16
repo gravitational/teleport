@@ -44,6 +44,7 @@ import {
   ChildProcessAddresses,
   MainProcessIpc,
   RendererIpc,
+  TERMINATE_MESSAGE,
 } from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -143,7 +144,11 @@ export default class MainProcess {
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
         this.gracefullyKillTshdProcess();
       }),
-      terminateWithTimeout(this.sharedProcess),
+      terminateWithTimeout(this.sharedProcess, 5_000, process =>
+        // process.kill doesn't allow running a cleanup code in the child process
+        // on Windows
+        process.send(TERMINATE_MESSAGE)
+      ),
       this.agentRunner.killAll(),
     ]);
   }
@@ -217,6 +222,7 @@ export default class MainProcess {
       `--kubeconfigs-dir=${settings.kubeConfigsDir}`,
       `--agents-dir=${agentsDir}`,
       `--installation-id=${settings.installationId}`,
+      `--add-keys-to-agent=${this.configService.get('sshAgent.addKeysToAgent').value}`,
     ];
 
     if (settings.insecure) {
@@ -496,8 +502,11 @@ export default class MainProcess {
       }
     );
 
-    subscribeToTerminalContextMenuEvent();
-    subscribeToTabContextMenuEvent();
+    subscribeToTerminalContextMenuEvent(this.configService);
+    subscribeToTabContextMenuEvent(
+      this.settings.availableShells,
+      this.configService
+    );
     subscribeToConfigServiceEvents(this.configService);
     subscribeToFileStorageEvents(this.appStateFileStorage);
   }

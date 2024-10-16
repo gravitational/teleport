@@ -21,8 +21,9 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Indicator,
-  Text,
+  Subtitle2,
 } from 'design';
 import React from 'react';
 import styled, { useTheme, css } from 'styled-components';
@@ -56,10 +57,10 @@ export function Header({
         {icon}
       </Box>
       <Box flex="1">
-        <Text typography="h4">{title}</Text>
-        <Text typography="body1" color={theme.colors.text.slightlyMuted}>
+        <H2>{title}</H2>
+        <Subtitle2 color={theme.colors.text.slightlyMuted}>
           {description}
-        </Text>
+        </Subtitle2>
       </Box>
       {/* Indicator is always in the layout so that the description text doesn't
           reflow if visibility changes. */}

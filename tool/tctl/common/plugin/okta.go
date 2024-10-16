@@ -34,7 +34,7 @@ import (
 )
 
 func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
-	p.install.okta.cmd = parent.Command("okta", "Install an okta integration")
+	p.install.okta.cmd = parent.Command("okta", "Install an Okta integration.")
 	p.install.okta.cmd.
 		Flag("name", "Name of the plugin resource to create").
 		Default("okta").
@@ -54,10 +54,11 @@ func (p *PluginsCommand) initInstallOkta(parent *kingpin.CmdClause) {
 		Flag("app-id", "Okta ID of the APP used for SSO via SAML").
 		StringVar(&p.install.okta.appID)
 	p.install.okta.cmd.
-		Flag("scim", "Enable SCIM OKTA integration").
+		Flag("scim", "Enable SCIM Okta integration").
 		BoolVar(&p.install.okta.scimEnabled)
 	p.install.okta.cmd.
 		Flag("scim-token", "Okta SCIM auth token for the plugin to use").
+		Hidden().
 		StringVar(&p.install.okta.scimToken)
 	p.install.okta.cmd.
 		Flag("users-sync", "Enable user synchronization").
@@ -205,7 +206,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Successfully created OKTA plugin %q\n\n", p.install.name)
+	fmt.Printf("Successfully created Okta plugin %q\n\n", p.install.name)
 	if oktaSettings.scimEnabled {
 		pingResp, err := args.authClient.Ping(ctx)
 		if err != nil {

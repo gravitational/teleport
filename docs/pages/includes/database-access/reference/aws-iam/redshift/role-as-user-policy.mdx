@@ -1,0 +1,36 @@
+The following permissions policy should be attached to an IAM role that Teleport
+users can specify as a database user.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RedshiftConnectWithIAM",
+            "Effect": "Allow",
+            "Action": "redshift:GetClusterCredentialsWithIAM",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`RedshiftConnectWithIAM` | Connect to a Redshift database as a database user mapped 1:1 from this IAM identity. |
+
+An IAM role can connect as an automatically created database user with
+permissions mapped 1:1 from the identity's IAM permissions.
+Permissions in the database are granted with `redshift-data:*` statements
+attached to the IAM identity, for example `redshift-data:GetStatementResult`.
+Teleport users can connect as that role by specifying "role/\{RoleName\}" as a
+database user, e.g.
+
+```code
+$ tsh db connect redshift-example-db --db-user=role/{{ dbUserRole }}
+```
+
+See
+[Using identity-based policies for Amazon Redshift](https://docs.aws.amazon.com/redshift/latest/mgmt/redshift-iam-access-control-identity-based.html)
+for more information about available Redshift IAM permissions that are mapped
+to the database user.

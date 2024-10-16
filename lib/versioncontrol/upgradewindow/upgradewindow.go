@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 const (
@@ -44,9 +45,6 @@ const (
 
 	// unitScheduleFile is the name of the file to which the unit schedule is exported.
 	unitScheduleFile = "schedule"
-
-	// unitConfigDir is the configuration directory of the teleport-upgrade unit.
-	unitConfigDir = "/etc/teleport-upgrade.d"
 )
 
 // ExportFunc represents the ExportUpgradeWindows rpc exposed by auth servers.
@@ -369,7 +367,9 @@ func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 	}
 
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
 		Value: []byte(rsp.KubeControllerSchedule),
 	})
 
@@ -380,7 +380,9 @@ func (e *kubeDriver) Reset(ctx context.Context) error {
 	// kube backend doesn't support deletes right now, so just set
 	// the key to empty.
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
 		Value: []byte{},
 	})
 
@@ -399,7 +401,7 @@ type systemdDriver struct {
 
 func NewSystemdUnitDriver(cfg SystemdUnitDriverConfig) (Driver, error) {
 	if cfg.ConfigDir == "" {
-		cfg.ConfigDir = unitConfigDir
+		cfg.ConfigDir = versioncontrol.UnitConfigDir
 	}
 
 	return &systemdDriver{cfg: cfg}, nil

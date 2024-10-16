@@ -558,6 +558,11 @@
                     "type": "object",
                     "default": {}
                 },
+                "job": {
+                    "$id": "#/properties/extraLabels/properties/job",
+                    "type": "object",
+                    "default": {}
+                },
                 "pod": {
                     "$id": "#/properties/extraLabels/properties/pod",
                     "type": "object",

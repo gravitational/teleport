@@ -272,7 +272,7 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
 		Labels: app.GetDynamicLabels(),
-		Log:    s.log,
+		// TODO: pass s.log through after it's been converted to slog
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,37 +332,33 @@ func (s *Server) stopHeartbeat(name string) error {
 
 // getServerInfoFunc returns function that the heartbeater uses to report the
 // provided application to the auth server.
-func (s *Server) getServerInfoFunc(app types.Application) func() *types.AppServerV3 {
-	return func() *types.AppServerV3 {
+func (s *Server) getServerInfoFunc(app types.Application) func(context.Context) (*types.AppServerV3, error) {
+	return func(context.Context) (*types.AppServerV3, error) {
 		return s.getServerInfo(app)
 	}
 }
 
 // getServerInfo returns up-to-date app resource.
-func (s *Server) getServerInfo(app types.Application) *types.AppServerV3 {
+func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	server, err := types.NewAppServerV3(types.Metadata{
+		Name:    copy.GetName(),
+		Expires: &expires,
+	}, types.AppServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: s.c.Hostname,
+		HostID:   s.c.HostID,
+		Rotation: s.getRotationState(),
+		App:      copy,
+		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
+	})
 
-	return &types.AppServerV3{
-		Kind:    types.KindAppServer,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:    copy.GetName(),
-			Expires: &expires,
-		},
-		Spec: types.AppServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: s.c.Hostname,
-			HostID:   s.c.HostID,
-			Rotation: s.getRotationState(),
-			App:      copy,
-			ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
-		},
-	}
+	return server, trace.Wrap(err)
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
@@ -460,14 +456,29 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 func (s *Server) close(ctx context.Context) error {
-	// Stop all proxied apps.
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	shouldDeleteApps := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(100)
+
+	sender, ok := s.c.InventoryHandle.GetSender()
+	if ok {
+		// Manual deletion per app is only required if the auth server
+		// doesn't support actively cleaning up app resources when the
+		// inventory control stream is terminated during shutdown.
+		if capabilities := sender.Hello().Capabilities; capabilities != nil {
+			shouldDeleteApps = shouldDeleteApps && !capabilities.AppCleanup
+		}
+	}
+
+	// Hold the READ lock while iterating the applications here to prevent
+	// deadlocking in flight heartbeats. The heartbeat announce acquires
+	// the lock to build the app resource to send. If the WRITE lock is
+	// held during the shutdown procedure below, any in flight heartbeats
+	// will block acquiring the mutex until shutdown completes, at which
+	// point the heartbeat will be emitted and the removal of the app
+	// server below would be undone.
+	s.mu.RLock()
 	for name := range s.apps {
 		name := name
 		heartbeat := s.heartbeats[name]
@@ -480,7 +491,7 @@ func (s *Server) close(ctx context.Context) error {
 			log := s.log.WithField("app", name)
 			log.Debug("Stopping app")
 			if err := heartbeat.Close(); err != nil {
-				s.log.WithError(err).Warnf("Failed to stop app %q.", name)
+				log.WithError(err).Warn("Failed to stop app.")
 			} else {
 				log.Debug("Stopped app")
 			}
@@ -489,23 +500,26 @@ func (s *Server) close(ctx context.Context) error {
 				g.Go(func() error {
 					log.Debug("Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
-						log.WithError(err).Warnf("Failed to delete app %q.", name)
+						log.WithError(err).Warn("Failed to delete app.")
 					} else {
-						log.Debugf("Deleted app")
+						log.Debug("Deleted app")
 					}
 					return nil
 				})
 			}
 		}
 	}
+	s.mu.RUnlock()
 
 	if err := g.Wait(); err != nil {
 		s.log.WithError(err).Warn("Deleting all apps failed")
 	}
 
+	s.mu.Lock()
 	clear(s.apps)
 	clear(s.dynamicLabels)
 	clear(s.heartbeats)
+	s.mu.Unlock()
 
 	errs := s.c.ConnectionsHandler.Close(ctx)
 

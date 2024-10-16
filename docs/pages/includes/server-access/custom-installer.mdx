@@ -27,18 +27,11 @@ To customize the default installer script, execute the following command on
 your workstation:
 
 ```code
-$ tctl get installer/default-installer > teleport-default-installer.yaml
+$ tctl edit installer/default-installer
 ```
 
-The resulting `teleport-default-installer.yaml` can be edited to
-change what gets executed when enrolling discovered instances.
-
-After making the desired changes to the default installer, the
-resource can be updated by executing:
-
-```code
-$ tctl create -f teleport-default-installer.yaml
-```
+After making the desired changes to the default installer, save and close the
+file in your text editor. 
 
 Multiple `installer` resources can exist and be specified in the
 `{{ matcher }}.install.script_name` section of a `discovery_service.{{ matcher }}` list item in
@@ -71,7 +64,7 @@ connect to.
 Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
 - `{{ .AutomaticUpgrades }}`: indicates whether Automatic Updates are enabled or disabled.
   Its value is either `true` or `false`. See
-  [self-hosted automatic agent updates](../../upgrading/self-hosted-automatic-agent-updates.mdx)
+  [Automatic Agent Updates](../../upgrading/automatic-agent-updates.mdx)
   for more information.
 - `{{ .TeleportPackage }}`: the Teleport package to use.
   Its value is either `teleport-ent` or `teleport` depending on whether the

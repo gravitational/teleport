@@ -20,6 +20,9 @@ const (
 	// GCPWorkforce is a SAML service provider preset name for Google Cloud Platform
 	// Workforce Identity Federation.
 	GCPWorkforce = "gcp-workforce"
+	// Unspecified preset type is used in the Web UI to denote a generic SAML service
+	// provider preset.
+	Unspecified = "unspecified"
 )
 
 const (

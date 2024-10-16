@@ -37,6 +37,9 @@ import (
 
 // ConvertToPPK takes a regular RSA-formatted keypair and converts it into the PPK file format used by the PuTTY SSH client.
 // The file format is described here: https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixC.html#ppk
+//
+// TODO(nklaassen): support Ed25519 and ECDSA keys. The file format supports it,
+// we just don't support writing them here.
 func ConvertToPPK(privateKey *rsa.PrivateKey, pub []byte) ([]byte, error) {
 	// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixC.html#ppk
 	// RSA keys are stored using an algorithm-name of 'ssh-rsa'. (Keys stored like this are also used by the updated RSA signature schemes that use

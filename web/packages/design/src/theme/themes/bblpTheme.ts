@@ -91,6 +91,34 @@ const colors: ThemeColors = {
   brand: '#FFA028',
 
   interactive: {
+    solid: {
+      primary: {
+        default: '#FFA028',
+        hover: '#FFB04C',
+        active: '#DB8922',
+      },
+      success: {
+        default: '#00A223',
+        hover: '#35D655',
+        active: '#00851C',
+      },
+      accent: {
+        default: '#66ABFF',
+        hover: '#99C7FF',
+        active: '#2B8EFF',
+      },
+      danger: {
+        default: '#E51E3C',
+        hover: '#FD2D4A',
+        active: '#C31834',
+      },
+      alert: {
+        default: '#FA5A28',
+        hover: '#FB754C',
+        active: '#D64D22',
+      },
+    },
+
     tonal: {
       primary: [
         'rgba(255,160,40, 0.1)',
@@ -118,7 +146,7 @@ const colors: ThemeColors = {
         'rgba(0, 158, 255, 0.18)',
         'rgba(0, 158, 255, 0.25)',
       ],
-      neutral: neutralColors,
+      neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
   },
 
@@ -175,7 +203,7 @@ const colors: ThemeColors = {
   },
 
   tooltip: {
-    background: '#212B2F',
+    background: 'rgba(255, 255, 255, 0.8)',
   },
 
   progressBarColor: '#00BFA5',

@@ -21,7 +21,7 @@ import (
 	"encoding/pem"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -60,9 +60,9 @@ func TestGenerateClientCertFile(t *testing.T) {
 	require.Equal(t, "localhost", certs.serverCert.DNSNames[0])
 
 	// Write the cert to the tempdir
-	err = certs.ClientCert.WriteFile(path.Join(td, cp), path.Join(td, kp), ".")
+	err = certs.ClientCert.WriteFile(filepath.Join(td, cp), filepath.Join(td, kp), ".")
 	require.NoError(t, err)
-	f, err := os.Open(path.Join(td, cp))
+	f, err := os.Open(filepath.Join(td, cp))
 	require.NoError(t, err)
 	b, err := io.ReadAll(f)
 	require.NoError(t, err)

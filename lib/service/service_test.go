@@ -41,7 +41,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -49,6 +48,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -194,8 +195,8 @@ func TestDynamicClientReuse(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
@@ -368,9 +369,8 @@ func TestServiceCheckPrincipals(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	testConnector := &Connector{
-		ServerIdentity: tlsServer.Identity,
-	}
+	testConnector, err := newConnector(tlsServer.Identity, tlsServer.Identity)
+	require.NoError(t, err)
 
 	tests := []struct {
 		inPrincipals  []string
@@ -477,8 +477,10 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:                true,
-			ExternalAuditStorage: true,
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.ExternalAuditStorage: {Enabled: true},
+			},
 		},
 	})
 
@@ -535,6 +537,16 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				v, ok := alog.(*athena.Log)
 				require.True(t, ok, "invalid logger type, got %T", v)
+			},
+		},
+		{
+			name:          "valid athena config with disabled consumer",
+			uris:          []string{sampleAthenaURI + "&consumerDisabled=true"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+				require.True(t, v.IsConsumerDisabled(), "consumer is not disabled")
 			},
 		},
 		{
@@ -886,17 +898,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				// Setting Supervisor so that `ExitContext` can be called.
 				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
-			conn := &Connector{
-				ServerIdentity: &state.Identity{
-					Cert: &ssh.Certificate{
-						Permissions: ssh.Permissions{
-							Extensions: map[string]string{},
-						},
-					},
-				},
-			}
 			tls, err := process.setupProxyTLSConfig(
-				conn,
+				&Connector{},
 				&mockReverseTunnelServer{},
 				&mockAccessPoint{},
 				"cluster",
@@ -1070,7 +1073,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 		},
 		{
-			name: "Kube Backend is available but key is missing. Load from local storage and store in lube",
+			name: "Kube Backend is available but key is missing. Load from local storage and store in kube",
 			args: args{
 				kubeBackend: &fakeKubeBackend{
 					getData: nil,
@@ -1083,9 +1086,9 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 			wantKubeItemFunc: func(i *backend.Item) bool {
 				return cmp.Diff(&backend.Item{
-					Key:   []byte(hostUUIDKey),
+					Key:   backend.KeyFromString(hostUUIDKey),
 					Value: []byte(id),
-				}, i) == ""
+				}, i, cmp.AllowUnexported(backend.Key{})) == ""
 			},
 		},
 		{
@@ -1093,7 +1096,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			args: args{
 				kubeBackend: &fakeKubeBackend{
 					getData: &backend.Item{
-						Key:   []byte(hostUUIDKey),
+						Key:   backend.KeyFromString(hostUUIDKey),
 						Value: []byte(id),
 					},
 					getErr: nil,
@@ -1120,7 +1123,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 			wantKubeItemFunc: func(i *backend.Item) bool {
 				_, err := uuid.Parse(string(i.Value))
-				return err == nil && string(i.Key) == hostUUIDKey
+				return err == nil && i.Key.String() == hostUUIDKey
 			},
 		},
 		{
@@ -1155,7 +1158,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			},
 			wantKubeItemFunc: func(i *backend.Item) bool {
 				_, err := uuid.Parse(string(i.Value))
-				return err == nil && string(i.Key) == hostUUIDKey
+				return err == nil && i.Key.String() == hostUUIDKey
 			},
 		},
 	}
@@ -1206,7 +1209,7 @@ func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lea
 }
 
 // Get returns a single item or not found error
-func (f *fakeKubeBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (f *fakeKubeBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	return f.getData, f.getErr
 }
 
@@ -1235,10 +1238,9 @@ func TestProxyGRPCServers(t *testing.T) {
 	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
 	require.NoError(t, err)
 
-	testConnector := &Connector{
-		ServerIdentity: serverIdentity,
-		Client:         client,
-	}
+	testConnector, err := newConnector(serverIdentity, serverIdentity)
+	require.NoError(t, err)
+	testConnector.Client = client
 
 	// Create a listener for the insecure gRPC server.
 	insecureListener, err := net.Listen("tcp", "localhost:0")
@@ -1294,7 +1296,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 
 	// Insecure gRPC server.
-	insecureGRPC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	insecureGRPC, err := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	require.NoError(t, err)
 	t.Cleanup(insecureGRPC.GracefulStop)
 
 	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
@@ -1309,12 +1312,13 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 	// Secure gRPC server.
 	secureGRPC, err := process.initSecureGRPCServer(initSecureGRPCServerCfg{
-		limiter:     limiter,
-		conn:        testConnector,
-		listener:    secureListener,
-		accessPoint: testConnector.Client,
-		lockWatcher: proxyLockWatcher,
-		emitter:     testConnector.Client,
+		limiter:       limiter,
+		conn:          testConnector,
+		listener:      secureListener,
+		kubeProxyAddr: utils.FromAddr(secureListener.Addr()),
+		accessPoint:   testConnector.Client,
+		lockWatcher:   proxyLockWatcher,
+		emitter:       testConnector.Client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(secureGRPC.GracefulStop)
@@ -1354,10 +1358,19 @@ func TestProxyGRPCServers(t *testing.T) {
 		{
 			name: "secure client to secure server",
 			credentials: func() credentials.TransportCredentials {
-				// Create a new client using the server identity.
-				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
-				require.NoError(t, err)
-				return credentials.NewTLS(creds)
+				// Create a new client using the client identity.
+				tlsConfig := utils.TLSConfig(nil)
+				tlsConfig.ServerName = apiutils.EncodeClusterName(testConnector.ClusterName())
+				tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+					tlsCert, err := testConnector.ClientGetCertificate()
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return tlsCert, nil
+				}
+				tlsConfig.InsecureSkipVerify = true
+				tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(testConnector.ClientGetPool)
+				return credentials.NewTLS(tlsConfig)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
 			assertErr:    require.NoError,
@@ -1431,8 +1444,6 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 					Spec: &types.JamfSpecV1{
 						Enabled:     true,
 						ApiEndpoint: "https://example.jamfcloud.com",
-						Username:    "llama",
-						Password:    "supersecret!!1!ONE",
 					},
 				},
 			},
@@ -1793,17 +1804,16 @@ func TestInitDatabaseService(t *testing.T) {
 			})
 			require.NoError(t, process.Start())
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
 			if !test.expectErr {
-				// should timeout without the process exit event.
-				require.Error(t, err)
-				require.ErrorIs(t, err, context.DeadlineExceeded)
+				_, err := process.WaitForEvent(ctx, TeleportReadyEvent)
+				require.NoError(t, err)
 				return
 			}
 
+			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
 			require.NoError(t, err)
 			require.NotNil(t, event)
 			exitPayload, ok := event.Payload.(ExitEventPayload)

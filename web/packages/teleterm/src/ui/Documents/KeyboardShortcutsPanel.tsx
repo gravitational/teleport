@@ -24,9 +24,13 @@ import styled from 'styled-components';
 import Document from 'teleterm/ui/Document';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 import { KeyboardShortcutAction } from 'teleterm/services/config';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function KeyboardShortcutsPanel() {
+  const { mainProcessClient } = useAppContext();
+  const { platform } = mainProcessClient.getRuntimeSettings();
   const { getAccelerator } = useKeyboardShortcutFormatters();
+  const isNotMac = platform !== 'darwin';
 
   const items: { title: string; shortcutAction: KeyboardShortcutAction }[] = [
     {
@@ -53,12 +57,22 @@ export function KeyboardShortcutsPanel() {
       title: 'Open Profiles',
       shortcutAction: 'openProfiles',
     },
+    // We don't need to show these shortcuts on macOS,
+    // 99% of the users are not going to change them.
+    isNotMac && {
+      title: 'Copy in Terminal',
+      shortcutAction: 'terminalCopy',
+    },
+    isNotMac && {
+      title: 'Paste in Terminal',
+      shortcutAction: 'terminalPaste',
+    },
   ];
 
   return (
     <Document visible={true}>
       <Grid>
-        {items.map(item => (
+        {items.filter(Boolean).map(item => (
           <Entry
             title={item.title}
             accelerator={getAccelerator(item.shortcutAction, {
@@ -75,7 +89,7 @@ export function KeyboardShortcutsPanel() {
 function Entry(props: { title: string; accelerator: string }) {
   return (
     <>
-      <Text textAlign="right" typography="subtitle1" py="4px">
+      <Text textAlign="right" typography="body2" py="4px">
         {props.title}
       </Text>
       <MonoText
@@ -101,7 +115,8 @@ const Grid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: end;
-  column-gap: 32px;
-  row-gap: 14px;
+  column-gap: ${props => props.theme.space[4]}px;
+  row-gap: ${props => props.theme.space[3]}px;
   margin: auto;
+  padding-block: ${props => props.theme.space[3]}px;
 `;

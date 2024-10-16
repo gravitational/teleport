@@ -84,6 +84,8 @@ type UserACL struct {
 	Plugins ResourceAccess `json:"plugins"`
 	// Integrations defines whether the user has access to manage integrations.
 	Integrations ResourceAccess `json:"integrations"`
+	// UserTasks defines whether the user has access to manage UserTasks.
+	UserTasks ResourceAccess `json:"userTasks"`
 	// DeviceTrust defines access to device trust.
 	DeviceTrust ResourceAccess `json:"deviceTrust"`
 	// Locks defines access to locking resources.
@@ -104,10 +106,14 @@ type UserACL struct {
 	AccessGraph ResourceAccess `json:"accessGraph"`
 	// Bots defines access to manage Bots.
 	Bots ResourceAccess `json:"bots"`
+	// BotInstances defines access to manage bot instances
+	BotInstances ResourceAccess `json:"botInstances"`
 	// AccessMonitoringRule defines access to manage access monitoring rule resources.
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
 	CrownJewel ResourceAccess `json:"crownJewel"`
+	// AccessGraphSettings defines access to manage access graph settings.
+	AccessGraphSettings ResourceAccess `json:"accessGraphSettings"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -148,6 +154,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	dbAccess := newAccess(userRoles, ctx, types.KindDatabase)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
+	accessMonitoringRules := newAccess(userRoles, ctx, types.KindAccessMonitoringRule)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
@@ -160,12 +167,14 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		activeSessionAccess.Read = true
 	}
 
-	// The billing dashboards are available in cloud clusters or for
-	// self-hosted dashboards for usage-based subscriptions.
+	// The billing dashboards are available in: cloud clusters &
+	// usage-based self-hosted non-stripe dashboards.
 	var billingAccess ResourceAccess
 	isDashboard := IsDashboard(features)
-	isUsageBasedEnterprise := features.GetProductType() == proto.ProductType_PRODUCT_TYPE_EUB
-	if features.Cloud || (isDashboard && isUsageBasedEnterprise) {
+	isUsageBased := features.IsUsageBased
+	isStripeManaged := features.IsStripeManaged
+
+	if features.Cloud || (isDashboard && isUsageBased && !isStripeManaged) {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
@@ -175,8 +184,10 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	}
 
 	var accessGraphAccess ResourceAccess
+	var accessGraphSettings ResourceAccess
 	if features.AccessGraph {
 		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
+		accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 	}
 
 	clipboard := userRoles.DesktopClipboard()
@@ -191,15 +202,15 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
+	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
+	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
-	var accessMonitoringRules ResourceAccess
 	if accessMonitoringEnabled {
 		auditQuery = newAccess(userRoles, ctx, types.KindAuditQuery)
 		securityReports = newAccess(userRoles, ctx, types.KindSecurityReport)
-		accessMonitoringRules = newAccess(userRoles, ctx, types.KindAccessMonitoringRule)
 	}
 
 	return UserACL{
@@ -227,6 +238,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		License:                 license,
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
+		UserTasks:               userTasksAccess,
 		DiscoveryConfig:         discoveryConfigsAccess,
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
@@ -237,7 +249,9 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		ExternalAuditStorage:    externalAuditStorage,
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
+		BotInstances:            botInstances,
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
+		AccessGraphSettings:     accessGraphSettings,
 	}
 }

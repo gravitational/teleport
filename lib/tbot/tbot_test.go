@@ -21,13 +21,14 @@ package tbot
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -35,7 +36,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgconn"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -46,6 +46,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -75,17 +76,19 @@ type defaultBotConfigOpts struct {
 	// Makes the bot connect via the Auth Server instead of the Proxy server.
 	useAuthServer bool
 	// Makes the bot accept an insecure auth or proxy server
-	insecure       bool
-	serviceConfigs config.ServiceConfigs
+	insecure bool
 }
 
 func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) {
-		testenv.WithClusterName(t, "root.localhost")(o)
+		testenv.WithClusterName(t, "root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
-				{AddrNetwork: "tcp", Addr: net.JoinHostPort("root.localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)
 	}
@@ -137,7 +140,7 @@ func defaultBotConfig(
 	t *testing.T,
 	process *service.TeleportProcess,
 	onboarding *config.OnboardingConfig,
-	outputs []config.Output,
+	serviceConfigs config.ServiceConfigs,
 	opts defaultBotConfigOpts,
 ) *config.BotConfig {
 	t.Helper()
@@ -154,11 +157,10 @@ func defaultBotConfig(
 			Destination: &config.DestinationMemory{},
 		},
 		Oneshot: true,
-		Outputs: outputs,
 		// Set insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.insecure,
-		Services: opts.serviceConfigs,
+		Services: serviceConfigs,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
@@ -340,7 +342,7 @@ func TestBot(t *testing.T) {
 		Principals:  []string{hostPrincipal},
 	}
 	botConfig := defaultBotConfig(
-		t, process, botParams, []config.Output{
+		t, process, botParams, config.ServiceConfigs{
 			identityOutput,
 			identityOutputWithRoles,
 			appOutput,
@@ -370,6 +372,9 @@ func TestBot(t *testing.T) {
 		require.False(t, tlsIdent.DisallowReissue)
 		require.Equal(t, uint64(1), tlsIdent.Generation)
 		require.ElementsMatch(t, []string{botResource.Status.RoleName}, tlsIdent.Groups)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// ECDSA key.
+		require.IsType(t, &ecdsa.PublicKey{}, botIdent.PrivateKey.Public())
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
@@ -415,6 +420,12 @@ func TestBot(t *testing.T) {
 		require.Equal(t, databaseName, route.Database)
 		require.Equal(t, databaseUsername, route.Username)
 		require.Equal(t, "mysql", route.Protocol)
+		// Sanity check we generated an RSA key.
+		keyBytes, err := dbOutput.GetDestination().Read(ctx, identity.PrivateKeyKey)
+		require.NoError(t, err)
+		key, err := keys.ParsePrivateKey(keyBytes)
+		require.NoError(t, err)
+		require.IsType(t, &rsa.PublicKey{}, key.Public())
 	})
 
 	t.Run("output: database discovered name", func(t *testing.T) {
@@ -435,6 +446,9 @@ func TestBot(t *testing.T) {
 		require.NoError(t, err)
 		hostKey, err := ssh.ParsePrivateKey(hostKeyBytes)
 		require.NoError(t, err)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// Ed25519 key.
+		require.Equal(t, ssh.KeyAlgoED25519, hostKey.PublicKey().Type())
 		testData := []byte("test-data")
 		signedTestData, err := hostKey.Sign(rand.Reader, testData)
 		require.NoError(t, err)
@@ -497,11 +511,7 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *
 	require.NoError(t, err)
 	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
 	require.NoError(t, err)
-	_, x509Cert, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
-	require.NoError(t, err)
-	tlsIdent, err := tlsca.FromSubject(
-		x509Cert.Subject, x509Cert.NotAfter,
-	)
+	_, tlsIdent, _, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
 	require.NoError(t, err)
 	return tlsIdent
 }
@@ -522,7 +532,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			insecure:      true,
@@ -566,7 +576,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
 
-	botConfig := defaultBotConfig(t, process, botParams, []config.Output{},
+	botConfig := defaultBotConfig(t, process, botParams, config.ServiceConfigs{},
 		defaultBotConfigOpts{
 			useAuthServer: false,
 			insecure:      true,
@@ -723,128 +733,6 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 	return kubeCluster
 }
 
-// TestBotSPIFFEWorkloadAPI is an end-to-end test of Workload ID's ability to
-// issue a SPIFFE SVID to a workload connecting via the SPIFFE Workload API.
-func TestBotSPIFFEWorkloadAPI(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
-
-	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
-
-	// Create a role that allows the bot to issue a SPIFFE SVID.
-	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			SPIFFE: []*types.SPIFFERoleCondition{
-				{
-					Path: "/*",
-					DNSSANs: []string{
-						"*",
-					},
-					IPSANs: []string{
-						"0.0.0.0/0",
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	role, err = rootClient.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	pid := os.Getpid()
-
-	tempDir := t.TempDir()
-	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
-	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
-	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.SPIFFEWorkloadAPIService{
-					Listen: socketPath,
-					SVIDs: []config.SVIDRequestWithRules{
-						// Intentionally unmatching PID to ensure this SVID
-						// is not issued.
-						{
-							SVIDRequest: config.SVIDRequest{
-								Path: "/bar",
-							},
-							Rules: []config.SVIDRequestRule{
-								{
-									Unix: config.SVIDRequestRuleUnix{
-										PID: ptr(0),
-									},
-								},
-							},
-						},
-						// SVID with rule that matches on PID.
-						{
-							SVIDRequest: config.SVIDRequest{
-								Path: "/foo",
-								Hint: "hint",
-								SANS: config.SVIDRequestSANs{
-									DNS: []string{"example.com"},
-									IP:  []string{"10.0.0.1"},
-								},
-							},
-							Rules: []config.SVIDRequestRule{
-								{
-									Unix: config.SVIDRequestRuleUnix{
-										PID: &pid,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	)
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
-
-	// Spin up goroutine for bot to run in
-	botCtx, cancelBot := context.WithCancel(ctx)
-	botCh := make(chan error, 1)
-	go func() {
-		botCh <- b.Run(botCtx)
-	}()
-
-	// This has a little flexibility internally in terms of waiting for the
-	// socket to come up, so we don't need a manual sleep/retry here.
-	source, err := workloadapi.NewX509Source(
-		ctx,
-		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
-	)
-	require.NoError(t, err)
-	defer source.Close()
-
-	svid, err := source.GetX509SVID()
-	require.NoError(t, err)
-
-	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://root.localhost/foo", svid.ID.String())
-	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://root.localhost/foo", cert.URIs[0].String())
-	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
-	require.Equal(t, []string{"example.com"}, cert.DNSNames)
-	require.WithinRange(
-		t,
-		cert.NotAfter,
-		cert.NotBefore.Add(time.Hour-time.Minute),
-		cert.NotBefore.Add(time.Hour+time.Minute),
-	)
-
-	// Shut down bot and make sure it exits cleanly.
-	cancelBot()
-	require.NoError(t, <-botCh)
-}
-
 func TestBotDatabaseTunnel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -899,20 +787,19 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// Prepare the bot config
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.DatabaseTunnelService{
+				Listener: botListener,
+				Service:  "test-database",
+				Database: "mydb",
+				Username: "llama",
+			},
+		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			// insecure required as the db tunnel will connect to proxies
 			// self-signed.
 			insecure: true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.DatabaseTunnelService{
-					Listener: botListener,
-					Service:  "test-database",
-					Database: "mydb",
-					Username: "llama",
-				},
-			},
 		},
 	)
 	botConfig.Oneshot = false
@@ -956,8 +843,8 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
-	// 104 length limit on UDS on MacOS forces us to use a custom tmpdir.
-	tmpDir := path.Join(os.TempDir(), t.Name())
+	// 104 length limit on UDS on macOS forces us to use a custom tmpdir.
+	tmpDir := filepath.Join(os.TempDir(), t.Name())
 	require.NoError(t, os.RemoveAll(tmpDir))
 	require.NoError(t, os.Mkdir(tmpDir, 0777))
 	t.Cleanup(func() {
@@ -972,7 +859,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			cfg.SSH.Enabled = true
 			cfg.SSH.Addr = utils.NetAddr{
 				AddrNetwork: "tcp",
-				Addr:        testenv.NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors),
+				Addr:        testenv.NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors),
 			}
 		}),
 	)
@@ -994,17 +881,16 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// Prepare the bot config
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
-		t, process, onboarding, []config.Output{},
+		t, process, onboarding, config.ServiceConfigs{
+			&config.SSHMultiplexerService{
+				Destination: &config.DestinationDirectory{
+					Path: tmpDir,
+				},
+			},
+		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
 			insecure:      true,
-			serviceConfigs: []config.ServiceConfig{
-				&config.SSHMultiplexerService{
-					Destination: &config.DestinationDirectory{
-						Path: tmpDir,
-					},
-				},
-			},
 		},
 	)
 	botConfig.Oneshot = false
@@ -1037,40 +923,57 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		agentConn.Close()
-	})
-	agentClient := agent.NewClient(agentConn)
-	callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
-	require.NoError(t, err)
-	sshConfig := &ssh.ClientConfig{
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(agentClient.Signers),
-		},
-		User:            currentUser.Username,
-		HostKeyCallback: callback,
+	targets := []string{
+		"server01.root:0\x00",      // Old style target without cluster
+		"server01.root:0|root\x00", // New style target with cluster
 	}
-	conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		conn.Close()
-	})
-	_, err = fmt.Fprint(conn, "server01.root.localhost:0\x00")
-	require.NoError(t, err)
-	sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root.localhost:22", sshConfig)
-	require.NoError(t, err)
-	sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
-	t.Cleanup(func() {
-		sshClient.Close()
-	})
-	sshSess, err := sshClient.NewSession()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		sshSess.Close()
-	})
-	out, err := sshSess.CombinedOutput("echo hello")
-	require.NoError(t, err)
-	require.Equal(t, "hello\n", string(out))
+	for _, target := range targets {
+		target := target
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+
+			agentConn, err := net.Dial("unix", filepath.Join(tmpDir, "agent.sock"))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				agentConn.Close()
+			})
+			agentClient := agent.NewClient(agentConn)
+			callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
+			require.NoError(t, err)
+			sshConfig := &ssh.ClientConfig{
+				Auth: []ssh.AuthMethod{
+					ssh.PublicKeysCallback(agentClient.Signers),
+				},
+				User:            currentUser.Username,
+				HostKeyCallback: callback,
+			}
+			conn, err := net.Dial("unix", filepath.Join(tmpDir, "v1.sock"))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				conn.Close()
+			})
+			_, err = fmt.Fprint(conn, target)
+			require.NoError(t, err)
+			sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
+			require.NoError(t, err)
+			sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
+			t.Cleanup(func() {
+				sshClient.Close()
+			})
+			sshSess, err := sshClient.NewSession()
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				sshSess.Close()
+			})
+			out, err := sshSess.CombinedOutput("echo hello")
+			require.NoError(t, err)
+			require.Equal(t, "hello\n", string(out))
+
+			// Check that the agent presents a key with cert and a bare key
+			// for compat with Paramiko and older versions of OpenSSH.
+			keys, err := agentClient.List()
+			require.NoError(t, err)
+			require.Len(t, keys, 2)
+		})
+	}
 }

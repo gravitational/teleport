@@ -20,8 +20,6 @@ package peer
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -29,48 +27,8 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-// serverCredentials wraps a [crendentials.TransportCredentials] that
-// extends the ServerHandshake to ensure the credentials contain the proxy system role.
-type serverCredentials struct {
-	credentials.TransportCredentials
-}
-
-// newServerCredentials creates new serverCredentials from the given [crendentials.TransportCredentials].
-func newServerCredentials(creds credentials.TransportCredentials) *serverCredentials {
-	return &serverCredentials{
-		TransportCredentials: creds,
-	}
-}
-
-// ServerHandshake performs the TLS handshake and then verifies that the client
-// attempting to connect is a Proxy.
-func (c *serverCredentials) ServerHandshake(conn net.Conn) (_ net.Conn, _ credentials.AuthInfo, err error) {
-	conn, authInfo, err := c.TransportCredentials.ServerHandshake(conn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		if err != nil {
-			conn.Close()
-		}
-	}()
-
-	identity, err := getIdentity(authInfo)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	if err := checkProxyRole(identity); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return conn, authInfo, nil
-}
 
 // clientCredentials wraps a [crendentials.TransportCredentials] that
 // extends the ClientHandshake to ensure the credentials contain the proxy system role
@@ -163,49 +121,4 @@ func validatePeer(peerID string, identity *tlsca.Identity) error {
 	}
 
 	return trace.AccessDenied("connected to unexpected proxy")
-}
-
-// getConfigForClient clones and updates the server's tls config with the
-// appropriate client certificate authorities.
-func getConfigForClient(tlsConfig *tls.Config, ap authclient.CAGetter, log logrus.FieldLogger, clusterName string) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		tlsCopy := tlsConfig.Clone()
-
-		pool, err := getCertPool(info.Context(), ap, clusterName)
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve client CA pool.")
-			return tlsCopy, nil
-		}
-
-		tlsCopy.ClientAuth = tls.RequireAndVerifyClientCert
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
-}
-
-// getConfigForServer clones and updates the client's tls config with the
-// appropriate server certificate authorities.
-func getConfigForServer(ctx context.Context, tlsConfig *tls.Config, ap authclient.CAGetter, log logrus.FieldLogger, clusterName string) func() (*tls.Config, error) {
-	return func() (*tls.Config, error) {
-		tlsCopy := tlsConfig.Clone()
-
-		pool, err := getCertPool(ctx, ap, clusterName)
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve server CA pool.")
-			return tlsCopy, nil
-		}
-
-		tlsCopy.RootCAs = pool
-		return tlsCopy, nil
-	}
-}
-
-// getCertPool returns a new cert pool from cache if any.
-func getCertPool(ctx context.Context, ap authclient.CAGetter, clusterName string) (*x509.CertPool, error) {
-	pool, _, err := authclient.ClientCertPool(ctx, ap, clusterName, types.HostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pool, nil
 }

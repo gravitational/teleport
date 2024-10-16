@@ -225,7 +225,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 				verb = http.MethodPost
 			}
 			got, _, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
-				kubeCodecs:         globalKubeCodecs,
+				kubeCodecs:         &globalKubeCodecs,
 				rbacSupportedTypes: defaultRBACResources,
 				gvkSupportedResources: map[gvkSupportedResourcesKey]*schema.GroupVersionKind{
 					{

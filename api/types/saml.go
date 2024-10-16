@@ -100,6 +100,20 @@ type SAMLConnector interface {
 	SetAllowIDPInitiated(bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+	GetSingleLogoutURL() string
+	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+	SetSingleLogoutURL(string)
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() *SAMLConnectorMFASettings
+	// SetMFASettings sets the connector's MFA settings.
+	SetMFASettings(s *SAMLConnectorMFASettings)
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
+	// GetForceAuthn returns ForceAuthn
+	GetForceAuthn() bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -377,6 +391,60 @@ func (o *SAMLConnectorV2) GetClientRedirectSettings() *SSOClientRedirectSettings
 	return o.Spec.ClientRedirectSettings
 }
 
+// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) GetSingleLogoutURL() string {
+	return o.Spec.SingleLogoutURL
+}
+
+// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
+	o.Spec.SingleLogoutURL = url
+}
+
+// GetMFASettings returns the connector's MFA settings.
+func (o *SAMLConnectorV2) GetMFASettings() *SAMLConnectorMFASettings {
+	return o.Spec.MFASettings
+}
+
+// SetMFASettings sets the connector's MFA settings.
+func (o *SAMLConnectorV2) SetMFASettings(s *SAMLConnectorMFASettings) {
+	o.Spec.MFASettings = s
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *SAMLConnectorV2) IsMFAEnabled() bool {
+	mfa := o.GetMFASettings()
+	return mfa != nil && mfa.Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *SAMLConnectorV2) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
+	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
+	o.Spec.Issuer = o.Spec.MFASettings.Issuer
+	o.Spec.SSO = o.Spec.MFASettings.Sso
+	o.Spec.Cert = o.Spec.MFASettings.Cert
+
+	switch o.Spec.MFASettings.ForceAuthn {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		// Default to YES.
+		o.Spec.ForceAuthn = SAMLForceAuthn_FORCE_AUTHN_YES
+	default:
+		o.Spec.ForceAuthn = o.Spec.MFASettings.ForceAuthn
+	}
+
+	return nil
+}
+
+// GetForceAuthn returns ForceAuthn
+func (o *SAMLConnectorV2) GetForceAuthn() bool {
+	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -409,6 +477,9 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" && (o.Spec.Issuer == "" || o.Spec.SSO == "") {
 		return trace.BadParameter("no entity_descriptor set, either provide entity_descriptor or entity_descriptor_url in spec")
 	}
+	if o.IsMFAEnabled() && o.Spec.MFASettings.EntityDescriptorUrl == "" && o.Spec.MFASettings.EntityDescriptor == "" && (o.Spec.MFASettings.Issuer == "" || o.Spec.MFASettings.Sso == "") {
+		return trace.BadParameter("no entity_descriptor set for mfa settings, either provide entity_descriptor or entity_descriptor_url in spec")
+	}
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
 		if len(v.Roles) == 0 {
@@ -419,28 +490,37 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 }
 
 // Check returns nil if all parameters are great, err otherwise
-func (i *SAMLAuthRequest) Check() error {
-	if i.ConnectorID == "" {
+func (r *SAMLAuthRequest) Check() error {
+	switch {
+	case r.ConnectorID == "":
 		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
+	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
+	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
+	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
+	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	}
-
+	sshPubKey := r.PublicKey
+	if len(sshPubKey) == 0 {
+		sshPubKey = r.SshPublicKey
+	}
+	if len(sshPubKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+		if err != nil {
+			return trace.BadParameter("bad SSH public key: %v", err)
+		}
+	}
+	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
+		return trace.BadParameter("wrong CertTTL")
+	}
 	return nil
 }

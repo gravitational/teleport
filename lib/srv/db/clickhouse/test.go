@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -251,7 +250,7 @@ func MakeNativeTestClient(ctx context.Context, config common.TestClientConfig) (
 func MakeDBTestClient(ctx context.Context, config common.TestClientConfig) (*sql.DB, error) {
 	conn := clickhouse.OpenDB(&clickhouse.Options{
 		Protocol: toClickhouseProtocol(config.RouteToDatabase.Protocol),
-		Addr:     []string{fmt.Sprintf(config.Address)},
+		Addr:     []string{config.Address},
 	})
 	if err := conn.Ping(); err != nil {
 		conn.Close()

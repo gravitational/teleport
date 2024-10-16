@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -386,7 +387,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	require.NoError(t, err)
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewTestIdentityService(backend)
+	userSvc, err := local.NewTestIdentityService(backend)
+	require.NoError(t, err)
 	easSvc := local.NewExternalAuditStorageService(backend)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
@@ -428,13 +430,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	cacheResourceService, err := local.NewIntegrationsService(backend, local.WithIntegrationsServiceCacheMode(true))
 	require.NoError(t, err)
 
-	keystoreManager, err := keystore.NewManager(ctx, keystore.Config{
-		Software: keystore.SoftwareConfig{
-			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
-		},
-	})
-	require.NoError(t, err)
-
 	cache := &mockCache{
 		domainName: clusterName,
 		ca:         ca,
@@ -450,7 +445,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		Backend:         localResourceService,
 		Authorizer:      authorizer,
 		Cache:           cache,
-		KeyStoreManager: keystoreManager,
+		KeyStoreManager: keystore.NewSoftwareKeystoreForTests(t),
+		Emitter:         events.NewDiscardEmitter(),
 	})
 	require.NoError(t, err)
 

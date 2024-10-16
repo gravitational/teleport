@@ -29,7 +29,7 @@ function Pill({ label, onDismiss }: Props) {
       <Dismiss
         role="button"
         dismissable={dismissable}
-        onClick={(e: MouseEvent) => {
+        onClick={(e: React.MouseEvent) => {
           e.stopPropagation();
           onDismiss(label);
         }}
@@ -40,7 +40,7 @@ function Pill({ label, onDismiss }: Props) {
   );
 }
 
-const Wrapper = styled.span`
+const Wrapper = styled.span<{ dismissable?: boolean }>`
   background: ${props => props.theme.colors.spotBackground[1]};
   border-radius: 35px;
   cursor: default;
@@ -53,7 +53,7 @@ const Label = styled.span`
   display: inline;
 `;
 
-const Dismiss = styled.button`
+const Dismiss = styled.button<{ dismissable?: boolean }>`
   border-color: rgba(0, 0, 0, 0);
   background-color: rgba(0, 0, 0, 0);
   cursor: pointer;

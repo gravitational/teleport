@@ -20,7 +20,7 @@ import React, { useEffect, useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Link } from 'react-router-dom';
 import { HoverTooltip } from 'shared/components/ToolTip';
-import { Alert, Box, ButtonPrimary, Indicator } from 'design';
+import { Alert, Box, Button, Indicator } from 'design';
 
 import {
   FeatureBox,
@@ -39,12 +39,14 @@ import useTeleport from 'teleport/useTeleport';
 
 import cfg from 'teleport/config';
 
+import { EmptyState } from './EmptyState/EmptyState';
+
 export function Bots() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
   const hasAddBotPermissions = flags.addBots;
 
-  const [bots, setBots] = useState<FlatBot[]>();
+  const [bots, setBots] = useState<FlatBot[]>([]);
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
   const [selectedRoles, setSelectedRoles] = useState<string[]>();
   const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
@@ -107,6 +109,24 @@ export function Bots() {
     setSelectedRoles(null);
   }
 
+  if (fetchAttempt.status === 'processing') {
+    return (
+      <FeatureBox>
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      </FeatureBox>
+    );
+  }
+
+  if (fetchAttempt.status === 'success' && bots.length === 0) {
+    return (
+      <FeatureBox>
+        <EmptyState />
+      </FeatureBox>
+    );
+  }
+
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -120,7 +140,13 @@ export function Bots() {
     to request bot creation permissions.`
             }
           >
-            <ButtonPrimary
+            <Button
+              intent="primary"
+              fill={
+                fetchAttempt.status === 'success' && bots.length === 0
+                  ? 'filled'
+                  : 'border'
+              }
               ml="auto"
               width="240px"
               as={Link}
@@ -128,15 +154,10 @@ export function Bots() {
               disabled={!hasAddBotPermissions}
             >
               Enroll New Bot
-            </ButtonPrimary>
+            </Button>
           </HoverTooltip>
         </Box>
       </FeatureHeader>
-      {fetchAttempt.status == 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
       {fetchAttempt.status == 'failed' && (
         <Alert kind="danger" children={fetchAttempt.statusText} />
       )}

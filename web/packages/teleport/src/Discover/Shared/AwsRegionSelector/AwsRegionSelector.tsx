@@ -62,15 +62,10 @@ export function AwsRegionSelector({
           <ButtonSecondary
             onClick={onRefresh}
             mt={1}
-            title="Refresh database table"
+            title="Refresh"
             height="40px"
-            width="30px"
-            css={`
-              &:disabled {
-                opacity: 0.35;
-                pointer-events: none;
-              }
-            `}
+            width="40px"
+            p={0}
             disabled={disableSelector || !selectedRegion}
           >
             <RefreshIcon size="medium" />

@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import * as Alerts from 'design/Alert';
-import { Box, Text, ButtonPrimary, ButtonSecondary } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -53,11 +53,13 @@ export function ClusterAdd(props: {
             }}
           >
             <DialogHeader>
-              <Text typography="h4">Enter cluster address</Text>
+              <H2>Enter cluster address</H2>
             </DialogHeader>
             <DialogContent mb={2}>
               {status === 'error' && (
-                <Alerts.Danger mb={5} children={statusText} />
+                <Alerts.Danger mb={5} details={statusText}>
+                  Could not add the cluster
+                </Alerts.Danger>
               )}
               <FieldInput
                 rule={requiredField('Cluster address is required')}
@@ -82,7 +84,7 @@ export function ClusterAdd(props: {
                     props.onCancel();
                   }}
                 >
-                  CANCEL
+                  Cancel
                 </ButtonSecondary>
               </Box>
             </DialogContent>

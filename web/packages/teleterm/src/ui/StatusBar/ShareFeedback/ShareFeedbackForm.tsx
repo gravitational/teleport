@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
+import { ButtonIcon, ButtonPrimary, Flex, H2, Link } from 'design';
 import Validation from 'shared/components/Validation';
 import { Cross } from 'design/Icon';
 
@@ -58,9 +58,7 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
             }}
           >
             <Flex justifyContent="space-between" mb={2}>
-              <Text typography="h4" bold color="text.main">
-                Provide your feedback
-              </Text>
+              <H2>Provide your feedback</H2>
               <ButtonIcon
                 type="button"
                 onClick={props.onClose}

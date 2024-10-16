@@ -26,6 +26,7 @@ import {
   Box,
   Alert,
   Indicator,
+  H1,
 } from 'design';
 
 import Validation from 'shared/components/Validation';
@@ -61,10 +62,10 @@ export function AppGateway(props: {
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="3" flexWrap="wrap" gap={2}>
-        <Text typography="h3">App Connection</Text>
+        <H1>App Connection</H1>
         {props.disconnectAttempt.status === 'error' && (
-          <Alert>
-            Could not close the connection: {props.disconnectAttempt.statusText}
+          <Alert details={props.disconnectAttempt.statusText}>
+            Could not close the connection
           </Alert>
         )}
         <ButtonSecondary size="small" onClick={props.disconnect}>
@@ -93,15 +94,15 @@ export function AppGateway(props: {
       <Text>Access the app at:</Text>
       <TextSelectCopy my={1} text={link} bash={false} />
       {props.changePortAttempt.status === 'error' && (
-        <Alert>
-          Could not change the port number: {props.changePortAttempt.statusText}
+        <Alert details={props.changePortAttempt.statusText}>
+          Could not change the port number
         </Alert>
       )}
       <Text>
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
         <Link
-          href="https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-an-application"
+          href="https://goteleport.com/docs/connect-your-client/teleport-connect/#creating-an-authenticated-tunnel"
           target="_blank"
         >
           the documentation

@@ -56,11 +56,7 @@ func main() {
 	)
 
 	if cli.Debug {
-		err := logger.Setup(logger.Config{Severity: "debug", Output: "stderr"})
-		if err != nil {
-			fmt.Println(trace.DebugReport(err))
-			os.Exit(-1)
-		}
+		enableLogDebug()
 	}
 
 	switch {
@@ -80,6 +76,15 @@ func main() {
 		} else {
 			logger.Standard().Info("Successfully shut down")
 		}
+	}
+}
+
+// turn on log debugging
+func enableLogDebug() {
+	err := logger.Setup(logger.Config{Severity: "debug", Output: "stderr"})
+	if err != nil {
+		fmt.Println(trace.DebugReport(err))
+		os.Exit(-1)
 	}
 }
 

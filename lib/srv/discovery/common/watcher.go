@@ -180,6 +180,12 @@ func (w *Watcher) fetchAndSend() {
 					staticLabels[types.CloudLabel] = c
 				}
 
+				// Set the discovery type label to provide information about the
+				// matcher type that matched the resource.
+				if t := lFetcher.FetcherType(); t != "" {
+					staticLabels[types.DiscoveryTypeLabel] = t
+				}
+
 				r.SetStaticLabels(staticLabels)
 			}
 

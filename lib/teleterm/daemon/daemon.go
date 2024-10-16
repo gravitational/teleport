@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -479,7 +480,7 @@ func (s *Service) ListGateways() []gateway.Gateway {
 }
 
 // GetGatewayCLICommand creates the CLI command used for the provided gateway.
-func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (cmd.Cmds, error) {
+func (s *Service) GetGatewayCLICommand(ctx context.Context, gateway gateway.Gateway) (cmd.Cmds, error) {
 	targetURI := gateway.TargetURI()
 	switch {
 	case targetURI.IsDB():
@@ -488,7 +489,12 @@ func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (cmd.Cmds, error
 			return cmd.Cmds{}, trace.Wrap(err)
 		}
 
-		cmds, err := cmd.NewDBCLICommand(cluster, gateway)
+		clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
+		if err != nil {
+			return cmd.Cmds{}, trace.Wrap(err)
+		}
+
+		cmds, err := cmd.NewDBCLICommand(ctx, cluster, gateway, clusterClient.AuthClient)
 		return cmds, trace.Wrap(err)
 
 	case targetURI.IsKube():
@@ -808,6 +814,39 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 	return response, nil
 }
 
+// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
+	cluster, tc, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources *kubeproto.ListKubernetesResourcesResponse
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		kubenetesServiceClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		resources, err = kubenetesServiceClient.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
+			ResourceType:        req.GetResourceType(),
+			Limit:               req.GetLimit(),
+			StartKey:            req.GetNextKey(),
+			PredicateExpression: req.GetPredicateExpression(),
+			SearchKeywords:      client.ParseSearchKeywords(req.GetSearchKeywords(), ' '),
+			UseSearchAsRoles:    req.GetUseSearchAsRoles(),
+			KubernetesCluster:   req.GetKubernetesCluster(),
+			KubernetesNamespace: req.GetKubernetesNamespace(),
+			TeleportCluster:     cluster.Name,
+		})
+		return trace.Wrap(err)
+	})
+
+	return resources, trace.Wrap(err)
+}
+
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
 	if err != nil {
@@ -871,11 +910,6 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 
 	s.tshdEventsClient = client
 	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
-
-	// Resume headless watchers for any active login sessions.
-	if err := s.StartHeadlessWatchers(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	return nil
 }

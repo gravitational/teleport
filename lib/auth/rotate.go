@@ -20,7 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"fmt"
 	"time"
@@ -32,11 +31,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // RotateRequest is a request to start rotation of the certificate authority.
@@ -174,10 +173,12 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	return nil
 }
 
-// autoRotateCertAuthorities automatically rotates cert authorities,
-// does nothing if no rotation parameters were set up
-// or it is too early to rotate per schedule
-func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
+// AutoRotateCertAuthorities automatically rotates cert authorities, does
+// nothing if no rotation parameters were set up or it is too early to rotate
+// per schedule. It will also set up a cluster alert if the cert authorities are
+// not usable because the auth server is configured to use HSMs that aren't
+// currently trusted.
+func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -373,17 +374,17 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 	if len(req.privateKey) != 0 {
 		log.Infof("Generating CA, using pregenerated test private key.")
 
-		rsaKey, err := ssh.ParseRawPrivateKey(req.privateKey)
+		signer, err := keys.ParsePrivateKey(req.privateKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if len(activeKeys.SSH) > 0 {
-			signer, err := ssh.NewSignerFromKey(rsaKey)
+			sshSigner, err := ssh.NewSignerFromKey(signer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			sshPublicKey := ssh.MarshalAuthorizedKey(signer.PublicKey())
+			sshPublicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
 			newKeys.SSH = append(newKeys.SSH, &types.SSHKeyPair{
 				PublicKey:      sshPublicKey,
 				PrivateKey:     req.privateKey,
@@ -393,7 +394,7 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 
 		if len(activeKeys.TLS) > 0 {
 			tlsCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-				Signer: rsaKey.(*rsa.PrivateKey),
+				Signer: signer,
 				Entity: pkix.Name{
 					CommonName:   ca.GetClusterName(),
 					Organization: []string{ca.GetClusterName()},
@@ -412,7 +413,11 @@ func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types
 		}
 
 		if len(activeKeys.JWT) > 0 {
-			jwtPublicKey, jwtPrivateKey, err := utils.MarshalPrivateKey(rsaKey.(*rsa.PrivateKey))
+			jwtPublicKey, err := keys.MarshalPublicKey(signer.Public())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			jwtPrivateKey, err := keys.MarshalPrivateKey(signer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -583,7 +588,7 @@ func (a *Server) syncUsableKeysAlert(ctx context.Context, usableKeysResults map[
 	alertOptions := []types.AlertOption{
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		// This is called by a.runPeriodicOperations via
-		// a.autoRotateCertAuthorities on a random period between 1-2x
+		// a.AutoRotateCertAuthorities on a random period between 1-2x
 		// defaults.HighResPollingPeriod, the alert will be renewed before it
 		// expires if it's still relevant.
 		types.WithAlertExpires(a.clock.Now().Add(defaults.HighResPollingPeriod * 3)),

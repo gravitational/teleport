@@ -55,6 +55,8 @@ issues:
     - path: provider/provider.go # integrations/terraform
       linters: [staticcheck]
       text: "grpc.WithReturnConnectionError is deprecated"
+    - linters: [govet]
+      text: "non-constant format string in call to github.com/gravitational/trace."
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -104,6 +106,10 @@ linters-settings:
             desc: 'experimental project, not to be confused with official Go packages'
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
+          - pkg: github.com/hashicorp/go-version
+            desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
+          - pkg: github.com/microsoftgraph/msgraph-sdk-go
+            desc: 'use "github.com/gravitational/teleport/lib/msgraph" instead'
       # Prevent logrus from being imported by api. Once everything in teleport has been converted
       # to use log/slog this should be moved into the main block above.
       logrus:
@@ -128,6 +134,7 @@ linters-settings:
           - '**/lib/service/servicecfg/**'
           - '**/lib/reversetunnelclient/**'
           - '**/lib/auth/authclient/**'
+          - '**/lib/cloud/imds/**'
         allow:
           - github.com/gravitational/teleport/lib/cloud/imds
         deny:
@@ -140,6 +147,43 @@ linters-settings:
           - pkg: github.com/gravitational/teleport/lib/web$
             desc: 'lib/web should not be imported to prevent increasing binary size'
         list-mode: lax
+      # Prevent importing dependencies that require CGO into tools that are
+      # meant to be built with CGO_ENABLED=0
+      cgo:
+        files:
+          # Tests can do anything
+          - "!$test"
+          - '**/tool/tbot/**'
+          - '**/lib/client/**'
+          - '!**/lib/integrations/**'
+          - '**/integrations/**'
+        deny:
+          - pkg: github.com/gravitational/teleport/lib/bpf
+            desc: '"lib/bpf" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/backend/lite
+            desc: '"lib/backend/lite" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/cgroup
+            desc: '"lib/cgroup" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/config
+            desc: '"lib/config" requires CGO via "lib/pam" and "lib/backend/lite"'
+          - pkg: github.com/gravitational/teleport/lib/desktop/rdp/rdpclient
+            desc: '"lib/desktop/rdp/rdpclient" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
+            desc: '"lib/devicetrust/authn" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/enroll
+            desc: '"lib/devicetrust/enroll" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/devicetrust/native
+            desc: '"lib/devicetrust/native" requires CGO on darwin'
+          - pkg: github.com/gravitational/teleport/lib/inventory/metadata
+            desc: '"lib/inventory/metadata" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/pam
+            desc: '"lib/pam" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/srv/uacc
+            desc: '"lib/srv/uacc" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/system/signal
+            desc: '"lib/system/signal" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/vnet/daemon
+            desc: '"vnet/daemon" requires CGO'
   errorlint:
     comparison: true
     asserts: true
@@ -189,6 +233,6 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.22'
+  go: '1.23'
   build-tags: []
   timeout: 15m

@@ -19,13 +19,15 @@
 package automaticupgrades
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -78,11 +80,14 @@ func GetUpgraderVersion(ctx context.Context) string {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
 			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
-		} else {
-			if version := strings.TrimSpace(string(out)); version != "" {
-				return version
-			}
+			return ""
 		}
+		ver, err := version.EnsureSemver(string(bytes.TrimSpace(out)))
+		if err != nil {
+			log.WithError(err).Debug("Unexpected teleport-upgrade version.")
+			return ""
+		}
+		return ver
 	}
 	return os.Getenv(EnvUpgraderVersion)
 }

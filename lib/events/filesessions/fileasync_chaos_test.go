@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -73,7 +72,7 @@ func TestChaosUpload(t *testing.T) {
 		OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 			event := pe.GetAuditEvent()
 			if event.GetIndex() > 700 && terminateConnection.Add(1) < 5 {
-				log.Debugf("Terminating connection at event %v", event.GetIndex())
+				t.Logf("Terminating connection at event %v", event.GetIndex())
 				return trace.ConnectionProblem(nil, "connection terminated")
 			}
 			return nil
@@ -102,7 +101,7 @@ func TestChaosUpload(t *testing.T) {
 					if fi.Name() == sid.String()+checkpointExt {
 						err := os.Remove(filepath.Join(scanDir, fi.Name()))
 						require.NoError(t, err)
-						log.Debugf("Deleted checkpoint file: %v.", fi.Name())
+						t.Logf("Deleted checkpoint file: %v.", fi.Name())
 						break
 					}
 				}
@@ -112,11 +111,10 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanPeriod := 3 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
-		ScanPeriod:   scanPeriod,
+		ScanPeriod:   3 * time.Second,
 		Streamer:     faultyStreamer,
 		Clock:        clockwork.NewRealClock(),
 	})

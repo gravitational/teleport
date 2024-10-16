@@ -48,16 +48,10 @@ export const logos: Record<TeleportEdition, LogoMap> = {
   },
 };
 
-export const LogoHero = ({ ...rest }) => {
+export const LogoHero = ({ my = '48px' }: { my?: string }) => {
   const theme = useTheme();
   const src = logos[cfg.edition][theme.type];
-  return <Image {...rest} src={src} />;
-};
-
-LogoHero.defaultProps = {
-  src: AGPLLogoDark,
-  maxHeight: '120px',
-  maxWidth: '200px',
-  my: '48px',
-  mx: 'auto',
+  return (
+    <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
+  );
 };

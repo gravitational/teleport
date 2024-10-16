@@ -25,11 +25,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/cloud/gcp"
 )
 
-func makeMetadataGetter(values map[string]string) metadataGetter {
+func makeMetadataGetter(values map[string]string) MetadataGetter {
 	return func(ctx context.Context, path string) (string, error) {
 		value, ok := values[path]
 		if ok {
@@ -40,18 +38,18 @@ func makeMetadataGetter(values map[string]string) metadataGetter {
 }
 
 type mockInstanceGetter struct {
-	gcp.InstancesClient
-	instance    *gcp.Instance
+	InstanceGetter
+	instance    *Instance
 	instanceErr error
 	tags        map[string]string
 	tagsErr     error
 }
 
-func (m *mockInstanceGetter) GetInstance(ctx context.Context, req *gcp.InstanceRequest) (*gcp.Instance, error) {
+func (m *mockInstanceGetter) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
 	return m.instance, m.instanceErr
 }
 
-func (m *mockInstanceGetter) GetInstanceTags(ctx context.Context, req *gcp.InstanceRequest) (map[string]string, error) {
+func (m *mockInstanceGetter) GetInstanceTags(ctx context.Context, req *InstanceRequest) (map[string]string, error) {
 	return m.tags, m.tagsErr
 }
 
@@ -60,7 +58,7 @@ func TestIsInstanceMetadataAvailable(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		getMetadata metadataGetter
+		getMetadata MetadataGetter
 		assert      require.BoolAssertionFunc
 	}{
 		{
@@ -106,7 +104,7 @@ func TestIsInstanceMetadataAvailable(t *testing.T) {
 		if os.Getenv("TELEPORT_TEST_GCP") == "" {
 			t.Skip("not on gcp")
 		}
-		client, err := NewInstanceMetadataClient(context.Background())
+		client, err := NewInstanceMetadataClient(nil)
 		require.NoError(t, err)
 		require.True(t, client.IsAvailable(context.Background()))
 	})
@@ -121,7 +119,7 @@ func TestGetTags(t *testing.T) {
 		"instance/name":      "myname",
 		"instance/id":        "12345678",
 	})
-	defaultInstance := &gcp.Instance{
+	defaultInstance := &Instance{
 		ProjectID: "myproject",
 		Zone:      "myzone",
 		Name:      "myname",
@@ -132,7 +130,7 @@ func TestGetTags(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		getMetadata     metadataGetter
+		getMetadata     MetadataGetter
 		instancesClient *mockInstanceGetter
 		assertErr       require.ErrorAssertionFunc
 		expectedTags    map[string]string
@@ -203,8 +201,8 @@ func TestGetTags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &InstanceMetadataClient{
-				getMetadata:     tc.getMetadata,
-				instancesClient: tc.instancesClient,
+				getMetadata:    tc.getMetadata,
+				instanceGetter: tc.instancesClient,
 			}
 			tags, err := client.GetTags(context.Background())
 			tc.assertErr(t, err)

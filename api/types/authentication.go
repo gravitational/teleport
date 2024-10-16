@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
@@ -73,18 +75,26 @@ type AuthPreference interface {
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
+	// GetSecondFactors gets a list of supported second factors.
+	GetSecondFactors() []SecondFactorType
+	// SetSecondFactors sets the list of supported second factors.
+	SetSecondFactors(...SecondFactorType)
 	// GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
 	// method when various options are available.
 	// It is empty if there is nothing to suggest.
 	GetPreferredLocalMFA() constants.SecondFactorType
-	// IsSecondFactorEnforced checks if second factor is enforced
-	// (not disabled or set to optional).
+	// IsSecondFactorEnabled checks if second factor is enabled.
+	IsSecondFactorEnabled() bool
+	// IsSecondFactorEnforced checks if second factor is enforced.
 	IsSecondFactorEnforced() bool
-	// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+	// IsSecondFactorLocalAllowed checks if a local second factor method is enabled (webauthn, totp).
+	IsSecondFactorLocalAllowed() bool
+	// IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
 	IsSecondFactorTOTPAllowed() bool
-	// IsSecondFactorWebauthnAllowed checks if users are allowed to register
-	// Webauthn devices.
+	// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
 	IsSecondFactorWebauthnAllowed() bool
+	// IsSecondFactorSSOAllowed checks if users can use SSO as an MFA method.
+	IsSecondFactorSSOAllowed() bool
 	// IsAdminActionMFAEnforced checks if admin action MFA is enforced.
 	IsAdminActionMFAEnforced() bool
 
@@ -116,8 +126,11 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
+	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
+	SetRequireMFAType(RequireMFAType)
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
+
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
@@ -170,8 +183,23 @@ type AuthPreference interface {
 	// SetOktaSyncPeriod sets the duration between Okta synchronzation calls.
 	SetOktaSyncPeriod(timeBetweenSyncs time.Duration)
 
+	// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+	GetSignatureAlgorithmSuite() SignatureAlgorithmSuite
+	// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+	SetSignatureAlgorithmSuite(SignatureAlgorithmSuite)
+	// SetDefaultSignatureAlgorithmSuite sets default signature algorithm suite
+	// based on the params. This is meant for a default auth preference in a
+	// brand new cluster or after resetting the auth preference.
+	SetDefaultSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams)
+	// CheckSignatureAlgorithmSuite returns an error if the current signature
+	// algorithm suite is incompatible with [params].
+	CheckSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams) error
+
 	// String represents a human readable version of authentication settings.
 	String() string
+
+	// Clone makes a deep copy of the AuthPreference.
+	Clone() AuthPreference
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
@@ -204,7 +232,15 @@ func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]st
 
 // DefaultAuthPreference returns the default authentication preferences.
 func DefaultAuthPreference() AuthPreference {
-	authPref, _ := newAuthPreferenceWithLabels(AuthPreferenceSpecV2{}, map[string]string{
+	authPref, _ := newAuthPreferenceWithLabels(AuthPreferenceSpecV2{
+		// This is useful as a static value, but the real default signature
+		// algorithm suite depends on the cluster FIPS and HSM settings, and
+		// gets written by [AuthPreferenceV2.SetDefaultSignatureAlgorithmSuite]
+		// wherever a default auth preference will actually be persisted.
+		// It is set here so that many existing tests using this get the
+		// benefits of the balanced-v1 suite.
+		SignatureAlgorithmSuite: SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	}, map[string]string{
 		OriginLabel: OriginDefaults,
 	})
 	return authPref
@@ -287,68 +323,93 @@ func (c *AuthPreferenceV2) SetType(s string) {
 
 // GetSecondFactor returns the type of second factor.
 func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
+	// SecondFactors takes priority if set.
+	if len(c.Spec.SecondFactors) > 0 {
+		return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
+	}
+
 	return c.Spec.SecondFactor
 }
 
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
+
+	// Unset SecondFactors, only one can be set at a time.
+	c.Spec.SecondFactors = nil
 }
 
+// GetSecondFactors gets a list of supported second factors.
+func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
+	if len(c.Spec.SecondFactors) > 0 {
+		return c.Spec.SecondFactors
+	}
+
+	// If SecondFactors isn't set, try to convert the old SecondFactor field.
+	return secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
+}
+
+// SetSecondFactors sets the list of supported second factors.
+func (c *AuthPreferenceV2) SetSecondFactors(sfs ...SecondFactorType) {
+	c.Spec.SecondFactors = sfs
+
+	// Unset SecondFactor, only one can be set at a time.
+	c.Spec.SecondFactor = ""
+}
+
+// GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
+// method when various options are available.
+// It is empty if there is nothing to suggest.
 func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
-	switch sf := c.GetSecondFactor(); sf {
-	case constants.SecondFactorOff:
-		return "" // Nothing to suggest.
-	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		return sf // Single method.
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// In order of preference:
-		// 1. WebAuthn (public-key based)
-		// 2. OTP
-		if _, err := c.GetWebauthn(); err == nil {
-			return constants.SecondFactorWebauthn
-		}
-		return constants.SecondFactorOTP
-	default:
-		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
-		return "" // Unsure, say nothing.
+	if c.IsSecondFactorWebauthnAllowed() {
+		return secondFactorTypeWebauthnString
 	}
+
+	if c.IsSecondFactorTOTPAllowed() {
+		return secondFactorTypeOTPString
+	}
+
+	return ""
 }
 
-// IsSecondFactorEnforced checks if second factor is enforced (not disabled or set to optional).
+// IsSecondFactorEnforced checks if second factor is enabled.
+func (c *AuthPreferenceV2) IsSecondFactorEnabled() bool {
+	// TODO(Joerger): outside of tests, second factor should always be enabled.
+	// All calls should be removed and the old off/optional second factors removed.
+	return len(c.GetSecondFactors()) > 0
+}
+
+// IsSecondFactorEnforced checks if second factor is enforced.
 func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
-	return c.Spec.SecondFactor != constants.SecondFactorOff && c.Spec.SecondFactor != constants.SecondFactorOptional
+	// TODO(Joerger): outside of tests, second factor should always be enforced.
+	// All calls should be removed and the old off/optional second factors removed.
+	return len(c.GetSecondFactors()) > 0 && c.Spec.SecondFactor != constants.SecondFactorOptional
 }
 
-// IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
+// IsSecondFactorLocalAllowed checks if a local second factor method is enabled.
+func (c *AuthPreferenceV2) IsSecondFactorLocalAllowed() bool {
+	return c.IsSecondFactorTOTPAllowed() || c.IsSecondFactorWebauthnAllowed()
+}
+
+// IsSecondFactorTOTPAllowed checks if users can use TOTP as an MFA method.
 func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
-	return c.Spec.SecondFactor == constants.SecondFactorOTP ||
-		c.Spec.SecondFactor == constants.SecondFactorOptional ||
-		c.Spec.SecondFactor == constants.SecondFactorOn
+	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_OTP)
 }
 
-// IsSecondFactorWebauthnAllowed checks if users are allowed to register
-// Webauthn devices.
+// IsSecondFactorWebauthnAllowed checks if users can use WebAuthn as an MFA method.
 func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
-	// Is Webauthn configured and enabled?
-	switch _, err := c.GetWebauthn(); {
-	case trace.IsNotFound(err): // OK, expected to happen in some cases.
-		return false
-	case err != nil:
-		slog.WarnContext(context.Background(), "Got unexpected error when reading Webauthn config", "error", err)
-		return false
-	}
-
-	// Are second factor settings in accordance?
-	return c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
-		c.Spec.SecondFactor == constants.SecondFactorOptional ||
-		c.Spec.SecondFactor == constants.SecondFactorOn
+	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 }
 
-// IsAdminActionMFAEnforced checks if admin action MFA is enforced. Currently, the only
-// prerequisite for admin action MFA enforcement is whether Webauthn is enforced.
+// IsSecondFactorSSOAllowed checks if users can use SSO as an MFA method.
+func (c *AuthPreferenceV2) IsSecondFactorSSOAllowed() bool {
+	return slices.Contains(c.GetSecondFactors(), SecondFactorType_SECOND_FACTOR_TYPE_SSO)
+}
+
+// IsAdminActionMFAEnforced checks if admin action MFA is enforced.
 func (c *AuthPreferenceV2) IsAdminActionMFAEnforced() bool {
-	return c.Spec.SecondFactor == constants.SecondFactorWebauthn
+	// OTP is not supported for Admin MFA.
+	return c.IsSecondFactorEnforced() && !c.IsSecondFactorTOTPAllowed()
 }
 
 // GetConnectorName gets the name of the OIDC or SAML connector to use. If
@@ -401,6 +462,11 @@ func (c *AuthPreferenceV2) GetAllowHeadless() bool {
 
 func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
+// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
+func (c *AuthPreferenceV2) SetRequireMFAType(t RequireMFAType) {
+	c.Spec.RequireMFAType = t
 }
 
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
@@ -540,6 +606,81 @@ func (c *AuthPreferenceV2) setStaticFields() {
 	c.Metadata.Name = MetaNameClusterAuthPreference
 }
 
+// GetSignatureAlgorithmSuite gets the signature algorithm suite.
+func (c *AuthPreferenceV2) GetSignatureAlgorithmSuite() SignatureAlgorithmSuite {
+	return c.Spec.SignatureAlgorithmSuite
+}
+
+// SetSignatureAlgorithmSuite sets the signature algorithm suite.
+func (c *AuthPreferenceV2) SetSignatureAlgorithmSuite(suite SignatureAlgorithmSuite) {
+	c.Spec.SignatureAlgorithmSuite = suite
+}
+
+// SignatureAlgorithmSuiteParams is a set of parameters used to determine if a
+// configured signature algorithm suite is valid, or to set a default signature
+// algorithm suite.
+type SignatureAlgorithmSuiteParams struct {
+	// FIPS should be true if running in FIPS mode.
+	FIPS bool
+	// UsingHSMOrKMS should be true if the auth server is configured to
+	// use an HSM or KMS.
+	UsingHSMOrKMS bool
+	// Cloud should be true when running in Teleport Cloud.
+	Cloud bool
+}
+
+// SetDefaultSignatureAlgorithmSuite sets default signature algorithm suite
+// based on the params. This is meant for a default auth preference in a
+// brand new cluster or after resetting the auth preference.
+func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlgorithmSuiteParams) {
+	switch {
+	case params.FIPS:
+		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1)
+	case params.UsingHSMOrKMS || params.Cloud:
+		// Cloud may eventually migrate existing CA keys to a KMS, to keep
+		// this option open we default to hsm-v1 suite.
+		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
+	default:
+		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
+	}
+}
+
+var (
+	errNonFIPSSignatureAlgorithmSuite  = &trace.BadParameterError{Message: `non-FIPS compliant authentication setting: "signature_algorithm_suite" must be "fips-v1" or "legacy"`}
+	errNonHSMSignatureAlgorithmSuite   = &trace.BadParameterError{Message: `configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS, supported values: ["hsm-v1", "fips-v1", "legacy"]`}
+	errNonCloudSignatureAlgorithmSuite = &trace.BadParameterError{Message: `configured "signature_algorithm_suite" is unsupported in Teleport Cloud, supported values: ["hsm-v1", "fips-v1", "legacy"]`}
+)
+
+// CheckSignatureAlgorithmSuite returns an error if the current signature
+// algorithm suite is incompatible with [params].
+func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorithmSuiteParams) error {
+	switch c.GetSignatureAlgorithmSuite() {
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
+		SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:
+		// legacy, fips-v1, and unspecified are always valid.
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:
+		if params.FIPS {
+			return trace.Wrap(errNonFIPSSignatureAlgorithmSuite)
+		}
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:
+		if params.FIPS {
+			return trace.Wrap(errNonFIPSSignatureAlgorithmSuite)
+		}
+		if params.UsingHSMOrKMS {
+			return trace.Wrap(errNonHSMSignatureAlgorithmSuite)
+		}
+		if params.Cloud {
+			// Cloud may eventually migrate existing CA keys to a KMS, to keep
+			// this option open we prevent the balanced-v1 suite.
+			return trace.Wrap(errNonCloudSignatureAlgorithmSuite)
+		}
+	default:
+		return trace.Errorf("unhandled signature_algorithm_suite %q: this is a bug", c.GetSignatureAlgorithmSuite())
+	}
+	return nil
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -549,9 +690,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
-	}
-	if c.Spec.SecondFactor == "" {
-		c.Spec.SecondFactor = constants.SecondFactorOTP
 	}
 	if c.Spec.AllowLocalAuth == nil {
 		c.Spec.AllowLocalAuth = NewBoolOption(true)
@@ -579,20 +717,32 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
-	if c.Spec.SecondFactor == constants.SecondFactorU2F {
+	// Validate SecondFactor and SecondFactors.
+	if c.Spec.SecondFactor != "" && len(c.Spec.SecondFactors) > 0 {
+		return trace.BadParameter("must set either SecondFactor or SecondFactors, not both")
+	}
+
+	switch c.Spec.SecondFactor {
+	case constants.SecondFactorOff, constants.SecondFactorOTP, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F:
 		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
 			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
+	case "":
+		// default to OTP if SecondFactors is also not set.
+		if len(c.Spec.SecondFactors) == 0 {
+			c.Spec.SecondFactor = constants.SecondFactorOTP
+		}
+	default:
+		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
-	// Make sure second factor makes sense.
-	sf := c.Spec.SecondFactor
-	switch sf {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-	case constants.SecondFactorWebauthn:
+	// Validate expected fields for webauthn.
+	hasWebauthn := c.IsSecondFactorWebauthnAllowed()
+	if hasWebauthn {
 		// If U2F is present validate it, we can derive Webauthn from it.
 		if c.Spec.U2F != nil {
 			if err := c.Spec.U2F.Check(); err != nil {
@@ -602,45 +752,21 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 				// Not a problem, try to derive from U2F.
 				c.Spec.Webauthn = &Webauthn{}
 			}
-		}
-		if c.Spec.Webauthn == nil {
-			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
-		}
-		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
-			return trace.Wrap(err)
-		}
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// The following scenarios are allowed for "on" and "optional":
-		// - Webauthn is configured (preferred)
-		// - U2F is configured, Webauthn derived from it (U2F-compat mode)
-
-		if c.Spec.U2F == nil && c.Spec.Webauthn == nil {
-			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
-		}
-
-		// Is U2F configured?
-		if c.Spec.U2F != nil {
-			if err := c.Spec.U2F.Check(); err != nil {
+			if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 				return trace.Wrap(err)
 			}
-			if c.Spec.Webauthn == nil {
-				// Not a problem, try to derive from U2F.
-				c.Spec.Webauthn = &Webauthn{}
-			}
 		}
 
-		// Is Webauthn valid? At this point we should always have a config.
+		if c.Spec.Webauthn == nil {
+			return trace.BadParameter("missing required webauthn configuration")
+		}
+
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
-	default:
-		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
 	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
-	hasWebauthn := sf == constants.SecondFactorWebauthn ||
-		sf == constants.SecondFactorOn ||
-		sf == constants.SecondFactorOptional
 	switch {
 	case c.Spec.AllowPasswordless == nil:
 		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)
@@ -654,6 +780,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
 		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
+	// Prevent local lockout by disabling local second factor methods.
+	if c.GetAllowLocalAuth() && c.IsSecondFactorEnforced() && !c.IsSecondFactorLocalAllowed() {
+		if c.IsSecondFactorSSOAllowed() {
+			trace.BadParameter("missing a local second factor method for local users (otp, webauthn), either add a local second factor method or disable local auth")
+		}
+		return trace.BadParameter("missing a local second factor method for local users (otp, webauthn)")
 	}
 
 	// Validate connector name for type=local.
@@ -697,9 +831,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
-	// TODO(Joerger): DELETE IN 17.0.0
-	c.CheckSetPIVSlot()
-
 	if hk, err := c.GetHardwareKey(); err == nil && hk.PIVSlot != "" {
 		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
 			return trace.Wrap(err)
@@ -730,25 +861,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckSetPIVSlot ensures that the PIVSlot and Hardwarekey.PIVSlot stay in sync so that
-// older versions of Teleport that do not know about Hardwarekey.PIVSlot are able to keep
-// using PIVSlot and newer versions of Teleport can rely solely on Hardwarekey.PIVSlot
-// without causing any service degradation.
-// TODO(Joerger): DELETE IN 17.0.0
-func (c *AuthPreferenceV2) CheckSetPIVSlot() {
-	if c.Spec.PIVSlot != "" {
-		if c.Spec.HardwareKey == nil {
-			c.Spec.HardwareKey = &HardwareKey{}
-		}
-		c.Spec.HardwareKey.PIVSlot = c.Spec.PIVSlot
-	} else if c.Spec.HardwareKey != nil && c.Spec.HardwareKey.PIVSlot != "" {
-		c.Spec.PIVSlot = c.Spec.HardwareKey.PIVSlot
-	}
-}
-
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
-	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.Spec.SecondFactor)
+	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.GetSecondFactor())
+}
+
+// Clone returns a copy of the AuthPreference resource.
+func (c *AuthPreferenceV2) Clone() AuthPreference {
+	return utils.CloneProtoMsg(c)
 }
 
 func (u *U2F) Check() error {

@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
@@ -147,6 +149,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	err = tc.TransferFiles(ctx, req.login, req.serverID+":0", cfg)
 	if err != nil {
+		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+			return nil, trace.Errorf("transferring directories through the Web UI is not supported at the moment, please use tsh scp -r")
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -220,22 +225,16 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		return trace.Wrap(err)
 	}
 
-	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetPriv())
+	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetSSHPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	key := &client.Key{
-		PrivateKey: pk,
-		Cert:       f.sctx.cfg.Session.GetPub(),
-		TLSCert:    f.sctx.cfg.Session.GetTLSCert(),
-	}
-
 	// Always acquire certs from the root cluster, that is where both the user and their devices are registered.
 	cert, err := f.sctx.cfg.RootClient.GenerateUserCerts(httpReq.Context(), proto.UserCertsRequest{
-		PublicKey: key.MarshalSSHPublicKey(),
-		Username:  f.sctx.GetUser(),
-		Expires:   time.Now().Add(time.Minute).UTC(),
+		SSHPublicKey: pk.MarshalSSHPublicKey(),
+		Username:     f.sctx.GetUser(),
+		Expires:      time.Now().Add(time.Minute).UTC(),
 		MFAResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaResp.WebauthnAssertionResponse),
@@ -246,8 +245,11 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		return trace.Wrap(err)
 	}
 
-	key.Cert = cert.SSH
-	am, err := key.AsAuthMethod()
+	sshCert, err := sshutils.ParseCertificate(cert.SSH)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	am, err := sshutils.AsAuthMethod(sshCert, pk.Signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"strings"
 
@@ -29,15 +28,22 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // EventsService implements service to watch for events
@@ -62,7 +68,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	var parsers []resourceParser
-	var prefixes [][]byte
+	var prefixes []backend.Key
 	for _, kind := range watch.Kinds {
 		if kind.Name != "" && kind.Kind != types.KindNamespace {
 			if watch.AllowPartialSuccess {
@@ -90,6 +96,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
+		case types.KindAutoUpdateConfig:
+			parser = newAutoUpdateConfigParser()
+		case types.KindAutoUpdateVersion:
+			parser = newAutoUpdateVersionParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -175,6 +185,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindUserTask:
+			parser = newUserTaskParser()
 		case types.KindDiscoveryConfig:
 			parser = newDiscoveryConfigParser()
 		case types.KindHeadlessAuthentication:
@@ -208,6 +220,24 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGlobalNotificationParser()
 		case types.KindAccessMonitoringRule:
 			parser = newAccessMonitoringRuleParser()
+		case types.KindBotInstance:
+			parser = newBotInstanceParser()
+		case types.KindInstance:
+			parser = newInstanceParser()
+		case types.KindDevice:
+			parser = newDeviceParser()
+		case types.KindAccessGraphSecretPrivateKey:
+			parser = newAccessGraphSecretPrivateKeyParser()
+		case types.KindAccessGraphSecretAuthorizedKey:
+			parser = newAccessGraphSecretAuthorizedKeyParser()
+		case types.KindAccessGraphSettings:
+			parser = newAccessGraphSettingsParser()
+		case types.KindSPIFFEFederation:
+			parser = newSPIFFEFederationParser()
+		case types.KindStaticHostUser:
+			parser = newStaticHostUserParser()
+		case types.KindProvisioningPrincipalState:
+			parser = newProvisioningStateParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -228,7 +258,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if origNumPrefixes != redundantNumPrefixes {
 		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
 		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
-		// backend.Key in your parser.
+		// backend.NewKey in your parser.
 		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix (this is a bug)")
 	}
 
@@ -340,28 +370,28 @@ type resourceParser interface {
 	// parse parses resource from the backend event
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
-	match(key []byte) bool
+	match(key backend.Key) bool
 	// prefixes returns prefixes to watch
-	prefixes() [][]byte
+	prefixes() []backend.Key
 }
 
 // baseParser is a partial implementation of resourceParser for the most common
 // resource types (stored under a static prefix).
 type baseParser struct {
-	matchPrefixes [][]byte
+	matchPrefixes []backend.Key
 }
 
-func newBaseParser(prefixes ...[]byte) baseParser {
+func newBaseParser(prefixes ...backend.Key) baseParser {
 	return baseParser{matchPrefixes: prefixes}
 }
 
-func (p baseParser) prefixes() [][]byte {
+func (p baseParser) prefixes() []backend.Key {
 	return p.matchPrefixes
 }
 
-func (p baseParser) match(key []byte) bool {
+func (p baseParser) match(key backend.Key) bool {
 	for _, prefix := range p.matchPrefixes {
-		if bytes.HasPrefix(key, prefix) {
+		if key.HasPrefix(prefix) {
 			return true
 		}
 	}
@@ -373,7 +403,7 @@ func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAut
 	caFilter.FromMap(filter)
 	return &certAuthorityParser{
 		loadSecrets: loadSecrets,
-		baseParser:  newBaseParser(backend.Key(authoritiesPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(authoritiesPrefix)),
 		filter:      caFilter,
 	}
 }
@@ -387,16 +417,17 @@ type certAuthorityParser struct {
 func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		caType, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		components := event.Item.Key.Components()
+		if len(components) != 3 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
+
 		return &types.ResourceHeader{
 			Kind:    types.KindCertAuthority,
-			SubKind: caType,
+			SubKind: components[1],
 			Version: types.V2,
 			Metadata: types.Metadata{
-				Name:      name,
+				Name:      components[2],
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil
@@ -420,7 +451,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 
 func newProvisionTokenParser() *provisionTokenParser {
 	return &provisionTokenParser{
-		baseParser: newBaseParser(backend.Key(tokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(tokensPrefix)),
 	}
 }
 
@@ -431,7 +462,20 @@ type provisionTokenParser struct {
 func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindToken, types.V2, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(tokensPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindToken,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+
 	case types.OpPut:
 		token, err := services.UnmarshalProvisionToken(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -448,7 +492,7 @@ func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error
 
 func newStaticTokensParser() *staticTokensParser {
 	return &staticTokensParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, staticTokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, staticTokensPrefix)),
 	}
 }
 
@@ -459,12 +503,14 @@ type staticTokensParser struct {
 func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindStaticTokens, types.V2, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameStaticTokens)
-		return h, nil
+		return &types.ResourceHeader{
+			Kind:    types.KindStaticTokens,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameStaticTokens,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		tokens, err := services.UnmarshalStaticTokens(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -481,7 +527,7 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 
 func newClusterAuditConfigParser() *clusterAuditConfigParser {
 	return &clusterAuditConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, auditPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, auditPrefix)),
 	}
 }
 
@@ -492,12 +538,14 @@ type clusterAuditConfigParser struct {
 func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindClusterAuditConfig, types.V2, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameClusterAuditConfig)
-		return h, nil
+		return &types.ResourceHeader{
+			Kind:    types.KindClusterAuditConfig,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameClusterAuditConfig,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		clusterAuditConfig, err := services.UnmarshalClusterAuditConfig(
 			event.Item.Value,
@@ -515,7 +563,7 @@ func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, e
 
 func newClusterNetworkingConfigParser() *clusterNetworkingConfigParser {
 	return &clusterNetworkingConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, networkingPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, networkingPrefix)),
 	}
 }
 
@@ -526,12 +574,14 @@ type clusterNetworkingConfigParser struct {
 func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindClusterNetworkingConfig, types.V2, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameClusterNetworkingConfig)
-		return h, nil
+		return &types.ResourceHeader{
+			Kind:    types.KindClusterNetworkingConfig,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameClusterNetworkingConfig,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		clusterNetworkingConfig, err := services.UnmarshalClusterNetworkingConfig(
 			event.Item.Value,
@@ -549,7 +599,7 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resour
 
 func newAuthPreferenceParser() *authPreferenceParser {
 	return &authPreferenceParser{
-		baseParser: newBaseParser(backend.Key(authPrefix, preferencePrefix, generalPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authPrefix, preferencePrefix, generalPrefix)),
 	}
 }
 
@@ -560,12 +610,14 @@ type authPreferenceParser struct {
 func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindClusterAuthPreference, types.V2, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameClusterAuthPreference)
-		return h, nil
+		return &types.ResourceHeader{
+			Kind:    types.KindClusterAuthPreference,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameClusterAuthPreference,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		ap, err := services.UnmarshalAuthPreference(
 			event.Item.Value,
@@ -583,7 +635,7 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 
 func newUIConfigParser() *uiConfigParser {
 	return &uiConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, uiPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, uiPrefix)),
 	}
 }
 
@@ -594,12 +646,14 @@ type uiConfigParser struct {
 func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindUIConfig, types.V1, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameUIConfig)
-		return h, nil
+		return &types.ResourceHeader{
+			Kind:    types.KindUIConfig,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameUIConfig,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		ap, err := services.UnmarshalUIConfig(
 			event.Item.Value,
@@ -617,7 +671,7 @@ func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSessionRecordingConfigParser() *sessionRecordingConfigParser {
 	return &sessionRecordingConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, sessionRecordingPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix)),
 	}
 }
 
@@ -628,12 +682,14 @@ type sessionRecordingConfigParser struct {
 func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindSessionRecordingConfig, types.V2, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameSessionRecordingConfig)
-		return h, nil
+		return &types.ResourceHeader{
+			Kind:    types.KindSessionRecordingConfig,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameSessionRecordingConfig,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		ap, err := services.UnmarshalSessionRecordingConfig(
 			event.Item.Value,
@@ -651,7 +707,7 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 
 func newClusterNameParser() *clusterNameParser {
 	return &clusterNameParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, namePrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, namePrefix)),
 	}
 }
 
@@ -662,12 +718,14 @@ type clusterNameParser struct {
 func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindClusterName, types.V2, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		h.SetName(types.MetaNameClusterName)
-		return h, nil
+		return &types.ResourceHeader{
+			Kind:    types.KindClusterName,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameClusterName,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		clusterName, err := services.UnmarshalClusterName(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -682,10 +740,80 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newAutoUpdateConfigParser() *autoUpdateConfigParser {
+	return &autoUpdateConfigParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateConfigPrefix)),
+	}
+}
+
+type autoUpdateConfigParser struct {
+	baseParser
+}
+
+func (p *autoUpdateConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateConfig,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameAutoUpdateConfig,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateConfig, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateConfig), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateVersionParser() *autoUpdateVersionParser {
+	return &autoUpdateVersionParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateVersionPrefix)),
+	}
+}
+
+type autoUpdateVersionParser struct {
+	baseParser
+}
+
+func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateVersion,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameAutoUpdateVersion,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateVersion, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateVersion), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newNamespaceParser(name string) *namespaceParser {
-	prefix := backend.Key(namespacesPrefix)
+	prefix := backend.NewKey(namespacesPrefix)
 	if name != "" {
-		prefix = backend.Key(namespacesPrefix, name, paramsPrefix)
+		prefix = backend.NewKey(namespacesPrefix, name, paramsPrefix)
 	}
 	return &namespaceParser{
 		baseParser: newBaseParser(prefix),
@@ -696,18 +824,30 @@ type namespaceParser struct {
 	baseParser
 }
 
-func (p *namespaceParser) match(key []byte) bool {
+func (p *namespaceParser) match(key backend.Key) bool {
 	// namespaces are stored under key '/namespaces/<namespace-name>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
-		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
-		bytes.Count(key, []byte{backend.Separator}) == 3
+		key.HasSuffix(backend.NewKey(paramsPrefix)) &&
+		len(key.Components()) > 2
 }
 
 func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindNamespace, types.V2, 1)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(namespacesPrefix)).TrimSuffix(backend.NewKey(paramsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindNamespace,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		namespace, err := services.UnmarshalNamespace(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -724,7 +864,7 @@ func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newRoleParser() *roleParser {
 	return &roleParser{
-		baseParser: newBaseParser(backend.Key(rolesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(rolesPrefix)),
 	}
 }
 
@@ -735,7 +875,19 @@ type roleParser struct {
 func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindRole, types.V7, 1)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(rolesPrefix)).TrimSuffix(backend.NewKey(paramsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindRole,
+			Version: types.V7,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -757,26 +909,26 @@ func newAccessRequestParser(m map[string]string) (*accessRequestParser, error) {
 	}
 	return &accessRequestParser{
 		filter:      filter,
-		matchPrefix: backend.Key(accessRequestsPrefix),
-		matchSuffix: backend.Key(paramsPrefix),
+		matchPrefix: backend.NewKey(accessRequestsPrefix),
+		matchSuffix: backend.NewKey(paramsPrefix),
 	}, nil
 }
 
 type accessRequestParser struct {
 	filter      types.AccessRequestFilter
-	matchPrefix []byte
-	matchSuffix []byte
+	matchPrefix backend.Key
+	matchSuffix backend.Key
 }
 
-func (p *accessRequestParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *accessRequestParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *accessRequestParser) match(key []byte) bool {
-	if !bytes.HasPrefix(key, p.matchPrefix) {
+func (p *accessRequestParser) match(key backend.Key) bool {
+	if !key.HasPrefix(p.matchPrefix) {
 		return false
 	}
-	if !bytes.HasSuffix(key, p.matchSuffix) {
+	if !key.HasSuffix(p.matchSuffix) {
 		return false
 	}
 	return true
@@ -785,7 +937,19 @@ func (p *accessRequestParser) match(key []byte) bool {
 func (p *accessRequestParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessRequest, types.V3, 1)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(accessRequestsPrefix)).TrimSuffix(backend.NewKey(paramsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessRequest,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		req, err := itemToAccessRequest(event.Item)
 		if err != nil {
@@ -802,7 +966,7 @@ func (p *accessRequestParser) parse(event backend.Event) (types.Resource, error)
 
 func newUserParser() *userParser {
 	return &userParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, usersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(webPrefix, usersPrefix)),
 	}
 }
 
@@ -810,18 +974,30 @@ type userParser struct {
 	baseParser
 }
 
-func (p *userParser) match(key []byte) bool {
+func (p *userParser) match(key backend.Key) bool {
 	// users are stored under key '/web/users/<username>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
-		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
-		bytes.Count(key, []byte{backend.Separator}) == 4
+		key.HasSuffix(backend.NewKey(paramsPrefix)) &&
+		len(key.Components()) >= 4
 }
 
 func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindUser, types.V2, 1)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(webPrefix, usersPrefix)).TrimSuffix(backend.NewKey(paramsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindUser,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalUser(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -838,7 +1014,7 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		baseParser: newBaseParser(backend.Key(nodesPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(nodesPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -847,12 +1023,39 @@ type nodeParser struct {
 }
 
 func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindNode)
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(nodesPrefix, apidefaults.Namespace)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalServer(event.Item.Value,
+			types.KindNode,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 func newProxyParser() *proxyParser {
 	return &proxyParser{
-		baseParser: newBaseParser(backend.Key(proxiesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(proxiesPrefix)),
 	}
 }
 
@@ -861,12 +1064,39 @@ type proxyParser struct {
 }
 
 func (p *proxyParser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindProxy)
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(proxiesPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindProxy,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalServer(event.Item.Value,
+			types.KindProxy,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 func newAuthServerParser() *authServerParser {
 	return &authServerParser{
-		baseParser: newBaseParser(backend.Key(authServersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authServersPrefix)),
 	}
 }
 
@@ -875,12 +1105,39 @@ type authServerParser struct {
 }
 
 func (p *authServerParser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindAuthServer)
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(authServersPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindAuthServer,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalServer(event.Item.Value,
+			types.KindAuthServer,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 func newTunnelConnectionParser() *tunnelConnectionParser {
 	return &tunnelConnectionParser{
-		baseParser: newBaseParser(backend.Key(tunnelConnectionsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(tunnelConnectionsPrefix)),
 	}
 }
 
@@ -891,16 +1148,17 @@ type tunnelConnectionParser struct {
 func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		clusterName, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		components := event.Item.Key.Components()
+		if len(components) != 3 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
+
 		return &types.ResourceHeader{
 			Kind:    types.KindTunnelConnection,
-			SubKind: clusterName,
+			SubKind: components[1],
 			Version: types.V2,
 			Metadata: types.Metadata{
-				Name:      name,
+				Name:      components[2],
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil
@@ -920,7 +1178,7 @@ func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, err
 
 func newReverseTunnelParser() *reverseTunnelParser {
 	return &reverseTunnelParser{
-		baseParser: newBaseParser(backend.Key(reverseTunnelsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(reverseTunnelsPrefix)),
 	}
 }
 
@@ -931,7 +1189,19 @@ type reverseTunnelParser struct {
 func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindReverseTunnel, types.V2, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(reverseTunnelsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindReverseTunnel,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalReverseTunnel(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -948,7 +1218,7 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerV3Parser() *appServerV3Parser {
 	return &appServerV3Parser{
-		baseParser: newBaseParser(backend.Key(appServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(appServersPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -959,17 +1229,18 @@ type appServerV3Parser struct {
 func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		hostID, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		components := event.Item.Key.TrimPrefix(backend.NewKey(appServersPrefix, apidefaults.Namespace)).Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
-		return &types.AppServerV3{
+
+		return &types.ResourceHeader{
 			Kind:    types.KindAppServer,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        name,
+				Name:        components[1],
 				Namespace:   apidefaults.Namespace,
-				Description: hostID, // Pass host ID via description field for the cache.
+				Description: components[0],
 			},
 		}, nil
 	case types.OpPut:
@@ -984,7 +1255,7 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 
 func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(samlIdPPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -996,7 +1267,7 @@ func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 
 func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(snowflakePrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1008,7 +1279,7 @@ func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 
 func newAppSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(appsPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1020,7 +1291,7 @@ func newAppSessionParser(loadSecrets bool) *webSessionParser {
 
 func newWebSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(webPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1039,7 +1310,20 @@ type webSessionParser struct {
 func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeaderWithTemplate(event, p.hdr, 0)
+		components := event.Item.Key.Components()
+		if len(components) != 3 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    p.hdr.Kind,
+			SubKind: p.hdr.SubKind,
+			Version: p.hdr.Version,
+			Metadata: types.Metadata{
+				Name:      components[2],
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalWebSession(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1059,7 +1343,7 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 
 func newWebTokenParser() *webTokenParser {
 	return &webTokenParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, tokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(webPrefix, tokensPrefix)),
 	}
 }
 
@@ -1070,7 +1354,19 @@ type webTokenParser struct {
 func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindWebToken, types.V1, 0)
+		components := event.Item.Key.Components()
+		if len(components) != 3 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindWebToken,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      components[2],
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalWebToken(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1087,7 +1383,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 
 func newKubeServerParser() *kubeServerParser {
 	return &kubeServerParser{
-		baseParser: newBaseParser(backend.Key(kubeServersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubeServersPrefix)),
 	}
 }
 
@@ -1098,17 +1394,18 @@ type kubeServerParser struct {
 func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		hostID, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		components := event.Item.Key.Components()
+		if len(components) != 3 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
-		return &types.KubernetesServerV3{
+
+		return &types.ResourceHeader{
 			Kind:    types.KindKubeServer,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        name,
+				Name:        components[2],
 				Namespace:   apidefaults.Namespace,
-				Description: hostID, // Pass host ID via description field for the cache.
+				Description: components[1],
 			},
 		}, nil
 	case types.OpPut:
@@ -1124,7 +1421,7 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseServerParser() *databaseServerParser {
 	return &databaseServerParser{
-		baseParser: newBaseParser(backend.Key(dbServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(dbServersPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -1135,17 +1432,18 @@ type databaseServerParser struct {
 func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		hostID, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		components := event.Item.Key.TrimPrefix(backend.NewKey(dbServersPrefix, apidefaults.Namespace)).Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
-		return &types.DatabaseServerV3{
+
+		return &types.ResourceHeader{
 			Kind:    types.KindDatabaseServer,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        name,
+				Name:        components[1],
 				Namespace:   apidefaults.Namespace,
-				Description: hostID, // Pass host ID via description field for the cache.
+				Description: components[0],
 			},
 		}, nil
 	case types.OpPut:
@@ -1161,7 +1459,7 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 
 func newDatabaseServiceParser() *databaseServiceParser {
 	return &databaseServiceParser{
-		baseParser: newBaseParser(backend.Key(databaseServicePrefix)),
+		baseParser: newBaseParser(backend.NewKey(databaseServicePrefix)),
 	}
 }
 
@@ -1172,7 +1470,18 @@ type databaseServiceParser struct {
 func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindDatabaseService, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(databaseServicePrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindDatabaseService,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalDatabaseService(
 			event.Item.Value,
@@ -1186,7 +1495,7 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 
 func newKubeClusterParser() *kubeClusterParser {
 	return &kubeClusterParser{
-		baseParser: newBaseParser(backend.Key(kubernetesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubernetesPrefix)),
 	}
 }
 
@@ -1197,7 +1506,18 @@ type kubeClusterParser struct {
 func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindKubernetesCluster, types.V3, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(kubernetesPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindKubernetesCluster,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1210,7 +1530,7 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 
 func newCrownJewelParser() *crownJewelParser {
 	return &crownJewelParser{
-		baseParser: newBaseParser(backend.Key(crownJewelsKey)),
+		baseParser: newBaseParser(backend.NewKey(crownJewelsKey)),
 	}
 }
 
@@ -1221,7 +1541,19 @@ type crownJewelParser struct {
 func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindCrownJewel, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(crownJewelsKey)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindCrownJewel,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		r, err := services.UnmarshalCrownJewel(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1238,7 +1570,7 @@ func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAppParser() *appParser {
 	return &appParser{
-		baseParser: newBaseParser(backend.Key(appPrefix)),
+		baseParser: newBaseParser(backend.NewKey(appPrefix)),
 	}
 }
 
@@ -1249,7 +1581,19 @@ type appParser struct {
 func (p *appParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindApp, types.V3, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(appPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindApp,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalApp(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1262,7 +1606,7 @@ func (p *appParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseParser() *databaseParser {
 	return &databaseParser{
-		baseParser: newBaseParser(backend.Key(databasesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(databasesPrefix)),
 	}
 }
 
@@ -1273,7 +1617,19 @@ type databaseParser struct {
 func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindDatabase, types.V3, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(databasesPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindDatabase,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalDatabase(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1286,7 +1642,7 @@ func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseObjectParser() *databaseObjectParser {
 	return &databaseObjectParser{
-		baseParser: newBaseParser(backend.Key(databaseObjectPrefix)),
+		baseParser: newBaseParser(backend.NewKey(databaseObjectPrefix)),
 	}
 }
 
@@ -1297,7 +1653,19 @@ type databaseObjectParser struct {
 func (p *databaseObjectParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindDatabaseObject, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(databaseObjectPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindDatabaseObject,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
 		resource, err := services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject](event.Item.Value,
@@ -1313,47 +1681,40 @@ func (p *databaseObjectParser) parse(event backend.Event) (types.Resource, error
 	}
 }
 
-func parseServer(event backend.Event, kind string) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, kind, types.V2, 0)
-	case types.OpPut:
-		resource, err := services.UnmarshalServer(event.Item.Value,
-			kind,
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return resource, nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
 func newRemoteClusterParser() *remoteClusterParser {
 	return &remoteClusterParser{
-		matchPrefix: backend.Key(remoteClustersPrefix),
+		matchPrefix: backend.NewKey(remoteClustersPrefix),
 	}
 }
 
 type remoteClusterParser struct {
-	matchPrefix []byte
+	matchPrefix backend.Key
 }
 
-func (p *remoteClusterParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *remoteClusterParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *remoteClusterParser) match(key []byte) bool {
-	return bytes.HasPrefix(key, p.matchPrefix)
+func (p *remoteClusterParser) match(key backend.Key) bool {
+	return key.HasPrefix(p.matchPrefix)
 }
 
 func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindRemoteCluster, types.V3, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(remoteClustersPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindRemoteCluster,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalRemoteCluster(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1370,7 +1731,7 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 
 func newLockParser() *lockParser {
 	return &lockParser{
-		baseParser: newBaseParser(backend.Key(locksPrefix)),
+		baseParser: newBaseParser(backend.NewKey(locksPrefix)),
 	}
 }
 
@@ -1381,7 +1742,19 @@ type lockParser struct {
 func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindLock, types.V2, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(locksPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindLock,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalLock(
 			event.Item.Value,
@@ -1395,26 +1768,38 @@ func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNetworkRestrictionsParser() *networkRestrictionsParser {
 	return &networkRestrictionsParser{
-		matchPrefix: backend.Key(restrictionsPrefix, network),
+		matchPrefix: backend.NewKey(restrictionsPrefix, network),
 	}
 }
 
 type networkRestrictionsParser struct {
-	matchPrefix []byte
+	matchPrefix backend.Key
 }
 
-func (p *networkRestrictionsParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *networkRestrictionsParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *networkRestrictionsParser) match(key []byte) bool {
-	return bytes.HasPrefix(key, p.matchPrefix)
+func (p *networkRestrictionsParser) match(key backend.Key) bool {
+	return key.HasPrefix(p.matchPrefix)
 }
 
 func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindNetworkRestrictions, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(restrictionsPrefix, network)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindNetworkRestrictions,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		resource, err := services.UnmarshalNetworkRestrictions(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1431,7 +1816,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
+		baseParser: newBaseParser(backend.NewKey(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1442,7 +1827,19 @@ type windowsDesktopServicesParser struct {
 func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindWindowsDesktopService, types.V3, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(windowsDesktopServicesPrefix, "")).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindWindowsDesktopService,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktopService(
 			event.Item.Value,
@@ -1456,7 +1853,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
+		baseParser: newBaseParser(backend.NewKey(windowsDesktopsPrefix, "")),
 	}
 }
 
@@ -1467,17 +1864,19 @@ type windowsDesktopsParser struct {
 func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		hostID, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		key := event.Item.Key.TrimPrefix(backend.NewKey(windowsDesktopsPrefix))
+		if len(key.Components()) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
+		hostID := key.Components()[0]
+
 		return &types.ResourceHeader{
 			Kind:    types.KindWindowsDesktop,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        name,
+				Name:        strings.TrimPrefix(key.TrimPrefix(backend.NewKey(hostID)).String(), backend.SeparatorString),
 				Namespace:   apidefaults.Namespace,
-				Description: hostID, // pass ID via description field for the cache
+				Description: hostID,
 			},
 		}, nil
 	case types.OpPut:
@@ -1497,18 +1896,26 @@ type installerParser struct {
 
 func newInstallerParser() *installerParser {
 	return &installerParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
 	}
 }
 
 func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindInstaller, types.V1, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
-		return h, nil
+
+		return &types.ResourceHeader{
+			Kind:    types.KindInstaller,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		inst, err := services.UnmarshalInstaller(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1530,7 +1937,7 @@ type pluginParser struct {
 
 func newPluginParser(loadSecrets bool) *pluginParser {
 	return &pluginParser{
-		baseParser:  newBaseParser(backend.Key(pluginsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(pluginsPrefix)),
 		loadSecrets: loadSecrets,
 	}
 }
@@ -1538,11 +1945,19 @@ func newPluginParser(loadSecrets bool) *pluginParser {
 func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindPlugin, types.V1, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(pluginsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
-		return h, nil
+
+		return &types.ResourceHeader{
+			Kind:    types.KindPlugin,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		plugin, err := services.UnmarshalPlugin(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1559,7 +1974,7 @@ func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSAMLIDPServiceProviderParser() *samlIDPServiceProviderParser {
 	return &samlIDPServiceProviderParser{
-		baseParser: newBaseParser(backend.Key(samlIDPServiceProviderPrefix)),
+		baseParser: newBaseParser(backend.NewKey(samlIDPServiceProviderPrefix)),
 	}
 }
 
@@ -1570,7 +1985,19 @@ type samlIDPServiceProviderParser struct {
 func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(samlIDPServiceProviderPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindSAMLIdPServiceProvider,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1583,7 +2010,7 @@ func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resourc
 
 func newUserGroupParser() *userGroupParser {
 	return &userGroupParser{
-		baseParser: newBaseParser(backend.Key(userGroupPrefix)),
+		baseParser: newBaseParser(backend.NewKey(userGroupPrefix)),
 	}
 }
 
@@ -1594,7 +2021,19 @@ type userGroupParser struct {
 func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindUserGroup, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(userGroupPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindUserGroup,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalUserGroup(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1607,7 +2046,7 @@ func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 
 func newOktaImportRuleParser() *oktaImportRuleParser {
 	return &oktaImportRuleParser{
-		baseParser: newBaseParser(backend.Key(oktaImportRulePrefix)),
+		baseParser: newBaseParser(backend.NewKey(oktaImportRulePrefix)),
 	}
 }
 
@@ -1618,7 +2057,19 @@ type oktaImportRuleParser struct {
 func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindOktaImportRule, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(oktaImportRulePrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindOktaImportRule,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalOktaImportRule(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1631,7 +2082,7 @@ func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error
 
 func newOktaAssignmentParser() *oktaAssignmentParser {
 	return &oktaAssignmentParser{
-		baseParser: newBaseParser(backend.Key(oktaAssignmentPrefix)),
+		baseParser: newBaseParser(backend.NewKey(oktaAssignmentPrefix)),
 	}
 }
 
@@ -1642,7 +2093,19 @@ type oktaAssignmentParser struct {
 func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindOktaAssignment, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(oktaAssignmentPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindOktaAssignment,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalOktaAssignment(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1655,7 +2118,7 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 
 func newIntegrationParser() *integrationParser {
 	return &integrationParser{
-		baseParser: newBaseParser(backend.Key(integrationsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(integrationsPrefix)),
 	}
 }
 
@@ -1666,7 +2129,19 @@ type integrationParser struct {
 func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindIntegration, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(integrationsPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindIntegration,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalIntegration(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1677,9 +2152,49 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newUserTaskParser() *userTaskParser {
+	return &userTaskParser{
+		baseParser: newBaseParser(backend.NewKey(userTasksKey)),
+	}
+}
+
+type userTaskParser struct {
+	baseParser
+}
+
+func (p *userTaskParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(userTasksKey)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindUserTask,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		r, err := services.UnmarshalUserTask(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newDiscoveryConfigParser() *discoveryConfigParser {
 	return &discoveryConfigParser{
-		baseParser: newBaseParser(backend.Key(discoveryConfigPrefix)),
+		baseParser: newBaseParser(backend.NewKey(discoveryConfigPrefix)),
 	}
 }
 
@@ -1690,7 +2205,19 @@ type discoveryConfigParser struct {
 func (p *discoveryConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindDiscoveryConfig, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(discoveryConfigPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindDiscoveryConfig,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalDiscoveryConfig(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1708,7 +2235,7 @@ func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticati
 	}
 
 	return &headlessAuthenticationParser{
-		baseParser: newBaseParser(backend.Key(headlessAuthenticationPrefix)),
+		baseParser: newBaseParser(backend.NewKey(headlessAuthenticationPrefix)),
 		filter:     filter,
 	}, nil
 }
@@ -1721,7 +2248,19 @@ type headlessAuthenticationParser struct {
 func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindHeadlessAuthentication, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(headlessAuthenticationPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindHeadlessAuthentication,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		ha, err := unmarshalHeadlessAuthentication(event.Item.Value)
 		if err != nil {
@@ -1749,7 +2288,19 @@ type accessListParser struct {
 func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessList, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(accessListPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessList,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalAccessList(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1762,7 +2313,7 @@ func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAuditQueryParser() *auditQueryParser {
 	return &auditQueryParser{
-		baseParser: newBaseParser(backend.Key(AuditQueryPrefix)),
+		baseParser: newBaseParser(AuditQueryPrefix),
 	}
 }
 
@@ -1773,7 +2324,19 @@ type auditQueryParser struct {
 func (p *auditQueryParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindAuditQuery, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(AuditQueryPrefix).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindAuditQuery,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalAuditQuery(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1785,7 +2348,7 @@ func (p *auditQueryParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSecurityReportParser() *securityReportParser {
 	return &securityReportParser{
-		baseParser: newBaseParser(backend.Key(SecurityReportPrefix)),
+		baseParser: newBaseParser(SecurityReportPrefix),
 	}
 }
 
@@ -1796,7 +2359,19 @@ type securityReportParser struct {
 func (p *securityReportParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindSecurityReport, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(SecurityReportPrefix).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindSecurityReport,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalSecurityReport(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1808,7 +2383,7 @@ func (p *securityReportParser) parse(event backend.Event) (types.Resource, error
 
 func newSecurityReportStateParser() *securityReportStateParser {
 	return &securityReportStateParser{
-		baseParser: newBaseParser(backend.Key(SecurityReportStatePrefix)),
+		baseParser: newBaseParser(SecurityReportStatePrefix),
 	}
 }
 
@@ -1819,7 +2394,19 @@ type securityReportStateParser struct {
 func (p *securityReportStateParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindSecurityReportState, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(SecurityReportStatePrefix).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindSecurityReportState,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalSecurityReportState(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1831,7 +2418,7 @@ func (p *securityReportStateParser) parse(event backend.Event) (types.Resource, 
 
 func newUserLoginStateParser() *userLoginStateParser {
 	return &userLoginStateParser{
-		baseParser: newBaseParser(backend.Key(userLoginStatePrefix)),
+		baseParser: newBaseParser(backend.NewKey(userLoginStatePrefix)),
 	}
 }
 
@@ -1842,7 +2429,19 @@ type userLoginStateParser struct {
 func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindUserLoginState, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(userLoginStatePrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindUserLoginState,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		return services.UnmarshalUserLoginState(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -1866,17 +2465,19 @@ type accessListMemberParser struct {
 func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		accessList, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		key := event.Item.Key.TrimPrefix(backend.NewKey(accessListMemberPrefix))
+		if len(key.Components()) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
+		accessList := key.Components()[0]
+
 		return &types.ResourceHeader{
 			Kind:    types.KindAccessListMember,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:        name,
+				Name:        strings.TrimPrefix(key.TrimPrefix(backend.NewKey(accessList)).String(), backend.SeparatorString),
 				Namespace:   apidefaults.Namespace,
-				Description: accessList, // pass access list description field for the cache
+				Description: accessList,
 			},
 		}, nil
 	case types.OpPut:
@@ -1902,17 +2503,19 @@ type accessListReviewParser struct {
 func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		accessList, name, err := baseTwoKeys(event.Item.Key)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		key := event.Item.Key.TrimPrefix(backend.NewKey(accessListReviewPrefix))
+		if len(key.Components()) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
+		accessList := key.Components()[0]
+
 		return &types.ResourceHeader{
 			Kind:    types.KindAccessListReview,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:        name,
+				Name:        strings.TrimPrefix(backend.NewKey(key.Components()[1:]...).String(), backend.SeparatorString),
 				Namespace:   apidefaults.Namespace,
-				Description: accessList, // pass access list description field for the cache
+				Description: accessList,
 			},
 		}, nil
 	case types.OpPut:
@@ -1927,7 +2530,7 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 
 func newKubeWaitingContainerParser() *kubeWaitingContainerParser {
 	return &kubeWaitingContainerParser{
-		baseParser: newBaseParser(backend.Key(kubeWaitingContPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubeWaitingContPrefix)),
 	}
 }
 
@@ -1938,13 +2541,7 @@ type kubeWaitingContainerParser struct {
 func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// remove the first separator so no separated parts should be
-		// empty strings
-		key := string(event.Item.Key)
-		if len(key) > 0 && key[0] == backend.Separator {
-			key = key[1:]
-		}
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 6 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindKubeWaitingContainer, event.Item.Key)
 		}
@@ -1993,7 +2590,19 @@ type AccessMonitoringRuleParser struct {
 func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindAccessMonitoringRule, types.V1, 0)
+		name := event.Item.Key.TrimPrefix(backend.NewKey(accessMonitoringRulesPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
 	case types.OpPut:
 		r, err := services.UnmarshalAccessMonitoringRule(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -2010,7 +2619,7 @@ func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource,
 
 func newUserNotificationParser() *userNotificationParser {
 	return &userNotificationParser{
-		baseParser: newBaseParser(backend.Key(notificationsUserSpecificPrefix)),
+		baseParser: newBaseParser(notificationsUserSpecificPrefix),
 	}
 }
 
@@ -2021,11 +2630,7 @@ type userNotificationParser struct {
 func (p *userNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 4 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
 		}
@@ -2058,7 +2663,7 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 
 func newGlobalNotificationParser() *globalNotificationParser {
 	return &globalNotificationParser{
-		baseParser: newBaseParser(backend.Key(notificationsGlobalPrefix)),
+		baseParser: newBaseParser(notificationsGlobalPrefix),
 	}
 }
 
@@ -2069,12 +2674,7 @@ type globalNotificationParser struct {
 func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-		// notifications/global/<uuid>
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 3 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
 		}
@@ -2107,35 +2707,128 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 	}
 }
 
-func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
-	name, err := base(event.Item.Key, offset)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func newBotInstanceParser() *botInstanceParser {
+	return &botInstanceParser{
+		baseParser: newBaseParser(backend.NewKey(botInstancePrefix)),
 	}
-	return &types.ResourceHeader{
-		Kind:    kind,
-		Version: version,
-		Metadata: types.Metadata{
-			Name:      string(name),
-			Namespace: apidefaults.Namespace,
-		},
-	}, nil
 }
 
-func resourceHeaderWithTemplate(event backend.Event, hdr types.ResourceHeader, offset int) (types.Resource, error) {
-	name, err := base(event.Item.Key, offset)
-	if err != nil {
-		return nil, trace.Wrap(err)
+type botInstanceParser struct {
+	baseParser
+}
+
+func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		parts := event.Item.Key.Components()
+		if len(parts) != 3 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
+		}
+
+		botInstance := &machineidv1.BotInstance{
+			Kind:    types.KindBotInstance,
+			Version: types.V1,
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    parts[1],
+				InstanceId: parts[2],
+			},
+			Metadata: &headerv1.Metadata{
+				Name: parts[2],
+			},
+		}
+
+		return types.Resource153ToLegacy(botInstance), nil
+	case types.OpPut:
+		botInstance, err := services.UnmarshalBotInstance(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(botInstance), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
-	return &types.ResourceHeader{
-		Kind:    hdr.Kind,
-		SubKind: hdr.SubKind,
-		Version: hdr.Version,
-		Metadata: types.Metadata{
-			Name:      string(name),
-			Namespace: apidefaults.Namespace,
-		},
-	}, nil
+}
+
+func newInstanceParser() *instanceParser {
+	return &instanceParser{
+		baseParser: newBaseParser(backend.NewKey(instancePrefix)),
+	}
+}
+
+type instanceParser struct {
+	baseParser
+}
+
+func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(instancePrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindInstance,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		instance, err := generic.FastUnmarshal[*types.InstanceV1](event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return instance, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newStaticHostUserParser() *staticHostUserParser {
+	return &staticHostUserParser{
+		baseParser: newBaseParser(backend.NewKey(staticHostUserPrefix)),
+	}
+}
+
+type staticHostUserParser struct {
+	baseParser
+}
+
+func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(staticHostUserPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindStaticHostUser,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 // WaitForEvent waits for the event matched by the specified event matcher in the given watcher.
@@ -2174,6 +2867,139 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 	}
 }
 
+func newDeviceParser() *deviceParser {
+	return &deviceParser{
+		baseParser: newBaseParser(backend.NewKey(devicetrust.DevicesIDPrefix...)),
+	}
+}
+
+type deviceParser struct {
+	baseParser
+}
+
+func (p *deviceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(devicetrust.DevicesIDPrefix...)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindDevice,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		device, err := services.UnmarshalDeviceFromBackendItem(event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// [devicepb.Device] doesn't satisfy types.Resource interface or Resource153 interface,
+		// so we need to convert it to types.DeviceV1 so it satisfy types.Resource interface.
+		dev := types.DeviceToResource(device)
+		// Set the expires and revision fields.
+		dev.SetExpiry(event.Item.Expires)
+		dev.SetRevision(event.Item.Revision)
+		return dev, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessGraphSecretPrivateKeyParser() *accessGraphSecretPrivateKeyParser {
+	return &accessGraphSecretPrivateKeyParser{
+		baseParser: newBaseParser(backend.NewKey(privateKeysPrefix)),
+	}
+}
+
+type accessGraphSecretPrivateKeyParser struct {
+	baseParser
+}
+
+func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		key := event.Item.Key.TrimPrefix(backend.NewKey(privateKeysPrefix))
+		if len(key.Components()) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		deviceID := key.Components()[0]
+
+		privateKey := &accessgraphsecretsv1pb.PrivateKey{
+			Kind:    types.KindAccessGraphSecretPrivateKey,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(deviceID)).String(), backend.SeparatorString),
+			},
+			Spec: &accessgraphsecretsv1pb.PrivateKeySpec{
+				DeviceId: deviceID,
+			},
+		}
+
+		return types.Resource153ToLegacy(privateKey), nil
+	case types.OpPut:
+		pk, err := services.UnmarshalAccessGraphPrivateKey(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(pk), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessGraphSecretAuthorizedKeyParser() *accessGraphSecretAuthorizedKeyParser {
+	return &accessGraphSecretAuthorizedKeyParser{
+		baseParser: newBaseParser(backend.NewKey(authorizedKeysPrefix)),
+	}
+}
+
+type accessGraphSecretAuthorizedKeyParser struct {
+	baseParser
+}
+
+func (p *accessGraphSecretAuthorizedKeyParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		key := event.Item.Key.TrimPrefix(backend.NewKey(authorizedKeysPrefix))
+		if len(key.Components()) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		hostID := key.Components()[0]
+
+		authorizedKey := &accessgraphsecretsv1pb.AuthorizedKey{
+			Kind:    types.KindAccessGraphSecretAuthorizedKey,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(hostID)).String(), backend.SeparatorString),
+			},
+			Spec: &accessgraphsecretsv1pb.AuthorizedKeySpec{
+				HostId: hostID,
+			},
+		}
+
+		return types.Resource153ToLegacy(authorizedKey), nil
+	case types.OpPut:
+		ak, err := services.UnmarshalAccessGraphAuthorizedKey(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(ak), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 // Match matches the specified resource event by applying itself
 func (r EventMatcherFunc) Match(event types.Event) (types.Resource, error) {
 	return r(event)
@@ -2191,21 +3017,130 @@ type EventMatcher interface {
 	Match(types.Event) (types.Resource, error)
 }
 
-// base returns last element delimited by separator, index is
-// is an index of the key part to get counting from the end
-func base(key []byte, offset int) ([]byte, error) {
-	parts := bytes.Split(key, []byte{backend.Separator})
-	if len(parts) < offset+1 {
-		return nil, trace.NotFound("failed parsing %v", string(key))
+func newAccessGraphSettingsParser() *accessGraphSettingsParser {
+	return &accessGraphSettingsParser{
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix)),
 	}
-	return parts[len(parts)-offset-1], nil
 }
 
-// baseTwoKeys returns two last keys
-func baseTwoKeys(key []byte) (string, string, error) {
-	parts := bytes.Split(key, []byte{backend.Separator})
-	if len(parts) < 2 {
-		return "", "", trace.NotFound("failed parsing %v", string(key))
+type accessGraphSettingsParser struct {
+	baseParser
+}
+
+func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindAccessGraphSettings,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameAccessGraphSettings,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		settings, err := services.UnmarshalAccessGraphSettings(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(settings), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
-	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
+}
+
+func newSPIFFEFederationParser() *spiffeFederationParser {
+	return &spiffeFederationParser{
+		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
+	}
+}
+
+type spiffeFederationParser struct {
+	baseParser
+}
+
+func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(spiffeFederationPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindSPIFFEFederation,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		federation, err := services.UnmarshalSPIFFEFederation(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(federation), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newProvisioningStateParser() *provisioningStateParser {
+	return &provisioningStateParser{
+		baseParser: newBaseParser(backend.NewKey(provisioningStatePrefix)),
+	}
+}
+
+type provisioningStateParser struct {
+	baseParser
+}
+
+func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		// We need to send more than just the resource header to our consumers
+		// in order for the event to be useful. Parse the key and inflate it
+		// into a pseudo-, semi-valid PrincipalState so that consumers can easily
+		// get the data they need.
+		key := event.Item.Key.TrimPrefix(backend.NewKey(provisioningStatePrefix))
+		keyComponents := key.Components()
+		if len(keyComponents) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		downstreamID := keyComponents[0]
+		resourceID := keyComponents[1]
+
+		pseudoState := &provisioningv1.PrincipalState{
+			Kind:    types.KindProvisioningPrincipalState,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: resourceID,
+			},
+			Spec: &provisioningv1.PrincipalStateSpec{
+				DownstreamId: downstreamID,
+			},
+		}
+		return types.Resource153ToLegacy(pseudoState), nil
+
+	case types.OpPut:
+		r, err := services.UnmarshalProtoResource[*provisioningv1.PrincipalState](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

@@ -77,6 +77,10 @@ export type Notification = {
   labels: Label[];
   /** title is the title of this notification. This can be overwritten in notificationContentFactory if needed. */
   title: string;
+  /** textContent is the text content of this notification if it is merely a text notification (such as one created via `tctl notifications create`).
+   * This is the text that will be displayed in a dialog upon clicking the notification.
+   */
+  textContent?: string;
   /** localNotification is whether this is a notification stored in a frontend store as opposed to a "real" notification
    * from the notifications system. The reason for this is that some notification types (such as access lists) are not supported
    * by the backend notifications system, and are instead generated entirely on the frontend.

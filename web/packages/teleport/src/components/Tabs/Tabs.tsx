@@ -51,8 +51,8 @@ export function Tabs({ tabs }: Props) {
                     border: none;
                     background: ${props =>
                       props.theme.colors.spotBackground[0]};
-                    :hover,
-                    :focus {
+                    &:hover,
+                    &:focus {
                       cursor: pointer;
                       opacity: 1;
                     }
@@ -72,8 +72,8 @@ export function Tabs({ tabs }: Props) {
                     color: inherit;
                     border: none;
                     background: transparent;
-                    :hover,
-                    :focus {
+                    &:hover,
+                    &:focus {
                       cursor: pointer;
                       opacity: 1;
                     }

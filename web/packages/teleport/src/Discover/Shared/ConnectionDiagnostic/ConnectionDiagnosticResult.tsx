@@ -18,12 +18,21 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonSecondary, Text, Box, Flex, ButtonText } from 'design';
+import {
+  ButtonSecondary,
+  Text,
+  Box,
+  Flex,
+  ButtonText,
+  Mark,
+  H3,
+  Subtitle3,
+} from 'design';
 import * as Icons from 'design/Icon';
 
 import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 
-import { StyledBox, TextIcon, Mark } from '..';
+import { StyledBox, TextIcon } from '..';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 import type { ConnectionDiagnostic } from 'teleport/services/agents';
@@ -66,16 +75,14 @@ export function ConnectionDiagnosticResult({
   return (
     <StyledBox mb={5}>
       {numberAndDescriptionOnSameLine ? (
-        <Text bold mb={3}>
+        <H3 mb={3}>
           Step {stepNumber}: {stepDescription}
-        </Text>
+        </H3>
       ) : (
-        <>
-          <Text bold>Step {stepNumber}</Text>
-          <Text typography="subtitle1" mb={3}>
-            {stepDescription}
-          </Text>
-        </>
+        <header>
+          <H3>Step {stepNumber}</H3>
+          <Subtitle3 mb={3}>{stepDescription}</Subtitle3>
+        </header>
       )}
       <Flex alignItems="center" mt={3}>
         {canTestConnection ? (

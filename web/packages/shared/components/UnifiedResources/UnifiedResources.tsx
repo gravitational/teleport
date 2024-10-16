@@ -27,14 +27,7 @@ import React, {
 } from 'react';
 
 import styled from 'styled-components';
-import {
-  Box,
-  Flex,
-  ButtonLink,
-  ButtonSecondary,
-  Text,
-  ButtonBorder,
-} from 'design';
+import { Box, Flex, ButtonSecondary, Text, ButtonBorder } from 'design';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
 
@@ -120,12 +113,12 @@ export type BulkAction = {
    * over if this prop is supplied
    */
   tooltip?: string;
-  action: (
-    selectedResources: {
-      unifiedResourceId: string;
-      resource: SharedUnifiedResource['resource'];
-    }[]
-  ) => void;
+  action: (selectedResources: SelectedResource[]) => void;
+};
+
+export type SelectedResource = {
+  unifiedResourceId: string;
+  resource: SharedUnifiedResource['resource'];
 };
 
 export type FilterKind = {
@@ -146,7 +139,7 @@ export type ResourceAvailabilityFilter =
 export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
-  fetchResources(options?: { force?: boolean }): Promise<void>;
+  fetchResources(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
   Header?: React.ReactElement;
   /**
@@ -449,33 +442,47 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     >
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
-          <Danger mb={0}>
-            Could not fetch resources: {resourcesFetchAttempt.statusText}
-            {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-            {resourcesFetchAttempt.statusCode !== 400 &&
-              resourcesFetchAttempt.statusCode !== 403 && (
-                <Box flex="0 0 auto" ml={2}>
-                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
-                </Box>
-              )}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            primaryAction={
+              // We don't want them to try another request with BAD REQUEST, it will just fail again.
+              resourcesFetchAttempt.statusCode !== 400 &&
+              resourcesFetchAttempt.statusCode !== 403 && {
+                content: 'Retry',
+                onClick: onRetryClicked,
+              }
+            }
+            details={resourcesFetchAttempt.statusText}
+          >
+            Could not fetch resources
           </Danger>
         )}
         {getPinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch pinned resources:{' '}
-            {getPinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={getPinnedResourcesAttempt.statusText}
+          >
+            Could not fetch pinned resources
           </Danger>
         )}
         {updatePinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not update pinned resources:{' '}
-            {updatePinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={updatePinnedResourcesAttempt.statusText}
+          >
+            Could not update pinned resources:
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch unified view preferences:{' '}
-            {unifiedResourcePreferencesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={unifiedResourcePreferencesAttempt.statusText}
+          >
+            Could not fetch unified view preferences
           </Danger>
         )}
       </ErrorsContainer>
@@ -499,6 +506,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
           );
         }}
         hideViewModeOptions={forceCardView}
+        onRefresh={() => fetchResources({ clear: true })}
         BulkActions={
           <>
             {selectedResources.length > 0 && (
@@ -660,7 +668,7 @@ function generateUnifiedResourceKey(
 function NoPinned() {
   return (
     <Box p={8} mt={3} mx="auto" textAlign="center">
-      <Text typography="h3">You have not pinned any resources</Text>
+      <Text typography="h1">You have not pinned any resources</Text>
     </Box>
   );
 }
@@ -675,7 +683,7 @@ function NoResults({
   if (query) {
     return (
       <Text
-        typography="h3"
+        typography="h1"
         mt={9}
         mx="auto"
         justifyContent="center"

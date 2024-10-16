@@ -16,6 +16,8 @@ sets Pod annotations when specified:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -86,6 +88,8 @@ sets Pod labels when specified:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -180,6 +184,8 @@ sets StatefulSet labels when specified:
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
+            - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+              value: cluster.local
             image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
@@ -282,6 +288,8 @@ should add insecureSkipProxyTLSVerify to args when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -352,6 +360,8 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -442,6 +452,8 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
                   fieldPath: metadata.namespace
             - name: RELEASE_NAME
               value: RELEASE-NAME
+            - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+              value: cluster.local
             image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
             imagePullPolicy: IfNotPresent
             livenessProbe:
@@ -522,6 +534,8 @@ should add volumeMount for data volume when using StatefulSet:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -592,6 +606,8 @@ should expose diag port:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -662,6 +678,8 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -746,6 +764,8 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -828,6 +848,8 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -898,6 +920,8 @@ should have one replica when replicaCount is not set:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -968,6 +992,8 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1040,6 +1066,8 @@ should mount extraVolumes and extraVolumeMounts:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1115,6 +1143,8 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1193,6 +1223,8 @@ should mount jamfCredentialsSecret.name when role is jamf:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1271,6 +1303,8 @@ should mount tls.existingCASecretName and set environment when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
@@ -1351,6 +1385,8 @@ should mount tls.existingCASecretName and set extra environment when set in valu
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
       - name: HTTPS_PROXY
@@ -1433,6 +1469,8 @@ should not add emptyDir for data when using StatefulSet:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1503,6 +1541,8 @@ should provision initContainer correctly when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1631,6 +1671,8 @@ should set affinity when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1701,6 +1743,8 @@ should set default serviceAccountName when not set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1782,6 +1826,8 @@ should set environment when extraEnv set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
@@ -1854,6 +1900,8 @@ should set image and tag correctly:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1924,6 +1972,8 @@ should set imagePullPolicy when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: Always
       livenessProbe:
@@ -1994,6 +2044,8 @@ should set nodeSelector if set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2078,6 +2130,8 @@ should set preferred affinity when more than one replica is used:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2148,6 +2202,8 @@ should set probeTimeoutSeconds when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2228,6 +2284,8 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2298,6 +2356,8 @@ should set resources when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2375,6 +2435,8 @@ should set serviceAccountName when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2445,6 +2507,8 @@ should set storage.requests when set in values and action is an Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2515,6 +2579,8 @@ should set storage.storageClassName when set in values and action is an Upgrade:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -2585,6 +2651,8 @@ should set tolerations when set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
+      - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+        value: cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:

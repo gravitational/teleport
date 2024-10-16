@@ -31,6 +31,7 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 
 import useDesktopSession, {
+  clipboardSharingMessage,
   directorySharingPossible,
   isSharingClipboard,
   isSharingDirectory,
@@ -57,7 +58,6 @@ export function DesktopSession(props: State) {
     tdpClient,
     username,
     hostname,
-    setClipboardSharingState,
     directorySharingState,
     setDirectorySharingState,
     clientOnPngFrame,
@@ -80,10 +80,11 @@ export function DesktopSession(props: State) {
     windowOnResize,
     clientScreenSpecToRequest,
     clipboardSharingState,
+    setClipboardSharingState,
     onShareDirectory,
     onCtrlAltDel,
-    warnings,
-    onRemoveWarning,
+    alerts,
+    onRemoveAlert,
     fetchAttempt,
     tdpConnection,
     wsConnection,
@@ -133,10 +134,11 @@ export function DesktopSession(props: State) {
         canShareDirectory={directorySharingPossible(directorySharingState)}
         isSharingDirectory={isSharingDirectory(directorySharingState)}
         isSharingClipboard={isSharingClipboard(clipboardSharingState)}
+        clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
         onShareDirectory={onShareDirectory}
         onCtrlAltDel={onCtrlAltDel}
-        warnings={warnings}
-        onRemoveWarning={onRemoveWarning}
+        alerts={alerts}
+        onRemoveAlert={onRemoveAlert}
       />
 
       {screenState.screen === 'anotherSessionActive' && (

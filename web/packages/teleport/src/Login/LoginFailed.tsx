@@ -27,7 +27,7 @@ export function LoginFailed() {
   return (
     <Switch>
       <Route path={cfg.routes.loginErrorCallback}>
-        <LoginFailedComponent message="unable to process callback" />
+        <LoginFailedComponent message="Unable to process SSO callback." />
       </Route>
       <Route path={cfg.routes.loginErrorUnauthorized}>
         <LoginFailedComponent message="You are not authorized, please contact your SSO administrator." />
@@ -38,7 +38,8 @@ export function LoginFailed() {
 }
 
 export function LoginFailedComponent({ message }: { message?: string }) {
-  const defaultMsg = "unable to login, please check Teleport's log for details";
+  const defaultMsg =
+    "Unable to log in, please check Teleport's log for details.";
   return (
     <>
       <LogoHero />

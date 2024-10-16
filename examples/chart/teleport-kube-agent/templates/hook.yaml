@@ -63,6 +63,15 @@ spec:
   template:
     metadata:
       name: {{ .Release.Name }}-hook
+{{- if .Values.annotations.pod }}
+      annotations:
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        app: {{ .Release.Name }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
     spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}

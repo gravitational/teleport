@@ -20,6 +20,7 @@ package log
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -179,4 +180,46 @@ func TestSlogJSONHandler(t *testing.T) {
 		return ms
 	}
 	require.NoError(t, slogtest.TestHandler(h, results))
+}
+
+func TestSlogJSONHandlerReservedKeysOverrideTypeDoesntPanic(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	logger := slog.New(NewSlogJSONHandler(&buf, SlogJSONHandlerConfig{Level: slog.LevelDebug}))
+
+	logger.DebugContext(ctx, "Must not panic", "source", "not a slog.Source type", "time", "not a time.Time type", "level", true, "msg", 123) //nolint:sloglint // testing possible panics when using reserved keys
+
+	logRecordMap := make(map[string]any)
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &logRecordMap))
+
+	// Builtin fields must be present
+	require.Contains(t, logRecordMap, "caller")
+	require.Contains(t, logRecordMap["caller"], "slog_handler_test.go")
+
+	require.Contains(t, logRecordMap, "message")
+	require.Equal(t, "Must not panic", logRecordMap["message"])
+
+	require.Contains(t, logRecordMap, "timestamp")
+
+	// Some fields can appear twice in the output
+	// See https://github.com/golang/go/issues/59365
+	// Map does not accept two fields with the same name, so we must compare against the actual output.
+
+	// Level is injected by the handler but was also defined as Attr, so it must appear twice.
+	require.Contains(t, buf.String(), `"level":true`)
+	require.Contains(t, buf.String(), `"level":"debug"`)
+
+	// Fields that conflict with built-ins but have a different name, when not using the expected Attr Value's type should be present
+
+	// source was injected but is not of slog.Source type, so, its value must be kept
+	require.Contains(t, logRecordMap, "source")
+	require.Equal(t, "not a slog.Source type", logRecordMap["source"])
+
+	// time was injected but is not of time.Time type, so, its value must be kept
+	require.Contains(t, logRecordMap, "time")
+	require.Equal(t, "not a time.Time type", logRecordMap["time"])
+
+	// msg was injected but is not a string, so, its value must be kept
+	require.Contains(t, logRecordMap, "msg")
+	require.InEpsilon(t, float64(123), logRecordMap["msg"], float64(0))
 }

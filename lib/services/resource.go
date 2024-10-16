@@ -223,6 +223,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindServerInfo, nil
 	case types.KindBot, "bots":
 		return types.KindBot, nil
+	case types.KindBotInstance, types.KindBotInstance + "s":
+		return types.KindBotInstance, nil
 	case types.KindDatabaseObjectImportRule, "db_object_import_rules", "database_object_import_rule":
 		return types.KindDatabaseObjectImportRule, nil
 	case types.KindAccessMonitoringRule:
@@ -237,6 +239,18 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAccessRequest, nil
 	case types.KindPlugin, types.KindPlugin + "s":
 		return types.KindPlugin, nil
+	case types.KindAccessGraphSettings, "ags":
+		return types.KindAccessGraphSettings, nil
+	case types.KindSPIFFEFederation, types.KindSPIFFEFederation + "s":
+		return types.KindSPIFFEFederation, nil
+	case types.KindStaticHostUser, types.KindStaticHostUser + "s", "host_user", "host_users":
+		return types.KindStaticHostUser, nil
+	case types.KindUserTask, types.KindUserTask + "s":
+		return types.KindUserTask, nil
+	case types.KindAutoUpdateConfig:
+		return types.KindAutoUpdateConfig, nil
+	case types.KindAutoUpdateVersion:
+		return types.KindAutoUpdateVersion, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -556,6 +570,44 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return githubConnector, nil
+	})
+
+	RegisterResourceMarshaler(types.KindSAMLConnector, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		samlConnector, ok := resource.(types.SAMLConnector)
+		if !ok {
+			return nil, trace.BadParameter("expected SAMLConnector, got %T", resource)
+		}
+		bytes, err := MarshalSAMLConnector(samlConnector, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindSAMLConnector, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		samlConnector, err := UnmarshalSAMLConnector(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return samlConnector, nil
+	})
+
+	RegisterResourceMarshaler(types.KindOIDCConnector, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		oidConnector, ok := resource.(types.OIDCConnector)
+		if !ok {
+			return nil, trace.BadParameter("expected OIDCConnector, got %T", resource)
+		}
+		bytes, err := MarshalOIDCConnector(oidConnector, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindOIDCConnector, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		oidcConnector, err := UnmarshalOIDCConnector(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return oidcConnector, nil
 	})
 
 	RegisterResourceMarshaler(types.KindRole, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {

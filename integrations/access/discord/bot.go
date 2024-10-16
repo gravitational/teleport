@@ -118,7 +118,7 @@ func (b DiscordBot) SupportedApps() []common.App {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b DiscordBot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessLists []*accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
@@ -230,4 +230,9 @@ func (b DiscordBot) FetchRecipient(ctx context.Context, name string) (*common.Re
 		Kind: "Channel",
 		Data: nil,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b DiscordBot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }

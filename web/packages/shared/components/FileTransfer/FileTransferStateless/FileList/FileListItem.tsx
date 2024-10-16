@@ -40,7 +40,7 @@ export function FileListItem(props: FileListItemProps) {
       <Flex justifyContent="space-between" alignItems="center">
         <Flex alignItems="center">
           <Text
-            typography="body2"
+            typography="body3"
             css={`
               word-break: break-all;
             `}
@@ -94,7 +94,7 @@ const Error: FC<PropsWithChildren> = props => {
   return (
     <Flex alignItems="center" mt={1}>
       <Warning size="small" mr={1} color="inherit" />
-      <Text color="error.hover" typography="body2">
+      <Text color="error.hover" typography="body3">
         {props.children}
       </Text>
     </Flex>
@@ -118,7 +118,7 @@ const ProgressBackground = styled.div`
   width: 100%;
 `;
 
-const ProgressIndicator = styled.div`
+const ProgressIndicator = styled.div<{ progress: number; isFailure?: boolean }>`
   border-radius: 50px;
   background: ${props =>
     props.isFailure

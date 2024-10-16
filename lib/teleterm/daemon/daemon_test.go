@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -38,6 +39,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -297,6 +299,9 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -331,6 +336,9 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -432,6 +440,9 @@ func TestRetryWithRelogin(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+					return nil
+				},
 			})
 			require.NoError(t, err)
 
@@ -485,6 +496,9 @@ func TestImportantModalSemaphore(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -580,7 +594,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 }
 
 type mockTSHDEventsService struct {
-	*api.UnimplementedTshdEventsServiceServer
+	api.UnimplementedTshdEventsServiceServer
 	reloginErr                             error
 	reloginCount                           atomic.Uint32
 	sendNotificationCount                  atomic.Uint32
@@ -675,10 +689,8 @@ func TestGetGatewayCLICommand(t *testing.T) {
 			checkError: require.NoError,
 			checkCmds: func(t *testing.T, cmds cmd.Cmds) {
 				t.Helper()
-				require.Len(t, cmds.Exec.Args, 2)
-				require.Contains(t, cmds.Exec.Args[1], "subresource-name")
-				require.Len(t, cmds.Preview.Args, 2)
-				require.Contains(t, cmds.Preview.Args[1], "subresource-name")
+				require.Contains(t, strings.Join(cmds.Exec.Args, " "), "subresource-name")
+				require.Contains(t, strings.Join(cmds.Preview.Args, " "), "subresource-name")
 			},
 		},
 		{
@@ -697,7 +709,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmds, err := daemon.GetGatewayCLICommand(test.inputGateway)
+			cmds, err := daemon.GetGatewayCLICommand(context.Background(), test.inputGateway)
 			test.checkError(t, err)
 			test.checkCmds(t, cmds)
 		})
@@ -714,7 +726,7 @@ func (m fakeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
 func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() + m.targetURI.GetKubeName() }
 func (m fakeGateway) TargetUser() string            { return "alice" }
 func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
-func (m fakeGateway) Protocol() string              { return defaults.ProtocolMongoDB }
+func (m fakeGateway) Protocol() string              { return defaults.ProtocolSQLServer }
 func (m fakeGateway) Log() *logrus.Entry            { return nil }
 func (m fakeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeGateway) LocalPortInt() int             { return 8888 }

@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -33,7 +34,6 @@ import (
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -108,6 +108,11 @@ func (c *clientConn) maxRoleLength() int {
 	return mysqlMaxUsernameLength
 }
 
+// Close calls conn.Quit to send COM_QUIT then close the conn.
+func (c *clientConn) Close() error {
+	return trace.Wrap(c.Conn.Quit())
+}
+
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser().Name == "" {
@@ -126,7 +131,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 	defer conn.Close()
 
 	// Ensure version is supported.
-	if err := checkSupportedVersion(conn); err != nil {
+	if err := checkSupportedVersion(ctx, e.Log, conn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -142,7 +147,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 
 	// Use "tp-<hash>" in case DatabaseUser is over max username length.
 	sessionCtx.DatabaseUser = maybeHashUsername(sessionCtx.DatabaseUser, conn.maxUsernameLength())
-	e.Log.Infof("Activating MySQL user %q with roles %v for %v.", sessionCtx.DatabaseUser, sessionCtx.DatabaseRoles, sessionCtx.Identity.Username)
+	e.Log.InfoContext(e.Context, "Activating MySQL user.", "user", sessionCtx.DatabaseUser, "roles", sessionCtx.DatabaseRoles, "identity", sessionCtx.Identity.Username)
 
 	// Prep JSON.
 	details, err := makeActivateUserDetails(sessionCtx, sessionCtx.Identity.Username)
@@ -157,7 +162,7 @@ func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) e
 		details,
 	)
 	if err != nil {
-		e.Log.Debugf("Call teleport_activate_user failed: %v", err)
+		e.Log.DebugContext(e.Context, "Call teleport_activate_user failed.", "error", err)
 		err = convertActivateError(sessionCtx, err)
 		e.Audit.OnDatabaseUserCreate(ctx, sessionCtx, err)
 		return trace.Wrap(err)
@@ -178,7 +183,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	}
 	defer conn.Close()
 
-	e.Log.Infof("Deactivating MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
+	e.Log.InfoContext(e.Context, "Deactivating MySQL user.", "user", sessionCtx.DatabaseUser, "identity", sessionCtx.Identity.Username)
 
 	err = conn.executeAndCloseResult(
 		fmt.Sprintf("CALL %s(?)", deactivateUserProcedureName),
@@ -186,7 +191,7 @@ func (e *Engine) DeactivateUser(ctx context.Context, sessionCtx *common.Session)
 	)
 
 	if getSQLState(err) == common.SQLStateActiveUser {
-		e.Log.Debugf("Failed to deactivate user %q: %v.", sessionCtx.DatabaseUser, err)
+		e.Log.DebugContext(e.Context, "Failed to deactivate user.", "user", sessionCtx.DatabaseUser, "error", err)
 		return nil
 	}
 
@@ -206,12 +211,12 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	}
 	defer conn.Close()
 
-	e.Log.Infof("Deleting MySQL user %q for %v.", sessionCtx.DatabaseUser, sessionCtx.Identity.Username)
+	e.Log.InfoContext(e.Context, "Deleting MySQL user.", "database_user", sessionCtx.DatabaseUser, "identity", sessionCtx.Identity.Username)
 
 	result, err := conn.Execute(fmt.Sprintf("CALL %s(?)", deleteUserProcedureName), sessionCtx.DatabaseUser)
 	if err != nil {
 		if getSQLState(err) == common.SQLStateActiveUser {
-			e.Log.Debugf("Failed to delete user %q: %v.", sessionCtx.DatabaseUser, err)
+			e.Log.DebugContext(e.Context, "Failed to delete user.", "user", sessionCtx.DatabaseUser, "error", err)
 			return nil
 		}
 
@@ -223,12 +228,12 @@ func (e *Engine) DeleteUser(ctx context.Context, sessionCtx *common.Session) err
 	deleted := true
 	switch readDeleteUserResult(result) {
 	case common.SQLStateUserDropped:
-		e.Log.Debugf("User %q deleted successfully.", sessionCtx.DatabaseUser)
+		e.Log.DebugContext(e.Context, "User deleted successfully.", "user", sessionCtx.DatabaseUser)
 	case common.SQLStateUserDeactivated:
-		e.Log.Infof("Unable to delete user %q, it was disabled instead.", sessionCtx.DatabaseUser)
+		e.Log.InfoContext(e.Context, "Unable to delete user, it was disabled instead.", "user", sessionCtx.DatabaseUser)
 		deleted = false
 	default:
-		e.Log.Warnf("Unable to determine user %q deletion state.", sessionCtx.DatabaseUser)
+		e.Log.WarnContext(e.Context, "Unable to determine user deletion state.", "user", sessionCtx.DatabaseUser)
 	}
 	e.Audit.OnDatabaseUserDeactivate(ctx, sessionCtx, deleted, nil)
 
@@ -272,7 +277,7 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 	}
 
 	// If update is necessary, do a transaction.
-	e.Log.Debugf("Updating stored procedures for MySQL server %s.", sessionCtx.Database.GetName())
+	e.Log.DebugContext(e.Context, "Updating stored procedures for MySQL server.", "database", sessionCtx.Database.GetName())
 	return trace.Wrap(doTransaction(conn, func() error {
 		for _, procedureName := range allProcedureNames {
 			dropCommand := fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedureName)
@@ -360,18 +365,18 @@ func checkRoles(conn *clientConn, roles []string) error {
 	return nil
 }
 
-func checkSupportedVersion(conn *clientConn) error {
+func checkSupportedVersion(ctx context.Context, log *slog.Logger, conn *clientConn) error {
 	if conn.isMariaDB() {
-		return trace.Wrap(checkMariaDBSupportedVersion(conn.GetServerVersion()))
+		return trace.Wrap(checkMariaDBSupportedVersion(ctx, log, conn.GetServerVersion()))
 	}
-	return trace.Wrap(checkMySQLSupportedVersion(conn.GetServerVersion()))
+	return trace.Wrap(checkMySQLSupportedVersion(ctx, log, conn.GetServerVersion()))
 }
 
-func checkMySQLSupportedVersion(serverVersion string) error {
+func checkMySQLSupportedVersion(ctx context.Context, log *slog.Logger, serverVersion string) error {
 	ver, err := semver.NewVersion(serverVersion)
 	switch {
 	case err != nil:
-		logrus.Debugf("Invalid MySQL server version %q. Assuming role management is supported.", serverVersion)
+		log.DebugContext(ctx, "Invalid MySQL server version. Assuming role management is supported.", "server_version", serverVersion)
 		return nil
 
 	// Reference:
@@ -384,7 +389,7 @@ func checkMySQLSupportedVersion(serverVersion string) error {
 	}
 }
 
-func checkMariaDBSupportedVersion(serverVersion string) error {
+func checkMariaDBSupportedVersion(ctx context.Context, log *slog.Logger, serverVersion string) error {
 	// serverVersion may look like these:
 	// 5.5.5-10.7.8-MariaDB-1:10.7.8+maria~ubu2004
 	// 5.5.5-10.11.5-MariaDB
@@ -401,7 +406,7 @@ func checkMariaDBSupportedVersion(serverVersion string) error {
 	ver, err := semver.NewVersion(serverVersion)
 	switch {
 	case err != nil:
-		logrus.Debugf("Invalid MariaDB server version %q. Assuming role management is supported.", serverVersion)
+		log.DebugContext(ctx, "Invalid MariaDB server version. Assuming role management is supported.", "server_version", serverVersion)
 		return nil
 
 	case ver.Major > 10:

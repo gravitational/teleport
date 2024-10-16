@@ -28,6 +28,7 @@ export default function useTable<T>({
   columns,
   pagination,
   showFirst,
+  clientSearch,
   searchableProps,
   customSearchMatchers = [],
   serversideProps,
@@ -50,8 +51,8 @@ export default function useTable<T>({
     }
 
     return {
-      data: serversideProps || disableFilter ? data : [],
-      searchValue: '',
+      data: [],
+      searchValue: clientSearch?.initialSearchValue || '',
       sort: col
         ? {
             key: (col.altSortKey || col.key) as string,
@@ -61,9 +62,9 @@ export default function useTable<T>({
         : null,
       pagination: pagination
         ? {
-            paginatedData: paginateData(data, pagination.pageSize),
+            paginatedData: paginateData([], pagination.pageSize),
             currentPage: 0,
-            pagerPosition: pagination.pagerPosition || 'top',
+            pagerPosition: pagination.pagerPosition,
             pageSize: pagination.pageSize || 15,
             CustomTable: pagination.CustomTable,
           }
@@ -87,7 +88,11 @@ export default function useTable<T>({
     return false;
   }
 
-  const updateData = (sort: typeof state.sort, searchValue: string) => {
+  const updateData = (
+    sort: typeof state.sort,
+    searchValue: string,
+    resetCurrentPage = false
+  ) => {
     // Don't do clientside sorting and filtering if serversideProps are defined
     const sortedAndFiltered = serversideProps
       ? data
@@ -101,6 +106,19 @@ export default function useTable<T>({
           showFirst
         );
     if (pagination && !serversideProps) {
+      const pages = paginateData(sortedAndFiltered, pagination.pageSize);
+      // Preserve the current page, instead of resetting it every data update.
+      // The currentPage index can be out of range if data were deleted
+      // from the original data. If that were the case, reset the currentPage
+      // to the last page.
+      let currentPage = state.pagination.currentPage;
+      if (resetCurrentPage) {
+        // Resetting the current page is desirable when user is newly sorting
+        // or entered a new search.
+        currentPage = 0;
+      } else if (currentPage && pages.length > 0 && !pages[currentPage]) {
+        currentPage = pages.length - 1;
+      }
       setState({
         ...state,
         sort,
@@ -108,8 +126,8 @@ export default function useTable<T>({
         data: sortedAndFiltered,
         pagination: {
           ...state.pagination,
-          currentPage: 0,
-          paginatedData: paginateData(sortedAndFiltered, pagination.pageSize),
+          currentPage,
+          paginatedData: pages,
         },
       });
     } else {
@@ -137,12 +155,16 @@ export default function useTable<T>({
         onSort: column.onSort,
         dir: state.sort?.dir === 'ASC' ? 'DESC' : 'ASC',
       },
-      state.searchValue
+      state.searchValue,
+      true /* resetCurrentPage */
     );
   }
 
   function setSearchValue(searchValue: string) {
-    updateData(state.sort, searchValue);
+    updateData(state.sort, searchValue, true /* resetCurrentPage */);
+    if (clientSearch?.onSearchValueChange) {
+      clientSearch.onSearchValueChange(searchValue);
+    }
   }
 
   function nextPage() {
@@ -193,6 +215,7 @@ export default function useTable<T>({
     fetching,
     serversideProps,
     customSort,
+    clientSearch,
     ...props,
   };
 }

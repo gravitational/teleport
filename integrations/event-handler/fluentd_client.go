@@ -91,7 +91,7 @@ func getCertPool(c *FluentdConfig) (*x509.CertPool, error) {
 
 // Send sends event to fluentd
 func (f *FluentdClient) Send(ctx context.Context, url string, b []byte) error {
-	log.WithField("json", string(b)).Debug("JSON to send")
+	log.WithField("payload", string(b)).Debug("Sending event to Fluentd")
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {

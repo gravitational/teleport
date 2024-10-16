@@ -77,6 +77,9 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
+	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -104,6 +107,8 @@ type GCPClients interface {
 	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetGCPGKEClient returns GKE client.
 	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// GetGCPProjectsClient returns Projects client.
+	GetGCPProjectsClient(context.Context) (gcp.ProjectsClient, error)
 	// GetGCPInstancesClient returns instances client.
 	GetGCPInstancesClient(context.Context) (gcp.InstancesClient, error)
 }
@@ -263,6 +268,7 @@ func NewClients(opts ...ClientsOption) (Clients, error) {
 		gcpClients: gcpClients{
 			gcpSQLAdmin:  newClientCache[gcp.SQLAdminClient](gcp.NewSQLAdminClient),
 			gcpGKE:       newClientCache[gcp.GKEClient](gcp.NewGKEClient),
+			gcpProjects:  newClientCache[gcp.ProjectsClient](gcp.NewProjectsClient),
 			gcpInstances: newClientCache[gcp.InstancesClient](gcp.NewInstancesClient),
 		},
 		azureClients: azClients,
@@ -321,6 +327,8 @@ type gcpClients struct {
 	gcpSQLAdmin *clientCache[gcp.SQLAdminClient]
 	// gcpGKE is the cached GCP Cloud GKE client.
 	gcpGKE *clientCache[gcp.GKEClient]
+	// gcpProjects is the cached GCP Cloud Projects client.
+	gcpProjects *clientCache[gcp.ProjectsClient]
 	// gcpInstances is the cached GCP instances client.
 	gcpInstances *clientCache[gcp.InstancesClient]
 }
@@ -656,6 +664,11 @@ func (c *cloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, erro
 	return c.gcpGKE.GetClient(ctx)
 }
 
+// GetGCPProjectsClient returns Project client.
+func (c *cloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+	return c.gcpProjects.GetClient(ctx)
+}
+
 // GetGCPInstancesClient returns instances client.
 func (c *cloudClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
 	return c.gcpInstances.GetClient(ctx)
@@ -946,7 +959,27 @@ func (c *cloudClients) initInstanceMetadata(ctx context.Context) (imds.Client, e
 		return c.instanceMetadata, nil
 	}
 	logrus.Debug("Initializing instance metadata client.")
-	client, err := DiscoverInstanceMetadata(ctx)
+
+	providers := []func(ctx context.Context) (imds.Client, error){
+		func(ctx context.Context) (imds.Client, error) {
+			clt, err := awsimds.NewInstanceMetadataClient(ctx)
+			return clt, trace.Wrap(err)
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			return azureimds.NewInstanceMetadataClient(), nil
+		},
+		func(ctx context.Context) (imds.Client, error) {
+			instancesClient, err := gcp.NewInstancesClient(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
+			return clt, trace.Wrap(err)
+		},
+	}
+
+	client, err := DiscoverInstanceMetadata(ctx, providers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -999,6 +1032,7 @@ type TestCloudClients struct {
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
+	GCPProjects             gcp.ProjectsClient
 	GCPInstances            gcp.InstancesClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
@@ -1209,6 +1243,11 @@ func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (imds.
 // GetGCPGKEClient returns GKE client.
 func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.GCPGKE, nil
+}
+
+// GetGCPGKEClient returns GKE client.
+func (c *TestCloudClients) GetGCPProjectsClient(ctx context.Context) (gcp.ProjectsClient, error) {
+	return c.GCPProjects, nil
 }
 
 // GetGCPInstancesClient returns instances client.

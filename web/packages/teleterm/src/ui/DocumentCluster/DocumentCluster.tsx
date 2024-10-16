@@ -18,7 +18,7 @@
 
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text, Alert } from 'design';
+import { Box, ButtonPrimary, Flex, Text, Alert, H2 } from 'design';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/workspacesService';
@@ -185,6 +185,7 @@ function PrintState(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
+      px={4}
       css={`
         top: 11%;
         position: relative;
@@ -193,9 +194,7 @@ function PrintState(props: {
       {props.action && props.action.attempt.status === 'error' && (
         <Alert>{props.action.attempt.statusText}</Alert>
       )}
-      <Text typography="h4" bold>
-        {props.clusterName}
-      </Text>
+      <H2 mb={1}>{props.clusterName}</H2>
       <Text>{props.clusterState}</Text>
       {props.action && (
         <ButtonPrimary

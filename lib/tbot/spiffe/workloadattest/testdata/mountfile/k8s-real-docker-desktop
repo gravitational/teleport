@@ -1,0 +1,22 @@
+752 518 0:203 / / rw,relatime master:65 - overlay overlay rw,lowerdir=/var/lib/desktop-containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/140/fs:/var/lib/desktop-containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/134/fs,upperdir=/var/lib/desktop-containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/141/fs,workdir=/var/lib/desktop-containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/141/work
+753 752 0:205 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+754 752 0:206 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+755 754 0:207 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
+756 752 0:201 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro
+757 756 0:31 /../../pod941f292f-a62d-48ab-b9a8-eec84d87b928/3f79e718744418736d0f6b9958e08d44e969c6577068c33de1cc400d35aacec8 /sys/fs/cgroup ro,nosuid,nodev,noexec,relatime - cgroup2 cgroup rw
+758 754 0:197 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw
+759 754 0:196 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k
+760 754 254:1 /kubelet/pods/941f292f-a62d-48ab-b9a8-eec84d87b928/containers/ubuntu/0a0e971b /dev/termination-log rw,relatime - ext4 /dev/vda1 rw,discard
+761 752 254:1 /docker/containers/4bdc92c994044b7998d9288ce0dfd191bff269fe24040c7966381a32ee2566c6/resolv.conf /etc/resolv.conf rw,relatime - ext4 /dev/vda1 rw,discard
+762 752 254:1 /docker/containers/4bdc92c994044b7998d9288ce0dfd191bff269fe24040c7966381a32ee2566c6/hostname /etc/hostname rw,relatime - ext4 /dev/vda1 rw,discard
+763 752 254:1 /kubelet/pods/941f292f-a62d-48ab-b9a8-eec84d87b928/etc-hosts /etc/hosts rw,relatime - ext4 /dev/vda1 rw,discard
+764 752 0:193 / /run/secrets/kubernetes.io/serviceaccount ro,relatime - tmpfs tmpfs rw,size=7926524k
+519 753 0:205 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw
+536 753 0:205 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw
+537 753 0:205 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw
+538 753 0:205 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw
+539 753 0:205 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime - proc proc rw
+540 753 0:206 /null /proc/kcore rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+541 753 0:206 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+567 753 0:206 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755
+582 756 0:208 / /sys/firmware ro,relatime - tmpfs tmpfs ro

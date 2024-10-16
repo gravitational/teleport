@@ -87,6 +87,7 @@ export class ReloginService {
         return {
           kind: 'reason.vnet-cert-expired',
           targetUri: request.reason.vnetCertExpired.targetUri,
+          publicAddr: request.reason.vnetCertExpired.publicAddr,
         };
       }
       default: {

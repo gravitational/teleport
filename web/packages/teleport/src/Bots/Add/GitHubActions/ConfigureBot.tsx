@@ -23,11 +23,13 @@ import Box from 'design/Box';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Validation, { Validator } from 'shared/components/Validation';
 
-import Text from 'design/Text';
+import { Text } from 'design';
 
 import FieldInput from 'shared/components/FieldInput';
 
-import Alert from 'design/Alert';
+import { Alert } from 'design/Alert';
+
+import { H2 } from 'design';
 
 import { getBot } from 'teleport/services/bot';
 
@@ -104,9 +106,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
         GitHub Actions runners as well as GitHub Enterprise Server.
       </Text>
 
-      <Text bold fontSize={4} mb="2">
-        Step 1: Scope the Permissions for Your Bot
-      </Text>
+      <H2 mb="2">Step 1: Scope the Permissions for Your Bot</H2>
       <Validation>
         {({ validator }) => (
           <>

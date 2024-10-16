@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"reflect"
 	"slices"
 	"strings"
@@ -38,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
-	kubeapitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/remotecommand"
@@ -67,10 +67,11 @@ const (
 
 // remoteClient is either a kubectl or websocket client.
 type remoteClient interface {
+	queueID() uuid.UUID
 	stdinStream() io.Reader
 	stdoutStream() io.Writer
 	stderrStream() io.Writer
-	resizeQueue() <-chan *remotecommand.TerminalSize
+	resizeQueue() <-chan terminalResizeMessage
 	resize(size *remotecommand.TerminalSize) error
 	forceTerminate() <-chan struct{}
 	sendStatus(error) error
@@ -78,7 +79,12 @@ type remoteClient interface {
 }
 
 type websocketClientStreams struct {
+	id     uuid.UUID
 	stream *streamproto.SessionStream
+}
+
+func (p *websocketClientStreams) queueID() uuid.UUID {
+	return p.id
 }
 
 func (p *websocketClientStreams) stdinStream() io.Reader {
@@ -93,8 +99,26 @@ func (p *websocketClientStreams) stderrStream() io.Writer {
 	return p.stream
 }
 
-func (p *websocketClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
-	return p.stream.ResizeQueue()
+func (p *websocketClientStreams) resizeQueue() <-chan terminalResizeMessage {
+	ch := make(chan terminalResizeMessage)
+	go func() {
+		defer close(ch)
+		for {
+			select {
+			case <-p.stream.Done():
+				return
+			case size := <-p.stream.ResizeQueue():
+				if size == nil {
+					return
+				}
+				ch <- terminalResizeMessage{
+					size:   size,
+					source: p.id,
+				}
+			}
+		}
+	}()
+	return ch
 }
 
 func (p *websocketClientStreams) resize(size *remotecommand.TerminalSize) error {
@@ -114,6 +138,7 @@ func (p *websocketClientStreams) Close() error {
 }
 
 type kubeProxyClientStreams struct {
+	id        uuid.UUID
 	proxy     *remoteCommandProxy
 	sizeQueue *termQueue
 	stdin     io.Reader
@@ -127,6 +152,7 @@ func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStream
 	options := proxy.options()
 
 	return &kubeProxyClientStreams{
+		id:        uuid.New(),
 		proxy:     proxy,
 		stdin:     options.Stdin,
 		stdout:    options.Stdout,
@@ -134,6 +160,10 @@ func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStream
 		close:     make(chan struct{}),
 		sizeQueue: proxy.resizeQueue,
 	}
+}
+
+func (p *kubeProxyClientStreams) queueID() uuid.UUID {
+	return p.id
 }
 
 func (p *kubeProxyClientStreams) stdinStream() io.Reader {
@@ -148,8 +178,8 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 	return p.stderr
 }
 
-func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
-	ch := make(chan *remotecommand.TerminalSize)
+func (p *kubeProxyClientStreams) resizeQueue() <-chan terminalResizeMessage {
+	ch := make(chan terminalResizeMessage)
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -158,8 +188,9 @@ func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSiz
 			if size == nil {
 				return
 			}
+
 			select {
-			case ch <- size:
+			case ch <- terminalResizeMessage{size, p.id}:
 				// Check if the sizeQueue was already terminated.
 			case <-p.sizeQueue.done.Done():
 				return
@@ -192,21 +223,28 @@ func (p *kubeProxyClientStreams) Close() error {
 	return nil
 }
 
+// terminalResizeMessage is a message that contains the terminal size and the source of the resize event.
+type terminalResizeMessage struct {
+	size   *remotecommand.TerminalSize
+	source uuid.UUID
+}
+
 // multiResizeQueue is a merged queue of multiple terminal size queues.
 type multiResizeQueue struct {
-	queues       map[string]<-chan *remotecommand.TerminalSize
+	queues       map[string]<-chan terminalResizeMessage
 	cases        []reflect.SelectCase
-	callback     func(*remotecommand.TerminalSize)
+	callback     func(terminalResizeMessage)
 	mutex        sync.Mutex
 	parentCtx    context.Context
 	reloadCtx    context.Context
 	reloadCancel context.CancelFunc
+	lastSize     *remotecommand.TerminalSize
 }
 
 func newMultiResizeQueue(parentCtx context.Context) *multiResizeQueue {
 	ctx, cancel := context.WithCancel(parentCtx)
 	return &multiResizeQueue{
-		queues:       make(map[string]<-chan *remotecommand.TerminalSize),
+		queues:       make(map[string]<-chan terminalResizeMessage),
 		parentCtx:    parentCtx,
 		reloadCtx:    ctx,
 		reloadCancel: cancel,
@@ -233,11 +271,17 @@ func (r *multiResizeQueue) rebuild() {
 	}
 }
 
+func (r *multiResizeQueue) getLastSize() *remotecommand.TerminalSize {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	return r.lastSize
+}
+
 func (r *multiResizeQueue) close() {
 	r.reloadCancel()
 }
 
-func (r *multiResizeQueue) add(id string, queue <-chan *remotecommand.TerminalSize) {
+func (r *multiResizeQueue) add(id string, queue <-chan terminalResizeMessage) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.queues[id] = queue
@@ -269,9 +313,12 @@ loop:
 			}
 		}
 
-		size := value.Interface().(*remotecommand.TerminalSize)
+		size := value.Interface().(terminalResizeMessage)
 		r.callback(size)
-		return size
+		r.mutex.Lock()
+		r.lastSize = size.size
+		r.mutex.Unlock()
+		return size.size
 	}
 }
 
@@ -373,9 +420,11 @@ type session struct {
 	// reason is the reason for the session.
 	reason string
 
-	// eventsWaiter is used to wait for events to be emitted and goroutines closed
+	// weakEventsWaiter is used to wait for events to be emitted and goroutines closed
 	// when a session is closed.
-	eventsWaiter sync.WaitGroup
+	// Note: this is a weakWaitGroup and doesn't have the same guarantees as sync.WaitGroup.
+	// Please see the documentation for [weakWaitGroup] for more information.
+	weakEventsWaiter weakWaitGroup
 
 	streamContext       context.Context
 	streamContextCancel context.CancelFunc
@@ -448,7 +497,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	s.io.OnReadError = s.disconnectPartyOnErr
 
 	s.BroadcastMessage("Creating session with ID: %v...", id.String())
-	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
 
 	go func() {
 		if _, open := <-s.io.TerminateNotifier(); open {
@@ -601,9 +649,9 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		s.forwarder.log.WithError(err).Warn("Failed to set up session start event - event will not be recorded")
 	}
 
-	s.eventsWaiter.Add(1)
+	s.weakEventsWaiter.Add(1)
 	go func() {
-		defer s.eventsWaiter.Done()
+		defer s.weakEventsWaiter.Done()
 		t := time.NewTimer(time.Until(s.expires))
 		defer t.Stop()
 
@@ -700,20 +748,24 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 
 	if !s.sess.noAuditEvents {
-		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
+		s.terminalSizeQueue.callback = func(termSize terminalResizeMessage) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 
 			for id, p := range s.parties {
-				err := p.Client.resize(resize)
+				// Skip the party that sent the resize event to avoid a resize loop.
+				if p.Client.queueID() == termSize.source {
+					continue
+				}
+				err := p.Client.resize(termSize.size)
 				if err != nil {
 					s.log.WithError(err).Errorf("Failed to resize client: %v", id.String())
 				}
 			}
 
 			params := tsession.TerminalParams{
-				W: int(resize.Width),
-				H: int(resize.Height),
+				W: int(termSize.size.Width),
+				H: int(termSize.size.Height),
 			}
 
 			resizeEvent, err := s.recorder.PrepareSessionEvent(&apievents.Resize{
@@ -744,7 +796,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 			}
 		}
 	} else {
-		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
+		s.terminalSizeQueue.callback = func(resize terminalResizeMessage) {}
 	}
 
 	// If we get here, it means we are going to have a session.end event.
@@ -752,9 +804,9 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 	// the events are emitted before closing the emitter/recorder.
 	// It might happen when a user disconnects or when a moderator forces an early
 	// termination.
-	s.eventsWaiter.Add(1)
+	s.weakEventsWaiter.Add(1)
 	onFinish := func(errExec error) {
-		defer s.eventsWaiter.Done()
+		defer s.weakEventsWaiter.Done()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -871,9 +923,9 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.PresenceEnabled {
-		s.eventsWaiter.Add(1)
+		s.weakEventsWaiter.Add(1)
 		go func() {
-			defer s.eventsWaiter.Done()
+			defer s.weakEventsWaiter.Done()
 			ticker := time.NewTicker(PresenceVerifyInterval)
 			defer ticker.Stop()
 
@@ -928,7 +980,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		return trace.Wrap(err)
 	}
 
-	// we only want to emit the session.join when someone tries to join a session via
+	// We only want to emit the session.join when someone tries to join a session via
 	// tsh kube join and not when the original session owner terminal streams are
 	// connected to the Kubernetes session.
 	if emitJoinEvent {
@@ -939,6 +991,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	if _, err := p.Client.stdoutStream().Write(recentWrites); err != nil {
 		s.log.Warnf("Failed to write history to client: %v.", err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	// increment the party track waitgroup.
 	// It is decremented when session.leave() finishes its execution.
@@ -950,17 +1003,34 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	s.partiesHistorical[p.ID] = p
 	s.terminalSizeQueue.add(stringID, p.Client.resizeQueue())
 
+	// If the session is already running, we need to resize the new party's terminal
+	// to match the last terminal size.
+	// This is done to ensure that the new party's terminal is the same size as the
+	// other parties' terminals and no discrepancies are present.
+	if lastQueueSize := s.terminalSizeQueue.getLastSize(); lastQueueSize != nil {
+		if err := p.Client.resize(lastQueueSize); err != nil {
+			s.log.WithError(err).Errorf("Failed to resize client: %v", stringID)
+		}
+	}
+
 	if p.Mode == types.SessionPeerMode {
 		s.io.AddReader(stringID, p.Client.stdinStream())
 	}
-
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
+	// Send the participant mode and controls to the additional participant
+	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
+		err := srv.MsgParticipantCtrls(p.Client.stdoutStream(), p.Mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
+	// Allow the moderator to force terminate the session
 	if p.Mode == types.SessionModeratorMode {
-		s.eventsWaiter.Add(1)
+		s.weakEventsWaiter.Add(1)
 		go func() {
-			defer s.eventsWaiter.Done()
+			defer s.weakEventsWaiter.Done()
 			c := p.Client.forceTerminate()
 			select {
 			case <-c:
@@ -1010,7 +1080,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 				}
 			}()
 		} else if len(s.parties) == 1 {
-			base := "Waiting for required participants..."
+			const base = "Waiting for required participants..."
 
 			if s.displayParticipantRequirements {
 				s.BroadcastMessage(base+"\r\n%v", s.accessEvaluator.PrettyRequirementsList())
@@ -1031,7 +1101,6 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 		}
 	}
-
 	return nil
 }
 
@@ -1287,7 +1356,7 @@ func (s *session) Close() error {
 		if recorder != nil {
 			// wait for events to be emitted before closing the recorder/emitter.
 			// If we close it immediately we will lose session.end events.
-			s.eventsWaiter.Wait()
+			s.weakEventsWaiter.Wait()
 			recorder.Close(s.forwarder.ctx)
 		}
 	})
@@ -1323,7 +1392,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		SessionID:         s.id.String(),
 		Kind:              string(types.KubernetesSessionKind),
 		State:             types.SessionState_SessionStatePending,
-		Hostname:          s.podName,
+		Hostname:          path.Join(s.podNamespace, s.podName),
 		ClusterName:       s.ctx.teleportCluster.name,
 		KubernetesCluster: s.ctx.kubeClusterName,
 		HostUser:          p.Ctx.User.GetName(),
@@ -1360,7 +1429,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 	case err != nil:
 		return trace.Wrap(err)
 	// the tracker was created successfully
-	case err == nil:
+	default:
 		s.tracker = tracker
 	}
 
@@ -1394,7 +1463,7 @@ func (s *session) patchAndWaitForPodEphemeralContainer(
 	podClient := clientSet.CoreV1().Pods(authCtx.kubeResource.Namespace)
 	result, err := podClient.Patch(ctx,
 		waitingCont.Spec.PodName,
-		kubeapitypes.StrategicMergePatchType,
+		apimachinerytypes.StrategicMergePatchType,
 		waitingCont.Spec.Patch,
 		metav1.PatchOptions{},
 		"ephemeralcontainers")
@@ -1527,4 +1596,64 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 
 	}
 	return nil
+}
+
+// weakWaitGroup is a specialized synchronization primitive similar to sync.WaitGroup
+// but with **relaxed** guarantees. Unlike sync.WaitGroup, weakWaitGroup does not ensure
+// that the Wait() method will wait for all Add() calls to reach completion through Done()
+// if they are called concurrently. This means that there is a potential leak in the
+// synchronization of goroutines that are added to the weakWaitGroup and may be started
+// after the Wait() method is called.
+//
+// Use Case:
+// This weakWaitGroup is intended for scenarios where goroutines are initiated from
+// various parts of the codebase concurrently and need to be awaited only if they started before
+// a certain point in time, specifically before session.Close() is called. If a goroutine
+// is initiated after session.Close() has been invoked, it will not be included in the wait process.
+// It's the caller responsibility to ensure that all goroutines started after Wait() returns end
+// up being a no-op.
+//
+// Important Considerations:
+//   - This implementation is UNSAFE as a general-purpose synchronization primitive.
+//   - It does not guarantee that Wait() will account for all Add() calls, leading to potential
+//     race conditions or goroutines that may not be properly awaited.
+//   - Due to these limitations, weakWaitGroup should be used with extreme caution and only
+//     in contexts where its relaxed guarantees are acceptable and safe.
+//
+// WARNING:
+// This is not a substitute for sync.WaitGroup in situations requiring strong synchronization
+// guarantees.
+type weakWaitGroup struct {
+	cond  sync.Cond
+	mu    sync.Mutex
+	count int
+}
+
+func (c *weakWaitGroup) Add(delta int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.count += delta
+}
+
+func (c *weakWaitGroup) Done() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.count--
+	if c.count == 0 && c.cond.L != nil {
+		c.cond.Broadcast()
+	}
+}
+
+func (c *weakWaitGroup) Wait() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.count == 0 {
+		return
+	}
+	if c.cond.L == nil {
+		c.cond.L = &c.mu
+	}
+	for c.count > 0 {
+		c.cond.Wait()
+	}
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -430,7 +431,7 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 	for _, tc := range tt {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			localCtx := authorizerForSystemRole(t, ctx, string(tc.systemRole), localClient)
+			localCtx := authorizerForSystemRole(ctx, string(tc.systemRole))
 
 			dcName := uuid.NewString()
 			if tc.setup != nil {
@@ -468,7 +469,7 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 	})
 }
 
-func authorizerForSystemRole(t *testing.T, ctx context.Context, systemRole string, localClient localClient) context.Context {
+func authorizerForSystemRole(ctx context.Context, systemRole string) context.Context {
 	return authz.ContextWithUser(ctx, authz.BuiltinRole{
 		Username: uuid.NewString(),
 		Role:     types.SystemRole(systemRole),
@@ -500,7 +501,8 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewTestIdentityService(backend)
+	userSvc, err := local.NewTestIdentityService(backend)
+	require.NoError(t, err)
 
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
@@ -540,9 +542,12 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 	localResourceService, err := local.NewDiscoveryConfigService(backend)
 	require.NoError(t, err)
 
+	emitter := events.NewDiscardEmitter()
+
 	resourceSvc, err := NewService(ServiceConfig{
 		Backend:    localResourceService,
 		Authorizer: authorizer,
+		Emitter:    emitter,
 	})
 	require.NoError(t, err)
 

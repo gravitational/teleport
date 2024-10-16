@@ -27,10 +27,10 @@ import (
 	"encoding/json"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/go-cmp/cmp"
@@ -63,30 +63,61 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	log        logrus.FieldLogger
-	bcryptCost int
+	log              logrus.FieldLogger
+	bcryptCost       int
+	notificationsSvc *NotificationsService
 }
 
+// TODO(rudream): Rename to NewIdentityService.
+// NewIdentityServiceV2 returns a new instance of IdentityService object
+func NewIdentityServiceV2(backend backend.Backend) (*IdentityService, error) {
+	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &IdentityService{
+		Backend:          backend,
+		log:              logrus.WithField(teleport.ComponentKey, "identity"),
+		bcryptCost:       bcrypt.DefaultCost,
+		notificationsSvc: notificationsSvc,
+	}, nil
+}
+
+// TODO(rudream): Remove once NewIdentityServiceV2 is merged.
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
+	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
+
+	log := logrus.WithField(teleport.ComponentKey, "identity")
+	if err != nil {
+		log.Warnf("error initializing notifications service with identity service: %v", err)
+	}
+
 	return &IdentityService{
-		Backend:    backend,
-		log:        logrus.WithField(teleport.ComponentKey, "identity"),
-		bcryptCost: bcrypt.DefaultCost,
+		Backend:          backend,
+		log:              log,
+		bcryptCost:       bcrypt.DefaultCost,
+		notificationsSvc: notificationsSvc,
 	}
 }
 
 // NewTestIdentityService returns a new instance of IdentityService object to be
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
-func NewTestIdentityService(backend backend.Backend) *IdentityService {
+func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
 	if !testing.Testing() {
 		// Don't allow using weak cryptography in production.
 		panic("Attempted to create a test identity service outside of a test")
 	}
-	s := NewIdentityService(backend)
+
+	s, err := NewIdentityServiceV2(backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.bcryptCost = bcrypt.MinCost
-	return s
+	return s, nil
 }
 
 // DeleteAllUsers deletes all users
@@ -97,7 +128,7 @@ func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 
 // ListUsers returns a page of users.
 func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	rangeStart := backend.Key(webPrefix, usersPrefix, req.PageToken)
+	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.PageToken))
 	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
 	pageSize := req.PageSize
 
@@ -151,7 +182,8 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 // the next user in the list while still allowing listing to operate
 // without missing any users.
 func nextUserToken(user types.User) string {
-	return string(backend.RangeEnd(backend.ExactKey(user.GetName())))[utf8.RuneLen(backend.Separator):]
+	key := backend.RangeEnd(backend.ExactKey(user.GetName())).String()
+	return strings.Trim(key, string(backend.Separator))
 }
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
@@ -165,7 +197,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 	var current collector
 
 	collectorStream := stream.FilterMap(itemStream, func(item backend.Item) (collector, bool) {
-		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		name, suffix, err := splitUsernameAndSuffix(item.Key)
 		if err != nil {
 			s.log.Warnf("Failed to extract name/suffix for user item at %q: %v", item.Key, err)
 			return collector{}, false
@@ -221,9 +253,9 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 // streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
 // user resources without any included secrets.
 func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
-	suffix := []byte(paramsPrefix)
+	suffix := backend.NewKey(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
-		if !bytes.HasSuffix(item.Key, suffix) {
+		if !item.Key.HasSuffix(suffix) {
 			return nil, false
 		}
 
@@ -251,7 +283,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	}
 	var out []types.User
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			continue
 		}
 		u, err := services.UnmarshalUser(
@@ -307,11 +339,15 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 	// technically possible to create a user along with a password using a direct
 	// RPC call or `tctl create`, so we need to support this case, too.
 	auth := user.GetLocalAuth()
-	if auth != nil && len(auth.PasswordHash) > 0 {
-		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+	if auth != nil {
+		if len(auth.PasswordHash) > 0 {
+			user.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+		}
 	} else {
 		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
 	}
+
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, auth)
 
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
@@ -319,7 +355,7 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Key:     backend.NewKey(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: user.Expiry(),
 	}
@@ -351,12 +387,17 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 	}
 
 	rev := user.GetRevision()
+
+	// if the user has no local auth, we need to check if the user
+	// was previously created and enrolled an MFA device.
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, user.GetLocalAuth())
+
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Key:      backend.NewKey(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
 		Revision: rev,
@@ -380,13 +421,15 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 		return nil, trace.Wrap(err)
 	}
 
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, user.GetLocalAuth())
+
 	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Key:      backend.NewKey(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
 		Revision: rev,
@@ -444,13 +487,16 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, user.GetLocalAuth())
+
 	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Key:      backend.NewKey(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  user.Expiry(),
 		Revision: rev,
@@ -490,7 +536,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
+		Key:      backend.NewKey(webPrefix, usersPrefix, new.GetName(), paramsPrefix),
 		Value:    nil, // avoid marshaling new until we pass one comparison
 		Expires:  new.Expiry(),
 		Revision: "",
@@ -512,6 +558,8 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
+
+		s.buildAndSetWeakestMFADeviceKind(ctx, newWithoutSecrets, new.GetLocalAuth())
 
 		if item.Value == nil {
 			v, err := services.MarshalUser(newWithoutSecrets)
@@ -557,7 +605,7 @@ func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets 
 		return u, items, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, usersPrefix, user, paramsPrefix))
 	if err != nil {
 		return nil, nil, trace.NotFound("user %q not found", user)
 	}
@@ -584,8 +632,8 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 	var items userItems
 	for _, item := range result.Items {
-		suffix := bytes.TrimPrefix(item.Key, startKey)
-		items.Set(string(suffix), item) // Result of Set i
+		suffix := item.Key.TrimPrefix(startKey)
+		items.Set(suffix.Components(), item) // Result of Set i
 	}
 
 	u, err := userFromUserItems(user, items)
@@ -599,7 +647,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 		}
 	}
 	for _, d := range auth.MFA {
-		if err := s.UpsertMFADevice(ctx, user, d); err != nil {
+		if err := s.upsertMFADevice(ctx, user, d); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -667,11 +715,26 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// each user has multiple related entries in the backend,
 	// so use DeleteRange to make sure we get them all
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user)
-	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
+	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete notification objects associated with this user.
+	var notifErrors []error
+	// Delete all user-specific notifications for this user.
+	if err := s.notificationsSvc.DeleteAllUserNotificationsForUser(ctx, user); err != nil {
+		notifErrors = append(notifErrors, trace.Wrap(err, "failed to delete notifications for user %s", user))
+	}
+	// Delete all user notification states for this user.
+	if err := s.notificationsSvc.DeleteAllUserNotificationStatesForUser(ctx, user); err != nil {
+		notifErrors = append(notifErrors, trace.Wrap(err, "failed to delete notification states for user %s", user))
+	}
+
+	return trace.NewAggregate(notifErrors...)
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
@@ -686,7 +749,7 @@ func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error
 		}
 	}
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, username, pwdPrefix),
+		Key:   backend.NewKey(webPrefix, usersPrefix, username, pwdPrefix),
 		Value: hash,
 	}
 	_, err = s.Put(context.TODO(), item)
@@ -701,7 +764,7 @@ func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 	if user == "" {
 		return nil, trace.BadParameter("missing user name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, pwdPrefix))
+	item, err := s.Get(context.TODO(), backend.NewKey(webPrefix, usersPrefix, user, pwdPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("user %q is not found", user)
@@ -718,7 +781,7 @@ func (s *IdentityService) UpsertUsedTOTPToken(user string, otpToken string) erro
 		return trace.BadParameter("missing user name")
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, usedTOTPPrefix),
+		Key:     backend.NewKey(webPrefix, usersPrefix, user, usedTOTPPrefix),
 		Value:   []byte(otpToken),
 		Expires: s.Clock().Now().UTC().Add(usedTOTPTTL),
 	}
@@ -734,7 +797,7 @@ func (s *IdentityService) GetUsedTOTPToken(user string) (string, error) {
 	if user == "" {
 		return "", trace.BadParameter("missing user name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, usedTOTPPrefix))
+	item, err := s.Get(context.TODO(), backend.NewKey(webPrefix, usersPrefix, user, usedTOTPPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return "0", nil
@@ -751,7 +814,7 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 	if user == "" {
 		return trace.BadParameter("missing user name")
 	}
-	return s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, usedTOTPPrefix))
+	return s.Delete(context.TODO(), backend.NewKey(webPrefix, usersPrefix, user, usedTOTPPrefix))
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -764,7 +827,7 @@ func (s *IdentityService) AddUserLoginAttempt(user string, attempt services.Logi
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New().String()),
+		Key:     backend.NewKey(webPrefix, usersPrefix, user, attemptsPrefix, uuid.New().String()),
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
@@ -851,7 +914,7 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 		return trace.BadParameter("missing username")
 	}
 
-	delErr := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, pwdPrefix))
+	delErr := s.Delete(ctx, backend.NewKey(webPrefix, usersPrefix, user, pwdPrefix))
 	// Don't bail out just yet if the error is "not found"; the password state
 	// flag may still be unspecified, and we want to make it UNSET.
 	if delErr != nil && !trace.IsNotFound(delErr) {
@@ -965,13 +1028,13 @@ type webauthnUser struct {
 	TeleportUser string `json:"teleport_user"`
 }
 
-func webauthnLocalAuthKey(user string) []byte {
-	return backend.Key(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
+func webauthnLocalAuthKey(user string) backend.Key {
+	return backend.NewKey(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
 }
 
-func webauthnUserKey(id []byte) []byte {
+func webauthnUserKey(id []byte) backend.Key {
 	key := base64.RawURLEncoding.EncodeToString(id)
-	return backend.Key(webauthnPrefix, usersPrefix, key)
+	return backend.NewKey(webauthnPrefix, usersPrefix, key)
 }
 
 func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
@@ -1023,8 +1086,8 @@ func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(s.Delete(ctx, sessionDataKey(user, sessionID)))
 }
 
-func sessionDataKey(user, sessionID string) []byte {
-	return backend.Key(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
+func sessionDataKey(user, sessionID string) backend.Key {
+	return backend.NewKey(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
 }
 
 // globalSessionDataLimiter keeps a count of in-flight session data challenges
@@ -1134,11 +1197,20 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func globalSessionDataKey(scope, id string) []byte {
-	return backend.Key(webauthnPrefix, webauthnGlobalSessionData, scope, id)
+func globalSessionDataKey(scope, id string) backend.Key {
+	return backend.NewKey(webauthnPrefix, webauthnGlobalSessionData, scope, id)
 }
 
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
+	if err := s.upsertMFADevice(ctx, user, d); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
+		s.log.WithError(err).Warn("Unable to update user status after adding MFA device")
+	}
+	return nil
+}
+func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
@@ -1183,7 +1255,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
+		Key:      backend.NewKey(webPrefix, usersPrefix, user, mfaDevicePrefix, d.Id),
 		Value:    value,
 		Revision: rev,
 	}
@@ -1192,6 +1264,75 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// upsertUserStatusMFADevice updates the user's MFA state based on the devices
+// they have.
+// It's called after adding or removing an MFA device and ensures the user's
+// MFA state is up-to-date and reflects the weakest MFA device they have.
+func (s *IdentityService) upsertUserStatusMFADevice(ctx context.Context, user string) error {
+	devs, err := s.GetMFADevices(ctx, user, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaState := getWeakestMFADeviceKind(devs)
+
+	_, err = s.UpdateAndSwapUser(
+		ctx,
+		user,
+		false, /*withSecrets*/
+		func(u types.User) (bool, error) {
+			// If the user already has the weakest device, don't update.
+			if u.GetWeakestDevice() == mfaState {
+				return false, nil
+			}
+			u.SetWeakestDevice(mfaState)
+			return true, nil
+		})
+
+	return trace.Wrap(err)
+}
+
+// buildAndSetWeakestMFADeviceKind builds the MFA state for a user and sets it on the user if successful.
+func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, user types.User, localAuthSecrets *types.LocalAuthSecrets) {
+	// upsertingMFA is the list of MFA devices that are being upserted when updating the user.
+	var upsertingMFA []*types.MFADevice
+	if localAuthSecrets != nil {
+		upsertingMFA = localAuthSecrets.MFA
+	}
+	state, err := s.buildWeakestMFADeviceKind(ctx, user.GetName(), upsertingMFA...)
+	if err != nil {
+		s.log.WithError(err).Warn("Failed to determine weakest mfa device kind for user")
+		return
+	}
+	user.SetWeakestDevice(state)
+}
+
+func (s *IdentityService) buildWeakestMFADeviceKind(ctx context.Context, user string, upsertingMFA ...*types.MFADevice) (types.MFADeviceKind, error) {
+	devs, err := s.GetMFADevices(ctx, user, false)
+	if err != nil {
+		return types.MFADeviceKind_MFA_DEVICE_KIND_UNSET, trace.Wrap(err)
+	}
+	return getWeakestMFADeviceKind(append(devs, upsertingMFA...)), nil
+}
+
+// getWeakestMFADeviceKind returns the weakest MFA state based on the devices the user
+// has.
+// When a user has no MFA device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_UNSET`.
+// When a user has at least one TOTP device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_TOTP`.
+// When a user ONLY has webauthn devices, it's set to `MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN`.
+func getWeakestMFADeviceKind(devs []*types.MFADevice) types.MFADeviceKind {
+	mfaState := types.MFADeviceKind_MFA_DEVICE_KIND_UNSET
+	for _, d := range devs {
+		if (d.GetWebauthn() != nil || d.GetU2F() != nil) && mfaState == types.MFADeviceKind_MFA_DEVICE_KIND_UNSET {
+			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN
+		}
+		if d.GetTotp() != nil {
+			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_TOTP
+			break
+		}
+	}
+	return mfaState
 }
 
 func getCredentialID(d *types.MFADevice) ([]byte, bool) {
@@ -1212,8 +1353,14 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 		return trace.BadParameter("missing parameter id")
 	}
 
-	err := s.Delete(ctx, backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
-	return trace.Wrap(err)
+	err := s.Delete(ctx, backend.NewKey(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
+		s.log.WithError(err).Warn("Unable to update user status after deleting MFA device")
+	}
+	return nil
 }
 
 func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
@@ -1246,13 +1393,16 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	rev := connector.GetRevision()
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Key:      backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
 		Revision: rev,
@@ -1267,12 +1417,15 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 
 // CreateOIDCConnector creates a new OIDC connector.
 func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Key:     backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
 	}
@@ -1286,12 +1439,15 @@ func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector typ
 
 // UpdateOIDCConnector updates an existing OIDC connector.
 func (s *IdentityService) UpdateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Key:      backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
 		Revision: connector.GetRevision(),
@@ -1309,7 +1465,7 @@ func (s *IdentityService) DeleteOIDCConnector(ctx context.Context, name string) 
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	err := s.Delete(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
 	return trace.Wrap(err)
 }
 
@@ -1319,7 +1475,7 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("OpenID connector '%v' is not configured", name)
@@ -1373,7 +1529,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, req.StateToken),
+		Key:     backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, req.StateToken),
 		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
@@ -1388,7 +1544,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1410,7 +1566,7 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Key:      backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
 		Revision: rev,
@@ -1433,7 +1589,7 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Key:      backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
 		Revision: connector.GetRevision(),
@@ -1456,7 +1612,7 @@ func (s *IdentityService) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Key:     backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
 	}
@@ -1473,7 +1629,7 @@ func (s *IdentityService) DeleteSAMLConnector(ctx context.Context, name string) 
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	err := s.Delete(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
 	return trace.Wrap(err)
 }
 
@@ -1483,7 +1639,7 @@ func (s *IdentityService) GetSAMLConnector(ctx context.Context, name string, wit
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("SAML connector %q is not configured", name)
@@ -1544,7 +1700,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, req.ID),
+		Key:     backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, req.ID),
 		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
@@ -1559,7 +1715,7 @@ func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*t
 	if id == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1589,7 +1745,7 @@ func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind 
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID),
+		Key:     backend.NewKey(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID),
 		Value:   jsonValue,
 		Expires: backend.Expiry(s.Clock(), time.Minute*15),
 	}
@@ -1613,7 +1769,7 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 		return nil, trace.BadParameter("unsupported authKind %q", authKind)
 	}
 
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1637,7 +1793,7 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Key:      backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
 		Revision: rev,
@@ -1660,7 +1816,7 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Key:      backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:    value,
 		Expires:  connector.Expiry(),
 		Revision: connector.GetRevision(),
@@ -1683,7 +1839,7 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Key:     backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
 		Value:   value,
 		Expires: connector.Expiry(),
 	}
@@ -1725,7 +1881,7 @@ func (s *IdentityService) GetGithubConnector(ctx context.Context, name string, w
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("github connector %q is not configured", name)
@@ -1747,7 +1903,7 @@ func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	return trace.Wrap(s.Delete(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name)))
+	return trace.Wrap(s.Delete(ctx, backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, name)))
 }
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
@@ -1760,7 +1916,7 @@ func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, req.StateToken),
+		Key:     backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, req.StateToken),
 		Value:   buf.Bytes(),
 		Expires: req.Expiry(),
 	}
@@ -1775,7 +1931,7 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1792,7 +1948,7 @@ func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string, wit
 		return nil, trace.BadParameter("missing parameter user")
 	}
 
-	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, recoveryCodesPrefix))
+	item, err := s.Get(ctx, backend.NewKey(webPrefix, usersPrefix, user, recoveryCodesPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1826,7 +1982,7 @@ func (s *IdentityService) UpsertRecoveryCodes(ctx context.Context, user string, 
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, recoveryCodesPrefix),
+		Key:   backend.NewKey(webPrefix, usersPrefix, user, recoveryCodesPrefix),
 		Value: value,
 	}
 
@@ -1848,7 +2004,7 @@ func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestat
 
 	key := keyAttestationDataFingerprint(attestationData.PublicKeyDER)
 	item := backend.Item{
-		Key:     backend.Key(attestationsPrefix, key),
+		Key:     backend.NewKey(attestationsPrefix, key),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(ttl),
 	}
@@ -1866,7 +2022,7 @@ func (s *IdentityService) GetKeyAttestationData(ctx context.Context, pubDER []by
 	}
 
 	key := keyAttestationDataFingerprint(pubDER)
-	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
+	item, err := s.Get(ctx, backend.NewKey(attestationsPrefix, key))
 
 	if trace.IsNotFound(err) {
 		return nil, trace.NotFound("hardware key attestation not found")

@@ -22,7 +22,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export { Icon } from './Icon';
+export { Icon, type IconProps } from './Icon';
 
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';
@@ -39,6 +39,7 @@ export { ArrowFatLinesUp } from './Icons/ArrowFatLinesUp';
 export { ArrowForward } from './Icons/ArrowForward';
 export { ArrowLeft } from './Icons/ArrowLeft';
 export { ArrowRight } from './Icons/ArrowRight';
+export { ArrowSquareOut } from './Icons/ArrowSquareOut';
 export { ArrowUp } from './Icons/ArrowUp';
 export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
@@ -62,6 +63,7 @@ export { ChatBubble } from './Icons/ChatBubble';
 export { ChatCircleSparkle } from './Icons/ChatCircleSparkle';
 export { Check } from './Icons/Check';
 export { CheckThick } from './Icons/CheckThick';
+export { Checks } from './Icons/Checks';
 export { ChevronCircleDown } from './Icons/ChevronCircleDown';
 export { ChevronCircleLeft } from './Icons/ChevronCircleLeft';
 export { ChevronCircleRight } from './Icons/ChevronCircleRight';
@@ -170,6 +172,7 @@ export { Scan } from './Icons/Scan';
 export { Server } from './Icons/Server';
 export { Share } from './Icons/Share';
 export { ShieldCheck } from './Icons/ShieldCheck';
+export { ShieldWarning } from './Icons/ShieldWarning';
 export { Sliders } from './Icons/Sliders';
 export { SlidersVertical } from './Icons/SlidersVertical';
 export { Speed } from './Icons/Speed';

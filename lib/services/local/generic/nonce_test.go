@@ -62,7 +62,7 @@ func newNoncedResource(name string, nonce uint64) *noncedResource {
 	}
 }
 
-func fastGetResource[T types.Resource](ctx context.Context, bk backend.Backend, key []byte) (T, error) {
+func fastGetResource[T types.Resource](ctx context.Context, bk backend.Backend, key backend.Key) (T, error) {
 	var value T
 
 	item, err := bk.Get(ctx, key)
@@ -96,52 +96,52 @@ func TestNonceBasics(t *testing.T) {
 	require.NoError(t, err)
 
 	// nonce of 1 is an "update", but resource does not exist yet
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", 1))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", 1))
 	require.ErrorIs(t, err, ErrNonceViolation)
 
 	// nonce of 0 is a valid "create".
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", 0))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", 0))
 	require.NoError(t, err)
 
 	// subsequent calls with nonce of 0 fail.
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", 0))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", 0))
 	require.ErrorIs(t, err, ErrNonceViolation)
 
 	// nonce of 1 is now a valid update
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", 1))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", 1))
 	require.NoError(t, err)
 
 	// loading and then re-inserting should always work since nonce is incremented internally
 	for i := 0; i < 10; i++ {
-		rsc, err := fastGetResource[*noncedResource](ctx, bk, []byte("k1"))
+		rsc, err := fastGetResource[*noncedResource](ctx, bk, backend.NewKey("k1"))
 		require.NoError(t, err)
 
-		err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), rsc)
+		err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), rsc)
 		require.NoError(t, err)
 	}
 
 	// sanity check: nonce incremented expected number of times
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", 12))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", 12))
 	require.NoError(t, err)
 
 	// max uint64 "forces" update
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", math.MaxUint64))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", math.MaxUint64))
 	require.NoError(t, err)
 
 	// forced update correctly conflicts with what would normally be the "next" valid nonce.
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", 13))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", 13))
 	require.ErrorIs(t, err, ErrNonceViolation)
 
 	// forced update correctly incremented nonce by 1
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k1"), newNoncedResource("r1", 14))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k1"), newNoncedResource("r1", 14))
 	require.NoError(t, err)
 
 	// max uint64 "forces" update for nonexistent resources too
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k2"), newNoncedResource("r2", math.MaxUint64))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k2"), newNoncedResource("r2", math.MaxUint64))
 	require.NoError(t, err)
 
 	// forced update correctly sets new nonce to 1
-	err = FastUpdateNonceProtectedResource(ctx, bk, []byte("k2"), newNoncedResource("r2", 1))
+	err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey("k2"), newNoncedResource("r2", 1))
 	require.NoError(t, err)
 }
 
@@ -188,7 +188,7 @@ func TestNonceParallelism(t *testing.T) {
 			rem := updates
 
 			for rem > 0 {
-				rsc, err := fastGetResource[*noncedResource](ctx, bk, []byte(key))
+				rsc, err := fastGetResource[*noncedResource](ctx, bk, backend.NewKey(key))
 				if err != nil && !trace.IsNotFound(err) {
 					fail(err)
 					return
@@ -199,7 +199,7 @@ func TestNonceParallelism(t *testing.T) {
 					rsc = newNoncedResource(name, 0)
 				}
 
-				err = FastUpdateNonceProtectedResource(ctx, bk, []byte(key), rsc)
+				err = FastUpdateNonceProtectedResource(ctx, bk, backend.NewKey(key), rsc)
 
 				if err != nil {
 					if errors.Is(err, ErrNonceViolation) {
@@ -223,7 +223,7 @@ func TestNonceParallelism(t *testing.T) {
 	require.NoError(t, <-errch)
 
 	// load resource and verify that we hit our exact expected number of updates
-	rsc, err := fastGetResource[*noncedResource](ctx, bk, []byte(key))
+	rsc, err := fastGetResource[*noncedResource](ctx, bk, backend.NewKey(key))
 	require.NoError(t, err)
 	require.Equal(t, routines*updates, int(rsc.Nonce))
 

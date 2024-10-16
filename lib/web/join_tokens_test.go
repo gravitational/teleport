@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -101,6 +103,7 @@ func TestGetTokens(t *testing.T) {
 		Expiry:   time.Unix(0, 0).UTC(),
 		IsStatic: true,
 		Method:   types.JoinMethodToken,
+		Content:  "kind: token\nmetadata:\n  expires: \"1970-01-01T00:00:00Z\"\n  labels:\n    teleport.dev/origin: config-file\n  name: static-token\nspec:\n  join_method: token\n  roles:\n  - Node\nversion: v2\n",
 	}
 
 	tt := []struct {
@@ -160,7 +163,6 @@ func TestGetTokens(t *testing.T) {
 				},
 			},
 			expected: []ui.JoinToken{
-				staticUIToken,
 				{
 					ID:       "test-token",
 					SafeName: "**********",
@@ -194,9 +196,11 @@ func TestGetTokens(t *testing.T) {
 					},
 					Method: types.JoinMethodToken,
 				},
+				staticUIToken,
 			},
 		},
 	}
+
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			env := newWebPack(t, 1)
@@ -250,7 +254,7 @@ func TestGetTokens(t *testing.T) {
 			resp := GetTokensResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.Len(t, resp.Items, len(tc.expected))
-			require.ElementsMatch(t, resp.Items, tc.expected)
+			require.Empty(t, cmp.Diff(resp.Items, tc.expected, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 		})
 	}
 }
@@ -269,6 +273,7 @@ func TestDeleteToken(t *testing.T) {
 		Expiry:   time.Unix(0, 0).UTC(),
 		IsStatic: true,
 		Method:   types.JoinMethodToken,
+		Content:  "kind: token\nmetadata:\n  expires: \"1970-01-01T00:00:00Z\"\n  labels:\n    teleport.dev/origin: config-file\n  name: static-token\nspec:\n  join_method: token\n  roles:\n  - Node\nversion: v2\n",
 	}
 
 	// create join token
@@ -319,9 +324,7 @@ func TestDeleteToken(t *testing.T) {
 	resp = GetTokensResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1 /* only static again */)
-	require.ElementsMatch(t, resp.Items, []ui.JoinToken{
-		staticUIToken,
-	})
+	require.Empty(t, cmp.Diff(resp.Items, []ui.JoinToken{staticUIToken}, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 }
 
 func TestGenerateAzureTokenName(t *testing.T) {
