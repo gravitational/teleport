@@ -206,6 +206,18 @@ function createService(logger: Logger): {
   const service: apiService.ITshdEventsService = {
     relogin: (call, callback) => processEvent('relogin', call, callback),
 
+    promptHardwareKeyPINAsk: (call, callback) =>
+      processEvent('promptHardwareKeyPINAsk', call, callback),
+
+    promptHardwareKeyTouch: (call, callback) =>
+      processEvent('promptHardwareKeyTouch', call, callback),
+
+    promptHardwareKeyPINChange: (call, callback) =>
+      processEvent('promptHardwareKeyPINChange', call, callback),
+
+    promptHardwareKeySlotOverwrite: (call, callback) =>
+      processEvent('promptHardwareKeySlotOverwrite', call, callback),
+
     sendNotification: (call, callback) =>
       processEvent('sendNotification', call, callback),
 
