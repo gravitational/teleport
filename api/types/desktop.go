@@ -142,10 +142,8 @@ type DynamicWindowsDesktop interface {
 	// to this host. Returns (0, 0) if no screen size is set, which means to
 	// use the size passed by the client over TDP.
 	GetScreenSize() (width, height uint32)
-	// Copy returns a copy of this windows desktop
+	// Copy returns a copy of this dynamic Windows desktop
 	Copy() *DynamicWindowsDesktopV1
-	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
-	CloneResource() ResourceWithLabels
 }
 
 var _ DynamicWindowsDesktop = &DynamicWindowsDesktopV1{}
@@ -178,23 +176,13 @@ func (d *DynamicWindowsDesktopV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("DynamicWindowsDesktopV1.Spec missing Addr field")
 	}
 
-	// We use SNI to identify the desktop to route a connection to,
-	// and '.' will add an extra subdomain, preventing Teleport from
-	// correctly establishing TLS connections.
-	if name := d.GetName(); strings.Contains(name, ".") {
-		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
+	if err := checkNameAndScreenSize(d.GetName(), d.Spec.ScreenSize); err != nil {
+		return trace.Wrap(err)
 	}
 
 	d.setStaticFields()
 	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if d.Spec.ScreenSize != nil {
-		if d.Spec.ScreenSize.Width > MaxRDPScreenWidth || d.Spec.ScreenSize.Height > MaxRDPScreenHeight {
-			return trace.BadParameter("invalid screen size %dx%d (maximum %dx%d)",
-				d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
-		}
 	}
 
 	return nil
@@ -229,16 +217,12 @@ func (d *DynamicWindowsDesktopV1) MatchSearch(values []string) bool {
 	return MatchSearch(fieldVals, values, nil)
 }
 
-// Copy returns a copy of this windows desktop object.
+// Copy returns a deep copy of this dynamic Windows desktop object.
 func (d *DynamicWindowsDesktopV1) Copy() *DynamicWindowsDesktopV1 {
 	return utils.CloneProtoMsg(d)
 }
 
-func (d *DynamicWindowsDesktopV1) CloneResource() ResourceWithLabels {
-	return d.Copy()
-}
-
-// IsEqual determines if two windows desktop resources are equivalent to one another.
+// IsEqual determines if two dynamic Windows desktop resources are equivalent to one another.
 func (d *DynamicWindowsDesktopV1) IsEqual(i DynamicWindowsDesktop) bool {
 	if other, ok := i.(*DynamicWindowsDesktopV1); ok {
 		return deriveTeleportEqualDynamicWindowsDesktopV1(d, other)
@@ -364,23 +348,13 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("WindowsDesktopV3.Spec missing Addr field")
 	}
 
-	// We use SNI to identify the desktop to route a connection to,
-	// and '.' will add an extra subdomain, preventing Teleport from
-	// correctly establishing TLS connections.
-	if name := d.GetName(); strings.Contains(name, ".") {
-		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
+	if err := checkNameAndScreenSize(d.GetName(), d.Spec.ScreenSize); err != nil {
+		return trace.Wrap(err)
 	}
 
 	d.setStaticFields()
 	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if d.Spec.ScreenSize != nil {
-		if d.Spec.ScreenSize.Width > MaxRDPScreenWidth || d.Spec.ScreenSize.Height > MaxRDPScreenHeight {
-			return trace.BadParameter("invalid screen size %dx%d (maximum %dx%d)",
-				d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
-		}
 	}
 
 	return nil
@@ -553,4 +527,21 @@ type ListWindowsDesktopServicesRequest struct {
 	StartKey, PredicateExpression string
 	Labels                        map[string]string
 	SearchKeywords                []string
+}
+
+func checkNameAndScreenSize(name string, screenSize *Resolution) error {
+	// We use SNI to identify the desktop to route a connection to,
+	// and '.' will add an extra subdomain, preventing Teleport from
+	// correctly establishing TLS connections.
+	if strings.Contains(name, ".") {
+		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
+	}
+
+	if screenSize != nil {
+		if screenSize.Width > MaxRDPScreenWidth || screenSize.Height > MaxRDPScreenHeight {
+			return trace.BadParameter("invalid screen size %dx%d (maximum %dx%d)",
+				screenSize.Width, screenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
+		}
+	}
+	return nil
 }
