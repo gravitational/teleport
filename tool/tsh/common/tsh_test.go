@@ -1388,7 +1388,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			webauthnLogin: successfulChallenge("localhost"),
 			target:        "env=prod",
 			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, "error\n", i, i2...)
+				require.Contains(t, i, "error\n", i2...)
 			},
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
@@ -1483,7 +1483,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, "error\n", i, i2...)
+				require.Contains(t, i, "error\n", i2...)
 			},
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
@@ -1570,7 +1570,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			roles:         []string{perSessionMFARole.GetName()},
 			webauthnLogin: successfulChallenge("leafcluster"),
 			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, "error\n", i, i2...)
+				require.Contains(t, i, "error\n", i2...)
 			},
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
@@ -1618,7 +1618,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			roles:         []string{perSessionMFARole.GetName()},
 			webauthnLogin: successfulChallenge("localhost"),
 			stderrAssertion: func(tt require.TestingT, i interface{}, i2 ...interface{}) {
-				require.Equal(t, "error\n", i, i2...)
+				require.Contains(t, i, "error\n", i2...)
 			},
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
