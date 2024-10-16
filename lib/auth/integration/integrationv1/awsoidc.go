@@ -315,7 +315,7 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		return nil, trace.Wrap(err)
 	}
 
-	listDBsResp, err := awsoidc.ListDatabases(ctx, listDBsClient, awsoidc.ListDatabasesRequest{
+	listDBsResp, err := awsoidc.ListDatabases(ctx, listDBsClient, s.logger, awsoidc.ListDatabasesRequest{
 		Region:    req.Region,
 		RDSType:   req.RdsType,
 		Engines:   req.Engines,
