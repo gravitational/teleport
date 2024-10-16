@@ -3,18 +3,12 @@ title: Introduction to Workload Identity
 description: Describes Teleport Workload Identity, which issues flexible, short-lived identities to secure workload-to-workload communications.
 ---
 
-<Admonition type="tip" title="Preview">
-Teleport Workload Identity is currently in Preview. This means that some
-features may be missing. We're actively looking for design partners to help us
-shape the future of Workload Identity and would love to
-[hear your feedback](mailto:product@goteleport.com).
-</Admonition>
+(!/docs/pages/includes/workload-id-preview.mdx!)
 
-Teleport's Workload Identity issues flexible short-lived identities intended
-for workloads. The term workload refers generally to pieces of software running
-within your system. These identities can be used to secure workload to workload
-communication (e.g mTLS) or to allow these workloads to access third party
-systems.
+Teleport's Workload Identity securely issues flexible short-lived
+cryptographic to workloads. These identities can be used for a range of purposes
+from securing communication between services to authenticating to cloud
+providers.
 
 It is compatible with the industry-standard
 [Secure Production Identity Framework For Everyone (SPIFFE) Specification](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE.md)
