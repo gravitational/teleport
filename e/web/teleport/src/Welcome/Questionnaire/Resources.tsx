@@ -1,6 +1,5 @@
-import { Flex, LabelInput, Text } from 'design';
+import { Flex, LabelInput, ResourceIcon, Text } from 'design';
 import React from 'react';
-import Image from 'design/Image';
 import { CheckboxInput } from 'design/Checkbox';
 import { useRule } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
@@ -61,8 +60,8 @@ export const Resources = ({ checked, updateFields }: ResourcesProps) => {
             height="100%"
             gap={2}
           >
-            <Image
-              src={GetResourceIcon(resource.label)}
+            <ResourceIcon
+              name={GetResourceIcon(resource.label)}
               height="64px"
               width="64px"
             />

@@ -1,7 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
-
 import { ResourceIcon } from 'design/ResourceIcon';
+
+import { SpaceProps } from 'design/system';
 
 import { pluginMap } from '../PluginEnroll/plugins';
 
@@ -13,10 +14,9 @@ export function PluginIcon({ size, type, ...props }: Props) {
   return <Icon {...props} size={size} name={name} />;
 }
 
-interface Props {
+interface Props extends SpaceProps {
   size?: number;
   type: string;
-  [x: string]: any;
 }
 
 const Icon = styled(ResourceIcon)<{ size: number }>`

@@ -1,6 +1,5 @@
 import React from 'react';
-import { Flex, Text } from 'design';
-import { OktaIcon } from 'design/SVGIcon';
+import { Flex, ResourceIcon, Text } from 'design';
 
 export const OktaBadge = () => {
   return (
@@ -16,7 +15,7 @@ export const OktaBadge = () => {
         color: ${p => p.theme.colors.text.slightlyMuted};
       `}
     >
-      <OktaIcon />
+      <ResourceIcon name="okta" height="16px" />
       <Text typography="body3">Okta</Text>
     </Flex>
   );

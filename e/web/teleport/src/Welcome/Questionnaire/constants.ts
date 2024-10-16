@@ -1,12 +1,8 @@
-import application from 'design/assets/resources/appplication.png';
-import desktop from 'design/assets/resources/desktop.png';
-import database from 'design/assets/resources/database.png';
-import kubernetes from 'design/assets/resources/kubernetes.png';
-import stack from 'design/assets/resources/stack.png';
 import { Option } from 'shared/components/Select';
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
+import { ResourceIconName } from 'design/ResourceIcon';
 
 import {
   EmployeeOption,
@@ -48,20 +44,20 @@ export const ResourceOptions: Option<string, ResourceOption>[] = Object.keys(
   label: ResourceOption[key],
 }));
 
-export const GetResourceIcon = (key: ResourceOption) => {
+export const GetResourceIcon = (key: ResourceOption): ResourceIconName => {
   switch (key) {
     case ResourceOption.RESOURCE_WEB_APPLICATIONS:
-      return application;
+      return 'application';
     case ResourceOption.RESOURCE_WINDOWS_DESKTOPS:
-      return desktop;
+      return 'windows';
     case ResourceOption.RESOURCE_SERVER_SSH:
-      return stack;
+      return 'server';
     case ResourceOption.RESOURCE_DATABASES:
-      return database;
+      return 'database';
     case ResourceOption.RESOURCE_KUBERNETES:
-      return kubernetes;
+      return 'kubeserver';
     default:
-      return assertUnreachable(key);
+      key satisfies never;
   }
 };
 

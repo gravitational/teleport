@@ -56,13 +56,7 @@ function renderItem(
       onClick={isItemLocked ? null : onBtnClick}
     >
       <Flex width="100%">
-        <SsoIcon
-          fontSize="50px"
-          style={{
-            left: 0,
-            fontSize: '72px',
-          }}
-        />
+        <SsoIcon />
       </Flex>
 
       <H2 mt={4}>{desc}</H2>
