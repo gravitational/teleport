@@ -465,7 +465,9 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	// Incident creation may happen before plugins Access Monitoring Rule cache
 	// has been updated with new rule. Retry until the new cache picks up the rule.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.Equal(t, lastRuleUpdated, ruleName)
+		mu.Lock()
+		require.Contains(t, collectedNames, ruleName)
+		mu.UnLock()
 	}, 3*time.Second, time.Millisecond*100, "new access monitoring rule did not begin applying")
 
 	// Test execution: create an access request
