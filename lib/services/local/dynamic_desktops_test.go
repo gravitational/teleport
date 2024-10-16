@@ -223,5 +223,5 @@ func TestDynamicWindowsService_DeleteAllDynamicDesktop(t *testing.T) {
 	require.NoError(t, err)
 	desktops, _, err = service.ListDynamicWindowsDesktops(ctx, 5, "")
 	require.NoError(t, err)
-	require.Len(t, desktops, 0)
+	require.Empty(t, desktops)
 }
