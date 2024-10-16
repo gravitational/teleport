@@ -1381,6 +1381,8 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 	// get normal MFA devices and SSO mfa device concurrently, returning the first error we get.
 	errC := make(chan error)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	var devices []*types.MFADevice
 	go func() {
@@ -1402,11 +1404,14 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 
 	var errs []error
 	for i := 0; i < 2; i++ {
-		errs = append(errs, <-errC)
+		if err := <-errC; err != nil {
+			errs = append(errs, err)
+			cancel()
+		}
 	}
 
-	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, trace.Wrap(err)
+	if len(errs) != 0 {
+		return nil, trace.NewAggregate(errs...)
 	}
 
 	if ssoDev != nil {
