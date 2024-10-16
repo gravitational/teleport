@@ -22,7 +22,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export { Icon } from './Icon';
+export { Icon, type IconProps } from './Icon';
 
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';

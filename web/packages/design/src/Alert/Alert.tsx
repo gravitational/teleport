@@ -20,13 +20,14 @@ import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { style, color, ColorProps } from 'styled-system';
 
-import { space, SpaceProps, width, WidthProps } from 'design/system';
-import { Theme } from 'design/theme/themes/types';
-import * as Icon from 'design/Icon';
-import Flex from 'design/Flex';
-import { Text, Button, Box, ButtonIcon } from 'design';
-import { IconProps } from 'design/Icon/Icon';
-import { ButtonFill, ButtonIntent } from 'design/Button';
+import { space, SpaceProps, width, WidthProps } from '../system';
+import { Theme } from '../theme';
+import * as Icon from '../Icon';
+import Flex from '../Flex';
+import Text from '../Text';
+import Box from '../Box';
+import { ButtonFill, ButtonIntent, Button } from '../Button';
+import ButtonIcon from '../ButtonIcon';
 
 const linkColor = style({
   prop: 'linkColor',
@@ -112,7 +113,7 @@ interface Props<K> {
   /** Additional description to be displayed below the main content. */
   details?: React.ReactNode;
   /** Overrides the icon specified by {@link AlertProps.kind}. */
-  icon?: React.ComponentType<IconProps>;
+  icon?: React.ComponentType<Icon.IconProps>;
   /** If specified, causes the alert to display a primary action button. */
   primaryAction?: Action;
   /** If specified, causes the alert to display a secondary action button. */
@@ -222,10 +223,9 @@ const OuterContainer = styled.div<AlertProps>`
 
   ${space}
   ${width}
-  ${alertBorder}
-  ${color}
-
-  a {
+    ${alertBorder}
+    ${color}
+    a {
     color: ${({ theme }) => theme.colors.light};
     ${linkColor}
   }
@@ -248,8 +248,8 @@ const AlertIcon = ({
   ...otherProps
 }: {
   kind: AlertKind | BannerKind;
-  customIcon: React.ComponentType<IconProps>;
-} & IconProps) => {
+  customIcon: React.ComponentType<Icon.IconProps>;
+} & Icon.IconProps) => {
   const commonProps = { role: 'graphics-symbol', ...otherProps };
   if (CustomIcon) {
     return <CustomIcon {...commonProps} />;

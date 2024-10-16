@@ -16,14 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Box needs to be imported before Alert.
-// Otherwise, when a CSS prop was added to the Box component in the Alert component,
-// tests were failing with an error:
-// TypeError: Cannot read properties of undefined (reading 'default')
-// at Object.get (web/packages/design/src/index.ts:78:17)
-// This is strange, maybe something is misconfigured between jest and styled-components?
-import Box from './Box';
 import { Alert, Banner } from './Alert';
+import Box from './Box';
 import {
   Button,
   ButtonPrimary,
