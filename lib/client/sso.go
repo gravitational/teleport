@@ -69,14 +69,14 @@ func (tc *TeleportClient) ssoLoginInitFn(priv *keys.PrivateKey, connectorID, con
 
 		// initiate SSO login through the Proxy.
 		req := SSOLoginConsoleReq{
-			RedirectURL: clientCallbackURL,
-			PublicKey: sshLogin.PubKey,
+			RedirectURL:          clientCallbackURL,
+			PublicKey:            sshLogin.PubKey,
 			AttestationStatement: sshLogin.AttestationStatement,
-			CertTTL:           sshLogin.TTL,
-			ConnectorID:       connectorID,
-			Compatibility:     sshLogin.Compatibility,
-			RouteToCluster:    sshLogin.RouteToCluster,
-			KubernetesCluster: sshLogin.KubernetesCluster,
+			CertTTL:              sshLogin.TTL,
+			ConnectorID:          connectorID,
+			Compatibility:        sshLogin.Compatibility,
+			RouteToCluster:       sshLogin.RouteToCluster,
+			KubernetesCluster:    sshLogin.KubernetesCluster,
 		}
 
 		clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
