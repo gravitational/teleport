@@ -3,8 +3,9 @@ package cache
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // mappedCollection is an extension of `genericCollection` that allows the

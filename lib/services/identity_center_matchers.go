@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func AppendIdentityCenterMatchers(matchers []RoleMatcher, resource types.ResourceWithLabels) ([]RoleMatcher, error) {

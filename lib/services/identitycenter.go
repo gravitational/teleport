@@ -5,11 +5,12 @@ import (
 	"maps"
 	"slices"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/pagination"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // IdentityCenterAccount wraps a raw identity center record in a new type to

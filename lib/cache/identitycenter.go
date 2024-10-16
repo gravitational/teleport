@@ -3,11 +3,12 @@ package cache
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
-	"github.com/gravitational/trace"
 )
 
 type identityCenterAccountGetter interface {
