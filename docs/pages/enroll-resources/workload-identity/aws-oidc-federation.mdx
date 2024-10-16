@@ -63,6 +63,11 @@ This guide covers configuring OIDC federation, for Roles Anywhere, see
 workloads which need to access Teleport Workload Identity will run. For more
 information, see the [deployment guides](../machine-id/deployment.mdx).
 
+<Notice type="warning">
+Issuing JWT SVIDs with Teleport Workload Identity requires at minimum version
+16.4.3.
+</Notice>
+
 ### Deciding on a SPIFFE ID structure
 
 Within Teleport Workload Identity, all identities are represented using a
@@ -115,34 +120,68 @@ $ curl https://example.teleport.sh/webapi/thumbprint
 
 ```hcl
 resource "aws_iam_openid_connect_provider" "leaf_tele_ottr_sh_workload_identity" {
-    // Replace "example.teleport.sh" with the hostname used to access your
-    // Teleport Proxy Service.
-    url = "https://example.teleport.sh/workload-identity"
+  // Replace "example.teleport.sh" with the hostname used to access your
+  // Teleport Proxy Service.
+  url = "https://example.teleport.sh/workload-identity"
 
-    client_id_list = [
-        "sts.amazonaws.com",
-    ]
+  client_id_list = [
+    "sts.amazonaws.com",
+  ]
 
-    thumbprint_list = [
-        // Replace with the thumbprint you determined using curl.
-        "example589ee4bf31a11b78c72b8d13f0example"
-    ]
+  thumbprint_list = [
+    // Replace with the thumbprint you determined using curl.
+    "example589ee4bf31a11b78c72b8d13f0example"
+  ]
 }
 ```
 
 </TabItem>
 <TabItem label="AWS Console">
 
+1. Browse to IAM
+2. Select "Identity Providers" from the sidebar
+3. Select "Add provider"
+4. Select "OpenID Connect" as the "Provider type".
+5. Specify the public hostname of your Teleport Proxy Service, with
+  "/workload-identity" appended as the "Provider URL", e.g
+  `https://example.teleport.sh/workload-identity`
+6. Specify `sts.amazonaws.com` as the Audience
+7. Click "Add Provider".
 
 </TabItem>
-
 </Tabs>
 
-### Create an S3 bucket and RBAC
+### Create an S3 bucket
 
 For the purposes of this guide, you'll be granting the workload access to an
-AWS S3 bucket. You can substitute this step to grant access to a different
-service within AWS of your choice.
+AWS S3 bucket. Before we can dive into configuring the RBAC, we'll need to
+create our bucket.
+
+You can omit this step if you wish to grant access to a different service
+within AWS.
+
+<Tabs>
+<TabItem label="Terraform">
+```hcl
+// Create an S3 bucket
+resource "aws_s3_bucket" "example" {
+  // Replace "example" with a meaningful, unique name.
+  bucket = "workload-id-demo"
+}
+```
+</TabItem>
+<TabItem label="AWS Console">
+
+1. Browse to S3
+2. Select "Create bucket"
+3. Enter a meaningful, unique name for your bucket, e.g `workload-id-demo`
+4. Leave other settings as default
+5. Click "Create bucket".
+
+</TabItem>
+</Tabs>
+
+### Configuring RBAC
 
 First, you'll create an IAM role. This role will be assumed by the workload
 after it authenticates to AWS using the JWT SVID issued by Teleport Workload
@@ -151,7 +190,8 @@ Identity.
 When creating the IAM role, you'll define a trust policy that controls which
 workload identities are able to assume the role. This policy will contain
 conditions which will be evaluated against the claims within the JWT SVID
-issued by Teleport Workload Identity.
+issued by Teleport Workload Identity. In our case, the only claim we want to 
+evaluate is the `sub` claim, which will contain our workload's SPIFFE ID.
 
 With the IAM role created, you will then attach an IAM policy to it to define
 what privileges the workload will have when it assumes the role.
@@ -160,54 +200,48 @@ what privileges the workload will have when it assumes the role.
 <TabItem label="Terraform">
 
 ```hcl
-// Create an S3 bucket
-resource "aws_s3_bucket" "example" {
-    // Replace "example" with a meaningful, unique name.
-    bucket = "workload-id-demo"
-}
-
 // Create a role that the workload identity will assume.
 resource "aws_iam_role" "example" {
-    // Choose a unique, meaningful name that describes the role and the workload
-    // that will assume it.
-    name = "workload-id-demo"
-    assume_role_policy = jsonencode({
-        Version = "2012-10-17"
-        Statement = [{
-            Effect = "Allow"
-            Principal = {
-                Federated = aws_iam_openid_connect_provider.example.arn
-            }
-            Action = "sts:AssumeRoleWithWebIdentity"
-            Condition = {
-                StringEquals = {
-                    "${aws_iam_openid_connect_provider.example.url}:aud" = "sts.amazonaws.com"
-                    "${aws_iam_openid_connect_provider.example.url}:sub" = "spiffe://example.teleport.sh/svc/example-service"
-                }
-            }
-        }]
-    })
+  // Choose a unique, meaningful name that describes the role and the workload
+  // that will assume it.
+  name = "workload-id-demo"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = aws_iam_openid_connect_provider.example.arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${aws_iam_openid_connect_provider.example.url}:aud" = "sts.amazonaws.com"
+          "${aws_iam_openid_connect_provider.example.url}:sub" = "spiffe://example.teleport.sh/svc/example-service"
+        }
+      }
+    }]
+  })
 }
 
 resource "aws_iam_policy" "example" {
-    // Choose a unique, meaningful name that describes what the policy grants
-    // access to.
-    name        = "workload-id-s3-full-access"
-    path        = "/"
+  // Choose a unique, meaningful name that describes what the policy grants
+  // access to.
+  name        = "workload-id-s3-full-access"
+  path        = "/"
 
-    // This example policy grants full access to AWS S3. In production, you
-    // may wish to grant a less permissive policy.
-    policy = jsonencode({
-        Version = "2012-10-17"
-        Statement = [{
-            Action = "s3:*"
-            Effect = "Allow"
-            Resource = [
-                aws_s3_bucket.workload_id_demo.arn,
-                "${aws_s3_bucket.workload_id_demo.arn}/*"
-            ]
-        }]
-    })
+  // This example policy grants full access to AWS S3. In production, you
+  // may wish to grant a less permissive policy.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "s3:*"
+      Effect = "Allow"
+      Resource = [
+        aws_s3_bucket.workload_id_demo.arn,
+        "${aws_s3_bucket.workload_id_demo.arn}/*"
+      ]
+    }]
+  })
 }
 
 // Attach the policy to the role
@@ -219,6 +253,41 @@ resource "aws_iam_role_policy_attachment" "example" {
 
 </TabItem>
 <TabItem label="AWS Console">
+
+### Creating an IAM Policy
+
+1. Browse to IAM
+2. Select "Policies" from the sidebar
+3. Click "Create policy"
+4. Choose the "S3" service
+5. Under "Actions allowed", choose "All S3 actions"
+6. Under "Resources", choose "Specific"
+  6a. For "bucket" enter the name of the bucket you created earlier.
+  6b. For "object" enter the name of the bucket you created earlier and select
+    "All objects"
+7. Click "Next"
+8. Enter a unique and meaningful name for this policy, in our example, this will
+  be `workload-id-s3-full-access`
+9. Click "Create policy"
+
+### Creating an IAM Role
+
+1. Browse to IAM
+2. Select "Roles" from the sidebar
+3. Click "Create role"
+4. Select "Web identity" for the "Trusted entity type"
+5. Select your identity provider
+6. Select the `sts.amazonaws.com` audience
+7. Click "Add condition"
+  7a. Select `example.teleport.sh:sub` for the key
+  7b. Select "StringEquals" for the condition
+  7c. Enter the SPIFFE ID of your workload for the value. In our example, this 
+    will be `spiffe://example.teleport.sh/svc/example
+8. Click "Next"
+9. Select the IAM policy you created earlier, and click "Next"
+10. Enter a unique and meaningful name for this role, in our example, this will
+  be `workload-id-demo`
+11. Click "Create role"
 
 </TabItem>
 </Tabs>
