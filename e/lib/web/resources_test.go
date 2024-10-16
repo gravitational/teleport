@@ -32,13 +32,14 @@ spec:
     - admin
     value: teleport-user
   client_id: client-id
-  client_secret: ""
+  client_secret: client-secret
   issuer_url: ""
   redirect_url: https://proxy.example.com/v1/webapi/oidc/callback
 version: v3
 `
 	oidcConn, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{
-		ClientID: "client-id",
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "roles",
@@ -118,7 +119,8 @@ func TestGetAuthConnectors(t *testing.T) {
 	}
 	m.mockGetOIDCConnectors = func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
 		connector, err := types.NewOIDCConnector("oidcName", types.OIDCConnectorSpecV3{
-			ClientID: "client-id",
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
 			ClaimsToRoles: []types.ClaimMapping{
 				{
 					Claim: "roles",
