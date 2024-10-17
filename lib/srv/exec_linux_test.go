@@ -32,12 +32,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 func TestOSCommandPrep(t *testing.T) {
+	utils.RequireRoot(t)
+
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
@@ -118,10 +122,6 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, "/bin/sh", cmd.Path)
 	require.Equal(t, []string{"/bin/sh", "-c", "top"}, cmd.Args)
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
-
-	if os.Geteuid() != 0 {
-		t.Skip("skipping portion of test which must run as root")
-	}
 
 	// Missing home directory - HOME should still be set to the given
 	// home dir, but the command should set it's CWD to root instead.

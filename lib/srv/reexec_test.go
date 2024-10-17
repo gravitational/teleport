@@ -411,7 +411,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	require.Equal(t, fakeXauthEntry, readXauthEntry)
 }
 
-func TestRootCheckHomeDirAccess(t *testing.T) {
+func TestRootCheckHomeDir(t *testing.T) {
 	utils.RequireRoot(t)
 
 	tmp := t.TempDir()
@@ -448,22 +448,22 @@ func TestRootCheckHomeDirAccess(t *testing.T) {
 	require.NoError(t, os.Chown(home, uid, gid))
 	require.NoError(t, os.Chown(file, uid, gid))
 
-	hasAccess, err := CheckHomeDirAccess(testUser)
+	hasAccess, err := CheckHomeDir(testUser)
 	require.NoError(t, err)
 	require.True(t, hasAccess)
 
 	changeHomeDir(t, login, file)
-	hasAccess, err = CheckHomeDirAccess(testUser)
+	hasAccess, err = CheckHomeDir(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 
 	changeHomeDir(t, login, notFound)
-	hasAccess, err = CheckHomeDirAccess(testUser)
+	hasAccess, err = CheckHomeDir(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 
 	changeHomeDir(t, login, noAccess)
-	hasAccess, err = CheckHomeDirAccess(testUser)
+	hasAccess, err = CheckHomeDir(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 

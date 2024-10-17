@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -539,6 +540,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
 
+	log := slog.New(slog.NewJSONHandler(errorWriter, nil))
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
@@ -612,14 +614,14 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	homeDir := string(os.PathSeparator)
 	// Create a minimal default environment for the user.
-	hasAccess, err := CheckHomeDirAccess(localUser)
+	homeDir := string(os.PathSeparator)
+	hasAccess, err := CheckHomeDir(localUser)
 	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to confirm access to home directory")
+		log.ErrorContext(context.Background(), "user does not have access to home dir", "error", err, "home", localUser.HomeDir, "username", c.Login)
 	}
 
-	if hasAccess {
+	if hasAccess && err == nil {
 		homeDir = localUser.HomeDir
 	}
 
@@ -639,7 +641,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 
 	// Ensure that the working directory is one that the local user has access to.
 	if err := os.Chdir(homeDir); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.WrapWithMessage(err, "failed to set working directory for networking process: %s", homeDir)
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", homeDir)
 	}
 
 	// Build request listener from first extra file that was passed to command.
@@ -872,7 +874,7 @@ func getConnFile(conn net.Conn) (*os.File, error) {
 	}
 }
 
-// runCheckHomeDir check's if the active user's $HOME dir exists and is accessible.
+// runCheckHomeDir checks if the active user's $HOME dir exists and is accessible.
 func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	code = teleport.RemoteCommandSuccess
 	if err := hasAccessibleHomeDir(); err != nil {
@@ -1060,7 +1062,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	hasAccess, err := CheckHomeDirAccess(localUser)
+	hasAccess, err := CheckHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1254,7 +1256,8 @@ func hasAccessibleHomeDir() error {
 	return nil
 }
 
-func CheckHomeDirAccess(localUser *user.User) (bool, error) {
+// CheckHomeDir checks if the user's home directory exists and is accessible to the user.
+func CheckHomeDir(localUser *user.User) (bool, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1264,7 +1267,7 @@ func CheckHomeDirAccess(localUser *user.User) (bool, error) {
 	if currentUser.Uid == localUser.Uid {
 		if err := hasAccessibleHomeDir(); err != nil {
 			if trace.IsNotFound(err) || trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
-				return false, nil
+				return false, err
 			}
 
 			return false, trace.Wrap(err)
@@ -1307,22 +1310,6 @@ func CheckHomeDirAccess(localUser *user.User) (bool, error) {
 	}
 
 	return true, nil
-}
-
-// CheckHomeDir checks if the user's home dir exists. This function will short circuit in the case
-// that the current user (e.g. root) is able to confirm the home directory exists, which is not
-// the same as confirming access to that directory by calling CheckHomeDirAccess alone. This
-// preserves the original semantics from before we started confirming access.
-func CheckHomeDir(localUser *user.User) (bool, error) {
-	if fi, err := os.Stat(localUser.HomeDir); err == nil {
-		return fi.IsDir(), nil
-	}
-
-	// In some environments, the user's home directory exists but isn't visible to
-	// root, e.g. /home is mounted to an nfs export with root_squash enabled.
-	// In case we are in that scenario, re-exec teleport as the user to check
-	// if the home dir actually does exist.
-	return CheckHomeDirAccess(localUser)
 }
 
 // Spawns a process with the given credentials, outliving the context.
