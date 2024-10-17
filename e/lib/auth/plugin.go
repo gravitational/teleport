@@ -88,6 +88,11 @@ type Config struct {
 
 	// AccessGraph holds the configuration for the Access Graph feature.
 	AccessGraph servicecfg.AccessGraphConfig
+
+	// HTTPTransport is the transport to use for HTTP requests.
+	// Useful during testing to inject custom transport to plugin
+	// and test the third-party integrations.
+	HTTPTransport http.RoundTripper
 }
 
 // NewPlugin creates an instance of the Enterprise Web Plugin
@@ -247,7 +252,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 
 	// Create plugins service
-	p.plugins, err = p.registerPluginsService(p.authServer, p.pluginCreds)
+	var pluginService *pluginsv1.Service
+	p.plugins, pluginService, err = p.registerPluginsService(p.authServer, p.pluginCreds)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -358,9 +364,13 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 
 	oktaSvc, err := oktaservice.NewService(oktaservice.ServiceConfig{
-		Backend:    p.authServer.GetBackend(),
-		Authorizer: p.authServer.Authorizer,
-		JWTSigner:  p.authServer.APIConfig.AuthServer.GetKeyStore(),
+		Backend:       p.authServer.GetBackend(),
+		Authorizer:    p.authServer.Authorizer,
+		JWTSigner:     p.authServer.APIConfig.AuthServer.GetKeyStore(),
+		RoundTripper:  p.Config.HTTPTransport,
+		AuthCache:     p.authServer.AuthServer.Cache,
+		AuthService:   p.authServer.AuthServer,
+		PluginService: pluginService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -601,15 +611,15 @@ func (p *Plugin) registerExternalAuditStorageService(ctx context.Context) error 
 	return nil
 }
 
-func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCredentialsService services.PluginStaticCredentials) (services.Plugins, error) {
+func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCredentialsService services.PluginStaticCredentials) (services.Plugins, *pluginsv1.Service, error) {
 	cfg := p.Config.HostedPlugins
 	if !cfg.Enabled {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	grpcServer, err := server.GetServer()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
@@ -623,13 +633,13 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer, pluginStaticCre
 		Logger:                         p.logger,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	pluginspb.RegisterPluginServiceServer(grpcServer, service)
 	modules.GetModules().EnablePlugins()
 
-	return p.plugins, nil
+	return p.plugins, service, nil
 }
 
 func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer, cfg resourceusagev1.ServiceConfig) error {

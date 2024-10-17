@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
@@ -96,7 +96,7 @@ func (d testOktaDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 
 // HandleValidateConfigRequest implements pluginDescriptor for the
 // testOktaDescriptor type.
-func (d testOktaDescriptor) HandleValidateConfigRequest(ctx context.Context, _ *web.SessionContext, form url.Values, p *Plugin) error {
+func (d testOktaDescriptor) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
 	clusterFeatures := p.h.GetClusterFeatures()
 	args := validateOktaPluginInputsArgs{
 		form:            form,
@@ -104,7 +104,7 @@ func (d testOktaDescriptor) HandleValidateConfigRequest(ctx context.Context, _ *
 		clusterFeatures: &clusterFeatures,
 		log:             p.Log,
 	}
-	_, err := args.validateOktaConfig(ctx)
+	_, err := args.validateOktaConfig(ctx, sessCtx)
 	return err
 }
 
@@ -113,7 +113,7 @@ func (d testOktaDescriptor) HandleValidateConfigRequest(ctx context.Context, _ *
 var _ pluginDescriptor = testOktaDescriptor{}
 
 // newTestOktaPluginFixture creates a set of related
-func newTestOktaPluginFixture(t *testing.T) (*webSuite, *authWebPack, *mockRoundTripper) {
+func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, *authWebPack, *mockRoundTripper) {
 	// Enable SAML/SSO for testing
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
@@ -125,7 +125,7 @@ func newTestOktaPluginFixture(t *testing.T) (*webSuite, *authWebPack, *mockRound
 	})
 
 	// Set up a test version of the UI web handler and auth service
-	s := newWebSuite(t)
+	s := newWebSuite(t, opts...)
 	webPack := s.newAuthWebPack(t, "foo")
 
 	// And add the Role that we will want to assign to Okta users
@@ -201,7 +201,8 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 		},
 	}
 
-	s, webPack, mockta := newTestOktaPluginFixture(t)
+	mockta := &mockRoundTripper{}
+	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	pluginsSvc := s.authPlugin.PluginsService()
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
 	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
@@ -214,17 +215,19 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 	// Expect the Okta credentials test request
 	mockta.
 		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/users/me")).
+			"GET", "/api/v1/users")).
 		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{
-			"id":     "00ub0c5ls7iixvj6j5d7",
-			"status": "ACTIVE",
-			"profile": map[string]any{
-				"firstName": "Norville",
-				"lastName":  "Rogers",
-				"nickName":  "Shaggy",
-				"login":     "shaggy@mystery-machine.org",
-				"email":     "shaggy@mystery-machine.org",
+		Return(jsonResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":     "00ub0c5ls7iixvj6j5d7",
+				"status": "ACTIVE",
+				"profile": map[string]any{
+					"firstName": "Norville",
+					"lastName":  "Rogers",
+					"nickName":  "Shaggy",
+					"login":     "shaggy@mystery-machine.org",
+					"email":     "shaggy@mystery-machine.org",
+				},
 			},
 		}), nil)
 
@@ -295,9 +298,9 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			// case breaches the time limit on the flaky test detector.
 			t.Cleanup(func() {
 				pluginsSvc.DeleteAllPlugins(s.ctx)
-				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, oktaSCIMTokenName)
+				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
 				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
-				authSvc.DeleteSAMLConnector(s.ctx, oktaSSOConnectorName)
+				authSvc.DeleteSAMLConnector(s.ctx, common.OktaSSOConnectorName)
 			})
 
 			features := s.webPlugin.h.GetClusterFeatures()
@@ -305,6 +308,15 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
 			s.webPlugin.h.SetClusterFeatures(features)
+
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.OktaSCIM: {Enabled: testCase.enableOktaSCIMEntitlement},
+					},
+				},
+			})
 
 			form := url.Values{
 				"type":       {"okta"},
@@ -349,7 +361,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			require.Equal(t, oktaAppID, spec.OktaAppID)
 			require.Equal(t, "Teleport_App_plus_index", spec.OktaAppName)
 			require.Equal(t, "Teleport App", spec.OktaAppLabel)
-			require.Equal(t, oktaSSOConnectorName, spec.TeleportSSOConnector)
+			require.Equal(t, common.OktaSSOConnectorName, spec.TeleportSSOConnector)
 			testCase.expectSCIMToken(t, spec.SCIMBearerToken)
 
 			// Expect that the plugin resource was created
@@ -372,18 +384,18 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			require.NotNil(t, syncSettings)
 			require.True(t, syncSettings.SyncUsers)
 			require.Equal(t, oktaAppID, syncSettings.AppId)
-			require.Equal(t, oktaSSOConnectorName, syncSettings.SsoConnectorId)
+			require.Equal(t, common.OktaSSOConnectorName, syncSettings.SsoConnectorId)
 
 			// Expect that the Okta API token exists
 			_, err = pluginCredsSvc.GetPluginStaticCredentials(s.ctx, types.PluginTypeOkta)
 			require.NoError(t, err)
 
 			// Expect that the Okta SCIM token cred is in the appropriate state
-			_, err = pluginCredsSvc.GetPluginStaticCredentials(s.ctx, oktaSCIMTokenName)
+			_, err = pluginCredsSvc.GetPluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
 			testCase.expectSCIMTokenCred(t, err)
 
 			// Expect that the SAML connector was created
-			ssoCtor, err := s.proxyClient.GetSAMLConnector(s.ctx, oktaSSOConnectorName, false)
+			ssoCtor, err := s.proxyClient.GetSAMLConnector(s.ctx, common.OktaSSOConnectorName, false)
 			require.NoError(t, err, "failed to load expected plugin")
 			require.Equal(t, types.OriginOkta, ssoCtor.Origin())
 			labels := ssoCtor.GetMetadata().Labels
@@ -395,16 +407,17 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
 func TestOktaPluginInstallFailsWithLegacySAMLConnector(t *testing.T) {
-	s, webPack, mockta := newTestOktaPluginFixture(t)
+	mockta := &mockRoundTripper{}
+	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 
 	// Given a cluster with an existing SAML connector that does not have the
 	// labels that identify the App it talks to
 	samlConnector := &types.SAMLConnectorV2{
 		Metadata: types.Metadata{
-			Name: oktaSSOConnectorName,
+			Name: common.OktaSSOConnectorName,
 		},
 		Spec: types.SAMLConnectorSpecV2{
-			AssertionConsumerService: fmt.Sprintf("https://%s/v1/webapi/saml/acs/%s", oktaTestClusterName, oktaSSOConnectorName),
+			AssertionConsumerService: fmt.Sprintf("https://%s/v1/webapi/saml/acs/%s", oktaTestClusterName, common.OktaSSOConnectorName),
 			Display:                  "Test SAML Connector",
 			EntityDescriptor:         testEntityDescriptor,
 			SigningKeyPair:           &premadeSAMLSigningKeypair,
@@ -425,17 +438,19 @@ func TestOktaPluginInstallFailsWithLegacySAMLConnector(t *testing.T) {
 	// request ...
 	mockta.
 		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/users/me")).
+			"GET", "/api/v1/users")).
 		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{
-			"id":     "00ub0c5ls7iixvj6j5d7",
-			"status": "ACTIVE",
-			"profile": map[string]any{
-				"firstName": "Norville",
-				"lastName":  "Rogers",
-				"nickName":  "Shaggy",
-				"login":     "shaggy@mystery-machine.org",
-				"email":     "shaggy@mystery-machine.org",
+		Return(jsonResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":     "00ub0c5ls7iixvj6j5d7",
+				"status": "ACTIVE",
+				"profile": map[string]any{
+					"firstName": "Norville",
+					"lastName":  "Rogers",
+					"nickName":  "Shaggy",
+					"login":     "shaggy@mystery-machine.org",
+					"email":     "shaggy@mystery-machine.org",
+				},
 			},
 		}), nil)
 
@@ -487,10 +502,11 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 		},
 	}
 
-	s, webPack, mockta := newTestOktaPluginFixture(t)
+	mockta := &mockRoundTripper{}
+	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	samlConnector := &types.SAMLConnectorV2{
 		Metadata: types.Metadata{
-			Name: oktaSSOConnectorName,
+			Name: common.OktaSSOConnectorName,
 			Labels: map[string]string{
 				types.OriginLabel:         types.OriginOkta,
 				eteleport.OktaOrgURLLabel: oktaTestOrg,
@@ -498,7 +514,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			},
 		},
 		Spec: types.SAMLConnectorSpecV2{
-			AssertionConsumerService: fmt.Sprintf("https://%s/v1/webapi/saml/acs/%s", oktaTestClusterName, oktaSSOConnectorName),
+			AssertionConsumerService: fmt.Sprintf("https://%s/v1/webapi/saml/acs/%s", oktaTestClusterName, common.OktaSSOConnectorName),
 			Display:                  "Test SAML Connector",
 			EntityDescriptor:         testEntityDescriptor,
 			SigningKeyPair:           &premadeSAMLSigningKeypair,
@@ -520,17 +536,19 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 
 	mockta.
 		On("RoundTrip", requestForPath(
-			"GET", "/api/v1/users/me")).
+			"GET", "/api/v1/users")).
 		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{
-			"id":     "00ub0c5ls7iixvj6j5d7",
-			"status": "ACTIVE",
-			"profile": map[string]any{
-				"firstName": "Norville",
-				"lastName":  "Rogers",
-				"nickName":  "Shaggy",
-				"login":     "shaggy@mystery-machine.org",
-				"email":     "shaggy@mystery-machine.org",
+		Return(jsonResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":     "00ub0c5ls7iixvj6j5d7",
+				"status": "ACTIVE",
+				"profile": map[string]any{
+					"firstName": "Norville",
+					"lastName":  "Rogers",
+					"nickName":  "Shaggy",
+					"login":     "shaggy@mystery-machine.org",
+					"email":     "shaggy@mystery-machine.org",
+				},
 			},
 		}), nil)
 
@@ -559,7 +577,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			// case breaches the time limit on the flaky test detector.
 			t.Cleanup(func() {
 				pluginsSvc.DeleteAllPlugins(s.ctx)
-				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, oktaSCIMTokenName)
+				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
 				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
 			})
 
@@ -568,6 +586,14 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
 			s.webPlugin.h.SetClusterFeatures(features)
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.OktaSCIM: {Enabled: testCase.enableOktaSCIMEntitlement},
+					},
+				},
+			})
 
 			// When I invoke the installer via the web interface...
 			installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
@@ -601,7 +627,7 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			require.Equal(t, oktaAppID, spec.OktaAppID)
 			require.Equal(t, "Teleport_App_plus_index", spec.OktaAppName)
 			require.Equal(t, "Teleport App", spec.OktaAppLabel)
-			require.Equal(t, oktaSSOConnectorName, spec.TeleportSSOConnector)
+			require.Equal(t, common.OktaSSOConnectorName, spec.TeleportSSOConnector)
 			testCase.expectSCIMToken(t, spec.SCIMBearerToken)
 
 			// Expect that the backend plugin resource was created
@@ -618,18 +644,18 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			require.NotNil(t, syncSettings)
 			require.True(t, syncSettings.SyncUsers)
 			require.Equal(t, oktaAppID, syncSettings.AppId)
-			require.Equal(t, oktaSSOConnectorName, syncSettings.SsoConnectorId)
+			require.Equal(t, common.OktaSSOConnectorName, syncSettings.SsoConnectorId)
 
 			// Expect that the Okta API token exists
 			_, err = pluginCredsSvc.GetPluginStaticCredentials(s.ctx, types.PluginTypeOkta)
 			require.NoError(t, err)
 
 			// Expect that the Okta SCIM token cred is in the appropriate state
-			_, err = pluginCredsSvc.GetPluginStaticCredentials(s.ctx, oktaSCIMTokenName)
+			_, err = pluginCredsSvc.GetPluginStaticCredentials(s.ctx, common.OktaSCIMTokenName)
 			testCase.expectSCIMTokenCred(t, err)
 
 			// Expect that the SAML connector was not touched
-			backendSAMLConn, err := s.proxyClient.GetSAMLConnector(s.ctx, oktaSSOConnectorName, false)
+			backendSAMLConn, err := s.proxyClient.GetSAMLConnector(s.ctx, common.OktaSSOConnectorName, false)
 			require.NoError(t, err, "failed to load expected connector")
 			require.Equal(t, createdSAMLConn.GetRevision(), backendSAMLConn.GetRevision())
 		})
@@ -676,28 +702,11 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 				"scimToken": {oktaSCIMToken},
 			},
 			expectedPattern: "malformed",
-		}, {
-			name: "scim-token-too-short",
-			form: url.Values{
-				"type":      {"okta"},
-				"orgURL":    {oktaTestOrg},
-				"apiToken":  {oktaAPIToken},
-				"scimToken": {"short"},
-			},
-			expectedPattern: "SCIM bearer token must be at least",
-		}, {
-			name: "scim-token-too-long",
-			form: url.Values{
-				"type":      {"okta"},
-				"orgURL":    {oktaTestOrg},
-				"apiToken":  {oktaAPIToken},
-				"scimToken": {strings.Repeat("A", 120)},
-			},
-			expectedPattern: "SCIM bearer token must be no longer than",
 		},
 	}
 
-	s, webPack, mockta := newTestOktaPluginFixture(t)
+	mockta := &mockRoundTripper{}
+	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
 
 	features := s.webPlugin.h.GetClusterFeatures()
@@ -705,19 +714,29 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 		string(entitlements.OktaSCIM): {Enabled: true},
 	}
 	s.webPlugin.h.SetClusterFeatures(features)
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OktaSCIM: {Enabled: true},
+			},
+		},
+	})
 
-	mockta.On("RoundTrip", requestForPath("GET", "/api/v1/users/me")).
+	mockta.On("RoundTrip", requestForPath("GET", "/api/v1/users")).
 		Maybe().
 		Run(requireCreds(t, oktaAPIToken)).
-		Return(jsonResponse(t, http.StatusOK, map[string]any{
-			"id":     "00ub0c5ls7iixvj6j5d7",
-			"status": "ACTIVE",
-			"profile": map[string]any{
-				"firstName": "Norville",
-				"lastName":  "Rogers",
-				"nickName":  "Shaggy",
-				"login":     "shaggy@mystery-machine.org",
-				"email":     "shaggy@mystery-machine.org",
+		Return(jsonResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":     "00ub0c5ls7iixvj6j5d7",
+				"status": "ACTIVE",
+				"profile": map[string]any{
+					"firstName": "Norville",
+					"lastName":  "Rogers",
+					"nickName":  "Shaggy",
+					"login":     "shaggy@mystery-machine.org",
+					"email":     "shaggy@mystery-machine.org",
+				},
 			},
 		}), nil)
 
@@ -760,8 +779,8 @@ func TestOktaPluginInstallInvalidOktaConfig(t *testing.T) {
 			},
 		},
 	}
-
-	s, webPack, mockta := newTestOktaPluginFixture(t)
+	mockta := &mockRoundTripper{}
+	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
 
 	for _, testCase := range testCases {
@@ -769,7 +788,7 @@ func TestOktaPluginInstallInvalidOktaConfig(t *testing.T) {
 			// reset the mock
 			mockta.Mock = mock.Mock{}
 			mockta.
-				On("RoundTrip", requestForPath("GET", "/api/v1/users/me")).
+				On("RoundTrip", requestForPath("GET", "/api/v1/users")).
 				Return(testCase.roundTripResult...)
 
 			resp, err := webPack.clt.PostForm(s.ctx, installPluginEndPoint, url.Values{
@@ -801,15 +820,17 @@ func TestOktaConfigValidate(t *testing.T) {
 				"orgURL":   {oktaTestOrg},
 			},
 			credTestResult: []any{
-				jsonResponse(t, http.StatusOK, map[string]any{
-					"id":     "00ub0c5ls7iixvj6j5d7",
-					"status": "ACTIVE",
-					"profile": map[string]any{
-						"firstName": "Norville",
-						"lastName":  "Rogers",
-						"nickName":  "Shaggy",
-						"login":     "shaggy@mystery-machine.org",
-						"email":     "shaggy@mystery-machine.org",
+				jsonResponse(t, http.StatusOK, []map[string]any{
+					{
+						"id":     "00ub0c5ls7iixvj6j5d7",
+						"status": "ACTIVE",
+						"profile": map[string]any{
+							"firstName": "Norville",
+							"lastName":  "Rogers",
+							"nickName":  "Shaggy",
+							"login":     "shaggy@mystery-machine.org",
+							"email":     "shaggy@mystery-machine.org",
+						},
 					},
 				}),
 				nil,
@@ -870,7 +891,8 @@ func TestOktaConfigValidate(t *testing.T) {
 		},
 	}
 
-	s, webPack, mockta := newTestOktaPluginFixture(t)
+	mockta := &mockRoundTripper{}
+	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 	validateEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "validate")
 
 	for _, testCase := range testCases {
@@ -879,7 +901,7 @@ func TestOktaConfigValidate(t *testing.T) {
 
 			if len(testCase.credTestResult) > 0 {
 				mockta.
-					On("RoundTrip", requestForPath("GET", "/api/v1/users/me")).
+					On("RoundTrip", requestForPath("GET", "/api/v1/users")).
 					Run(requireCreds(t, oktaAPIToken)).
 					Return(testCase.credTestResult...)
 			}

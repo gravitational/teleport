@@ -21,6 +21,8 @@ package oktaservice
 import (
 	"context"
 	"crypto"
+	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -28,12 +30,17 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServiceConfig is the service config for the Okta gRPC service.
@@ -56,10 +63,27 @@ type ServiceConfig struct {
 	JWTSigner jwtSignerGetter
 	// Clock is the clock to use.
 	Clock clockwork.Clock
+
+	// AuthCache is the auth cache to use.
+	AuthCache authCache
+	// AuthService is the auth service to use.
+	AuthService authServer
+	// PluginService is the plugin service to use.
+	PluginService pluginService
+	// RoundTripper is the HTTP round tripper to use.
+	RoundTripper http.RoundTripper
+	// PluginBackend is the plugin backend to use.
+	PluginBackend services.Plugins
+	// CredsBackend is the plugin static credentials backend to use.
+	CredsBackend services.PluginStaticCredentials
 }
 
 type jwtSignerGetter interface {
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
+}
+
+type pluginService interface {
+	CreatePlugin(context.Context, *pluginspb.CreatePluginRequest) (*emptypb.Empty, error)
 }
 
 func (c *ServiceConfig) CheckAndSetDefaults() error {
@@ -73,6 +97,10 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 
 	if c.Authorizer == nil {
 		return trace.BadParameter("authorizer is missing")
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 
 	var err error
@@ -98,20 +126,54 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
+	if c.RoundTripper == nil {
+		c.RoundTripper = http.DefaultTransport
+	}
 
+	if c.PluginBackend == nil {
+		c.PluginBackend = local.NewPluginsService(c.Backend)
+	}
+	if c.CredsBackend == nil {
+		s, err := local.NewPluginStaticCredentialsService(c.Backend)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CredsBackend = s
+	}
 	return nil
 }
 
 var _ oktapb.OktaServiceServer = (*Service)(nil)
 
+// authCache is an interface for fetching cert authority resources.
+type authCache interface {
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	// GetClusterName returns the name of the cluster.
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+}
+
+type authServer interface {
+	Ping(ctx context.Context) (proto.PingResponse, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	sso.SAMLConnectorService
+}
+
 type Service struct {
 	oktapb.UnimplementedOktaServiceServer
 
-	log             logrus.FieldLogger
-	authorizer      authz.Authorizer
-	oktaImportRules services.OktaImportRules
-	oktaAssignments services.OktaAssignments
-	jwtSigner       jwtSignerGetter
+	log                 logrus.FieldLogger
+	authorizer          authz.Authorizer
+	oktaImportRules     services.OktaImportRules
+	oktaAssignments     services.OktaAssignments
+	jwtSigner           jwtSignerGetter
+	authCache           authCache
+	authService         authServer
+	pluginService       pluginService
+	cache               *utils.FnCache
+	roundTripper        http.RoundTripper
+	pluginBackend       services.Plugins
+	credsBackend        services.PluginStaticCredentials
+	apiClientProviderFn func(ctx context.Context, cfg api.ClientConfig) (api.Client, error)
 }
 
 // NewService creates a new Okta gRPC service.
@@ -120,12 +182,31 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// cache is used to cache the results of getApps, getGroups Okta API result
+	// invoked during Okta Enrollment flow to present the user with a list of
+	// apps and groups to choose from.
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   time.Minute,
+		Clock: cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Service{
-		log:             cfg.Logger,
-		authorizer:      cfg.Authorizer,
-		oktaImportRules: cfg.OktaImportRules,
-		oktaAssignments: cfg.OktaAssignments,
-		jwtSigner:       cfg.JWTSigner,
+		log:                 cfg.Logger,
+		authorizer:          cfg.Authorizer,
+		oktaImportRules:     cfg.OktaImportRules,
+		oktaAssignments:     cfg.OktaAssignments,
+		jwtSigner:           cfg.JWTSigner,
+		authCache:           cfg.AuthCache,
+		authService:         cfg.AuthService,
+		pluginService:       cfg.PluginService,
+		cache:               cache,
+		roundTripper:        cfg.RoundTripper,
+		pluginBackend:       cfg.PluginBackend,
+		credsBackend:        cfg.CredsBackend,
+		apiClientProviderFn: api.NewClient,
 	}, nil
 }
 

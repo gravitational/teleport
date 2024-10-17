@@ -19,6 +19,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
@@ -350,30 +351,71 @@ func (p *Plugin) getPluginStatus(w http.ResponseWriter, r *http.Request, params 
 
 func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	orgURL := r.FormValue("orgURL")
-	apiToken := r.FormValue("apiToken")
+	oktaAPICreds, err := getOktaCredsFromParams(&oktaPluginInputs{
+		oktaAPIToken:  r.FormValue("apiToken"),
+		oauthClientID: r.FormValue("oauthClientID"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	filters, err := getOktaGroupFilters(r.Form)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	groups, err := p.oktaPluginConfigHelper.GetOktaGroups(r.Context(), orgURL, apiToken, filters)
+	authOktaClient := oktav1.NewOktaServiceClient(ctx.GetClientConnection())
+	resp, err := authOktaClient.GetGroups(r.Context(), &oktav1.GetGroupsRequest{
+		OktaOrganizationUrl: orgURL,
+		ApiCredentials:      oktaAPICreds,
+		Filters:             filters,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return groups, trace.Wrap(err)
+	var out []*ui.PluginConfigOktaGroup
+	for _, group := range resp.GetGroups() {
+		out = append(out, &ui.PluginConfigOktaGroup{
+			Name:        group.GetName(),
+			Description: group.GetDescription(),
+		})
+	}
+	return out, nil
 }
 
 func (p *Plugin) getOktaApps(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	orgURL := r.FormValue("orgURL")
-	apiToken := r.FormValue("apiToken")
+	oktaAPICreds, err := getOktaCredsFromParams(&oktaPluginInputs{
+		oktaAPIToken:  r.FormValue("apiToken"),
+		oauthClientID: r.FormValue("oauthClientID"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	filters, err := getOktaAppFilters(r.Form)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	apps, err := p.oktaPluginConfigHelper.GetOktaApps(r.Context(), orgURL, apiToken, filters)
+	authOktaClient := oktav1.NewOktaServiceClient(ctx.GetClientConnection())
+	resp, err := authOktaClient.GetApps(r.Context(), &oktav1.GetAppsRequest{
+		OktaOrganizationUrl: orgURL,
+		ApiCredentials:      oktaAPICreds,
+		Filters:             filters,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return apps, trace.Wrap(err)
+	var out []*ui.PluginConfigOktaApp
+	for _, app := range resp.GetApps() {
+		out = append(out, &ui.PluginConfigOktaApp{
+			Name: app.GetName(),
+		})
+	}
+	return out, nil
 }
 
 func (p *Plugin) getPluginTypeMeta(ctx context.Context, sctx *web.SessionContext, typ string) (*pluginspb.PluginType, error) {

@@ -112,6 +112,7 @@ type webSuiteOptions struct {
 	accessGraphFeatures         string
 	runWhileLockedRetryInterval time.Duration
 	clock                       clockwork.FakeClock
+	roundTripper                http.RoundTripper
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -129,6 +130,12 @@ func withRunWhileLockedRetryInterval(interval time.Duration) webSuiteOption {
 func withClock(clock clockwork.FakeClock) webSuiteOption {
 	return func(o *webSuiteOptions) {
 		o.clock = clock
+	}
+}
+
+func withRoundTripper(tr http.RoundTripper) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.roundTripper = tr
 	}
 }
 
@@ -183,6 +190,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 				},
 			},
 		},
+		HTTPTransport: options.roundTripper,
 	})
 	require.NoError(t, err)
 	err = pluginRegistry.Add(authPlugin)

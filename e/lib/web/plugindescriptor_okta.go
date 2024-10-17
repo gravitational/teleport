@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -11,29 +10,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	"github.com/gravitational/teleport/api/mfa"
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/common"
-	"github.com/gravitational/teleport/e/lib/okta/common/sso"
-	"github.com/gravitational/teleport/e/lib/plugins"
-	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/web"
-)
-
-const (
-	oktaSSOConnectorName = "okta-integration"
-
-	// oktaSCIMTokenName is the name for the credential that will hold the SCIM
-	// bearer token
-	oktaSCIMTokenName = types.PluginTypeOkta + "-scim-token"
 )
 
 // oktaPluginDescriptor is an empty type used to implement an Okta-specific
@@ -53,7 +37,7 @@ func (oktaPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, ses
 		clusterFeatures: &clusterFeatures,
 		log:             p.Log,
 	}
-	_, err := args.validateOktaConfig(ctx)
+	_, err := args.validateOktaConfig(ctx, sessCtx)
 	return trace.Wrap(err)
 }
 
@@ -112,116 +96,66 @@ func (args *installOktaPluginArgs) CheckAndSetDefaults() error {
 // will default to using the standard Okta client settings if no HTTP client is
 // provided.
 func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plugin, error) {
-	log := args.log.WithField(teleport.ComponentKey, teleport.Component(types.PluginTypeOkta))
-
-	params, err := validateOktaPluginInputs(ctx, args.validateOktaPluginInputsArgs)
+	params, err := validateOktaPluginInputs(ctx, args.validateOktaPluginInputsArgs, args.sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating okta parameters")
 	}
-	log.Debug("Proceeding with installation.")
 
-	log = log.WithField("oktaOrg", params.oktaOrgURL)
-	log.Infof("Creating/Validating SAML connector for %s...", params.oktaOrgURL)
-
-	connInfo, err := getOrCreateSAMLConnector(ctx, args.sessCtx, params.oktaClient, oktaSSOConnectorName, args.signingKeypair, log)
+	oktaAPICreds, err := getOktaCredsFromParams(params)
 	if err != nil {
-		log.WithError(err).Error("Failed to ensure SAML connector exists.")
 		return nil, trace.Wrap(err)
 	}
 
-	// Set up the Okta API token that Teleport will use to authenticate with the
-	// targeted Okta organization
-	pluginCredentials := []*types.PluginStaticCredentialsV1{
-		{
-			ResourceHeader: types.ResourceHeader{
-				Metadata: types.Metadata{
-					Name: types.PluginTypeOkta,
-					Labels: map[string]string{
-						common.CredPurposeLabel: common.CredPurposeOktaAuth,
-					},
-				},
-			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: params.oktaAPIToken,
-				},
-			},
+	authOktaClient := oktav1.NewOktaServiceClient(args.sessCtx.GetClientConnection())
+	resp, err := authOktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		OktaOrganizationUrl:  params.oktaOrgURL,
+		ApiCredentials:       oktaAPICreds,
+		ScimToken:            params.scimBearerToken,
+		EnableAccessListSync: params.enableAccessListSync,
+		EnableUserSync:       true,
+		EnableAppGroupSync:   true,
+		AccessListSettings: &oktav1.AccessListSettings{
+			GroupFilters: params.groupFilters,
+			AppFilters:   params.appFilters,
+			DefaultOwner: params.defaultOwners,
 		},
-	}
-
-	// Only create the SCIM token credential if IGS is enabled
-	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.OktaSCIM).Enabled {
-		pluginCredentials = append(pluginCredentials, &types.PluginStaticCredentialsV1{
-			ResourceHeader: types.ResourceHeader{
-				Metadata: types.Metadata{
-					Name: oktaSCIMTokenName,
-					Labels: map[string]string{
-						common.CredPurposeLabel: common.CredPurposeSCIMToken,
-					},
-				},
-			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: params.scimBearerTokenHash,
-				},
-			},
-		})
-	}
-
-	// Finally, install the plugin into teleport
-	log.Trace("Collating plugin resource")
-	req := &pluginspb.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindAccess,
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					plugins.HostedPluginLabel: "true",
-				},
-				Name: types.PluginTypeOkta,
-			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_Okta{
-					Okta: &types.PluginOktaSettings{
-						OrgUrl: params.oktaOrgURL,
-						SyncSettings: &types.PluginOktaSyncSettings{
-							SsoConnectorId:  oktaSSOConnectorName,
-							AppId:           connInfo.OktaAppID,
-							AppName:         connInfo.OktaAppName,
-							SyncUsers:       true,
-							GroupFilters:    params.groupFilters,
-							AppFilters:      params.appFilters,
-							DefaultOwners:   params.defaultOwners,
-							SyncAccessLists: params.enableAccessListSync,
-						},
-					},
-				},
-			},
-		},
-		StaticCredentialsList: pluginCredentials,
-		CredentialLabels: map[string]string{
-			eteleport.OktaOrgURLLabel: params.oktaOrgURL,
-		},
-	}
-
-	log.Trace("Installing plugin")
-
-	uiPlugin, err := installPlugin(ctx, args.sessCtx, req, args.plugin)
+	})
 	if err != nil {
-		log.WithError(err).Error("Failed plugin install")
 		return nil, trace.Wrap(err)
 	}
-
-	log.Trace("Generating UI spec")
-
+	uiPlugin, err := ui.NewPlugin(resp.Plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	uiPlugin.Spec = &ui.OktaPluginSpec{
 		SCIMBearerToken:      params.scimBearerToken,
-		OktaAppID:            connInfo.OktaAppID,
-		OktaAppName:          connInfo.OktaAppName,
-		OktaAppLabel:         connInfo.OktaAppLabel,
-		TeleportSSOConnector: connInfo.Connector.GetName(),
+		OktaAppID:            resp.GetConnectorInfo().GetOktaAppId(),
+		OktaAppName:          resp.GetConnectorInfo().GetOktaAppName(),
+		OktaAppLabel:         resp.GetConnectorInfo().GetOktaAppLabels(),
+		TeleportSSOConnector: resp.GetConnectorInfo().GetTeleportConnectorName(),
 	}
-
 	return uiPlugin, nil
+}
+
+func getOktaCredsFromParams(params *oktaPluginInputs) (*oktav1.OktaAPICredentials, error) {
+	var apiCreds *oktav1.OktaAPICredentials
+	switch {
+	case params.oauthClientID != "":
+		apiCreds = &oktav1.OktaAPICredentials{
+			Auth: &oktav1.OktaAPICredentials_OauthId{
+				OauthId: params.oauthClientID,
+			},
+		}
+	case params.oktaAPIToken != "":
+		apiCreds = &oktav1.OktaAPICredentials{
+			Auth: &oktav1.OktaAPICredentials_SswsBearerToken{
+				SswsBearerToken: params.oktaAPIToken,
+			},
+		}
+	default:
+		return nil, trace.BadParameter("missing Okta API token or OAuth client ID")
+	}
+	return apiCreds, nil
 }
 
 type oktaPluginInputs struct {
@@ -233,7 +167,7 @@ type oktaPluginInputs struct {
 	appFilters           []string
 	defaultOwners        []string
 	enableAccessListSync bool
-	oktaClient           api.Client
+	oauthClientID        string
 }
 
 type validateOktaPluginInputsArgs struct {
@@ -266,24 +200,39 @@ func (args *validateOktaPluginInputsArgs) CheckAndSetDefaults() error {
 	return nil
 }
 
+func getOktaAuth(apiToken, clientID string) (*oktav1.OktaAPICredentials, error) {
+	switch {
+	case clientID != "":
+		return &oktav1.OktaAPICredentials{
+			Auth: &oktav1.OktaAPICredentials_OauthId{
+				OauthId: clientID,
+			},
+		}, nil
+
+	case apiToken != "":
+		return &oktav1.OktaAPICredentials{
+			Auth: &oktav1.OktaAPICredentials_SswsBearerToken{
+				SswsBearerToken: apiToken,
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("missing Okta API token or OAuth client ID")
+	}
+}
+
 // validateOktaConfig extracts the Okta configuration inputs to the Okta plugin
 // installer from the supplied form and validates them with a live request to
 // the Okta organization.
-func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context) (oktaPluginInputs, error) {
+func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context, sessCtx *web.SessionContext) (*oktaPluginInputs, error) {
 	if err := args.CheckAndSetDefaults(); err != nil {
-		return oktaPluginInputs{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	args.log.Trace("Extracting Okta client config")
 
 	oktaOrgURLText := args.form.Get("orgURL")
 	if oktaOrgURLText == "" {
-		return oktaPluginInputs{}, trace.BadParameter("missing Okta organization URL")
-	}
-
-	oktaAPIToken := args.form.Get("apiToken")
-	if oktaAPIToken == "" {
-		return oktaPluginInputs{}, trace.BadParameter("missing Okta API token")
+		return nil, trace.BadParameter("missing Okta organization URL")
 	}
 
 	// If the user supplies an invalid URL or bare hostname, then the
@@ -294,41 +243,31 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	// scheme if necessary
 	orgURL, err := lib.AddrToURL(oktaOrgURLText)
 	if err != nil {
-		return oktaPluginInputs{}, trace.BadParameter("malformed Okta url")
+		return nil, trace.BadParameter("malformed Okta url")
 	}
 
-	log := args.log.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.Component(types.PluginTypeOkta),
-		"oktaOrg":             orgURL.String(),
-	})
-
-	oktaClient, err := api.NewClient(ctx, api.ClientConfig{
-		HTTPClient:   args.httpClient,
-		Endpoint:     orgURL.String(),
-		AuthProvider: api.NewSSWSAuthProvider(oktaAPIToken),
-		Log: slog.With(
-			"okta_url", orgURL.String(),
-			teleport.ComponentKey, teleport.Component(types.PluginTypeOkta),
-		),
-	})
+	oktaAPIToken := args.form.Get("apiToken")
+	clientID := args.form.Get("clientID")
+	creds, err := getOktaAuth(oktaAPIToken, clientID)
 	if err != nil {
-		return oktaPluginInputs{}, trace.Wrap(err, "constructing Okta client")
+		return nil, trace.Wrap(err)
 	}
 
-	log.Debug("Validating Okta configuration...")
-	if err := api.TestCredentials(ctx, oktaClient); err != nil {
-		return oktaPluginInputs{}, trace.BadParameter("bad Okta configuration: %s", err.Error())
+	authOktaClient := oktav1.NewOktaServiceClient(sessCtx.GetClientConnection())
+	if _, err = authOktaClient.ValidateClientCredentials(ctx, &oktav1.ValidateClientCredentialsRequest{
+		OktaOrganizationUrl: orgURL.String(),
+		ApiCredentials:      creds,
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	log.Debug("Okta configuration looks good.")
 
-	return oktaPluginInputs{
+	return &oktaPluginInputs{
 		oktaOrgURL:   orgURL.String(),
 		oktaAPIToken: oktaAPIToken,
-		oktaClient:   oktaClient,
 	}, nil
 }
 
-func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputsArgs) (oktaPluginInputs, error) {
+func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputsArgs, sessCtx *web.SessionContext) (*oktaPluginInputs, error) {
 	const (
 		// minTokenLength is the minimum length an SCIM token should be.
 		minTokenLength = 32
@@ -336,14 +275,13 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		// SCIM token can't be longer than this.
 		maxTokenLength = 72
 	)
-
 	if err := args.CheckAndSetDefaults(); err != nil {
-		return oktaPluginInputs{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	params, err := args.validateOktaConfig(ctx)
+	params, err := args.validateOktaConfig(ctx, sessCtx)
 	if err != nil {
-		return oktaPluginInputs{}, trace.Wrap(err, "invalid Okta config")
+		return nil, trace.Wrap(err, "invalid Okta config")
 	}
 
 	if modules.GetProtoEntitlement(args.clusterFeatures, entitlements.OktaSCIM).Enabled {
@@ -351,18 +289,18 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 
 		params.scimBearerToken = args.form.Get("scimToken")
 		if params.scimBearerToken == "" {
-			return oktaPluginInputs{}, trace.BadParameter("missing SCIM bearer token")
+			return nil, trace.BadParameter("missing SCIM bearer token")
 		}
 		if len(params.scimBearerToken) < minTokenLength {
-			return oktaPluginInputs{}, trace.BadParameter("SCIM bearer token must be at least %d characters", minTokenLength)
+			return nil, trace.BadParameter("SCIM bearer token must be at least %d characters", minTokenLength)
 		}
 		if len(params.scimBearerToken) > maxTokenLength {
-			return oktaPluginInputs{}, trace.BadParameter("SCIM bearer token must be no longer than %d characters", maxTokenLength)
+			return nil, trace.BadParameter("SCIM bearer token must be no longer than %d characters", maxTokenLength)
 		}
 
 		scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(params.scimBearerToken), args.bcryptCost)
 		if err != nil {
-			return oktaPluginInputs{}, trace.BadParameter("hashing SCIM bearer token")
+			return nil, trace.BadParameter("hashing SCIM bearer token")
 		}
 		params.scimBearerTokenHash = string(scimTokenHash)
 
@@ -371,7 +309,7 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 		if defaultOwnersString != "" {
 			defaultOwners = []string{}
 			if err := json.Unmarshal([]byte(defaultOwnersString), &defaultOwners); err != nil {
-				return oktaPluginInputs{}, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 		}
 		params.defaultOwners = defaultOwners
@@ -382,12 +320,12 @@ func validateOktaPluginInputs(ctx context.Context, args validateOktaPluginInputs
 
 		params.appFilters, err = getOktaAppFilters(args.form)
 		if err != nil {
-			return oktaPluginInputs{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		params.groupFilters, err = getOktaGroupFilters(args.form)
 		if err != nil {
-			return oktaPluginInputs{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -412,63 +350,4 @@ func getOktaGroupFilters(form url.Values) ([]string, error) {
 
 func getOktaAppFilters(form url.Values) ([]string, error) {
 	return getOktaFilters(form.Get("appFilters"))
-}
-
-func getOrCreateSAMLConnector(ctx context.Context, sessCtx *web.SessionContext, oktaClient api.Client, samlConnectorName string, signingKeypair *types.AsymmetricKeyPair, log *logrus.Entry) (*sso.SAMLConnectorInfo, error) {
-	log.Debug("Fetching cluster information")
-	client, err := sessCtx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Remove the MFA resp from the context before pinging.
-	// Otherwise, it will be consumed before the Create which actually
-	// requires the MFA.
-	// TODO(Joerger): Explicitly provide MFA response only where it is
-	// needed instead of removing it like this.
-	pingCtx := mfa.ContextWithMFAResponse(ctx, nil)
-	pingInfo, err := client.Ping(pingCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	publicURL, err := lib.AddrToURL(pingInfo.ProxyPublicAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.Debugf("Retrieving SAML connector %q", samlConnectorName)
-
-	// Remove the MFA resp from the context before getting the connector.
-	// Otherwise, it will be consumed before the Create which actually
-	// requires the MFA.
-	// TODO(Joerger): Explicitly provide MFA response only where it is
-	// needed instead of removing it like this.
-	getConnectorCtx := mfa.ContextWithMFAResponse(ctx, nil)
-	samlConnector, err := client.GetSAMLConnector(getConnectorCtx, samlConnectorName, false)
-	if trace.IsNotFound(err) {
-		log.Infof("SAML connector %s not found. Creating...", samlConnectorName)
-		connInfo, err := sso.CreateSAMLConnector(ctx, sso.ConnectorArgs{
-			ConnectorName:        samlConnectorName,
-			OktaClient:           oktaClient,
-			SAMLConnectorService: client,
-			ClusterName:          pingInfo.ClusterName,
-			PublicURL:            publicURL,
-			SigningKeypair:       signingKeypair,
-			Log:                  log,
-		})
-		return connInfo, trace.Wrap(err, "creating new SAML connector")
-	} else if err != nil {
-		return nil, trace.Wrap(err, "fetching SAML connector %s", samlConnectorName)
-	}
-
-	connectorInfo, err := sso.ValidateSAMLConnector(ctx, samlConnector, oktaClient)
-	if err != nil {
-		// Using the CompareFailed error here results in the HTTP request
-		// returning http.StatusPreconditionFailed, which we can use as a signal
-		// to the UI that the problem is the underlying SAML connector.
-		return nil, trace.CompareFailed(err.Error())
-	}
-
-	return connectorInfo, nil
 }

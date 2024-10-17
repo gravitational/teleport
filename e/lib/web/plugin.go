@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/api/cloud"
 	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
-	"github.com/gravitational/teleport/e/lib/okta/common/pluginhelper"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -79,6 +78,9 @@ type Config struct {
 
 	// Clock is the clock used by the plugin.
 	Clock clockwork.Clock
+
+	//  HTTPClient is the HTTP client used by the plugin.
+	HTTPClient http.RoundTripper
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -91,6 +93,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
+	if c.HTTPClient == nil {
+		c.HTTPClient = http.DefaultTransport
+	}
+
 	return nil
 }
 
@@ -100,15 +106,9 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	oktaPluginConfigHelper, err := pluginhelper.NewPluginConfigHelper(pluginhelper.Config{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &Plugin{
-		Config:                 cfg,
-		oktaPluginConfigHelper: oktaPluginConfigHelper,
-		pluginDescriptors:      maps.Clone(defaultPluginDescriptors),
+		Config:            cfg,
+		pluginDescriptors: maps.Clone(defaultPluginDescriptors),
 	}, nil
 }
 
@@ -125,9 +125,6 @@ type Plugin struct {
 	// authMiddleware is the auth middleware.
 	authMiddlewareMu sync.RWMutex
 	authMiddleware   *auth.Middleware
-
-	// oktaPluginConfigHelper helps with the multistage configuration of Okta plugins.
-	oktaPluginConfigHelper *pluginhelper.PluginConfigHelper
 
 	pluginDescriptors map[types.PluginType]pluginDescriptor
 

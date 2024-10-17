@@ -1,5 +1,7 @@
 package common
 
+import "github.com/gravitational/teleport/api/types"
+
 const (
 	// CredPurposeLabel is a label that Okta uses to distinguish between
 	// creds stored in the static credentials. There will be credentials in the
@@ -23,4 +25,13 @@ const (
 	// This is done by distinguishing between OktaCredPurposeAuth and CredPurposeOktaAPITokenWithSCIMOnlyIntegration
 	// that are only set when AppGroupSyncDisabled is set to true.
 	CredPurposeOktaAPITokenWithSCIMOnlyIntegration = "okta-auth-scim-only"
+
+	// CredPurposeOktaOauth is used to store the OAuth client ID for Okta.
+	CredPurposeOktaOauth = "okta-oauth-client-id"
+
+	// OktaSSOConnectorName is the name of the Okta SSO connector.
+	OktaSSOConnectorName = "okta-integration"
+
+	// OktaSCIMTokenName is the name of the Okta SCIM token.
+	OktaSCIMTokenName = types.PluginTypeOkta + "-scim-token"
 )

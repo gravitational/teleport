@@ -73,3 +73,17 @@ func makeOktaDetails(plugin *types.PluginV1) (*PluginDetails, error) {
 
 	return detailedStatus, nil
 }
+
+// PluginConfigOktaGroup is the plugin configuration of the Okta plugin.
+type PluginConfigOktaGroup struct {
+	// Name is the name of the group.
+	Name string `json:"name"`
+	// Description is the description of the group.
+	Description string `json:"description,omitempty"`
+}
+
+// PluginConfigOktaApp is a representation of an Okta app for display during the
+// plugin configuration of the Okta plugin.
+type PluginConfigOktaApp struct {
+	Name string `json:"name"`
+}

@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/web"
@@ -291,7 +292,7 @@ func TestPluginOktaStatusDetails(t *testing.T) {
 				Okta: &types.PluginOktaSettings{
 					OrgUrl: oktaOrg,
 					SyncSettings: &types.PluginOktaSyncSettings{
-						SsoConnectorId:  oktaSSOConnectorName,
+						SsoConnectorId:  common.OktaSSOConnectorName,
 						AppId:           oktaAppID,
 						AppName:         oktaAppName,
 						SyncUsers:       true,
@@ -378,7 +379,7 @@ func TestPluginOktaStatusDetails(t *testing.T) {
 			OktaAppID:            oktaAppID,
 			OktaAppName:          oktaAppName,
 			DefaultOwners:        []string{"^admin"},
-			TeleportSSOConnector: oktaSSOConnectorName,
+			TeleportSSOConnector: common.OktaSSOConnectorName,
 		},
 		StatusCode: types.PluginStatusCode_RUNNING,
 		Status: &ui.PluginStatusV1{
