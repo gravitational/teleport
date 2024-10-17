@@ -588,7 +588,7 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 	}, nil
 }
 
-func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (token *devicepb.DeviceEnrollToken, err error) {
+func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (_ *devicepb.DeviceEnrollToken, err error) {
 	start := time.Now()
 	defer func() {
 		createEnrollTokenHist.
@@ -604,42 +604,58 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	authCtx := authorizeOutcome.authCtx
 	autoEnrollEnabled := authorizeOutcome.autoEnrollEnabled
 	allowedByAutoEnroll := authorizeOutcome.allowedByAutoEnroll
-	checkErr := authorizeOutcome.checkErr
 
 	// Auto-enroll if:
 	// - User failed verb check (aka allowedByAutoEnroll)
 	// - User succeeded verb check, but only supplied auto-enroll information.
 	//   (Otherwise, favor legacy behavior.)
+	autoEnroll := allowedByAutoEnroll || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled)
+
 	var devMetadata *apievents.DeviceMetadata
-	if allowedByAutoEnroll || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled) {
+	var token *devicepb.DeviceEnrollToken
+	if autoEnroll {
 		// Rate limit auto-enroll/data-based token creation.
 		if err := s.rateLimitByUser(authCtx.User.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		var dev *devicepb.Device
-		dev, err = s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.DeviceData)
-		// err verified below
-		token = dev.GetEnrollToken() // This is safe even if `dev` is nil, proto getters don't panic.
-		err = s.redactTokenErr(dev, authCtx.User.GetName(), checkErr, err)
-
-		// Audit information.
+		dev, err := s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.DeviceData)
 		devMetadata = getDeviceMetadata(dev)
+		if err != nil {
+			// Record auto-enroll failures to audit, it can be hard to diagnose
+			// otherwise.
+			s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
+				Metadata: apievents.Metadata{
+					Type: events.DeviceEnrollTokenCreateEvent,
+					Code: events.DeviceEnrollTokenCreateCode,
+				},
+				Device: devMetadata,
+				Status: apievents.Status{
+					Success:     false,
+					UserMessage: err.Error(),
+				},
+				UserMetadata: getUserMetadata(ctx),
+			})
+
+			err = s.redactAutoEnrollError(err, dev, authCtx.User.GetName(), allowedByAutoEnroll)
+			return nil, trace.Wrap(err)
+		}
+
+		token = dev.GetEnrollToken()
 	} else {
 		if err := authCtx.AuthorizeAdminAction(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		var err error
 		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId, getExpireTime(req.ExpireTime))
-		// err verified below
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-		// Audit information.
 		devMetadata = &apievents.DeviceMetadata{
 			DeviceId: req.DeviceId,
 		}
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
@@ -700,14 +716,12 @@ func (s *Service) authorizeWithAutoEnrollExemption(ctx context.Context, kind, ve
 	}, nil
 }
 
-func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, actualErr error) error {
+func (s *Service) redactAutoEnrollError(actualErr error, dev *devicepb.Device, user string, allowedByAutoEnroll bool) error {
 	if actualErr == nil {
 		return nil
 	}
 
-	if checkErr != nil {
-		// Reply with checkErr instead of err, so we don't relay information about
-		// what might be wrong with the collected data.
+	if allowedByAutoEnroll {
 		s.logger.WarnContext(context.Background(),
 			"Attempt to issue device enrollment token via auto-enroll denied",
 			"error", actualErr,
@@ -715,7 +729,10 @@ func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, ac
 			"device_id", dev.GetId(),
 			"asset_tag", dev.GetAssetTag(),
 		)
-		return trace.Wrap(checkErr)
+
+		// Reply with a redacted error so we don't relay information about what
+		// might be wrong with the collected data.
+		return trace.BadParameter("auto-enroll verifications failed")
 	}
 
 	// Transform drift errors into BadParameter, but otherwise no need to redact.

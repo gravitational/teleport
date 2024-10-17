@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -1966,6 +1967,13 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		},
 	})
 
+	assertAutoEnrollError := func(err error) bool {
+		return err != nil &&
+			trace.IsBadParameter(err) &&
+			// Note: errors is redacted and original error is written to audit.
+			strings.Contains(err.Error(), "auto-enroll verifications")
+	}
+
 	dt.AutoEnroll = true
 	runTests(t, []testCase{
 		{
@@ -2027,13 +2035,13 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 			req: &devicepb.CreateDeviceEnrollTokenRequest{
 				DeviceId: dev.Id,
 			},
-			assertErr: trace.IsAccessDenied, // redacted
+			assertErr: assertAutoEnrollError, // redacted
 		},
 		{
 			name:      "user empty request fails",
 			user:      endUser,
 			req:       &devicepb.CreateDeviceEnrollTokenRequest{},
-			assertErr: trace.IsAccessDenied, // redacted
+			assertErr: assertAutoEnrollError, // redacted
 		},
 		{
 			name: "user invalid cd fails",
@@ -2041,7 +2049,7 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 			req: &devicepb.CreateDeviceEnrollTokenRequest{
 				DeviceData: cdBad,
 			},
-			assertErr: trace.IsAccessDenied, // redacted
+			assertErr: assertAutoEnrollError, // redacted
 		},
 		{
 			name: "user unknown device fails",
@@ -2049,7 +2057,7 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 			req: &devicepb.CreateDeviceEnrollTokenRequest{
 				DeviceData: cdUnknown,
 			},
-			assertErr: trace.IsAccessDenied, // redacted
+			assertErr: assertAutoEnrollError, // redacted
 		},
 		{
 			name: "unknown user auto-enroll not allowed",
@@ -2067,6 +2075,79 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 			},
 			assertErr: trace.IsAccessDenied,
 		},
+	})
+}
+
+func TestService_CreateDeviceEnrollToken_autoEnrollAudit(t *testing.T) {
+	// Test that auto-enroll failures are written to audit.
+
+	const adminUser = "llama"
+	const endUser = "alpaca"
+	authorizer := &userAwareAuthorizer{
+		knownUsers:      []string{adminUser, endUser}, // Passes Authorize() calls.
+		authorizedUsers: []string{adminUser},          // Passes CheckAccessToRule() calls.
+	}
+
+	dt := &types.DeviceTrust{
+		Mode:       constants.DeviceTrustModeOptional,
+		AutoEnroll: true,
+	}
+	emitter := &eventstest.MockRecorderEmitter{}
+	env := testenv.NewUsingT(
+		t,
+		testenv.WithAuthorizer(authorizer),
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			DeviceTrust: dt,
+		}),
+		testenv.WithEmitter(emitter),
+	)
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Enroll device for "adminUser". This stops other users from auto-enrolling
+	// the device.
+	dev, _, err := createAndEnroll(contextWithUser(ctx, adminUser), devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "device1",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+	emitter.Reset()
+
+	t.Run("write failure to audit", func(t *testing.T) {
+		endUserCtx := contextWithUser(ctx, endUser)
+
+		// Attempt to enroll an already-enrolled device. This should cause the
+		// ceremony to fail and a success=false audit event.
+		_, err := devices.CreateDeviceEnrollToken(endUserCtx, &devicepb.CreateDeviceEnrollTokenRequest{
+			DeviceData: defaultCollectData(dev),
+		})
+		require.ErrorContains(t, err, "auto-enroll verifications", "CreateDeviceEnrollToken error mismatch")
+
+		// Assert audit events.
+		gotEvents := emitter.Events()
+		assertEvents(t, gotEvents, []wantEvent{
+			{
+				Type:     events.DeviceEnrollTokenCreateEvent,
+				Code:     events.DeviceEnrollTokenCreateCode,
+				WantFail: true,
+			},
+		})
+		// We rely on assertEvents to check the basics of the layout, so just don't
+		// panic here.
+		if len(gotEvents) == 0 {
+			return
+		}
+		event, ok := gotEvents[0].(*apievents.DeviceEvent2)
+		if !ok {
+			t.Fatalf("event = %T, want %T", event, &apievents.DeviceEvent2{})
+		}
+		if got, want := event.Status.UserMessage, "already enrolled"; !strings.Contains(got, want) {
+			t.Errorf("event.Status.UserMessage = %q, want %q", got, want)
+		}
 	})
 }
 
