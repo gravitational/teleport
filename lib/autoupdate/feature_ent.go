@@ -1,5 +1,5 @@
-//go:build fips
-// +build fips
+//go:build webassets_ent
+// +build webassets_ent
 
 /*
  * Teleport
@@ -19,8 +19,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tools
+package autoupdate
 
 func init() {
-	featureFlag |= FlagFips
+	featureFlag |= FlagEnt
 }

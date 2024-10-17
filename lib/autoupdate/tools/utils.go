@@ -34,19 +34,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	// FlagEnt represents enterprise version.
-	FlagEnt = 1 << iota
-	// FlagFips represents enterprise version with fips feature enabled.
-	FlagFips
-)
-
-var (
-	// featureFlag stores information about enable
-	featureFlag int
 )
 
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
@@ -142,11 +131,11 @@ func teleportPackageURLs(baseURL, toolsVersion string) ([]packageURL, error) {
 	case "linux":
 		var b strings.Builder
 		b.WriteString(baseURL + "/teleport-")
-		if featureFlag&(FlagEnt|FlagFips) != 0 {
+		if autoupdate.FeatureFlag()&(autoupdate.FlagEnt|autoupdate.FlagFips) != 0 {
 			b.WriteString("ent-")
 		}
 		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
-		if featureFlag&FlagFips != 0 {
+		if autoupdate.FeatureFlag()&autoupdate.FlagFips != 0 {
 			b.WriteString("fips-")
 		}
 		b.WriteString("bin.tar.gz")

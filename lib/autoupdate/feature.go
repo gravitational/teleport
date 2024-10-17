@@ -1,6 +1,3 @@
-//go:build webassets_ent
-// +build webassets_ent
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -19,8 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tools
+package autoupdate
 
-func init() {
-	featureFlag |= FlagEnt
+const (
+	// FlagEnt represents enterprise version.
+	FlagEnt = 1 << iota
+	// FlagFips represents enterprise version with fips feature enabled.
+	FlagFips
+)
+
+var (
+	// featureFlag stores information about enabled feature to define which package needs
+	// to be downloaded for auto update (e.g. Enterprise, or package with FIPS).
+	featureFlag int
+)
+
+// FeatureFlag returns information about enabled feature to identify which package needs
+// to be downloaded for auto update (e.g. Enterprise, or package with FIPS).
+func FeatureFlag() int {
+	return featureFlag
 }
