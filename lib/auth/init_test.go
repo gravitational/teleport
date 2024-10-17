@@ -39,6 +39,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/proto"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -2194,15 +2195,14 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-
 			m := &mockDatabaseObjectImportRules{
 				listRules: test.existingRules,
 			}
 
 			err := createPresetDatabaseObjectImportRule(context.Background(), m)
 			require.NoError(t, err)
-			require.Equal(t, test.expectCreate, m.created)
-			require.Equal(t, test.expectUpsert, m.upserted)
+			require.True(t, proto.Equal(test.expectCreate, m.created))
+			require.True(t, proto.Equal(test.expectUpsert, m.upserted))
 		})
 	}
 }

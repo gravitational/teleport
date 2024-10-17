@@ -61,6 +61,11 @@ func NewPresetImportAllObjectsRule() *dbobjectimportrulev1pb.DatabaseObjectImpor
 // IsOldImportAllObjectsRulePreset checks if the provided rule is the "old" preset.
 // TODO(greedy52) DELETE in 18.0
 func IsOldImportAllObjectsRulePreset(cur *dbobjectimportrulev1pb.DatabaseObjectImportRule) bool {
+	// Skip no-zero expires.
+	if cur.Metadata.Expires != nil && !cur.Metadata.Expires.AsTime().IsZero() {
+		return false
+	}
+
 	// Make the old preset from https://github.com/gravitational/teleport/pull/37808
 	old, err := NewDatabaseObjectImportRule("import_all_objects", &dbobjectimportrulev1pb.DatabaseObjectImportRuleSpec{
 		Priority:       0,
@@ -88,5 +93,6 @@ func IsOldImportAllObjectsRulePreset(cur *dbobjectimportrulev1pb.DatabaseObjectI
 	// Ignore these fields.
 	old.Metadata.Revision = cur.Metadata.Revision
 	old.Metadata.Namespace = cur.Metadata.Namespace
+	old.Metadata.Expires = cur.Metadata.Expires
 	return proto.Equal(old, cur)
 }
