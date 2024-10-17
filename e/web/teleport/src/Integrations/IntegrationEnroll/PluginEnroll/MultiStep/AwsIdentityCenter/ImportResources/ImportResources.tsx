@@ -190,7 +190,7 @@ const GroupDescription = () => (
     </Text>
     <Text mb={2}>
       All groups will be imported and maintained in Teleport as an Access List.
-      Each account assigment with respective permission sets will be maintained
+      Each account assignment with respective permission sets will be maintained
       as a role and assigned to the Access List.
     </Text>
   </>

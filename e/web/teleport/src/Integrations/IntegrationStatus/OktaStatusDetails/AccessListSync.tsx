@@ -72,7 +72,7 @@ export function AccessListsSync({
                 <Text bold>Access Lists</Text>
                 <TextWithBorderBottom color="text.slightlyMuted">
                   Synchronization of Okta user groups and Okta applications
-                  (with direct assigments) and each imported as a Teleport
+                  (with direct assignments) and each imported as a Teleport
                   Access List.
                 </TextWithBorderBottom>
                 {defaultOwners.length ? (
