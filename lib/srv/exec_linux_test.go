@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
@@ -33,20 +34,43 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 func TestOSCommandPrep(t *testing.T) {
+	utils.RequireRoot(t)
+
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
-	usr, err := user.Current()
+	tempHome := t.TempDir()
+	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0777))
+
+	username := "test-os-command-prep"
+	scx.Identity.Login = username
+	_, err := host.UserAdd(username, nil, host.UserOpts{
+		Home: tempHome,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := host.UserDel(username)
+		require.NoError(t, err)
+	})
+
+	usr, err := user.Lookup(username)
 	require.NoError(t, err)
 
+	uid, err := strconv.Atoi(usr.Uid)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Chown(tempHome, uid, -1))
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(strconv.Itoa(os.Geteuid()), defaultLoginDefsPath),
+		getDefaultEnvPath(usr.Uid, defaultLoginDefsPath),
 		fmt.Sprintf("HOME=%s", usr.HomeDir),
-		fmt.Sprintf("USER=%s", usr.Username),
+		fmt.Sprintf("USER=%s", username),
 		"SHELL=/bin/sh",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
@@ -99,12 +123,9 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, []string{"/bin/sh", "-c", "top"}, cmd.Args)
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
-	if os.Geteuid() != 0 {
-		t.Skip("skipping portion of test which must run as root")
-	}
-
 	// Missing home directory - HOME should still be set to the given
 	// home dir, but the command should set it's CWD to root instead.
+	changeHomeDir(t, username, "/wrong/place")
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
 	expectedEnv[2] = "HOME=/wrong/place"
@@ -113,6 +134,9 @@ func TestOSCommandPrep(t *testing.T) {
 
 	require.Equal(t, root, cmd.Dir)
 	require.Equal(t, expectedEnv, cmd.Env)
+
+	// change homedir back so user deletion doesn't fail
+	changeHomeDir(t, username, tempHome)
 }
 
 func TestConfigureCommand(t *testing.T) {
