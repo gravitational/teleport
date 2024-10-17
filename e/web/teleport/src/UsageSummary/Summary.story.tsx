@@ -31,7 +31,7 @@ export function SummaryPageViewWithUsage() {
     },
     tpr: {
       maximum: 44004,
-      cycleCount: 500,
+      cycleCount: 43009,
       free: 0,
       perMau: 5,
     },
@@ -46,20 +46,40 @@ export function SummaryPageViewWithUsage() {
   );
 }
 
-export function EmptySummaryPageView() {
+export function CalibratingSummaryPageView() {
   const props = makeUsageSummary({
-    cycleStart: 1727762400,
-    cycleStartFormatted: 'Oct 01, 2024',
-    cycleEnd: 1730354400,
-    cycleEndFormatted: 'Oct 31, 2024',
-    usageUpdatedAt: 0,
-    usageUpdatedAtFormatted: '',
+    cycleStart: new Date('2024-01-01').getTime(),
+    cycleEnd: new Date('2024-01-31').getTime(),
+    salesforceIdUpdatedAt: new Date('2024-01-13').getTime(),
+    hasCloudAnonymizationKey: true,
+    tpr: {
+      cycleCount: 500,
+      maximum: 1000,
+      free: 0,
+      perMau: 0,
+    },
+    mau: {
+      cycleCount: 500,
+      maximum: 1000,
+      free: 0,
+      perMau: 0,
+    },
   });
 
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <SummaryPage summary={props} />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+}
+
+export function EmptySummaryPageView() {
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <SummaryPage summary={undefined} />
       </ContextProvider>
     </MemoryRouter>
   );

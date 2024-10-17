@@ -5,9 +5,27 @@ import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { CycleUsage } from 'e-teleport/UsageSummary/types';
 
-export function UsageBar({ usage }: { usage: CycleUsage }) {
+export function UsageBar({
+  usage: {
+    name,
+    info,
+    percentageMax,
+    percentage,
+    hardMax,
+    hasFreeTier,
+    total,
+    calibrating,
+  },
+}: {
+  usage: CycleUsage;
+}) {
   const theme = useTheme();
-  const getColor = (total, hasFreeTier, freeTierMax, hardMax): string => {
+  const getColor = (
+    total: number,
+    hasFreeTier: boolean,
+    freeTierMax: number,
+    hardMax: number
+  ): string => {
     // if a product has hit its hard max
     if (total >= hardMax) {
       return theme.colors.error.main;
@@ -24,21 +42,23 @@ export function UsageBar({ usage }: { usage: CycleUsage }) {
   };
 
   return (
-    <Box key={usage.name} width="30%" flex="40% 0" data-testid={usage.name}>
+    <Box key={name} width="30%" flex="40% 0" data-testid={name}>
       <Flex flexDirection="row" alignItems="center" gap={2}>
-        <h3>{usage.name}</h3>
-        <ToolTipInfo children={<Text>{usage.info}</Text>} />
+        <h3>{name}</h3>
+        <ToolTipInfo children={<Text>{info}</Text>} />
       </Flex>
-      {usage.total} of {usage.percentageMax}
-      {usage.hasFreeTier && ' Included'} ({usage.percentage}%)
+      {calibrating ? (
+        <Text style={{ fontStyle: 'italic' }}>Calibrating...</Text>
+      ) : (
+        <>
+          {total} of {percentageMax}
+          {hasFreeTier && ' Included'} ({percentage}%)
+        </>
+      )}
       <StyledBar
-        percent={Math.min(usage.percentage, 100)}
-        color={getColor(
-          usage.total,
-          usage.hasFreeTier,
-          usage.percentageMax,
-          usage.hardMax
-        )}
+        percent={Math.min(percentage, 100)}
+        color={getColor(total, hasFreeTier, percentageMax, hardMax)}
+        calibrating={calibrating}
       />
     </Box>
   );
@@ -47,6 +67,7 @@ export function UsageBar({ usage }: { usage: CycleUsage }) {
 const StyledBar = styled.div<{
   percent: number;
   color: string;
+  calibrating: boolean;
 }>`
   background: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 13px;
@@ -57,7 +78,16 @@ const StyledBar = styled.div<{
   &:after {
     content: '';
     display: block;
-    background: ${props => props.color};
+    background: ${props =>
+      props.calibrating
+        ? `repeating-linear-gradient(
+        120deg,
+        ${props.theme.colors.dataVisualisation.primary.purple}, 
+        ${props.theme.colors.dataVisualisation.primary.purple} 20px, 
+        ${props.theme.colors.dataVisualisation.secondary.purple} 20px, 
+        ${props.theme.colors.dataVisualisation.secondary.purple} 40px
+        )`
+        : props.color};
     width: ${p => p.percent}%;
     height: 100%;
     border-radius: 9px;

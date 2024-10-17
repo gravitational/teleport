@@ -6,4 +6,5 @@ export type CycleUsage = {
   percentage: number;
   hasFreeTier: boolean;
   info: string;
+  calibrating: boolean;
 };

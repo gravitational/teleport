@@ -32,7 +32,7 @@ describe('cycle', () => {
     };
   });
 
-  test('renders cycle overview, handles 0', () => {
+  test('renders cycle overview, handles 0, no calibration period', () => {
     props.summary.tpr = {
       maximum: 0,
       free: 0,
@@ -134,5 +134,21 @@ describe('cycle', () => {
     render(<Cycle {...props} />);
 
     expect(screen.getByText('Last updated: Nov 09, 2023')).toBeInTheDocument();
+  });
+
+  test('renders calibration period', () => {
+    props.summary.cycleStart = new Date('2024-01-01').getTime();
+    props.summary.cycleEnd = new Date('2024-01-31').getTime();
+    props.summary.salesforceIdUpdatedAt = new Date('2024-01-13').getTime();
+    props.summary.hasCloudAnonymizationKey = true;
+
+    render(<Cycle {...props} />);
+
+    expect(screen.getByText('Calibrating...')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'A change to your account requires a calibration period in order to accurately count Active Users. This should resolve itself with the start of your next billing cycle.'
+      )
+    ).toBeInTheDocument();
   });
 });
