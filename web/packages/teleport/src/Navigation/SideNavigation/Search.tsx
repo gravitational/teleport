@@ -89,33 +89,27 @@ function SearchContent({
   currentView: NavigationSubsection;
 }) {
   const [searchInput, setSearchInput] = useState('');
-  const [results, setResults] = useState<NavigationSubsection[]>([]);
   const inputRef = useRef<HTMLInputElement>();
 
   useEffect(() => {
     if (isVisible) {
       setSearchInput('');
-      setResults([]);
     }
   }, [isVisible]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const lowerCaseInput = e.target.value.toLowerCase();
-    setSearchInput(lowerCaseInput);
-
-    if (lowerCaseInput.length > 0) {
-      const searchResults = navigationSections.flatMap(section =>
-        section.subsections.filter(subsection =>
-          subsection.searchableTags?.some(tag =>
-            tag.toLowerCase().includes(lowerCaseInput)
-          )
-        )
-      );
-      setResults(searchResults);
-    } else {
-      setResults([]);
-    }
+    setSearchInput(e.target.value);
   };
+
+  const results = navigationSections.flatMap(section =>
+    section.subsections.filter(subsection =>
+      subsection.searchableTags?.some(
+        tag =>
+          searchInput.length > 0 &&
+          tag.toLowerCase().includes(searchInput.toLocaleLowerCase())
+      )
+    )
+  );
 
   return (
     <Flex flexDirection="column">

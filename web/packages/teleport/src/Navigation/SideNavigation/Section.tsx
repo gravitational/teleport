@@ -1,14 +1,31 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import styled, { css } from 'styled-components';
 
 import { Box } from 'design';
-import * as Icons from 'design/Icon';
 import { Theme } from 'design/theme';
 
-import { CustomNavigationCategory, NavigationCategory } from './categories';
 import { NavigationSection } from './Navigation';
 import { zIndexMap } from './zIndexMap';
+import { CategoryIcon } from './CategoryIcon';
 
 export function Section({
   section,
@@ -81,35 +98,6 @@ export const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
     padding-bottom: ${p => p.theme.topBarHeight[3] + p.theme.space[2]}px;
   }
 `;
-
-export function CategoryIcon({
-  category,
-  size,
-  color,
-}: {
-  category: NavigationCategory | CustomNavigationCategory;
-  size?: number;
-  color?: string;
-}) {
-  switch (category) {
-    case NavigationCategory.Resources:
-      return <Icons.Server size={size} color={color} />;
-    case NavigationCategory.Access:
-      return <Icons.Lock size={size} color={color} />;
-    case NavigationCategory.Identity:
-      return <Icons.FingerprintSimple size={size} color={color} />;
-    case NavigationCategory.Policy:
-      return <Icons.ShieldCheck size={size} color={color} />;
-    case NavigationCategory.Audit:
-      return <Icons.ListMagnifyingGlass size={size} color={color} />;
-    case NavigationCategory.AddNew:
-      return <Icons.AddCircle size={size} color={color} />;
-    case CustomNavigationCategory.Search:
-      return <Icons.Magnifier size={size} color={color} />;
-    default:
-      return null;
-  }
-}
 
 export const CategoryButton = styled.button<{
   $active: boolean;

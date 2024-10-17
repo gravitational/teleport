@@ -30,6 +30,8 @@ export enum CustomNavigationCategory {
   Search = 'Search',
 }
 
+export type SidenavCategory = NavigationCategory | CustomNavigationCategory;
+
 export const NAVIGATION_CATEGORIES = [
   NavigationCategory.Resources,
   NavigationCategory.Access,

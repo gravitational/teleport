@@ -36,10 +36,9 @@ import {
 import { zIndexMap } from './zIndexMap';
 
 import {
-  NavigationCategory,
   NAVIGATION_CATEGORIES,
   STANDALONE_CATEGORIES,
-  CustomNavigationCategory,
+  SidenavCategory,
 } from './categories';
 import { SearchSection } from './Search';
 
@@ -70,14 +69,17 @@ const PanelBackground = styled.div`
   border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
 `;
 
+/* NavigationSection is a section in the navbar, this can either be a standalone section (clickable button with no drawer), or a category with subsections shown in a drawer that expands. */
 export type NavigationSection = {
-  category: NavigationCategory | CustomNavigationCategory;
+  category: SidenavCategory;
   subsections?: NavigationSubsection[];
+  /* standalone is whether this is a clickable nav section with no subsections/drawer. */
   standalone?: boolean;
 };
 
+/* NavigationSubsection is a subsection of a NavigationSection, these are the items listed in the drawer of a NavigationSection. */
 export type NavigationSubsection = {
-  category: NavigationCategory | CustomNavigationCategory;
+  category: SidenavCategory;
   title: string;
   route: string;
   exact: boolean;
@@ -99,7 +101,7 @@ function getNavigationSections(
 }
 
 function getSubsectionsForCategory(
-  category: NavigationCategory | CustomNavigationCategory,
+  category: SidenavCategory,
   features: TeleportFeature[]
 ): NavigationSubsection[] {
   const filteredFeatures = features.filter(
