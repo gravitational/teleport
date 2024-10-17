@@ -170,7 +170,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOkta,
-			Log:       process.Config.Log.WithField(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
+			Logger:    process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
 			Client:    conn.Client,
 		},
 	})

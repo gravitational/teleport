@@ -372,8 +372,9 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 	watcher, err := services.NewAccessRequestWatcher(ctx, services.AccessRequestWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOktaAccessRequestReconciler,
-			Log:       a.log,
-			Client:    a.accessPoint,
+			// TODO(tross): update after migrated to use slog here
+			// Logger:       a.log,
+			Client: a.accessPoint,
 		},
 	})
 	if err != nil {

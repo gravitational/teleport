@@ -183,8 +183,9 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 	watcher, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
 		RWCfg: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOktaAssignmentReconciler,
-			Log:       a.log,
-			Client:    a.accessPoint,
+			// TODO(tross): update after migrating to slog
+			// Logger:       a.log,
+			Client: a.accessPoint,
 		},
 	})
 	if err != nil {

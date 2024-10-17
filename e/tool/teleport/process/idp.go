@@ -30,7 +30,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentSAMLIdP,
-			Log:       log,
+			Logger:    cfg.Logger.With(teleport.ComponentKey, eteleport.ComponentSAMLIdP),
 			Client:    authClient,
 		},
 	})

@@ -49,7 +49,7 @@ func startOktaReconciler(ctx context.Context, plugin *Plugin, cleanupFuncs Clean
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOkta,
-			Log:       log,
+			Logger:    plugin.logger,
 			Client:    plugin.authServer.AuthServer,
 		},
 	})
