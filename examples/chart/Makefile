@@ -1,7 +1,7 @@
 # TODO(hugoShaka): uncomment the additional targets as we start sync-ing
 # the reference and the values.yaml
 
-access = discord email jira mattermost msteams pagerduty slack
+access = discord email jira mattermost msteams pagerduty slack datadog
 
 check_access = $(addprefix check-chart-ref-access-,$(access))
 render_access = $(addprefix render-chart-ref-access-,$(access))
