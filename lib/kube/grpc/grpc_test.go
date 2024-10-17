@@ -48,11 +48,13 @@ import (
 func TestListKubernetesResources(t *testing.T) {
 	modules.SetInsecureTestMode(true)
 	var (
-		usernameWithFullAccess = "full_user"
-		usernameNoAccess       = "limited_user"
-		kubeCluster            = "test_cluster"
-		kubeUsers              = []string{"kube_user"}
-		kubeGroups             = []string{"kube_user"}
+		usernameWithFullAccess        = "full_user"
+		usernameNoAccess              = "limited_user"
+		usernameWithRequestModePod    = "request_mode_pod_user"
+		usernameWithRequestModeSecret = "request_mode_secret_user"
+		kubeCluster                   = "test_cluster"
+		kubeUsers                     = []string{"kube_user"}
+		kubeGroups                    = []string{"kube_user"}
 	)
 	// kubeMock is a Kubernetes API mock for the session tests.
 	// Once a new session is created, this mock will write to
@@ -91,6 +93,48 @@ func TestListKubernetesResources(t *testing.T) {
 					types.Allow,
 					[]types.KubernetesResource{{Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}},
 				)
+			},
+		},
+	)
+
+	userWithRequestModePod, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithRequestModePod,
+		kubeproxy.RoleSpec{
+			Name:       usernameWithRequestModePod,
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
+			SetupRoleFunc: func(role types.Role) {
+				// override the role to deny access to all kube resources.
+				role.SetKubernetesLabels(types.Allow, nil)
+				// set the role to allow searching as fullAccessRole.
+				role.SetSearchAsRoles(types.Allow, []string{fullAccessRole.GetName()})
+				// restrict querying to pods only
+				role.SetRequestMode(&types.AccessRequestMode{
+					KubernetesResources: []types.RequestModeKubernetesResource{{Kind: "namespace"}, {Kind: "pod"}},
+				})
+			},
+		},
+	)
+
+	userWithRequestModeSecret, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithRequestModeSecret,
+		kubeproxy.RoleSpec{
+			Name:       usernameWithRequestModeSecret,
+			KubeUsers:  kubeUsers,
+			KubeGroups: kubeGroups,
+			SetupRoleFunc: func(role types.Role) {
+				// override the role to deny access to all kube resources.
+				role.SetKubernetesLabels(types.Allow, nil)
+				// set the role to allow searching as fullAccessRole.
+				role.SetSearchAsRoles(types.Allow, []string{fullAccessRole.GetName()})
+				// restrict querying to secrets only
+				role.SetRequestMode(&types.AccessRequestMode{
+					KubernetesResources: []types.RequestModeKubernetesResource{{Kind: "secret"}},
+				})
 			},
 		},
 	)
@@ -283,6 +327,48 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind: "pod",
 						Metadata: types.Metadata{
 							Name: "nginx-1",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "user with no access, listing dev namespace using search as roles with request mode secret, request type pod",
+			args: args{
+				user:          userWithRequestModeSecret,
+				searchAsRoles: true,
+				namespace:     "dev",
+				resourceKind:  types.KindKubePod,
+			},
+			assertErr: require.Error,
+		},
+		{
+			name: "user with no access listing dev namespace using search as roles with request mode pod, request type pod",
+			args: args{
+				user:          userWithRequestModePod,
+				searchAsRoles: true,
+				namespace:     "dev",
+				resourceKind:  types.KindKubePod,
+			},
+			want: &proto.ListKubernetesResourcesResponse{
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-1",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-2",
 						},
 						Spec: types.KubernetesResourceSpecV1{
 							Namespace: "dev",

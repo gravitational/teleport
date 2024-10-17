@@ -3293,6 +3293,52 @@ func (set RoleSet) GetAllowedSearchAsRoles() []string {
 	return apiutils.Deduplicate(allowed)
 }
 
+// GetAllowedSearchAsRolesMeetingKubeRequestModes returns all of the allowed SearchAsRoles that
+// also passes the test where requestType matches the requestMode found for allowed role.
+func (set RoleSet) GetAllowedSearchAsRolesMeetingKubeRequestModes(requestType string) []string {
+	denied := make(map[string]struct{})
+	for _, role := range set {
+		for _, d := range role.GetSearchAsRoles(types.Deny) {
+			denied[d] = struct{}{}
+		}
+	}
+
+	searchAsRolesLookup := make(map[string][]types.RequestModeKubernetesResource)
+
+	for _, role := range set {
+		hasRequestMode := role.GetOptions().RequestMode != nil && len(role.GetOptions().RequestMode.KubernetesResources) > 0
+
+		for _, allowedRole := range role.GetSearchAsRoles(types.Allow) {
+			if _, denied := denied[allowedRole]; !denied {
+				if hasRequestMode {
+					kubeRequestModes := role.GetOptions().RequestMode.KubernetesResources
+					if _, exists := searchAsRolesLookup[allowedRole]; exists {
+						kubeRequestModes = append(kubeRequestModes, searchAsRolesLookup[allowedRole]...)
+					}
+					searchAsRolesLookup[allowedRole] = kubeRequestModes
+				} else {
+					searchAsRolesLookup[allowedRole] = nil
+				}
+			}
+		}
+	}
+
+	var allowedRoleNames []string
+	for allowedRole, kubeResources := range searchAsRolesLookup {
+		if len(kubeResources) == 0 {
+			allowedRoleNames = append(allowedRoleNames, allowedRole)
+			continue
+		}
+		for _, kubeResource := range kubeResources {
+			if kubeResource.Kind == requestType || kubeResource.Kind == types.Wildcard {
+				allowedRoleNames = append(allowedRoleNames, allowedRole)
+			}
+		}
+	}
+
+	return apiutils.Deduplicate(allowedRoleNames)
+}
+
 // GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
 func (set RoleSet) GetAllowedPreviewAsRoles() []string {
 	denied := make(map[string]struct{})

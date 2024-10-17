@@ -190,6 +190,40 @@ func TestRoleParse(t *testing.T) {
 			matchMessage: "KubernetesResource must include Namespace",
 		},
 		{
+			name: "validation error, invalid request mode kube resource kind",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"options": {
+						  "request_mode": {
+							  "kubernetes_resources": [{"kind":"abcd"}]
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "invalid or unsupported",
+		},
+		{
+			name: "validation error, request mode namespace not supported in v6",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"options": {
+						  "request_mode": {
+							  "kubernetes_resources": [{"kind":"namespace"}]
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "not supported in role version \"v6\"",
+		},
+		{
 			name: "validation error, missing podname in pod names",
 			in: `{
 					"kind": "role",
@@ -331,7 +365,10 @@ func TestRoleParse(t *testing.T) {
 							"enhanced_recording": ["command", "network"],
 							"desktop_clipboard": true,
 							"desktop_directory_sharing": true,
-							"ssh_file_copy" : false
+							"ssh_file_copy" : false,
+							"request_mode": {
+							  "kubernetes_resources": [{"kind":"pod"}]
+							}
 						},
 						"allow": {
 							"node_labels": {"a": "b", "c-d": "e"},
@@ -368,6 +405,11 @@ func TestRoleParse(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
+						RequestMode: &types.AccessRequestMode{
+							KubernetesResources: []types.RequestModeKubernetesResource{
+								{Kind: types.KindKubePod},
+							},
+						},
 						CertificateFormat: constants.CertificateFormatStandard,
 						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
 						PortForwarding:    types.NewBoolOption(true),
@@ -4682,6 +4724,104 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 			require.ElementsMatch(t, tc.expectedLogins, serverLogins)
 			require.ElementsMatch(t, tc.expectedLogins, desktopLogins)
 			require.ElementsMatch(t, tc.expectedLogins, awsARNLogins)
+		})
+	}
+}
+
+func TestGetAllowedSearchAsRolesMeetingKubeRequestModes(t *testing.T) {
+	newRole := func(
+		allowRoles []string,
+		denyRoles []string,
+		requestModes []types.RequestModeKubernetesResource,
+	) *types.RoleV6 {
+		return &types.RoleV6{
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: allowRoles,
+					},
+				},
+				Deny: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: denyRoles,
+					},
+				},
+				Options: types.RoleOptions{
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: requestModes,
+					},
+				},
+			},
+		}
+	}
+
+	withoutRequestModes := newRole([]string{"role1", "role2"}, []string{"role3"}, []types.RequestModeKubernetesResource{})
+	withRequestModesNamespaceAndPod := newRole([]string{"role2", "role3", "role10"}, []string{"role3"}, []types.RequestModeKubernetesResource{
+		{Kind: types.KindNamespace},
+		{Kind: types.KindKubePod},
+	})
+	withRequestModeWildcard := newRole([]string{"role4", "role5"}, []string{"role3"}, []types.RequestModeKubernetesResource{
+		{Kind: types.KindNamespace},
+		{Kind: types.KindKubePod},
+		{Kind: types.Wildcard},
+	})
+	withRequestModeSecret := newRole([]string{"role5", "role6"}, []string{"role3"}, []types.RequestModeKubernetesResource{
+		{Kind: types.KindKubeSecret},
+	})
+
+	tt := []struct {
+		name                 string
+		labels               map[string]string
+		roleSet              RoleSet
+		requestType          string
+		expectedAllowedRoles []string
+	}{
+		{
+			name:        "return all allowed roles that doesn't have request mode defined since type doesn't match",
+			roleSet:     NewRoleSet(withRequestModeSecret, withoutRequestModes),
+			requestType: types.KindNamespace,
+			// only roles from "withoutRequestModes"
+			expectedAllowedRoles: []string{"role1", "role2"},
+		},
+		{
+			name:        "return all allowed roles with wildcard",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModeWildcard),
+			requestType: types.KindKubeNamespace,
+			// only roles from "withRequestModeWildcard"
+			expectedAllowedRoles: []string{"role4", "role5"},
+		},
+		{
+			name:        "return all allowed roles with matching type and wildcard",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModeWildcard),
+			requestType: types.KindKubeSecret,
+			// roles from both "withRequestModeWildcard" & "withRequestModeSecret"
+			expectedAllowedRoles: []string{"role4", "role5", "role6"},
+		},
+		{
+			name:        "return empty if there were no matching types",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModesNamespaceAndPod),
+			requestType: types.KindKubeDeployment,
+		},
+		{
+			name:        "return all allowed roles only matching types",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModesNamespaceAndPod),
+			requestType: types.KindKubePod,
+			// roles from "withRequestModesNamespaceAndPod"
+			expectedAllowedRoles: []string{"role2", "role10"},
+		},
+		{
+			name:                 "return all allowed roles with multiple rolesets",
+			roleSet:              NewRoleSet(withoutRequestModes, withRequestModesNamespaceAndPod, withRequestModeWildcard, withRequestModeSecret),
+			requestType:          types.KindKubeSecret,
+			expectedAllowedRoles: []string{"role1", "role4", "role5", "role6"},
+		},
+	}
+	for _, tc := range tt {
+		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
+		t.Run(tc.name, func(t *testing.T) {
+
+			allowedRoles := accessChecker.GetAllowedSearchAsRolesMeetingKubeRequestModes(tc.requestType)
+			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
 		})
 	}
 }
