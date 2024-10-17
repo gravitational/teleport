@@ -122,35 +122,6 @@ export interface Cluster {
     profileStatusError: string;
 }
 /**
- * RequestModeKubernetesResources is the Kubernetes resource identifier used
- * in access request mode settings.
- * Modeled after existing message KubernetesResource.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.RequestModeKubernetesResource
- */
-export interface RequestModeKubernetesResource {
-    /**
-     * Kind specifies the Kubernetes Resource type.
-     *
-     * @generated from protobuf field: string kind = 1;
-     */
-    kind: string;
-}
-/**
- * AccessRequestMode describes request mode settings for applicable resources.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.AccessRequestMode
- */
-export interface AccessRequestMode {
-    /**
-     * KubernetesResources defines which Kubernetes subresources a user can
-     * request during request creation.
-     *
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.RequestModeKubernetesResource kubernetes_resources = 1;
-     */
-    kubernetesResources: RequestModeKubernetesResource[];
-}
-/**
  * LoggedInUser describes a logged-in user
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.LoggedInUser
@@ -205,12 +176,6 @@ export interface LoggedInUser {
      * @generated from protobuf field: teleport.lib.teleterm.v1.LoggedInUser.UserType user_type = 8;
      */
     userType: LoggedInUser_UserType;
-    /**
-     * RequestMode defines what resource kinds a user can request for applicable resources.
-     *
-     * @generated from protobuf field: teleport.lib.teleterm.v1.AccessRequestMode request_mode = 9;
-     */
-    requestMode?: AccessRequestMode;
 }
 /**
  * UserType indicates whether the user was created through an SSO provider or in Teleport itself.
@@ -524,100 +489,6 @@ class Cluster$Type extends MessageType<Cluster> {
  */
 export const Cluster = new Cluster$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class RequestModeKubernetesResource$Type extends MessageType<RequestModeKubernetesResource> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.RequestModeKubernetesResource", [
-            { no: 1, name: "kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<RequestModeKubernetesResource>): RequestModeKubernetesResource {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.kind = "";
-        if (value !== undefined)
-            reflectionMergePartial<RequestModeKubernetesResource>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestModeKubernetesResource): RequestModeKubernetesResource {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string kind */ 1:
-                    message.kind = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: RequestModeKubernetesResource, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string kind = 1; */
-        if (message.kind !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.kind);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.RequestModeKubernetesResource
- */
-export const RequestModeKubernetesResource = new RequestModeKubernetesResource$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class AccessRequestMode$Type extends MessageType<AccessRequestMode> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.AccessRequestMode", [
-            { no: 1, name: "kubernetes_resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => RequestModeKubernetesResource }
-        ]);
-    }
-    create(value?: PartialMessage<AccessRequestMode>): AccessRequestMode {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.kubernetesResources = [];
-        if (value !== undefined)
-            reflectionMergePartial<AccessRequestMode>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestMode): AccessRequestMode {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.RequestModeKubernetesResource kubernetes_resources */ 1:
-                    message.kubernetesResources.push(RequestModeKubernetesResource.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: AccessRequestMode, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.RequestModeKubernetesResource kubernetes_resources = 1; */
-        for (let i = 0; i < message.kubernetesResources.length; i++)
-            RequestModeKubernetesResource.internalBinaryWrite(message.kubernetesResources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AccessRequestMode
- */
-export const AccessRequestMode = new AccessRequestMode$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class LoggedInUser$Type extends MessageType<LoggedInUser> {
     constructor() {
         super("teleport.lib.teleterm.v1.LoggedInUser", [
@@ -628,8 +499,7 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
             { no: 5, name: "active_requests", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "suggested_reviewers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "requestable_roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] },
-            { no: 9, name: "request_mode", kind: "message", T: () => AccessRequestMode }
+            { no: 8, name: "user_type", kind: "enum", T: () => ["teleport.lib.teleterm.v1.LoggedInUser.UserType", LoggedInUser_UserType, "USER_TYPE_"] }
         ]);
     }
     create(value?: PartialMessage<LoggedInUser>): LoggedInUser {
@@ -674,9 +544,6 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
                 case /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type */ 8:
                     message.userType = reader.int32();
                     break;
-                case /* teleport.lib.teleterm.v1.AccessRequestMode request_mode */ 9:
-                    message.requestMode = AccessRequestMode.internalBinaryRead(reader, reader.uint32(), options, message.requestMode);
-                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -713,9 +580,6 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type = 8; */
         if (message.userType !== 0)
             writer.tag(8, WireType.Varint).int32(message.userType);
-        /* teleport.lib.teleterm.v1.AccessRequestMode request_mode = 9; */
-        if (message.requestMode)
-            AccessRequestMode.internalBinaryWrite(message.requestMode, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

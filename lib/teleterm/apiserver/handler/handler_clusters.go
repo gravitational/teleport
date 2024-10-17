@@ -123,7 +123,6 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) (*api.Cl
 	}
 	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
 	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
-	apiCluster.LoggedInUser.RequestMode = cluster.RequestMode
 	apiCluster.AuthClusterId = cluster.AuthClusterID
 	apiCluster.LoggedInUser.Acl = cluster.ACL
 	userType, err := clusters.UserTypeFromString(cluster.UserType)
