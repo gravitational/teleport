@@ -7,3 +7,4 @@ spec:
     enabled: true
 status:
     active_version: new-version
+    backup_version: old-version

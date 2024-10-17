@@ -128,6 +128,7 @@ func TestUpdater_Enable(t *testing.T) {
 		cfg     *UpdateConfig // nil -> file not present
 		userCfg UserConfig
 
+		removedVersion    string
 		installedVersion  string
 		installedTemplate string
 		errMatch          string
@@ -206,6 +207,32 @@ func TestUpdater_Enable(t *testing.T) {
 			},
 		},
 		{
+			name: "backup version removed on install",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					BackupVersion: "backup-version",
+				},
+			},
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			removedVersion:    "backup-version",
+		},
+		{
+			name: "backup version kept otherwise",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Status: UpdateStatus{
+					ActiveVersion: "16.3.0",
+					BackupVersion: "backup-version",
+				},
+			},
+			removedVersion: "",
+		},
+		{
 			name:              "config does not exist",
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
@@ -247,7 +274,12 @@ func TestUpdater_Enable(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			var installedVersion, installedTemplate, linkedVersion string
+			var (
+				installedVersion  string
+				installedTemplate string
+				linkedVersion     string
+				removedVersion    string
+			)
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, version, template string) error {
 					installedVersion = version
@@ -256,6 +288,13 @@ func TestUpdater_Enable(t *testing.T) {
 				},
 				FuncLink: func(_ context.Context, version string) error {
 					linkedVersion = version
+					return nil
+				},
+				FuncList: func(_ context.Context) (versions []string, err error) {
+					return []string{"old"}, nil
+				},
+				FuncRemove: func(_ context.Context, version string) error {
+					removedVersion = version
 					return nil
 				},
 			}
@@ -271,6 +310,7 @@ func TestUpdater_Enable(t *testing.T) {
 			require.Equal(t, tt.installedVersion, installedVersion)
 			require.Equal(t, tt.installedTemplate, installedTemplate)
 			require.Equal(t, tt.installedVersion, linkedVersion)
+			require.Equal(t, tt.removedVersion, removedVersion)
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
@@ -294,6 +334,7 @@ type testInstaller struct {
 	FuncInstall func(ctx context.Context, version, template string) error
 	FuncRemove  func(ctx context.Context, version string) error
 	FuncLink    func(ctx context.Context, version string) error
+	FuncList    func(ctx context.Context) (versions []string, err error)
 }
 
 func (ti *testInstaller) Install(ctx context.Context, version, template string) error {
@@ -306,4 +347,8 @@ func (ti *testInstaller) Remove(ctx context.Context, version string) error {
 
 func (ti *testInstaller) Link(ctx context.Context, version string) error {
 	return ti.FuncLink(ctx, version)
+}
+
+func (ti *testInstaller) List(ctx context.Context) (versions []string, err error) {
+	return ti.FuncList(ctx)
 }
