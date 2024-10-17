@@ -326,6 +326,22 @@ func uncompressedSize(f io.Reader) (int64, error) {
 	return n, nil
 }
 
+// List installed versions of Teleport.
+func (ai *LocalInstaller) List(ctx context.Context) (versions []string, err error) {
+	entries, err := os.ReadDir(ai.InstallDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		versions = append(versions, entry.Name())
+	}
+	return versions, nil
+}
+
+// Link the specified version into the system LinkDir.
 func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
 	binDir := filepath.Join(ai.InstallDir, version, "bin")
 	entries, err := os.ReadDir(binDir)
