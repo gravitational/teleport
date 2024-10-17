@@ -15,14 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-import { GitHubIcon } from 'design/SVGIcon';
-
-import { BotFlowType } from 'teleport/Bots/types';
-
-import cfg from 'teleport/config';
-
-import { IntegrationEnrollKind } from 'teleport/services/userEvent';
+import { ResourceIcon } from 'design/ResourceIcon';
 
 import { GuidedFlow, View } from '../Shared/GuidedFlow';
 
@@ -32,14 +25,6 @@ import { ConfigureBot } from './ConfigureBot';
 import { AddBotToWorkflow } from './AddBotToWorkflow';
 import { Finish } from './Finish';
 import { GitHubFlowProvider } from './useGitHubFlow';
-
-export const GitHubActionsFlow = {
-  title: 'GitHub Actions',
-  link: cfg.getBotsNewRoute(BotFlowType.GitHubActions),
-  icon: <GitHubIcon size={80} />,
-  kind: IntegrationEnrollKind.MachineIDGitHubActions,
-  guided: true,
-};
 
 const views: View[] = [
   {
@@ -65,9 +50,9 @@ export function GitHubActions() {
     <GitHubFlowProvider>
       <GuidedFlow
         title="GitHub Actions and Machine ID Integration"
-        icon={<GitHubIcon size={20} />}
+        icon={<ResourceIcon name="github" width="20px" />}
         views={views}
-        name={GitHubActionsFlow.title}
+        name="GitHub Actions"
       />
     </GitHubFlowProvider>
   );

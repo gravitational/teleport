@@ -332,5 +332,4 @@ export const emptyStateInfo: EmptyStateInfo = {
     title: 'No Resources Found',
     resource: 'resources',
   },
-  resourceType: 'unified_resource',
 };
