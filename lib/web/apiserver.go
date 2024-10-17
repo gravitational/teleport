@@ -1545,7 +1545,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
 	} else if err == nil {
-		response.AutoUpdate.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
+		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
 	}
 
 	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
@@ -1553,7 +1553,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
 	} else if err == nil {
-		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
+		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
 	}
 
 	return response, nil

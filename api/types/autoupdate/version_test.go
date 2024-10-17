@@ -41,7 +41,9 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 		{
 			name: "success tools autoupdate version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				ToolsVersion: "1.2.3-dev",
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3-dev",
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
 				require.NoError(t, err)
@@ -53,26 +55,32 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					Name: types.MetaNameAutoUpdateVersion,
 				},
 				Spec: &autoupdate.AutoUpdateVersionSpec{
-					ToolsVersion: "1.2.3-dev",
+					Tools: &autoupdate.AutoUpdateVersionSpecTools{
+						TargetVersion: "1.2.3-dev",
+					},
 				},
 			},
 		},
 		{
 			name: "invalid empty tools version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				ToolsVersion: "",
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: "",
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
-				require.ErrorContains(t, err, "ToolsVersion is unset")
+				require.ErrorContains(t, err, "TargetVersion is unset")
 			},
 		},
 		{
 			name: "invalid semantic tools version",
 			spec: &autoupdate.AutoUpdateVersionSpec{
-				ToolsVersion: "17-0-0",
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: "17-0-0",
+				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
-				require.ErrorContains(t, err, "ToolsVersion is not a valid semantic version")
+				require.ErrorContains(t, err, "TargetVersion is not a valid semantic version")
 			},
 		},
 		{

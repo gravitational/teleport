@@ -334,8 +334,8 @@ type ProxySettings struct {
 type AutoUpdateSettings struct {
 	// ToolsVersion defines the version of {tsh, tctl} for client auto update.
 	ToolsVersion string `json:"tools_version"`
-	// ToolsAutoUpdate enables client auto update feature.
-	ToolsAutoUpdate bool `json:"tools_auto_update"`
+	// ToolsMode defines mode client auto update feature `enabled|disabled`.
+	ToolsMode string `json:"tools_mode"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
