@@ -1893,11 +1893,15 @@ func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOptio
 // GetAnonymizationKey returns the anonymization key that identifies this client.
 // It falls back to the cluster ID if the anonymization key is not set in license file.
 func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
-	if a.license == nil || len(a.license.AnonymizationKey) == 0 {
-		return a.GetClusterID(ctx, opts...)
+	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
+		return string(key), nil
 	}
 
-	return string(a.license.AnonymizationKey), nil
+	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
+		return string(a.license.AnonymizationKey), nil
+	}
+
+	return a.GetClusterID(ctx, opts...)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
