@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 
 	"github.com/gravitational/trace"
 
@@ -74,18 +75,24 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 // for the user and session ID. It also checks the required extensions, and finishes by deleting
 // the MFA session if reuse is not allowed.
 func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, token string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
+	}
+
+	const notFoundErrMsg = "mfa sso session data not found"
 	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
-		return nil, trace.AccessDenied("mfa sso session data not found")
+		return nil, trace.AccessDenied(notFoundErrMsg)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Verify the user's name and sso device matches.
 	if mfaSess.Username != username {
-		return nil, trace.AccessDenied("mfa sso session data not found")
+		return nil, trace.AccessDenied(notFoundErrMsg)
 	}
 
+	// Check if the MFA session matches the user's SSO MFA settings.
 	devs, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,13 +100,13 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 
 	groupedDevs := groupByDeviceType(devs)
 	if groupedDevs.SSO == nil {
-		return nil, trace.BadParameter("invalid sso mfa session data; non-sso user")
+		return nil, trace.AccessDenied("invalid sso mfa session data; non-sso user")
 	} else if groupedDevs.SSO.GetSso().ConnectorId != mfaSess.ConnectorID || groupedDevs.SSO.GetSso().ConnectorType != mfaSess.ConnectorType {
-		return nil, trace.BadParameter("invalid sso mfa session data; mismatched sso auth connector")
+		return nil, trace.AccessDenied("invalid sso mfa session data; mismatched sso auth connector")
 	}
 
 	// Verify the token matches.
-	if mfaSess.Token != token {
+	if subtle.ConstantTimeCompare([]byte(mfaSess.Token), []byte(token)) == 0 {
 		return nil, trace.AccessDenied("invalid SSO MFA challenge response")
 	}
 
@@ -108,7 +115,7 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given sso mfa session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
 	}
 
-	// If this session is reusable, but this login forbids reusable sessions, return an error.
+	// If this session is reusable, but this context forbids reusable sessions, return an error.
 	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		return nil, trace.AccessDenied("the given sso mfa session allows reuse, but reuse is not permitted in this context")
 	}
