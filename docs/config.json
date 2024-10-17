@@ -9,8 +9,8 @@
           "slug": "/"
         },
         {
-           "title": "Get Started",
-           "slug": "/get-started/"
+          "title": "Get Started",
+          "slug": "/get-started/"
         },
         {
           "title": "Core Concepts",
@@ -35,7 +35,7 @@
             {
               "title": "Upgrading Reference",
               "slug": "/upgrading/upgrading-reference/"
-	    }
+            }
           ]
         },
         {
@@ -51,10 +51,10 @@
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
         },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
+        {
+          "title": "Cloud IP Addresses",
+          "slug": "/ips/"
+        },
         {
           "title": "Changelog",
           "slug": "/changelog/"
@@ -62,10 +62,10 @@
       ]
     },
     {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
+      "icon": "wrench",
+      "title": "Admin Guides",
+      "entries": [],
+      "generateFrom": "admin-guides"
     },
     {
       "icon": "connect",
@@ -2212,7 +2212,12 @@
     },
     {
       "source": "/management/dynamic-resources/",
-      "destination": "/admin-guides/infrastructure-as-code/",
+      "destination": "/admin-guides/infrastructure-as-code/infrastructure-as-code/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/infrastructure-as-code/",
+      "destination": "/admin-guides/infrastructure-as-code/infrastructure-as-code/",
       "permanent": true
     },
     {
