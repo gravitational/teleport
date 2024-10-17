@@ -41,7 +41,6 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -240,18 +239,10 @@ func (p *podHandler) handler(r *http.Request) error {
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	mfaCeremony := &mfa.Ceremony{
-		CreateAuthenticateChallenge: p.sctx.cfg.RootClient.CreateAuthenticateChallenge,
-		SolveAuthenticateChallenge: func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
-			assertion, err := mfaPrompt(stream.WSStream, protobufMFACodec{}).Run(ctx, chal)
-			return assertion, trace.Wrap(err)
-		},
-	}
-
 	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
-		MFACeremony:       mfaCeremony,
+		MFACeremony:       newMFACeremony(stream.WSStream, p.sctx.cfg.RootClient.CreateAuthenticateChallenge),
 		MFAAgainstRoot:    p.sctx.cfg.RootClusterName == p.teleportCluster,
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.req.KubeCluster},
