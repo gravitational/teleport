@@ -1537,7 +1537,12 @@
     },
     {
       "source": "/access-controls/access-requests/",
-      "destination": "/admin-guides/access-controls/access-requests/",
+      "destination": "/admin-guides/access-controls/access-requests/access-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/",
+      "destination": "/admin-guides/access-controls/access-requests/access-requests/",
       "permanent": true
     },
     {
