@@ -421,7 +421,7 @@ func (c *Client) sync() {
 		},
 	})
 	if err != nil {
-		c.config.Log.ErrorContext(c.ctx, "Error initializing proxy peer watcher.", "error", err)
+		c.config.Log.ErrorContext(c.ctx, "error initializing proxy peer watcher", "error", err)
 		return
 	}
 	defer proxyWatcher.Close()
@@ -429,14 +429,14 @@ func (c *Client) sync() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.config.Log.DebugContext(c.ctx, "Stopping peer proxy sync: context done.")
+			c.config.Log.DebugContext(c.ctx, "stopping peer proxy sync: context done")
 			return
 		case <-proxyWatcher.Done():
-			c.config.Log.DebugContext(c.ctx, "Stopping peer proxy sync: proxy watcher done.")
+			c.config.Log.DebugContext(c.ctx, "stopping peer proxy sync: proxy watcher done")
 			return
 		case proxies := <-proxyWatcher.ProxiesC:
 			if err := c.updateConnections(proxies); err != nil {
-				c.config.Log.ErrorContext(c.ctx, "Error syncing peer proxies.", "error", err)
+				c.config.Log.ErrorContext(c.ctx, "error syncing peer proxies", "error", err)
 			}
 		}
 	}
@@ -487,7 +487,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
-			c.config.Log.DebugContext(c.ctx, "Error dialing peer proxy.", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
+			c.config.Log.DebugContext(c.ctx, "error dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}
@@ -688,7 +688,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
-			c.config.Log.DebugContext(c.ctx, "Error direct dialing peer proxy.", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
+			c.config.Log.DebugContext(c.ctx, "error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}
