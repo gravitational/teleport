@@ -6856,6 +6856,10 @@ func (a *Server) ValidateMFAAuthResponse(
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("required challenge extensions parameter required")
+	}
+
 	authData, validateErr := a.validateMFAAuthResponseInternal(ctx, resp, user, requiredExtensions)
 	// validateErr handled after audit.
 
