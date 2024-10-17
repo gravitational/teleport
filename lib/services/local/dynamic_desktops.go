@@ -44,9 +44,6 @@ func NewDynamicWindowsDesktopService(b backend.Backend) (*DynamicWindowsDesktopS
 		BackendPrefix: backend.NewKey(dynamicWindowsDesktopsPrefix),
 		MarshalFunc:   services.MarshalDynamicWindowsDesktop,
 		UnmarshalFunc: services.UnmarshalDynamicWindowsDesktop,
-		ValidateFunc: func(desktop types.DynamicWindowsDesktop) error {
-			return services.CheckAndSetDefaults(desktop)
-		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
