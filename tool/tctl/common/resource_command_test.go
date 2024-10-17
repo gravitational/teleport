@@ -2291,7 +2291,8 @@ metadata:
   name: autoupdate-config
   revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
-  tools_autoupdate: true
+  tools:
+    mode: enabled
 version: v1
 `
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
@@ -2326,7 +2327,8 @@ metadata:
   name: autoupdate-version
   revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
-  tools_version: 1.2.3
+  tools:
+    target_version: 1.2.3
 version: v1
 `
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
