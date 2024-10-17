@@ -6501,3 +6501,162 @@ func TestRolesToString(t *testing.T) {
 		})
 	}
 }
+
+// TestResolve tests that host resolution works for various inputs and
+// that proxy templates are respected.
+func TestResolve(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	accessRoleName := "access"
+	sshHostname := "test-ssh-server"
+
+	accessUser, err := types.NewUser(accessRoleName)
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{accessRoleName})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Username})
+
+	traits := map[string][]string{
+		constants.TraitLogins: {user.Username},
+	}
+	accessUser.SetTraits(traits)
+
+	connector := mockConnector(t)
+	rootServerOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname(sshHostname),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithSSHLabel("animal", "llama"),
+		testserver.WithSSHLabel("ipv4", "1.2.3.4 2.3.4.5"),
+		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.DisableCreateHostUser = true
+		}),
+	}
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+
+	node := testserver.MakeTestServer(t,
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
+			cfg.Hostname = "second-node"
+			cfg.Auth.Enabled = false
+			cfg.Proxy.Enabled = false
+			cfg.SSH.Enabled = true
+			cfg.SSH.DisableCreateHostUser = true
+			cfg.SSH.Labels = map[string]string{
+				"ipv4": "1.2.3.4 6.7.8.9",
+			}
+		}))
+
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 2) {
+			return
+		}
+	}, 10*time.Second, 100*time.Millisecond)
+
+	tmpHomePath := t.TempDir()
+	rootAuth := rootServer.GetAuthServer()
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", rootProxyAddr.String(),
+		"--user", user.Username,
+	}, setHomePath(tmpHomePath), setMockSSOLogin(rootAuth, accessUser, connector.GetName()))
+	require.NoError(t, err)
+
+	// Write proxy templates
+	const templates = `proxy_templates:
+  - template: '^([0-9\.]+):\d+$'
+    query: 'contains(split(labels.ipv4, " "), "$1")'
+  - template: '^(.*).example.com:\d+$'
+    search: "$1"`
+	err = os.WriteFile(filepath.Join(tmpHomePath, "teleport.yaml"), []byte(templates), 0o600)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		hostname  string
+		quiet     bool
+		assertion require.ErrorAssertionFunc
+	}{
+		{
+			name:      "resolved without using templates",
+			hostname:  sshHostname,
+			assertion: require.NoError,
+		},
+		{
+			name:      "resolved via predicate from template",
+			hostname:  "2.3.4.5",
+			assertion: require.NoError,
+		},
+		{
+			name:      "resolved via search from template",
+			hostname:  "llama",
+			assertion: require.NoError,
+		},
+		{
+			name:      "no matching host",
+			hostname:  "asdf",
+			assertion: require.Error,
+		},
+		{
+			name:      "quiet prevents output",
+			hostname:  node.Config.Hostname,
+			quiet:     true,
+			assertion: require.NoError,
+		},
+		{
+			name:      "multiple matching hosts",
+			hostname:  "1.2.3.4",
+			assertion: require.Error,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		ctx := context.Background()
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout := &output{buf: bytes.Buffer{}}
+			stderr := &output{buf: bytes.Buffer{}}
+
+			args := []string{"resolve"}
+			if test.quiet {
+				args = append(args, "-q")
+			}
+			args = append(args, test.hostname)
+
+			err := Run(ctx, args, setHomePath(tmpHomePath),
+				func(conf *CLIConf) error {
+					conf.overrideStdin = &bytes.Buffer{}
+					conf.OverrideStdout = stdout
+					conf.overrideStderr = stderr
+					return nil
+				},
+			)
+
+			test.assertion(t, err)
+			if err != nil {
+				return
+			}
+
+			if test.quiet {
+				require.Empty(t, stdout.String())
+			} else {
+				require.Contains(t, stdout.String(), sshHostname)
+			}
+		})
+	}
+}
