@@ -21,6 +21,12 @@ package dynamicwindowsv1
 import (
 	"context"
 	"fmt"
+	"slices"
+	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -29,10 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"slices"
-	"testing"
 )
 
 func TestServiceAccess(t *testing.T) {
