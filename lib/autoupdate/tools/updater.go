@@ -112,15 +112,16 @@ func NewUpdater(tools []string, toolsDir string, localVersion string, options ..
 }
 
 // CheckLocal is run at client tool startup and will only perform local checks.
+// Returns the version needs to be updated and re-executed.
 func (u *Updater) CheckLocal() (string, bool) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
-	switch {
+	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
-	case requestedVersion == "off":
+	case "off":
 		return "", false
 	// Requested version already the same as client version.
-	case u.localVersion == requestedVersion:
+	case u.localVersion:
 		return requestedVersion, false
 	}
 
@@ -138,17 +139,17 @@ func (u *Updater) CheckLocal() (string, bool) {
 	return toolsVersion, false
 }
 
-// CheckRemote will check against Proxy Service if client tools need to be
-// updated.
+// CheckRemote will check against Proxy Service if client tools need to be updated.
+// Returns the version needs to be updated and re-executed.
 func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
-	switch {
+	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
-	case requestedVersion == "off":
+	case "off":
 		return "", false, nil
 	// Requested version already the same as client version.
-	case u.localVersion == requestedVersion:
+	case u.localVersion:
 		return requestedVersion, false, nil
 	}
 
@@ -251,19 +252,26 @@ func (u *Updater) update(ctx context.Context, pkg packageURL) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	archivePath, archiveHash, err := u.downloadArchive(ctx, u.toolsDir, pkg.Archive)
+
+	f, err := os.CreateTemp(u.toolsDir, "tmp-")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		_ = f.Close()
+		if err := os.Remove(f.Name()); err != nil {
+			slog.WarnContext(ctx, "failed to remove temporary archive file", "error", err)
+		}
+	}()
+
+	archiveHash, err := u.downloadArchive(ctx, pkg.Archive, f)
 	if pkg.Optional && trace.IsNotFound(err) {
 		return nil
 	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer func() {
-		if err := os.Remove(archivePath); err != nil {
-			slog.WarnContext(ctx, "failed to remove archive", "error", err)
-		}
-	}()
-	if archiveHash != hash {
+	if !bytes.Equal(archiveHash, hash) {
 		return trace.BadParameter("hash of archive does not match downloaded archive")
 	}
 
@@ -276,7 +284,7 @@ func (u *Updater) update(ctx context.Context, pkg packageURL) error {
 	}
 
 	// Perform atomic replace so concurrent exec do not fail.
-	if err := packaging.ReplaceToolsBinaries(u.toolsDir, archivePath, extractDir, u.tools); err != nil {
+	if err := packaging.ReplaceToolsBinaries(u.toolsDir, f.Name(), extractDir, u.tools); err != nil {
 		return trace.Wrap(err)
 	}
 	// Cleanup the tools directory with previously downloaded and un-archived versions.
@@ -316,63 +324,60 @@ func (u *Updater) Exec() (int, error) {
 	return 0, nil
 }
 
-func (u *Updater) downloadHash(ctx context.Context, url string) (string, error) {
+// downloadHash downloads the hash file `.sha256` for package checksum validation and return the hash sum.
+func (u *Updater) downloadHash(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	resp, err := u.client.Do(req)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return "", trace.NotFound("hash file is not found: %v", resp.StatusCode)
+		return nil, trace.NotFound("hash file is not found: %v", resp.StatusCode)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", trace.BadParameter("bad status when downloading archive hash: %v", resp.StatusCode)
+		return nil, trace.BadParameter("bad status when downloading archive hash: %v", resp.StatusCode)
 	}
 
 	var buf bytes.Buffer
 	_, err = io.CopyN(&buf, resp.Body, sha256.Size*2) // SHA bytes to hex
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	raw := buf.String()
-	if _, err = hex.DecodeString(raw); err != nil {
-		return "", trace.Wrap(err)
+	hexBytes, err := hex.DecodeString(buf.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return raw, nil
+
+	return hexBytes, nil
 }
 
-func (u *Updater) downloadArchive(ctx context.Context, downloadDir string, url string) (string, string, error) {
+// downloadArchive downloads the archive package by `url` and writes content to the writer interface,
+// return calculated sha256 hash sum of the content.
+func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	resp, err := u.client.Do(req)
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return "", "", trace.NotFound("archive file is not found: %v", resp.StatusCode)
+		return nil, trace.NotFound("archive file is not found: %v", resp.StatusCode)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", "", trace.BadParameter("bad status when downloading archive: %v", resp.StatusCode)
+		return nil, trace.BadParameter("bad status when downloading archive: %v", resp.StatusCode)
 	}
 
 	if resp.ContentLength != -1 {
 		if err := checkFreeSpace(u.toolsDir, uint64(resp.ContentLength)); err != nil {
-			return "", "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-	}
-
-	// Caller of this function will remove this file after the atomic swap has
-	// occurred.
-	f, err := os.CreateTemp(downloadDir, "tmp-")
-	if err != nil {
-		return "", "", trace.Wrap(err)
 	}
 
 	h := sha256.New()
@@ -384,8 +389,8 @@ func (u *Updater) downloadArchive(ctx context.Context, downloadDir string, url s
 	// tools to validate the hash before trying to operate on the archive.
 	_, err = io.CopyN(f, body, resp.ContentLength)
 	if err != nil {
-		return "", "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return f.Name(), hex.EncodeToString(h.Sum(nil)), nil
+	return h.Sum(nil), nil
 }

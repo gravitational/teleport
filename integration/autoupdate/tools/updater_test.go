@@ -54,7 +54,7 @@ func TestUpdate(t *testing.T) {
 		clientTools(),
 		toolsDir,
 		testVersions[0],
-		tools.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
+		tools.WithBaseURL(baseURL),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
@@ -96,7 +96,7 @@ func TestParallelUpdate(t *testing.T) {
 		clientTools(),
 		toolsDir,
 		testVersions[0],
-		tools.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
+		tools.WithBaseURL(baseURL),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
@@ -108,9 +108,9 @@ func TestParallelUpdate(t *testing.T) {
 		lock:  lock,
 	})
 
-	var outputs [3]bytes.Buffer
-	errChan := make(chan error, cap(outputs))
-	for i := 0; i < cap(outputs); i++ {
+	outputs := make([]bytes.Buffer, 3)
+	errChan := make(chan error, 3)
+	for i := 0; i < len(outputs); i++ {
 		cmd := exec.Command(filepath.Join(toolsDir, "tsh"), "version")
 		cmd.Stdout = &outputs[i]
 		cmd.Stderr = &outputs[i]
@@ -170,7 +170,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		clientTools(),
 		toolsDir,
 		testVersions[0],
-		tools.WithBaseURL(fmt.Sprintf("http://%s", baseURL)),
+		tools.WithBaseURL(baseURL),
 	)
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)

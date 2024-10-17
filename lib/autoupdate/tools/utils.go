@@ -39,9 +39,9 @@ import (
 
 const (
 	// FlagEnt represents enterprise version.
-	FlagEnt = 1 << 0
+	FlagEnt = 1 << iota
 	// FlagFips represents enterprise version with fips feature enabled.
-	FlagFips = 1 << 1
+	FlagFips
 )
 
 var (

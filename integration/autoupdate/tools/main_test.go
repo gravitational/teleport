@@ -26,8 +26,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,10 +69,18 @@ func TestMain(m *testing.M) {
 		log.Fatalf("failed to create temporary directory: %v", err)
 	}
 
-	var srv *http.Server
-	srv, baseURL = startTestHTTPServer(tmp)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		filePath := filepath.Join(tmp, r.URL.Path)
+		switch {
+		case strings.HasSuffix(r.URL.Path, ".sha256"):
+			serve256File(w, r, strings.TrimSuffix(filePath, ".sha256"))
+		default:
+			http.ServeFile(limitedWriter.Wrap(w), r, filePath)
+		}
+	}))
+	baseURL = server.URL
 	for _, version := range testVersions {
-		if err := buildAndArchiveApps(ctx, tmp, toolsDir, version, baseURL); err != nil {
+		if err := buildAndArchiveApps(ctx, tmp, toolsDir, version, server.URL); err != nil {
 			log.Fatalf("failed to build testing app binary archive: %v", err)
 		}
 	}
@@ -80,9 +88,7 @@ func TestMain(m *testing.M) {
 	// Run tests after binary is built.
 	code := m.Run()
 
-	if err := srv.Close(); err != nil {
-		log.Fatalf("failed to shutdown server: %v", err)
-	}
+	server.Close()
 	if err := os.RemoveAll(tmp); err != nil {
 		log.Fatalf("failed to remove temporary directory: %v", err)
 	}
@@ -121,32 +127,6 @@ func serve256File(w http.ResponseWriter, _ *http.Request, filePath string) {
 	}
 }
 
-// startTestHTTPServer starts the file-serving HTTP server for testing.
-func startTestHTTPServer(baseDir string) (*http.Server, string) {
-	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		filePath := filepath.Join(baseDir, r.URL.Path)
-		switch {
-		case strings.HasSuffix(r.URL.Path, ".sha256"):
-			serve256File(w, r, strings.TrimSuffix(filePath, ".sha256"))
-		default:
-			http.ServeFile(limitedWriter.Wrap(w), r, filePath)
-		}
-	})}
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		log.Fatalf("failed to create listener: %v", err)
-	}
-
-	go func() {
-		if err := srv.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("failed to start server: %s", err)
-		}
-	}()
-
-	return srv, listener.Addr().String()
-}
-
 // buildAndArchiveApps compiles the updater integration and pack it depends on platform is used.
 func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, version string, baseURL string) error {
 	versionPath := filepath.Join(path, version)
@@ -182,7 +162,7 @@ func buildBinary(output string, toolsDir string, version string, baseURL string)
 		"-ldflags", strings.Join([]string{
 			fmt.Sprintf("-X 'main.toolsDir=%s'", toolsDir),
 			fmt.Sprintf("-X 'main.version=%s'", version),
-			fmt.Sprintf("-X 'main.baseURL=http://%s'", baseURL),
+			fmt.Sprintf("-X 'main.baseURL=%s'", baseURL),
 		}, " "),
 		"./updater",
 	)
