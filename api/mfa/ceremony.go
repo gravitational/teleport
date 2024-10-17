@@ -33,7 +33,7 @@ type Ceremony struct {
 	PromptConstructor PromptConstructor
 }
 
-// CreateAuthenticateChallengeFunc is a function that creates and authentication challenge.
+// CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
 // Run the MFA ceremony.
