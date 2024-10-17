@@ -2649,8 +2649,9 @@ message AccessCapabilities {
   // AutoRequest indicates whether the request strategy indicates that a
   // request should be automatically generated on login.
   bool AutoRequest = 6 [(gogoproto.jsontag) = "auto_request,omitempty"];
-  // RequestMode defines what resource kinds a user can request for applicable resources.
-  AccessRequestMode RequestMode = 7 [(gogoproto.jsontag) = "request_mode,omitempty"];
+
+  reserved 7; // removed and not required anymore
+  reserved "RequestMode";
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -2682,15 +2683,15 @@ message AccessCapabilitiesRequest {
 // in access request mode settings.
 // Modeled after existing message KubernetesResource.
 message RequestModeKubernetesResource {
-  // Kind specifies the Kubernetes Resource type.
-  string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+  // kind specifies the Kubernetes Resource type.
+  string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
 }
 
 // AccessRequestMode describes request mode settings for applicable resources.
 message AccessRequestMode {
-  // KubernetesResources defines which Kubernetes subresources a user can
+  // kubernetes_resources defines which Kubernetes subresources a user can
   // request during request creation.
-  repeated RequestModeKubernetesResource KubernetesResources = 1 [
+  repeated RequestModeKubernetesResource kubernetes_resources = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_resources,omitempty"
   ];
@@ -3047,12 +3048,12 @@ message RoleOptions {
   // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
   string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
 
-  // RequestMode optionally allows admins to define a create request mode for applicable resources.
+  // request_mode optionally allows admins to define a create request mode for applicable resources.
   // It can enforce a requester to request only certain kinds of resources.
   // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
   // subresources like "namespaces". The mode can be defined such that it prevents a user
   // from requesting "kube_cluster" and enforce requesting any of its subresources.
-  AccessRequestMode RequestMode = 32 [(gogoproto.jsontag) = "request_mode,omitempty"];
+  AccessRequestMode request_mode = 32 [(gogoproto.jsontag) = "request_mode,omitempty"];
 }
 
 message RecordSession {

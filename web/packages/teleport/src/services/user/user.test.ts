@@ -292,7 +292,6 @@ test('undefined values in context response gives proper default values', async (
     accessCapabilities: {
       requestableRoles: [],
       suggestedReviewers: [],
-      requestMode: { kubernetesResources: [] },
     },
     allowedSearchAsRoles: [],
     passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,

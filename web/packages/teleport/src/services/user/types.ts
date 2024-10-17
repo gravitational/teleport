@@ -18,8 +18,6 @@
 
 import { Cluster } from 'teleport/services/clusters';
 
-import { KubeResourceKind } from '../kube';
-
 export type AuthType = 'local' | 'sso' | 'passwordless';
 
 export interface AccessStrategy {
@@ -27,18 +25,9 @@ export interface AccessStrategy {
   prompt: string;
 }
 
-interface RequestModeKubeResource {
-  kind: KubeResourceKind;
-}
-
-interface AccessRequestMode {
-  kubernetesResources: RequestModeKubeResource[];
-}
-
 export interface AccessCapabilities {
   requestableRoles: string[];
   suggestedReviewers: string[];
-  requestMode: AccessRequestMode;
 }
 
 export interface UserContext {
