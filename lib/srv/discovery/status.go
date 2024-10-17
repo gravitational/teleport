@@ -302,10 +302,12 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
-			integration: result.IntegrationName,
-			issueType:   result.IssueType,
-			accountID:   result.SSMRunEvent.AccountID,
-			region:      result.SSMRunEvent.Region,
+			integration:     result.IntegrationName,
+			issueType:       result.IssueType,
+			accountID:       result.SSMRunEvent.AccountID,
+			region:          result.SSMRunEvent.Region,
+			ssmDocument:     result.SSMDocumentName,
+			installerScript: result.InstallerScript,
 		},
 		&usertasksv1.DiscoverEC2Instance{
 			// TODO(marco): add instance name
@@ -333,10 +335,12 @@ type awsEC2Tasks struct {
 
 // awsEC2TaskKey identifies a UserTask group.
 type awsEC2TaskKey struct {
-	integration string
-	issueType   string
-	accountID   string
-	region      string
+	integration     string
+	issueType       string
+	accountID       string
+	region          string
+	ssmDocument     string
+	installerScript string
 }
 
 // iterationStarted clears out any in memory issues that were recorded.
@@ -431,10 +435,12 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances map[string]*usertasksv1.DiscoverEC2Instance) error {
 	userTaskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
-		Integration: taskGroup.integration,
-		IssueType:   taskGroup.issueType,
-		AccountID:   taskGroup.accountID,
-		Region:      taskGroup.region,
+		Integration:     taskGroup.integration,
+		IssueType:       taskGroup.issueType,
+		AccountID:       taskGroup.accountID,
+		Region:          taskGroup.region,
+		SSMDocument:     taskGroup.ssmDocument,
+		InstallerScript: taskGroup.installerScript,
 	})
 
 	releaseFn, ctxWithLease, err := s.acquireSemaphoreForUserTask(userTaskName)
