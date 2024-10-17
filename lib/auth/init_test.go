@@ -39,11 +39,14 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/proto"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/label"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -58,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -2095,6 +2099,110 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			lastKnownVersion, err := authCfg.VersionStorage.GetTeleportVersion(ctx)
 			require.NoError(t, err)
 			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
+		})
+	}
+}
+
+type mockDatabaseObjectImportRules struct {
+	services.DatabaseObjectImportRules
+	listRules []*dbobjectimportrulev1.DatabaseObjectImportRule
+	created   *dbobjectimportrulev1.DatabaseObjectImportRule
+	upserted  *dbobjectimportrulev1.DatabaseObjectImportRule
+}
+
+func (m *mockDatabaseObjectImportRules) ListDatabaseObjectImportRules(context.Context, int, string) ([]*dbobjectimportrulev1.DatabaseObjectImportRule, string, error) {
+	return m.listRules, "", nil
+}
+func (m *mockDatabaseObjectImportRules) CreateDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) (*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
+	m.created = rule
+	return rule, nil
+}
+func (m *mockDatabaseObjectImportRules) UpsertDatabaseObjectImportRule(ctx context.Context, rule *dbobjectimportrulev1.DatabaseObjectImportRule) (*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
+	m.upserted = rule
+	return rule, nil
+}
+
+func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
+	presetRule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+	require.NotNil(t, presetRule)
+
+	customRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("dev_rule", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+		Priority:       100,
+		DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
+			Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+				TableNames: []string{"*"},
+			},
+			AddLabels: map[string]string{
+				"env": "dev",
+			},
+			Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
+				SchemaNames: []string{"public"},
+			},
+		}},
+	})
+	require.NoError(t, err)
+
+	oldPresetRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("import_all_objects", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+		DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
+			{
+				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{TableNames: []string{"*"}},
+				AddLabels: map[string]string{"kind": "table"},
+			},
+			{
+				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{ViewNames: []string{"*"}},
+				AddLabels: map[string]string{"kind": "view"},
+			},
+			{
+				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{ProcedureNames: []string{"*"}},
+				AddLabels: map[string]string{"kind": "procedure"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		existingRules []*dbobjectimportrulev1.DatabaseObjectImportRule
+		expectCreate  *dbobjectimportrulev1.DatabaseObjectImportRule
+		expectUpsert  *dbobjectimportrulev1.DatabaseObjectImportRule
+	}{
+		{
+			name:         "create preset in new cluster",
+			expectCreate: presetRule,
+		},
+		{
+			name:          "no action with custom rule",
+			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{customRule},
+		},
+		{
+			name:          "no action with old preset and custom rule",
+			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{oldPresetRule, customRule},
+		},
+		{
+			name:          "no action with preset rule",
+			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{presetRule},
+		},
+		{
+			name:          "migrate old preset to new",
+			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{oldPresetRule},
+			expectUpsert:  presetRule,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			m := &mockDatabaseObjectImportRules{
+				listRules: test.existingRules,
+			}
+
+			err := createPresetDatabaseObjectImportRule(context.Background(), m)
+			require.NoError(t, err)
+			require.True(t, proto.Equal(test.expectCreate, m.created))
+			require.True(t, proto.Equal(test.expectUpsert, m.upserted))
 		})
 	}
 }
