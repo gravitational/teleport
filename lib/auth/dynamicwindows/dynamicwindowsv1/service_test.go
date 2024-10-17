@@ -226,6 +226,7 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	service, err := NewService(ServiceConfig{
 		Authorizer: authorizer,
 		Backend:    backendService,
+		Cache:      backendService,
 	})
 	require.NoError(t, err)
 	return service

@@ -555,10 +555,18 @@ func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
 func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
-	expected, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true})
+	expected, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+			Mode: autoupdate.ToolsUpdateModeEnabled,
+		},
+	})
 	require.NoError(t, err)
 
-	initial, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: false})
+	initial, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+			Mode: autoupdate.ToolsUpdateModeDisabled,
+		},
+	})
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
@@ -581,18 +589,26 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 
 	actual, err := clt.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err, "failed to get autoupdate config after edit")
-	assert.NotEqual(t, initial.GetSpec().GetToolsAutoupdate(), actual.GetSpec().GetToolsAutoupdate(),
+	assert.NotEqual(t, initial.GetSpec().GetTools().Mode, actual.GetSpec().GetTools().GetMode(),
 		"tools_autoupdate should have been modified by edit")
-	assert.Equal(t, expected.GetSpec().GetToolsAutoupdate(), actual.GetSpec().GetToolsAutoupdate())
+	assert.Equal(t, expected.GetSpec().GetTools().GetMode(), actual.GetSpec().GetTools().GetMode())
 }
 
 func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	ctx := context.Background()
 
-	expected, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "3.2.1"})
+	expected, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+			TargetVersion: "3.2.1",
+		},
+	})
 	require.NoError(t, err)
 
-	initial, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"})
+	initial, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
+	})
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
@@ -615,7 +631,7 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 
 	actual, err := clt.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err, "failed to get autoupdate version after edit")
-	assert.NotEqual(t, initial.GetSpec().GetToolsVersion(), actual.GetSpec().GetToolsVersion(),
+	assert.NotEqual(t, initial.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion(),
 		"tools_autoupdate should have been modified by edit")
-	assert.Equal(t, expected.GetSpec().GetToolsVersion(), actual.GetSpec().GetToolsVersion())
+	assert.Equal(t, expected.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion())
 }

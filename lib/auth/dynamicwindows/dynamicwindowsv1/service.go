@@ -37,6 +37,7 @@ type Service struct {
 
 	authorizer authz.Authorizer
 	backend    Backend
+	cache      Cache
 	logger     *slog.Logger
 }
 
@@ -44,19 +45,25 @@ type Service struct {
 type ServiceConfig struct {
 	// Authorizer is the authorizer service which checks access to resources.
 	Authorizer authz.Authorizer
-	// Backend will be used reading and writing the dynamic Windows desktop resources.
+	// Backend will be used for writing the dynamic Windows desktop resources.
 	Backend Backend
+	// Cache will be used for reading and writing the dynamic Windows desktop resources.
+	Cache Cache
 	// Logger is the logger instance to use.
 	Logger *slog.Logger
 }
 
 type Backend interface {
-	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
-	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+	Cache
 	CreateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	UpdateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	UpsertDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	DeleteDynamicWindowsDesktop(ctx context.Context, name string) error
+}
+
+type Cache interface {
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -74,6 +81,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
+		cache:      cfg.Cache,
 		logger:     cfg.Logger,
 	}, nil
 }
@@ -92,7 +100,7 @@ func (s *Service) GetDynamicWindowsDesktop(ctx context.Context, request *dynamic
 		return nil, trace.BadParameter("dynamic windows desktop name is required")
 	}
 
-	d, err := s.backend.GetDynamicWindowsDesktop(ctx, request.GetName())
+	d, err := s.cache.GetDynamicWindowsDesktop(ctx, request.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,7 +123,7 @@ func (s *Service) ListDynamicWindowsDesktops(ctx context.Context, request *dynam
 		return nil, trace.Wrap(err)
 	}
 
-	desktops, next, err := s.backend.ListDynamicWindowsDesktops(ctx, int(request.PageSize), request.PageToken)
+	desktops, next, err := s.cache.ListDynamicWindowsDesktops(ctx, int(request.PageSize), request.PageToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

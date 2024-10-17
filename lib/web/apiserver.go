@@ -1545,7 +1545,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
 	} else if err == nil {
-		response.AutoUpdate.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
+		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
 	}
 
 	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
@@ -1553,7 +1553,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
 	} else if err == nil {
-		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
+		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
 	}
 
 	return response, nil
@@ -2184,6 +2184,8 @@ type AuthParams struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+	// MFAToken is an SSO MFA token.
+	MFAToken string
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
@@ -2198,6 +2200,7 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		Cert:        response.Cert,
 		TLSCert:     response.TLSCert,
 		HostSigners: authclient.AuthoritiesToTrustedCerts(response.HostSigners),
+		MFAToken:    response.MFAToken,
 	}
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {
@@ -5018,6 +5021,8 @@ type SSOCallbackResponse struct {
 	// ClientRedirectURL is the URL to redirect back to on completion of
 	// the SSO login process.
 	ClientRedirectURL string
+	// MFAToken is an SSO MFA token.
+	MFAToken string
 }
 
 // SSOSetWebSessionAndRedirectURL validates the CSRF token in the response
