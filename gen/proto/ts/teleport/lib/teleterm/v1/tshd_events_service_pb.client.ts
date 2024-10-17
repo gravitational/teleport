@@ -28,6 +28,14 @@ import type { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service
 import type { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import type { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
 import type { GetUsageReportingSettingsRequest } from "./tshd_events_service_pb";
+import type { PromptHardwareKeySlotOverwriteResponse } from "./tshd_events_service_pb";
+import type { PromptHardwareKeySlotOverwriteRequest } from "./tshd_events_service_pb";
+import type { PromptHardwareKeyPINChangeResponse } from "./tshd_events_service_pb";
+import type { PromptHardwareKeyPINChangeRequest } from "./tshd_events_service_pb";
+import type { PromptHardwareKeyTouchResponse } from "./tshd_events_service_pb";
+import type { PromptHardwareKeyTouchRequest } from "./tshd_events_service_pb";
+import type { PromptHardwareKeyPINResponse } from "./tshd_events_service_pb";
+import type { PromptHardwareKeyPINAskRequest } from "./tshd_events_service_pb";
 import type { PromptMFAResponse } from "./tshd_events_service_pb";
 import type { PromptMFARequest } from "./tshd_events_service_pb";
 import type { SendPendingHeadlessAuthenticationResponse } from "./tshd_events_service_pb";
@@ -77,6 +85,34 @@ export interface ITshdEventsServiceClient {
      * @generated from protobuf rpc: PromptMFA(teleport.lib.teleterm.v1.PromptMFARequest) returns (teleport.lib.teleterm.v1.PromptMFAResponse);
      */
     promptMFA(input: PromptMFARequest, options?: RpcOptions): UnaryCall<PromptMFARequest, PromptMFAResponse>;
+    /**
+     * PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+     * provide the hardware key PIN.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyPINAsk(teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
+     */
+    promptHardwareKeyPINAsk(input: PromptHardwareKeyPINAskRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINAskRequest, PromptHardwareKeyPINResponse>;
+    /**
+     * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
+     * provide the hardware key touch.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyTouch(teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse);
+     */
+    promptHardwareKeyTouch(input: PromptHardwareKeyTouchRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyTouchRequest, PromptHardwareKeyTouchResponse>;
+    /**
+     * PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
+     * change the hardware key PIN.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyPINChange(teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse);
+     */
+    promptHardwareKeyPINChange(input: PromptHardwareKeyPINChangeRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINChangeRequest, PromptHardwareKeyPINChangeResponse>;
+    /**
+     * PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
+     * confirm if the slot's private key and certificate can be overridden.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse);
+     */
+    promptHardwareKeySlotOverwrite(input: PromptHardwareKeySlotOverwriteRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeySlotOverwriteRequest, PromptHardwareKeySlotOverwriteResponse>;
     /**
      * GetUsageReportingSettings returns the current state of usage reporting.
      * At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
@@ -151,6 +187,46 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
         return stackIntercept<PromptMFARequest, PromptMFAResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+     * provide the hardware key PIN.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyPINAsk(teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
+     */
+    promptHardwareKeyPINAsk(input: PromptHardwareKeyPINAskRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINAskRequest, PromptHardwareKeyPINResponse> {
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        return stackIntercept<PromptHardwareKeyPINAskRequest, PromptHardwareKeyPINResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
+     * provide the hardware key touch.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyTouch(teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse);
+     */
+    promptHardwareKeyTouch(input: PromptHardwareKeyTouchRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyTouchRequest, PromptHardwareKeyTouchResponse> {
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        return stackIntercept<PromptHardwareKeyTouchRequest, PromptHardwareKeyTouchResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
+     * change the hardware key PIN.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyPINChange(teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse);
+     */
+    promptHardwareKeyPINChange(input: PromptHardwareKeyPINChangeRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINChangeRequest, PromptHardwareKeyPINChangeResponse> {
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        return stackIntercept<PromptHardwareKeyPINChangeRequest, PromptHardwareKeyPINChangeResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
+     * confirm if the slot's private key and certificate can be overridden.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse);
+     */
+    promptHardwareKeySlotOverwrite(input: PromptHardwareKeySlotOverwriteRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeySlotOverwriteRequest, PromptHardwareKeySlotOverwriteResponse> {
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        return stackIntercept<PromptHardwareKeySlotOverwriteRequest, PromptHardwareKeySlotOverwriteResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * GetUsageReportingSettings returns the current state of usage reporting.
      * At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
      * with the only exception being the first start of the app when they're prompted about telemetry.
@@ -159,7 +235,7 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
      * @generated from protobuf rpc: GetUsageReportingSettings(teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest) returns (teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse);
      */
     getUsageReportingSettings(input: GetUsageReportingSettingsRequest, options?: RpcOptions): UnaryCall<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetUsageReportingSettingsRequest, GetUsageReportingSettingsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -170,7 +246,7 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
      * @generated from protobuf rpc: ReportUnexpectedVnetShutdown(teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest) returns (teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse);
      */
     reportUnexpectedVnetShutdown(input: ReportUnexpectedVnetShutdownRequest, options?: RpcOptions): UnaryCall<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse> {
-        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        const method = this.methods[9], opt = this._transport.mergeOptions(options);
         return stackIntercept<ReportUnexpectedVnetShutdownRequest, ReportUnexpectedVnetShutdownResponse>("unary", this._transport, method, opt, input);
     }
 }
