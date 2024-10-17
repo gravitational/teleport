@@ -33,6 +33,8 @@ import (
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // ReplaceToolsBinaries extracts executables specified by execNames from archivePath into
@@ -43,7 +45,7 @@ import (
 // For other POSIX, archivePath must be a gzipped tarball.
 func ReplaceToolsBinaries(toolsDir string, archivePath string, extractDir string, execNames []string) error {
 	switch runtime.GOOS {
-	case "darwin":
+	case constants.DarwinOS:
 		return replacePkg(toolsDir, archivePath, extractDir, execNames)
 	default:
 		return replaceTarGz(toolsDir, archivePath, extractDir, execNames)

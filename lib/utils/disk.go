@@ -53,11 +53,8 @@ func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	//nolint:staticcheck // SA4003. False positive on macOS.
-	if stat.Bsize < 0 {
-		return 0, trace.Errorf("invalid size")
-	}
-	avail := stat.Bavail * uint64(stat.Bsize)
+	//nolint:unconvert // The cast is only necessary for linux platform.
+	avail := uint64(stat.Bavail) * uint64(stat.Bsize)
 	if reservedFreeDisk > avail {
 		return 0, trace.Errorf("no free space left")
 	}
