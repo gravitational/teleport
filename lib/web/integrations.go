@@ -235,11 +235,6 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	targetDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(targetDir)
 
 	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
 		Name:        p.ByName("plugin"),
