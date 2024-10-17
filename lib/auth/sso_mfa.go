@@ -11,9 +11,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// CreateSSOMFASession creates a new unverified SSO MFA session for the given username,
+// UpsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
 // sessionID, connector details, and challenge extensions.
-func (a *Server) CreateSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
+func (a *Server) UpsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
 	err := a.UpsertSSOMFASessionData(ctx, &services.SSOMFASessionData{
 		Username:            user,
 		RequestID:           sessionID,
@@ -24,18 +24,8 @@ func (a *Server) CreateSSOMFASession(ctx context.Context, user string, sessionID
 	return trace.Wrap(err)
 }
 
-// GetSSOMFASession returns the SSO MFA session for the given username and sessionID.
-func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
-	sd, err := a.GetSSOMFASessionData(ctx, sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sd, nil
-}
-
-// UpdateSSOMFASessionWithToken updates the given SSO MFA session with a random mfa token.
-func (a *Server) UpdateSSOMFASessionWithToken(ctx context.Context, sd *services.SSOMFASessionData) (token string, err error) {
+// UpsertSSOMFASessionWithToken upserts the given SSO MFA session with a random mfa token.
+func (a *Server) UpsertSSOMFASessionWithToken(ctx context.Context, sd *services.SSOMFASessionData) (token string, err error) {
 	sd.Token, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -46,4 +36,14 @@ func (a *Server) UpdateSSOMFASessionWithToken(ctx context.Context, sd *services.
 	}
 
 	return sd.Token, nil
+}
+
+// GetSSOMFASession returns the SSO MFA session for the given username and sessionID.
+func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+	sd, err := a.GetSSOMFASessionData(ctx, sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sd, nil
 }
