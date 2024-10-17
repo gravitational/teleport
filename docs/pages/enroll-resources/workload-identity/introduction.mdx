@@ -27,6 +27,47 @@ simplify integration with your workloads.
 
 ## How it works
 
+Teleport Workload Identity establishes a root certificate authority within your
+Teleport cluster that will be responsible for issuing the short-lived JWTs and
+X509 certificates to workloads.
+
+These identities are also known as SPIFFE Verifiable Identity Documents (SVIDs)
+and contain the identity of the workload encoded as a URI, also known as a 
+SPIFFE ID. The structure of this SPIFFE ID is up to you and can encode any
+information you need to uniquely identify your workload.
+
+The ability to request these identities is controlled by Teleport's Role-Based
+Access Control system. Users and Bots are granted roles which will allow them to
+request identities with specific SPIFFE IDs.
+
+The `tbot` agent is installed in close proximity to workloads which require an
+identity. It manages the process of requesting and renewing the identities for
+the workloads. The `tbot` agent authenticates to the Teleport cluster using one
+of our support join methods, which in many cases enable it to authenticate 
+on the basis of federated trust rather than the use of long-lived secrets.
+
+Workloads can receive their identities in one of two ways:
+
+- The `tbot` agent can write these identities to a directory on the local
+  filesystem, or, to a Kubernetes secret.
+- The `tbot` agent can expose a SPIFFE Workload API. A standardised gRPC API
+  that allows workloads to request their identities directly from the `tbot`
+  agent.
+
+When using the Workload API, the `tbot` agent can perform an additional process
+called Workload Attestation. This allows the issuance of identities to be 
+restricted to specific workloads. For example, you can restrict an identity to
+only be issued to a Linux process with a specific UID or GID, or restrict an
+identity to only be issued to a specific Kubernetes pod. The Workload
+Attestation process eliminates the need for a "bootstrapping" secret to be 
+provided to the workloads.
+
+![Workload ID overview](../../../img/workload-identity/intro-diagram.png)
+
+Once the workload has its identity, it can be used for a range of purposes. The
+X.509 certificates can be used to establish Mutual TLS, and the JWTs can be used
+to authenticate with a range of third-party APIs.
+
 ## Teleport Workload Identity vs Machine ID
 
 Teleport Machine ID issues short-lived credentials to workloads to enable them
