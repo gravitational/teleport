@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libevents "github.com/gravitational/teleport/lib/events"
 )
@@ -59,6 +60,9 @@ type SSMInstallationResult struct {
 	// DiscoveryConfig is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfig string
+	// IssueType identifies the type of issue that occurred if the installation failed.
+	// These are well known identifiers that can be found at types.AutoDiscoverEC2Issue*.
+	IssueType string
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -191,7 +195,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	return trace.Wrap(g.Wait())
 }
 
-func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, status string) *SSMInstallationResult {
+func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, status, issueType string) *SSMInstallationResult {
 	return &SSMInstallationResult{
 		SSMRunEvent: &apievents.SSMRun{
 			Metadata: apievents.Metadata{
@@ -207,6 +211,7 @@ func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, status 
 		},
 		IntegrationName: req.IntegrationName,
 		DiscoveryConfig: req.DiscoveryConfig,
+		IssueType:       issueType,
 	}
 }
 
@@ -215,6 +220,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	for _, instanceID := range instanceIDsState.missing {
 		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
+			usertasks.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 		)
 		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -224,6 +230,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	for _, instanceID := range instanceIDsState.connectionLost {
 		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
+			usertasks.AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 		)
 		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -233,6 +240,7 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 	for _, instanceID := range instanceIDsState.unsupportedOS {
 		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
+			usertasks.AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 		)
 		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -350,6 +358,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 					SSMRunEvent:     invocationResultEvent,
 					IntegrationName: req.IntegrationName,
 					DiscoveryConfig: req.DiscoveryConfig,
+					IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
 				}))
 			}
 
@@ -363,6 +372,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 				SSMRunEvent:     stepResultEvent,
 				IntegrationName: req.IntegrationName,
 				DiscoveryConfig: req.DiscoveryConfig,
+				IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
 			}))
 		}
 	}
