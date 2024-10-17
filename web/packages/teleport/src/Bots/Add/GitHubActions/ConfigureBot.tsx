@@ -168,7 +168,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   fontWeight="lighter"
                   fontSize="1"
                 >
-                  (optional)
+                  (required field)
                 </Text>
               </Text>
               <FieldInput
@@ -181,7 +181,8 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                     login: e.target.value,
                   })
                 }
-              />
+                rule={requireValidLinuxPrincipal}
+                />
             </FormItem>
 
             {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
@@ -224,6 +225,14 @@ const requireValidBotName = (value: string) => () => {
       message:
         'Special characters are not allowed in the workflow name, please use name composed only from characters, hyphens, dots, and plus signs',
     };
+  }
+
+  return { valid: true };
+};
+
+const requireValidLinuxPrincipal = (value: string) => () => {
+ if (!value || !value.trim()) {
+    return { valid: false, message: 'Linux user is required' };
   }
 
   return { valid: true };
