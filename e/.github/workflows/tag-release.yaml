@@ -1,0 +1,10 @@
+name: Release - Build & Publish
+on:
+  workflow_dispatch: {}
+  workflow_call: {}
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Greeting
+        run: echo "This is a dummy build to placate GitHub."
