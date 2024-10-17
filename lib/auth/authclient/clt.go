@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"net"
 	"net/url"
 	"time"
@@ -1593,6 +1594,8 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+
+	DynamicDesktopClient() *dynamicwindows.Client
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient

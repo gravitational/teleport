@@ -305,15 +305,17 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 	return desktop, nil
 }
 
-// startDynamicReconciler starts resource watcher and reconciler that registers/unregisters windows desktops
-// according to the up-to-date list of dynamic windows desktops resources.
+// startDynamicReconciler starts resource watcher and reconciler that registers/unregisters Windows desktops
+// according to the up-to-date list of dynamic Windows desktops resources.
 func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.DynamicWindowsDesktopWatcher, error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
 		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
 		return nil, nil
 	}
 	s.cfg.Logger.DebugContext(ctx, "Starting dynamic desktop resource watcher.")
+	dynamicDesktopClient := s.cfg.AuthClient.DynamicDesktopClient()
 	watcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
+		DynamicWindowsDesktopGetter: dynamicDesktopClient,
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
 			Client:    s.cfg.AccessPoint,
