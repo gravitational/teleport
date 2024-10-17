@@ -1,0 +1,21 @@
+---
+title: Registering Kubernetes Clusters with Teleport
+description: How to manually add a Kubernetes cluster to Teleport after creating it.
+layout: tocless-doc
+---
+
+In some cases, you will want to register a Kubernetes cluster with Teleport
+manually, rather than letting Teleport [discover the cluster
+automatically](../../auto-discovery/kubernetes/kubernetes.mdx). There are a few ways to do
+this:
+
+- [Deploy the Teleport Kubernetes
+  Service with IAM Joining](iam-joining.mdx) on your cluster of
+  choice.
+- Deploy the Teleport Kubernetes Service outside your Kubernetes cluster (e.g.,
+  directly  on a virtual machine) and [give it access to a
+  kubeconfig](static-kubeconfig.mdx).
+- Deploy the Teleport Kubernetes Service outside of Kubernetes  and [use dynamic
+  configuration resources](dynamic-registration.mdx) to
+  register your clusters.
+
