@@ -52,6 +52,9 @@ service AutoUpdateService {
 
   // DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
   rpc DeleteAutoUpdateVersion(DeleteAutoUpdateVersionRequest) returns (google.protobuf.Empty);
+
+  // GetAutoUpdateVersion gets the current autoupdate version singleton.
+  rpc GetAutoUpdateAgentRollout(GetAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
 }
 
 // Request for GetAutoUpdateConfig.
@@ -95,3 +98,6 @@ message UpsertAutoUpdateVersionRequest {
 
 // Request for DeleteAutoUpdateVersion.
 message DeleteAutoUpdateVersionRequest {}
+
+// Request for GetAutoUpdateAgentRollout.
+message GetAutoUpdateAgentRolloutRequest {}
