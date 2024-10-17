@@ -3563,7 +3563,9 @@ func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
-		ToolsAutoupdate: true,
+		Tools: &autoupdate.AutoUpdateConfigSpecTools{
+			Mode: update.ToolsUpdateModeEnabled,
+		},
 	})
 	require.NoError(t, err)
 	return r
@@ -3573,7 +3575,9 @@ func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
-		ToolsVersion: "1.2.3",
+		Tools: &autoupdate.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
 	})
 	require.NoError(t, err)
 	return r

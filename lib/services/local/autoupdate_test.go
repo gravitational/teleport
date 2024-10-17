@@ -51,7 +51,11 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateConfig},
-		Spec:     &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
+			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+				Mode: autoupdate.ToolsUpdateModeEnabled,
+			},
+		},
 	}
 
 	created, err := service.CreateAutoUpdateConfig(ctx, config)
@@ -71,10 +75,12 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	config.Spec.ToolsAutoupdate = false
+	config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{
+		Mode: autoupdate.ToolsUpdateModeDisabled,
+	}
 	updated, err := service.UpdateAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
-	require.NotEqual(t, got.GetSpec().GetToolsAutoupdate(), updated.GetSpec().GetToolsAutoupdate())
+	require.NotEqual(t, got.GetSpec().GetTools(), updated.GetSpec().GetTools())
 
 	_, err = service.UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
@@ -106,7 +112,11 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateVersion},
-		Spec:     &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+		Spec: &autoupdatev1pb.AutoUpdateVersionSpec{
+			Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+				TargetVersion: "1.2.3",
+			},
+		},
 	}
 
 	created, err := service.CreateAutoUpdateVersion(ctx, version)
@@ -126,10 +136,12 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
-	version.Spec.ToolsVersion = "3.2.1"
+	version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{
+		TargetVersion: "3.2.1",
+	}
 	updated, err := service.UpdateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
-	require.NotEqual(t, got.GetSpec().GetToolsVersion(), updated.GetSpec().GetToolsVersion())
+	require.NotEqual(t, got.GetSpec().GetTools().GetTargetVersion(), updated.GetSpec().GetTools().GetTargetVersion())
 
 	_, err = service.UpsertAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
@@ -161,7 +173,11 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-config-name"},
-		Spec:     &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
+			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+				Mode: autoupdate.ToolsUpdateModeEnabled,
+			},
+		},
 	}
 
 	createdConfig, err := service.CreateAutoUpdateConfig(ctx, config)
@@ -172,7 +188,11 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-version-name"},
-		Spec:     &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+		Spec: &autoupdatev1pb.AutoUpdateVersionSpec{
+			Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+				TargetVersion: "1.2.3",
+			},
+		},
 	}
 
 	createdVersion, err := service.CreateAutoUpdateVersion(ctx, version)
@@ -194,7 +214,11 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	// Validate the config update restriction.
-	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true})
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+			Mode: autoupdate.ToolsUpdateModeEnabled,
+		},
+	})
 	require.NoError(t, err)
 
 	createdConfig, err := service.UpsertAutoUpdateConfig(ctx, config)
@@ -207,7 +231,11 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	require.Nil(t, createdConfig)
 
 	// Validate the version update restriction.
-	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"})
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
+	})
 	require.NoError(t, err)
 
 	createdVersion, err := service.UpsertAutoUpdateVersion(ctx, version)
