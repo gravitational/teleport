@@ -91,7 +91,7 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 		return nil, trace.Wrap(err)
 	}
 
-	groupedDevs := groupByDeviceType(devs, false /*groupWebauthn*/)
+	groupedDevs := groupByDeviceType(devs)
 	if groupedDevs.SSO == nil {
 		return nil, trace.BadParameter("invalid sso mfa session data; non-sso user")
 	} else if groupedDevs.SSO.GetSso().ConnectorId != mfaSess.ConnectorID || groupedDevs.SSO.GetSso().ConnectorType != mfaSess.ConnectorType {
