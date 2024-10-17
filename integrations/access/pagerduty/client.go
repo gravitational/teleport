@@ -89,6 +89,7 @@ func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string, 
 		Transport: &http.Transport{
 			MaxConnsPerHost:     pdMaxConns,
 			MaxIdleConnsPerHost: pdMaxConns,
+			Proxy:               http.ProxyFromEnvironment,
 		}}).
 		SetBaseURL(conf.APIEndpoint).
 		SetHeader("Accept", "application/vnd.pagerduty+json;version=2").
