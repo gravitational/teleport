@@ -6066,6 +6066,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 	features := modules.GetModules().Features().ToProto()
+	licenseExpiry := modules.GetModules().LicenseExpiry()
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
@@ -6074,6 +6075,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
+		LicenseExpiry:   &licenseExpiry,
 	}, nil
 }
 
