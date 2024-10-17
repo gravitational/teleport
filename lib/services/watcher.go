@@ -963,6 +963,10 @@ func (p *databaseCollector) processEventsAndUpdateCurrent(ctx context.Context, e
 
 func (*databaseCollector) notifyStale() {}
 
+type DynamicWindowsDesktopGetter interface {
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+}
+
 // DynamicWindowsDesktopWatcherConfig is a DynamicWindowsDesktopWatcher configuration.
 type DynamicWindowsDesktopWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
