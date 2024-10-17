@@ -70,6 +70,11 @@ function renderRootLabelCell({ clusterId }: Cluster) {
 function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
   const $items = [] as React.ReactNode[];
 
+  const isRoot = cfg.proxyCluster === clusterId;
+  const route = `${cfg.routes.clusters}/${isRoot ? 'route-root' : 'route-leave'}`; // TODO
+  console.log('route', route);
+  $items.push(renderMenuItem('Manage Cluster', route));
+
   if (flags.showResources) {
     $items.push(
       renderMenuItem('Resources', cfg.getUnifiedResourcesRoute(clusterId))

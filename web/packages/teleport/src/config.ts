@@ -156,6 +156,7 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
+    manageClusters: '/web/clusters/route-root', // TOOD
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
     unifiedResources: '/web/cluster/:clusterId/resources',
