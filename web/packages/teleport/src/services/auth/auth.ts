@@ -312,6 +312,21 @@ const auth = {
       );
   },
 
+  async getChallenge(
+    req: CreateAuthenticateChallengeRequest,
+    abortSignal?: AbortSignal
+  ) {
+    return api
+      .post(
+        cfg.api.mfaAuthnChallengePath,
+        {
+          challenge_scope: req.scope,
+        },
+        abortSignal
+      )
+      .then(makeMfaAuthenticateChallenge);
+  },
+
   createPrivilegeTokenWithWebauthn() {
     // Creating privilege tokens always expects the MANAGE_DEVICES webauthn scope.
     return auth
