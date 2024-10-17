@@ -142,6 +142,9 @@ type Role interface {
 	// SetKubeResources configures the Kubernetes Resources for the RoleConditionType.
 	SetKubeResources(rct RoleConditionType, pods []KubernetesResource)
 
+	// SetRequestMode sets the access request mode.
+	SetRequestMode(requestMode *AccessRequestMode)
+
 	// GetAccessRequestConditions gets allow/deny conditions for access requests.
 	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
@@ -490,6 +493,11 @@ func (r *RoleV6) SetKubeResources(rct RoleConditionType, pods []KubernetesResour
 	} else {
 		r.Spec.Deny.KubernetesResources = pods
 	}
+}
+
+// SetRequestMode sets the access request mode.
+func (r *RoleV6) SetRequestMode(requestMode *AccessRequestMode) {
+	r.Spec.Options.RequestMode = requestMode
 }
 
 // GetKubeUsers returns kubernetes users
@@ -1759,8 +1767,6 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 // - Kind belongs to KubernetesResourcesKinds
 // - Name is not empty
 // - Namespace is not empty
-//
-// Keep applicable fields in sync with related func validateKubeResourcesForAccessRequestMode
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
@@ -1804,9 +1810,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 // Currently the only supported field for this particular field is:
 //   - Kind (belonging to KubernetesResourcesKinds)
 //
-// All other fields (eg: Name) might get future support.
-//
-// Keep applicable fields in sync with related func validateKubeResources
+// Mimics types.KubernetesResource data model, but opted to create own type as we don't support other fields yet.
 func validateKubeResourcesForAccessRequestMode(roleVersion string, kubeResources []RequestModeKubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {

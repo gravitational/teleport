@@ -21,7 +21,6 @@ package services
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -59,7 +58,7 @@ const (
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
 
-	InvalidKubernetesKindAccessRequest = "Not allowed to request Kubernetes resource kind"
+	InvalidKubernetesKindAccessRequest = `Your Teleport roles "request_mode" field restricts you from requesting kinds`
 )
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
@@ -273,7 +272,6 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	caps.RequireReason = v.requireReason
 	caps.RequestPrompt = v.prompt
 	caps.AutoRequest = v.autoRequest
-	caps.RequestMode = &types.AccessRequestMode{KubernetesResources: v.requestMode.kubernetesResources}
 
 	return &caps, nil
 }
@@ -1031,12 +1029,15 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	userState     UserState
 	requireReason bool
-	requestMode   struct {
-		kubernetesResources []types.RequestModeKubernetesResource
-	}
-	autoRequest bool
-	prompt      string
-	opts        struct {
+	// kubeRequestModeLookup is a map of search_as_role to a list
+	// of collected request modes found from each static role.
+	// Used to enforce that the request mode found in the static
+	// role that defined the search_as_role, is respected.
+	// An empty map or list means no request modes were specified.
+	kubeRequestModeLookup map[string][]types.RequestModeKubernetesResource
+	autoRequest           bool
+	prompt                string
+	opts                  struct {
 		expandVars bool
 	}
 	Roles struct {
@@ -1071,10 +1072,11 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 	}
 
 	m := RequestValidator{
-		clock:     clock,
-		getter:    getter,
-		userState: uls,
-		logger:    slog.With(teleport.ComponentKey, "request.validator"),
+		clock:                 clock,
+		getter:                getter,
+		userState:             uls,
+		logger:                slog.With(teleport.ComponentKey, "request.validator"),
+		kubeRequestModeLookup: make(map[string][]types.RequestModeKubernetesResource),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1262,49 +1264,6 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			assumeStartTime := *req.GetAssumeStartTime()
 			if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
 				return trace.Wrap(err)
-			}
-		}
-
-		// Validate kube request kinds.
-		// If request mode is defined, then any request for kube_cluster will be rejected.
-		isResourceRequest := len(req.GetRequestedResourceIDs()) > 0
-		restrictKubeRequestKinds := len(m.requestMode.kubernetesResources) > 0
-		if isResourceRequest && restrictKubeRequestKinds {
-			if err := enforceKubernetesRequestModes(req.GetRequestedResourceIDs(), m.requestMode.kubernetesResources); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func enforceKubernetesRequestModes(requestedResourceIDs []types.ResourceID, requestModeKubeResources []types.RequestModeKubernetesResource) error {
-	allowedKindsLookup := make(map[string]string, len(types.KubernetesResourcesKinds))
-	isWildcard := false
-
-	for _, kr := range requestModeKubeResources {
-		if kr.Kind == types.Wildcard {
-			isWildcard = true
-			break
-		}
-		allowedKindsLookup[kr.Kind] = kr.Kind
-	}
-
-	if isWildcard {
-		for _, kind := range types.KubernetesResourcesKinds {
-			allowedKindsLookup[kind] = kind
-		}
-	}
-
-	for _, id := range requestedResourceIDs {
-		if id.Kind == types.KindKubernetesCluster {
-			return trace.BadParameter("%s %q. Allowed kinds: %v.", InvalidKubernetesKindAccessRequest, types.KindKubernetesCluster, slices.Collect(maps.Keys(allowedKindsLookup)))
-		}
-		// Filter for kube resources.
-		if slices.Contains(types.KubernetesResourcesKinds, id.Kind) {
-			if _, found := allowedKindsLookup[id.Kind]; !found {
-				return trace.BadParameter("%s %q. Allowed kinds: %v.", InvalidKubernetesKindAccessRequest, id.Kind, slices.Collect(maps.Keys(allowedKindsLookup)))
 			}
 		}
 	}
@@ -1546,11 +1505,20 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 		m.prompt = role.GetOptions().RequestPrompt
 	}
 
-	if role.GetOptions().RequestMode != nil {
-		m.requestMode.kubernetesResources = append(m.requestMode.kubernetesResources, role.GetOptions().RequestMode.KubernetesResources...)
-	}
-
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
+
+	// Collect all the request modes for the search as roles found for this role.
+	if len(allow.SearchAsRoles) > 0 && role.GetOptions().RequestMode != nil {
+		for _, allowedSearchAsRole := range allow.SearchAsRoles {
+			kubeRequestModes := role.GetOptions().RequestMode.KubernetesResources
+			// If for some reason, the same search_as_role name got defined in another static role,
+			// merge the request modes.
+			if _, exists := m.kubeRequestModeLookup[allowedSearchAsRole]; exists {
+				kubeRequestModes = append(kubeRequestModes, m.kubeRequestModeLookup[allowedSearchAsRole]...)
+			}
+			m.kubeRequestModeLookup[allowedSearchAsRole] = kubeRequestModes
+		}
+	}
 
 	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {
@@ -1623,8 +1591,19 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		// This is not a resource request.
 		return nil
 	}
+	// Roles were explicitly requested, don't change them.
 	if len(req.GetRoles()) > 0 {
-		// Roles were explicitly requested, don't change them.
+		clusterNameResource, err := m.getter.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		localClusterName := clusterNameResource.GetClusterName()
+
+		// Check that at least the local cluster resource requests meets local kube request mode.
+		if err := m.validateKubeRequestModesForLocalResourceIDs(req.GetRequestedResourceIDs(), req.GetRoles(), localClusterName); err != nil {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	}
 
@@ -1634,6 +1613,118 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 	}
 
 	req.SetRoles(rolesToRequest)
+	return nil
+}
+
+type KubeRequestModeError struct {
+	allowedKubeResourceKinds  []string
+	hasKubeClusterKindRequest bool
+	canRequestKubeCluster     bool
+	kubeClusterName           string
+	seenRequestedKinds        map[string]bool
+}
+
+// checkKubeRequestModeError checks if there is a request mode related error.
+//
+// The request mode errors must be in sync with web UI's RequestCheckout.tsx ("checkForUnsupportedKubeRequestModes").
+// Web UI relies on the exact format of these error messages to extract kube cluster name and
+// the allowed kube resource kinds to determine what request modes are supported since web UI
+// does not support all kube resources at this time.
+func checkKubeRequestModeError(params KubeRequestModeError) error {
+	// If no allwoed kinds were collected, then there is no request mode error.
+	if len(params.allowedKubeResourceKinds) == 0 {
+		return nil
+	}
+
+	if slices.Contains(params.allowedKubeResourceKinds, types.Wildcard) {
+		params.allowedKubeResourceKinds = types.KubernetesResourcesKinds
+	}
+
+	if params.hasKubeClusterKindRequest && !params.canRequestKubeCluster {
+		return trace.BadParameter("%s %v for Kubernetes cluster %q. Allowed kinds: %v",
+			InvalidKubernetesKindAccessRequest,
+			[]string{types.KindKubernetesCluster},
+			params.kubeClusterName,
+			apiutils.Deduplicate(params.allowedKubeResourceKinds),
+		)
+	}
+
+	var rejectedKubeResourceKinds []string
+	for kind, isAllowedKind := range params.seenRequestedKinds {
+		if !isAllowedKind {
+			rejectedKubeResourceKinds = append(rejectedKubeResourceKinds, kind)
+		}
+	}
+
+	if len(rejectedKubeResourceKinds) > 0 {
+		return trace.BadParameter("%s %v for Kubernetes cluster %q. Allowed kinds: %v",
+			InvalidKubernetesKindAccessRequest,
+			apiutils.Deduplicate(rejectedKubeResourceKinds),
+			params.kubeClusterName,
+			apiutils.Deduplicate(params.allowedKubeResourceKinds),
+		)
+	}
+	return nil
+}
+
+// validateKubeRequestModesForLocalResourceIDs goes through resource IDs that match the
+// local cluster name and checks that for each kube resource, the kube request
+// modes found (where the searchAsRoles were defined) are enforced.
+func (m *RequestValidator) validateKubeRequestModesForLocalResourceIDs(resourceIDs []types.ResourceID, searchAsRoles []string, localClusterName string) error {
+	// Filter out and build local kube cluster list
+	var kubeClusters []string
+	for _, resource := range resourceIDs {
+		if resource.ClusterName != localClusterName {
+			continue
+		}
+		if resource.Kind == types.KindKubernetesCluster || slices.Contains(types.KubernetesResourcesKinds, resource.Kind) {
+			kubeClusters = append(kubeClusters, resource.Name)
+		}
+	}
+
+	kubeClusters = apiutils.Deduplicate(kubeClusters)
+	for _, kubeCluster := range kubeClusters {
+		var (
+			allowedKubeResourceKinds []string
+			canRequestKubeCluster    bool
+		)
+
+		// Gather all the kube resources for this kube cluster.
+		kubernetesResources, hasKubeClusterKindRequest, err := getLocalKubeResourcesFromResourceIDs(resourceIDs, kubeCluster, localClusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Initialize the map with all seen kinds with false values
+		seenRequestedKinds := make(map[string]bool)
+		for _, kr := range kubernetesResources {
+			seenRequestedKinds[kr.Kind] = false
+		}
+
+		for _, roleName := range searchAsRoles {
+			if requestModes, exists := m.kubeRequestModeLookup[roleName]; exists && len(requestModes) > 0 {
+				allowedKinds, _ := kubeResourcesMeetsRequestModes(requestModes, kubernetesResources, seenRequestedKinds)
+				allowedKubeResourceKinds = append(allowedKubeResourceKinds, allowedKinds...)
+			} else {
+				// If this role was not a part of the lookup map, it meant
+				// no request mode options were found, which means this role
+				// allows "any kind".
+				if hasKubeClusterKindRequest {
+					canRequestKubeCluster = true
+				}
+			}
+		}
+
+		if err := checkKubeRequestModeError(KubeRequestModeError{
+			allowedKubeResourceKinds:  allowedKubeResourceKinds,
+			canRequestKubeCluster:     canRequestKubeCluster,
+			hasKubeClusterKindRequest: hasKubeClusterKindRequest,
+			kubeClusterName:           kubeCluster,
+			seenRequestedKinds:        seenRequestedKinds,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -1972,14 +2063,24 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	}
 	localClusterName := clusterNameResource.GetClusterName()
 
+	var firstEncounteredLeafResourceName *types.ResourceID
 	for _, resourceID := range resourceIDs {
 		if resourceID.ClusterName != localClusterName {
-			_, debugf := rbacDebugLogger()
-			debugf("Requested resource %q is in a foreign cluster, unable to prune roles. "+
-				`All available "search_as_roles" will be requested.`,
-				types.ResourceIDToString(resourceID))
-			return roles, nil
+			firstEncounteredLeafResourceName = &resourceID
+			break
 		}
+	}
+
+	if firstEncounteredLeafResourceName != nil {
+		if err := m.validateKubeRequestModesForLocalResourceIDs(resourceIDs, roles, localClusterName); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, debugf := rbacDebugLogger()
+		debugf("Requested resource %q is in a foreign cluster, unable to prune roles. "+
+			`All available "search_as_roles" will be requested.`,
+			types.ResourceIDToString(*firstEncounteredLeafResourceName))
+		return roles, nil
 	}
 
 	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
@@ -1995,16 +2096,25 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	necessaryRoles := make(map[string]struct{})
 	for _, resource := range resources {
 		var (
-			rolesForResource []types.Role
-			resourceMatcher  *KubeResourcesMatcher
+			rolesForResource         []types.Role
+			resourceMatcher          *KubeResourcesMatcher
+			allowedKubeResourceKinds []string
+			canRequestKubeCluster    bool
 		)
-		kubernetesResources, err := getKubeResourcesFromResourceIDs(resourceIDs, resource.GetName())
+		kubernetesResources, hasKubeClusterKindRequest, err := getLocalKubeResourcesFromResourceIDs(resourceIDs, resource.GetName(), localClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if len(kubernetesResources) > 0 {
 			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
 		}
+
+		// Initialize the map with all seen kinds with false values
+		seenRequestedKinds := make(map[string]bool)
+		for _, kr := range kubernetesResources {
+			seenRequestedKinds[kr.Kind] = false
+		}
+
 		for _, role := range allRoles {
 			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
@@ -2015,8 +2125,41 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 				// unless it allows access to another resource.
 				continue
 			}
+
+			if len(kubernetesResources) > 0 || hasKubeClusterKindRequest {
+				// Check kube subresource request mode restrictions for the current role.
+				if requestModes, exists := m.kubeRequestModeLookup[role.GetName()]; exists && len(requestModes) > 0 {
+					allowedKinds, hasAtLeastOneMatch := kubeResourcesMeetsRequestModes(requestModes, kubernetesResources, seenRequestedKinds)
+					allowedKubeResourceKinds = append(allowedKubeResourceKinds, allowedKinds...)
+					if !hasAtLeastOneMatch {
+						// Pruning this role because this role didn't match with anything in the kube resource request list.
+						continue
+					}
+				} else {
+					// If this role was not a part of the lookup map, it meant
+					// no request mode options were found, which means this role
+					// allows "any kind".
+					if hasKubeClusterKindRequest {
+						canRequestKubeCluster = true
+					}
+				}
+			}
+
 			rolesForResource = append(rolesForResource, role)
 		}
+
+		if len(kubernetesResources) > 0 || hasKubeClusterKindRequest {
+			if err := checkKubeRequestModeError(KubeRequestModeError{
+				allowedKubeResourceKinds:  allowedKubeResourceKinds,
+				canRequestKubeCluster:     canRequestKubeCluster,
+				hasKubeClusterKindRequest: hasKubeClusterKindRequest,
+				kubeClusterName:           resource.GetName(),
+				seenRequestedKinds:        seenRequestedKinds,
+			}); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		// If any of the requested resources didn't match with the provided roles,
 		// we deny the request because the user is trying to request more access
 		// than what is allowed by its search_as_roles.
@@ -2086,6 +2229,39 @@ func countAllowedLogins(role types.Role) int {
 	return len(allowed)
 }
 
+// kubeResourcesMeetsRequestModes goes through each request modes, and return true if all the
+// kube resources matched with the request modes. It returns false along with what kube resource
+// kinds got rejected.
+//
+// Wildcard among the requestModes will be interpreted as "allow any kube resource kind" and
+// will return early and takes precedence over other modes in the list.
+func kubeResourcesMeetsRequestModes(requestModes []types.RequestModeKubernetesResource, kubernetesResources []types.KubernetesResource, seenRequestedKinds map[string]bool) ([]string, bool) {
+	allowedRequestKinds := make([]string, 0, len(requestModes))
+	hasWildCard := false
+	for _, requestMode := range requestModes {
+		if requestMode.Kind == types.Wildcard {
+			hasWildCard = true
+		}
+		allowedRequestKinds = append(allowedRequestKinds, requestMode.Kind)
+	}
+
+	allowedRequestKinds = apiutils.Deduplicate(allowedRequestKinds)
+
+	hasAtLeastOneMatch := false
+	for _, kubeResource := range kubernetesResources {
+		if hasWildCard || slices.Contains(allowedRequestKinds, kubeResource.Kind) {
+			seenRequestedKinds[kubeResource.Kind] = true
+			hasAtLeastOneMatch = true
+		}
+	}
+
+	if hasAtLeastOneMatch {
+		return allowedRequestKinds, true
+	}
+
+	return allowedRequestKinds, false
+}
+
 func (m *RequestValidator) roleAllowsResource(
 	ctx context.Context,
 	role types.Role,
@@ -2145,13 +2321,22 @@ func (m *RequestValidator) getUnderlyingResourcesByResourceIDs(ctx context.Conte
 	return resources, trace.Wrap(err)
 }
 
-// getKubeResourcesFromResourceIDs returns the Kubernetes Resources requested for
-// the configured cluster.
-func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName string) ([]types.KubernetesResource, error) {
+// getLocalKubeResourcesFromResourceIDs returns the Kubernetes Resources requested for
+// the configured cluster. Also does a check if among the resourceIDs, there
+// exists a Kubernetes cluster request and is returned as a boolean.
+func getLocalKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, kubeClusterName string, localClusterName string) ([]types.KubernetesResource, bool, error) {
 	kubernetesResources := make([]types.KubernetesResource, 0, len(resourceIDs))
+	hasKubeClusterKindRequest := false
 
 	for _, resourceID := range resourceIDs {
-		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
+		if resourceID.ClusterName != localClusterName {
+			continue
+		}
+		if resourceID.Kind == types.KindKubernetesCluster && resourceID.Name == kubeClusterName {
+			hasKubeClusterKindRequest = true
+			continue
+		}
+		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == kubeClusterName {
 			switch {
 			case slices.Contains(types.KubernetesClusterWideResourceKinds, resourceID.Kind):
 				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
@@ -2161,7 +2346,7 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 			default:
 				splits := strings.Split(resourceID.SubResourceName, "/")
 				if len(splits) != 2 {
-					return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
+					return nil, false, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
 				}
 				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
 					Kind:      resourceID.Kind,
@@ -2171,7 +2356,7 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 			}
 		}
 	}
-	return kubernetesResources, nil
+	return kubernetesResources, hasKubeClusterKindRequest, nil
 }
 
 func newReviewPermissionParser() (*typical.Parser[reviewPermissionContext, bool], error) {
