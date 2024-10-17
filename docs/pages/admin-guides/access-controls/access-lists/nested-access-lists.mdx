@@ -1,0 +1,83 @@
+---
+title: Nested Access Lists
+description: Learn how to use nested Access Lists to manage complex permissions and grant inheritance in Teleport.
+---
+
+Nested Access Lists allow inclusion of an Access List as a member or owner of another Access List.
+This enables hierarchical permission structures where permissions can be inherited from multiple levels of
+parent Access Lists.
+
+This guide will help you:
+
+- Understand how nesting and inheritance work in Access Lists
+- Create a nested Access List
+- Verify inherited permissions granted through the nested Access List
+
+## How it works
+
+Let's break down inheritance in Access Lists. Imagine two Access Lists you might have in an organization:
+"Engineering Team" and "Production Access". "Engineering Team" represents a group of engineers, while
+"Production Access" is a higher-level Access List that grants access to production resources.
+
+- **Membership Inheritance**: If "Engineering Team" is added as a member of "Production Access",
+all users who are members of "Engineering Team" inherit member grants (roles and traits) from "Production Access".
+- **Ownership Inheritance**: If "Engineering Team" is added as an owner of "Production Access",
+all users who are members of "Engineering Team" inherit owner grants (roles and traits) from "Production Access", and
+can perform owner actions, such as modifying it or managing its members.
+
+Inheritance is recursive – members of "Engineering Team" can themselves be Access Lists
+with their own members, and so on. However, circular nesting is not allowed, and nesting is limited
+to a maximum depth of 10 levels.
+
+For more information, see the [Access Lists reference](../../../reference/access-controls/access-lists.mdx).
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A user with the default `editor` role or equivalent permissions (ability to read, create, and manage Access Lists).
+- Familiarity with basic Access List concepts (see the [Getting Started with Access Lists guide](./guide.mdx)).
+- At least one user with only the `requester` role to add to the Access List.
+- At least one application or resource to grant access to.
+
+Let's walk through creating a nested Access List and establishing inheritance. In this example, we'll
+create a child Access List, "Engineering Team", which inherits permissions from a parent, "Production Access".
+
+## Step 1/3. Create child Access List
+
+In the Teleport Web UI, go to the "Identity" tab and select "Access Lists" from the sidebar.
+Click on "Create New Access List", and fill in the details:
+
+- **Title**: Engineering Team
+- **Deadline for First Review**: Select a future date.
+- **Member Grants**: Leave this empty, as the list will inherit the parent's member grants.
+- **Owners**: Add yourself or any appropriate users as owners.
+- **Members**: Add users who should be part of this Access List, such as `test-user`.
+
+Click "Create Access List" to save the Access List.
+
+## Step 2/3. Create parent Access List
+
+From the "Access Lists" page, click on "Create New Access List" and fill in the details for our parent list:
+
+- **Title**: Production Access
+- **Deadline for First Review**: Select a future date.
+- **Member Grants**: Add the `access` role.
+- **Owners**: Add yourself or any appropriate users as owners.
+- **Members**: Select our child Access List, 'Engineering Team', from the dropdown.
+
+Click "Create Access List" to save the Access List.
+
+## Step 3/3. Verifying inherited permissions
+
+To confirm that members of "Engineering Team" have inherited member grants from "Production Access", log in as a user
+who is a member of the child Access List (e.g., `test-user`). Verify that the user now has access to resources
+granted by both "Engineering Team" and "Production Access". For example, if a Teleport Application Service
+instance with the debugging application enabled is set up, and the `access` role is granted through "Production Access",
+the "dumper" app should be visible to the user.
+
+## Next Steps
+
+- Review the [Access Lists reference](../../../reference/access-controls/access-lists.mdx) for more detailed information on Access Lists' nesting and inheritance.
+- Learn how nested Access Lists work with Okta/SCIM synchronization in [Synchronization with Okta and SCIM](../../../enroll-resources/application-access/okta/sync-scim.mdx).
