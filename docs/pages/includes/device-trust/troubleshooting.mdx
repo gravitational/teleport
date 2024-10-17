@@ -22,6 +22,27 @@ for a different solution, we recommend creating udev rules similar to the ones
 shipped by the [TPM2 Software Stack](
 https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac2162bfab8/dist/tpm-udev.rules#L4).
 
+### Auto enrollment not working
+
+Auto-enrollment ceremonies, due to their automated nature, are stricter than
+regular enrollment. Additional auto-enrollment checks include:
+
+1. Verifying device profile data, such as data originated from Jamf, against the
+   actual device
+2. Verifying that the device is not enrolled by another user (auto-enroll cannot
+   take devices that are already enrolled)
+
+Check you audit log for clues: look for failed "Device Enroll Token Created"
+events and see the "message" field in the details.
+
+If you suspect (1) is the issue, compare the actual device against its inventory
+definition (`tsh device collect` executed in the actual device vs `tctl get
+device/<asset_tag>`). Tweaking the device profile, manual enrollment or waiting
+for the next MDM sync may solve the issue.
+
+If you suspect (2), you can unenroll the device using `tctl edit
+device/<asset_tag>` and changing the "enroll_status" field to "not_enrolled".
+
 ### App access and "access to this app requires a trusted device"
 
 Follow the instructions in the [Web UI troubleshooting section](
