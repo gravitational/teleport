@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package teleport.usageevents.v1;
 
+import "teleport/accesslist/v1/accesslist.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1;usageeventsv1";
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
@@ -481,6 +483,14 @@ message AccessListMetadata {
   string id = 1;
 }
 
+// AccessListMemberMetadata contains common metadata for Access List Member related events.
+message AccessListMemberMetadata {
+  // name is the name of the member.
+  string name = 1;
+  // membership_kind is the type of membership in the parent access list.
+  teleport.accesslist.v1.MembershipKind membership_kind = 2;
+}
+
 // AccessListCreate is an event that is emitted when an access list is created.
 message AccessListCreate {
   AccessListMetadata metadata = 1;
@@ -499,16 +509,19 @@ message AccessListDelete {
 // AccessListMemberCreate is an event that is emitted when a member is added to an access list.
 message AccessListMemberCreate {
   AccessListMetadata metadata = 1;
+  AccessListMemberMetadata member_metadata = 2;
 }
 
 // AccessListMemberCreate is an event that is emitted when a member is updated in an access list.
 message AccessListMemberUpdate {
   AccessListMetadata metadata = 1;
+  AccessListMemberMetadata member_metadata = 2;
 }
 
 // AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
 message AccessListMemberDelete {
   AccessListMetadata metadata = 1;
+  AccessListMemberMetadata member_metadata = 2;
 }
 
 // AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
@@ -517,8 +530,14 @@ message AccessListGrantsToUser {
   // count_roles_granted is the number of roles granted to a user.
   int32 count_roles_granted = 1;
 
+  // count_inherited_roles_granted is the number of roles granted to a user inherited from nested access lists.
+  int32 count_inherited_roles_granted = 3;
+
   // count_traits_granted is the number of traits granted to a user.
   int32 count_traits_granted = 2;
+
+  // count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
+  int32 count_inherited_traits_granted = 4;
 }
 
 // AccessListReviewCreate is an event that is emitted when an access list review is created.

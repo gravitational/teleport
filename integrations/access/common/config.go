@@ -64,6 +64,10 @@ func (w *wrappedClient) ListAccessLists(ctx context.Context, pageSize int, pageT
 	return w.Client.AccessListClient().ListAccessLists(ctx, pageSize, pageToken)
 }
 
+func (w *wrappedClient) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	return w.Client.AccessListClient().GetAccessListOwners(ctx, accessListName)
+}
+
 // ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
 func (w *wrappedClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
 	return w.Client.AccessMonitoringRulesClient().ListAccessMonitoringRulesWithFilter(ctx, pageSize, pageToken, subjects, notificationName)
