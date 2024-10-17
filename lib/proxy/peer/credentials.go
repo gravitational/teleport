@@ -121,5 +121,5 @@ func validatePeer(peerID string, identity *tlsca.Identity) error {
 		return nil
 	}
 
-	return trace.AccessDenied("connected to unexpected proxy")
+	return trace.Wrap(wrongProxyError{})
 }
