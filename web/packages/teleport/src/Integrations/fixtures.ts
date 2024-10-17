@@ -148,6 +148,30 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'pagerduty',
+    details: '',
+    kind: 'pagerduty',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'email',
+    details: '',
+    kind: 'email',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'msteams',
+    details: '',
+    kind: 'msteams',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [
@@ -157,6 +181,13 @@ export const integrations: Integration[] = [
     kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+  },
+  {
+    resourceType: 'integration',
+    name: 'azure',
+    kind: IntegrationKind.AzureOidc,
+    statusCode: IntegrationStatusCode.Running,
+    spec: { roleArn: '' },
   },
 ];
 

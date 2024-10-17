@@ -2530,6 +2530,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.WebToken = services.Identity.WebTokens()
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
+	cfg.ProvisioningStates = services.ProvisioningStates
 
 	return accesspoint.NewCache(cfg)
 }
@@ -4346,7 +4347,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				TLSCipherSuites:   cfg.CipherSuites,
 				GetTLSCertificate: conn.ClientGetCertificate,
 				GetTLSRoots:       conn.ClientGetPool,
-				Log:               process.log,
+				Log:               process.logger,
 				Clock:             process.Clock,
 				ClusterName:       clusterName,
 				QUICTransport:     peerQUICTransport,

@@ -20,10 +20,10 @@ package peer
 
 import (
 	"context"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/types"
@@ -37,16 +37,16 @@ type clientCredentials struct {
 	credentials.TransportCredentials
 	peerID   string
 	peerAddr string
-	logger   logrus.FieldLogger
+	log      *slog.Logger
 }
 
 // newClientCredentials creates new clientCredentials from the given [crendentials.TransportCredentials].
-func newClientCredentials(peerID, peerAddr string, logger logrus.FieldLogger, creds credentials.TransportCredentials) *clientCredentials {
+func newClientCredentials(peerID, peerAddr string, log *slog.Logger, creds credentials.TransportCredentials) *clientCredentials {
 	return &clientCredentials{
 		TransportCredentials: creds,
 		peerID:               peerID,
 		peerAddr:             peerAddr,
-		logger:               logger,
+		log:                  log,
 	}
 }
 
@@ -73,14 +73,15 @@ func (c *clientCredentials) ClientHandshake(ctx context.Context, laddr string, c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	const duplicatePeerMsg = "Detected multiple Proxy Peers with the same public address %q when connecting to Proxy %q which can lead to inconsistent state and problems establishing sessions. For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
 	if err := validatePeer(c.peerID, identity); err != nil {
-		c.logger.Errorf(duplicatePeerMsg, c.peerAddr, c.peerID)
+		c.log.ErrorContext(ctx, duplicatePeerMsg, "peer_addr", c.peerAddr, "peer_id", c.peerID)
 		return nil, nil, trace.Wrap(err)
 	}
 
 	return conn, authInfo, nil
 }
+
+const duplicatePeerMsg = "Detected multiple Proxy Peers with the same public address when connecting to a Proxy which can lead to inconsistent state and problems establishing sessions. For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
 
 // getIdentity returns a [tlsca.Identity] that is created from the certificate
 // presented during the TLS handshake.

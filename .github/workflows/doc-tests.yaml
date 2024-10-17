@@ -120,4 +120,5 @@ jobs:
           # changed files.
           filter_mode: added
           fail_on_error: true
+          vale_flags: "--config=docs/.vale.ini"
 
