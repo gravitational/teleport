@@ -871,6 +871,7 @@ type dynamicWindowsDesktopCollection struct {
 }
 
 func (c *dynamicWindowsDesktopCollection) resources() (r []types.Resource) {
+	r = make([]types.Resource, 0, len(c.desktops))
 	for _, resource := range c.desktops {
 		r = append(r, resource)
 	}
