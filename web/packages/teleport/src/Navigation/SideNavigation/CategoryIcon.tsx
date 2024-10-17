@@ -20,23 +20,47 @@ import React from 'react';
 
 import * as Icons from 'design/Icon';
 
-import { NavigationCategory } from './categories';
+import {
+  CustomNavigationCategory,
+  NavigationCategory,
+  SidenavCategory,
+} from './categories';
 
-export function CategoryIcon({ category }: { category: NavigationCategory }) {
+export function CategoryIcon({
+  category,
+  size,
+  color,
+}: {
+  category: SidenavCategory;
+  size?: number;
+  color?: string;
+}) {
+  let Icon: ({ size, color }) => JSX.Element;
   switch (category) {
     case NavigationCategory.Resources:
-      return <Icons.Server />;
+      Icon = Icons.Server;
+      break;
     case NavigationCategory.Access:
-      return <Icons.Lock />;
+      Icon = Icons.Lock;
+      break;
     case NavigationCategory.Identity:
-      return <Icons.FingerprintSimple />;
+      Icon = Icons.FingerprintSimple;
+      break;
     case NavigationCategory.Policy:
-      return <Icons.ShieldCheck />;
+      Icon = Icons.ShieldCheck;
+      break;
     case NavigationCategory.Audit:
-      return <Icons.ListMagnifyingGlass />;
+      Icon = Icons.ListMagnifyingGlass;
+      break;
     case NavigationCategory.AddNew:
-      return <Icons.AddCircle />;
+      Icon = Icons.AddCircle;
+      break;
+    case CustomNavigationCategory.Search:
+      Icon = Icons.Magnifier;
+      break;
     default:
       return null;
   }
+
+  return <Icon size={size} color={color} />;
 }
