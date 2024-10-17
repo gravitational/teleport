@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -155,7 +155,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// 1. `tsh az login` in one console
 		// 2. `az ...` in another console
 		// without custom config dir the second invocation will hang, attempting to connect to (inaccessible without configuration) MSI.
-		"AZURE_CONFIG_DIR": path.Join(profile.FullProfilePath(a.cf.HomePath), "azure", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name),
+		"AZURE_CONFIG_DIR": filepath.Join(profile.FullProfilePath(a.cf.HomePath), "azure", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name),
 		// setting MSI_ENDPOINT instructs Azure CLI to make managed identity calls on this address.
 		// the requests will be handled by tsh proxy.
 		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint + "/" + a.msiSecret,

@@ -3041,6 +3041,10 @@ message DatabaseSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // PostgresPID is the Postgres backend PID that was created for a Postgres
+  // connection. This can be useful for backend process cancellation or
+  // termination and it is not a sensitive or secret value.
+  uint32 PostgresPID = 8 [(gogoproto.jsontag) = "postgres_pid,omitempty"];
 }
 
 // DatabaseSessionQuery is emitted when a user executes a database query.
@@ -4606,6 +4610,9 @@ message OneOf {
     events.CrownJewelCreate CrownJewelCreate = 182;
     events.CrownJewelUpdate CrownJewelUpdate = 183;
     events.CrownJewelDelete CrownJewelDelete = 184;
+    events.AutoUpdateAgentPlanCreate AutoUpdateAgentPlanCreate = 185;
+    events.AutoUpdateAgentPlanUpdate AutoUpdateAgentPlanUpdate = 186;
+    events.AutoUpdateAgentPlanDelete AutoUpdateAgentPlanDelete = 187;
   }
 }
 
@@ -6617,6 +6624,12 @@ message SPIFFESVIDIssued {
   string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
   // Hint is the hint of the issued SVID
   string Hint = 9 [(gogoproto.jsontag) = "hint"];
+  // JTI is the JTI of the issued SVID.
+  // Only present if the SVID is a JWT.
+  string JTI = 10 [(gogoproto.jsontag) = "jti,omitempty"];
+  // Audiences is the list of audiences in the issued SVID.
+  // Only present if the SVID is a JWT.
+  repeated string Audiences = 11 [(gogoproto.jsontag) = "audiences,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.
@@ -7295,6 +7308,99 @@ message CrownJewelDelete {
 
   // ResourceMetadata is a common resource event metadata.
   ResourceMetadata resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateVersionCreate is emitted when an auto update version is created.
+message AutoUpdateAgentPlanCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentPlanUpdate is emitted when an auto update version is updated.
+message AutoUpdateAgentPlanUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentPlanDelete is emitted when an auto update version is deleted.
+message AutoUpdateAgentPlanDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

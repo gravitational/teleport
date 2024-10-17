@@ -36,19 +36,23 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -329,6 +333,7 @@ type Server struct {
 
 	awsSyncStatus         awsSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
+	awsEC2Tasks           awsEC2Tasks
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -459,7 +464,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(func() {
-			s.awsEC2ResourcesStatus.iterationStarted()
+			s.awsEC2ResourcesStatus.reset()
+			s.awsEC2Tasks.reset()
 		}),
 	)
 	if err != nil {
@@ -572,7 +578,12 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return nil, trace.Wrap(err)
 	}
 
-	return server.MatchersToGCPInstanceFetchers(serverMatchers, client), nil
+	projectsClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server.MatchersToGCPInstanceFetchers(serverMatchers, client, projectsClient), nil
 }
 
 // databaseFetchersFromMatchers converts Matchers into a set of Database Fetchers.
@@ -734,19 +745,26 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	projectClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "unable to create gcp project client")
+	}
 	for _, matcher := range otherMatchers {
 		for _, projectID := range matcher.ProjectIDs {
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
 					case types.GCPMatcherKubernetes:
-						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
-							Client:       kubeClient,
-							Location:     location,
-							FilterLabels: matcher.GetLabels(),
-							ProjectID:    projectID,
-							Log:          s.Log,
-						})
+						fetcher, err := fetchers.NewGKEFetcher(
+							ctx,
+							fetchers.GKEFetcherConfig{
+								GKEClient:     kubeClient,
+								ProjectClient: projectClient,
+								Location:      location,
+								FilterLabels:  matcher.GetLabels(),
+								ProjectID:     projectID,
+								Log:           s.Log,
+							})
 						if err != nil {
 							return trace.Wrap(err)
 						}
@@ -960,6 +978,24 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 			discoveryConfig: instances.DiscoveryConfig,
 			integration:     instances.Integration,
 		}, len(req.Instances))
+
+		for _, instance := range req.Instances {
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2TaskKey{
+					accountID:   instances.AccountID,
+					integration: instances.Integration,
+					issueType:   usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+					region:      instances.Region,
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					InstanceId:      instance.InstanceID,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+				},
+			)
+		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1072,6 +1108,7 @@ func (s *Server) handleEC2Discovery() {
 			}
 
 			s.updateDiscoveryConfigStatus(instances.EC2.DiscoveryConfig)
+			s.upsertTasksForAWSEC2FailedEnrollments()
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
 			return
@@ -1206,6 +1243,10 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 	s.Log.Debugf("Running Teleport installation on these virtual machines: ProjectID: %s, VMs: %s",
 		instances.ProjectID, genGCPInstancesLogStr(instances.Instances),
 	)
+	sshKeyAlgo, err := cryptosuites.AlgorithmForKey(s.ctx, cryptosuites.GetCurrentSuiteFromPing(s.AccessPoint), cryptosuites.UserSSH)
+	if err != nil {
+		return trace.Wrap(err, "finding algorithm for SSH key from ping response")
+	}
 	req := server.GCPRunRequest{
 		Client:          client,
 		Instances:       instances.Instances,
@@ -1214,6 +1255,7 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		Params:          instances.Parameters,
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
+		SSHKeyAlgo:      sshKeyAlgo,
 	}
 	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1680,8 +1722,9 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:    teleport.ComponentDiscovery,
-			Log:          s.Log,
+			Component: teleport.ComponentDiscovery,
+			// TODO(tross): update this after converting logging to use slog
+			// Logger:          s.Logger,
 			Client:       s.AccessPoint,
 			MaxStaleness: time.Minute,
 		},

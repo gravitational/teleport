@@ -67,12 +67,12 @@ func WithHTTPClient(httpClient *http.Client) SAMLIdPOption {
 }
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
-func NewSAMLIdPServiceProviderService(backend backend.Backend, opts ...SAMLIdPOption) (*SAMLIdPServiceProviderService, error) {
+func NewSAMLIdPServiceProviderService(b backend.Backend, opts ...SAMLIdPOption) (*SAMLIdPServiceProviderService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     samlIDPServiceProviderMaxPageSize,
 		ResourceKind:  types.KindSAMLIdPServiceProvider,
-		BackendPrefix: samlIDPServiceProviderPrefix,
+		BackendPrefix: backend.NewKey(samlIDPServiceProviderPrefix),
 		MarshalFunc:   services.MarshalSAMLIdPServiceProvider,
 		UnmarshalFunc: services.UnmarshalSAMLIdPServiceProvider,
 	})

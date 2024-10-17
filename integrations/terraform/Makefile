@@ -45,7 +45,8 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleport $@
 
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
-PROTOC_GEN_TERRAFORM_VERSION ?= v2.2.0
+# This version must match the version installed by .github/workflows/lint.yaml
+PROTOC_GEN_TERRAFORM_VERSION ?= v3.0.0
 PROTOC_GEN_TERRAFORM_EXISTS := $(shell protoc-gen-terraform version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
 
 .PHONY: gen-tfschema
@@ -121,9 +122,20 @@ endif
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
 
-.PHONY: release
+# darwin-signed-build is a wrapper around the build target that ensures it is codesigned
+include ../../darwin-signing.mk
+.PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport
 ifeq ($(OS)-$(ARCH),darwin-universal)
-release: build-darwin-universal
+darwin-signed-build: build-darwin-universal
+else
+darwin-signed-build: build
+endif
+	$(NOTARIZE_BINARIES)
+
+.PHONY: release
+ifeq ($(OS),darwin)
+release: darwin-signed-build
 else
 release: build
 endif

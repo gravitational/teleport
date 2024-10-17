@@ -40,6 +40,8 @@ const (
 	PackageNameOSS = "teleport"
 	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
+	// PackageNameEntFIPS is the teleport package name for the Enterprise with FIPS enabled version.
+	PackageNameEntFIPS = "teleport-ent-fips"
 
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
@@ -116,7 +118,10 @@ const (
 	// KindSession is a recorded SSH session.
 	KindSession = "session"
 
-	// KindSSHSession is an active SSH session.
+	// KindSSHSession represents an active SSH session in early versions of Teleport
+	// prior to the introduction of moderated sessions. Note that ssh_session is not
+	// a "real" resource, and it is never used as the "session kind" value in the
+	// session_tracker resource.
 	KindSSHSession = "ssh_session"
 
 	// KindWebSession is a web session resource
@@ -546,6 +551,10 @@ const (
 	// a managed device.
 	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
 
+	// KindProvisioningPrincipalState is a resource that tracks provisioning of a user or access
+	// list in a downstream SCIM server
+	KindProvisioningPrincipalState = "provisioning_principal_state"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
 
@@ -583,7 +592,7 @@ const (
 )
 
 // PackageNameKinds is the list of valid teleport package names.
-var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -1027,6 +1036,11 @@ const (
 	// that's used by reverse tunnel agents to know which proxies in each proxy
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
+
+	// ProxyPeerQUICLabel is the internal-user label for proxy heartbeats that's
+	// used to signal that the proxy supports receiving proxy peering
+	// connections over QUIC.
+	ProxyPeerQUICLabel = TeleportInternalLabelPrefix + "proxy-peer-quic"
 
 	// OktaAppNameLabel is the individual app name label.
 	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"

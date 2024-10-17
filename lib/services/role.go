@@ -1594,21 +1594,14 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
-// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
-//
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, states ...AccessState) error {
+func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
 	_, debugf := rbacDebugLogger()
 
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
 		}
-	}
-
-	var state AccessState
-	if len(states) == 1 {
-		state = states[0]
 	}
 
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {

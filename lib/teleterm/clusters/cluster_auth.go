@@ -89,39 +89,9 @@ func (c *Cluster) Logout(ctx context.Context) error {
 
 // LocalLogin processes local logins for this cluster
 func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken string) error {
-	pingResp, err := c.updateClientFromPingResponse(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	c.clusterClient.AuthConnector = constants.LocalConnector
 
-	var sshLoginFunc client.SSHLoginFunc
-	switch pingResp.Auth.SecondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		sshLoginFunc = c.localLogin(user, password, otpToken)
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
-		sshLoginFunc = c.localMFALogin(user, password)
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// tsh always uses client.SSHAgentMFALogin for any `second_factor` option other than `off` and
-		// `otp`. If it's set to `on` or `optional` and it turns out the user wants to use an OTP, it
-		// bails out to stdin to ask them for it.
-		//
-		// Connect cannot do that, but it still wants to use the auth code from lib/client that it
-		// shares with tsh. So to temporarily work around this problem, we check if the OTP token was
-		// submitted. If yes, then we use client.SSHAgentLogin, which lets us provide the token and skip
-		// asking for it over stdin. If not, we use client.SSHAgentMFALogin which should handle auth
-		// methods that don't use OTP.
-		if otpToken != "" {
-			sshLoginFunc = c.localLogin(user, password, otpToken)
-		} else {
-			sshLoginFunc = c.localMFALogin(user, password)
-		}
-	default:
-		return trace.BadParameter("unsupported second factor type: %q", pingResp.Auth.SecondFactor)
-	}
-
-	if err := c.login(ctx, sshLoginFunc); err != nil {
+	if err := c.login(ctx, c.localMFALogin(user, password)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -229,30 +199,10 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 		}
 
 		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
-			SSHLogin:  sshLogin,
-			User:      user,
-			Password:  password,
-			PromptMFA: c.clusterClient.NewMFAPrompt(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return response, nil
-	}
-}
-
-func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
-		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
-			SSHLogin: sshLogin,
-			User:     user,
-			Password: password,
-			OTPToken: otpToken,
+			SSHLogin:             sshLogin,
+			User:                 user,
+			Password:             password,
+			MFAPromptConstructor: c.clusterClient.NewMFAPrompt,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

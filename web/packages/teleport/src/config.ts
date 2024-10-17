@@ -35,9 +35,14 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
-import type { PluginKind, Regions } from './services/integrations';
+import type {
+  PluginKind,
+  Regions,
+  AwsOidcPolicyPreset,
+} from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
+import type { KubeResourceKind } from './services/kube/types';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -130,6 +135,8 @@ const cfg = {
     dateTimeFormat: 'YYYY-MM-DD HH:mm:ss',
     dateFormat: 'YYYY-MM-DD',
   },
+
+  defaultDatabaseTTL: '2190h',
 
   routes: {
     root: '/web',
@@ -247,6 +254,8 @@ const cfg = {
 
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    kubernetesResourcesPath:
+      '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
 
     usersPath: '/v1/webapi/users',
     userWithUsernamePath: '/v1/webapi/users/:username',
@@ -304,7 +313,7 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
     awsConfigureIamScriptDeployServicePath:
       '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
@@ -319,7 +328,7 @@ const cfg = {
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsDatabaseVpcsPath:
-      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
@@ -365,7 +374,7 @@ const cfg = {
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
 
     gcpWorkforceConfigurePath:
-      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+      '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
       '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
@@ -473,8 +482,20 @@ const cfg = {
     return 'sso';
   },
 
-  getDeviceTrustAuthorizeRoute(id: string, token: string) {
-    return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
+  getDeviceTrustAuthorizeRoute(id: string, token: string, redirect?: string) {
+    const path = generatePath(cfg.routes.deviceTrustAuthorize, {
+      id,
+      token,
+    });
+
+    const searchParams = new URLSearchParams();
+
+    if (redirect) {
+      searchParams.append('redirect_uri', redirect);
+    }
+
+    const searchString = searchParams.toString();
+    return searchString ? `${path}?${searchString}` : path;
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {
@@ -540,7 +561,10 @@ const cfg = {
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
     const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
-    return cfg.baseUrl + generatePath(path, { ...p });
+    return (
+      cfg.baseUrl +
+      generatePath(path, { ...p, policyPreset: p.policyPreset || undefined })
+    );
   },
 
   getDbScriptUrl(token: string) {
@@ -785,6 +809,11 @@ const cfg = {
     return generatePath(cfg.api.dbSign, { clusterId });
   },
 
+  getDatabaseCertificateTTL() {
+    // the length of the certificate to request for the database
+    return cfg.defaultDatabaseTTL;
+  },
+
   getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.desktopsPath, {
       clusterId,
@@ -868,6 +897,13 @@ const cfg = {
 
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.kubernetesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getKubernetesResourcesUrl(clusterId: string, params: UrlKubeResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesResourcesPath, {
       clusterId,
       ...params,
     });
@@ -1225,6 +1261,18 @@ export interface UrlResourcesParams {
   kinds?: string[];
 }
 
+export interface UrlKubeResourcesParams {
+  query?: string;
+  search?: string;
+  sort?: SortType;
+  limit?: number;
+  startKey?: string;
+  searchAsRoles?: 'yes' | '';
+  kubeNamespace?: string;
+  kubeCluster: string;
+  kind: KubeResourceKind;
+}
+
 export interface UrlDeployServiceIamConfigureScriptParams {
   integrationName: string;
   region: Regions;
@@ -1238,6 +1286,7 @@ export interface UrlAwsOidcConfigureIdp {
   roleName: string;
   s3Bucket?: string;
   s3Prefix?: string;
+  policyPreset?: AwsOidcPolicyPreset;
 }
 
 export interface UrlAwsConfigureIamScriptParams {

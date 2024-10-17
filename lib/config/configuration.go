@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -278,6 +279,8 @@ type IntegrationConfAccessGraphAWSSync struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAzureOIDC contains the arguments of
@@ -311,6 +314,8 @@ type IntegrationConfDeployServiceIAM struct {
 	TaskRole string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEICEIAM contains the arguments of
@@ -322,6 +327,8 @@ type IntegrationConfEICEIAM struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAWSAppAccessIAM contains the arguments of
@@ -331,6 +338,8 @@ type IntegrationConfAWSAppAccessIAM struct {
 	RoleName string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEC2SSMIAM contains the arguments of
@@ -355,6 +364,8 @@ type IntegrationConfEC2SSMIAM struct {
 	IntegrationName string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -366,6 +377,8 @@ type IntegrationConfEKSIAM struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfAWSOIDCIdP contains the arguments of
@@ -380,6 +393,11 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+	// PolicyPreset is the name of a pre-defined policy statement which will be
+	// assigned to the AWS Role associate with the OIDC integration.
+	PolicyPreset string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -391,6 +409,8 @@ type IntegrationConfListDatabasesIAM struct {
 	Role string
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -613,9 +633,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Limits.MaxConnections > 0 {
 			l.MaxConnections = fc.Limits.MaxConnections
 		}
-		if fc.Limits.MaxUsers > 0 {
-			l.MaxNumberOfUsers = fc.Limits.MaxUsers
-		}
+
 		for _, rate := range fc.Limits.Rates {
 			l.Rates = append(l.Rates, limiter.Rate{
 				Period:  rate.Period,
@@ -768,6 +786,8 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
+	// TODO: this code is copied in the access plugin logging setup `logger.Config.NewSLogLogger`
+	// We'll want to deduplicate the logic next time we refactor the logging setup
 	logger := log.StandardLogger()
 
 	var w io.Writer
@@ -2226,6 +2246,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
 
+	for _, matcher := range fc.WindowsDesktop.ResourceMatchers {
+		cfg.WindowsDesktop.ResourceMatchers = append(cfg.WindowsDesktop.ResourceMatchers, services.ResourceMatcher{
+			Labels: matcher.Labels,
+		})
+	}
+
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
@@ -2548,11 +2574,18 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 	}
 
-	if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-		FIPS:          clf.FIPS,
-		UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
-	}); err != nil {
-		return trace.Wrap(err)
+	if cfg.Auth.Preference.Origin() != types.OriginDefaults {
+		// Only check the signature algorithm suite if the auth preference was
+		// actually set in the config file. If it wasn't set and the default is
+		// used, the algorithm suite will be overwritten in initializeAuthPreference
+		// based on the FIPS and HSM settings, and any already persisted auth preference.
+		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+			FIPS:          clf.FIPS,
+			UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
+			Cloud:         modules.GetModules().Features().Cloud,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// apply --skip-version-check flag.

@@ -433,12 +433,14 @@ func CheckAndSetExpiry(notification *notificationsv1.Notification, clock clockwo
 	return nil
 }
 
-const (
-	notificationsGlobalPrefix       = "notifications/global"    // notifications/global/<notification id>
-	notificationsUserSpecificPrefix = "notifications/user"      // notifications/user/<username>/<notification id>
-	notificationsStatePrefix        = "notifications/states"    // notifications/states/<username>/<notification id>
-	notificationsUserLastSeenPrefix = "notifications/last_seen" // notifications/last_seen/<username>
+var (
+	notificationsGlobalPrefix       = backend.NewKey("notifications", "global")    // notifications/global/<notification id>
+	notificationsUserSpecificPrefix = backend.NewKey("notifications", "user")      // notifications/user/<username>/<notification id>
+	notificationsStatePrefix        = backend.NewKey("notifications", "states")    // notifications/states/<username>/<notification id>
+	notificationsUserLastSeenPrefix = backend.NewKey("notifications", "last_seen") // notifications/last_seen/<username>
+)
 
+const (
 	defaultExpiry = 30 * 24 * time.Hour // The default expiry for a notification, 30 days.
 	maxExpiry     = 90 * 24 * time.Hour // The maximum expiry for a notification, 90 days.
 )

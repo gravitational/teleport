@@ -36,6 +36,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -197,6 +198,7 @@ type crownjewelsGetter interface {
 
 type userTasksGetter interface {
 	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
@@ -264,6 +266,7 @@ type cacheCollections struct {
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
 	autoUpdateConfigs        collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions       collectionReader[autoUpdateVersionGetter]
+	provisioningStates       collectionReader[provisioningStateGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -801,6 +804,17 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.autoUpdateVersions
+
+		case types.KindProvisioningPrincipalState:
+			if c.ProvisioningStates == nil {
+				return nil, trace.BadParameter("missing parameter KindProvisioningState")
+			}
+			collections.provisioningStates = &genericCollection[*provisioningv1.PrincipalState, provisioningStateGetter, provisioningStateExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.provisioningStates
+
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -952,39 +966,6 @@ type remoteClusterGetter interface {
 }
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
-
-type reverseTunnelExecutor struct{}
-
-func (reverseTunnelExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ReverseTunnel, error) {
-	return cache.Presence.GetReverseTunnels(ctx)
-}
-
-func (reverseTunnelExecutor) upsert(ctx context.Context, cache *Cache, resource types.ReverseTunnel) error {
-	return cache.presenceCache.UpsertReverseTunnel(resource)
-}
-
-func (reverseTunnelExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllReverseTunnels()
-}
-
-func (reverseTunnelExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteReverseTunnel(resource.GetName())
-}
-
-func (reverseTunnelExecutor) isSingleton() bool { return false }
-
-func (reverseTunnelExecutor) getReader(cache *Cache, cacheOK bool) reverseTunnelGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type reverseTunnelGetter interface {
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
-}
-
-var _ executor[types.ReverseTunnel, reverseTunnelGetter] = reverseTunnelExecutor{}
 
 type proxyExecutor struct{}
 

@@ -106,6 +106,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     case '/authenticate_web_device': {
       const id = searchParams.get('id');
       const token = searchParams.get('token');
+      const redirect_uri = searchParams.get('redirect_uri');
       if (!(id && token)) {
         return {
           status: 'error',
@@ -122,6 +123,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
         searchParams: {
           id,
           token,
+          redirect_uri,
         },
       };
       return { status: 'success', url };

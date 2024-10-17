@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import NodeList from './NodeList';
-export default NodeList;
+export * from './NodeList';

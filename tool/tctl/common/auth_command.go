@@ -81,6 +81,7 @@ type AuthCommand struct {
 	windowsDomain              string
 	windowsPKIDomain           string
 	windowsSID                 string
+	omitCDP                    bool
 	signOverwrite              bool
 	password                   string
 	caType                     string
@@ -152,6 +153,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("windows-domain", `Active Directory domain for which this cert is valid. Only used when --format is set to "windows"`).StringVar(&a.windowsDomain)
 	a.authSign.Flag("windows-pki-domain", `Active Directory domain where CRLs will be located. Only used when --format is set to "windows"`).StringVar(&a.windowsPKIDomain)
 	a.authSign.Flag("windows-sid", `Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"`).StringVar(&a.windowsSID)
+	a.authSign.Flag("omit-cdp", `Omit CRL Distribution Points from the cert. Only used when --format is set to "windows"`).BoolVar(&a.omitCDP)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster.")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
@@ -244,7 +246,9 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, clt *authclient.Cli
 
 // GenerateKeys generates a new keypair
 func (a *AuthCommand) GenerateKeys(ctx context.Context, clusterAPI certificateSigner) error {
-	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), cryptosuites.UserSSH)
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
+		cryptosuites.UserSSH)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -290,8 +294,6 @@ type certificateSigner interface {
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
 	Ping(context.Context) (proto.PingResponse, error)
-	// TODO (Joerger): DELETE IN 17.0.0
-	authclient.CreateAppSessionForV15Client
 }
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
@@ -367,6 +369,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
 		LDAPConfig:         windows.LDAPConfig{Domain: domain},
+		OmitCDP:            a.omitCDP,
 		AuthClient:         clusterAPI,
 	})
 	if err != nil {
@@ -502,7 +505,9 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	principals := strings.Split(a.genHost, ",")
 
 	// Generate an SSH key.
-	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), cryptosuites.HostSSH)
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
+		cryptosuites.HostSSH)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -853,16 +858,6 @@ client_encryption_options:
 `))
 )
 
-func getCurrentSuiteFromPing(clusterAPI certificateSigner) cryptosuites.GetSuiteFunc {
-	return func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
-		pr, err := clusterAPI.Ping(ctx)
-		if err != nil {
-			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
-		}
-		return pr.SignatureAlgorithmSuite, nil
-	}
-}
-
 // generateKeyRing generates and returns a keyring using a key algorithm
 // determined by the current cluster signature algorithm suite and [purpose].
 // The returned KeyRing always uses a single private key for both SSH and TLS,
@@ -870,7 +865,9 @@ func getCurrentSuiteFromPing(clusterAPI certificateSigner) cryptosuites.GetSuite
 // single protocol anyway, or writes to an identity file which only supports a
 // single private key.
 func generateKeyRing(ctx context.Context, clusterAPI certificateSigner, purpose cryptosuites.KeyPurpose) (*client.KeyRing, error) {
-	signer, err := cryptosuites.GenerateKey(ctx, getCurrentSuiteFromPing(clusterAPI), purpose)
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromPing(clusterAPI),
+		purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -948,12 +945,6 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
 			URI:         server.GetApp().GetURI(),
-		}
-
-		// TODO (Joerger): DELETE IN v17.0.0
-		routeToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, clusterAPI, a.genUser, routeToApp)
-		if err != nil {
-			return trace.Wrap(err)
 		}
 
 		certUsage = proto.UserCertsRequest_App

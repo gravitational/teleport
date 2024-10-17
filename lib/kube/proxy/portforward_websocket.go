@@ -58,18 +58,18 @@ const (
 // Due to a protocol limitation, WebSockets do not support multiplexing nor
 // concurrent requests.
 func runPortForwardingWebSocket(req portForwardRequest) error {
-	ports, err := extractTargetPortsFromStrings(req.ports)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// When dialing to the upstream server (Teleport or Kubernetes API server),
 	// Teleport uses the SPDY implementation instead of WebSockets.
 	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
 	if err != nil {
-		return trace.ConnectionProblem(err, "error dialing to upstream connection")
+		return trace.Wrap(err, "error dialing to upstream connection")
 	}
 	defer targetConn.Close()
+
+	ports, err := extractTargetPortsFromStrings(req.ports)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// One pair of (Data,Error) channels per port.
 	channels := make([]wsstream.ChannelType, 2*len(ports))
@@ -307,7 +307,7 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
 	if err != nil {
-		return trace.Wrap(err, "error upgrading target connection")
+		return trace.Wrap(err)
 	}
 	defer targetConn.Close()
 
@@ -331,7 +331,7 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 		req.pingPeriod,
 	)
 	if err != nil {
-		return trace.Wrap(err, "error upgrading connection")
+		return trace.Wrap(err)
 	}
 
 	if conn == nil {

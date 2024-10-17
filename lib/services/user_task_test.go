@@ -49,16 +49,19 @@ func TestMarshalUserTaskRoundTrip(t *testing.T) {
 			TaskType:    "discover-ec2",
 			IssueType:   "SSM_AGENT_MISSING",
 			State:       "OPEN",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-1234567890": {
-					Name:            "instance-name",
-					Region:          "us-east-1",
-					InvocationUrl:   "https://example.com/",
-					DiscoveryConfig: "config",
-					DiscoveryGroup:  "group",
-					SyncTime:        timestamppb.Now(),
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				Region:    "us-east-1",
+				AccountId: "123456789012",
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"i-1234567890": {
+						Name:            "instance-name",
+						InvocationUrl:   "https://example.com/",
+						DiscoveryConfig: "config",
+						DiscoveryGroup:  "group",
+						SyncTime:        timestamppb.Now(),
+					},
 				},
-			}},
+			},
 		},
 	}
 
@@ -88,10 +91,11 @@ spec:
   issue_type: SSM_AGENT_MISSING
   state: OPEN
   discover_ec2:
+    region: us-east-1
+    account_id: "123456789012"
     instances:
       i-1234567890:
         name: instance-name
-        region: us-east-1
         invocation_url: https://example.com/
         discovery_config: config
         discovery_group: group
@@ -115,16 +119,19 @@ spec:
 			TaskType:    "discover-ec2",
 			IssueType:   "SSM_AGENT_MISSING",
 			State:       "OPEN",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-1234567890": {
-					Name:            "instance-name",
-					Region:          "us-east-1",
-					InvocationUrl:   "https://example.com/",
-					DiscoveryConfig: "config",
-					DiscoveryGroup:  "group",
-					SyncTime:        syncTime,
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				Region:    "us-east-1",
+				AccountId: "123456789012",
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"i-1234567890": {
+						Name:            "instance-name",
+						InvocationUrl:   "https://example.com/",
+						DiscoveryConfig: "config",
+						DiscoveryGroup:  "group",
+						SyncTime:        syncTime,
+					},
 				},
-			}},
+			},
 		},
 	}
 
