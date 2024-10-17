@@ -60,6 +60,8 @@ type Session struct {
 	LockTargets []types.LockTarget
 	// AuthContext is the identity context of the user.
 	AuthContext *authz.Context
+	// PostgresPID is the Postgres backend PID for the session.
+	PostgresPID uint32
 }
 
 // String returns string representation of the session parameters.
