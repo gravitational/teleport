@@ -21,8 +21,6 @@ package desktop
 import (
 	"context"
 	"errors"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
 	"io"
 	"log/slog"
 	"net"
@@ -35,7 +33,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
