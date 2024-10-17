@@ -537,11 +537,9 @@ func checkNameAndScreenSize(name string, screenSize *Resolution) error {
 		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
 	}
 
-	if screenSize != nil {
-		if screenSize.Width > MaxRDPScreenWidth || screenSize.Height > MaxRDPScreenHeight {
-			return trace.BadParameter("screen size %dx%d too big (maximum %dx%d)",
-				screenSize.Width, screenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
-		}
+	if screenSize != nil && (screenSize.Width > MaxRDPScreenWidth || screenSize.Height > MaxRDPScreenHeight) {
+		return trace.BadParameter("screen size %dx%d too big (maximum %dx%d)",
+			screenSize.Width, screenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
 	}
 	return nil
 }
