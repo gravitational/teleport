@@ -83,6 +83,7 @@ const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
   left: var(--sidenav-width);
   height: 100%;
   scrollbar-gutter: auto;
+  scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
   overflow: visible;
   width: ${rightPanelWidth};
   background: ${p => p.theme.colors.levels.surface};
