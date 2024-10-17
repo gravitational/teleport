@@ -21,7 +21,7 @@ The following values can be set for the Helm chart:
 
   <tr>
     <td><code>teleport.address</code></td>
-    <td>Host/port combination of the teleport Auth Server</td>
+    <td>Host/port combination of the teleport Auth Service</td>
     <td>string</td>
     <td><code>""</code></td>
     <td>yes</td>
