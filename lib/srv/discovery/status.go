@@ -373,24 +373,21 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 	d.issuesSyncQueue[g] = struct{}{}
 }
 
-// acquireSemaphoreForUserTask tries to acquire a semaphore lock for this user task.
-// It returns a func which must be called to release the lock.
-// It also returns a context which is tied to the lease and will be canceled if the lease ends.
-func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn func(), ctx context.Context, err error) {
+func (s *Server) acquireSemaphore(ctx context.Context, kind, name string) (releaseFn func(), stopCtx context.Context, err error) {
 	// Use the deterministic task name as semaphore name.
-	semaphoreName := userTaskName
+	semaphoreName := name
 	semaphoreExpiration := 5 * time.Second
 
 	// AcquireSemaphoreLock will retry until the semaphore is acquired.
 	// This prevents multiple discovery services to write AWS resources in parallel.
 	// lease must be released to cleanup the resource in auth server.
 	lease, err := services.AcquireSemaphoreLockWithRetry(
-		s.ctx,
+		ctx,
 		services.SemaphoreLockConfigWithRetry{
 			SemaphoreLockConfig: services.SemaphoreLockConfig{
 				Service: s.AccessPoint,
 				Params: types.AcquireSemaphoreRequest{
-					SemaphoreKind: types.KindUserTask,
+					SemaphoreKind: kind,
 					SemaphoreName: semaphoreName,
 					MaxLeases:     1,
 					Holder:        s.Config.ServerID,
@@ -418,11 +415,37 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 		cancel()
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).WithField("semaphore", userTaskName).Warn("error cleaning up UserTask semaphore")
+			s.Log.WithError(err).
+				WithField("semaphore_kind", kind).
+				WithField("semaphore", name).
+				Warn("Error cleaning up semaphore")
 		}
 	}
 
 	return releaseFn, ctxWithLease, nil
+}
+
+// acquireSemaphoreForCreatingUserTask tries to acquire two semaphore locks.
+// The first one ensures we have ownership of the UserTask before we try to merge it.
+// The second one ensures we can change the Integration.Status.PendingTasksNotification
+func (s *Server) acquireSemaphoreForCreatingUserTask(userTaskName, integration string) (releaseFn func(), ctx context.Context, err error) {
+	releaseUserTaskSemaphore, ctxWithUserTaskSemaphore, err := s.acquireSemaphore(s.ctx, types.KindIntegration, integration)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	releaseIntegrationSemaphore, ctxForBothSemaphores, err := s.acquireSemaphore(ctxWithUserTaskSemaphore, types.KindUserTask, userTaskName)
+	if err != nil {
+		releaseUserTaskSemaphore()
+		return nil, nil, trace.Wrap(err)
+	}
+
+	releaseBothSemaphores := func() {
+		releaseUserTaskSemaphore()
+		releaseIntegrationSemaphore()
+	}
+
+	return releaseBothSemaphores, ctxForBothSemaphores, nil
 }
 
 // mergeUpsertDiscoverEC2Task takes the current DiscoverEC2 User Task issues stored in memory and
@@ -437,7 +460,7 @@ func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInsta
 		Region:      taskGroup.region,
 	})
 
-	releaseFn, ctxWithLease, err := s.acquireSemaphoreForUserTask(userTaskName)
+	releaseFn, ctxWithLease, err := s.acquireSemaphoreForCreatingUserTask(userTaskName, taskGroup.integration)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -522,7 +545,7 @@ func (s *Server) upsertTasksForAWSEC2FailedEnrollments() {
 				"aws_account_id": g.accountID,
 				"aws_region":     g.region,
 			},
-			).Warning("Failed to create discover ec2 user task.", g.integration, g.issueType, g.accountID, g.region)
+			).Warning("Failed to create discover ec2 user task.")
 			continue
 		}
 
