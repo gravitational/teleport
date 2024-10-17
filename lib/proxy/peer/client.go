@@ -688,7 +688,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
-			c.config.Log.DebugContext(c.ctx, "Error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
+			c.config.Log.DebugContext(c.ctx, "Error direct dialing peer proxy.", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}
