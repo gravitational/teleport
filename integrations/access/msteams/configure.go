@@ -102,8 +102,7 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 
 	ConfigureAppZip(zipWriter, p)
 
-	printStep(&step, "Created app.zip")
-
+	printStep(&step, "Created %v", filepath.Join(targetDir, "app.zip"))
 	fmt.Println()
 	fmt.Printf("TeamsAppID: %v\n", p.TeamsAppID)
 	fmt.Println()
@@ -114,8 +113,8 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 	return nil
 }
 
+// ConfigureAppZip creates the manifest.json from the template using the provided payload, then writes the app.zip to the provided writer including the needed assets.
 func ConfigureAppZip(zipWriter io.Writer, p ConfigTemplatePayload) error {
-
 	w := zip.NewWriter(zipWriter)
 	defer w.Close()
 

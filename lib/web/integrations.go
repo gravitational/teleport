@@ -235,7 +235,6 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-
 	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
 		Name:        p.ByName("plugin"),
 		WithSecrets: false,

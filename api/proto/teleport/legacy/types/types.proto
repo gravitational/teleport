@@ -6348,7 +6348,7 @@ message PluginMSTeamsSettings {
   string tenant_id = 2;
   // TeamsAppId is the Microsoft teams application ID.
   string teams_app_id = 3;
-  // Region bot framework api AP region.
+  // Region to be used by the Microsoft Graph API client.
   string region = 4;
   // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
   string defaultRecipient = 5;

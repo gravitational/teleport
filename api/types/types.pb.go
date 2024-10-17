@@ -16192,7 +16192,7 @@ type PluginMSTeamsSettings struct {
 	TenantId string `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	// TeamsAppId is the Microsoft teams application ID.
 	TeamsAppId string `protobuf:"bytes,3,opt,name=teams_app_id,json=teamsAppId,proto3" json:"teams_app_id,omitempty"`
-	// Region bot framework api AP region.
+	// Region to be used by the Microsoft Graph API client.
 	Region string `protobuf:"bytes,4,opt,name=region,proto3" json:"region,omitempty"`
 	// DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
 	DefaultRecipient     string   `protobuf:"bytes,5,opt,name=defaultRecipient,proto3" json:"defaultRecipient,omitempty"`
