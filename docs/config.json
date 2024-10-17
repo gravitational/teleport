@@ -1447,7 +1447,12 @@
     },
     {
       "source": "/access-controls/access-lists/",
-      "destination": "/admin-guides/access-controls/access-lists/",
+      "destination": "/admin-guides/access-controls/access-lists/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/",
+      "destination":  "/admin-guides/access-controls/access-lists/access-lists/",
       "permanent": true
     },
     {
