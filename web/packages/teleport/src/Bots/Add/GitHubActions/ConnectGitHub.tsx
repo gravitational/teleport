@@ -222,7 +222,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
 
                   <FormItem>
                     <Text>
-                      Environmnet <OptionalFieldText />
+                      Environment <OptionalFieldText />
                     </Text>
                     <Input
                       disabled={isLoading}
