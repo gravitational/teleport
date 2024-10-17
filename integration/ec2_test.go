@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	cloudimds "github.com/gravitational/teleport/lib/cloud/imds"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
@@ -143,6 +144,12 @@ func getIID(ctx context.Context, t *testing.T) imds.InstanceIdentityDocument {
 func getCallerIdentity(ctx context.Context, t *testing.T) *sts.GetCallerIdentityOutput {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
+	if cfg.Region == "" {
+		imdsClient, err := cloudaws.NewInstanceMetadataClient(ctx)
+		require.NoError(t, err)
+		cfg.Region, err = imdsClient.GetRegion(ctx)
+		require.NoError(t, err, "trying to get local region from IMDSv2")
+	}
 	stsClient := sts.NewFromConfig(cfg)
 	output, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	require.NoError(t, err)

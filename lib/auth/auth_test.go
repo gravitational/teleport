@@ -880,7 +880,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	// Configure auth preferences.
 	authPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err, "GetAuthPreference")
-	authPref.SetSecondFactor(constants.SecondFactorOptional) // good enough
+	authPref.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 	authPref.SetWebauthn(&types.Webauthn{
 		RPID: "localhost",
 	})
@@ -1343,7 +1343,8 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
-		ClientID: "a",
+		ClientID:     "a",
+		ClientSecret: "b",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "dummy",

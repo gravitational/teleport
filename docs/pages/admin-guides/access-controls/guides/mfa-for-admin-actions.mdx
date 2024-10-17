@@ -56,50 +56,30 @@ WebAuthn is the only form of second factor allowed.
   for a wider range of cluster configurations.
 </Notice>
 
-<Tabs>
-  <TabItem label="Dynamic Resources" scope={["team", "cloud"]}>
+Edit the `cluster_auth_preference` resource:
 
-  Edit the `cluster_auth_preference` resource:
+```code
+$ tctl edit cap
+```
 
-  ```code
-  $ tctl edit cap
-  ```
+Update the `cluster_auth_preference` definition to include the following content:
 
-  Update the `cluster_auth_preference` definition to include the following content:
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
+  second_factor: "webauthn"
+  webauthn:
+    rp_id: example.com
+```
 
-  ```yaml
-  kind: cluster_auth_preference
-  version: v2
-  metadata:
-    name: cluster-auth-preference
-  spec:
-    type: local
-    # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
-    second_factor: "webauthn"
-    webauthn:
-      rp_id: example.com
-  ```
+Save and exit the file. `tctl` will update the remote definition:
 
-  Save and exit the file. `tctl` will update the remote definition:
+```text
+cluster auth preference has been updated
+```
 
-  ```text
-  cluster auth preference has been updated
-  ```
-
-  </TabItem>
-  <TabItem label="Static Config" scope={["oss", "enterprise"]}>
-  Edit the Auth Service's `teleport.yaml` file and restart all Auth Service instances:
-
-  ```yaml
-  # snippet from /etc/teleport.yaml:
-  auth_service:
-    authentication:
-      type: local
-      # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
-      second_factor: "webauthn"
-      webauthn:
-        rp_id: example.com
-  ```
-
-  </TabItem>
-</Tabs>
