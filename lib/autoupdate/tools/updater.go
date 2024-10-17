@@ -112,8 +112,9 @@ func NewUpdater(tools []string, toolsDir string, localVersion string, options ..
 }
 
 // CheckLocal is run at client tool startup and will only perform local checks.
-// Returns the version needs to be updated and re-executed.
-func (u *Updater) CheckLocal() (string, bool) {
+// Returns the version needs to be updated and re-executed, by re-execution flag we
+// understand that update and re-execute is required.
+func (u *Updater) CheckLocal() (version string, reExec bool) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -122,7 +123,7 @@ func (u *Updater) CheckLocal() (string, bool) {
 		return "", false
 	// Requested version already the same as client version.
 	case u.localVersion:
-		return requestedVersion, false
+		return u.localVersion, false
 	}
 
 	// If a version of client tools has already been downloaded to
@@ -139,9 +140,12 @@ func (u *Updater) CheckLocal() (string, bool) {
 	return toolsVersion, false
 }
 
-// CheckRemote will check against Proxy Service if client tools need to be updated.
-// Returns the version needs to be updated and re-executed.
-func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
+// CheckRemote first checks the version set by the environment variable. If not set or disabled,
+// it checks against the Proxy Service to determine if client tools need updating by requesting
+// the `webapi/find` handler, which stores information about the required client tools version to
+// operate with this cluster. It returns the semantic version that needs updating and whether
+// re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
+func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version string, reExec bool, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -150,7 +154,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (string, bo
 		return "", false, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		return requestedVersion, false, nil
+		return u.localVersion, false, nil
 	}
 
 	certPool, err := x509.SystemCertPool()
