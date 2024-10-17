@@ -175,7 +175,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                     login: e.target.value,
                   })
                 }
-                rule={requireValidLinuxPrincipal}
+                rule={requireValidSSHUser}
                 />
             </FormItem>
 
@@ -224,9 +224,9 @@ const requireValidBotName = (value: string) => () => {
   return { valid: true };
 };
 
-const requireValidLinuxPrincipal = (value: string) => () => {
+const requireValidSSHUser = (value: string) => () => {
  if (!value || !value.trim()) {
-    return { valid: false, message: 'Linux user is required' };
+    return { valid: false, message: 'SSH user is required' };
   }
 
   return { valid: true };
