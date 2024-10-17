@@ -3424,6 +3424,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindLock:                       &types.LockV2{},
 		types.KindWindowsDesktopService:      &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:             &types.WindowsDesktopV3{},
+		types.KindDynamicWindowsDesktop:      &types.DynamicWindowsDesktopV1{},
 		types.KindInstaller:                  &types.InstallerV1{},
 		types.KindKubernetesCluster:          &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:     &types.SAMLIdPServiceProviderV1{},
