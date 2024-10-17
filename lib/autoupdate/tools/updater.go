@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
 )
@@ -175,7 +176,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (string, bo
 	switch {
 	case requestedVersion != "" && requestedVersion != toolsVersion:
 		return requestedVersion, true, nil
-	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
+	case resp.AutoUpdate.ToolsMode != autoupdate.ToolsUpdateModeEnabled || resp.AutoUpdate.ToolsVersion == "":
 		return "", false, nil
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
 		return resp.AutoUpdate.ToolsVersion, false, nil
