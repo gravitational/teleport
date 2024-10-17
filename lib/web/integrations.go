@@ -21,7 +21,6 @@ package web
 import (
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
