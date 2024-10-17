@@ -173,6 +173,15 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	}
 	init.Token = enrollToken
 
+	return c.run(ctx, devicesClient, debug, init)
+}
+
+func (c *Ceremony) run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, debug bool, init *devicepb.EnrollDeviceInit) (*devicepb.Device, error) {
+	// Sanity check.
+	if init.GetToken() == "" {
+		return nil, trace.BadParameter("enroll init message lacks enrollment token")
+	}
+
 	stream, err := devicesClient.EnrollDevice(ctx)
 	if err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))

@@ -24,22 +24,18 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // AutoEnrollCeremony is the auto-enrollment version of [Ceremony].
 type AutoEnrollCeremony struct {
 	*Ceremony
-
-	CollectDeviceData func(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error)
 }
 
 // NewAutoEnrollCeremony creates a new [AutoEnrollCeremony] based on the regular
 // ceremony provided by [NewCeremony].
 func NewAutoEnrollCeremony() *AutoEnrollCeremony {
 	return &AutoEnrollCeremony{
-		Ceremony:          NewCeremony(),
-		CollectDeviceData: native.CollectDeviceData,
+		Ceremony: NewCeremony(),
 	}
 }
 
@@ -53,18 +49,23 @@ func AutoEnroll(ctx context.Context, devicesClient devicepb.DeviceTrustServiceCl
 // [devicepb.DeviceTrustServiceClient.CreateDeviceEnrollToken] and enrolls the
 // device using a regular [Ceremony].
 func (c *AutoEnrollCeremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient) (*devicepb.Device, error) {
-	cd, err := c.CollectDeviceData(native.CollectedDataAlwaysEscalate)
+	// Creating the init message straight away aborts the process cleanly if the
+	// device cannot create the device key (for example, if it lacks a TPM).
+	// This avoids a situation where we ask for escalation, like a sudo prompt or
+	// admin credentials, then fail a few steps after the prompt.
+	init, err := c.EnrollDeviceInit()
 	if err != nil {
-		return nil, trace.Wrap(err, "collecting device data")
+		return nil, trace.Wrap(err)
 	}
 
 	token, err := devicesClient.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
-		DeviceData: cd,
+		DeviceData: init.DeviceData,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating auto-token")
 	}
+	init.Token = token.Token
 
-	dev, err := c.Ceremony.Run(ctx, devicesClient, false, token.Token)
+	dev, err := c.run(ctx, devicesClient, false /* debug */, init)
 	return dev, trace.Wrap(err)
 }
