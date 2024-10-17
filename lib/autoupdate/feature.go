@@ -21,8 +21,8 @@ package autoupdate
 const (
 	// FlagEnt represents enterprise version.
 	FlagEnt = 1 << iota
-	// FlagFips represents enterprise version with fips feature enabled.
-	FlagFips
+	// FlagFIPS represents enterprise version with FIPS feature enabled.
+	FlagFIPS
 )
 
 var (

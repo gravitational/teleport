@@ -22,5 +22,5 @@
 package autoupdate
 
 func init() {
-	featureFlag |= FlagFips
+	featureFlag |= FlagFIPS
 }

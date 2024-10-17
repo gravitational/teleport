@@ -49,7 +49,7 @@ func Dir() (string, error) {
 		}
 	}
 
-	return filepath.Join(filepath.Clean(home), ".tsh", "bin"), nil
+	return filepath.Join(home, ".tsh", "bin"), nil
 }
 
 func checkToolVersion(toolsDir string) (string, error) {
@@ -131,11 +131,11 @@ func teleportPackageURLs(baseURL, toolsVersion string) ([]packageURL, error) {
 	case "linux":
 		var b strings.Builder
 		b.WriteString(baseURL + "/teleport-")
-		if autoupdate.FeatureFlag()&(autoupdate.FlagEnt|autoupdate.FlagFips) != 0 {
+		if autoupdate.FeatureFlag()&(autoupdate.FlagEnt|autoupdate.FlagFIPS) != 0 {
 			b.WriteString("ent-")
 		}
 		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
-		if autoupdate.FeatureFlag()&autoupdate.FlagFips != 0 {
+		if autoupdate.FeatureFlag()&autoupdate.FlagFIPS != 0 {
 			b.WriteString("fips-")
 		}
 		b.WriteString("bin.tar.gz")
