@@ -97,6 +97,136 @@ func TestAppPublicAddrValidation(t *testing.T) {
 	}
 }
 
+func TestAppPortsValidation(t *testing.T) {
+	type check func(t *testing.T, err error)
+
+	hasNoErr := func() check {
+		return func(t *testing.T, err error) {
+			require.NoError(t, err)
+		}
+	}
+	hasErrTypeBadParameter := func() check {
+		return func(t *testing.T, err error) {
+			require.True(t, trace.IsBadParameter(err))
+		}
+	}
+	hasErrTypeBadParameterAndContains := func(msg string) check {
+		return func(t *testing.T, err error) {
+			require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
+			require.ErrorContains(t, err, msg)
+		}
+	}
+	hasErrAndContains := func(msg string) check {
+		return func(t *testing.T, err error) {
+			require.ErrorContains(t, err, msg)
+		}
+	}
+
+	tests := []struct {
+		name  string
+		ports []*PortRange
+		uri   string
+		check check
+	}{
+		{
+			name: "valid ranges and single ports",
+			ports: []*PortRange{
+				&PortRange{Port: 22, EndPort: 25},
+				&PortRange{Port: 26},
+				&PortRange{Port: 65535},
+			},
+			check: hasNoErr(),
+		},
+		{
+			name: "valid overlapping ranges",
+			ports: []*PortRange{
+				&PortRange{Port: 100, EndPort: 200},
+				&PortRange{Port: 150, EndPort: 175},
+				&PortRange{Port: 111},
+				&PortRange{Port: 150, EndPort: 210},
+				&PortRange{Port: 1, EndPort: 65535},
+			},
+			check: hasNoErr(),
+		},
+		{
+			name: "valid non-TCP app with ports ignored",
+			uri:  "http://localhost:8000",
+			ports: []*PortRange{
+				&PortRange{Port: 123456789},
+				&PortRange{Port: 10, EndPort: 2},
+			},
+			check: hasNoErr(),
+		},
+		// Test cases for invalid ports.
+		{
+			name: "port smaller than 1",
+			ports: []*PortRange{
+				&PortRange{Port: 0},
+			},
+			check: hasErrTypeBadParameter(),
+		},
+		{
+			name: "port bigger than 65535",
+			ports: []*PortRange{
+				&PortRange{Port: 78787},
+			},
+			check: hasErrTypeBadParameter(),
+		},
+		{
+			name: "end port smaller than 2",
+			ports: []*PortRange{
+				&PortRange{Port: 5, EndPort: 1},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be between"),
+		},
+		{
+			name: "end port bigger than 65535",
+			ports: []*PortRange{
+				&PortRange{Port: 1, EndPort: 78787},
+			},
+			check: hasErrTypeBadParameter(),
+		},
+		{
+			name: "end port smaller than port",
+			ports: []*PortRange{
+				&PortRange{Port: 10, EndPort: 5},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be greater than port"),
+		},
+		{
+			name: "uri specifies port",
+			uri:  "tcp://localhost:1234",
+			ports: []*PortRange{
+				&PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrTypeBadParameterAndContains("must not include a port number"),
+		},
+		{
+			name: "invalid uri",
+			uri:  "%",
+			ports: []*PortRange{
+				&PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrAndContains("invalid URL escape"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := AppSpecV3{
+				URI:   "tcp://localhost",
+				Ports: tc.ports,
+			}
+			if tc.uri != "" {
+				spec.URI = tc.uri
+			}
+
+			_, err := NewAppV3(Metadata{Name: "TestApp"}, spec)
+			tc.check(t, err)
+		})
+	}
+}
+
 func TestAppServerSorter(t *testing.T) {
 	t.Parallel()
 
