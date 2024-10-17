@@ -26,6 +26,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+const (
+	// ToolsUpdateModeEnabled enables client tools automatic updates.
+	ToolsUpdateModeEnabled = "enabled"
+	// ToolsUpdateModeDisabled disables client tools automatic updates.
+	ToolsUpdateModeDisabled = "disabled"
+)
+
 // NewAutoUpdateConfig creates a new auto update configuration resource.
 func NewAutoUpdateConfig(spec *autoupdate.AutoUpdateConfigSpec) (*autoupdate.AutoUpdateConfig, error) {
 	config := &autoupdate.AutoUpdateConfig{
@@ -57,6 +64,11 @@ func ValidateAutoUpdateConfig(c *autoupdate.AutoUpdateConfig) error {
 	}
 	if c.Spec == nil {
 		return trace.BadParameter("Spec is nil")
+	}
+	if c.Spec.Tools != nil {
+		if c.Spec.Tools.Mode != ToolsUpdateModeDisabled && c.Spec.Tools.Mode != ToolsUpdateModeEnabled {
+			return trace.BadParameter("ToolsMode is not valid")
+		}
 	}
 
 	return nil
