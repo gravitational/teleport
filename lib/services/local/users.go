@@ -1884,6 +1884,57 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	return &req, nil
 }
 
+func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
+	switch {
+	case sd == nil:
+		return trace.BadParameter("missing parameter sd")
+	case sd.RequestID == "":
+		return trace.BadParameter("missing parameter RequestID")
+	case sd.ConnectorID == "":
+		return trace.BadParameter("missing parameter ConnectorID")
+	case sd.ConnectorType == "":
+		return trace.BadParameter("missing parameter ConnectorType")
+	case sd.Username == "":
+		return trace.BadParameter("missing parameter Username")
+	}
+
+	value, err := json.Marshal(sd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:     ssoMFASessionDataKey(sd.RequestID),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+	if sessionID == "" {
+		return nil, trace.BadParameter("missing parameter sessionID")
+	}
+
+	item, err := s.Get(ctx, ssoMFASessionDataKey(sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sd := &services.SSOMFASessionData{}
+	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
+}
+
+func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return trace.BadParameter("missing parameter sessionID")
+	}
+
+	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(sessionID)))
+}
+
+func ssoMFASessionDataKey(sessionID string) backend.Key {
+	return backend.NewKey(webPrefix, ssoMFASessionData, sessionID)
+}
+
 // UpsertGithubConnector creates or updates a Github connector
 func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	if err := services.CheckAndSetDefaults(connector); err != nil {
@@ -2164,6 +2215,7 @@ const (
 	webauthnGlobalSessionData = "sessionData"
 	webauthnLocalAuthPrefix   = "webauthnlocalauth"
 	webauthnSessionData       = "webauthnsessiondata"
+	ssoMFASessionData         = "ssomfasessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	attestationsPrefix        = "key_attestations"
 	userPreferencesPrefix     = "user_preferences"
