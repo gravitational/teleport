@@ -92,6 +92,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		SecondFactors: []types.SecondFactorType{
 			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
 			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
 		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
@@ -442,6 +443,122 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.Equal(t, lastDeviceName, resp.Devices[0].GetName())
 }
 
+func TestMFADeviceManagement_SSO(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	// Enable MFA support.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type: constants.Local,
+		SecondFactors: []types.SecondFactorType{
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+		},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
+	require.NoError(t, err)
+	userClient, err := testServer.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create an auth connector.
+	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: user.GetRoles()},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Convert the user to an SSO user for this auth connector.
+	userCreatedAt := authServer.clock.Now()
+	user.SetCreatedBy(types.CreatedBy{
+		Time: userCreatedAt,
+		Connector: &types.ConnectorRef{
+			ID:   samlConnector.GetKind(),
+			Type: samlConnector.GetName(),
+		},
+	})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// No MFA devices should exist for the user.
+	resp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Empty(t, resp.Devices)
+
+	// prepare a passwordless device.
+	passkeyName := "passkey"
+	passkey, err := RegisterTestDevice(ctx, userClient, passkeyName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, WithPasswordless())
+	require.NoError(t, err, "RegisterTestDevice")
+
+	passkeyWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+		mfaResp, err := passkey.SolveAuthn(challenge)
+		require.NoError(t, err, "SolveAuthn")
+		return mfaResp
+	}
+
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Devices, 1)
+	webauthnDevice := resp.Devices[0]
+
+	// Update the auth connector to enable SSO MFA.
+	samlConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled: true,
+		Issuer:  "test",
+		Sso:     "https://localhost:65535/sso", // not called
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Ephemeral sso device should show up in the list now. It can't be deleted.
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	assert.NoError(t, err)
+	assert.Len(t, resp.Devices, 2)
+
+	expectSSODev, err := types.NewMFADevice(samlConnector.GetDisplay(), samlConnector.GetName(), userCreatedAt, &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   samlConnector.GetName(),
+			ConnectorType: samlConnector.GetKind(),
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*types.MFADevice{webauthnDevice, expectSSODev}, resp.Devices)
+
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  "saml",
+		authHandler: passkeyWebAuthnHandler,
+		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assert.ErrorAs(t, err, new(*trace.BadParameterError))
+			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
+		}},
+	)
+
+	// Last non-SSO, passwordless device can be deleted now.
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  passkeyName,
+		authHandler: passkeyWebAuthnHandler,
+		checkErr:    require.NoError,
+	})
+}
+
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
@@ -463,27 +580,6 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 					"Unexpected error deleting last passwordless device",
 				)
 			},
-		},
-		{
-			// TODO(Joerger): the user may already be locked out from login if a password
-			// is not set and passwordless is disabled. Prevent them from deleting
-			// their last passkey to prevent them from being locked out further,
-			// in the case of passwordless being re-enabled.
-			name: "OK other MFAs, but no password set, passwordless is off",
-			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
-				// Register a non-passwordless device without adding a password.
-				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
-				require.NoError(t, err, "RegisterTestDevice")
-
-				authPref, err := authServer.GetAuthPreference(ctx)
-				require.NoError(t, err, "GetAuthPreference")
-
-				// Turn off passwordless authentication.
-				authPref.SetAllowPasswordless(false)
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err, "UpsertAuthPreference")
-			},
-			checkErr: require.NoError,
 		},
 		{
 			name: "OK extra passwordless device",
@@ -551,6 +647,29 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 				_, err := RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete last passwordless credential for user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
+		},
+		{
+			name: "NOK other MFAs, but no password set, passwordless is off",
+			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				// Register a non-passwordless device without adding a password.
+				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err, "GetAuthPreference")
+
+				// Turn off passwordless authentication.
+				authPref.SetAllowPasswordless(false)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err, "UpsertAuthPreference")
 			},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
