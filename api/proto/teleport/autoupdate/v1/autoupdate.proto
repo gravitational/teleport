@@ -41,17 +41,7 @@ message AutoUpdateConfigSpec {
 // AutoUpdateConfigSpecTools encodes the parameters for client tools auto updates.
 message AutoUpdateConfigSpecTools {
   // Mode defines state of the client tools auto update.
-  ToolsUpdateMode mode = 1;
-}
-
-// ToolsMode type for client tools enabling state.
-enum ToolsUpdateMode {
-  // TOOLS_UPDATE_MODE_UNSPECIFIED is undefined mode.
-  TOOLS_UPDATE_MODE_UNSPECIFIED = 0;
-  // TOOLS_UPDATE_MODE_ENABLED client tools auto update is enabled.
-  TOOLS_UPDATE_MODE_ENABLED = 1;
-  // TOOLS_UPDATE_MODE_DISABLED client tools auto update is disabled.
-  TOOLS_UPDATE_MODE_DISABLED = 2;
+  string mode = 1;
 }
 
 // AutoUpdateVersion is a resource singleton with version required for

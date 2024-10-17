@@ -2292,7 +2292,7 @@ metadata:
   revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
   tools:
-    mode: 1
+    mode: enabled
 version: v1
 `
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})

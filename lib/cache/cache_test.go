@@ -3982,7 +3982,7 @@ func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
 
 	r, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
 		Tools: &autoupdate.AutoUpdateConfigSpecTools{
-			Mode: autoupdate.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
+			Mode: update.ToolsUpdateModeEnabled,
 		},
 	})
 	require.NoError(t, err)

@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
@@ -1843,7 +1842,7 @@ func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error 
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Enabled"})
 	t.AddRow([]string{
 		c.config.GetMetadata().GetName(),
-		fmt.Sprintf("%v", autoupdate.ToolsModeToAPI(c.config.GetSpec().GetTools().GetMode())),
+		fmt.Sprintf("%v", c.config.GetSpec().GetTools().GetMode()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

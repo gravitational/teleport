@@ -53,7 +53,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateConfig},
 		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
 			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
-				Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
+				Mode: autoupdate.ToolsUpdateModeEnabled,
 			},
 		},
 	}
@@ -77,7 +77,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
 	config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{
-		Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
+		Mode: autoupdate.ToolsUpdateModeDisabled,
 	}
 	updated, err := service.UpdateAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-config-name"},
 		Spec: &autoupdatev1pb.AutoUpdateConfigSpec{
 			Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
-				Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
+				Mode: autoupdate.ToolsUpdateModeEnabled,
 			},
 		},
 	}
@@ -218,7 +218,7 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	// Validate the config update restriction.
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
-			Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
+			Mode: autoupdate.ToolsUpdateModeEnabled,
 		},
 	})
 	require.NoError(t, err)

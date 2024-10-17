@@ -558,14 +558,14 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 
 	expected, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
-			Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_ENABLED,
+			Mode: autoupdate.ToolsUpdateModeEnabled,
 		},
 	})
 	require.NoError(t, err)
 
 	initial, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
-			Mode: autoupdatev1pb.ToolsUpdateMode_TOOLS_UPDATE_MODE_DISABLED,
+			Mode: autoupdate.ToolsUpdateModeDisabled,
 		},
 	})
 	require.NoError(t, err)

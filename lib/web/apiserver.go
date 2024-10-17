@@ -69,7 +69,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1546,7 +1545,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
 	} else if err == nil {
-		response.AutoUpdate.ToolsMode = autoupdate.ToolsModeToAPI(autoUpdateConfig.GetSpec().GetTools().GetMode())
+		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
 	}
 
 	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
