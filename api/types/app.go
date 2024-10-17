@@ -393,13 +393,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	if !strings.Contains(publicAddr, "//") && strings.Contains(publicAddr, ":") {
 		publicAddr = "//" + publicAddr
 	}
-	url, err := url.Parse(publicAddr)
+	publicAddrURL, err := url.Parse(publicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
 	}
 	host := a.Spec.PublicAddr
-	if url.Host != "" {
-		host = url.Host
+	if publicAddrURL.Host != "" {
+		host = publicAddrURL.Host
 	}
 
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
@@ -413,6 +413,54 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		default:
 			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
 
+		}
+	}
+
+	if len(a.Spec.Ports) != 0 {
+		if err := a.checkPorts(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (a *AppV3) checkPorts() error {
+	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
+	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
+	uri, err := url.Parse(a.Spec.URI)
+	if err != nil {
+		return trace.BadParameter("invalid app URI format: %v", err)
+	}
+
+	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
+	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
+	// web app gets downgraded to a version which supports multi-port only for TCP apps.
+	//
+	// For now, we simply ignore the Ports field set on non-TCP apps.
+	if uri.Scheme != "tcp" {
+		return nil
+	}
+
+	if uri.Port() != "" {
+		return trace.BadParameter("app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
+	}
+
+	const minPort = 1
+	const maxPort = 65535
+	for _, portRange := range a.Spec.Ports {
+		if portRange.Port < minPort || portRange.Port > maxPort {
+			return trace.BadParameter("app port must be between %d and %d, but got %d", minPort, maxPort, portRange.Port)
+		}
+
+		if portRange.EndPort != 0 {
+			if portRange.EndPort < minPort+1 || portRange.EndPort > maxPort {
+				return trace.BadParameter("app end port must be between %d and %d, but got %d", minPort+1, maxPort, portRange.EndPort)
+			}
+
+			if portRange.EndPort <= portRange.Port {
+				return trace.BadParameter("app end port must be greater than port (%d vs %d)", portRange.EndPort, portRange.Port)
+			}
 		}
 	}
 
