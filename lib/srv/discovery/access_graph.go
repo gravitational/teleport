@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
-	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
 )
 
 const (
@@ -486,19 +485,6 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 				DiscoveryConfigName: discoveryConfigName,
 			},
 		)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		fetchers = append(fetchers, fetcher)
-	}
-	for _, fetcherCfg := range matchers.AccessGraph.Azure {
-		cfg := azure_sync.Config{
-			Regions:             fetcherCfg.Regions,
-			Integration:         fetcherCfg.Integration,
-			DiscoveryConfigName: discoveryConfigName,
-		}
-		fetcher, err := azure_sync.NewAzureFetcher(cfg)
 		if err != nil {
 			errs = append(errs, err)
 			continue

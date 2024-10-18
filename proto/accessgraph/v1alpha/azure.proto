@@ -18,6 +18,8 @@
 syntax = "proto3";
 package accessgraph.v1alpha;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
 // AzureResourceList is a list of Azure resources
@@ -34,6 +36,33 @@ message AzureResource {
 
 // AzureVirtualMachine is an Azure virtual machine
 message AzureVirtualMachine {
-  string virtual_machine_id = 1;
-  string name = 2;
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
+}
+
+// AzureUser is an Azure user
+message AzureUser {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string display_name = 4;
+}
+
+// AzureRoleAssignment links an Azure principal to a role definition and directory scope
+message AzureRoleAssignment {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string principal_id = 4;
+  string role_definition_id = 5;
+  string directory_scope_id = 6;
+}
+
+// AzureDirectoryScope defines
+message AzureDirectoryScope {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
 }

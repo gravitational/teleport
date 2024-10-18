@@ -14,16 +14,19 @@ type Config struct {
 type Resources struct {
 	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
 }
+
 type Features struct {
 	VirtualMachines bool
 }
-type AzureFetcher interface {
+
+type Fetcher interface {
 	Poll(context.Context, Features) (*Resources, error)
 	Status() (uint64, error)
 	DiscoveryConfigName() string
 	IsFromDiscoveryConfig() bool
 	GetAccountID() string
 }
+
 type azureFetcher struct {
 	Config
 	lastError               error
@@ -31,11 +34,12 @@ type azureFetcher struct {
 	lastResult              *Resources
 }
 
-func NewAzureFetcher(cfg Config) (AzureFetcher, error) {
+func NewAzureFetcher(cfg Config) (Fetcher, error) {
 	return &azureFetcher{
 		Config: cfg,
 	}, nil
 }
+
 func (a *azureFetcher) Poll(context.Context, Features) (*Resources, error) {
 	return nil, nil
 }
