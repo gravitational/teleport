@@ -67,7 +67,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to application resources and
 // registers/unregisters the proxied applications accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application, types.Application], error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application, types.ReadOnlyApplication], error) {
 	if len(s.c.ResourceMatchers) == 0 {
 		s.log.Debug("Not initializing application resource watcher.")
 		return nil, nil

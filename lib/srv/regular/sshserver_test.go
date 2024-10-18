@@ -2865,12 +2865,13 @@ func newLockWatcher(ctx context.Context, t testing.TB, client types.Events) *ser
 	return lockWatcher
 }
 
-func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.GenericWatcher[types.Server, types.ReadOnlyServer] {
+func newNodeWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.Server, types.ReadOnlyServer] {
 	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
 			Client:    client,
 		},
+		NodesGetter: client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(nodeWatcher.Close)

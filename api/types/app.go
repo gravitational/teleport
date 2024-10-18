@@ -88,6 +88,55 @@ type Application interface {
 	GetCORS() *CORSPolicy
 }
 
+// ReadOnlyApplication is a read only variant of Application.
+type ReadOnlyApplication interface {
+	// ReadOnlyResourceWithLabels provides common resource methods.
+	ReadOnlyResourceWithLabels
+	// GetNamespace returns the app namespace.
+	GetNamespace() string
+	// GetStaticLabels returns the app static labels.
+	GetStaticLabels() map[string]string
+	// GetDynamicLabels returns the app dynamic labels.
+	GetDynamicLabels() map[string]CommandLabel
+	// String returns string representation of the app.
+	String() string
+	// GetDescription returns the app description.
+	GetDescription() string
+	// GetURI returns the app connection endpoint.
+	GetURI() string
+	// GetPublicAddr returns the app public address.
+	GetPublicAddr() string
+	// GetInsecureSkipVerify returns the app insecure setting.
+	GetInsecureSkipVerify() bool
+	// GetRewrite returns the app rewrite configuration.
+	GetRewrite() *Rewrite
+	// IsAWSConsole returns true if this app is AWS management console.
+	IsAWSConsole() bool
+	// IsAzureCloud returns true if this app represents Azure Cloud instance.
+	IsAzureCloud() bool
+	// IsGCP returns true if this app represents GCP instance.
+	IsGCP() bool
+	// IsTCP returns true if this app represents a TCP endpoint.
+	IsTCP() bool
+	// GetProtocol returns the application protocol.
+	GetProtocol() string
+	// GetAWSAccountID returns value of label containing AWS account ID on this app.
+	GetAWSAccountID() string
+	// GetAWSExternalID returns the AWS External ID configured for this app.
+	GetAWSExternalID() string
+	// GetUserGroups will get the list of user group IDs associated with the application.
+	GetUserGroups() []string
+	// Copy returns a copy of this app resource.
+	Copy() *AppV3
+	// GetIntegration will return the Integration.
+	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
+	GetIntegration() string
+	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
+	GetRequiredAppNames() []string
+	// GetCORS returns the CORS configuration for the app.
+	GetCORS() *CORSPolicy
+}
+
 // NewAppV3 creates a new app resource.
 func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
 	app := &AppV3{

@@ -313,7 +313,7 @@ type Server struct {
 	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]srv.HeartbeatI
 	// watcher monitors changes to database resources.
-	watcher *services.GenericWatcher[types.Database, types.Database]
+	watcher *services.GenericWatcher[types.Database, types.ReadOnlyDatabase]
 	// proxiedDatabases contains databases this server currently is proxying.
 	// Proxied databases are reconciled against monitoredDatabases below.
 	proxiedDatabases map[string]types.Database
