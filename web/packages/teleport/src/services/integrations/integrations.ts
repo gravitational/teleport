@@ -410,7 +410,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc } = json;
+  const { name, subKind, awsoidc, origin } = json;
   return {
     resourceType: 'integration',
     name,
@@ -419,6 +419,7 @@ function makeIntegration(json: any): Integration {
       roleArn: awsoidc?.roleArn,
       issuerS3Bucket: awsoidc?.issuerS3Bucket,
       issuerS3Prefix: awsoidc?.issuerS3Prefix,
+      origin: origin,
     },
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
