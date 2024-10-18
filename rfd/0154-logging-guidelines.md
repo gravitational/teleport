@@ -211,6 +211,8 @@ to `log/slog`, we should do our best to start following a few simple rules.
    a `context.Background` to indicate as such.
 1) The message should be a fragment, and not a full sentence. Terminating the message with punctuation should be
    avoided.
+1) Starting the message with capitalization is preferred ("Speed threshold reached" instead of "speed threshold
+   reached").
 
 To achieve these, we can add enable the [`sloglint`](https://github.com/go-simpler/sloglint) linter in our golangci-lint
 configuration.
