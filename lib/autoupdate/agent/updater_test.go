@@ -218,6 +218,8 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "16.3.0",
 				},
 			},
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
 		},
 		{
 			name:              "config does not exist",
