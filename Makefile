@@ -1423,6 +1423,26 @@ tag-publish:
 		-f "environment=$(ENVIRONMENT)"
 	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-publish.yaml
 
+# Perform a full release of teleport.
+# Starts a tag release run using e/.github/workflows/tag-release.yaml
+# for the tag v$(VERSION).
+# If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
+# -dev.cloud., then the tag-publish workflow is run with `cloud-only=true`. This can be
+# specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
+.PHONY: tag-publish
+tag-publish: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
+tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod,stage)
+tag-publish:
+	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
+	gh workflow run tag-release.yaml \
+		--repo gravitational/teleport.e \
+		--ref "v$(VERSION)" \
+		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)" \
+		-f "environment=$(ENVIRONMENT)"
+	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-release.yaml
+
 .PHONY: test-package
 test-package: remove-temp-files
 	go test -v ./$(p)
