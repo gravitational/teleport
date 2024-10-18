@@ -1,18 +1,22 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-package msgraphapi
+package azure_sync
 
 import (
 	"bytes"
@@ -92,52 +96,14 @@ func (e graphError) Error() string {
 	return e.E.Code + " " + e.E.Message
 }
 
-// GetUserByEmail searches a user by email
-func (c *Client) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+func (c *Client) ListUsers(ctx context.Context, filter string) ([]User, error) {
 	g := &genericGraphResponse{}
-
 	request := request{
 		Method:   http.MethodGet,
 		Path:     "users",
-		Filter:   "mail eq '" + email + "'",
 		Response: &g,
 		Err:      &graphError{},
 	}
-
-	err := c.request(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	var users []User
-	err = json.NewDecoder(bytes.NewReader(g.Value)).Decode(&users)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(users) == 0 {
-		return nil, fmt.Errorf("User by email %v not found", email)
-	}
-
-	if len(users) > 1 {
-		return nil, fmt.Errorf("There is more than one user with email eq %v", email)
-	}
-
-	return &users[0], nil
-}
-
-// GetUserByID returns a user by ID
-func (c *Client) GetUserByID(ctx context.Context, id string) (*User, error) {
-	g := &genericGraphResponse{}
-
-	request := request{
-		Method:   http.MethodGet,
-		Path:     "users",
-		Filter:   "id eq '" + id + "'",
-		Response: &g,
-		Err:      &graphError{},
-	}
-
 	err := c.request(ctx, request)
 	if err != nil {
 		return nil, err
@@ -157,7 +123,7 @@ func (c *Client) GetUserByID(ctx context.Context, id string) (*User, error) {
 		return nil, err
 	}
 
-	return &users[0], nil
+	return users, nil
 }
 
 // buildURL builds the request URL

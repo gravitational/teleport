@@ -50,19 +50,26 @@ message AzureUser {
   string display_name = 4;
 }
 
-// AzureRoleAssignment links an Azure principal to a role definition and directory scope
+// AzureRoleAssignment links an Azure principal to a role definition with a scope
 message AzureRoleAssignment {
   string id = 1;
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
   string principal_id = 4;
   string role_definition_id = 5;
-  string directory_scope_id = 6;
+  string scope = 6;
 }
 
-// AzureDirectoryScope defines
-message AzureDirectoryScope {
+// AzureRoleDefinition defines a role by its permissions
+message AzureRoleDefinition {
   string id = 1;
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
+  repeated AzurePermission permissions = 5;
+}
+
+// AzurePermission defines the actions and not (disallowed) actions for a role definition
+message AzurePermission {
+  repeated string actions = 4;
+  repeated string not_actions = 5;
 }
