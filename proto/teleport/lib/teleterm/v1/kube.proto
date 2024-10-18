@@ -33,3 +33,22 @@ message Kube {
   // labels is the kube labels
   repeated Label labels = 3;
 }
+
+// KubeResource describes a kube_cluster's subresource eg: pods, namespaces, etc.
+message KubeResource {
+  // uri is the kube resource URI
+  string uri = 1;
+  // kind is the kube subresource kind eg: pods, namespace
+  string kind = 2;
+  // name is the kube resource name eg: pod name, namespace name
+  string name = 3;
+  // labels is the kube resource labels
+  repeated Label labels = 4;
+  // cluster is the kube cluster name that this kube resource belongs to
+  // eg: the kube cluster that a namespace belongs to
+  string cluster = 5;
+  // namespace is the kube namespace where the resource is located
+  // note: this field will be blank if this resource "kind" is "namespace",
+  // refer to field "name" for the name of namespace
+  string namespace = 6;
+}

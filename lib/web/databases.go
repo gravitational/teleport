@@ -40,9 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
-	"github.com/gravitational/teleport/lib/web/ui"
+	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
 // createOrOverwriteDatabaseRequest contains the necessary basic information
@@ -145,7 +146,7 @@ func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
+	return webui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
@@ -253,7 +254,7 @@ func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */, false /* requiresRequest */), nil
+	return webui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */, false /* requiresRequest */), nil
 }
 
 // databaseIAMPolicyResponse is the response type for handleDatabaseGetIAMPolicy.
