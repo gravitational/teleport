@@ -136,13 +136,15 @@ func TestTeleportInstaller_Install(t *testing.T) {
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
 
-			teleportVersion, err := os.ReadFile(filepath.Join(dir, version, "teleport"))
-			require.NoError(t, err)
-			require.Equal(t, version, string(teleportVersion))
-
-			tshVersion, err := os.ReadFile(filepath.Join(dir, version, "tsh"))
-			require.NoError(t, err)
-			require.Equal(t, version, string(tshVersion))
+			for _, p := range []string{
+				filepath.Join(dir, version, "etc", "systemd", "teleport.service"),
+				filepath.Join(dir, version, "bin", "teleport"),
+				filepath.Join(dir, version, "bin", "tsh"),
+			} {
+				v, err := os.ReadFile(p)
+				require.NoError(t, err)
+				require.Equal(t, version, string(v))
+			}
 
 			sum, err := os.ReadFile(filepath.Join(dir, version, checksumType))
 			require.NoError(t, err)
@@ -163,8 +165,9 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 	var files = []struct {
 		Name, Body string
 	}{
-		{"teleport", version},
-		{"tsh", version},
+		{"teleport/examples/systemd/teleport.service", version},
+		{"teleport/teleport", version},
+		{"teleport/tsh", version},
 	}
 	for _, file := range files {
 		hdr := &tar.Header{
