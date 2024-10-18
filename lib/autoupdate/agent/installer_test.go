@@ -136,11 +136,11 @@ func TestTeleportInstaller_Install(t *testing.T) {
 
 			teleportVersion, err := os.ReadFile(filepath.Join(dir, version, "teleport"))
 			require.NoError(t, err)
-			require.Equal(t, string(teleportVersion), version)
+			require.Equal(t, version, string(teleportVersion))
 
 			tshVersion, err := os.ReadFile(filepath.Join(dir, version, "tsh"))
 			require.NoError(t, err)
-			require.Equal(t, string(tshVersion), version)
+			require.Equal(t, version, string(tshVersion))
 
 			sum, err := os.ReadFile(filepath.Join(dir, version, checksumType))
 			require.NoError(t, err)

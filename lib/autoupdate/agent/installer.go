@@ -60,13 +60,15 @@ type LocalInstaller struct {
 }
 
 // Remove a Teleport version directory from InstallDir.
+// This function is idempotent.
 func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 	versionDir := filepath.Join(li.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// invalidate checksum first, to protect against partially-removed
 	// directory with valid checksum.
-	if err := os.Remove(sumPath); err != nil {
+	err := os.Remove(sumPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Wrap(err)
 	}
 	if err := os.RemoveAll(versionDir); err != nil {
@@ -76,6 +78,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 }
 
 // Install a Teleport version directory in InstallDir.
+// This function is idempotent.
 func (li *LocalInstaller) Install(ctx context.Context, version, template string) error {
 	versionDir := filepath.Join(li.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
@@ -254,7 +257,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	// Ensure there's enough space in /tmp for the download.
 	size := resp.ContentLength
 	if size < 0 {
-		li.Log.Warn("Content length missing from response, unable to verify Teleport download size")
+		li.Log.WarnContext(ctx, "Content length missing from response, unable to verify Teleport download size.")
 		size = max
 	} else if size > max {
 		return nil, trace.Errorf("size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, max)

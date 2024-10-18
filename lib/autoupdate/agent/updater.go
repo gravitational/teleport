@@ -170,8 +170,10 @@ type Updater struct {
 // Installer provides an API for installing Teleport agents.
 type Installer interface {
 	// Install the Teleport agent at version from the download template.
+	// This function must be idempotent.
 	Install(ctx context.Context, version, template string) error
 	// Remove the Teleport agent at version.
+	// This function must be idempotent.
 	Remove(ctx context.Context, version string) error
 }
 
@@ -242,20 +244,20 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		return trace.Errorf("agent version not available from Teleport cluster")
 	}
 	// If the active version and target don't match, kick off upgrade.
+	template := cfg.Spec.URLTemplate
+	if template == "" {
+		template = cdnURITemplate
+	}
+	err = u.Installer.Install(ctx, desiredVersion, template)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if cfg.Status.ActiveVersion != desiredVersion {
-		template := cfg.Spec.URLTemplate
-		if template == "" {
-			template = cdnURITemplate
-		}
-		err = u.Installer.Install(ctx, desiredVersion, template)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Status.ActiveVersion = desiredVersion
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
 	} else {
-		u.Log.InfoContext(ctx, "Target version already installed.", "version", desiredVersion)
+		u.Log.InfoContext(ctx, "Target version successfully validated.", "version", desiredVersion)
 	}
+	cfg.Status.ActiveVersion = desiredVersion
 
 	// Always write the configuration file if enable succeeds.
 	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {
