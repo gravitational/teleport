@@ -118,6 +118,8 @@ describe('gitHub component', () => {
     // step 1: Configure Bot Access
     const botNameInput = screen.getByPlaceholderText('github-actions-cd');
     await userEvent.type(botNameInput, 'bot-name');
+    const sshUserInput = screen.getByPlaceholderText('ubuntu');
+    await userEvent.type(sshUserInput, 'ssh-user');
     await userEvent.click(screen.getByTestId('button-next'));
     // step 2: Connect GitHub
     expect(
