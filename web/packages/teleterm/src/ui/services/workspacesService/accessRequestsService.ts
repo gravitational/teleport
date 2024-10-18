@@ -24,6 +24,7 @@ import {
   DatabaseUri,
   KubeUri,
   AppUri,
+  KubeResourceNamespaceUri,
 } from 'teleterm/ui/uri';
 import { ModalsService } from 'teleterm/ui/services/modals';
 
@@ -98,7 +99,71 @@ export class AccessRequestsService {
     });
   }
 
+  /**
+   * Bulk action where if request is added, removes it or if request doesn't
+   * exist, adds it.
+   */
   async addOrRemoveResources(requestedResources: ResourceRequest[]) {
+    if (!(await this.canUpdateRequest('resource'))) {
+      return;
+    }
+    this.setState(draftState => {
+      if (draftState.pending.kind !== 'resource') {
+        draftState.pending = {
+          kind: 'resource',
+          resources: new Map(),
+        };
+      }
+
+      const { resources } = draftState.pending;
+
+      requestedResources.forEach(request => {
+        if (request.kind === 'namespace') {
+          this.addOrRemoveKubeNamespace(request, resources);
+          return;
+        }
+        if (resources.has(request.resource.uri)) {
+          resources.delete(request.resource.uri);
+        } else {
+          resources.set(request.resource.uri, getRequiredProperties(request));
+        }
+      });
+    });
+  }
+
+  async addOrRemoveKubeNamespace(
+    namespaceResourceRequest: ResourceRequest,
+    resources: Map<ResourceUri, ResourceRequest>
+  ) {
+    const { uri: resourceUri } = namespaceResourceRequest.resource;
+
+    const requestedResource = resources.get(
+      routing.getKubeUri(
+        routing.parseKubeResourceNamespaceUri(resourceUri).params
+      )
+    );
+    if (!requestedResource || requestedResource.kind !== 'kube') {
+      throw new Error('Cannot add a kube namespace to a non-kube resource');
+    }
+    const kubeResource = requestedResource.resource;
+
+    if (!kubeResource.namespaces) {
+      kubeResource.namespaces = new Map();
+    }
+    if (kubeResource.namespaces.has(resourceUri)) {
+      kubeResource.namespaces.delete(resourceUri);
+    } else {
+      kubeResource.namespaces.set(resourceUri, namespaceResourceRequest);
+    }
+  }
+
+  /**
+   * Removes all requested resources, if all the requested resources were already added
+   * or adds all requested resources, if not all requested resources were added.
+   *
+   * Typically used when user "selects all or deselects all"
+   */
+  async addAllOrRemoveAllResources(requestedResources: ResourceRequest[]) {
     if (!(await this.canUpdateRequest('resource'))) {
       return;
     }
@@ -209,6 +274,12 @@ function getRequiredProperties({
       resource: { uri: resource.uri, samlApp: resource.samlApp },
     };
   }
+  if (kind === 'namespace') {
+    return {
+      kind,
+      resource: { uri: resource.uri },
+    };
+  }
   return {
     kind,
     resource: { uri: resource.uri },
@@ -258,6 +329,7 @@ export type ResourceRequest =
       kind: 'kube';
       resource: {
         uri: KubeUri;
+        namespaces?: Map<ResourceUri, ResourceRequest>;
       };
     }
   | {
@@ -266,6 +338,12 @@ export type ResourceRequest =
         uri: AppUri;
         samlApp: boolean;
       };
+    }
+  | {
+      kind: 'namespace';
+      resource: {
+        uri: KubeResourceNamespaceUri;
+      };
     };
 
 type SharedResourceAccessRequestKind =
@@ -273,7 +351,8 @@ type SharedResourceAccessRequestKind =
   | 'db'
   | 'node'
   | 'kube_cluster'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'namespace';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -287,8 +366,13 @@ export function extractResourceRequestProperties({
   kind: SharedResourceAccessRequestKind;
   id: string;
   /**
-   * Pretty name of the resource (can be the same as `id`).
-   * For example, for nodes, we want to show hostname instead of its id.
+   * Can refer to a pretty name of the resource (can be the same as `id`)
+   * or refer to a subresource name.
+   *
+   * For example:
+   * - for nodes, we want to show hostname (pretty) instead of its id.
+   * - for a kube subresource like "namespace", it'll refer to its name
+   *
    */
   name: string;
 } {
@@ -311,6 +395,12 @@ export function extractResourceRequestProperties({
     case 'kube': {
       const { kubeId } = routing.parseKubeUri(resource.uri).params;
       return { kind: 'kube_cluster', id: kubeId, name: kubeId };
+    }
+    case 'namespace': {
+      const { kubeNamespaceId, kubeId } = routing.parseKubeResourceNamespaceUri(
+        resource.uri
+      ).params;
+      return { kind, id: kubeId, name: kubeNamespaceId };
     }
     default:
       kind satisfies never;
@@ -394,6 +484,18 @@ export function toResourceRequest({
           }),
         },
         kind: 'kube',
+      };
+    case 'namespace':
+      return {
+        resource: {
+          uri: routing.getKubeResourceNamespaceUri({
+            rootClusterId,
+            leafClusterId,
+            kubeId: resourceId,
+            kubeNamespaceId: resourceName,
+          }),
+        },
+        kind,
       };
     default:
       kind satisfies never;

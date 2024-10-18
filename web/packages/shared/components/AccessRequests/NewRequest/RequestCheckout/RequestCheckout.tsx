@@ -904,7 +904,7 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     Header?: () => JSX.Element;
     startTime: Date;
     onStartTimeChange(t?: Date): void;
-    fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<Option[]>;
+    fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
     bulkToggleKubeResources(
       kubeResources: PendingKubeResourceItem[],
       kubeCluster: T
