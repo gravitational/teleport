@@ -8302,8 +8302,9 @@ var xxx_messageInfo_DatabasePermission proto.InternalMessageInfo
 
 // KubernetesResource is the Kubernetes resource identifier.
 type KubernetesResource struct {
-	// Kind specifies the Kubernetes Resource type.
-	// At the moment only "pod" is supported.
+	// Kind specifies the Kubernetes Resource type. See
+	// `KubernetesResourcesKinds` in `api/types/constants.go` for the list of
+	// supported values.
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind,omitempty"`
 	// Namespace is the resource namespace.
 	// It supports wildcards.
