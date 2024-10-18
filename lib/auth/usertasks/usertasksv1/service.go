@@ -27,9 +27,11 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/notifications"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/authz"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -37,13 +39,23 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
+// BackendService contains the methods used to
+type BackendService interface {
+	services.UserTasks
+
+	CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error)
+	DeleteGlobalNotification(ctx context.Context, notificationId string) error
+	UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+}
+
 // ServiceConfig holds configuration options for the UserTask gRPC service.
 type ServiceConfig struct {
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
 
-	// Backend is the backend for storing UserTask.
-	Backend services.UserTasks
+	// Backend is the backend for storing resources.
+	Backend BackendService
 
 	// Cache is the cache for storing UserTask.
 	Cache Reader
@@ -90,7 +102,7 @@ type Service struct {
 	usertasksv1.UnimplementedUserTaskServiceServer
 
 	authorizer    authz.Authorizer
-	backend       services.UserTasks
+	backend       BackendService
 	cache         Reader
 	usageReporter func() usagereporter.UsageReporter
 	emitter       apievents.Emitter
@@ -129,6 +141,10 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 	}
 
 	s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+
+	if err := s.notifyUserAboutPendingTask(ctx, rsp); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return rsp, nil
 }
@@ -259,6 +275,10 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
+	if err := s.notifyUserAboutPendingTask(ctx, rsp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return rsp, nil
 }
 
@@ -321,6 +341,10 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 
 	if emitStateChangeEvent {
 		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+	}
+
+	if err := s.notifyUserAboutPendingTask(ctx, rsp); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return rsp, nil
@@ -390,4 +414,55 @@ func getExpires(cj *timestamppb.Timestamp) time.Time {
 		return time.Time{}
 	}
 	return cj.AsTime()
+}
+
+// notifyUserAboutPendingTask creates a global notification that notifies the user about pending tasks.
+// Only one notification per Integration is created.
+// If a notification already exists, it will be deleted and re-created.
+// When creating the notification, the longest lifespan of the existing and the new notification will be used.
+func (s *Service) notifyUserAboutPendingTask(ctx context.Context, ut *usertasksv1.UserTask) error {
+	if ut.GetSpec().GetState() != usertasks.TaskStateOpen {
+		return nil
+	}
+
+	integrationName := ut.GetSpec().GetIntegration()
+	expires := ut.GetMetadata().GetExpires().AsTime()
+
+	integration, err := s.backend.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	integrationStatus := integration.GetStatus()
+	existingNotification := integrationStatus.PendingUserTasksNotificationID
+	if existingNotification != "" {
+		if err := s.backend.DeleteGlobalNotification(ctx, integrationStatus.PendingUserTasksNotificationID); err != nil {
+			// NotFound might be returned when the GlobalNotification already expired.
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		if integrationStatus.PendingUserTasksNotificationExpires != nil {
+			// Ensure we keep the longest lived notification.
+			if expires.Before(*integrationStatus.PendingUserTasksNotificationExpires) {
+				expires = *integrationStatus.PendingUserTasksNotificationExpires
+			}
+		}
+	}
+
+	pendingUserTasksNotification := notifications.NewPendingUserTasksIntegrationNotification(integrationName, expires)
+	newNotification, err := s.backend.CreateGlobalNotification(ctx, pendingUserTasksNotification)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	integration.SetStatus(types.IntegrationStatusV1{
+		PendingUserTasksNotificationID:      newNotification.GetMetadata().GetName(),
+		PendingUserTasksNotificationExpires: &expires,
+	})
+
+	if _, err := s.backend.UpdateIntegration(ctx, integration); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

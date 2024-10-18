@@ -53,6 +53,11 @@ type Integration interface {
 
 	// GetAzureOIDCIntegrationSpec returns the `azure-oidc` spec fields.
 	GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1
+
+	// GetStatus returns the Integration Status.
+	GetStatus() IntegrationStatusV1
+	// SetStatus sets the Integration Status.
+	SetStatus(IntegrationStatusV1)
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -250,6 +255,22 @@ func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpec
 	return ig.Spec.GetAzureOIDC()
 }
 
+// GetStatus returns the Integration Status.
+func (ig *IntegrationV1) GetStatus() IntegrationStatusV1 {
+	if ig == nil {
+		return IntegrationStatusV1{}
+	}
+	return ig.Status
+}
+
+// SetStatus sets the Integration Status.
+func (ig *IntegrationV1) SetStatus(s IntegrationStatusV1) {
+	if ig == nil {
+		return
+	}
+	ig.Status = s
+}
+
 // Integrations is a list of Integration resources.
 type Integrations []Integration
 
@@ -302,6 +323,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 			AWSOIDC   json.RawMessage `json:"aws_oidc"`
 			AzureOIDC json.RawMessage `json:"azure_oidc"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status"`
 	}{}
 
 	err := json.Unmarshal(data, &d)
@@ -310,6 +332,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	}
 
 	integration.ResourceHeader = d.ResourceHeader
+	integration.Status = d.Status
 
 	switch integration.SubKind {
 	case IntegrationSubKindAWSOIDC:
@@ -357,9 +380,11 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			AWSOIDC   AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
 			AzureOIDC AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
+	d.Status = ig.Status
 
 	switch ig.SubKind {
 	case IntegrationSubKindAWSOIDC:
