@@ -26,6 +26,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { Text } from 'design';
 
 import FieldInput from 'shared/components/FieldInput';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import { Alert } from 'design/Alert';
 
@@ -181,7 +182,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                     login: e.target.value,
                   })
                 }
-                rule={requireValidSSHUser}
+                rule={requiredField('SSH user is required')}
               />
             </FormItem>
 
@@ -225,14 +226,6 @@ const requireValidBotName = (value: string) => () => {
       message:
         'Special characters are not allowed in the workflow name, please use name composed only from characters, hyphens, dots, and plus signs',
     };
-  }
-
-  return { valid: true };
-};
-
-const requireValidSSHUser = (value: string) => () => {
-  if (!value || !value.trim()) {
-    return { valid: false, message: 'SSH user is required' };
   }
 
   return { valid: true };
