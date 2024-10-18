@@ -55,6 +55,7 @@ jobs:
         access/msteams
         access/pagerduty
         access/slack
+        access/datadog
         event-handler
         tbot
         teleport-cluster

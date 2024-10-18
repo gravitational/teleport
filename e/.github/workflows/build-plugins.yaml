@@ -86,6 +86,7 @@ jobs:
             slack
             mattermost
             email
+            datadog
         run: |
           read -ra plugins <<<"${ACCESS_SUBDIRECTORIES}"
           for plugin in "${plugins[@]}"; do
@@ -236,6 +237,9 @@ jobs:
           - name: slack
             artifact-name: access-slack
             dockerfile-path: integrations/access/Dockerfile
+          - name: datadog
+            artifact-name: access-datadog
+            dockerfile-path: integrations/access/Dockerfile
           # Event handler
           - name: event-handler
             artifact-name: event-handler
@@ -312,6 +316,7 @@ jobs:
             teleport-access-msteams
             teleport-access-pagerduty
             teleport-access-slack
+            teleport-access-datadog
             teleport-event-handler
 
       - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-containers@master
@@ -330,6 +335,7 @@ jobs:
             teleport-plugin-msteams
             teleport-plugin-pagerduty
             teleport-plugin-slack
+            teleport-plugin-datadog
             teleport-plugin-event-handler
 
   smoke-test-darwin-amd64:
