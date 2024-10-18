@@ -6474,6 +6474,14 @@ message PluginAWSICSettings {
   string arn = 3;
 
   AWSICProvisioningSpec provisioning_spec = 4;
+
+  // AccessListDefaultOwners is a list of default owners for Access List created for
+  // user groups imported from the Idenity Center.
+  repeated string access_list_default_owners = 5;
+
+  // SAMLIdPServiceProviderName is the name of a SAML service provider created
+  // for the Identity Center plugin
+  string saml_idp_service_provider_name = 6;
 }
 
 message AWSICProvisioningSpec {
@@ -7224,7 +7232,23 @@ message AWSOIDCIntegrationSpecV1 {
     (gogoproto.jsontag) = "issuer_s3_uri,omitempty",
     deprecated = true
   ];
+
+  // ClientConfig defines configuration params for clients that depends on this integration.
+  // IntegrationClientConfig ClientConfig = 3 [(gogoproto.jsontag) = "client_config,omitempty"];
 }
+
+// message IntegrationClientConfig {
+//   // settings contain provider-specific plugin options.
+//   oneof config {
+//     // Settings for the Slack access plugin
+//     IntegrationClientConfigAWSIdentityCenter aws_identity_center = 1;
+//   }
+// }
+
+// message IntegrationClientConfigAWSIdentityCenter {
+//   string arn = 1 [(gogoproto.jsontag) = "arn,omitempty"];
+//   string region = 2 [(gogoproto.jsontag) = "region,omitempty"];
+// }
 
 // AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.
 message AzureOIDCIntegrationSpecV1 {

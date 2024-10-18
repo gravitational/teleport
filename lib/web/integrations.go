@@ -64,6 +64,11 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 				IssuerS3URI: s3Location,
 			},
 		)
+		if req.Origin != "" {
+			ig.Metadata.Labels = map[string]string{
+				types.OriginLabel: req.Origin,
+			}
+		}
 
 		if err != nil {
 			return nil, trace.Wrap(err)
