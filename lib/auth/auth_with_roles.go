@@ -1553,7 +1553,11 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*authz.Context, error) {
 	var extraRoles []string
 	if req.UseSearchAsRoles {
-		extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
+		var opts []services.SearchAsRolesOption
+		if req.ResourceType == types.KindKubernetesCluster {
+			opts = append(opts, services.WithKubernetesClusterRequestFilter())
+		}
+		extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles(opts...)...)
 	}
 	if req.UsePreviewAsRoles {
 		extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)

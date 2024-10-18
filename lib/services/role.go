@@ -3323,6 +3323,18 @@ func WithKubernetesRequestModeFilter(kind string) SearchAsRolesOption {
 	}
 }
 
+// WithKubernetesClusterRequestFilter returns a SearchAsRolesOption that filters roles that can't be used to request
+// access to a Kubernetes cluster resource. It excludes roles that have a kubernetes request mode defined.
+func WithKubernetesClusterRequestFilter() SearchAsRolesOption {
+	return func(r types.Role) bool {
+		if r.GetOptions().RequestMode == nil || len(r.GetOptions().RequestMode.KubernetesResources) == 0 {
+			// if the role does not have request mode, it should be allowed
+			return true
+		}
+		return false
+	}
+}
+
 // GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
 func (set RoleSet) GetAllowedPreviewAsRoles() []string {
 	denied := make(map[string]struct{})
