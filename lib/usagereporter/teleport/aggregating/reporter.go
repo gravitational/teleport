@@ -68,8 +68,8 @@ type ReporterConfig struct {
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
-	// GetAnonymizationKey returns the key used to anonymize data user or resource names. Required.
-	GetAnonymizationKey func(context.Context) (string, error)
+	// Anonymizer is used to anonymize data user or resource names. Required.
+	Anonymizer utils.Anonymizer
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -88,8 +88,8 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if cfg.GetAnonymizationKey == nil {
-		return trace.BadParameter("missing GetAnonymizationKey")
+	if cfg.Anonymizer == nil {
+		return trace.BadParameter("missing Anonymizer")
 	}
 
 	if cfg.Logger == nil {
@@ -106,20 +106,10 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizationKey, err := cfg.GetAnonymizationKey(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	baseCtx, baseCancel := context.WithCancel(ctx)
 
 	r := &Reporter{
-		anonymizer: anonymizer,
+		anonymizer: cfg.Anonymizer,
 		svc:        reportService{cfg.Backend},
 		logger:     cfg.Logger,
 		clock:      cfg.Clock,
@@ -128,11 +118,10 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		closing: make(chan struct{}),
 		done:    make(chan struct{}),
 
-		clusterName: anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
-		hostID:      anonymizer.AnonymizeNonEmpty(cfg.HostID),
+		clusterName: cfg.Anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
+		hostID:      cfg.Anonymizer.AnonymizeNonEmpty(cfg.HostID),
 
-		baseCancel:          baseCancel,
-		getAnonymizationKey: cfg.GetAnonymizationKey,
+		baseCancel: baseCancel,
 	}
 
 	go r.run(baseCtx)

@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 )
@@ -38,15 +39,25 @@ type Anonymizer interface {
 	// AnonymizeNonEmpty anonymizes the given string into bytes if the string is
 	// nonempty, otherwise returns an empty slice.
 	AnonymizeNonEmpty(s string) []byte
+
+	// SetAnonymizationKey updates the underlying anonymization key.
+	SetAnonymizationKey(k []byte)
 }
 
-// hmacAnonymizer implements anonymization using HMAC
+// HMACAnonymizer implements anonymization using HMAC
 type HMACAnonymizer struct {
 	// key is the HMAC key
 	key []byte
+	mu  sync.RWMutex
 }
 
 var _ Anonymizer = (*HMACAnonymizer)(nil)
+
+func (a *HMACAnonymizer) SetAnonymizationKey(k []byte) {
+	a.mu.Lock()
+	a.key = k
+	a.mu.Unlock()
+}
 
 // NewHMACAnonymizer returns a new HMAC-based anonymizer
 func NewHMACAnonymizer(key string) (*HMACAnonymizer, error) {
@@ -58,7 +69,11 @@ func NewHMACAnonymizer(key string) (*HMACAnonymizer, error) {
 
 // Anonymize anonymizes the provided data using HMAC
 func (a *HMACAnonymizer) Anonymize(data []byte) string {
-	h := hmac.New(sha256.New, a.key)
+	a.mu.RLock()
+	k := a.key
+	a.mu.RUnlock()
+
+	h := hmac.New(sha256.New, k)
 	h.Write(data)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
@@ -73,7 +88,12 @@ func (a *HMACAnonymizer) AnonymizeNonEmpty(s string) []byte {
 	if s == "" {
 		return nil
 	}
-	h := hmac.New(sha256.New, a.key)
+
+	a.mu.RLock()
+	k := a.key
+	a.mu.RUnlock()
+
+	h := hmac.New(sha256.New, k)
 	h.Write([]byte(s))
 	return h.Sum(nil)
 }

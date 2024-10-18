@@ -60,7 +60,8 @@ type Features struct {
 	// Entitlements reflect Cloud Entitlements including access and limits
 	Entitlements map[entitlements.EntitlementKind]EntitlementInfo
 	// CloudAnonymizationKey is the key used to anonymize usage events in a cluster. If not present, defaults to
-	// cluster id.Only applicable for Cloud hosted customers, not self-hosted.
+	// cluster ID. Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
+	// license file).
 	CloudAnonymizationKey []byte
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
