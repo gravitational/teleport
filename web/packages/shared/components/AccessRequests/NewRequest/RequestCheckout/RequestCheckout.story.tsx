@@ -81,7 +81,7 @@ export const Empty = () => {
     <MemoryRouter>
       <RequestCheckoutWithSlider
         {...baseProps}
-        data={[]}
+        pendingAccessRequests={[]}
         selectedReviewers={selectedReviewers}
         setSelectedReviewers={setSelectedReviewers}
         maxDuration={maxDuration}
@@ -177,7 +177,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
   ],
   setSelectedReviewers: () => null,
   createRequest: () => null,
-  data: [
+  pendingAccessRequests: [
     {
       kind: 'app',
       name: 'app-name',
