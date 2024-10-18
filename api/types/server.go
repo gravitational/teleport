@@ -103,6 +103,62 @@ type Server interface {
 	GetAWSAccountID() string
 }
 
+// ReadOnlyServer is a read only variant of Server.
+type ReadOnlyServer interface {
+	// ReadOnlyResourceWithLabels provides common resource headers
+	ReadOnlyResourceWithLabels
+	// GetTeleportVersion returns the teleport version the server is running on
+	GetTeleportVersion() string
+	// GetAddr return server address
+	GetAddr() string
+	// GetHostname returns server hostname
+	GetHostname() string
+	// GetNamespace returns server namespace
+	GetNamespace() string
+	// GetLabels returns server's static label key pairs
+	GetLabels() map[string]string
+	// GetCmdLabels gets command labels
+	GetCmdLabels() map[string]CommandLabel
+	// GetPublicAddr returns a public address where this server can be reached.
+	GetPublicAddr() string
+	// GetPublicAddrs returns a list of public addresses where this server can be reached.
+	GetPublicAddrs() []string
+	// GetRotation gets the state of certificate authority rotation.
+	GetRotation() Rotation
+	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
+	GetUseTunnel() bool
+	// String returns string representation of the server
+	String() string
+	// GetPeerAddr returns the peer address of the server.
+	GetPeerAddr() string
+	// GetProxyIDs returns a list of proxy ids this service is connected to.
+	GetProxyIDs() []string
+	// DeepCopy creates a clone of this server value
+	DeepCopy() Server
+
+	// CloneResource is used to return a clone of the Server and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneResource() ResourceWithLabels
+
+	// GetCloudMetadata gets the cloud metadata for the server.
+	GetCloudMetadata() *CloudMetadata
+	// GetAWSInfo returns the AWSInfo for the server.
+	GetAWSInfo() *AWSInfo
+
+	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
+	IsOpenSSHNode() bool
+
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
+
+	// GetAWSInstanceID returns the AWS Instance ID if this node comes from an EC2 instance.
+	GetAWSInstanceID() string
+	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
+	GetAWSAccountID() string
+}
+
 // NewServer creates an instance of Server.
 func NewServer(name, kind string, spec ServerSpecV2) (Server, error) {
 	return NewServerWithLabels(name, kind, spec, map[string]string{})

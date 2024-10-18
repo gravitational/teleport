@@ -60,6 +60,32 @@ type KubeServer interface {
 	ProxiedService
 }
 
+// ReadOnlyKubeServer is a read only variant of KubeServer.
+type ReadOnlyKubeServer interface {
+	// ReadOnlyResourceWithLabels provides common resource methods.
+	ReadOnlyResourceWithLabels
+	// GetNamespace returns server namespace.
+	GetNamespace() string
+	// GetTeleportVersion returns the teleport version the server is running on.
+	GetTeleportVersion() string
+	// GetHostname returns the server hostname.
+	GetHostname() string
+	// GetHostID returns ID of the host the server is running on.
+	GetHostID() string
+	// GetRotation gets the state of certificate authority rotation.
+	GetRotation() Rotation
+	// String returns string representation of the server.
+	String() string
+	// Copy returns a copy of this kube server object.
+	Copy() KubeServer
+	// CloneResource returns a copy of the KubeServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
+	// GetCluster returns the Kubernetes Cluster this kube server proxies.
+	GetCluster() KubeCluster
+	// GetProxyIDs returns a list of proxy ids this service is connected to.
+	GetProxyIDs() []string
+}
+
 // NewKubernetesServerV3 creates a new kube server instance.
 func NewKubernetesServerV3(meta Metadata, spec KubernetesServerSpecV3) (*KubernetesServerV3, error) {
 	s := &KubernetesServerV3{

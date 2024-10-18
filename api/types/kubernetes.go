@@ -80,6 +80,43 @@ type KubeCluster interface {
 	GetCloud() string
 }
 
+// ReadOnlyKubeCluster is a read only variant of KubeCluster.
+type ReadOnlyKubeCluster interface {
+	// ReadOnlyResourceWithLabels provides common resource methods.
+	ReadOnlyResourceWithLabels
+	// GetNamespace returns the kube cluster namespace.
+	GetNamespace() string
+	// GetStaticLabels returns the kube cluster static labels.
+	GetStaticLabels() map[string]string
+	// GetDynamicLabels returns the kube cluster dynamic labels.
+	GetDynamicLabels() map[string]CommandLabel
+	// GetKubeconfig returns the kubeconfig payload.
+	GetKubeconfig() []byte
+	// String returns string representation of the kube cluster.
+	String() string
+	// GetDescription returns the kube cluster description.
+	GetDescription() string
+	// GetAzureConfig gets the Azure config.
+	GetAzureConfig() KubeAzure
+	// GetAWSConfig gets the AWS config.
+	GetAWSConfig() KubeAWS
+	// GetGCPConfig gets the GCP config.
+	GetGCPConfig() KubeGCP
+	// IsAzure indentifies if the KubeCluster contains Azure details.
+	IsAzure() bool
+	// IsAWS indentifies if the KubeCluster contains AWS details.
+	IsAWS() bool
+	// IsGCP indentifies if the KubeCluster contains GCP details.
+	IsGCP() bool
+	// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
+	IsKubeconfig() bool
+	// Copy returns a copy of this kube cluster resource.
+	Copy() *KubernetesClusterV3
+	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
+}
+
 // DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
 type DiscoveredEKSCluster interface {
 	// KubeCluster is base discovered cluster.

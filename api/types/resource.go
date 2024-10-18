@@ -66,6 +66,24 @@ type Resource interface {
 	SetRevision(string)
 }
 
+// ReadOnlyResource is a read only variant of Resource.
+type ReadOnlyResource interface {
+	// GetKind returns resource kind
+	GetKind() string
+	// GetSubKind returns resource subkind
+	GetSubKind() string
+	// GetVersion returns resource version
+	GetVersion() string
+	// GetName returns the name of the resource
+	GetName() string
+	// Expiry returns object expiry setting
+	Expiry() time.Time
+	// GetMetadata returns object metadata
+	GetMetadata() Metadata
+	// GetRevision returns the revision
+	GetRevision() string
+}
+
 // IsSystemResource checks to see if the given resource is considered
 // part of the teleport system, as opposed to some user created resource
 // or preset.
@@ -109,6 +127,13 @@ type ResourceWithOrigin interface {
 	SetOrigin(string)
 }
 
+// ReadOnlyResourceWithOrigin is a read only variant of ResourceWithOrigin.
+type ReadOnlyResourceWithOrigin interface {
+	ReadOnlyResource
+	// Origin returns the origin value of the resource.
+	Origin() string
+}
+
 // ResourceWithLabels is a common interface for resources that have labels.
 type ResourceWithLabels interface {
 	// ResourceWithOrigin is the base resource interface.
@@ -121,6 +146,20 @@ type ResourceWithLabels interface {
 	GetStaticLabels() map[string]string
 	// SetStaticLabels sets the resource's static labels.
 	SetStaticLabels(sl map[string]string)
+	// MatchSearch goes through select field values of a resource
+	// and tries to match against the list of search values.
+	MatchSearch(searchValues []string) bool
+}
+
+// ReadOnlyResourceWithLabels is a read only variant of ResourceWithLabels.
+type ReadOnlyResourceWithLabels interface {
+	ReadOnlyResourceWithOrigin
+	// GetLabel retrieves the label with the provided key.
+	GetLabel(key string) (value string, ok bool)
+	// GetAllLabels returns all resource's labels.
+	GetAllLabels() map[string]string
+	// GetStaticLabels returns the resource's static labels.
+	GetStaticLabels() map[string]string
 	// MatchSearch goes through select field values of a resource
 	// and tries to match against the list of search values.
 	MatchSearch(searchValues []string) bool
