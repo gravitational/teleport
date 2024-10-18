@@ -424,12 +424,12 @@ type DatabaseWatcherConfig struct {
 }
 
 // NewDatabaseWatcher returns a new instance of DatabaseWatcher.
-func NewDatabaseWatcher(ctx context.Context, cfg DatabaseWatcherConfig) (*GenericWatcher[types.Database, types.Database], error) {
+func NewDatabaseWatcher(ctx context.Context, cfg DatabaseWatcherConfig) (*GenericWatcher[types.Database, types.ReadOnlyDatabase], error) {
 	if cfg.DatabaseGetter == nil {
 		return nil, trace.BadParameter("DatabaseGetter must be provided")
 	}
 
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Database, types.Database]{
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Database, types.ReadOnlyDatabase]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindDatabase,
 		ResourceKey:           types.Database.GetName,
@@ -455,12 +455,12 @@ type AppWatcherConfig struct {
 }
 
 // NewAppWatcher returns a new instance of AppWatcher.
-func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[types.Application, types.Application], error) {
+func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[types.Application, types.ReadOnlyApplication], error) {
 	if cfg.AppGetter == nil {
 		return nil, trace.BadParameter("AppGetter must be provided")
 	}
 
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Application, types.Application]{
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Application, types.ReadOnlyApplication]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindApp,
 		ResourceKey:           types.Application.GetName,
@@ -485,12 +485,12 @@ type KubeServerWatcherConfig struct {
 }
 
 // NewKubeServerWatcher returns a new instance of KubeServerWatcher.
-func NewKubeServerWatcher(ctx context.Context, cfg KubeServerWatcherConfig) (*GenericWatcher[types.KubeServer, types.KubeServer], error) {
+func NewKubeServerWatcher(ctx context.Context, cfg KubeServerWatcherConfig) (*GenericWatcher[types.KubeServer, types.ReadOnlyKubeServer], error) {
 	if cfg.KubernetesServerGetter == nil {
 		return nil, trace.BadParameter("KubernetesServerGetter must be provided")
 	}
 
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeServer, types.KubeServer]{
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeServer, types.ReadOnlyKubeServer]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubeServer,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeServer, error) {
@@ -516,12 +516,12 @@ type KubeClusterWatcherConfig struct {
 }
 
 // NewKubeClusterWatcher returns a new instance of KubeClusterWatcher.
-func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*GenericWatcher[types.KubeCluster, types.KubeCluster], error) {
+func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*GenericWatcher[types.KubeCluster, types.ReadOnlyKubeCluster], error) {
 	if cfg.KubernetesClusterGetter == nil {
 		return nil, trace.BadParameter("KubernetesClusterGetter must be provided")
 	}
 
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeCluster, types.KubeCluster]{
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeCluster, types.ReadOnlyKubeCluster]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {

@@ -147,6 +147,94 @@ type Database interface {
 	IsUsernameCaseInsensitive() bool
 }
 
+// ReadOnlyDatabase is a read only variant of Database.
+type ReadOnlyDatabase interface {
+	// ReadOnlyResourceWithLabels provides common resource methods.
+	ReadOnlyResourceWithLabels
+	// GetNamespace returns the database namespace.
+	GetNamespace() string
+	// GetStaticLabels returns the database static labels.
+	GetStaticLabels() map[string]string
+	// GetDynamicLabels returns the database dynamic labels.
+	GetDynamicLabels() map[string]CommandLabel
+	// String returns string representation of the database.
+	String() string
+	// GetDescription returns the database description.
+	GetDescription() string
+	// GetProtocol returns the database protocol.
+	GetProtocol() string
+	// GetURI returns the database connection endpoint.
+	GetURI() string
+	// GetCA returns the database CA certificate.
+	GetCA() string
+	// GetTLS returns the database TLS configuration.
+	GetTLS() DatabaseTLS
+	// GetStatusCA gets the database CA certificate in the status field.
+	GetStatusCA() string
+	// GetMySQL returns the database options from spec.
+	GetMySQL() MySQLOptions
+	// GetOracle returns the database options from spec.
+	GetOracle() OracleOptions
+	// GetMySQLServerVersion returns the MySQL server version either from configuration or
+	// reported by the database.
+	GetMySQLServerVersion() string
+	// GetAWS returns the database AWS metadata.
+	GetAWS() AWS
+	// GetGCP returns GCP information for Cloud SQL databases.
+	GetGCP() GCPCloudSQL
+	// GetAzure returns Azure database server metadata.
+	GetAzure() Azure
+	// GetAD returns Active Directory database configuration.
+	GetAD() AD
+	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
+	GetType() string
+	// GetSecretStore returns secret store configurations.
+	GetSecretStore() SecretStore
+	// GetManagedUsers returns a list of database users that are managed by Teleport.
+	GetManagedUsers() []string
+	// GetMongoAtlas returns Mongo Atlas database metadata.
+	GetMongoAtlas() MongoAtlas
+	// IsRDS returns true if this is an RDS/Aurora database.
+	IsRDS() bool
+	// IsRDSProxy returns true if this is an RDS Proxy database.
+	IsRDSProxy() bool
+	// IsRedshift returns true if this is a Redshift database.
+	IsRedshift() bool
+	// IsCloudSQL returns true if this is a Cloud SQL database.
+	IsCloudSQL() bool
+	// IsAzure returns true if this is an Azure database.
+	IsAzure() bool
+	// IsElastiCache returns true if this is an AWS ElastiCache database.
+	IsElastiCache() bool
+	// IsMemoryDB returns true if this is an AWS MemoryDB database.
+	IsMemoryDB() bool
+	// IsAWSHosted returns true if database is hosted by AWS.
+	IsAWSHosted() bool
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
+	IsCloudHosted() bool
+	// RequireAWSIAMRolesAsUsers returns true for database types that require
+	// AWS IAM roles as database users.
+	RequireAWSIAMRolesAsUsers() bool
+	// SupportAWSIAMRoleARNAsUsers returns true for database types that support
+	// AWS IAM roles as database users.
+	SupportAWSIAMRoleARNAsUsers() bool
+	// Copy returns a copy of this database resource.
+	Copy() *DatabaseV3
+	// GetAdminUser returns database privileged user information.
+	GetAdminUser() DatabaseAdminUser
+	// SupportsAutoUsers returns true if this database supports automatic
+	// user provisioning.
+	SupportsAutoUsers() bool
+	// GetEndpointType returns the endpoint type of the database, if available.
+	GetEndpointType() string
+	// GetCloud gets the cloud this database is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
+	// IsUsernameCaseInsensitive returns true if the database username is case
+	// insensitive.
+	IsUsernameCaseInsensitive() bool
+}
+
 // NewDatabaseV3 creates a new database resource.
 func NewDatabaseV3(meta Metadata, spec DatabaseSpecV3) (*DatabaseV3, error) {
 	database := &DatabaseV3{

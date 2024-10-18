@@ -103,35 +103,10 @@ type Server interface {
 	GetAWSAccountID() string
 }
 
-// ReadOnlyServer represents a Node, Proxy or Auth server in a Teleport cluster
+// ReadOnlyServer is a read only variant of Server.
 type ReadOnlyServer interface {
-	// GetKind returns resource kind
-	GetKind() string
-	// GetSubKind returns resource subkind
-	GetSubKind() string
-	// GetVersion returns resource version
-	GetVersion() string
-	// GetName returns the name of the resource
-	GetName() string
-	// Expiry returns object expiry setting
-	Expiry() time.Time
-	// GetMetadata returns object metadata
-	GetMetadata() Metadata
-	// GetRevision returns the revision
-	GetRevision() string
-	// Origin returns the origin value of the resource.
-	Origin() string
-	// GetLabel retrieves the label with the provided key.
-	GetLabel(key string) (value string, ok bool)
-	// GetAllLabels returns all resource's labels.
-	GetAllLabels() map[string]string
-	// GetStaticLabels returns the resource's static labels.
-	GetStaticLabels() map[string]string
-	// SetStaticLabels sets the resource's static labels.
-	SetStaticLabels(sl map[string]string)
-	// MatchSearch goes through select field values of a resource
-	// and tries to match against the list of search values.
-	MatchSearch(searchValues []string) bool
+	// ReadOnlyResourceWithLabels provides common resource headers
+	ReadOnlyResourceWithLabels
 	// GetTeleportVersion returns the teleport version the server is running on
 	GetTeleportVersion() string
 	// GetAddr return server address
@@ -158,6 +133,12 @@ type ReadOnlyServer interface {
 	GetPeerAddr() string
 	// GetProxyIDs returns a list of proxy ids this service is connected to.
 	GetProxyIDs() []string
+	// DeepCopy creates a clone of this server value
+	DeepCopy() Server
+
+	// CloneResource is used to return a clone of the Server and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneResource() ResourceWithLabels
 
 	// GetCloudMetadata gets the cloud metadata for the server.
 	GetCloudMetadata() *CloudMetadata

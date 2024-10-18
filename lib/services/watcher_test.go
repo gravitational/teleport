@@ -1071,7 +1071,7 @@ func TestKubeServerWatcher(t *testing.T) {
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
-	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.ReadOnlyKubeServer) bool {
 		return ks.GetName() == kubeServers[0].GetName()
 	})
 	require.NoError(t, err)
@@ -1085,7 +1085,7 @@ func TestKubeServerWatcher(t *testing.T) {
 		assert.Len(t, kube, len(kubeServers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
-	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks types.ReadOnlyKubeServer) bool {
 		return ks.GetName() == kubeServers[0].GetName()
 	})
 	require.NoError(t, err)
@@ -1096,7 +1096,7 @@ func TestKubeServerWatcher(t *testing.T) {
 	_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.ReadOnlyKubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
 		assert.NoError(t, err)
@@ -1104,7 +1104,7 @@ func TestKubeServerWatcher(t *testing.T) {
 	}, 1000*time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
-	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks types.ReadOnlyKubeServer) bool {
 		return ks.GetName() == kubeServers[1].GetName()
 	})
 	assert.NoError(t, err)
@@ -1112,7 +1112,7 @@ func TestKubeServerWatcher(t *testing.T) {
 		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.KubeServer) bool {
+		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks types.ReadOnlyKubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
 		assert.NoError(t, err)
