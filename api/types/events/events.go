@@ -2290,3 +2290,15 @@ func (m *CrownJewelUpdate) TrimToMaxSize(_ int) AuditEvent {
 func (m *CrownJewelDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *UserTaskCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *UserTaskUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *UserTaskDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
