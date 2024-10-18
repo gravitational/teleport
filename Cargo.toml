@@ -16,6 +16,7 @@ lto = "off"
 [profile.release]
 debug = 1
 codegen-units = 1
+lto = "thin"
 
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
@@ -30,5 +31,5 @@ ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "92efe2a
 ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "92efe2adf7402c15fe6cf2da0d3f8ff8ebd767c3" }
 ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "92efe2adf7402c15fe6cf2da0d3f8ff8ebd767c3" }
 ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "92efe2adf7402c15fe6cf2da0d3f8ff8ebd767c3" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "92efe2adf7402c15fe6cf2da0d3f8ff8ebd767c3", features = ["rustls" ] }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "92efe2adf7402c15fe6cf2da0d3f8ff8ebd767c3", features = ["rustls"] }
 ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "92efe2adf7402c15fe6cf2da0d3f8ff8ebd767c3" }
