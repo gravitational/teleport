@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -1012,6 +1013,14 @@ func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAle
 func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	if err := a.action(s.GetNamespace(), types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if hostname := s.GetHostname(); hostname != "" {
+		// Allow uppercase node hostnames, they aren't valid hostnames
+		// but there's no reason to reject them here. The goal here is
+		// to disallow most special characters.
+		if !utils.IsValidHostname(strings.ToLower(hostname)) {
+			return nil, trace.BadParameter("invalid hostname %q", hostname)
+		}
 	}
 	return a.authServer.UpsertNode(ctx, s)
 }
