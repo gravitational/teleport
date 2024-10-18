@@ -374,31 +374,17 @@ func checkChannelURL(recipient string) (*Channel, bool) {
 // CheckHealth checks if the bot can connect to its messaging service
 func (b *Bot) CheckHealth(ctx context.Context) error {
 	_, err := b.graphClient.GetTeamsApp(ctx, b.Config.TeamsAppID)
-	if err != nil {
-		if b.StatusSink != nil {
-			status := types.PluginStatusCode_UNKNOWN
-			if !trace.IsNotFound(err) {
-				status = types.PluginStatusCode_OTHER_ERROR
-			}
-			if err := b.StatusSink.Emit(ctx, &types.PluginStatusV1{
-				Code:         status,
-				ErrorMessage: err.Error(),
-			}); err != nil {
-				logger.Get(ctx).WithError(err).
-					Errorf("Error while emitting ms teams plugin status: %v", err)
-			}
-		}
-		return trace.Wrap(err)
-	}
-
 	if b.StatusSink != nil {
+		status := types.PluginStatusCode_RUNNING
+		if err != nil {
+			status = types.PluginStatusCode_OTHER_ERROR
+		}
 		if err := b.StatusSink.Emit(ctx, &types.PluginStatusV1{
-			Code: types.PluginStatusCode_RUNNING,
+			Code:         status,
+			ErrorMessage: err.Error(),
 		}); err != nil {
-			logger.Get(ctx).WithError(err).
-				Errorf("Error while emitting ms teams plugin status: %v", err)
+			logger.Get(ctx).Errorf("Error while emitting ms teams plugin status: %v", err)
 		}
 	}
-
-	return nil
+	return trace.Wrap(err)
 }
