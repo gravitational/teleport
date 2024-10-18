@@ -67,7 +67,7 @@
         --set datadog.apiEndpoint="https://api.datadoghq.com" \
         --set datadog.apiKey="${DATADOG_API_KEY}" \
         --set datadog.applicationKey="${DATADOG_APPLICATION_KEY}" \
-        --set datadog.fallbackRecipient="admin@example.com"</pre>
+        --set datadog.fallbackRecipient="${EMAIL?}"</pre>
     <br />
     <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/tbot">tbot:</a></b>
       # Install the TBot chart to automatically configure a tbot agent to
