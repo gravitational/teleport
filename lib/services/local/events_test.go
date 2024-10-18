@@ -49,7 +49,8 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	return ev
 }
 
-func testContext(t *testing.T) context.Context {
+func newTestContext(t *testing.T) context.Context {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	return ctx
@@ -209,7 +210,7 @@ func TestWatchers(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testContext(t)
+			ctx := newTestContext(t)
 
 			// GIVEN an empty back-end
 			clock := clockwork.NewFakeClock()

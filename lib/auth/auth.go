@@ -347,7 +347,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.ProvisioningStates == nil {
 		cfg.ProvisioningStates, err = local.NewProvisioningStateService(cfg.Backend)
 		if err != nil {
-			return nil, trace.Wrap(err, "Creating provisioning state service")
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.IdentityCenter == nil {
+		svcCfg := local.IdentityCenterServiceConfig{Backend: cfg.Backend}
+		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 	if cfg.CloudClients == nil {
@@ -676,6 +683,7 @@ type Services struct {
 	services.StaticHostUser
 	services.AutoUpdateService
 	services.ProvisioningStates
+	services.IdentityCenter
 }
 
 // GetWebSession returns existing web session described by req.
