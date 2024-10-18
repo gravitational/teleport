@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -540,7 +539,6 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	// Use stderr so that it's not forwarded to the remote client.
 	errorWriter := os.Stderr
 
-	log := slog.New(slog.NewJSONHandler(errorWriter, nil))
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
@@ -615,14 +613,11 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	}
 
 	// Create a minimal default environment for the user.
-	homeDir := string(os.PathSeparator)
+	workingDir := string(os.PathSeparator)
 	hasAccess, err := CheckHomeDir(localUser)
-	if err != nil {
-		log.ErrorContext(context.Background(), "user does not have access to home dir", "error", err, "home", localUser.HomeDir, "username", c.Login)
-	}
 
 	if hasAccess && err == nil {
-		homeDir = localUser.HomeDir
+		workingDir = localUser.HomeDir
 	}
 
 	os.Setenv("HOME", localUser.HomeDir)
@@ -640,8 +635,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	}
 
 	// Ensure that the working directory is one that the local user has access to.
-	if err := os.Chdir(homeDir); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", homeDir)
+	if err := os.Chdir(workingDir); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set working directory for networking process: %s", workingDir)
 	}
 
 	// Build request listener from first extra file that was passed to command.
@@ -1242,15 +1237,13 @@ func hasAccessibleHomeDir() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// make sure we return to the original working directory
+	defer os.Chdir(cwd)
 
 	// attemping to cd into the target directory is the easiest, cross-platform way to test
 	// whether or not the current user has access
 	if err := os.Chdir(currentUser.HomeDir); err != nil {
 		return trace.Wrap(coerceHomeDirError(currentUser, err))
-	}
-
-	if err := os.Chdir(cwd); err != nil {
-		return trace.Errorf("unable to return to original working directory")
 	}
 
 	return nil
@@ -1267,7 +1260,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 	if currentUser.Uid == localUser.Uid {
 		if err := hasAccessibleHomeDir(); err != nil {
 			if trace.IsNotFound(err) || trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
-				return false, err
+				return false, nil
 			}
 
 			return false, trace.Wrap(err)

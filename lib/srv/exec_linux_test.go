@@ -45,6 +45,9 @@ func TestOSCommandPrep(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
+	// because CheckHomeDir now inspects access to the home directory as the actual user after a rexec,
+	// we need to setup a real, non-root user with a valid home directory in order for this test to
+	// exercise the correct paths
 	tempHome := t.TempDir()
 	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0777))
 
@@ -55,6 +58,8 @@ func TestOSCommandPrep(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		// change homedir back so user deletion doesn't fail
+		changeHomeDir(t, username, tempHome)
 		_, err := host.UserDel(username)
 		require.NoError(t, err)
 	})
@@ -134,9 +139,6 @@ func TestOSCommandPrep(t *testing.T) {
 
 	require.Equal(t, root, cmd.Dir)
 	require.Equal(t, expectedEnv, cmd.Env)
-
-	// change homedir back so user deletion doesn't fail
-	changeHomeDir(t, username, tempHome)
 }
 
 func TestConfigureCommand(t *testing.T) {

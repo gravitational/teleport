@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
@@ -432,6 +433,8 @@ func TestRootCheckHomeDir(t *testing.T) {
 	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		// change back to accessible home so deletion works
+		changeHomeDir(t, login, home)
 		_, err := host.UserDel(login)
 		require.NoError(t, err)
 	})
@@ -466,17 +469,14 @@ func TestRootCheckHomeDir(t *testing.T) {
 	hasAccess, err = CheckHomeDir(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
-
-	// change back to accessible home so deletion works
-	changeHomeDir(t, login, home)
 }
 
 func changeHomeDir(t *testing.T, username, home string) {
 	usermodBin, err := exec.LookPath("usermod")
-	require.NoError(t, err, "usermod binary must be present")
+	assert.NoError(t, err, "usermod binary must be present")
 
 	cmd := exec.Command(usermodBin, "--home", home, username)
 	_, err = cmd.CombinedOutput()
-	require.NoError(t, err, "changing home should not error")
-	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
+	assert.NoError(t, err, "changing home should not error")
+	assert.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
 }
