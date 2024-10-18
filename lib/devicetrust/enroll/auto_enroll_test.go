@@ -55,7 +55,6 @@ func TestAutoEnrollCeremony_Run(t *testing.T) {
 					SignChallenge:           test.dev.SignChallenge,
 					SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
 				},
-				CollectDeviceData: test.dev.CollectDeviceData,
 			}
 
 			dev, err := c.Run(ctx, devices)
