@@ -174,7 +174,7 @@ export const EmptyList = ({
           <ButtonPrimary
             width="280px"
             as={Link}
-            to={cfg.getBotsNewRoute()}
+            to={cfg.getIntegrationEnrollRoute('jamf')}
             size="large"
           >
             Get Started with JAMF
