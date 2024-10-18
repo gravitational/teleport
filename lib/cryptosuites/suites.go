@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 )
 
@@ -419,6 +420,17 @@ func GenerateKeyWithAlgorithm(alg Algorithm) (crypto.Signer, error) {
 	default:
 		return nil, trace.BadParameter("unsupported key algorithm %v", alg)
 	}
+}
+
+// GeneratePrivateKeyWithAlgorithm is exactly like [GenerateKeyWithAlgorithm]
+// but wraps the returned key in a [*keys.PrivateKey] for convenience.
+func GeneratePrivateKeyWithAlgorithm(alg Algorithm) (*keys.PrivateKey, error) {
+	key, err := GenerateKeyWithAlgorithm(alg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	return privateKey, trace.Wrap(err)
 }
 
 func generateRSA2048() (*rsa.PrivateKey, error) {

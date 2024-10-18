@@ -2750,7 +2750,7 @@ func TestGenerateDatabaseCerts(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate CSR once for speed sake.
-	priv, err := testauthority.New().GeneratePrivateKey()
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)

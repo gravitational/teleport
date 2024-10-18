@@ -218,7 +218,7 @@ func TestCheckKey(t *testing.T) {
 		keyRing := auth.makeSignedKeyRing(t, idx, false)
 
 		// Swap out the key with a ECDSA SSH key.
-		ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
+		ellipticCertificate, _, err := cert.CreateTestECDSACertificate("foo", ssh.UserCert)
 		require.NoError(t, err)
 		keyRing.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
@@ -246,7 +246,7 @@ func TestCheckKeyFIPS(t *testing.T) {
 		keyRing := auth.makeSignedKeyRing(t, idx, false)
 
 		// Swap out the key with a ECDSA SSH key.
-		ellipticCertificate, _, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
+		ellipticCertificate, _, err := cert.CreateTestECDSACertificate("foo", ssh.UserCert)
 		require.NoError(t, err)
 		keyRing.Cert = ssh.MarshalAuthorizedKey(ellipticCertificate)
 
