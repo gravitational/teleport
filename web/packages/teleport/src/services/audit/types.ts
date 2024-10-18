@@ -314,6 +314,9 @@ export const eventCodes = {
   CROWN_JEWEL_CREATE: 'CJ001I',
   CROWN_JEWEL_UPDATE: 'CJ002I',
   CROWN_JEWEL_DELETE: 'CJ003I',
+  USER_TASK_CREATE: 'UT001I',
+  USER_TASK_UPDATE: 'UT002I',
+  USER_TASK_DELETE: 'UT003I',
 } as const;
 
 /**
@@ -1729,6 +1732,18 @@ export type RawEvents = {
   >;
   [eventCodes.CROWN_JEWEL_DELETE]: RawEvent<
     typeof eventCodes.CROWN_JEWEL_DELETE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_CREATE]: RawEvent<
+    typeof eventCodes.USER_TASK_CREATE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_UPDATE]: RawEvent<
+    typeof eventCodes.USER_TASK_UPDATE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_DELETE]: RawEvent<
+    typeof eventCodes.USER_TASK_DELETE,
     HasName
   >;
 };
