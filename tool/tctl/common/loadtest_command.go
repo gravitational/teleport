@@ -34,10 +34,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/events/export"
@@ -52,8 +55,9 @@ type LoadtestCommand struct {
 
 	nodeHeartbeats *kingpin.CmdClause
 
-	watch       *kingpin.CmdClause
-	auditEvents *kingpin.CmdClause
+	watch          *kingpin.CmdClause
+	auditEvents    *kingpin.CmdClause
+	accessListFuzz *kingpin.CmdClause
 
 	count       int
 	churn       int
@@ -93,6 +97,8 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 	c.auditEvents = loadtest.Command("export-audit-events", "Bulk export audit events").Hidden()
 	c.auditEvents.Flag("date", "Date to dump events for").StringVar(&c.date)
 	c.auditEvents.Flag("cursor", "Specify an optional cursor directory").StringVar(&c.cursor)
+
+	c.accessListFuzz = loadtest.Command("access-list-fuzz", "Generate conflicting access list memberships").Hidden()
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
@@ -104,6 +110,8 @@ func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client *authcl
 		err = c.Watch(ctx, client)
 	case c.auditEvents.FullCommand():
 		err = c.AuditEvents(ctx, client)
+	case c.accessListFuzz.FullCommand():
+		err = c.AccessListFuzz(ctx, client)
 	default:
 		return false, nil
 	}
@@ -435,6 +443,103 @@ func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Cl
 			return trace.Errorf("exporter exited unexpected with state: %+v", exporter.GetState())
 		}
 	}
+}
+
+func (c *LoadtestCommand) AccessListFuzz(ctx context.Context, authClient *authclient.Client) error {
+
+	const (
+		listA = "list-a"
+		listB = "list-b"
+		user  = "alice"
+	)
+
+	client := authClient.AccessListClient()
+
+	// delete the lists if they already exist
+	for _, list := range []string{listA, listB} {
+		if err := client.DeleteAccessList(ctx, list); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	// create the lists
+	for _, list := range []string{listA, listB} {
+		accessList, err := accesslist.NewAccessList(header.Metadata{
+			Name: list,
+		}, accesslist.Spec{
+			Title: "test list",
+			Grants: accesslist.Grants{
+				Roles: []string{"access"},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Now().AddDate(1, 0, 0),
+			},
+			Owners: []accesslist.Owner{
+				{
+					Name:           user,
+					MembershipKind: accesslist.MembershipKindUser,
+				},
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		_, err = client.UpsertAccessList(ctx, accessList)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	fmt.Println("created access lists, waiting for cache replication...")
+
+	for {
+		time.Sleep(time.Millisecond * 100)
+		for _, list := range []string{listA, listB} {
+			_, err := client.GetAccessList(ctx, list)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+				continue
+			}
+		}
+		break
+	}
+
+	var eg errgroup.Group
+	startC := make(chan struct{})
+	for _, ll := range [][]string{{listA, listB}, {listB, listA}} {
+		eg.Go(func() error {
+			member, err := accesslist.NewAccessListMember(
+				header.Metadata{
+					Name: ll[1], /* name of member */
+				},
+				accesslist.AccessListMemberSpec{
+					AccessList:     ll[0], /* name of list */
+					Name:           ll[1], /* name of member */
+					Joined:         time.Now().UTC(),
+					Expires:        time.Now().UTC().Add(24 * time.Hour),
+					Reason:         "test",
+					AddedBy:        user,
+					MembershipKind: accesslist.MembershipKindList,
+				},
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			<-startC
+
+			_, err = client.UpsertAccessListMember(ctx, member)
+			return trace.Wrap(err)
+		})
+	}
+
+	time.Sleep(time.Millisecond * 100)
+	close(startC)
+
+	return eg.Wait()
 }
 
 func printEvent(ekind string, rsc types.Resource, format string) error {
