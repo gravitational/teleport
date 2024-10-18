@@ -339,6 +339,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Datadog Incident Management';
         icon = <IconContainer name="datadog" />;
         break;
+      case 'aws-identity-center':
+        formattedText = 'AWS Identity Center';
+        icon = <IconContainer name="aws" />;
+        break;
     }
   } else {
     // Default is integration.
