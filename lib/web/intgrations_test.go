@@ -54,7 +54,7 @@ func TestIntegrationsCreateWithOrigin(t *testing.T) {
 	// check origin label stored in backend
 	intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
 	require.NoError(t, err)
-	require.Equal(t, intgrationResource.Origin(), common.OriginAWSIdentityCenter)
+	require.Equal(t, common.OriginAWSIdentityCenter, intgrationResource.Origin())
 
 	// check origin label returned in the web api
 	getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
