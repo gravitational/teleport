@@ -40,17 +40,6 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
-var (
-	featureFlag int
-)
-
-const (
-	// flagEnt represents enterprise version.
-	flagEnt = 1 << iota
-	// flagFIPS represents enterprise version with fips feature enabled.
-	flagFIPS
-)
-
 const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz"
@@ -171,11 +160,21 @@ type Updater struct {
 type Installer interface {
 	// Install the Teleport agent at version from the download template.
 	// This function must be idempotent.
-	Install(ctx context.Context, version, template string) error
+	Install(ctx context.Context, version, template string, flags InstallFlags) error
 	// Remove the Teleport agent at version.
 	// This function must be idempotent.
 	Remove(ctx context.Context, version string) error
 }
+
+// InstallFlags sets flags for the Teleport installation
+type InstallFlags int
+
+const (
+	// FlagEnterprise installs enterprise Teleport
+	FlagEnterprise InstallFlags = 1 << iota
+	// FlagFIPS installs FIPS Teleport
+	FlagFIPS
+)
 
 // OverrideConfig contains overrides for individual update operations.
 // If validated, these overrides may be persisted to disk.
@@ -230,13 +229,13 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 			ProxyAddr: addr.Addr,
 			Insecure:  u.InsecureSkipVerify,
 			Timeout:   30 * time.Second,
-			//Group:     cfg.Spec.Group, // TODO(sclevine): add web API
+			//Group:     cfg.Spec.Group, // TODO(sclevine): add web API for verssion
 			Pool: u.Pool,
 		})
 		if err != nil {
 			return trace.Errorf("failed to request version from proxy: %w", err)
 		}
-		desiredVersion, _ = "16.3.0", resp // TODO(sclevine): add web API
+		desiredVersion, _ = "16.3.0", resp // TODO(sclevine): add web API for version
 		//desiredVersion := resp.AutoUpdate.AgentVersion
 	}
 
@@ -248,7 +247,7 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if template == "" {
 		template = cdnURITemplate
 	}
-	err = u.Installer.Install(ctx, desiredVersion, template)
+	err = u.Installer.Install(ctx, desiredVersion, template, 0) // TODO(sclevine): add web API for flags
 	if err != nil {
 		return trace.Wrap(err)
 	}

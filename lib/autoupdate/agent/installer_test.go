@@ -51,6 +51,7 @@ func TestTeleportInstaller_Install(t *testing.T) {
 		reservedTmp     uint64
 		reservedInstall uint64
 		existingSum     string
+		flags           InstallFlags
 
 		errMatch string
 	}{
@@ -79,6 +80,7 @@ func TestTeleportInstaller_Install(t *testing.T) {
 			reservedInstall: reservedFreeDisk * 1_000_000_000,
 			errMatch:        "no free space left",
 		},
+		// TODO(sclevine): test flags
 	}
 
 	for _, tt := range tests {
@@ -122,7 +124,7 @@ func TestTeleportInstaller_Install(t *testing.T) {
 				ReservedFreeInstallDisk: tt.reservedInstall,
 			}
 			ctx := context.Background()
-			err := installer.Install(ctx, version, server.URL+"/{{.OS}}/{{.Arch}}/{{.Version}}")
+			err := installer.Install(ctx, version, server.URL+"/{{.OS}}/{{.Arch}}/{{.Version}}", tt.flags)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)

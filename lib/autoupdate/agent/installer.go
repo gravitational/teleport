@@ -79,12 +79,12 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
-func (li *LocalInstaller) Install(ctx context.Context, version, template string) error {
+func (li *LocalInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
 	versionDir := filepath.Join(li.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// generate download URI from template
-	uri, err := makeURL(template, version)
+	uri, err := makeURL(template, version, flags)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -162,7 +162,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string)
 }
 
 // makeURL to download the Teleport tgz.
-func makeURL(uriTmpl, version string) (string, error) {
+func makeURL(uriTmpl, version string, flags InstallFlags) (string, error) {
 	tmpl, err := template.New("uri").Parse(uriTmpl)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -175,8 +175,8 @@ func makeURL(uriTmpl, version string) (string, error) {
 		OS:         runtime.GOOS,
 		Version:    version,
 		Arch:       runtime.GOARCH,
-		FIPS:       featureFlag&flagFIPS != 0,
-		Enterprise: featureFlag&(flagEnt|flagFIPS) != 0,
+		FIPS:       flags&FlagFIPS != 0,
+		Enterprise: flags&(FlagEnterprise|FlagFIPS) != 0,
 	}
 	err = tmpl.Execute(&uriBuf, params)
 	if err != nil {
