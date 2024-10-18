@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  createRef,
+} from 'react';
 import { CSSTransition, TransitionGroup } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -207,7 +213,43 @@ export function StepSlider<Flows>(props: Props<Flows>) {
     transition: `height ${tDuration}ms ease`,
   };
 
-  const transitionRef = useRef<HTMLDivElement>();
+  // "When changing key prop of Transition in a TransitionGroup a new nodeRef need to be provided
+  // to Transition with changed key prop."
+  //
+  // This means that we need to provide a unique ref per key. To achieve that, we precompute a map
+  // of refs for all steps of all flows.
+  //
+  // For example, assuming that we have flows like these…
+  //
+  //     { primary: [StepOne, StepTwo], alternative: [AltStepOne, AltStepTwo, AltStepThree] }
+  //
+  // …we end up with a map that looks like this:
+  //
+  //     [
+  //       [ "0primary",     (a unique ref) ],
+  //       [ "1primary",     (a unique ref) ],
+  //       [ "0alternative", (a unique ref) ],
+  //       [ "1alternative", (a unique ref) ],
+  //       [ "2alternative", (a unique ref) ],
+  //     ]
+  //
+  // https://reactcommunity.org/react-transition-group/transition#Transition-prop-nodeRef
+  // https://react.dev/learn/manipulating-the-dom-with-refs#how-to-manage-a-list-of-refs-using-a-ref-callback
+  // https://github.com/reactjs/react-transition-group/issues/675
+  const keyToNodeRef =
+    useRef<Map<string, React.MutableRefObject<HTMLDivElement>>>(null);
+  if (keyToNodeRef.current === null) {
+    keyToNodeRef.current = new Map(
+      Object.entries(flows).flatMap(([flowName, flowSteps]) =>
+        flowSteps.map((_, flowStep) => [
+          keyForFlowStep(flowName, flowStep),
+          createRef<HTMLDivElement>(),
+        ])
+      )
+    );
+  }
+  const key = keyForFlowStep(currFlow, step);
+  const transitionRef = keyToNodeRef.current.get(key);
 
   return (
     <Box ref={rootRef} style={rootStyle}>
@@ -218,7 +260,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
             nodeRef={transitionRef}
             // timeout needs to match the css transition duration for smoothness
             timeout={tDuration}
-            key={`${step}${String(currFlow)}`}
+            key={key}
             classNames={`${animationDirectionPrefix}-slide`}
             onEnter={() => {
               // When steps are translating (sliding), hides overflow content
@@ -242,6 +284,13 @@ export function StepSlider<Flows>(props: Props<Flows>) {
       </Wrap>
     </Box>
   );
+}
+
+function keyForFlowStep<Flows extends AnyFlows<unknown>>(
+  flow: keyof Flows,
+  step: number
+) {
+  return `${step}${String(flow)}`;
 }
 
 const HiddenBox = styled.div`
