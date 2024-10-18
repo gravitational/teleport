@@ -229,10 +229,40 @@ func (og Client) getResponders(reqData RequestData) []Responder {
 }
 
 func (og Client) getPriority(reqData RequestData) string {
-	if priority, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationPriority]; ok {
-		return strings.Join(priority, "")
+	return getHighestPriority(reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationPriority], og.Priority)
+}
+
+func getHighestPriority(priorities []string, defaultVal string) string {
+	if len(priorities) == 0 {
+		return defaultVal
 	}
-	return og.Priority
+
+	// Define a map for priority ranking
+	priorityMap := map[string]int{
+		"P1": 1,
+		"P2": 2,
+		"P3": 3,
+		"P4": 4,
+		"P5": 5,
+	}
+
+	highestPriority := ""
+
+	for _, p := range priorities {
+		// Check if the priority exists in the map
+		if rank, exists := priorityMap[p]; exists {
+			// Update highestPriority if the current one has a higher rank (lower number)
+			if v, ok := priorityMap[highestPriority]; v > rank || !ok {
+				highestPriority = p
+			}
+		}
+	}
+
+	// If highestPriority was updated, return it, otherwise return the default
+	if highestPriority != "" {
+		return highestPriority
+	}
+	return defaultVal
 }
 
 // Check if the responder is a UUID. If it is, then it is an ID; otherwise, it is a name.

@@ -18,20 +18,6 @@
 
 package opsgenie
 
-// Alert represents an Opsgenie alert
-type Alert struct {
-	// ID is the id of the Opsgenie alert.
-	ID string `json:"id"`
-	// Title is the title of the Opsgenie alert.
-	Title string `json:"title"`
-	// Status is the curerent status of the Opsgenie alert.
-	Status string `json:"status"`
-	// AlertKey is the key of the Opsgenie alert.
-	AlertKey string `json:"alert_key"`
-	// Details are a map of key-value pairs to use as custom properties of the alert.
-	Details map[string]string `json:"details"`
-}
-
 // AlertBody represents and Opsgenie alert body
 type AlertBody struct {
 	// Message is the message the alert is created with.
@@ -71,12 +57,6 @@ type RespondersResult struct {
 	Data struct {
 		OnCallRecipients []string `json:"onCallRecipients,omitempty"`
 	} `json:"data,omitempty"`
-}
-
-// AlertResult is a wrapper around Alert
-type AlertResult struct {
-	// Alert contains the actual alert data.
-	Alert Alert `json:"data"`
 }
 
 // AlertNote represents an Opsgenie alert note

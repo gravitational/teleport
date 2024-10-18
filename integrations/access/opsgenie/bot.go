@@ -21,6 +21,7 @@ package opsgenie
 import (
 	"context"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -61,17 +62,33 @@ func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipi
 
 // BroadcastAccessRequestMessage creates an alert for the provided recipients (schedules)
 func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipientSchedules []common.Recipient, reqID string, reqData pd.AccessRequestData) (data accessrequest.SentMessages, err error) {
+	const notifyScheduleLabel = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
+	const approveScheduleLabel = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+
 	notificationSchedules := make([]string, 0, len(recipientSchedules))
 	for _, notifySchedule := range recipientSchedules {
 		notificationSchedules = append(notificationSchedules, notifySchedule.Name)
 	}
 	autoApprovalSchedules := []string{}
-	if annotationAutoApprovalSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationApproveSchedulesLabel]; ok {
+	if annotationAutoApprovalSchedules, ok := reqData.SystemAnnotations[approveScheduleLabel]; ok {
 		autoApprovalSchedules = annotationAutoApprovalSchedules
 	}
 	if len(autoApprovalSchedules) == 0 {
 		autoApprovalSchedules = append(autoApprovalSchedules, b.client.DefaultSchedules...)
 	}
+
+	annotations := types.Labels{
+		approveScheduleLabel: autoApprovalSchedules,
+		notifyScheduleLabel:  notificationSchedules,
+	}
+	for k, v := range reqData.SystemAnnotations {
+		if k == approveScheduleLabel ||
+			k == notifyScheduleLabel {
+			continue
+		}
+		annotations[k] = slices.Clone(v)
+	}
+
 	opsgenieReqData := RequestData{
 		User:          reqData.User,
 		Roles:         reqData.Roles,
@@ -82,10 +99,7 @@ func (b *Bot) BroadcastAccessRequestMessage(ctx context.Context, recipientSchedu
 			Tag:    ResolutionTag(reqData.ResolutionTag),
 			Reason: reqData.ResolutionReason,
 		},
-		SystemAnnotations: types.Labels{
-			types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel: autoApprovalSchedules,
-			types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel:  notificationSchedules,
-		},
+		SystemAnnotations: annotations,
 	}
 	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)
 	if err != nil {

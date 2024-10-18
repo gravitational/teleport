@@ -39,14 +39,30 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
+// Alert represents an Opsgenie alert
+type Alert struct {
+	// ID is the id of the Opsgenie alert.
+	ID string `json:"id"`
+	// Title is the title of the Opsgenie alert.
+	Title string `json:"title"`
+	// Status is the curerent status of the Opsgenie alert.
+	Status string `json:"status"`
+	// AlertKey is the key of the Opsgenie alert.
+	AlertKey string `json:"alert_key"`
+	// Details are a map of key-value pairs to use as custom properties of the alert.
+	Details map[string]string `json:"details"`
+	// AlertBody is the body of the Opsgenie alert.
+	AlertBody opsgenie.AlertBody `json:"alertBody"`
+}
+
 type FakeOpsgenie struct {
 	srv *httptest.Server
 
 	objects sync.Map
 	// Alerts
 	alertIDCounter uint64
-	newAlerts      chan opsgenie.Alert
-	alertUpdates   chan opsgenie.Alert
+	newAlerts      chan Alert
+	alertUpdates   chan Alert
 	// Alert notes
 	newAlertNotes chan FakeAlertNote
 	// Responders
@@ -80,8 +96,8 @@ func NewFakeOpsgenie(concurrency int) *FakeOpsgenie {
 	router := httprouter.New()
 
 	mock := &FakeOpsgenie{
-		newAlerts:     make(chan opsgenie.Alert, concurrency),
-		alertUpdates:  make(chan opsgenie.Alert, concurrency),
+		newAlerts:     make(chan Alert, concurrency),
+		alertUpdates:  make(chan Alert, concurrency),
 		newAlertNotes: make(chan FakeAlertNote, concurrency*3), // for any alert there could be 1-3 notes
 		srv:           httptest.NewServer(router),
 	}
@@ -89,11 +105,11 @@ func NewFakeOpsgenie(concurrency int) *FakeOpsgenie {
 	router.POST("/v2/alerts", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusCreated)
-
-		var alert opsgenie.Alert
-		err := json.NewDecoder(r.Body).Decode(&alert)
+		var opsgenieAlert opsgenie.AlertBody
+		err := json.NewDecoder(r.Body).Decode(&opsgenieAlert)
 		panicIf(err)
-
+		var alert Alert
+		alert.AlertBody = opsgenieAlert
 		alert.ID = fmt.Sprintf("alert-%v", atomic.AddUint64(&mock.alertIDCounter, 1))
 		alert.Status = types.RequestState_PENDING.String()
 
@@ -233,15 +249,15 @@ func (s *FakeOpsgenie) StoreResponder(responder opsgenie.Responder) opsgenie.Res
 	return responder
 }
 
-func (s *FakeOpsgenie) GetAlert(id string) (opsgenie.Alert, bool) {
+func (s *FakeOpsgenie) GetAlert(id string) (Alert, bool) {
 	if obj, ok := s.objects.Load(id); ok {
-		alert, ok := obj.(opsgenie.Alert)
+		alert, ok := obj.(Alert)
 		return alert, ok
 	}
-	return opsgenie.Alert{}, false
+	return Alert{}, false
 }
 
-func (s *FakeOpsgenie) StoreAlert(alert opsgenie.Alert) opsgenie.Alert {
+func (s *FakeOpsgenie) StoreAlert(alert Alert) Alert {
 	if alert.ID == "" {
 		alert.ID = fmt.Sprintf("alert-%v", atomic.AddUint64(&s.alertIDCounter, 1))
 	}
@@ -254,21 +270,21 @@ func (s *FakeOpsgenie) StoreAlertNote(alertID string, note opsgenie.AlertNote) o
 	return note
 }
 
-func (s *FakeOpsgenie) CheckNewAlert(ctx context.Context) (opsgenie.Alert, error) {
+func (s *FakeOpsgenie) CheckNewAlert(ctx context.Context) (Alert, error) {
 	select {
 	case alert := <-s.newAlerts:
 		return alert, nil
 	case <-ctx.Done():
-		return opsgenie.Alert{}, trace.Wrap(ctx.Err())
+		return Alert{}, trace.Wrap(ctx.Err())
 	}
 }
 
-func (s *FakeOpsgenie) CheckAlertUpdate(ctx context.Context) (opsgenie.Alert, error) {
+func (s *FakeOpsgenie) CheckAlertUpdate(ctx context.Context) (Alert, error) {
 	select {
 	case alert := <-s.alertUpdates:
 		return alert, nil
 	case <-ctx.Done():
-		return opsgenie.Alert{}, trace.Wrap(ctx.Err())
+		return Alert{}, trace.Wrap(ctx.Err())
 	}
 }
 

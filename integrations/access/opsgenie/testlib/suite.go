@@ -97,7 +97,7 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 	var conf opsgenie.Config
 	conf.Teleport = s.TeleportConfig()
 	conf.ClientConfig.APIEndpoint = s.fakeOpsgenie.URL()
-
+	conf.ClientConfig.Priority = Priority // Set the default priority for alerts.
 	s.appConfig = conf
 }
 
@@ -184,6 +184,7 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
 	require.NoError(t, err, "no new alerts stored")
 
 	assert.Equal(t, alert.ID, pluginData.AlertID)
+	assert.Equal(t, Priority, alert.AlertBody.Priority)
 }
 
 func (s *OpsgenieSuiteOSS) TestPriorityOverride() {
@@ -193,7 +194,7 @@ func (s *OpsgenieSuiteOSS) TestPriorityOverride() {
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
 		PriorityAnnotation,
-		[]string{Priority},
+		[]string{"P3"},
 	)
 
 	s.startApp()
@@ -211,6 +212,7 @@ func (s *OpsgenieSuiteOSS) TestPriorityOverride() {
 	require.NoError(t, err, "no new alerts stored")
 
 	assert.Equal(t, alert.ID, pluginData.AlertID)
+	assert.Equal(t, "P3", alert.AlertBody.Priority)
 }
 
 // TestApproval tests that when a request is approved, its corresponding alert
