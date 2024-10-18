@@ -63,6 +63,10 @@ type SSMInstallationResult struct {
 	// IssueType identifies the type of issue that occurred if the installation failed.
 	// These are well known identifiers that can be found at types.AutoDiscoverEC2Issue*.
 	IssueType string
+	// SSMDocumentName is the Amazon SSM Document Name used to install Teleport into the instance.
+	SSMDocumentName string
+	// InstallerScript is the Teleport Installer script name used to install Teleport into the instance.
+	InstallerScript string
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -93,6 +97,16 @@ type SSMRunRequest struct {
 	// DiscoveryConfig is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfig string
+}
+
+// InstallerScriptName returns the Teleport Installer script name.
+// Returns empty string if not defined.
+func (r *SSMRunRequest) InstallerScriptName() string {
+	if r == nil || r.Params == nil {
+		return ""
+	}
+
+	return r.Params[ParamScriptName]
 }
 
 // CheckAndSetDefaults ensures the emitter is present and creates a default logger if one is not provided.
@@ -212,6 +226,8 @@ func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, status,
 		IntegrationName: req.IntegrationName,
 		DiscoveryConfig: req.DiscoveryConfig,
 		IssueType:       issueType,
+		SSMDocumentName: req.DocumentName,
+		InstallerScript: req.InstallerScriptName(),
 	}
 }
 
@@ -359,6 +375,8 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 					IntegrationName: req.IntegrationName,
 					DiscoveryConfig: req.DiscoveryConfig,
 					IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+					SSMDocumentName: req.DocumentName,
+					InstallerScript: req.InstallerScriptName(),
 				}))
 			}
 
@@ -373,6 +391,8 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 				IntegrationName: req.IntegrationName,
 				DiscoveryConfig: req.DiscoveryConfig,
 				IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+				SSMDocumentName: req.DocumentName,
+				InstallerScript: req.InstallerScriptName(),
 			}))
 		}
 	}
