@@ -76,7 +76,7 @@ datadog:
   # datadog.fallbackRecipient(string) -- specifies the default recipient for
   # Access Request notifications. The recipient can be a Datadog user email or
   # a team handle.
-  fallbackRecipient: "admin@example.com"
+  fallbackRecipient: ""
   # datadog.severity(string) -- specifies the Datadog incident severity.
   severity: "SEV-3"
 
