@@ -53,9 +53,8 @@ export function SetUpScim() {
           </Text>
           <Text mt={2}>
             On <Mark>General</Mark> tab, click <Mark>Edit</Mark> under{' '}
-            <Mark>App Settings</Mark> and check the{' '}
-            <Mark>Enable SCIM provisioning</Mark> checkbox and click{' '}
-            <Mark>Save</Mark>
+            <Mark>App Settings</Mark> and select the <Mark>SCIM</Mark> option in{' '}
+            <Mark>Provisioning</Mark> and click <Mark>Save</Mark>
           </Text>
         </StyledBox>
         <StyledBox>
