@@ -33,6 +33,7 @@ export type AuthnChallengeRequest = {
 };
 
 export type MfaAuthenticateChallenge = {
+  totpChallenge: boolean;
   webauthnPublicKey: PublicKeyCredentialRequestOptions;
 };
 
