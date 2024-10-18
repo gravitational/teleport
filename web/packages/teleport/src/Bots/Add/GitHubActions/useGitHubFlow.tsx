@@ -229,9 +229,9 @@ function getRoleYaml(
   labels: ResourceLabel[],
   login: string
 ): string {
-  const nodeLabelsStanza = labels.map(
-    label => `'${label.name}': '${label.value}'\n`
-  );
+  const nodeLabels = labels
+    .map(label => `'${label.name}': '${label.value}'`)
+    .join('\n      ');
 
   return `kind: role
 metadata:
@@ -240,38 +240,12 @@ metadata:
     ${GITHUB_ACTIONS_LABEL_KEY}: ${GITHUB_ACTIONS_LABEL_VAL}
 spec:
   allow:
-    # List of Kubernetes cluster users can access the k8s API
-    kubernetes_labels:
-    ${nodeLabelsStanza}
-    kubernetes_groups:
-    - '{{internal.kubernetes_groups}}'
-    kubernetes_users:
-    - '{{internal.kubernetes_users}}'
-
-    kubernetes_resources:
-    - kind: '*'
-      namespace: '*'
-      name: '*'
-      verbs: ['*']
-
     # List of allowed SSH logins
     logins: [${login}]
 
     # List of node labels that users can SSH into
     node_labels:
-    ${nodeLabelsStanza}
-    rules:
-    - resources:
-      - event
-      verbs:
-      - list
-      - read
-    - resources:
-      - session
-      verbs:
-      - read
-      - list
-      where: contains(session.participants, user.metadata.name)
+      ${nodeLabels}
     options:
       max_session_ttl: 8h0m0s
 version: v7
