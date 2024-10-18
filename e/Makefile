@@ -234,9 +234,11 @@ all: version
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
 # * Manual change detection was broken on a large dependency tree
 # If you are considering changing this behavior, please consult with dev team first
+
 .PHONY: $(BUILDDIR)/tctl
+$(BUILDDIR)/tctl: BUILDDIR := $(shell realpath $(BUILDDIR))
 $(BUILDDIR)/tctl:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(BPF_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ../tool/tctl
+	$(MAKE) -C .. $(BUILDDIR)/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpclient
@@ -245,8 +247,9 @@ $(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpc
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ../build.assets/kubectl-version/main.go)
 $(BUILDDIR)/tsh: KUBECTL_SETVERSION=-X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
+$(BUILDDIR)/tsh: BUILDDIR := $(shell realpath $(BUILDDIR))
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh
+	$(MAKE) -C .. $(BUILDDIR)/tsh
 
 TBOT_DYNAMIC :=
 ifneq ("$(FIPS)","")
