@@ -43,7 +43,10 @@ function Providers({ children }: { children: React.ReactElement }) {
   );
 }
 
-function render(ui: React.ReactElement<any>, options?: RenderOptions) {
+function render(
+  ui: React.ReactElement<any>,
+  options?: RenderOptions
+): ReturnType<typeof testingRender> {
   return testingRender(ui, { wrapper: Providers, ...options });
 }
 
