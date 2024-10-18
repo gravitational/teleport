@@ -114,11 +114,11 @@ export function AccessRequestCheckout() {
     setShowCheckout(false);
   }
 
-  const filteredData = data?.filter(d =>
+  const filteredData = data.filter(d =>
     excludeKubeClusterWithNamespaces(d, data)
   );
 
-  const numAddedResources = filteredData?.length;
+  const numAddedResources = filteredData.length;
 
   // We should rather detect how much space we have,
   // but for simplicity we only count items.

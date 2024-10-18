@@ -118,6 +118,10 @@ export class AccessRequestsService {
       const { resources } = draftState.pending;
 
       requestedResources.forEach(request => {
+        if (request.kind === 'namespace') {
+          this.addOrRemoveKubeNamespace(request, resources);
+          return;
+        }
         if (resources.has(request.resource.uri)) {
           resources.delete(request.resource.uri);
         } else {
@@ -125,6 +129,32 @@ export class AccessRequestsService {
         }
       });
     });
+  }
+
+  async addOrRemoveKubeNamespace(
+    namespaceResourceRequest: ResourceRequest,
+    resources: Map<ResourceUri, ResourceRequest>
+  ) {
+    const { uri: resourceUri } = namespaceResourceRequest.resource;
+
+    const requestedResource = resources.get(
+      routing.getKubeUri(
+        routing.parseKubeResourceNamespaceUri(resourceUri).params
+      )
+    );
+    if (!requestedResource || requestedResource.kind !== 'kube') {
+      throw new Error('Cannot add a kube namespace to a non-kube resource');
+    }
+    const kubeResource = requestedResource.resource;
+
+    if (!kubeResource.namespaces) {
+      kubeResource.namespaces = new Map();
+    }
+    if (kubeResource.namespaces.has(resourceUri)) {
+      kubeResource.namespaces.delete(resourceUri);
+    } else {
+      kubeResource.namespaces.set(resourceUri, namespaceResourceRequest);
+    }
   }
 
   /**
@@ -299,7 +329,7 @@ export type ResourceRequest =
       kind: 'kube';
       resource: {
         uri: KubeUri;
-        namespaces?: KubeResourceNamespaceUri[];
+        namespaces?: Map<ResourceUri, ResourceRequest>;
       };
     }
   | {
