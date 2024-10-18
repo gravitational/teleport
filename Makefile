@@ -1429,10 +1429,10 @@ tag-publish:
 # If the $(VERSION) variable contains a cloud pre-release component, -cloud. or
 # -dev.cloud., then the tag-publish workflow is run with `cloud-only=true`. This can be
 # specified explicitly with `make tag-publish CLOUD_ONLY=<true|false>`.
-.PHONY: tag-publish
-tag-publish: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
-tag-publish: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod,stage)
-tag-publish:
+.PHONY: tag-release
+tag-release: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
+tag-release: ENVIRONMENT = $(if $(IS_PROD_SEMVER),prod,stage)
+tag-release:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
 	gh workflow run tag-release.yaml \
 		--repo gravitational/teleport.e \
