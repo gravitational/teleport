@@ -248,7 +248,7 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 
 	w.Header().Add("Content-Type", "application/zip")
 	w.Header().Add("Content-Disposition", "attachment; filename=app.zip")
-	err = msteams.ConfigureAppZip(w, msteams.ConfigTemplatePayload{
+	err = msteams.WriteAppZipTo(w, msteams.ConfigTemplatePayload{
 		AppID:      spec.Msteams.AppId,
 		TenantID:   spec.Msteams.TenantId,
 		TeamsAppID: spec.Msteams.TeamsAppId,

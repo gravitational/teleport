@@ -94,13 +94,13 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 		return trace.Wrap(err)
 	}
 
-	zipWriter, err := os.Create(filepath.Join(targetDir, "app.zip"))
+	appZipFile, err := os.Create(filepath.Join(targetDir, "app.zip"))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer zipWriter.Close()
+	defer appZipFile.Close()
 
-	ConfigureAppZip(zipWriter, p)
+	WriteAppZipTo(appZipFile, p)
 
 	printStep(&step, "Created %v", filepath.Join(targetDir, "app.zip"))
 	fmt.Println()
@@ -113,8 +113,8 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 	return nil
 }
 
-// ConfigureAppZip creates the manifest.json from the template using the provided payload, then writes the app.zip to the provided writer including the needed assets.
-func ConfigureAppZip(zipWriter io.Writer, p ConfigTemplatePayload) error {
+// WriteAppZipTo creates the manifest.json from the template using the provided payload, then writes the app.zip to the provided writer including the needed assets.
+func WriteAppZipTo(zipWriter io.Writer, p ConfigTemplatePayload) error {
 	w := zip.NewWriter(zipWriter)
 	defer w.Close()
 
