@@ -1,5 +1,5 @@
-//go:build webassets_ent
-// +build webassets_ent
+//go:build !fips
+// +build !fips
 
 /*
  * Teleport
@@ -21,6 +21,5 @@
 
 package autoupdate
 
-func init() {
-	featureFlag |= FlagEnt
-}
+// FIPS is disabled when build tag is not specified.
+const FIPS = false

@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -129,13 +130,15 @@ func teleportPackageURLs(baseURL, toolsVersion string) ([]packageURL, error) {
 			{Archive: archive, Hash: archive + ".sha256"},
 		}, nil
 	case "linux":
+		m := modules.GetModules()
+
 		var b strings.Builder
 		b.WriteString(baseURL + "/teleport-")
-		if autoupdate.FeatureFlag()&(autoupdate.FlagEnt|autoupdate.FlagFIPS) != 0 {
+		if m.IsEnterpriseBuild() || autoupdate.FIPS {
 			b.WriteString("ent-")
 		}
 		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
-		if autoupdate.FeatureFlag()&autoupdate.FlagFIPS != 0 {
+		if autoupdate.FIPS {
 			b.WriteString("fips-")
 		}
 		b.WriteString("bin.tar.gz")

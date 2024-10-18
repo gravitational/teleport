@@ -21,6 +21,5 @@
 
 package autoupdate
 
-func init() {
-	featureFlag |= FlagFIPS
-}
+// FIPS is enabled when build tag is specified.
+const FIPS = true
