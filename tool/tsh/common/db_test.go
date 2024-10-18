@@ -1972,3 +1972,56 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 		})
 	}
 }
+
+func Test_maybeEnableDbProxyTunnel(t *testing.T) {
+	tests := []struct {
+		name                  string
+		dbRequiresTunnel      bool
+		tunnelFlagProvided    bool
+		wantTunnelFlagEnabled bool
+		wantMessage           string
+	}{
+		{
+			name:                  "tunnel already enabled",
+			dbRequiresTunnel:      true,
+			tunnelFlagProvided:    true,
+			wantTunnelFlagEnabled: true,
+		},
+		{
+			name:                  "tunnel not required",
+			dbRequiresTunnel:      false,
+			tunnelFlagProvided:    false,
+			wantTunnelFlagEnabled: false,
+		},
+		{
+			name:                  "tunnel enabled",
+			dbRequiresTunnel:      true,
+			tunnelFlagProvided:    false,
+			wantTunnelFlagEnabled: true,
+			wantMessage: `Note: "--tunnel" flag has been automatically enabled when:
+  - tunnel required by unit test.
+To avoid this note, please add the "--tunnel" flag to this "tsh proxy db" command.
+
+`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			cf := &CLIConf{
+				LocalProxyTunnel: test.tunnelFlagProvided,
+				OverrideStdout:   &buf,
+			}
+			requires := &dbLocalProxyRequirement{
+				tunnel:        test.dbRequiresTunnel,
+				tunnelReasons: []string{"tunnel required by unit test"},
+			}
+
+			maybeEnableDbProxyTunnel(cf, requires)
+
+			require.Equal(t, test.wantTunnelFlagEnabled, cf.LocalProxyTunnel)
+			require.Equal(t, test.wantMessage, buf.String())
+		})
+	}
+}
