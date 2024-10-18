@@ -70,7 +70,11 @@ func TestAutoEnrollCeremony_Run(t *testing.T) {
 }
 
 func TestAutoEnroll_disabledByEnv(t *testing.T) {
-	os.Setenv("TELEPORT_DEVICE_AUTO_ENROLL_DISABLED", "1")
+	// Don't t.Parallel, test changes env variables.
+
+	const key = "TELEPORT_DEVICE_AUTO_ENROLL_DISABLED"
+	os.Setenv(key, "1")
+	t.Cleanup(func() { os.Unsetenv(key) })
 
 	_, err := enroll.AutoEnroll(context.Background(), nil /* devicesClient */)
 	assert.ErrorIs(t, err, enroll.ErrAutoEnrollDisabled, "AutoEnroll() error mismatch")
