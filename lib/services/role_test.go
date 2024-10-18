@@ -4813,14 +4813,14 @@ func TestGetAllowedSearchAsRolesMeetingKubeRequestModes(t *testing.T) {
 			name:                 "return all allowed roles with multiple rolesets",
 			roleSet:              NewRoleSet(withoutRequestModes, withRequestModesNamespaceAndPod, withRequestModeWildcard, withRequestModeSecret),
 			requestType:          types.KindKubeSecret,
-			expectedAllowedRoles: []string{"role1", "role4", "role5", "role6"},
+			expectedAllowedRoles: []string{"role1", "role2", "role4", "role5", "role6"},
 		},
 	}
 	for _, tc := range tt {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
 		t.Run(tc.name, func(t *testing.T) {
 
-			allowedRoles := accessChecker.GetAllowedSearchAsRolesMeetingKubeRequestModes(tc.requestType)
+			allowedRoles := accessChecker.GetAllowedSearchAsRoles(WithKubernetesRequestModeFilter(tc.requestType))
 			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
 		})
 	}

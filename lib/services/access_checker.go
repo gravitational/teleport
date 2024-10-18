@@ -182,11 +182,7 @@ type AccessChecker interface {
 	CertificateExtensions() []*types.CertExtension
 
 	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
-	GetAllowedSearchAsRoles() []string
-
-	// GetAllowedSearchAsRolesMeetingKubeRequestModes returns all of the allowed SearchAsRoles that
-	// also passes the test where requestType matches the requestMode found for allowed role.
-	GetAllowedSearchAsRolesMeetingKubeRequestModes(requestType string) []string
+	GetAllowedSearchAsRoles(filters ...SearchAsRolesOption) []string
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
