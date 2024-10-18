@@ -80,6 +80,9 @@ func filterHeader(hdr *tar.Header, paths []ExtractPath) (ok bool) {
 		src := path.Clean(p.Src)
 		switch hdr.Typeflag {
 		case tar.TypeDir:
+			// If name is a directory,
+			// assume src is a directory prefix, or the directory itself,
+			// and replace that prefix with dst
 			if src != "/" {
 				src += "/"
 			}
@@ -93,11 +96,22 @@ func filterHeader(hdr *tar.Header, paths []ExtractPath) (ok bool) {
 			hdr.Name = dst
 			return !p.Skip
 		default:
-			if src != name {
+			// If name is a file,
+			// if src is an exact match to the file name, assume src is a file and write directly to dst,
+			// otherwise, assume src is a directory prefix, and replace that prefix with dst
+			if src == name {
+				hdr.Name = path.Clean(p.Dst)
+				return !p.Skip
+			}
+			if src != "/" {
+				src += "/"
+			}
+			if !strings.HasPrefix(name, src) {
 				continue
 			}
-			hdr.Name = path.Clean(p.Dst)
+			hdr.Name = path.Join(p.Dst, strings.TrimPrefix(name, src))
 			return !p.Skip
+
 		}
 	}
 	return len(paths) == 0
