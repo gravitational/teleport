@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -45,7 +46,8 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		// TODO(tross): update to use the server logger once it has been converted to slog
+		Logger: slog.With("kind", types.KindKubernetesCluster),
 	})
 	if err != nil {
 		return trace.Wrap(err)

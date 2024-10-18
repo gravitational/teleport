@@ -20,12 +20,14 @@ package services
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Matcher is used by reconciler to match resources.
@@ -53,7 +55,10 @@ type GenericReconcilerConfig[K comparable, T any] struct {
 	// OnDelete is called when an existing resource is deleted.
 	OnDelete func(context.Context, T) error
 	// Log is the reconciler's logger.
+	// TODO(tross) remove this when all components in e have been updated
 	Log logrus.FieldLogger
+	// Logger emits log messages.
+	Logger *slog.Logger
 }
 
 // CheckAndSetDefaults validates the reconciler configuration and sets defaults.
@@ -79,8 +84,8 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 	if c.CompareResources == nil {
 		c.CompareResources = CompareResources[T]
 	}
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "reconciler")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "reconciler")
 	}
 	return nil
 }
@@ -91,13 +96,8 @@ func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]
 		return nil, trace.Wrap(err)
 	}
 	return &GenericReconciler[K, T]{
-		cfg: cfg,
-		// We do a WithFields here to force this into a *logrus.Entry, which has the ability to
-		// log at the Trace level. If we were to change this in ReconcilerConfig, we'd have to
-		// refactor existing code to use *logrus.Entry instead of logrus.FieldLogger, and with
-		// the eventual change to slog, it seems easier to do this for now until this can be
-		// changed to slog.
-		log: cfg.Log.WithFields(nil),
+		cfg:    cfg,
+		logger: cfg.Logger,
 	}, nil
 }
 
@@ -107,8 +107,8 @@ func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]
 // It's used in combination with watchers by agents (app, database, desktop)
 // to enable dynamically registered resources.
 type GenericReconciler[K comparable, T any] struct {
-	cfg GenericReconcilerConfig[K, T]
-	log *logrus.Entry
+	cfg    GenericReconcilerConfig[K, T]
+	logger *slog.Logger
 }
 
 // Reconcile reconciles currently registered resources with new resources and
@@ -117,8 +117,8 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 	currentResources := r.cfg.GetCurrentResources()
 	newResources := r.cfg.GetNewResources()
 
-	r.log.Debugf("Reconciling %v current resources with %v new resources.",
-		len(currentResources), len(newResources))
+	r.logger.DebugContext(ctx, "Reconciling current resources with new resources",
+		"current_resource_count", len(currentResources), "new_resource_count", len(newResources))
 
 	var errs []error
 
@@ -151,7 +151,7 @@ func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	r.log.Infof("%v %v removed, deleting.", kind, key)
+	r.logger.InfoContext(ctx, "Resource was removed, deleting", "name", key)
 	if err := r.cfg.OnDelete(ctx, registered); err != nil {
 		return trace.Wrap(err, "failed to delete  %v %v", kind, key)
 	}
@@ -171,13 +171,13 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 			return trace.Wrap(err)
 		}
 		if r.cfg.Matcher(newT) {
-			r.log.Infof("%v %v matches, creating.", kind, key)
+			r.logger.InfoContext(ctx, "New resource matches, creating", "name", key)
 			if err := r.cfg.OnCreate(ctx, newT); err != nil {
 				return trace.Wrap(err, "failed to create %v %v", kind, key)
 			}
 			return nil
 		}
-		r.log.Debugf("%v %v doesn't match, not creating.", kind, key)
+		r.logger.DebugContext(ctx, "New resource doesn't match, not creating", "name", key)
 		return nil
 	}
 
@@ -191,7 +191,7 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 		return trace.Wrap(err)
 	}
 	if registeredOrigin != newOrigin {
-		r.log.Warnf("%v has different origin (%v vs %v), not updating.", key, newOrigin, registeredOrigin)
+		r.logger.WarnContext(ctx, "New resource has different origin, not updating", "name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
 		return nil
 	}
 
@@ -203,20 +203,20 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 	}
 	if r.cfg.CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
-			r.log.Infof("%v %v updated, updating.", kind, key)
+			r.logger.InfoContext(ctx, "Existing resource updated, updating", "name", key)
 			if err := r.cfg.OnUpdate(ctx, newT, registered); err != nil {
 				return trace.Wrap(err, "failed to update %v %v", kind, key)
 			}
 			return nil
 		}
-		r.log.Infof("%v %v updated and no longer matches, deleting.", kind, key)
+		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "name", key)
 		if err := r.cfg.OnDelete(ctx, registered); err != nil {
 			return trace.Wrap(err, "failed to delete %v %v", kind, key)
 		}
 		return nil
 	}
 
-	r.log.Tracef("%v %v is already registered.", kind, key)
+	r.logger.Log(ctx, logutils.TraceLevel, "Existing resource is already registered", "name", key)
 	return nil
 }
 
