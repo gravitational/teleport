@@ -46,7 +46,7 @@ func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (typ
 	return desktop, trace.Wrap(err)
 }
 
-func (c *Client) ListDynamicWindowsDesktop(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+func (c *Client) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
 	resp, err := c.grpcClient.ListDynamicWindowsDesktops(ctx, &dynamicwindows.ListDynamicWindowsDesktopsRequest{
 		PageSize:  int32(pageSize),
 		PageToken: pageToken,

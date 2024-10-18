@@ -411,6 +411,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if _, err := s.startDynamicReconciler(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if len(s.cfg.DiscoveryBaseDN) > 0 {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
