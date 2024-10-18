@@ -2066,6 +2066,17 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ExternalID: application.AWS.ExternalID,
 			}
 		}
+
+		if len(application.Ports) != 0 {
+			app.Ports = make([]servicecfg.PortRange, 0, len(application.Ports))
+			for _, portRange := range application.Ports {
+				app.Ports = append(app.Ports, servicecfg.PortRange{
+					Port:    portRange.Port,
+					EndPort: portRange.EndPort,
+				})
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
