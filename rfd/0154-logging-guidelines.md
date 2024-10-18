@@ -138,9 +138,9 @@ log several messages, be that in a function or a logger that is a struct member.
 >```go
 >slogLogger := slog.With("device_id", ref.DeviceID, "os_type", ref.OSType, "asset_tag", assetTag)
 >...
->slogLogger.DebugContext(ctx, "some message")
+>slogLogger.DebugContext(ctx, "Some message")
 >...
->slogLogger.WarnContext(ctx, "some other message")
+>slogLogger.WarnContext(ctx, "Some other message")
 >```
 
 #### WithError
