@@ -280,7 +280,6 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 		return trace.Wrap(err)
 	}
 	free, err := utils.FreeDiskWithReserve(dstDir, li.ReservedFreeInstallDisk)
-
 	if err != nil {
 		return trace.Errorf("failed to calculate free disk in %q: %w", dstDir, err)
 	}
