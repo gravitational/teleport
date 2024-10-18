@@ -65,5 +65,5 @@ func TestIntegrationsCreateWithOrigin(t *testing.T) {
 	var resp ui.Integration
 	err = json.Unmarshal(getResp.Bytes(), &resp)
 	require.NoError(t, err)
-	require.Equal(t, resp, createData)
+	require.Equal(t, createData, resp)
 }
