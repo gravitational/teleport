@@ -229,9 +229,9 @@ function getRoleYaml(
   labels: ResourceLabel[],
   login: string
 ): string {
-  const nodeLabels = labels.map(
-    label => `'${label.name}': '${label.value}'`
-  ).join('\n      ');
+  const nodeLabels = labels
+    .map(label => `'${label.name}': '${label.value}'`)
+    .join('\n      ');
 
   return `kind: role
 metadata:
