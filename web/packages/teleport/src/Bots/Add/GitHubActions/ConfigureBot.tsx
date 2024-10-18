@@ -182,7 +182,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   })
                 }
                 rule={requireValidSSHUser}
-                />
+              />
             </FormItem>
 
             {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
@@ -231,7 +231,7 @@ const requireValidBotName = (value: string) => () => {
 };
 
 const requireValidSSHUser = (value: string) => () => {
- if (!value || !value.trim()) {
+  if (!value || !value.trim()) {
     return { valid: false, message: 'SSH user is required' };
   }
 
