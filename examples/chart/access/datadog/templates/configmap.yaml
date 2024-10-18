@@ -22,7 +22,7 @@ data:
     severity = "{{ .Values.datadog.severity }}"
 
     [role_to_recipients]
-    "*" ["{{ .Values.datadog.fallbackRecipient }}"]
+    "*" = ["{{ .Values.datadog.fallbackRecipient }}"]
 
     [log]
     output = "{{ .Values.log.output }}"

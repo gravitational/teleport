@@ -15,7 +15,7 @@ should match the snapshot:
         severity = "SEV-3"
 
         [role_to_recipients]
-        "*" ["admin@example.com"]
+        "*" = ["admin@example.com"]
 
         [log]
         output = "/var/log/teleport-datadog.log"
