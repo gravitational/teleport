@@ -51,7 +51,8 @@ func TestTeleportInstaller_Install(t *testing.T) {
 		reservedTmp     uint64
 		reservedInstall uint64
 		existingSum     string
-		errMatch        string
+
+		errMatch string
 	}{
 		{
 			name: "not present",

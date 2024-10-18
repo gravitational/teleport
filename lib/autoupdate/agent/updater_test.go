@@ -20,6 +20,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -124,9 +125,10 @@ func TestUpdater_Enable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		cfg     *UpdateConfig // nil -> file not present
-		userCfg UserConfig
+		name       string
+		cfg        *UpdateConfig // nil -> file not present
+		userCfg    OverrideConfig
+		installErr error
 
 		installedVersion  string
 		installedTemplate string
@@ -161,7 +163,7 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "old-version",
 				},
 			},
-			userCfg: UserConfig{
+			userCfg: OverrideConfig{
 				Group:        "new-group",
 				URLTemplate:  "https://example.com/new",
 				ForceVersion: "new-version",
@@ -194,6 +196,18 @@ func TestUpdater_Enable(t *testing.T) {
 				},
 			},
 			errMatch: "URL must use TLS",
+		},
+		{
+			name: "install error",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+				},
+			},
+			installErr: errors.New("install error"),
+			errMatch:   "install error",
 		},
 		{
 			name: "version already installed",
@@ -252,7 +266,7 @@ func TestUpdater_Enable(t *testing.T) {
 				FuncInstall: func(_ context.Context, version, template string) error {
 					installedVersion = version
 					installedTemplate = template
-					return nil
+					return tt.installErr
 				},
 			}
 

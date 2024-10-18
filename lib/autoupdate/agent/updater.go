@@ -55,6 +55,8 @@ const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz"
 	// reservedFreeDisk is the minimum required free space left on disk during downloads.
+	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
+	//   to account for a range of disk sizes.
 	reservedFreeDisk = 10_000_000 // 10 MB
 )
 
@@ -83,7 +85,7 @@ type UpdateConfig struct {
 type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
-	// Group update identifier
+	// Group specifies the update group identifier for the agent.
 	Group string `yaml:"group"`
 	// URLTemplate for the Teleport tgz download URL.
 	URLTemplate string `yaml:"url_template"`
@@ -173,8 +175,9 @@ type Installer interface {
 	Remove(ctx context.Context, version string) error
 }
 
-// UserConfig contains user overrides for installing Teleport agents.
-type UserConfig struct {
+// OverrideConfig contains overrides for individual update operations.
+// If validated, these overrides may be persisted to disk.
+type OverrideConfig struct {
 	// Proxy address, scheme and port optional.
 	// Overrides existing value if specified.
 	Proxy string
@@ -192,20 +195,20 @@ type UserConfig struct {
 // If the initial update succeeds, auto-updates are enabled and the configuration is persisted.
 // Otherwise, the auto-updates configuration is not changed.
 // This function is idempotent.
-func (u *Updater) Enable(ctx context.Context, userCfg UserConfig) error {
+func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
 	cfg, err := u.readConfig(u.ConfigPath)
 	if err != nil {
 		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
 	}
-	if userCfg.Proxy != "" {
-		cfg.Spec.Proxy = userCfg.Proxy
+	if override.Proxy != "" {
+		cfg.Spec.Proxy = override.Proxy
 	}
-	if userCfg.Group != "" {
-		cfg.Spec.Group = userCfg.Group
+	if override.Group != "" {
+		cfg.Spec.Group = override.Group
 	}
-	if userCfg.URLTemplate != "" {
-		cfg.Spec.URLTemplate = userCfg.URLTemplate
+	if override.URLTemplate != "" {
+		cfg.Spec.URLTemplate = override.URLTemplate
 	}
 	cfg.Spec.Enabled = true
 	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
@@ -218,7 +221,7 @@ func (u *Updater) Enable(ctx context.Context, userCfg UserConfig) error {
 		return trace.Errorf("failed to parse proxy server address: %w", err)
 	}
 
-	desiredVersion := userCfg.ForceVersion
+	desiredVersion := override.ForceVersion
 	if desiredVersion == "" {
 		resp, err := webclient.Find(&webclient.Config{
 			Context:   ctx,
@@ -244,7 +247,6 @@ func (u *Updater) Enable(ctx context.Context, userCfg UserConfig) error {
 		if template == "" {
 			template = cdnURITemplate
 		}
-		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
 		err = u.Installer.Install(ctx, desiredVersion, template)
 		if err != nil {
 			return trace.Wrap(err)
@@ -293,7 +295,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 	return nil
 }
 
-// readConfig reads update.yaml
+// readConfig reads UpdateConfig from a file.
 func (*Updater) readConfig(path string) (*UpdateConfig, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -319,7 +321,7 @@ func (*Updater) readConfig(path string) (*UpdateConfig, error) {
 	return &cfg, nil
 }
 
-// writeConfig writes update.yaml atomically, ensuring the file cannot be corrupted.
+// writeConfig writes UpdateConfig to a file atomically, ensuring the file cannot be corrupted.
 func (*Updater) writeConfig(filename string, cfg *UpdateConfig) error {
 	opts := []renameio.Option{
 		renameio.WithPermissions(0755),

@@ -72,7 +72,7 @@ func main() {
 }
 
 type cliConfig struct {
-	autoupdate.UserConfig
+	autoupdate.OverrideConfig
 
 	// Debug logs enabled
 	Debug bool
@@ -230,7 +230,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Errorf("failed to setup updater: %w", err)
 	}
-	if err := updater.Enable(ctx, ccfg.UserConfig); err != nil {
+	if err := updater.Enable(ctx, ccfg.OverrideConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
