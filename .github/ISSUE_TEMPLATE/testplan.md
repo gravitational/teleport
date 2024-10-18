@@ -1563,13 +1563,21 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] Verify that users can run custom audit queries.
   - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
 
-- [ ] Access List
+- [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
-    - [ ] Verify permissions granted by Access List membership.
-    - [ ] Verify permissions granted by Access List ownership.
-    - [ ] Verify Access List Review.
-    - [ ] verify Access LIst Promotion.
-    - [ ] Verify that owners can only add/remove members and not change other properties.
+  - [ ] Verify permissions granted by Access List membership.
+  - [ ] Verify permissions granted by Access List ownership.
+  - [ ] Verify Access List Review.
+  - [ ] verify Access LIst Promotion.
+  - [ ] Verify that owners can only add/remove members and not change other properties.
+  - [ ] Nested Access Lists
+    - [ ] Verify that Access Lists can be added as members or owners of other Access Lists.
+    - [ ] Verify that member grants from ancestor lists are inherited by members of nested Access Lists added as members.
+    - [ ] Verify that owner grants from ancestor lists are inherited by members of nested Access Lists added as owners.
+    - [ ] Verify that Access List Review and Promotion work with nested Access Lists.
+    - [ ] Verify that manually deleting a nested Access List used as a member or owner does not break UserLoginState generation or listing Access Lists.
+    - [ ] Verify that an Access List can be added as a member or owner of another Access List using `tctl`.
+    - [ ] Verify that Access Lists added as members or owners of other Access Lists using `tctl` are validated (no circular references, no nesting > 10 levels).
 
 - [ ] Verify Okta Sync Service
   - [ ] Verify Okta Plugin configuration.
@@ -1579,6 +1587,7 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
+    - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
   - [ ] Verify access to Okta apps granted by access_list/access_request.
 
