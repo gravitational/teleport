@@ -80,6 +80,7 @@ class FeatureAccessRequests implements TeleportFeature {
     getLink() {
       return cfg.getAccessRequestRoute();
     },
+    searchableTags: ['access requests'],
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -253,6 +254,7 @@ class FeatureAccessMonitoring implements TeleportFeature {
     getLink() {
       return cfg.routes.accessMonitoring.base;
     },
+    searchableTags: ['access monitoring'],
   };
 }
 
@@ -288,6 +290,7 @@ class FeatureAccessListManagement implements TeleportFeature {
     getLink() {
       return cfg.getAccessListManagementRoute(null);
     },
+    searchableTags: ['access lists', 'lists'],
   };
 }
 
@@ -314,6 +317,7 @@ class FeatureDeviceTrust implements TeleportFeature {
     getLink() {
       return cfg.routes.deviceTrust;
     },
+    searchableTags: ['device trust', 'trusted devices', 'devices'],
   };
 }
 
@@ -430,6 +434,7 @@ class FeatureAccessGraph implements TeleportFeature {
     getLink() {
       return cfg.routes.accessGraph;
     },
+    searchableTags: ['access graph', 'graph', 'tag'],
   };
 }
 
