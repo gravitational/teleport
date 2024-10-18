@@ -24,7 +24,12 @@ const fontMonoMac = `Menlo, Monaco, "Courier New", monospace`;
 
 export const font = `Ubuntu2, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";`;
 
-export const fonts = {
+export interface Fonts {
+  sansSerif: string;
+  mono: string;
+}
+
+export const fonts: Fonts = {
   sansSerif: font,
   mono: getMonoFont(),
 };
