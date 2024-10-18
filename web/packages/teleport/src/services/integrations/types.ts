@@ -67,6 +67,11 @@ export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
+  /**
+   * origin specifies name of a Teleport integration, plugin or a
+   * discovery service for which this integration was created.
+   */
+  origin?: string;
 };
 
 export enum IntegrationStatusCode {
@@ -230,7 +235,13 @@ export type IntegrationCreateRequest = {
   name: string;
   subKind: IntegrationKind;
   awsoidc?: IntegrationSpecAwsOidc;
+  origin?: IntegrationOrigin;
 };
+
+/** IntegrationOrigin specifies origin of an integration  */
+export enum IntegrationOrigin {
+  AwsIdentityCenter = 'aws-identity-center',
+}
 
 export type IntegrationListResponse = {
   items: Integration[];

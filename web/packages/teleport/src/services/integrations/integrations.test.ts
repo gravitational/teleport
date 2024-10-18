@@ -20,9 +20,9 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { integrationService } from './integrations';
-import { IntegrationStatusCode } from './types';
+import { IntegrationStatusCode, IntegrationOrigin } from './types';
 
-test('fetchIntegration() response (a integration)', async () => {
+test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue(awsOidcIntegration);
 
@@ -36,6 +36,7 @@ test('fetchIntegration() response (a integration)', async () => {
     resourceType: 'integration',
     spec: {
       roleArn: 'arn-123',
+      origin: undefined,
     },
     statusCode: IntegrationStatusCode.Running,
   });
@@ -51,14 +52,19 @@ test('fetchIntegration() response (a integration)', async () => {
     name: undefined,
     spec: {
       roleArn: undefined,
+      origin: undefined,
     },
   });
 });
 
-test('fetchIntegrations() response (list)', async () => {
+test('fetch integration list: fetchIntegrations()', async () => {
   // test a valid response
   jest.spyOn(api, 'get').mockResolvedValue({
-    items: [awsOidcIntegration, nonAwsOidcIntegration],
+    items: [
+      awsOidcIntegration,
+      awsOidcIntegrationWithOriginLabel,
+      nonAwsOidcIntegration,
+    ],
     nextKey: 'some-key',
   });
 
@@ -73,6 +79,17 @@ test('fetchIntegrations() response (list)', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-123',
+          origin: undefined,
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+      {
+        kind: 'aws-oidc',
+        name: 'aws-oidc-integration2',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn-12345',
+          origin: IntegrationOrigin.AwsIdentityCenter,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -82,6 +99,7 @@ test('fetchIntegrations() response (list)', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: undefined,
+          origin: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -198,6 +216,13 @@ const awsOidcIntegration = {
   name: 'aws-oidc-integration',
   subKind: 'aws-oidc',
   awsoidc: { roleArn: 'arn-123' },
+};
+
+const awsOidcIntegrationWithOriginLabel = {
+  name: 'aws-oidc-integration2',
+  subKind: 'aws-oidc',
+  awsoidc: { roleArn: 'arn-12345' },
+  origin: IntegrationOrigin.AwsIdentityCenter,
 };
 
 const mockAwsDbs = [
