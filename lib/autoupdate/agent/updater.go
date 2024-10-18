@@ -40,17 +40,6 @@ import (
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
-var (
-	featureFlag int
-)
-
-const (
-	// flagEnt represents enterprise version.
-	flagEnt = 1 << iota
-	// flagFIPS represents enterprise version with fips feature enabled.
-	flagFIPS
-)
-
 const (
 	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport{{if .Enterprise}}-ent{{end}}-v{{.Version}}-{{.OS}}-{{.Arch}}{{if .FIPS}}-fips{{end}}-bin.tar.gz"
