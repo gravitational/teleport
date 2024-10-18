@@ -30,6 +30,23 @@ on:
         type: environment
         default: publish-stage
 
+  # The workflow_call event duplicates the workflow_description input parameters, without descriptions.
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: gravitational/teleport
+      oss-teleport-ref:
+        type: string
+      teleport-version:
+        type: string
+      cloud-only:
+        type: boolean
+        default: false
+      environment:
+        type: string
+        default: publish-stage
+
 jobs:
   setup:
     runs-on: ubuntu-latest

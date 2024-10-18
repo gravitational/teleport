@@ -37,6 +37,24 @@ on:
         description: Perform a cloud-only release (distroless OCI only)
         type: boolean
         default: false
+  # The workflow_call event duplicates the workflow_dispatch input parameters, without descriptions. 
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        default: gravitational/teleport
+        type: string
+      oss-teleport-ref:
+        type: string
+      ent-teleport-ref:
+        type: string
+      teleport-version:
+        type: string
+      environment:
+        type: string
+        default: build-stage
+      cloud-only:
+        type: boolean
+        default: false
 
 jobs:
   setup:
@@ -134,6 +152,7 @@ jobs:
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       release: enterprise
       release-target: ${{ format('release-{0}', matrix.arch) }}${{ matrix.fips && '-fips' || '' }}
+      release-version: ${{ needs.setup.outputs.version }}
       build-connect: ${{ matrix.build-connect || false }}
       build-deb: true
       build-rpm: true

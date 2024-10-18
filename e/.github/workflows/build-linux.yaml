@@ -36,6 +36,12 @@ on:
         required: true
         type: string
 
+      release-version:
+        description: |
+          Override the build version from what is in the Makefile.
+          Use this override to specify a tag for build debugging purposes.
+        type: string
+
       build-connect:
         description: "Should Teleport Connect be built"
         required: false
@@ -78,6 +84,8 @@ on:
       release-target:
         type: string
         required: true
+      release-version:
+        type: string
       build-connect:
         type: boolean
         default: false
@@ -218,9 +226,11 @@ jobs:
       # builds do not go through the top-level teleport Makefile, which sets it for
       # other builds.
       - name: Set Version
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
         run: |
           VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "VERSION=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_ENV"
 
       - name: Build Release
         env:
@@ -229,7 +239,7 @@ jobs:
         run: |
           mkdir -p "$RELEASE_DIR" # TODO(camscale): Move -p to Makefile
 
-          make -C build.assets "$RELEASE_TARGET"
+          make -C build.assets "$RELEASE_TARGET" VERSION="$VERSION"
 
           # FIPS builds put the build archives in e/build/artifacts. If there are
           # any files in there, move them to the top-level build/artifacts dir.
@@ -252,7 +262,7 @@ jobs:
           OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           RELEASE: ${{ inputs.release }}
         run: |
-          make deb
+          make deb VERSION="$VERSION"
           # TODO(camscale): Move artifact copying to Makefile(s)
           cp build/*.deb build/artifacts
           if [ "$RELEASE" = 'enterprise' ]; then
@@ -267,7 +277,7 @@ jobs:
           RUNTIME: fips
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
         run: |
-          make -C e deb
+          make -C e deb VERSION="$VERSION"
           # TODO(camscale): Move artifact copying to Makefile(s)
           cp e/build/*.deb build/artifacts
 
@@ -295,7 +305,7 @@ jobs:
           RELEASE: ${{ inputs.release }}
           GNUPG_DIR: /tmp/gnupg
         run: |
-          make rpm
+          make rpm VERSION="$VERSION"
           # TODO(camscale): Move artifact copying to Makefile(s)
           cp build/*.rpm build/artifacts
           if [ "$RELEASE" = 'enterprise' ]; then
@@ -312,7 +322,7 @@ jobs:
           RELEASE: ${{ inputs.release }}
           GNUPG_DIR: /tmp/gnupg
         run: |
-          make -C e rpm
+          make -C e rpm VERSION="$VERSION"
           # TODO(camscale): Move artifact copying to Makefile(s)
           cp e/build/*.rpm build/artifacts
 
