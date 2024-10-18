@@ -195,5 +195,7 @@ message Event {
     // ProvisioningPrincipalState is a resource for tracking the provisioning of
     // users and groups into downstream systems.
     teleport.provisioning.v1.PrincipalState ProvisioningPrincipalState = 70;
+    // AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+    teleport.autoupdate.v1.AutoUpdateAgentRollout AutoUpdateAgentRollout = 71;
   }
 }
