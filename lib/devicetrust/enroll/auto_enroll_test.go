@@ -63,3 +63,10 @@ func TestAutoEnrollCeremony_Run(t *testing.T) {
 		})
 	}
 }
+
+func TestAutoEnroll_disabledByEnv(t *testing.T) {
+	t.Setenv("TELEPORT_DEVICE_AUTO_ENROLL_DISABLED", "1")
+
+	_, err := enroll.AutoEnroll(context.Background(), nil /* devicesClient */)
+	assert.ErrorIs(t, err, enroll.ErrAutoEnrollDisabled, "AutoEnroll() error mismatch")
+}

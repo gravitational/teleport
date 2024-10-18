@@ -16,11 +16,20 @@ package enroll
 
 import (
 	"context"
+	"errors"
+	"os"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
+
+// ErrAutoEnrollDisabled signifies that auto-enroll is disabled in the current
+// device.
+// Setting the TELEPORT_DEVICE_AUTO_ENROLL_DISABLED=1 environment disables
+// auto-enroll.
+var ErrAutoEnrollDisabled = errors.New("auto-enroll disabled")
 
 // AutoEnrollCeremony is the auto-enrollment version of [Ceremony].
 type AutoEnrollCeremony struct {
@@ -45,6 +54,11 @@ func AutoEnroll(ctx context.Context, devicesClient devicepb.DeviceTrustServiceCl
 // [devicepb.DeviceTrustServiceClient.CreateDeviceEnrollToken] and enrolls the
 // device using a regular [Ceremony].
 func (c *AutoEnrollCeremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient) (*devicepb.Device, error) {
+	const autoEnrollDisabledKey = "TELEPORT_DEVICE_AUTO_ENROLL_DISABLED"
+	if disabled, _ := strconv.ParseBool(os.Getenv(autoEnrollDisabledKey)); disabled {
+		return nil, trace.Wrap(ErrAutoEnrollDisabled)
+	}
+
 	// Creating the init message straight away aborts the process cleanly if the
 	// device cannot create the device key (for example, if it lacks a TPM).
 	// This avoids a situation where we ask for escalation, like a sudo prompt or
