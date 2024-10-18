@@ -483,8 +483,8 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// establish new connections
-		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
+		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
 			c.config.Log.DebugContext(c.ctx, "error dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
@@ -684,8 +684,8 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 			continue
 		}
 
-		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
+		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
 			c.config.Log.DebugContext(c.ctx, "error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
@@ -715,7 +715,11 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 // connect dials a new connection to proxyAddr.
 func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (clientConn, error) {
 	if supportsQUIC && c.config.QUICTransport != nil {
-		panic("QUIC proxy peering is not implemented")
+		conn, err := c.connectQUIC(peerID, peerAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
 	}
 	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
