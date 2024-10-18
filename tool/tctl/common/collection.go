@@ -568,8 +568,17 @@ func (c *authPrefCollection) resources() (r []types.Resource) {
 }
 
 func (c *authPrefCollection) writeText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
-	t.AddRow([]string{c.authPref.GetType(), string(c.authPref.GetSecondFactor())})
+	var secondFactorStrings []string
+	for _, sf := range c.authPref.GetSecondFactors() {
+		sfString, err := sf.Encode()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		secondFactorStrings = append(secondFactorStrings, sfString)
+	}
+
+	t := asciitable.MakeTable([]string{"Type", "Second Factors"})
+	t.AddRow([]string{c.authPref.GetType(), strings.Join(secondFactorStrings, ", ")})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -1842,7 +1851,7 @@ func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error 
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Enabled"})
 	t.AddRow([]string{
 		c.config.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.config.GetSpec().GetToolsAutoupdate()),
+		fmt.Sprintf("%v", c.config.GetSpec().GetTools().GetMode()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -1860,7 +1869,7 @@ func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Version"})
 	t.AddRow([]string{
 		c.version.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.version.GetSpec().GetToolsVersion()),
+		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

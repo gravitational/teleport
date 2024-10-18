@@ -2246,6 +2246,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
 
+	for _, matcher := range fc.WindowsDesktop.ResourceMatchers {
+		cfg.WindowsDesktop.ResourceMatchers = append(cfg.WindowsDesktop.ResourceMatchers, services.ResourceMatcher{
+			Labels: matcher.Labels,
+		})
+	}
+
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}

@@ -61,7 +61,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
-			Log:       utils.NewLoggerForTests(),
+			Logger:    utils.NewSlogLoggerForTests(),
 			Clock:     clock,
 			Client:    &mockLocalSiteClient{},
 		},
@@ -253,7 +253,7 @@ func TestProxyResync(t *testing.T) {
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
-			Log:       utils.NewLoggerForTests(),
+			Logger:    utils.NewSlogLoggerForTests(),
 			Clock:     clock,
 			Client: &mockLocalSiteClient{
 				proxies: []types.Server{proxy1, proxy2},

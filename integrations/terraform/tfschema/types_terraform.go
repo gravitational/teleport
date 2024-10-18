@@ -2961,6 +2961,11 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
+						"max_age": {
+							Description: "MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
 						"prompt": {
 							Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
 							Optional:    true,
@@ -29448,6 +29453,23 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["max_age"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings.max_age"})
+										} else {
+											v, ok := a.(DurationValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.max_age", "DurationValue"})
+											} else {
+												var t github_com_gravitational_teleport_api_types.Duration
+												if !v.Null && !v.Unknown {
+													t = github_com_gravitational_teleport_api_types.Duration(v.Value)
+												}
+												obj.MaxAge = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -30529,6 +30551,28 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 											v.Value = string(obj.Prompt)
 											v.Unknown = false
 											tf.Attrs["prompt"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["max_age"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings.max_age"})
+										} else {
+											v, ok := tf.Attrs["max_age"].(DurationValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.MFASettings.max_age", err})
+												}
+												v, ok = i.(DurationValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.max_age", "DurationValue"})
+												}
+												v.Null = false
+											}
+											v.Value = time.Duration(obj.MaxAge)
+											v.Unknown = false
+											tf.Attrs["max_age"] = v
 										}
 									}
 								}

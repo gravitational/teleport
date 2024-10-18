@@ -105,6 +105,7 @@ type Config struct {
 	WebToken                types.WebTokenInterface
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
+	ProvisioningStates      services.ProvisioningStates
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -154,7 +155,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	component = append(component, teleport.ComponentCache)
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
-	cacheCfg := &cache.Config{
+	cacheCfg := cache.Config{
 		Context:         cfg.Context,
 		Backend:         reporter,
 		Component:       teleport.Component(component...),
@@ -199,7 +200,8 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		WebSession:              cfg.WebSession,
 		WebToken:                cfg.WebToken,
 		WindowsDesktops:         cfg.WindowsDesktops,
+		ProvisioningStates:      cfg.ProvisioningStates,
 	}
 
-	return cache.New(cfg.Setup(*cacheCfg))
+	return cache.New(cfg.Setup(cacheCfg))
 }

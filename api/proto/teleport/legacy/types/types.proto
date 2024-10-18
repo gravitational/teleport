@@ -3736,6 +3736,7 @@ message MFADevice {
     TOTPDevice totp = 8;
     U2FDevice u2f = 9;
     WebauthnDevice webauthn = 10;
+    SSOMFADevice sso = 11;
   }
 }
 
@@ -3798,6 +3799,14 @@ message WebauthnDevice {
   // backfill (for older authenticators).
   // https://w3c.github.io/webauthn/#authdata-flags-bs
   google.protobuf.BoolValue credential_backed_up = 10;
+}
+
+// SSOMFADevice contains details of an SSO MFA method.
+message SSOMFADevice {
+  // connector_id is the ID of the SSO connector.
+  string connector_id = 1;
+  // connector_type is the type of the SSO connector.
+  string connector_type = 2;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -4600,6 +4609,10 @@ message OIDCConnectorMFASettings {
   // Prompt is an optional OIDC prompt. An empty string omits prompt.
   // If not specified, it defaults to select_account for backwards compatibility.
   string prompt = 5;
+  // MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to
+  // 0 to always force re-authentication for MFA checks. This should only be set to a non-zero
+  // value if the IdP is setup to perform MFA checks on top of active user sessions.
+  int64 max_age = 6 [(gogoproto.casttype) = "Duration"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -5495,6 +5508,36 @@ message WindowsDesktopSpecV3 {
   Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
 }
 
+// DynamicWindowsDesktopV1 represents a dynamic windows host for desktop access.
+message DynamicWindowsDesktopV1 {
+  // Header is the common resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the DynamicWindows host spec.
+  DynamicWindowsDesktopSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// DynamicWindowsDesktopSpecV1 is the dynamic windows host spec.
+message DynamicWindowsDesktopSpecV1 {
+  // Addr is the address that this host can be reached at.
+  string Addr = 1 [(gogoproto.jsontag) = "addr"];
+  // Domain is the ActiveDirectory domain that this host belongs to.
+  string Domain = 2 [(gogoproto.jsontag) = "domain"];
+  // NonAD marks this desktop as a standalone host that is
+  // not joined to an Active Directory domain.
+  bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
+  // ScreenSize specifies the size of the screen to use for sessions
+  // on this host. In most cases this should be unspecified, in which
+  // case Teleport will fill the browser window.
+  Resolution ScreenSize = 5 [(gogoproto.jsontag) = "screen_size,omitempty"];
+}
+
 message Resolution {
   uint32 Width = 1 [(gogoproto.jsontag) = "width,omitempty"];
   uint32 Height = 2 [(gogoproto.jsontag) = "height,omitempty"];
@@ -6304,6 +6347,21 @@ message PluginOktaSettings {
 
   // Sync settings controls the user and access list sync settings for Okta.
   PluginOktaSyncSettings sync_settings = 4;
+
+  // CredentialsInfo contains information about the Okta credentials.
+  PluginOktaCredentialsInfo credentials_info = 5;
+}
+
+// PluginOktaCredentialsInfo contains information about the Okta credentials.
+// This is used to determine if the plugin has configured the necessary credentials.
+message PluginOktaCredentialsInfo {
+  option (gogoproto.equal) = true;
+  // HasSSMSToken is true if the plugin has configured SSMSToken.
+  bool has_ssm_token = 1;
+  // HasOauthCredentials is true if the plugin has configured OauthCredentials.
+  bool has_oauth_credentials = 2;
+  // HasSCIMToken is true if the plugin has configured SCIMToken.
+  bool has_scim_token = 3;
 }
 
 // Defines settings for syncing users and access lists from Okta.

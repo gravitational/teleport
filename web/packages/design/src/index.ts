@@ -31,7 +31,6 @@ import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
-import DocumentTitle from './DocumentTitle';
 import Indicator from './Indicator';
 import Input from './Input';
 import Label from './Label';
@@ -52,7 +51,6 @@ import Text, {
   Subtitle2,
   Subtitle3,
 } from './Text';
-import SideNav, { SideNavItem } from './SideNav';
 import { StepSlider } from './StepSlider';
 import TopNav from './TopNav';
 import Flex from './Flex';
@@ -80,7 +78,6 @@ export {
   Card,
   CardSuccess,
   CardSuccessLogin,
-  DocumentTitle,
   Flex,
   H1,
   H2,
@@ -103,8 +100,6 @@ export {
   Pill,
   Popover,
   ResourceIcon,
-  SideNav,
-  SideNavItem,
   StepSlider,
   Subtitle1,
   Subtitle2,

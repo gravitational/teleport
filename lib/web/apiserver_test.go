@@ -4612,7 +4612,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	const MOTD = "Welcome to cluster, your activity will be recorded."
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          constants.Local,
-		SecondFactor:  constants.SecondFactorOptional,
+		SecondFactor:  constants.SecondFactorOn,
 		ConnectorName: constants.PasswordlessConnector,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
@@ -4642,7 +4642,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Providers: []webclient.WebConfigAuthProvider{{
 				Name:      "test-github",
 				Type:      constants.Github,
@@ -7805,6 +7805,10 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
+func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error) {
+	return nil, nil
+}
+
 func (mock authProviderMock) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	return &mock.server, nil
 }
@@ -9069,7 +9073,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: component,
-			Log:       log,
 			Client:    client,
 			Clock:     clock,
 		},
