@@ -465,6 +465,15 @@ pub unsafe extern "C" fn client_write_screen_resize(
 }
 
 #[repr(C)]
+pub struct CGOLicenseRequest {
+    major_version: u16,
+    minor_version: u16,
+    issuer: *const c_char,
+    company: *const c_char,
+    product_id: *const c_char,
+}
+
+#[repr(C)]
 pub struct CGOConnectParams {
     ad: bool,
     nla: bool,
@@ -705,6 +714,18 @@ pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;
 // These functions are defined on the Go side.
 // Look for functions with '//export funcname' comments.
 extern "C" {
+    fn cgo_read_rdp_license(
+        cgo_handle: CgoHandle,
+        req: *mut CGOLicenseRequest,
+        data_out: *mut *mut u8,
+        len_out: *mut usize,
+    ) -> CGOErrCode;
+    fn cgo_write_rdp_license(
+        cgo_handle: CgoHandle,
+        req: *mut CGOLicenseRequest,
+        data: *mut u8,
+        length: usize,
+    ) -> CGOErrCode;
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_rdp_connection_activated(
