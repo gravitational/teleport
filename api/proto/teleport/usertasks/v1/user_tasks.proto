@@ -67,6 +67,12 @@ message DiscoverEC2 {
   string account_id = 2;
   // Region is the AWS Region where Teleport failed to enroll EC2 instances.
   string region = 3;
+  // SSMDocument is the Amazon Systems Manager SSM Document name that was used to install teleport on the instance.
+  // In Amazon console, the document is at:
+  // https://REGION.console.aws.amazon.com/systems-manager/documents/SSM_DOCUMENT/description
+  string ssm_document = 4;
+  // InstallerScript is the Teleport installer script that was used to install teleport on the instance.
+  string installer_script = 5;
 }
 
 // DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.
