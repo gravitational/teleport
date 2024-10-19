@@ -854,7 +854,9 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
 	totalInstancesFound := len(instances.Instances)
 	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
-		s.filterExistingEC2Nodes(instances)
+		if err := s.filterExistingEC2Nodes(instances); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	instancesAlreadyEnrolled := totalInstancesFound - len(instances.Instances)
@@ -916,12 +918,15 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 			continue
 		}
 
-		if len(existingNodes) != 1 {
-			s.Log.Warnf("Found multiple matching nodes with name :q", eiceNode.GetName())
+		var existingNode types.Server
+		switch len(existingNodes) {
+		case 0:
+		case 1:
+			existingNode = existingNodes[0]
+		default:
+			s.Log.Warnf("Found multiple matching nodes with name %q", eiceNode.GetName())
 			continue
 		}
-
-		existingNode := existingNodes[0]
 
 		// EICE Node's Name are deterministic (based on the Account and Instance ID).
 		//
@@ -1173,7 +1178,9 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.filterExistingAzureNodes(instances)
+	if err := s.filterExistingAzureNodes(instances); err != nil {
+		return trace.Wrap(err)
+	}
 	if len(instances.Instances) == 0 {
 		return trace.Wrap(errNoInstances)
 	}
@@ -1265,7 +1272,9 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.filterExistingGCPNodes(instances)
+	if err := s.filterExistingGCPNodes(instances); err != nil {
+		return trace.Wrap(err)
+	}
 	if len(instances.Instances) == 0 {
 		return trace.Wrap(errNoInstances)
 	}
