@@ -1339,6 +1339,7 @@ func (a *Server) runPeriodicOperations() {
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 
 	ticker := interval.NewMulti(
+		a.GetClock(),
 		interval.SubInterval[periodicIntervalKey]{
 			Key:      rotationCheckKey,
 			Duration: period,
