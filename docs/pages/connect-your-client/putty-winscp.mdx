@@ -49,7 +49,7 @@ To add saved sessions to PuTTY:
 
 1. Sign into a Teleport cluster using the `tsh login` command:
 
-```bash
+```code
 C:\Users\gus>tsh login --proxy=teleport.example.com
 ```
 
@@ -57,7 +57,7 @@ This command retrieves your user certificates and saves them in a local file in 
 
 2. List SSH nodes that the user can connect to inside the cluster:
 
-```bash
+```code
 C:\Users\gus>tsh ls
 Node Name                           Address        Labels
 ----------------------------------- -------------- ----------------------------
@@ -71,7 +71,7 @@ ip-172-31-8-63                      172.31.8.63:22 type=openssh
 For example, you can add a saved session for the login `ubuntu` on the node `ip-172-31-30-140` to the Windows
 registry by running the following command:
 
-```bash
+```code
 C:\Users\gus>tsh puttyconfig ubuntu@ip-172-31-30-140
 Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:teleport.example.com]
 ```
@@ -82,7 +82,7 @@ If you are adding a session for a registered OpenSSH node within your cluster (a
 [`teleport join openssh`](../enroll-resources/server-access/openssh/openssh-agentless.mdx)), you must specify the `sshd` port
 (usually 22) when adding a session with `tsh puttyconfig`:
 
-```bash
+```code
 C:\Users\gus>tsh puttyconfig --port 22 ubuntu@ip-172-31-8-63
 Added PuTTY session for ubuntu@ip-172-31-8-63 [proxy:teleport.example.com]
 ```
@@ -94,7 +94,7 @@ You can also use `tsh puttyconfig user@host:22` if you prefer.
 
 1. Sign into a Teleport cluster using the `tsh login` command:
 
-```bash
+```code
 C:\Users\gus>tsh login --proxy=mytenant.teleport.sh
 ```
 
@@ -115,7 +115,7 @@ ip-172-31-34-128.us-east-2.compu... ⟵ Tunnel      access=open,enhanced_reco...
 For example, you can add a saved session for the login `ubuntu` on the node `ip-172-31-30-140` to the Windows
 registry by running the following command:
 
-```bash
+```code
 C:\Users\gus>tsh puttyconfig ubuntu@ip-172-31-30-140
 Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:mytenant.teleport.sh]
 ```
@@ -154,7 +154,7 @@ recording of the session after you stop the session and disconnect from the host
 
 To list available leaf clusters, run the following command:
 
-```bash
+```code
 C:\Users\gus>tsh clusters
 Cluster Name         Status Cluster Type Labels Selected
 -----------------    ------ ------------ ------ --------
@@ -167,7 +167,7 @@ You can access a leaf cluster in a PuTTY session by adding the `--leaf <leaf clu
 For example, if your leaf cluster is named `example.teleport.sh` and your node is called `ip-172-31-34-128.us-east-2.compute.internal`,
 you can add a PuTTY session for the login `ec2-user` using the following command:
 
-```bash
+```code
 C:\Users\gus>tsh puttyconfig --leaf example.teleport.sh ec2-user@ip-172-31-34-128.us-east-2.compute.internal
 Added PuTTY session for ec2-user@ip-172-31-34-128.us-east-2.compute.internal [leaf:example.teleport.sh,proxy:teleport.example.com]
 ```
