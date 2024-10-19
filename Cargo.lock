@@ -567,16 +567,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gethostname"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1ebd34e35c46e00bb73e81363248d627782724609fe1b6396f553f68fe3862e"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1233,12 +1223,10 @@ dependencies = [
 [[package]]
 name = "rdp-rs"
 version = "0.1.0"
-source = "git+https://github.com/gravitational/rdp-rs?rev=edfb5330a11d11eaf36d65e4300555368b4c6b02#edfb5330a11d11eaf36d65e4300555368b4c6b02"
 dependencies = [
  "boring",
  "bufstream",
  "byteorder",
- "gethostname",
  "hmac",
  "indexmap",
  "md-5",
@@ -1251,6 +1239,7 @@ dependencies = [
  "ring",
  "rsa 0.6.1",
  "rustls",
+ "uuid",
  "x509-parser",
  "yasna",
 ]
@@ -1706,9 +1695,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.4.1"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
+checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
 dependencies = [
  "getrandom 0.2.8",
 ]
