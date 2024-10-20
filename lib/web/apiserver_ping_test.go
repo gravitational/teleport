@@ -306,28 +306,52 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			expected: webclient.AutoUpdateSettings{},
 		},
 		{
-			name:     "enable auto update",
-			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
-			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: true},
+			name: "enable auto update",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeEnabled,
+				},
+			},
+			expected: webclient.AutoUpdateSettings{ToolsMode: "enabled"},
 			cleanup:  true,
 		},
 		{
-			name:     "set auto update version",
-			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+			name: "set auto update version",
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3",
+				},
+			},
 			expected: webclient.AutoUpdateSettings{ToolsVersion: "1.2.3"},
 			cleanup:  true,
 		},
 		{
-			name:     "enable auto update and set version",
-			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
-			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
-			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: true, ToolsVersion: "1.2.3"},
+			name: "enable auto update and set version",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeEnabled,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3",
+				},
+			},
+			expected: webclient.AutoUpdateSettings{ToolsMode: "enabled", ToolsVersion: "1.2.3"},
 		},
 		{
-			name:     "modify auto update config and version",
-			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: false},
-			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "3.2.1"},
-			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: false, ToolsVersion: "3.2.1"},
+			name: "modify auto update config and version",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeDisabled,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "3.2.1",
+				},
+			},
+			expected: webclient.AutoUpdateSettings{ToolsMode: "disabled", ToolsVersion: "3.2.1"},
 		},
 	}
 	for _, tc := range tests {

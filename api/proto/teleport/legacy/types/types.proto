@@ -6347,6 +6347,21 @@ message PluginOktaSettings {
 
   // Sync settings controls the user and access list sync settings for Okta.
   PluginOktaSyncSettings sync_settings = 4;
+
+  // CredentialsInfo contains information about the Okta credentials.
+  PluginOktaCredentialsInfo credentials_info = 5;
+}
+
+// PluginOktaCredentialsInfo contains information about the Okta credentials.
+// This is used to determine if the plugin has configured the necessary credentials.
+message PluginOktaCredentialsInfo {
+  option (gogoproto.equal) = true;
+  // HasSSMSToken is true if the plugin has configured SSMSToken.
+  bool has_ssm_token = 1;
+  // HasOauthCredentials is true if the plugin has configured OauthCredentials.
+  bool has_oauth_credentials = 2;
+  // HasSCIMToken is true if the plugin has configured SCIMToken.
+  bool has_scim_token = 3;
 }
 
 // Defines settings for syncing users and access lists from Okta.
