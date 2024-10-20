@@ -123,6 +123,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 		Status: events.Status{
 			Success: true,
 		},
+		PostgresPID: session.PostgresPID,
 	}
 
 	// If the database session wasn't started successfully, emit
