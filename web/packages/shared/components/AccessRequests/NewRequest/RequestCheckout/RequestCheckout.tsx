@@ -150,7 +150,7 @@ export function RequestCheckout<T extends PendingListItem>({
   setPendingRequestTtl,
   pendingRequestTtlOptions,
   dryRunResponse,
-  data,
+  pendingAccessRequests,
   showClusterNameColumn,
   createAttempt,
   fetchResourceRequestRolesAttempt,
@@ -190,11 +190,13 @@ export function RequestCheckout<T extends PendingListItem>({
     selectedResourceRequestRoles.length < 1;
 
   const submitBtnDisabled =
-    data.length === 0 ||
+    pendingAccessRequests.length === 0 ||
     createAttempt.status === 'processing' ||
     isInvalidRoleSelection ||
     fetchResourceRequestRolesAttempt.status === 'failed' ||
     fetchResourceRequestRolesAttempt.status === 'processing';
+
+  const numPendingAccessRequests = pendingAccessRequests.length;
 
   const DefaultHeader = () => {
     return (
@@ -208,7 +210,8 @@ export function RequestCheckout<T extends PendingListItem>({
         />
         <Box>
           <H2>
-            {data.length} {pluralize(data.length, 'Resource')} Selected
+            {numPendingAccessRequests}{' '}
+            {pluralize(numPendingAccessRequests, 'Resource')} Selected
           </H2>
         </Box>
       </Flex>
@@ -254,7 +257,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 <Alert kind="danger" children={createAttempt.statusText} />
               )}
               <StyledTable
-                data={data}
+                data={pendingAccessRequests}
                 columns={[
                   {
                     key: 'clusterName',
@@ -791,7 +794,7 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     isResourceRequest: boolean;
     requireReason: boolean;
     selectedReviewers: ReviewerOption[];
-    data: T[];
+    pendingAccessRequests: T[];
     showClusterNameColumn?: boolean;
     createRequest: (req: CreateRequest) => void;
     fetchStatus: 'loading' | 'loaded';

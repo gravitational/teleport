@@ -91,7 +91,7 @@ export default function useAccessRequestCheckout() {
     workspaceAccessRequest?.getPendingAccessRequest();
 
   useEffect(() => {
-    // Do a new dry run per changes to pending data
+    // Do a new dry run per changes to pending access requests
     // to get the latest time options and latest calculated
     // suggested reviewers.
     // Options and reviewers can change depending on the selected
@@ -106,12 +106,13 @@ export default function useAccessRequestCheckout() {
       return;
     }
 
-    const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
+    const pendingAccessRequests =
+      getPendingAccessRequestsPerResource(pendingAccessRequest);
     runFetchResourceRoles(() =>
       retryWithRelogin(ctx, clusterUri, async () => {
         const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
-          resourceIds: data
+          resourceIds: pendingAccessRequests
             .filter(d => d.kind !== 'role')
             .map(d => ({
               // We have to use id, not name.
@@ -148,9 +149,9 @@ export default function useAccessRequestCheckout() {
   function getPendingAccessRequestsPerResource(
     pendingRequest: PendingAccessRequest
   ): PendingListItemWithOriginalItem[] {
-    const data: PendingListItemWithOriginalItem[] = [];
+    const pendingAccessRequests: PendingListItemWithOriginalItem[] = [];
     if (!workspaceAccessRequest) {
-      return data;
+      return pendingAccessRequests;
     }
 
     switch (pendingRequest.kind) {
@@ -158,7 +159,7 @@ export default function useAccessRequestCheckout() {
         const clusterName =
           ctx.clustersService.findCluster(rootClusterUri)?.name;
         pendingRequest.roles.forEach(role => {
-          data.push({
+          pendingAccessRequests.push({
             kind: 'role',
             id: role,
             name: role,
@@ -171,7 +172,7 @@ export default function useAccessRequestCheckout() {
         pendingRequest.resources.forEach(resourceRequest => {
           const { kind, id, name } =
             extractResourceRequestProperties(resourceRequest);
-          data.push({
+          pendingAccessRequests.push({
             kind,
             id,
             name,
@@ -183,7 +184,7 @@ export default function useAccessRequestCheckout() {
         });
       }
     }
-    return data;
+    return pendingAccessRequests;
   }
 
   function isCollapsed() {
@@ -221,13 +222,14 @@ export default function useAccessRequestCheckout() {
    * Shared logic used both during dry runs and regular access request creation.
    */
   function prepareAndCreateRequest(req: CreateRequest) {
-    const data = getPendingAccessRequestsPerResource(pendingAccessRequest);
+    const pendingAccessRequests =
+      getPendingAccessRequestsPerResource(pendingAccessRequest);
     const params: CreateAccessRequestRequest = {
       rootClusterUri,
       reason: req.reason,
       suggestedReviewers: req.suggestedReviewers || [],
       dryRun: req.dryRun,
-      resourceIds: data
+      resourceIds: pendingAccessRequests
         .filter(d => d.kind !== 'role')
         .map(d => ({
           name: d.id,
@@ -235,7 +237,9 @@ export default function useAccessRequestCheckout() {
           kind: d.kind,
           subResourceName: '',
         })),
-      roles: data.filter(d => d.kind === 'role').map(d => d.name),
+      roles: pendingAccessRequests
+        .filter(d => d.kind === 'role')
+        .map(d => d.name),
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
       requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
@@ -250,7 +254,10 @@ export default function useAccessRequestCheckout() {
 
     return retryWithRelogin(ctx, clusterUri, () =>
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
-        return { accessRequest: response.request, requestedCount: data.length };
+        return {
+          accessRequest: response.request,
+          requestedCount: pendingAccessRequests.length,
+        };
       })
     ).catch(e => {
       setCreateRequestAttempt({ status: 'failed', statusText: e.message });
@@ -337,7 +344,8 @@ export default function useAccessRequestCheckout() {
     isCollapsed,
     assumedRequests: getAssumedRequests(),
     toggleResource,
-    data: getPendingAccessRequestsPerResource(pendingAccessRequest),
+    pendingAccessRequests:
+      getPendingAccessRequestsPerResource(pendingAccessRequest),
     shouldShowClusterNameColumn,
     createRequest,
     reset,
