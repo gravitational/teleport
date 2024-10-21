@@ -211,6 +211,12 @@ export default function useNewRequest(rootCluster: Cluster) {
       return;
     }
 
+    if (kind === 'namespace') {
+      // It is not possible to request a kube namespace through this function.
+      // The type should be corrected.
+      return;
+    }
+
     accessRequestsService.addOrRemoveResource(
       toResourceRequest({
         kind,

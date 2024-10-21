@@ -32,7 +32,7 @@ import * as Icon from 'design/Icon';
 import { pluralize } from 'shared/utils/text';
 
 import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewRequest';
-import { excludeKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
+import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
 
 import useAccessRequestCheckout from './useAccessRequestCheckout';
 import { AssumedRolesBar } from './AssumedRolesBar';
@@ -114,9 +114,7 @@ export function AccessRequestCheckout() {
     setShowCheckout(false);
   }
 
-  const filteredData = data.filter(d =>
-    excludeKubeClusterWithNamespaces(d, data)
-  );
+  const filteredData = data.filter(d => !isKubeClusterWithNamespaces(d, data));
 
   const numAddedResources = filteredData.length;
 
