@@ -184,7 +184,7 @@ func TestCheckApp(t *testing.T) {
 	}
 }
 
-func TestCheckAppPorts(t *testing.T) {
+func TestCheckAppTCPPorts(t *testing.T) {
 	type check func(t *testing.T, err error)
 
 	hasNoErr := func() check {
@@ -210,14 +210,14 @@ func TestCheckAppPorts(t *testing.T) {
 	}
 
 	tests := []struct {
-		name  string
-		ports []PortRange
-		uri   string
-		check check
+		name     string
+		tcpPorts []PortRange
+		uri      string
+		check    check
 	}{
 		{
 			name: "valid ranges and single ports",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 22, EndPort: 25},
 				PortRange{Port: 26},
 				PortRange{Port: 65535},
@@ -226,7 +226,7 @@ func TestCheckAppPorts(t *testing.T) {
 		},
 		{
 			name: "valid overlapping ranges",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 100, EndPort: 200},
 				PortRange{Port: 150, EndPort: 175},
 				PortRange{Port: 111},
@@ -238,7 +238,7 @@ func TestCheckAppPorts(t *testing.T) {
 		{
 			name: "valid non-TCP app with ports ignored",
 			uri:  "http://localhost:8000",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 123456789},
 				PortRange{Port: 10, EndPort: 2},
 			},
@@ -247,35 +247,35 @@ func TestCheckAppPorts(t *testing.T) {
 		// Test cases for invalid ports.
 		{
 			name: "port smaller than 1",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 0},
 			},
 			check: hasErrTypeBadParameter(),
 		},
 		{
 			name: "port bigger than 65535",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 78787},
 			},
 			check: hasErrTypeBadParameter(),
 		},
 		{
 			name: "end port smaller than 2",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 5, EndPort: 1},
 			},
 			check: hasErrTypeBadParameterAndContains("end port must be between"),
 		},
 		{
 			name: "end port bigger than 65535",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 1, EndPort: 78787},
 			},
 			check: hasErrTypeBadParameter(),
 		},
 		{
 			name: "end port smaller than port",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 10, EndPort: 5},
 			},
 			check: hasErrTypeBadParameterAndContains("end port must be greater than port"),
@@ -283,7 +283,7 @@ func TestCheckAppPorts(t *testing.T) {
 		{
 			name: "uri specifies port",
 			uri:  "tcp://localhost:1234",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 1000, EndPort: 1500},
 			},
 			check: hasErrTypeBadParameterAndContains("must not include a port number"),
@@ -291,7 +291,7 @@ func TestCheckAppPorts(t *testing.T) {
 		{
 			name: "invalid uri",
 			uri:  "%",
-			ports: []PortRange{
+			tcpPorts: []PortRange{
 				PortRange{Port: 1000, EndPort: 1500},
 			},
 			check: hasErrAndContains("invalid URL escape"),
@@ -301,9 +301,9 @@ func TestCheckAppPorts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			app := App{
-				Name:  "foo",
-				URI:   "tcp://localhost",
-				Ports: tc.ports,
+				Name:     "foo",
+				URI:      "tcp://localhost",
+				TCPPorts: tc.tcpPorts,
 			}
 			if tc.uri != "" {
 				app.URI = tc.uri

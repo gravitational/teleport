@@ -2037,11 +2037,11 @@ type App struct {
 	// controlling how resources are shared across different origins.
 	CORS *CORS `yaml:"cors,omitempty"`
 
-	// Ports is a list of ports and port ranges that an app agent can forward connections to.
+	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
 	// Only applicable to TCP App Access.
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
-	Ports []PortRange `yaml:"ports,omitempty"`
+	TCPPorts []PortRange `yaml:"tcp_ports,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)

@@ -5950,7 +5950,7 @@ func (process *TeleportProcess) initApps() {
 				Cloud:              app.Cloud,
 				RequiredAppNames:   app.RequiredAppNames,
 				CORS:               makeApplicationCORS(app.CORS),
-				Ports:              makeApplicationPorts(app.Ports),
+				TCPPorts:           makeApplicationTCPPorts(app.TCPPorts),
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6771,8 +6771,8 @@ func makeApplicationCORS(c *servicecfg.CORS) *types.CORSPolicy {
 	}
 }
 
-// makeApplicationPorts converts a slice of [servicecfg.PortRange] to a slice of [types.PortRange].
-func makeApplicationPorts(servicePorts []servicecfg.PortRange) []*types.PortRange {
+// makeApplicationTCPPorts converts a slice of [servicecfg.PortRange] to a slice of [types.PortRange].
+func makeApplicationTCPPorts(servicePorts []servicecfg.PortRange) []*types.PortRange {
 	ports := make([]*types.PortRange, 0, len(servicePorts))
 	for _, portRange := range servicePorts {
 		ports = append(ports, &types.PortRange{

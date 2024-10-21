@@ -195,7 +195,7 @@ func deriveTeleportEqual(this, that *AppSpecV3) bool {
 			this.Integration == that.Integration &&
 			deriveTeleportEqual_21(this.RequiredAppNames, that.RequiredAppNames) &&
 			deriveTeleportEqual_22(this.CORS, that.CORS) &&
-			deriveTeleportEqual_23(this.Ports, that.Ports)
+			deriveTeleportEqual_23(this.TCPPorts, that.TCPPorts)
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.

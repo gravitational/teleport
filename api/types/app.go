@@ -86,10 +86,10 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
-	// GetPorts returns port ranges supported by the app to which connections can be forwarded to.
-	GetPorts() []*PortRange
-	// SetPorts sets port ranges to which connections can be forwarded to.
-	SetPorts([]*PortRange)
+	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+	GetTCPPorts() []*PortRange
+	// SetTCPPorts sets port ranges to which connections can be forwarded to.
+	SetTCPPorts([]*PortRange)
 }
 
 // NewAppV3 creates a new app resource.
@@ -310,14 +310,14 @@ func (a *AppV3) SetUserGroups(userGroups []string) {
 	a.Spec.UserGroups = userGroups
 }
 
-// GetPorts returns port ranges supported by the app to which connections can be forwarded to.
-func (a *AppV3) GetPorts() []*PortRange {
-	return a.Spec.Ports
+// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
+func (a *AppV3) GetTCPPorts() []*PortRange {
+	return a.Spec.TCPPorts
 }
 
-// SetPorts sets port ranges to which connections can be forwarded to.
-func (a *AppV3) SetPorts(ports []*PortRange) {
-	a.Spec.Ports = ports
+// SetTCPPorts sets port ranges to which connections can be forwarded to.
+func (a *AppV3) SetTCPPorts(ports []*PortRange) {
+	a.Spec.TCPPorts = ports
 }
 
 // GetIntegration will return the Integration.
@@ -416,8 +416,8 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(a.Spec.Ports) != 0 {
-		if err := a.checkPorts(); err != nil {
+	if len(a.Spec.TCPPorts) != 0 {
+		if err := a.checkTCPPorts(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -425,7 +425,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (a *AppV3) checkPorts() error {
+func (a *AppV3) checkTCPPorts() error {
 	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
 	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
 	uri, err := url.Parse(a.Spec.URI)
@@ -443,23 +443,23 @@ func (a *AppV3) checkPorts() error {
 	}
 
 	if uri.Port() != "" {
-		return trace.BadParameter("app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
+		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
 	}
 
 	const minPort = 1
 	const maxPort = 65535
-	for _, portRange := range a.Spec.Ports {
+	for _, portRange := range a.Spec.TCPPorts {
 		if portRange.Port < minPort || portRange.Port > maxPort {
-			return trace.BadParameter("app port must be between %d and %d, but got %d", minPort, maxPort, portRange.Port)
+			return trace.BadParameter("TCP app port must be between %d and %d, but got %d", minPort, maxPort, portRange.Port)
 		}
 
 		if portRange.EndPort != 0 {
 			if portRange.EndPort < minPort+1 || portRange.EndPort > maxPort {
-				return trace.BadParameter("app end port must be between %d and %d, but got %d", minPort+1, maxPort, portRange.EndPort)
+				return trace.BadParameter("TCP app end port must be between %d and %d, but got %d", minPort+1, maxPort, portRange.EndPort)
 			}
 
 			if portRange.EndPort <= portRange.Port {
-				return trace.BadParameter("app end port must be greater than port (%d vs %d)", portRange.EndPort, portRange.Port)
+				return trace.BadParameter("TCP app end port must be greater than port (%d vs %d)", portRange.EndPort, portRange.Port)
 			}
 		}
 	}

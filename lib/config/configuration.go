@@ -2067,10 +2067,10 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
-		if len(application.Ports) != 0 {
-			app.Ports = make([]servicecfg.PortRange, 0, len(application.Ports))
-			for _, portRange := range application.Ports {
-				app.Ports = append(app.Ports, servicecfg.PortRange{
+		if len(application.TCPPorts) != 0 {
+			app.TCPPorts = make([]servicecfg.PortRange, 0, len(application.TCPPorts))
+			for _, portRange := range application.TCPPorts {
+				app.TCPPorts = append(app.TCPPorts, servicecfg.PortRange{
 					Port:    portRange.Port,
 					EndPort: portRange.EndPort,
 				})

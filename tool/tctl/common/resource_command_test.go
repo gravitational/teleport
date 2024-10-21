@@ -692,7 +692,7 @@ metadata:
   name: foo
 spec:
   uri: "tcp://localhost1"
-  ports:
+  tcp_ports:
   - port: 1234
   - port: 30000
     end_port: 30768
@@ -1203,7 +1203,7 @@ func TestAppResource(t *testing.T) {
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
 		URI: "tcp://localhost1",
-		Ports: []*types.PortRange{
+		TCPPorts: []*types.PortRange{
 			&types.PortRange{Port: 1234},
 			&types.PortRange{Port: 30000, EndPort: 30768},
 		},
