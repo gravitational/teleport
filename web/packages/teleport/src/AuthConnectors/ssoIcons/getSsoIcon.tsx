@@ -19,17 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { AuthProviderType } from 'shared/services';
-import { GitHubIcon } from 'design/SVGIcon';
-import { Box, Flex, Image } from 'design';
-
-import iconAuth0 from './assets/saml-auth0.svg';
-import iconAzureAD from './assets/saml-azuread.svg';
-import iconOkta from './assets/saml-okta.svg';
-import iconOneLogin from './assets/saml-one.svg';
-import iconAmazon from './assets/oidc-amazon.svg';
-import iconGitlab from './assets/oidc-gitlab.svg';
-import iconGoogle from './assets/oidc-google.svg';
-import iconWindows from './assets/oidc-windows.svg';
+import { Box, Flex, ResourceIcon } from 'design';
 
 export default function getSsoIcon(kind: AuthProviderType) {
   const desc = formatConnectorTypeDesc(kind);
@@ -37,14 +27,9 @@ export default function getSsoIcon(kind: AuthProviderType) {
   switch (kind) {
     case 'github':
       return {
-        SsoIcon: props => (
-          <Flex height="72px" alignItems="center">
-            <GitHubIcon
-              style={{ textAlign: 'center' }}
-              size={48}
-              color="text.main"
-              {...props}
-            />
+        SsoIcon: () => (
+          <Flex height="88px" alignItems="center">
+            <ResourceIcon name="github" width="48px" />
           </Flex>
         ),
         desc,
@@ -55,16 +40,16 @@ export default function getSsoIcon(kind: AuthProviderType) {
         SsoIcon: () => (
           <MultiIconContainer>
             <SmIcon>
-              <Image src={iconOneLogin} />
+              <StyledResourceIcon name="onelogin" />
             </SmIcon>
             <SmIcon>
-              <Image src={iconOkta} />
+              <StyledResourceIcon name="okta" />
             </SmIcon>
             <SmIcon mt="1">
-              <Image src={iconAuth0} />
+              <StyledResourceIcon name="auth0" />
             </SmIcon>
             <SmIcon mt="1">
-              <Image src={iconAzureAD} />
+              <StyledResourceIcon name="entraid" />
             </SmIcon>
           </MultiIconContainer>
         ),
@@ -77,16 +62,16 @@ export default function getSsoIcon(kind: AuthProviderType) {
         SsoIcon: () => (
           <MultiIconContainer>
             <SmIcon>
-              <Image src={iconAmazon} />
+              <StyledResourceIcon name="aws" />
             </SmIcon>
             <SmIcon>
-              <Image src={iconGoogle} />
+              <StyledResourceIcon name="google" />
             </SmIcon>
             <SmIcon mt="1">
-              <Image src={iconGitlab} />
+              <StyledResourceIcon name="gitlab" />
             </SmIcon>
             <SmIcon mt="1">
-              <Image src={iconWindows} />
+              <StyledResourceIcon name="microsoft" />
             </SmIcon>
           </MultiIconContainer>
         ),
@@ -105,7 +90,7 @@ function formatConnectorTypeDesc(kind) {
 }
 
 const MultiIconContainer = styled(Flex)`
-  width: 67px;
+  width: 83px;
   flex-wrap: wrap;
   gap: 3px;
   padding: 7px;
@@ -114,10 +99,15 @@ const MultiIconContainer = styled(Flex)`
 `;
 
 const SmIcon = styled(Box)`
-  width: ${p => p.theme.space[4]}px;
-  height: ${p => p.theme.space[4]}px;
-  line-height: ${p => p.theme.space[4]}px;
-  background: white;
-  color: black;
+  width: ${p => p.theme.space[5]}px;
+  height: ${p => p.theme.space[5]}px;
+  line-height: ${p => p.theme.space[5]}px;
+  background: ${p => p.theme.colors.levels.popout};
   border-radius: 50%;
+  display: flex;
+  justify-content: center;
 `;
+
+const StyledResourceIcon = styled(ResourceIcon).attrs({
+  width: '20px',
+})``;

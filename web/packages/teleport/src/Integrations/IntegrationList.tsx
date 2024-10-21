@@ -22,7 +22,6 @@ import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex } from 'design';
-import { AWSIcon, AzureIcon } from 'design/SVGIcon';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -347,19 +346,11 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case IntegrationKind.AwsOidc:
       case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
-        icon = (
-          <SvgIconContainer>
-            <AWSIcon />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer name="aws" />;
         break;
       case IntegrationKind.AzureOidc:
         formattedText = 'Azure OIDC';
-        icon = (
-          <SvgIconContainer>
-            <AzureIcon size={24} />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer name="azure" />;
         break;
     }
   }
@@ -380,9 +371,5 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(ResourceIcon)`
   width: 22px;
-  margin-right: 10px;
-`;
-
-const SvgIconContainer = styled(Flex)`
   margin-right: 10px;
 `;
