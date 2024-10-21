@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -258,6 +259,7 @@ type cacheCollections struct {
 	webSessions              collectionReader[webSessionGetter]
 	webTokens                collectionReader[webTokenGetter]
 	windowsDesktops          collectionReader[windowsDesktopsGetter]
+	dynamicWindowsDesktops   collectionReader[dynamicWindowsDesktopsGetter]
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
 	userNotifications        collectionReader[notificationGetter]
 	accessGraphSettings      collectionReader[accessGraphSettingsGetter]
@@ -621,6 +623,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.windowsDesktops
+		case types.KindDynamicWindowsDesktop:
+			if c.WindowsDesktops == nil {
+				return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
+			}
+			collections.dynamicWindowsDesktops = &genericCollection[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter, dynamicWindowsDesktopsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
 		case types.KindSAMLIdPServiceProvider:
 			if c.SAMLIdPServiceProviders == nil {
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
@@ -2317,6 +2328,54 @@ type windowsDesktopsGetter interface {
 }
 
 var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExecutor{}
+
+type dynamicWindowsDesktopsExecutor struct{}
+
+func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
+	var desktops []types.DynamicWindowsDesktop
+	next := ""
+	for {
+		d, token, err := cache.dynamicWindowsDesktopsCache.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+		if err != nil {
+			return nil, err
+		}
+		desktops = append(desktops, d...)
+		if token == "" {
+			break
+		}
+		next = token
+	}
+	return desktops, nil
+}
+
+func (dynamicWindowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.DynamicWindowsDesktop) error {
+	_, err := cache.dynamicWindowsDesktopsCache.UpsertDynamicWindowsDesktop(ctx, resource)
+	return err
+}
+
+func (dynamicWindowsDesktopsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.dynamicWindowsDesktopsCache.DeleteAllDynamicWindowsDesktops(ctx)
+}
+
+func (dynamicWindowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.dynamicWindowsDesktopsCache.DeleteDynamicWindowsDesktop(ctx, resource.GetName())
+}
+
+func (dynamicWindowsDesktopsExecutor) isSingleton() bool { return false }
+
+func (dynamicWindowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) dynamicWindowsDesktopsGetter {
+	if cacheOK {
+		return cache.dynamicWindowsDesktopsCache
+	}
+	return cache.Config.DynamicWindowsDesktops
+}
+
+type dynamicWindowsDesktopsGetter interface {
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error)
+}
+
+var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dynamicWindowsDesktopsExecutor{}
 
 type kubeClusterExecutor struct{}
 
