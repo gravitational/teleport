@@ -58,7 +58,6 @@ teleport:
         # consume the retention period via a query parameter in the audit_events_uri. See the examples below
         # for how to configure the retention period for other backends.
         # Firestore: firestore://events_table_name?eventRetentionPeriod=10d
-        # Postgres: postgresql://user_name@database-address/teleport_audit?retention_period=10d
         retention_period: 365d
 
         # minimum/maximum read capacity in units
