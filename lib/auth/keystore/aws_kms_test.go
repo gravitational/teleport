@@ -211,6 +211,60 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestMultiRegionKeys asserts that a keystore created with multi-region enabled
+// correctly passes this argument to the AWS client. This gives very little real
+// coverage since the AWS KMS service here is faked, but at least we know the
+// keystore passed the bool to the client correctly. TestBackends and
+// TestManager are both able to run with a real AWS KMS client and you can
+// confirm the keys are really multi-region there.
+func TestMultiRegionKeys(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	const pageSize int = 4
+	fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+	opts := &Options{
+		ClusterName:          clusterName,
+		HostUUID:             "uuid",
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+		awsKMSClient:         fakeKMS,
+		awsSTSClient: &fakeAWSSTSClient{
+			account: "123456789012",
+		},
+		clockworkOverride: clock,
+	}
+
+	for _, multiRegion := range []bool{false, true} {
+		t.Run(fmt.Sprint(multiRegion), func(t *testing.T) {
+			cfg := servicecfg.KeystoreConfig{
+				AWSKMS: servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+					MultiRegion: struct{ Enabled bool }{
+						Enabled: multiRegion,
+					},
+				},
+			}
+			keyStore, err := NewManager(ctx, &cfg, opts)
+			require.NoError(t, err)
+
+			sshKeyPair, err := keyStore.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+			require.NoError(t, err)
+
+			keyID, err := parseAWSKMSKeyID(sshKeyPair.PrivateKey)
+			require.NoError(t, err)
+
+			if multiRegion {
+				assert.Contains(t, keyID.arn, "mrk-")
+			} else {
+				assert.NotContains(t, keyID.arn, "mrk-")
+			}
+		})
+	}
+}
+
 type fakeAWSKMSService struct {
 	keys               []*fakeAWSKMSKey
 	clock              clockwork.Clock
@@ -239,6 +293,10 @@ type fakeAWSKMSKey struct {
 
 func (f *fakeAWSKMSService) CreateKey(_ context.Context, input *kms.CreateKeyInput, _ ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
 	id := uuid.NewString()
+	if aws.ToBool(input.MultiRegion) {
+		// AWS does this https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#key-id-key-ARN
+		id = "mrk-" + id
+	}
 	a := arn.ARN{
 		Partition: "aws",
 		Service:   "kms",
