@@ -10,3 +10,25 @@ A trusted device needs to be registered and enrolled before it is recognized by
 Teleport as such. Follow the [registration](../../admin-guides/access-controls/device-trust/device-management.mdx) and
 [enrollment](../../admin-guides/access-controls/device-trust/device-management.mdx) steps
 and make sure to `tsh logout` and `tsh login` after enrollment is done.
+
+### Auto enrollment not working
+
+Auto-enrollment ceremonies, due to their automated nature, are stricter than
+regular enrollment. Additional auto-enrollment checks include:
+
+1. Verifying device profile data, such as data originated from Jamf, against the
+   actual device
+2. Verifying that the device is not enrolled by another user (auto-enroll cannot
+   take devices that are already enrolled)
+
+Check you audit log for clues: look for failed "Device Enroll Token Created"
+events and see the "message" field in the details (auto-enroll audit log details
+available since Teleport v14.3.x).
+
+If you suspect (1) is the issue, compare the actual device against its inventory
+definition (`tsh device collect` executed in the actual device vs `tctl get
+device/<asset_tag>`). Tweaking the device profile, manual enrollment or waiting
+for the next MDM sync may solve the issue.
+
+If you suspect (2), you can unenroll the device using `tctl edit
+device/<asset_tag>` and changing the "enroll_status" field to "not_enrolled".
