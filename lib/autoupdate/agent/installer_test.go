@@ -40,7 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTeleportInstaller_Install(t *testing.T) {
+func TestLocalInstaller_Install(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
 
@@ -191,7 +191,7 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 	return &buf, hex.EncodeToString(sha.Sum(nil))
 }
 
-func TestTeleportInstaller_Link(t *testing.T) {
+func TestLocalInstaller_Link(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
 
@@ -227,7 +227,7 @@ func TestTeleportInstaller_Link(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, n := range tt.files {
-				err := os.WriteFile(filepath.Join(versionDir, n), []byte("test"), os.ModePerm)
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(n), os.ModePerm)
 				require.NoError(t, err)
 			}
 			for _, d := range []string{"somedir"} {
@@ -254,7 +254,76 @@ func TestTeleportInstaller_Link(t *testing.T) {
 			for _, link := range tt.links {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
-				require.Equal(t, "test", string(v))
+				require.Equal(t, filepath.Base("link"), string(v))
+			}
+		})
+	}
+}
+
+func TestLocalInstaller_Remove(t *testing.T) {
+	t.Parallel()
+	const version = "new-version"
+
+	tests := []struct {
+		name  string
+		files []string
+		dirs  []string
+
+		links    []string
+		errMatch string
+	}{
+		{
+			name:  "present",
+			files: []string{"teleport", "tsh", "tbot"},
+			dirs:  []string{"somedir"},
+
+			links: []string{"teleport", "tsh", "tbot"},
+		},
+		{
+			name:  "not present",
+			files: []string{"teleport"},
+
+			errMatch: "no such",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			versionsDir := t.TempDir()
+			versionDir := filepath.Join(versionsDir, version)
+			err := os.MkdirAll(versionDir, 0o755)
+			require.NoError(t, err)
+
+			for _, n := range tt.files {
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(n), os.ModePerm)
+				require.NoError(t, err)
+			}
+			for _, d := range []string{"somedir"} {
+				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
+				require.NoError(t, err)
+			}
+
+			linkDir := t.TempDir()
+
+			installer := &LocalInstaller{
+				InstallDir: versionsDir,
+				LinkDir:    linkDir,
+				Log:        slog.Default(),
+			}
+			ctx := context.Background()
+			err = installer.Link(ctx, version)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+
+			for _, link := range tt.links {
+				v, err := os.ReadFile(filepath.Join(linkDir, link))
+				require.NoError(t, err)
+				require.Equal(t, filepath.Base("link"), string(v))
 			}
 		})
 	}

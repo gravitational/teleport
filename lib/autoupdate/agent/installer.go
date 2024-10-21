@@ -62,15 +62,25 @@ type LocalInstaller struct {
 	ReservedFreeInstallDisk uint64
 }
 
+var ErrLinked = errors.New("linked version cannot be removed")
+
 // Remove a Teleport version directory from InstallDir.
 // This function is idempotent.
 func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 	versionDir := filepath.Join(li.InstallDir, version)
 	sumPath := filepath.Join(versionDir, checksumType)
 
+	linked, err := li.linkedVersion(version)
+	if err != nil {
+		return trace.Errorf("failed to determine if linked: %w", err)
+	}
+	if linked {
+		return ErrLinked
+	}
+
 	// invalidate checksum first, to protect against partially-removed
 	// directory with valid checksum.
-	err := os.Remove(sumPath)
+	err = os.Remove(sumPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Wrap(err)
 	}
@@ -358,4 +368,26 @@ func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
 		}
 	}
 	return nil
+}
+
+// linkedVersion returns true if any
+func (ai *LocalInstaller) linkedVersion(version string) (bool, error) {
+	binDir := filepath.Join(ai.InstallDir, version, "bin")
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		v, err := os.Readlink(filepath.Join(ai.LinkDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		if v == filepath.Join(binDir, entry.Name()) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
