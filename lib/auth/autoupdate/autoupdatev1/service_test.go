@@ -214,9 +214,21 @@ func TestServiceAccess(t *testing.T) {
 		})
 	}
 
+	// TODO(hugoShaka): remove this as we implement the service for the autoupdate agent rollout resource
+	notImplementedYetRPCs := []string{
+		"GetAutoUpdateAgentRollout",
+		"CreateAutoUpdateAgentRollout",
+		"UpdateAutoUpdateAgentRollout",
+		"UpsertAutoUpdateAgentRollout",
+		"DeleteAutoUpdateAgentRollout",
+	}
+
 	// verify that all declared methods have matching test cases
 	t.Run("verify coverage", func(t *testing.T) {
 		for _, method := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
+			if slices.Contains(notImplementedYetRPCs, method.MethodName) {
+				continue
+			}
 			t.Run(method.MethodName, func(t *testing.T) {
 				match := false
 				for _, testCase := range testCases {
