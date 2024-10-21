@@ -200,7 +200,7 @@ should set resources in the Job's pod spec if resources is set in values:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:16.4.3
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       resources:
