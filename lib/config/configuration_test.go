@@ -2459,6 +2459,34 @@ app_service:
 			name:   "assume_role_arn is not supported",
 			outErr: require.Error,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      ports:
+      - port: 1234
+      - port: 30000
+        end_port: 30768
+`,
+			name:   "TCP app with ports",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      ports:
+      - end_port: 30000
+`,
+			name:   "TCP app with only end port",
+			outErr: require.Error,
+		},
 	}
 
 	for _, tt := range tests {
