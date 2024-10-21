@@ -27,12 +27,16 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import {
+  AccessSpec,
+  KubernetesAccessSpec,
   newRole,
   roleToRoleEditorModel,
   ServerAccessSpec,
   StandardEditorModel,
 } from './standardmodel';
 import {
+  KubernetesAccessSpecSection,
+  SectionProps,
   ServerAccessSpecSection,
   StandardEditor,
   StandardEditorProps,
@@ -126,19 +130,19 @@ const getSectionByName = (name: string) =>
   // eslint-disable-next-line testing-library/no-node-access
   screen.getByRole('heading', { level: 3, name }).closest('details');
 
-const TestServerAccessSpecsSection = ({
+const StatefulSection = <S extends AccessSpec>({
+  defaultValue,
+  component: Component,
   onChange,
 }: {
-  onChange(spec: ServerAccessSpec): void;
+  defaultValue: S;
+  component: React.ComponentType<SectionProps<S>>;
+  onChange(spec: S): void;
 }) => {
-  const [model, setModel] = useState<ServerAccessSpec>({
-    kind: 'node',
-    labels: [],
-    logins: [],
-  });
+  const [model, setModel] = useState<S>(defaultValue);
   return (
     <Validation>
-      <ServerAccessSpecSection
+      <Component
         value={model}
         isProcessing={false}
         onChange={spec => {
@@ -153,7 +157,17 @@ const TestServerAccessSpecsSection = ({
 test('editing server access specs', async () => {
   const user = userEvent.setup();
   const onChange = jest.fn();
-  render(<TestServerAccessSpecsSection onChange={onChange} />);
+  render(
+    <StatefulSection<ServerAccessSpec>
+      component={ServerAccessSpecSection}
+      defaultValue={{
+        kind: 'node',
+        labels: [],
+        logins: [],
+      }}
+      onChange={onChange}
+    />
+  );
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
   await user.type(screen.getByPlaceholderText('label key'), 'some-key');
   await user.type(screen.getByPlaceholderText('label value'), 'some-value');
@@ -173,3 +187,130 @@ test('editing server access specs', async () => {
     ],
   } as ServerAccessSpec);
 });
+
+describe('KubernetesAccessSpecSection', () => {
+  const setup = () => {
+    const onChange = jest.fn();
+    render(
+      <StatefulSection<KubernetesAccessSpec>
+        component={KubernetesAccessSpecSection}
+        defaultValue={{
+          kind: 'kube_cluster',
+          groups: [],
+          labels: [],
+          resources: [],
+        }}
+        onChange={onChange}
+      />
+    );
+    return { user: userEvent.setup(), onChange };
+  };
+
+  test('editing the spec', async () => {
+    const { user, onChange } = setup();
+
+    await selectEvent.create(screen.getByLabelText('Groups'), 'group1', {
+      createOptionText: 'Group: group1',
+    });
+    await selectEvent.create(screen.getByLabelText('Groups'), 'group2', {
+      createOptionText: 'Group: group2',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label key'), 'some-key');
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
+
+    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    expect(
+      reactSelectValueContainer(screen.getByLabelText('Kind'))
+    ).toHaveTextContent('Any kind');
+    expect(screen.getByLabelText('Name')).toHaveValue('*');
+    expect(screen.getByLabelText('Namespace')).toHaveValue('*');
+    await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'job-name');
+    await user.clear(screen.getByLabelText('Namespace'));
+    await user.type(screen.getByLabelText('Namespace'), 'job-namespace');
+    await selectEvent.select(screen.getByLabelText('Verbs'), [
+      'create',
+      'delete',
+    ]);
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'kube_cluster',
+      groups: [
+        expect.objectContaining({ value: 'group1' }),
+        expect.objectContaining({ value: 'group2' }),
+      ],
+      labels: [{ name: 'some-key', value: 'some-value' }],
+      resources: [
+        {
+          kind: expect.objectContaining({ value: 'job' }),
+          name: 'job-name',
+          namespace: 'job-namespace',
+          verbs: [
+            expect.objectContaining({ value: 'create' }),
+            expect.objectContaining({ value: 'delete' }),
+          ],
+        },
+      ],
+    } as KubernetesAccessSpec);
+  });
+
+  test('adding and removing resources', async () => {
+    const { user, onChange } = setup();
+
+    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), 'res1');
+    await user.click(
+      screen.getByRole('button', { name: 'Add Another Resource' })
+    );
+    await user.clear(screen.getAllByLabelText('Name')[1]);
+    await user.type(screen.getAllByLabelText('Name')[1], 'res2');
+    await user.click(
+      screen.getByRole('button', { name: 'Add Another Resource' })
+    );
+    await user.clear(screen.getAllByLabelText('Name')[2]);
+    await user.type(screen.getAllByLabelText('Name')[2], 'res3');
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        resources: [
+          expect.objectContaining({ name: 'res1' }),
+          expect.objectContaining({ name: 'res2' }),
+          expect.objectContaining({ name: 'res3' }),
+        ],
+      })
+    );
+
+    await user.click(
+      screen.getAllByRole('button', { name: 'Remove resource' })[1]
+    );
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        resources: [
+          expect.objectContaining({ name: 'res1' }),
+          expect.objectContaining({ name: 'res3' }),
+        ],
+      })
+    );
+    await user.click(
+      screen.getAllByRole('button', { name: 'Remove resource' })[0]
+    );
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        resources: [expect.objectContaining({ name: 'res3' })],
+      })
+    );
+    await user.click(
+      screen.getAllByRole('button', { name: 'Remove resource' })[0]
+    );
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ resources: [] })
+    );
+  });
+});
+
+const reactSelectValueContainer = (input: HTMLInputElement) =>
+  // eslint-disable-next-line testing-library/no-node-access
+  input.closest('.react-select__value-container');
