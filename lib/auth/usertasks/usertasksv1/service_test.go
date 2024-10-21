@@ -27,9 +27,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -293,7 +296,7 @@ func newService(t *testing.T, checker services.AccessChecker, usageReporter usag
 
 	service, err := NewService(ServiceConfig{
 		Authorizer:    authorizer,
-		Backend:       backendService,
+		Backend:       &mockBackendService{UserTasks: backendService},
 		Cache:         backendService,
 		UsageReporter: func() usagereporter.UsageReporter { return usageReporter },
 		Emitter:       emitter,
@@ -312,4 +315,28 @@ func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymiza
 			m.emittedEvents = append(m.emittedEvents, userTaskEvent)
 		}
 	}
+}
+
+type mockBackendService struct {
+	services.UserTasks
+}
+
+func (m *mockBackendService) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	return &notificationsv1.GlobalNotification{Metadata: &headerv1.Metadata{
+		Name: uuid.NewString(),
+	}}, nil
+}
+func (m *mockBackendService) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
+	return nil
+}
+func (m *mockBackendService) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	return nil, nil
+}
+func (m *mockBackendService) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	return &types.IntegrationV1{
+		Status: types.IntegrationStatusV1{
+			PendingUserTasksNotificationID:      "abcd",
+			PendingUserTasksNotificationExpires: &time.Time{},
+		},
+	}, nil
 }
