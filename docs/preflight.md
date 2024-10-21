@@ -14,3 +14,7 @@ This checklist is to be run prior to cutting the release branch.
   - [ ] Update the `BUILDBOX_VERSION` in `build.assets/images.mk`. Commit and merge.
   - [ ] Update `e/.github/workflows/build-buildboxes-cron.yaml` to uncomment final pre-release
     job and ensure it has the correct branch names (two places). Commit and merge.
+- [ ] Update `e/.github/workflows/nightly-releases.yaml` on master branch to uncomment pre-release 
+  branch to enable nightly builds for the upcoming release.
+- [ ] Ensure that `e/.github/workflows/nightly-release.yaml` is removed from the release branch 
+  since it is not necessary for non-default branches.
