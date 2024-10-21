@@ -1,24 +1,29 @@
+import { useState } from 'react';
 import styled from 'styled-components';
+
+import { MultiRowBox, Row } from 'design/MultiRowBox';
+import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
+import { Clock, Edit } from 'design/Icon';
+import Text, { H2 } from 'design/Text';
+
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { MultiRowBox, Row } from 'design/MultiRowBox';
-import Flex from 'design/Flex';
-import * as Icons from 'design/Icon';
-import { Clock, Edit } from 'design/Icon';
-import { DataItem, IconBox, MobileSeparator } from 'teleport/Support/Support';
-import Text, { H2 } from 'design/Text';
+import { DataItem, IconBox } from 'teleport/Support/Support';
 import { useTeleport } from 'teleport/index';
 import cfg from 'teleport/config';
-import { useState } from 'react';
 import { useNoMinWidth } from 'teleport/Main';
-import { BusinessContacts, SecurityContacts } from './Contacts';
-import Box from 'design/Box';
+
+import { Contacts } from './Contacts';
 
 export function ManageCluster() {
-  // TODO: values from hook or url path
+  // TODO: use cluster ID from path:
+  // const { clusterId } = useParams<{
+  //   clusterId: string;
+  // }>();
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
@@ -70,12 +75,9 @@ export function ManageCluster() {
           </StyledRow>
         </StyledMultiRowBox>
         {cfg.isCloud && <ScheduledUpgrades />}
-        {/* TODO: only on enterprise */}
       </Flex>
-      <Box mb="3">
-        <BusinessContacts />
-      </Box>
-      <SecurityContacts />
+      {/* TODO: only show on enterprise Cloud or Dashboard */}
+      <Contacts />
     </FeatureBox>
   );
 }

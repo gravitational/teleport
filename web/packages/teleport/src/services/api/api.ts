@@ -124,6 +124,18 @@ const api = {
     );
   },
 
+  patch(url: string, data?, abortSignal?, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'PATCH',
+        signal: abortSignal,
+      },
+      webauthnResponse
+    );
+  },
+
   /**
    * fetchJsonWithMfaAuthnRetry calls on `api.fetch` and
    * processes the response.

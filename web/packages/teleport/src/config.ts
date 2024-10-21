@@ -383,6 +383,8 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
+    contactsPath: '/v1/webapi/sites/:clusterId/contact',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -1159,6 +1161,10 @@ const cfg = {
 
   getNotificationStateUrl(clusterId: string) {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
+  },
+
+  getContactUrl(clusterId: string) {
+    return generatePath(cfg.api.contactsPath, {clusterId});
   },
 
   init(backendConfig = {}) {
