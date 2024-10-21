@@ -38,7 +38,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -257,12 +256,12 @@ func (a *Server) newWebSession(
 			return nil, nil, trace.Wrap(err)
 		}
 		if _, isRSA := sshKey.Public().(*rsa.PublicKey); isRSA {
-			// Ensure the native package is precomputing RSA keys if we ever
-			// generate one. [native.PrecomputeKeys] is idempotent.
+			// Start precomputing RSA keys if we ever generate one.
+			// [cryptosuites.PrecomputeRSAKeys] is idempotent.
 			// Doing this lazily easily handles changing signature algorithm
 			// suites and won't start precomputing keys if they are never needed
 			// (a major benefit in tests).
-			native.PrecomputeKeys()
+			cryptosuites.PrecomputeRSAKeys()
 		}
 	}
 

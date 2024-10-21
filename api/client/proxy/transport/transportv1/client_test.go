@@ -17,8 +17,8 @@ package transportv1
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"io"
@@ -555,7 +555,7 @@ func newServer(t *testing.T, srv transportv1pb.TransportServiceServer) testPack 
 // newKeyring returns an [agent.ExtendedAgent] that has
 // one key populated in it.
 func newKeyring(t *testing.T) agent.ExtendedAgent {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	_, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
 	keyring := agent.NewKeyring()

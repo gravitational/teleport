@@ -21,7 +21,6 @@ package helpers
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -47,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -343,24 +344,27 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	// generate instance secrets (keys):
-	keygen := keygen.New(context.TODO())
 	if cfg.Priv == nil || cfg.Pub == nil {
-		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair()
+		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		fatalIf(err)
+		cfg.Priv = privateKey.PrivateKeyPEM()
+		cfg.Pub = privateKey.MarshalSSHPublicKey()
 	}
-	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
+	key, err := keys.ParsePrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
 		CommonName:   cfg.ClusterName,
 		Organization: []string{cfg.ClusterName},
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
-	signer, err := ssh.ParsePrivateKey(cfg.Priv)
+	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
+	keygen := keygen.New(context.TODO())
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
-		CASigner:      signer,
+		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,

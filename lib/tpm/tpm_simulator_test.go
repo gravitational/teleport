@@ -106,6 +106,7 @@ func TestWithSimulator(t *testing.T) {
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),
 	}
+	//nolint:forbidigo // Generating large RSA key allowed for TPM simulator.
 	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	require.NoError(t, err)
 	caBytes, err := x509.CreateCertificate(
