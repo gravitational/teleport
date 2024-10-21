@@ -250,6 +250,12 @@ message OktaAssignmentMetadata {
   string EndingStatus = 4 [(gogoproto.jsontag) = "ending_status,omitempty"];
 }
 
+// AccessListMetadata contains common metadata for access list resource events.
+message AccessListMetadata {
+  // AccessListTitle is a plain text short description of the access list.
+  string AccessListTitle = 1 [(gogoproto.jsontag) = "access_list_title,omitempty"];
+}
+
 // AccessListMemberMetadata contains common metadata for access list member resource events.
 message AccessListMemberMetadata {
   // AccessListName is the name of the access list the members are being added to or removed from.
@@ -257,6 +263,9 @@ message AccessListMemberMetadata {
 
   // Members are all members affected by the access list membership change.
   repeated AccessListMember Members = 2 [(gogoproto.jsontag) = "members,omitempty"];
+
+  // AccessListTitle is a plain text short description of the access list the members are being added to or removed from.
+  string AccessListTitle = 3 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -299,7 +308,7 @@ message AccessListReviewMetadata {
   // ReviewID is the ID of the review.
   string ReviewID = 2 [(gogoproto.jsontag) = "review_id,omitempty"];
 
-  // MembershipRequirementsChanged is populated if the memrship requirements have changed..
+  // MembershipRequirementsChanged is populated if the membership requirements have changed.
   AccessListReviewMembershipRequirementsChanged MembershipRequirementsChanged = 3 [(gogoproto.jsontag) = "membership_requirements_changed,omitempty"];
 
   // ReviewFrequencyChanged is populated if the review frequency has changed.
@@ -310,6 +319,9 @@ message AccessListReviewMetadata {
 
   // RemovedMembers are the members that were removed as part of the review.
   repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
+
+  // AccessListTitle is the title of the reviewed access list.
+  string AccessListTitle = 7 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // LockMetadata contains common metadata for lock resource events.
@@ -6165,6 +6177,13 @@ message AccessListCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessList is common access list metadata.
+  AccessListMetadata AccessList = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AccessListUpdate is emitted when an access list is updated.
@@ -6189,6 +6208,13 @@ message AccessListUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessList is common access list metadata.
+  AccessListMetadata AccessList = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AccessListDelete is emitted when an access list is deleted.
@@ -6209,6 +6235,13 @@ message AccessListDelete {
 
   // Status indicates whether the resource operation was successful.
   Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AccessList is common access list metadata.
+  AccessListMetadata AccessList = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
