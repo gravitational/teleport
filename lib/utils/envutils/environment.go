@@ -27,6 +27,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -47,14 +49,13 @@ func ReadEnvironmentFile(filename string) ([]string, error) {
 	}
 	defer file.Close()
 
-	return readEnvironment(file)
+	return ReadEnvironment(context.TODO(), file)
 }
 
-func readEnvironment(r io.Reader) ([]string, error) {
+func ReadEnvironment(ctx context.Context, r io.Reader) ([]string, error) {
 	var lineno int
 	env := &SafeEnv{}
 
-	ctx := context.Background()
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -94,8 +95,8 @@ func readEnvironment(r io.Reader) ([]string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		slog.WarnContext(ctx, "Unable to read environment file", "error", err)
-		return []string{}, nil
+		slog.ErrorContext(ctx, "Unable to read environment file", "error", err)
+		return []string{}, trace.Wrap(err, "reading environment file")
 	}
 
 	return *env, nil
