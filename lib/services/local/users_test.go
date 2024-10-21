@@ -1741,3 +1741,42 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
 }
+
+func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	// Verify create.
+	sd := &services.SSOMFASessionData{
+		RequestID:     "request",
+		Username:      "alice",
+		ConnectorID:   "saml",
+		ConnectorType: "saml",
+	}
+	err := identity.UpsertSSOMFASessionData(ctx, sd)
+	require.NoError(t, err)
+
+	// Verify read.
+	got, err := identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	if diff := cmp.Diff(sd, got); diff != "" {
+		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify update.
+	sd.Token = "token"
+	err = identity.UpsertSSOMFASessionData(ctx, sd)
+	require.NoError(t, err)
+	got, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	if diff := cmp.Diff(sd, got); diff != "" {
+		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify delete.
+	err = identity.DeleteSSOMFASessionData(ctx, sd.RequestID)
+	require.NoError(t, err)
+	_, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	require.True(t, trace.IsNotFound(err))
+}
