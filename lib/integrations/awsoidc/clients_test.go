@@ -29,30 +29,30 @@ import (
 func TestCheckAndSetDefaults(t *testing.T) {
 	t.Run("invalid regions must return an error", func(t *testing.T) {
 		err := (&AWSClientRequest{
-			IntegrationName: "my-integration",
-			Token:           "token",
-			RoleARN:         "some-arn",
-			Region:          "?",
+			//IntegrationName: "my-integration",
+			Token:   "token",
+			RoleARN: "some-arn",
+			Region:  "?",
 		}).CheckAndSetDefaults()
 
 		require.True(t, trace.IsBadParameter(err))
 	})
 	t.Run("valid region", func(t *testing.T) {
 		err := (&AWSClientRequest{
-			IntegrationName: "my-integration",
-			Token:           "token",
-			RoleARN:         "some-arn",
-			Region:          "us-east-1",
+			//IntegrationName: "my-integration",
+			Token:   "token",
+			RoleARN: "some-arn",
+			Region:  "us-east-1",
 		}).CheckAndSetDefaults()
 		require.NoError(t, err)
 	})
 
 	t.Run("empty region", func(t *testing.T) {
 		err := (&AWSClientRequest{
-			IntegrationName: "my-integration",
-			Token:           "token",
-			RoleARN:         "some-arn",
-			Region:          "",
+			//IntegrationName: "my-integration",
+			Token:   "token",
+			RoleARN: "some-arn",
+			Region:  "",
 		}).CheckAndSetDefaults()
 		require.NoError(t, err)
 	})

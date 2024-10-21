@@ -529,8 +529,13 @@ message ListEKSClustersResponse {
 // PingRequest is a request for doing an health check against the configured integration.
 message PingRequest {
   // Integration is the AWS OIDC Integration name.
-  // Required.
+  // Required if ARN is empty.
   string integration = 1;
+
+  // The AWS ARN to be used when generating the token.
+  // This is used to test another ARN before saving the Integration.
+  // Required if integration is empty.
+  string arn = 2;
 }
 
 // PingResponse contains the response for the Ping operation.
