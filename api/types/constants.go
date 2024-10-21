@@ -423,6 +423,9 @@ const (
 	// KindWindowsDesktop is a Windows desktop host.
 	KindWindowsDesktop = "windows_desktop"
 
+	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
+	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
+
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
