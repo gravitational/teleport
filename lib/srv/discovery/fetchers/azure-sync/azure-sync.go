@@ -22,11 +22,17 @@ import (
 	"context"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"sync"
 )
+
+const FetcherConcurrency = 5
 
 type Config struct {
 	CloudClients        cloud.Clients
+	SubscriptionID      string
 	Regions             []string
 	Integration         string
 	DiscoveryConfigName string
@@ -69,34 +75,78 @@ func NewAzureFetcher(cfg Config) (Fetcher, error) {
 }
 
 func (a *azureFetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {
+	res, err := a.fetch(ctx, feats)
+	if res == nil {
+		return nil, err
+	}
+	res.VirtualMachines = common.DeduplicateSlice(res.VirtualMachines, azureVmKey)
+	res.Users = common.DeduplicateSlice(res.Users, azureUserKey)
+	return res, trace.Wrap(err)
+}
+
+func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, error) {
+	// Accumulate Azure resources
 	eg, ctx := errgroup.WithContext(ctx)
-	eg.SetLimit(5)
+	eg.SetLimit(FetcherConcurrency)
 	var result = &Resources{}
+	var errs []error
+	errsCh := make(chan error)
 	if feats.VirtualMachines {
 		eg.Go(func() error {
-			_, err := a.pollVirtualMachines(ctx)
+			vms, err := a.fetchVirtualMachines(ctx)
 			if err != nil {
+				errsCh <- err
 				return err
 			}
+			result.VirtualMachines = vms
 			return nil
 		})
 	}
-	err := eg.Wait()
-	if err != nil {
-		return nil, err
+	if feats.Users {
+		eg.Go(func() error {
+			users, err := a.fetchUsers(ctx)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
+			result.Users = users
+			return nil
+		})
 	}
+
+	// Collect the error messages from the error channel
+	var wg sync.WaitGroup
+	go func() {
+		wg.Add(1)
+		defer wg.Done()
+		for {
+			err, ok := <-errsCh
+			if !ok {
+				return
+			}
+			errs = append(errs, err)
+		}
+	}()
+	_ = eg.Wait()
+	close(errsCh)
+	wg.Wait()
+	if len(errs) > 0 {
+		return result, trace.NewAggregate(errs...)
+	}
+
+	// Return the resources
 	return result, nil
 }
 
 func (a *azureFetcher) Status() (uint64, error) {
-	return 0, nil
+	return a.lastDiscoveredResources, a.lastError
 }
 func (a *azureFetcher) DiscoveryConfigName() string {
-	return ""
+	return a.Config.DiscoveryConfigName
 }
 func (a *azureFetcher) IsFromDiscoveryConfig() bool {
-	return false
+	return a.Config.DiscoveryConfigName != ""
 }
 func (a *azureFetcher) GetSubscriptionID() string {
-	return ""
+	return a.Config.SubscriptionID
 }

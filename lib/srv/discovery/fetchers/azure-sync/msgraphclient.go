@@ -31,8 +31,8 @@ import (
 	"time"
 )
 
-// Client represents generic MS API client
-type Client struct {
+// GraphClient represents generic MS API client
+type GraphClient struct {
 	token   azcore.AccessToken
 	baseURL string
 }
@@ -83,9 +83,9 @@ type request struct {
 	SuccessCode int
 }
 
-// NewClient creates MS Graph API client
-func NewClient(token azcore.AccessToken) *Client {
-	return &Client{
+// NewGraphClient creates MS Graph API client
+func NewGraphClient(token azcore.AccessToken) *GraphClient {
+	return &GraphClient{
 		token:   token,
 		baseURL: graphBaseURL,
 	}
@@ -96,7 +96,7 @@ func (e graphError) Error() string {
 	return e.E.Code + " " + e.E.Message
 }
 
-func (c *Client) ListUsers(ctx context.Context, filter string) ([]User, error) {
+func (c *GraphClient) ListUsers(ctx context.Context) ([]User, error) {
 	g := &genericGraphResponse{}
 	request := request{
 		Method:   http.MethodGet,
@@ -127,7 +127,7 @@ func (c *Client) ListUsers(ctx context.Context, filter string) ([]User, error) {
 }
 
 // buildURL builds the request URL
-func (c *Client) buildURL(request request) (string, error) {
+func (c *GraphClient) buildURL(request request) (string, error) {
 	u, err := url.Parse(c.baseURL)
 	if err != nil {
 		return "", err
@@ -148,7 +148,7 @@ func (c *Client) buildURL(request request) (string, error) {
 }
 
 // request sends the request to the graph/bot service and returns response body as bytes slice
-func (c *Client) request(ctx context.Context, req request) error {
+func (c *GraphClient) request(ctx context.Context, req request) error {
 	client := http.Client{Timeout: httpTimeout}
 
 	url, err := c.buildURL(req)

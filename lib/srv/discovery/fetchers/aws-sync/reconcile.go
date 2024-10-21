@@ -20,6 +20,7 @@ package aws_sync
 
 import (
 	"fmt"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 
 	"google.golang.org/protobuf/proto"
 
@@ -71,19 +72,6 @@ type reconcilePair struct {
 	upsert, delete *accessgraphv1alpha.AWSResourceList
 }
 
-func deduplicateSlice[T any](s []T, key func(T) string) []T {
-	out := make([]T, 0, len(s))
-	seen := make(map[string]struct{})
-	for _, v := range s {
-		if _, ok := seen[key(v)]; ok {
-			continue
-		}
-		seen[key(v)] = struct{}{}
-		out = append(out, v)
-	}
-	return out
-}
-
 func reconcile[T proto.Message](
 	oldItems []T,
 	newItems []T,
@@ -91,7 +79,7 @@ func reconcile[T proto.Message](
 	wrapFn func(T) *accessgraphv1alpha.AWSResource,
 ) *reconcilePair {
 	// Remove duplicates from the new items
-	newItems = deduplicateSlice(newItems, keyFn)
+	newItems = common.DeduplicateSlice(newItems, keyFn)
 	upsertRes := newResourceList()
 	deleteRes := newResourceList()
 
