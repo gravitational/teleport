@@ -139,7 +139,7 @@ func (a *App) init(ctx context.Context) error {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 
-	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr, a.conf.StatusSink)
+	a.bot, err = NewBot(&a.conf, pong.ClusterName, webProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

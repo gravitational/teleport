@@ -31,9 +31,11 @@ import (
 type Config struct {
 	common.BaseConfig
 
-	Client  teleport.Client
-	MSAPI   msapi.Config `toml:"msapi"`
-	Preload bool         `toml:"preload"`
+	Client teleport.Client
+	// MSAPI represents MS Graph API and Bot API config.
+	MSAPI msapi.Config `toml:"msapi"`
+	// Preload if set to true will preload the potential msteams recipients.
+	Preload bool `toml:"preload"`
 
 	// StatusSink receives any status updates from the plugin for
 	// further processing. Status updates will be ignored if not set.
