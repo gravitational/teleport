@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -38,7 +39,7 @@ type AssignmentReconcilerAccessPoint interface {
 
 // operations, and updates the Okta assignment status afterwards.
 type assignmentReconciler struct {
-	log                 *logrus.Entry
+	logger              *slog.Logger
 	clock               clockwork.Clock
 	clusterName         string
 	accessPoint         AssignmentReconcilerAccessPoint
@@ -64,9 +65,8 @@ type assignmentReconciler struct {
 
 // newAssignmentReconciler creates a new AssignmentReconciler.
 func newAssignmentReconciler(ctx context.Context, clusterName string, svc *Service) *assignmentReconciler {
-	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler)
 	a := &assignmentReconciler{
-		log:            log,
+		logger:         slog.With(teleport.ComponentKey, eteleport.ComponentOktaAssignmentReconciler),
 		clock:          svc.clock,
 		clusterName:    clusterName,
 		accessPoint:    svc.accessPoint,
@@ -93,7 +93,8 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
-		Log:                 a.log,
+		// TODO(tross): convert to using slog once the reconciler supports it
+		Log: logrus.StandardLogger(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -125,7 +126,7 @@ func (a *assignmentReconciler) reconcile(ctx context.Context, reconciler *servic
 				return
 			}
 			if err := reconciler.Reconcile(ctx); err != nil {
-				a.log.WithError(err).Error("Failed to reconcile.")
+				a.logger.ErrorContext(ctx, "Failed to reconcile", "error", err)
 			} else if a.onReconcile != nil {
 				a.assignmentsMu.RLock()
 				a.onReconcile(copyAssignmentsMapToOktaAssignments(a.assignments))
@@ -179,13 +180,12 @@ func (a *assignmentReconciler) getNewAssignments() types.OktaAssignments {
 
 // startResourceWatcher starts watching changes to assignment resources.
 func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*services.OktaAssignmentWatcher, error) {
-	a.log.Debug("Initializing assignment resource watcher.")
+	a.logger.DebugContext(ctx, "Initializing assignment resource watcher")
 	watcher, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
 		RWCfg: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOktaAssignmentReconciler,
-			// TODO(tross): update after migrating to slog
-			// Logger:       a.log,
-			Client: a.accessPoint,
+			Logger:    a.logger,
+			Client:    a.accessPoint,
 		},
 	})
 	if err != nil {
@@ -193,7 +193,7 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 	}
 	go func() {
 		defer func() {
-			a.log.Debug("Access request resource watcher finished.")
+			a.logger.DebugContext(ctx, "Access request resource watcher finished")
 		}()
 
 		for {

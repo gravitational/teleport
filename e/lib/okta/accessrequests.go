@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -49,8 +50,8 @@ type AccessRequestReconcilerAccessPoint interface {
 
 // AccessRequestReconcilerConfig is the configuration for the AccessRequestReconciler.
 type AccessRequestReconcilerConfig struct {
-	// Log is the logger for the AccessRequestReconciler.
-	Log *logrus.Entry
+	// Logger is the logger for the AccessRequestReconciler.
+	Logger *slog.Logger
 
 	// Clock is the clock to use for the reconciler.
 	Clock clockwork.Clock
@@ -87,8 +88,8 @@ type AccessRequestReconcilerConfig struct {
 }
 
 func (c *AccessRequestReconcilerConfig) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaAccessRequestReconciler)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOktaAccessRequestReconciler)
 	}
 
 	if c.Clock == nil {
@@ -123,7 +124,7 @@ func (c *AccessRequestReconcilerConfig) CheckAndSetDefaults() error {
 //
 // TODO(mdwn): This must be extended to support leaf clusters.
 type AccessRequestReconciler struct {
-	log         logrus.FieldLogger
+	logger      *slog.Logger
 	clock       clockwork.Clock
 	clusterName string
 	lockWatcher *services.LockWatcher
@@ -168,7 +169,7 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 	}
 
 	a := &AccessRequestReconciler{
-		log:                     config.Log,
+		logger:                  config.Logger,
 		clock:                   config.Clock,
 		clusterName:             config.ClusterName,
 		lockWatcher:             config.LockWatcher,
@@ -211,30 +212,30 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 			serviceConnectionFailures = 0
 
 			if !serviceStarted {
-				a.log.Infof("Okta service connected to the auth server, starting the Okta access request reconciler.")
+				a.logger.InfoContext(ctx, "Okta service connected to the auth server, starting the Okta access request reconciler")
 
 				var err error
 				cancel, resourcesCleaned, err = a.start(ctx)
 				if err != nil {
-					a.log.Errorf("Error starting access request reconciler: %v", err)
+					a.logger.ErrorContext(ctx, "error starting access request reconciler", "error", err)
 					continue
 				}
-				a.log.Infof("Okta access request reconciler started.")
+				a.logger.InfoContext(ctx, "Okta access request reconciler started")
 				serviceStarted = true
 			}
 		} else if !newOktaServiceConnected && serviceStarted {
 			serviceConnectionFailures++
 			if serviceConnectionFailures >= maxOktaServiceConnectionFailures {
-				a.log.Infof("Okta service has disconnected, stopping the access request reconciler.")
+				a.logger.InfoContext(ctx, "Okta service has disconnected, stopping the access request reconciler")
 				cancel()
 				// wait for the resources to be cleaned up otherwise we can end up with
 				// multiple reconcilers running at the same time for short periods of time
 				// which cause tests to fail when both invoke retryer.Reset() at the same time.
 				<-resourcesCleaned
 				serviceStarted = false
-				a.log.Infof("Okta access request reconciler has stopped.")
+				a.logger.InfoContext(ctx, "Okta access request reconciler has stopped")
 			} else {
-				a.log.Warnf("No Okta service connected (check %d/%d)", serviceConnectionFailures, maxOktaServiceConnectionFailures)
+				a.logger.WarnContext(ctx, "No Okta service connected", "connection_failures", serviceConnectionFailures, "max_connection_failures", maxOktaServiceConnectionFailures)
 			}
 
 			if a.onServiceDisconnectedCh != nil {
@@ -263,7 +264,8 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
-		Log:                 a.log,
+		// TODO(tross): convert after reconciler is using slog
+		Log: logrus.StandardLogger(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -299,7 +301,7 @@ func (a *AccessRequestReconciler) reconcile(ctx context.Context, reconciler *ser
 
 			if err := reconciler.Reconcile(ctx); err != nil {
 				a.retryer.Inc()
-				a.log.WithError(err).Errorf("Failed to reconcile. Will retry in %s.", a.retryer.Duration())
+				a.logger.ErrorContext(ctx, "Failed to reconcile", "backoff", a.retryer.Duration(), "error", err)
 
 				// On error, we'll need to retry so that we re-attempt reconciliation. Otherwise,
 				// reconciliation will only happen again when the next access request event comes in,
@@ -368,13 +370,12 @@ func (a *AccessRequestReconciler) getNewAccessRequests() map[string]types.Access
 // startResourceWatcher starts watching changes to access request resources and
 // create OktaAssignment resources.
 func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*services.AccessRequestWatcher, error) {
-	a.log.Debug("Initializing access request resource watcher.")
+	a.logger.DebugContext(ctx, "Initializing access request resource watcher")
 	watcher, err := services.NewAccessRequestWatcher(ctx, services.AccessRequestWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentOktaAccessRequestReconciler,
-			// TODO(tross): update after migrated to use slog here
-			// Logger:       a.log,
-			Client: a.accessPoint,
+			Logger:    a.logger,
+			Client:    a.accessPoint,
 		},
 	})
 	if err != nil {
@@ -382,7 +383,7 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 	}
 	go func() {
 		defer func() {
-			a.log.Debug("Access request resource watcher finished.")
+			a.logger.DebugContext(ctx, "Access request resource watcher finished")
 		}()
 
 		for {
@@ -421,14 +422,14 @@ func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest
 			return trace.Wrap(err)
 		}
 		if isUserLocal {
-			a.log.Debugf("Okta assignment cannot be created for user %s as the user is not an SSO user.", newAccessRequest.GetUser())
+			a.logger.DebugContext(ctx, "Okta assignment cannot be created for non-SSO user", "user", newAccessRequest.GetUser())
 			return nil
 		}
 
 		assignment, err := a.accessRequestToOktaAssignment(ctx, newAccessRequest, constants.OktaAssignmentStatusPending)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				a.log.Debugf("access request cannot be processed: %v", err)
+				a.logger.DebugContext(ctx, "access request cannot be processed", "error", err)
 				return nil
 			}
 			return trace.Wrap(err)
@@ -511,12 +512,12 @@ func (a *AccessRequestReconciler) matcher(ctx context.Context, accessRequest typ
 		case types.KindUserGroup:
 			resource, err = a.accessPoint.GetUserGroup(ctx, resourceID.Name)
 			if err != nil {
-				a.log.Debugf("Error getting user group: %v", err)
+				a.logger.DebugContext(ctx, "Error getting user group", "error", err)
 			}
 		case types.KindApp:
 			resource, err = a.getAppServer(ctx, resourceID.Name)
 			if err != nil {
-				a.log.Debugf("Error getting application: %v", err)
+				a.logger.DebugContext(ctx, "Error getting application", "error", err)
 			}
 		}
 
@@ -702,7 +703,7 @@ func (a *AccessRequestReconciler) OnLogin(ctx context.Context, user types.User) 
 		}
 
 		if assignmentNeedsUpdate {
-			a.log.Debugf("Assignment %s updated", assignment.GetName())
+			a.logger.DebugContext(ctx, "Assignment updated", "assignment_name", assignment.GetName())
 			_, err = a.oktaClient.UpdateOktaAssignment(ctx, assignment)
 			if err != nil {
 				return trace.Wrap(err)
