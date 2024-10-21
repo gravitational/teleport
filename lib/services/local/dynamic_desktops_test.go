@@ -56,6 +56,7 @@ func setupDynamicDesktopTest(t *testing.T) (context.Context, *DynamicWindowsDesk
 }
 
 func TestDynamicWindowsService_CreateDynamicDesktop(t *testing.T) {
+	t.Parallel()
 	ctx, service := setupDynamicDesktopTest(t)
 	t.Run("ok", func(t *testing.T) {
 		want := newDynamicDesktop(t, "example")
@@ -96,6 +97,7 @@ func TestDynamicWindowsService_UpsertDynamicDesktop(t *testing.T) {
 }
 
 func TestDynamicWindowsService_GetDynamicDesktop(t *testing.T) {
+	t.Parallel()
 	ctx, service := setupDynamicDesktopTest(t)
 	t.Run("not found", func(t *testing.T) {
 		_, err := service.GetDynamicWindowsDesktop(ctx, "notfound")
@@ -117,6 +119,7 @@ func TestDynamicWindowsService_GetDynamicDesktop(t *testing.T) {
 }
 
 func TestDynamicWindowsService_ListDynamicDesktop(t *testing.T) {
+	t.Parallel()
 	t.Run("none", func(t *testing.T) {
 		ctx, service := setupDynamicDesktopTest(t)
 		desktops, _, err := service.ListDynamicWindowsDesktops(ctx, 5, "")
@@ -172,6 +175,7 @@ func TestDynamicWindowsService_ListDynamicDesktop(t *testing.T) {
 }
 
 func TestDynamicWindowsService_UpdateDynamicDesktop(t *testing.T) {
+	t.Parallel()
 	ctx, service := setupDynamicDesktopTest(t)
 	t.Run("not found", func(t *testing.T) {
 		want := newDynamicDesktop(t, "example")
@@ -190,6 +194,7 @@ func TestDynamicWindowsService_UpdateDynamicDesktop(t *testing.T) {
 }
 
 func TestDynamicWindowsService_DeleteDynamicDesktop(t *testing.T) {
+	t.Parallel()
 	ctx, service := setupDynamicDesktopTest(t)
 	t.Run("not found", func(t *testing.T) {
 		err := service.DeleteDynamicWindowsDesktop(ctx, "notfound")
