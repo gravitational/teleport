@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.autoupdate.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
@@ -51,8 +52,10 @@ message AutoUpdateConfigSpecAgents {
   string mode = 1;
   // strategy to use for updating the agents.
   string strategy = 2;
-  // maintenance_window_minutes is the maintenance window duration in minutes. This can only be set if `strategy` is "time-based".
-  int64 maintenance_window_minutes = 3;
+  // maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based".
+  // Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next
+  // maintenance window.
+  google.protobuf.Duration maintenance_window_duration = 3;
   // agent_schedules specifies schedules for updates of grouped agents.
   AgentAutoUpdateSchedules agent_schedules = 5;
 }
@@ -179,12 +182,14 @@ message AutoUpdateAgentRolloutStatusGroup {
 enum AutoUpdateAgentGroupState {
   // AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED state
   AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED = 0;
-  // AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED state
+  // AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED represents that the group update has not been started yet.
   AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED = 1;
-  // AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE state
+  // AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE represents that the group is actively getting updated.
+  // New agents should run v2, existing agents are instructed to update to v2.
   AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE = 2;
-  // AUTO_UPDATE_AGENT_GROUP_STATE_DONE state
+  // AUTO_UPDATE_AGENT_GROUP_STATE_DONE represents that the group has been updated. New agents should run v2.
   AUTO_UPDATE_AGENT_GROUP_STATE_DONE = 3;
-  // AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK state
+  // AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK represents that the group has been rolleback.
+  // New agents should run v1, existing agents should update to v1.
   AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK = 4;
 }
