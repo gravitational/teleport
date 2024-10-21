@@ -20,20 +20,16 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/autoupdate"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -56,13 +52,13 @@ const (
 	proxyServerEnvVar = "TELEPORT_PROXY"
 	// updateGroupEnvVar allows the update group to be specified via env var.
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
+	// updateVersionEnvVar forces the version to specified value.
+	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
 )
 
 const (
 	// versionsDirName specifies the name of the subdirectory inside of the Teleport data dir for storing Teleport versions.
 	versionsDirName = "versions"
-	// configFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
-	configFileName = "update.yaml"
 	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
 	lockFileName = ".lock"
 )
@@ -76,23 +72,15 @@ func main() {
 }
 
 type cliConfig struct {
+	autoupdate.OverrideConfig
+
 	// Debug logs enabled
 	Debug bool
-	// DataDir for Teleport (usually /var/lib/teleport)
-	DataDir string
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	// By default, this is `text`.
 	LogFormat string
-
-	// ProxyServer address, scheme and port optional.
-	// Overrides existing value if specified.
-	ProxyServer string
-	// Group identifier for updates (e.g., staging)
-	// Overrides existing value if specified.
-	Group string
-	// Template for the Teleport tgz download URL
-	// Overrides existing value if specified.
-	Template string
+	// DataDir for Teleport (usually /var/lib/teleport)
+	DataDir string
 }
 
 func (c *cliConfig) CheckAndSetDefaults() error {
@@ -122,17 +110,21 @@ func Run(args []string) error {
 
 	versionCmd := app.Command("version", "Print the version of your teleport-updater binary.")
 
-	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial updates.")
-	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').
-		Envar(proxyServerEnvVar).StringVar(&ccfg.ProxyServer)
-	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').
-		Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
-	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").
-		Short('t').Envar(templateEnvVar).StringVar(&ccfg.Template)
+	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial update.")
+	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").
+		Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.Proxy)
+	enableCmd.Flag("group", "Update group for this agent installation.").
+		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
+	enableCmd.Flag("template", "Go template used to override Teleport download URL.").
+		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
+	enableCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
+		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
+	updateCmd.Flag("force-version", "Use the provided version instead of querying it from the Teleport cluster.").
+		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
 
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
@@ -186,21 +178,28 @@ func setupLogger(debug bool, format string) error {
 
 // cmdDisable disables updates.
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
-	var (
-		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
-		updateYAML  = filepath.Join(versionsDir, configFileName)
-	)
+	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
+	if err := os.MkdirAll(versionsDir, 0755); err != nil {
+		return trace.Errorf("failed to create versions directory: %w", err)
+	}
+
 	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
 	}
 	defer func() {
 		if err := unlock(); err != nil {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	updater := autoupdate.AgentUpdater{Log: plog}
-	if err := updater.Disable(ctx, updateYAML); err != nil {
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		VersionsDir: versionsDir,
+		Log:         plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to setup updater: %w", err)
+	}
+	if err := updater.Disable(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -208,37 +207,36 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdEnable enables updates and triggers an initial update.
 func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
-	return trace.NotImplemented("TODO")
+	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
+	if err := os.MkdirAll(versionsDir, 0755); err != nil {
+		return trace.Errorf("failed to create versions directory: %w", err)
+	}
+
+	// Ensure enable can't run concurrently.
+	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
+	if err != nil {
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		VersionsDir: versionsDir,
+		Log:         plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to setup updater: %w", err)
+	}
+	if err := updater.Enable(ctx, ccfg.OverrideConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	return trace.NotImplemented("TODO")
-}
-
-//nolint:unused // scaffolding used in upcoming PR
-type downloadConfig struct {
-	// Insecure turns off TLS certificate verification when enabled.
-	Insecure bool
-	// Pool defines the set of root CAs to use when verifying server
-	// certificates.
-	Pool *x509.CertPool
-	// Timeout is a timeout for requests.
-	Timeout time.Duration
-}
-
-//nolint:unused // scaffolding used in upcoming PR
-func newClient(cfg *downloadConfig) (*http.Client, error) {
-	tr, err := libdefaults.Transport()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tr.TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: cfg.Insecure,
-		RootCAs:            cfg.Pool,
-	}
-	return &http.Client{
-		Transport: tr,
-		Timeout:   cfg.Timeout,
-	}, nil
 }
