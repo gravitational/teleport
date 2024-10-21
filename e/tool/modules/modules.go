@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -192,7 +191,7 @@ func (p *enterpriseModules) PrintVersion() {
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *enterpriseModules) IsBoringBinary() bool {
-	return native.IsBoringBinary()
+	return modules.IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key, either with the given statement or

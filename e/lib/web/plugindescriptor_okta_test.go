@@ -51,7 +51,7 @@ var premadeSAMLSigningKeypair types.AsymmetricKeyPair
 
 // init creates the premadeSAMLSigningKeypair
 func init() {
-	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+	keyPEM, certPEM, err := utils.GenerateRSASelfSignedSigningCert(pkix.Name{
 		Organization: []string{"Teleport OSS"},
 		CommonName:   "teleport.localhost.localdomain",
 	}, nil, 10*365*24*time.Hour)

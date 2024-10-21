@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type ekCertGenerator func(ekKey crypto.PublicKey) ([]byte, error)
@@ -34,11 +34,11 @@ func newFakeEKCertCA() (ekCertGenerator ekCertGenerator, caPEM []byte, err error
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	caKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, nil, err
 	}
-	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caKey.PublicKey, caKey)
+	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, caKey.Public(), caKey)
 	if err != nil {
 		return nil, nil, err
 	}

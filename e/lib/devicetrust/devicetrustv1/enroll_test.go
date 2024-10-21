@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -19,10 +18,12 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -71,9 +72,9 @@ func TestService_EnrollDevice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarshalPKIXPublicKey failed: %v", err)
 	}
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	rsaKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	if err != nil {
-		t.Fatalf("GenerateKey failed: %v", err)
+		t.Fatalf("ParsePrivateKey failed: %v", err)
 	}
 	rsaKeyDER, err := x509.MarshalPKIXPublicKey(rsaKey.Public())
 	if err != nil {

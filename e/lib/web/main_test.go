@@ -4,10 +4,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 func TestMain(m *testing.M) {
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())
 }

@@ -251,7 +251,7 @@ func newLockWatcher(t *testing.T, ap *testAccessPoint) *services.LockWatcher {
 func generateTestTLSConfig(t *testing.T, name string, roles []string, extensions ...pkix.AttributeTypeAndValue) *tls.Config {
 	t.Helper()
 
-	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+	keyPEM, certPEM, err := utils.GenerateRSASelfSignedSigningCert(pkix.Name{
 		Organization: roles,
 		CommonName:   name,
 		ExtraNames: append([]pkix.AttributeTypeAndValue{

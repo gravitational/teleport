@@ -5,8 +5,6 @@ import (
 	"compress/flate"
 	"context"
 	"crypto"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/xml"
@@ -720,11 +718,11 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	_, err = auth.CreateRole(ctx, a, "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	caKey, err := keys.ParsePrivateKey([]byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
 	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		caKey,
+		caKey.Signer,
 		pkix.Name{
 			CommonName:   "server1",
 			Organization: []string{"server1"},
@@ -732,7 +730,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tlsCert)
 
-	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+	keyPEM, certPEM, err := utils.GenerateRSASelfSignedSigningCert(pkix.Name{
 		Organization: []string{"Teleport OSS"},
 		CommonName:   "teleport.localhost.localdomain",
 	}, nil, 10*365*24*time.Hour)
@@ -890,11 +888,11 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		"login_rules": {`"true"`},
 	})
 
-	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	caKey, err := keys.ParsePrivateKey([]byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
 	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		caKey,
+		caKey.Signer,
 		pkix.Name{
 			CommonName:   "server1",
 			Organization: []string{"server1"},
@@ -902,7 +900,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tlsCert)
 
-	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+	keyPEM, certPEM, err := utils.GenerateRSASelfSignedSigningCert(pkix.Name{
 		Organization: []string{"Teleport OSS"},
 		CommonName:   "teleport.localhost.localdomain",
 	}, nil, 10*365*24*time.Hour)

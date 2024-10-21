@@ -27,10 +27,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dttestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/modules"
@@ -67,11 +67,11 @@ func TestNodeAccess(t *testing.T) {
 	ctx := context.Background()
 	a := createAgent(t)
 
-	rsaKey, err := native.GenerateRSAPrivateKey()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
 	testKey := agent.AddedKey{
-		PrivateKey: rsaKey,
+		PrivateKey: key,
 		Comment:    "test-key",
 	}
 	require.NoError(t, a.Add(testKey))

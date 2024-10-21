@@ -55,7 +55,7 @@ func MustParseDumpToPacket(t *testing.T, dump string) Packet {
 }
 
 func MustCreateSelfSignedCert(t *testing.T) (tls.Certificate, *x509.CertPool) {
-	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+	keyPEM, certPEM, err := utils.GenerateRSASelfSignedSigningCert(pkix.Name{
 		Organization: []string{"Teleport Test"},
 		CommonName:   "Teleport",
 	}, []string{"localhost", "127.0.0.1"}, 10*365*24*time.Hour)
