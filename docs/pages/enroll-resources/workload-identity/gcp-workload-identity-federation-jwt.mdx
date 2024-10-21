@@ -40,6 +40,11 @@ GCP APIs in a few ways:
 workloads which need to access Teleport Workload Identity will run. For more
 information, see the [deployment guides](../machine-id/deployment.mdx).
 
+<Notice type="warning">
+Issuing JWT SVIDs with Teleport Workload Identity requires at minimum version
+16.4.3.
+</Notice>
+
 ### Deciding on a SPIFFE ID structure
 
 Within Teleport Workload Identity, all identities are represented using a
