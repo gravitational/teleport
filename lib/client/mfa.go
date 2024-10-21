@@ -34,20 +34,7 @@ func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
-		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
-			rdConfig, err := tc.ssoRedirectorConfig(ctx, "" /*connectorDisplayName*/)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			rd, err := sso.NewRedirector(rdConfig)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			context.AfterFunc(ctx, rd.Close)
-			return sso.NewCLIMFACeremony(rd), nil
-		},
+		SSOMFACeremonyConstructor:   tc.NewSSOMFACeremony,
 	}
 }
 
@@ -96,4 +83,20 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 	}
 
 	return cfg
+}
+
+// NewSSOMFACeremony creates a new SSO MFA ceremony.
+func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACeremony, error) {
+	rdConfig, err := tc.ssoRedirectorConfig(ctx, "" /*connectorDisplayName*/)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rd, err := sso.NewRedirector(rdConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	context.AfterFunc(ctx, rd.Close)
+	return sso.NewCLIMFACeremony(rd), nil
 }

@@ -51,7 +51,7 @@ type PromptConfig struct {
 	// Quiet suppresses users prompts.
 	Quiet bool
 	// SSOMFACeremony is an SSO MFA ceremony.
-	SSOMFACeremony
+	SSOMFACeremony SSOMFACeremony
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".

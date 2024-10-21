@@ -34,7 +34,7 @@ type Ceremony struct {
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
 	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge. The provided
 	// context will be closed once the ceremony is complete.
-	SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
+	SSOMFACeremonyConstructor SSOMFACeremonyConstructor
 }
 
 // SSOMFACeremony is an SSO MFA ceremony.
@@ -42,6 +42,9 @@ type SSOMFACeremony interface {
 	GetClientCallbackURL() string
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
+
+// SSOMFACeremonyConstructor constructs a new SSO MFA ceremony.
+type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
