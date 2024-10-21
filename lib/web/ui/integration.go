@@ -62,6 +62,10 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// Origin is the name of a Teleport integration, plugin or a
+	// discovery service for which this integration was created. The value
+	// will be applied to the integration resource metadata origin label.
+	Origin string `json:"origin,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -152,6 +156,7 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
 		}
+		ret.Origin = ig.Origin()
 	}
 
 	return ret, nil
