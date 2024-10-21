@@ -24,13 +24,12 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegrationsCreateWithOrigin(t *testing.T) {
+func TestIntegrationsCreateWithAudiences(t *testing.T) {
 	t.Parallel()
 	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
@@ -38,32 +37,57 @@ func TestIntegrationsCreateWithOrigin(t *testing.T) {
 	ctx := context.Background()
 
 	const integrationName = "test-integration"
-	createData := ui.Integration{
-		Name:    integrationName,
-		SubKind: "aws-oidc",
-		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-			RoleARN: "arn:aws:iam::026090554232:role/testrole",
+	audienceReq := []string{"aws-identity-center"}
+	cases := []struct {
+		name          string
+		audiences     []string
+		wantAudiences []string
+	}{
+		{
+			name:          "without audiences",
+			audiences:     nil,
+			wantAudiences: nil,
 		},
-		Origin: common.OriginAWSIdentityCenter,
+		{
+			name:          "with audiences",
+			audiences:     audienceReq,
+			wantAudiences: audienceReq,
+		},
 	}
-	createEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
-	createResp, err := authPack.clt.PostJSON(ctx, createEndpoint, createData)
-	require.NoError(t, err)
-	require.Equal(t, 200, createResp.Code())
 
-	// check origin label stored in backend
-	intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
-	require.NoError(t, err)
-	require.Equal(t, common.OriginAWSIdentityCenter, intgrationResource.Origin())
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			createData := ui.Integration{
+				Name:    integrationName,
+				SubKind: "aws-oidc",
+				AWSOIDC: &ui.IntegrationAWSOIDCSpec{
+					RoleARN:   "arn:aws:iam::026090554232:role/testrole",
+					Audiences: test.audiences,
+				},
+			}
+			createEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
+			createResp, err := authPack.clt.PostJSON(ctx, createEndpoint, createData)
+			require.NoError(t, err)
+			require.Equal(t, 200, createResp.Code())
 
-	// check origin label returned in the web api
-	getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-	getResp, err := authPack.clt.Get(ctx, getEndpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, 200, getResp.Code())
+			// check origin label stored in backend
+			intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
+			require.NoError(t, err)
+			require.Equal(t, test.wantAudiences, intgrationResource.GetAWSOIDCIntegrationSpec().Audiences)
 
-	var resp ui.Integration
-	err = json.Unmarshal(getResp.Bytes(), &resp)
-	require.NoError(t, err)
-	require.Equal(t, createData, resp)
+			// check origin label returned in the web api
+			getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
+			getResp, err := authPack.clt.Get(ctx, getEndpoint, nil)
+			require.NoError(t, err)
+			require.Equal(t, 200, getResp.Code())
+
+			var resp ui.Integration
+			err = json.Unmarshal(getResp.Bytes(), &resp)
+			require.NoError(t, err)
+			require.Equal(t, createData, resp)
+
+			err = wPack.server.Auth().DeleteIntegration(ctx, integrationName)
+			require.NoError(t, err)
+		})
+	}
 }

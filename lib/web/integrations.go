@@ -58,16 +58,12 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			s3Location = issuerS3URI.String()
 		}
 		metadata := types.Metadata{Name: req.Name}
-		if req.Origin != "" {
-			metadata.Labels = map[string]string{
-				types.OriginLabel: req.Origin,
-			}
-		}
 		ig, err = types.NewIntegrationAWSOIDC(
 			metadata,
 			&types.AWSOIDCIntegrationSpecV1{
 				RoleARN:     req.AWSOIDC.RoleARN,
 				IssuerS3URI: s3Location,
+				Audiences:   req.AWSOIDC.Audiences,
 			},
 		)
 		if err != nil {

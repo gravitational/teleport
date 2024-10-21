@@ -63,15 +63,26 @@ export enum IntegrationKind {
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
+
+/**
+ * IntegrationAudience specifies supported audience values for IntegrationSpecAwsOidc
+ * audiences field.
+ */
+export enum IntegrationAudience {
+  AwsIdentityCenter = 'aws-identity-center',
+}
+
+const auds = Object.values(IntegrationAudience);
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
   /**
-   * origin specifies name of a Teleport integration, plugin or a
-   * discovery service for which this integration was created.
+   * audiences is used to record name of a plugin or discover services in Teleport
+   * that depends on this integration.
    */
-  origin?: string;
+  audiences?: typeof auds;
 };
 
 export enum IntegrationStatusCode {
@@ -235,13 +246,7 @@ export type IntegrationCreateRequest = {
   name: string;
   subKind: IntegrationKind;
   awsoidc?: IntegrationSpecAwsOidc;
-  origin?: IntegrationOrigin;
 };
-
-/** IntegrationOrigin specifies origin of an integration  */
-export enum IntegrationOrigin {
-  AwsIdentityCenter = 'aws-identity-center',
-}
 
 export type IntegrationListResponse = {
   items: Integration[];

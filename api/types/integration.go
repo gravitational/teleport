@@ -34,6 +34,11 @@ const (
 	IntegrationSubKindAzureOIDC = "azure-oidc"
 )
 
+const (
+	// IntegrationAWSOIDCAudienceAWSIdentityCenter is an audience name for the Teleport AWS Idenity Center plugin.
+	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
+)
+
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
 type Integration interface {
 	ResourceWithLabels
@@ -186,6 +191,25 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 		}
 		if issuerS3URL.Scheme != "s3" || issuerS3URL.Host == "" || issuerS3URL.Path == "" {
 			return trace.BadParameter("issuer s3 uri must be in a valid format (eg, s3://my-bucket/my-prefix)")
+		}
+	}
+
+	if err := s.ValidateAudience(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// ValidateAudience validates if the Audiences field is configured with one of
+// the supported audience values.
+func (s *IntegrationSpecV1_AWSOIDC) ValidateAudience() error {
+	for _, v := range s.AWSOIDC.Audiences {
+		switch v {
+		case IntegrationAWSOIDCAudienceAWSIdentityCenter:
+			return nil
+		default:
+			return trace.BadParameter("unsupported value %q for audiences", v)
 		}
 	}
 

@@ -38,6 +38,10 @@ type IntegrationAWSOIDCSpec struct {
 	IssuerS3Bucket string `json:"issuerS3Bucket,omitempty"`
 	// IssuerS3Prefix is the prefix for the bucket above.
 	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
+
+	// Audiences is used to record name of a plugin or discover services in Teleport
+	// that depends on this integration.
+	Audiences []string `json:"audiences,omitempty"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -62,10 +66,6 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
-	// Origin is the name of a Teleport integration, plugin or a
-	// discovery service for which this integration was created. The value
-	// will be applied to the integration resource metadata origin label.
-	Origin string `json:"origin,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -155,8 +155,8 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
+			Audiences:      ig.GetAWSOIDCIntegrationSpec().Audiences,
 		}
-		ret.Origin = ig.Origin()
 	}
 
 	return ret, nil

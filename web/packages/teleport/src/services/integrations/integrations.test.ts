@@ -20,7 +20,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { integrationService } from './integrations';
-import { IntegrationStatusCode, IntegrationOrigin } from './types';
+import { IntegrationStatusCode, IntegrationAudience } from './types';
 
 test('fetch a single integration: fetchIntegration()', async () => {
   // test a valid response
@@ -62,7 +62,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({
     items: [
       awsOidcIntegration,
-      awsOidcIntegrationWithOriginLabel,
+      awsOidcIntegrationWithAudiences,
       nonAwsOidcIntegration,
     ],
     nextKey: 'some-key',
@@ -79,7 +79,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-123',
-          origin: undefined,
+          audiences: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -89,7 +89,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-12345',
-          origin: IntegrationOrigin.AwsIdentityCenter,
+          audiences: ['aws-identity-center'],
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -99,7 +99,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: undefined,
-          origin: undefined,
+          audiences: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -218,11 +218,13 @@ const awsOidcIntegration = {
   awsoidc: { roleArn: 'arn-123' },
 };
 
-const awsOidcIntegrationWithOriginLabel = {
+const awsOidcIntegrationWithAudiences = {
   name: 'aws-oidc-integration2',
   subKind: 'aws-oidc',
-  awsoidc: { roleArn: 'arn-12345' },
-  origin: IntegrationOrigin.AwsIdentityCenter,
+  awsoidc: {
+    roleArn: 'arn-12345',
+    audiences: [IntegrationAudience.AwsIdentityCenter],
+  },
 };
 
 const mockAwsDbs = [

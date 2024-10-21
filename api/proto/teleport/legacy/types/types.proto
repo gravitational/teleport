@@ -7233,6 +7233,10 @@ message AWSOIDCIntegrationSpecV1 {
     (gogoproto.jsontag) = "issuer_s3_uri,omitempty",
     deprecated = true
   ];
+
+  // Audiences is used to record name of a plugin or discover services in Teleport
+  // that depends on this integration.
+  repeated string audiences = 3 [(gogoproto.jsontag) = "audiences,omitempty"];
 }
 
 // AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.
