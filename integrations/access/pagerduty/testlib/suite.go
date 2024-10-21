@@ -434,8 +434,8 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	var collectedNames []string
 	var mu sync.Mutex
 	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(_ types.OpType, name string, _ *accessmonitoringrulesv1.AccessMonitoringRule) error {
-	        mu.Lock()
-		collectedNames=append(collectedNames, name)
+		mu.Lock()
+		collectedNames = append(collectedNames, name)
 		mu.Unlock()
 		return nil
 	}
