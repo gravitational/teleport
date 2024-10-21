@@ -22,7 +22,7 @@ import { Box, Indicator } from 'design';
 
 import * as stores from 'teleport/Console/stores/types';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
+import { useMfa } from 'teleport/lib/useMfa';
 import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
 
 import Document from 'teleport/Console/Document';
@@ -39,11 +39,11 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendKubeExecData } =
     useKubeExecSession(doc);
-  const webauthn = useWebAuthn(tty);
+  const mfa = useMfa(tty);
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, webauthn.requested]);
+  }, [visible, mfa.requested]);
   const theme = useTheme();
 
   const terminal = (
@@ -63,11 +63,11 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      {webauthn.requested && (
+      {mfa.requested && (
         <AuthnDialog
-          onContinue={webauthn.authenticate}
+          onContinue={mfa.authenticate}
           onCancel={closeDocument}
-          errorText={webauthn.errorText}
+          errorText={mfa.errorText}
         />
       )}
 

@@ -18,16 +18,14 @@
 
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
 import {
   makeMfaAuthenticateChallenge,
   makeWebauthnAssertionResponse,
 } from 'teleport/services/auth';
 
-export default function useWebAuthn(
-  emitterSender: EventEmitterWebAuthnSender
-): WebAuthnState {
+export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
   const [state, setState] = useState({
     addMfaToScpUrls: false,
     requested: false,
@@ -69,7 +67,7 @@ export default function useWebAuthn(
   }
 
   const onChallenge = challengeJson => {
-    const challenge = JSON.parse(challengeJson);
+    const challenge = makeChallengeResponse(challengeJson);
     const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
 
     setState({
@@ -99,7 +97,7 @@ export default function useWebAuthn(
   };
 }
 
-export type WebAuthnState = {
+export type MfaState = {
   errorText: string;
   requested: boolean;
   authenticate: () => void;
@@ -112,4 +110,26 @@ export type WebAuthnState = {
     }>
   >;
   addMfaToScpUrls: boolean;
+};
+
+function makeChallengeResponse(json: string): ChallengeResponse {
+  const challenge = JSON.parse(json);
+
+  return {
+    ssoChallenge: challenge?.sso_challenge
+      ? {
+          redirectUrl: challenge.sso_challenge.redirectUrl,
+          requestId: challenge.sso_challenge.request_id,
+        }
+      : null,
+  };
+}
+
+type ChallengeResponse = {
+  ssoChallenge: SSOChallenge;
+};
+
+type SSOChallenge = {
+  redirectUrl: string;
+  requestId: string;
 };

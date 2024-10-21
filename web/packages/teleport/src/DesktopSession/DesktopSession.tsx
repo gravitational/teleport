@@ -39,7 +39,7 @@ import useDesktopSession, {
 import TopBar from './TopBar';
 
 import type { State, WebsocketAttempt } from './useDesktopSession';
-import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
+import type { MfaState } from 'teleport/lib/useMfa';
 
 export function DesktopSessionContainer() {
   const state = useDesktopSession();
@@ -181,7 +181,7 @@ export function DesktopSession(props: State) {
   );
 }
 
-const MfaDialog = ({ webauthn }: { webauthn: WebAuthnState }) => {
+const MfaDialog = ({ webauthn }: { webauthn: MfaState }) => {
   return (
     <AuthnDialog
       onContinue={webauthn.authenticate}
@@ -282,7 +282,7 @@ const nextScreenState = (
   tdpConnection: Attempt,
   wsConnection: WebsocketAttempt,
   showAnotherSessionActiveDialog: boolean,
-  webauthn: WebAuthnState
+  webauthn: MfaState
 ): ScreenState => {
   // We always want to show the user the first alert that caused the session to fail/end,
   // so if we're already showing an alert, don't change the screen.
