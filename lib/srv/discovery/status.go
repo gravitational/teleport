@@ -310,12 +310,12 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 			installerScript: result.InstallerScript,
 		},
 		&usertasksv1.DiscoverEC2Instance{
-			// TODO(marco): add instance name
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
 			DiscoveryConfig: result.DiscoveryConfig,
 			DiscoveryGroup:  s.DiscoveryGroup,
 			SyncTime:        timestamppb.New(result.SSMRunEvent.Time),
 			InstanceId:      result.SSMRunEvent.InstanceID,
+			Name:            result.InstanceName,
 		},
 	)
 
