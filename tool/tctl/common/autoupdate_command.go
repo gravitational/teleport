@@ -29,7 +29,6 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
@@ -50,7 +49,7 @@ type AutoUpdateCommand struct {
 	app    *kingpin.Application
 	config *servicecfg.Config
 
-	updateCmd *kingpin.CmdClause
+	upsertCmd *kingpin.CmdClause
 	getCmd    *kingpin.CmdClause
 	watchCmd  *kingpin.CmdClause
 
@@ -70,15 +69,15 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 
 	clientToolsCmd := autoUpdateCmd.Command("client-tools", "Client tools auto update commands.")
 
-	c.updateCmd = clientToolsCmd.Command("update", "Edit client tools auto update configuration.")
-	c.updateCmd.Flag("set-mode", `Sets the mode to enable or disable tools auto update in cluster.`).EnumVar(&c.mode, "enabled", "disabled")
-	c.updateCmd.Flag("set-target-version", `Defines client tools target version required to be updated.`).StringVar(&c.toolsTargetVersion)
+	c.upsertCmd = clientToolsCmd.Command("update", "Edit client tools auto update configuration.")
+	c.upsertCmd.Flag("set-mode", "Sets the mode to enable or disable tools auto update in cluster.").EnumVar(&c.mode, "enabled", "disabled")
+	c.upsertCmd.Flag("set-target-version", "Defines client tools target version required to be updated.").StringVar(&c.toolsTargetVersion)
 
 	c.getCmd = clientToolsCmd.Command("get", "Receive tools auto update target version.")
-	c.getCmd.Flag("proxy", `URL of the proxy`).StringVar(&c.proxy)
+	c.getCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
 
 	c.watchCmd = clientToolsCmd.Command("watch", "Start monitoring auto update target version updates.")
-	c.watchCmd.Flag("proxy", `URL of the proxy`).StringVar(&c.proxy)
+	c.watchCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -88,7 +87,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 // TryRun takes the CLI command as an argument and executes it.
 func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
-	case c.updateCmd.FullCommand():
+	case c.upsertCmd.FullCommand():
 		err = c.Upsert(ctx, client)
 	case c.getCmd.FullCommand():
 		err = c.Get(ctx, client)
@@ -123,23 +122,25 @@ func (c *AutoUpdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 		}
 	}
 
-	version, err := client.GetAutoUpdateVersion(ctx)
-	if trace.IsNotFound(err) {
-		if version, err = autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{}); err != nil {
+	if c.toolsTargetVersion != "" {
+		version, err := client.GetAutoUpdateVersion(ctx)
+		if trace.IsNotFound(err) {
+			if version, err = autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{}); err != nil {
+				return trace.Wrap(err)
+			}
+		} else if err != nil {
 			return trace.Wrap(err)
 		}
-	} else if err != nil {
-		return trace.Wrap(err)
-	}
-	if version.Spec.Tools == nil {
-		version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{}
-	}
-	if version.Spec.Tools.TargetVersion != c.toolsTargetVersion {
-		version.Spec.Tools.TargetVersion = c.toolsTargetVersion
-		if _, err := client.UpsertAutoUpdateVersion(ctx, version); err != nil {
-			return trace.Wrap(err)
+		if version.Spec.Tools == nil {
+			version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{}
 		}
-		fmt.Fprint(c.stdout, "autoupdate_version has been upserted\n")
+		if version.Spec.Tools.TargetVersion != c.toolsTargetVersion {
+			version.Spec.Tools.TargetVersion = c.toolsTargetVersion
+			if _, err := client.UpsertAutoUpdateVersion(ctx, version); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprint(c.stdout, "autoupdate_version has been upserted\n")
+		}
 	}
 
 	return nil
@@ -163,7 +164,7 @@ func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) 
 // Watch launch the watcher of the tools auto update target version updates to pull the version
 // every minute.
 func (c *AutoUpdateCommand) Watch(ctx context.Context, client *authclient.Client) error {
-	current := teleport.SemVersion
+	var current semver.Version
 	ticker := interval.New(interval.Config{
 		Duration: time.Minute,
 	})
@@ -179,11 +180,11 @@ func (c *AutoUpdateCommand) Watch(ctx context.Context, client *authclient.Client
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if !semVersion.Equal(*current) {
+			if !semVersion.Equal(current) {
 				if err := utils.WriteJSON(c.stdout, response); err != nil {
 					return trace.Wrap(err)
 				}
-				current = semVersion
+				current = *semVersion
 			}
 		}
 
