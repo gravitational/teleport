@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -40,7 +41,8 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		// TODO(tross): update to use the server logger once it is converted to slog
+		Logger: slog.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)

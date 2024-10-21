@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -90,8 +89,6 @@ func watchKindsString(kinds []types.WatchKind) string {
 type ResourceWatcherConfig struct {
 	// Component is a component used in logs.
 	Component string
-	// TODO(tross): remove this once e has been updated.
-	Log logrus.FieldLogger
 	// Logger emits log messages.
 	Logger *slog.Logger
 	// MaxRetryPeriod is the maximum retry period on failed watchers.

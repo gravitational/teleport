@@ -3851,6 +3851,8 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			deviceToDelete = d
 			switch d.Device.(type) {
 			case *types.MFADevice_Totp, *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			case *types.MFADevice_Sso:
+				return nil, trace.BadParameter("cannot delete ephemeral SSO MFA device")
 			default:
 				return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
 			}
@@ -3862,6 +3864,8 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_OTP]++
 		case *types.MFADevice_U2F, *types.MFADevice_Webauthn:
 			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN]++
+		case *types.MFADevice_Sso:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_SSO]++
 		default:
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
@@ -3888,11 +3892,11 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// Check whether the device to delete is the last passwordless device,
 	// and whether deleting it would lockout the user from login.
 	//
-	// TODO(Joerger): the user may already be locked out from login if a password
+	// Note: the user may already be locked out from login if a password
 	// is not set and passwordless is disabled. Prevent them from deleting
 	// their last passkey to prevent them from being locked out further,
 	// in the case of passwordless being re-enabled.
-	if isPasskey(deviceToDelete) && remainingPasskeys == 0 && readOnlyAuthPref.GetAllowPasswordless() {
+	if isPasskey(deviceToDelete) && remainingPasskeys == 0 {
 		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -6765,6 +6769,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
+	SSO      *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
@@ -6781,6 +6786,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 			if groupWebauthn {
 				res.Webauthn = append(res.Webauthn, dev)
 			}
+		case *types.MFADevice_Sso:
+			res.SSO = dev
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}

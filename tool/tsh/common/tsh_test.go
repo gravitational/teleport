@@ -2862,33 +2862,47 @@ func TestSSHHeadless(t *testing.T) {
 	bob.SetRoles([]string{"requester"})
 
 	sshHostname := "test-ssh-host"
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice, requester, bob), withConfig(func(cfg *servicecfg.Config) {
-		cfg.Hostname = sshHostname
-		cfg.SSH.Enabled = true
-		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	}))
+	server := testserver.MakeTestServer(t,
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Hostname = sshHostname
+			cfg.Auth.Enabled = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
+			cfg.SSH.DisableCreateHostUser = true
 
-	proxyAddr, err := rootProxy.ProxyWebAddr()
-	require.NoError(t, err)
+			cfg.Auth.BootstrapResources = []types.Resource{nodeAccess, alice, requester, bob}
+			cfg.Auth.Preference = &types.AuthPreferenceV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					AllowHeadless: types.NewBoolOption(true),
+				},
+			}
+		}),
+	)
 
-	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
-		Spec: types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
-			Webauthn: &types.Webauthn{
-				RPID: "127.0.0.1",
-			},
-		},
-	})
-	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		assert.NoError(t, err)
+		assert.Len(t, found, 1)
+	}, 10*time.Second, 100*time.Millisecond)
 
 	go func() {
-		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
+		// Ensure the context is canceled, so that Run calls don't block
+		defer cancel()
+		if err := approveAllAccessRequests(ctx, server.GetAuthServer()); err != nil {
 			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
 		}
-		// Cancel the context, so Run calls don't block
-		cancel()
 	}()
+
+	proxyAddr, err := server.ProxyWebAddr()
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		name      string
@@ -2930,10 +2944,10 @@ func TestSSHHeadless(t *testing.T) {
 				"echo", "test",
 			)
 
-			err := Run(ctx, args, CliOption(func(cf *CLIConf) error {
-				cf.MockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+			err := Run(ctx, args, func(cf *CLIConf) error {
+				cf.MockHeadlessLogin = mockHeadlessLogin(t, server.GetAuthServer(), alice)
 				return nil
-			}))
+			})
 			tc.assertErr(t, err)
 		})
 	}
@@ -2966,32 +2980,45 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 	alice.SetRoles([]string{"node-access"})
 
 	sshHostname := "test-ssh-host"
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice), withConfig(func(cfg *servicecfg.Config) {
-		cfg.Hostname = sshHostname
-		cfg.SSH.Enabled = true
-		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	}))
 
-	proxyAddr, err := rootProxy.ProxyWebAddr()
-	require.NoError(t, err)
+	server := testserver.MakeTestServer(t,
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Hostname = sshHostname
+			cfg.Auth.Enabled = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
+			cfg.SSH.DisableCreateHostUser = true
+			cfg.Auth.BootstrapResources = []types.Resource{nodeAccess, alice}
+			cfg.Auth.Preference = &types.AuthPreferenceV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
+				},
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					AllowHeadless: types.NewBoolOption(true),
+				},
+			}
+		}))
 
-	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
-		Spec: types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
-			Webauthn: &types.Webauthn{
-				RPID: "127.0.0.1",
-			},
-		},
-	})
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		assert.NoError(t, err)
+		assert.Len(t, found, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	proxyAddr, err := server.ProxyWebAddr()
 	require.NoError(t, err)
 
 	go func() {
-		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
+		// Ensure the context is canceled, so that Run calls don't block
+		defer cancel()
+		if err := approveAllAccessRequests(ctx, server.GetAuthServer()); err != nil {
 			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
 		}
-		// Cancel the context, so Run calls don't block
-		cancel()
 	}()
 
 	err = Run(ctx, []string{
@@ -3004,10 +3031,10 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 		"--add-keys-to-agent=yes",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
-	}, CliOption(func(cf *CLIConf) error {
-		cf.MockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+	}, func(cf *CLIConf) error {
+		cf.MockHeadlessLogin = mockHeadlessLogin(t, server.GetAuthServer(), alice)
 		return nil
-	}))
+	})
 	require.NoError(t, err)
 
 	keys, err := agentKeyring.List()
@@ -4899,10 +4926,17 @@ func TestSerializeMFADevices(t *testing.T) {
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
-		{"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
+		{"metadata":{"Name":"my device","Namespace":"default"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z","kind":"mfa_device","totp":{"key":"key"},"version":"v1"}
 	]
 	`
-	dev := types.NewMFADevice("my device", "id", aTime)
+
+	dev, err := types.NewMFADevice("my device", "id", aTime, &types.MFADevice_Totp{
+		Totp: &types.TOTPDevice{
+			Key: "key",
+		},
+	})
+	require.NoError(t, err)
+
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeMFADevices([]*types.MFADevice{dev}, f)
 	})
