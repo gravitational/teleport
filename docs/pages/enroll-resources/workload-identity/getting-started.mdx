@@ -58,7 +58,7 @@ Now, use `tctl bots update` to add the role to the Bot. Replace `example-bot`
 with the name of the Bot you created in the deployment guide and `spiffe-issuer`
 with the name of the role you just created:
 
-```bash
+```code
 $ tctl bots update example-bot --add-roles spiffe-issuer
 ```
 
@@ -188,7 +188,7 @@ Use the `spiffe-inspect` command with `--path` to specify the path to the
 Workload API socket, replacing `/opt/machine-id/workload.sock` with the path you
 configured in the previous step:
 
-```bash
+```code
 $ tbot spiffe-inspect --path unix:///opt/machine-id/workload.sock
 INFO [TBOT]      Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock tbot/spiffe.go:31
 INFO [TBOT]      Received X.509 SVID context from Workload API bundles_count:1 svids_count:1 tbot/spiffe.go:46
