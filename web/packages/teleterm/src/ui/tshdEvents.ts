@@ -82,7 +82,11 @@ export function createTshdEventsContextBridgeService(
         };
       }
 
-      return { totpCode };
+      return { 
+        totpCode,
+        continueWebauthn: false,
+        continueSso: false,
+      };
     },
 
     getUsageReportingSettings: async () => {
