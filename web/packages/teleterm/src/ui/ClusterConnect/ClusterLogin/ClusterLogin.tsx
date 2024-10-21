@@ -57,7 +57,7 @@ export function ClusterLoginPresentation({
     <>
       <DialogHeader px={4} pt={4} mb={0}>
         <Text typography="h4">
-          Login to <b>{title}</b>
+          Log in to <b>{title}</b>
         </Text>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
           <Icons.Cross size="medium" />
