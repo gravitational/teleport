@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 )
 
 // NewMFACeremony returns a new MFA ceremony configured for this client.
@@ -33,6 +34,20 @@ func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
+		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+			rdConfig, err := tc.ssoRedirectorConfig(ctx, "" /*connectorDisplayName*/)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			rd, err := sso.NewRedirector(rdConfig)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			context.AfterFunc(ctx, rd.Close)
+			return sso.NewCLIMFACeremony(rd), nil
+		},
 	}
 }
 
@@ -76,5 +91,6 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true
 	}
+
 	return cfg
 }
