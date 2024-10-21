@@ -5950,6 +5950,7 @@ func (process *TeleportProcess) initApps() {
 				Cloud:              app.Cloud,
 				RequiredAppNames:   app.RequiredAppNames,
 				CORS:               makeApplicationCORS(app.CORS),
+				Ports:              makeApplicationPorts(app.Ports),
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6768,6 +6769,18 @@ func makeApplicationCORS(c *servicecfg.CORS) *types.CORSPolicy {
 		AllowCredentials: c.AllowCredentials,
 		MaxAge:           uint32(c.MaxAge),
 	}
+}
+
+// makeApplicationPorts converts a slice of [servicecfg.PortRange] to a slice of [types.PortRange].
+func makeApplicationPorts(servicePorts []servicecfg.PortRange) []*types.PortRange {
+	ports := make([]*types.PortRange, 0, len(servicePorts))
+	for _, portRange := range servicePorts {
+		ports = append(ports, &types.PortRange{
+			Port:    portRange.Port,
+			EndPort: portRange.EndPort,
+		})
+	}
+	return ports
 }
 
 func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*externalauditstorage.Configurator, error) {
