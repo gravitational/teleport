@@ -123,7 +123,7 @@ function SearchContent({
               <SearchResult
                 key={index}
                 subsection={subsection}
-                $active={currentView.route === subsection.route}
+                $active={currentView?.route === subsection.route}
               />
             ))}
           </Flex>
