@@ -55,7 +55,7 @@ type PromptConfig struct {
 	// Used to enrich certain prompts.
 	Extensions *mfav1.ChallengeExtensions
 	// SSOMFACeremony is an SSO MFA ceremony.
-	SSOMFACeremony
+	SSOMFACeremony SSOMFACeremony
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".
