@@ -42,7 +42,6 @@ func newDynamicDesktop(t *testing.T, name string) types.DynamicWindowsDesktop {
 }
 
 func setupDynamicDesktopTest(t *testing.T) (context.Context, *DynamicWindowsDesktopService) {
-	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
