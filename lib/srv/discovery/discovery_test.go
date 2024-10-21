@@ -852,11 +852,10 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 
 	// We must get only one EC2 EICE Node.
 	// Even when two servers are discovering the same EC2 Instance, they will use the same name when converting to EICE Node.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		allNodes, err := tlsServer.Auth().GetNodes(ctx, "default")
-		require.NoError(t, err)
-
-		return len(allNodes) == 1
+		assert.NoError(t, err)
+		assert.Len(t, allNodes, 1)
 	}, 1*time.Second, 50*time.Millisecond)
 
 	// We should never get a duplicate instance.

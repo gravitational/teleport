@@ -180,7 +180,7 @@ func (s *localSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, err
 }
 
 // NodeWatcher returns a services.NodeWatcher for this cluster.
-func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
+func (s *localSite) NodeWatcher() (*services.GenericWatcher[types.Server, types.ReadOnlyServer], error) {
 	return s.srv.NodeWatcher, nil
 }
 
@@ -739,7 +739,11 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
+			proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to get proxy set")
+			}
+			req.SetProxies(proxies)
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -764,9 +768,12 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			if firstHeartbeat {
 				// as soon as the agent connects and sends a first heartbeat
 				// send it the list of current proxies back
-				current := s.srv.proxyWatcher.GetCurrent()
-				if len(current) > 0 {
-					rconn.updateProxies(current)
+				proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+				if err != nil {
+					logger.WithError(err).Warn("Failed to get proxy set")
+				}
+				if len(proxies) > 0 {
+					rconn.updateProxies(proxies)
 				}
 				reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Inc()
 				firstHeartbeat = false
@@ -935,7 +942,7 @@ func (s *localSite) periodicFunctions() {
 
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
-	missing := s.srv.NodeWatcher.GetNodes(s.srv.ctx, func(server services.Node) bool {
+	missing, err := s.srv.NodeWatcher.CurrentResourcesWithFilter(s.srv.ctx, func(server types.ReadOnlyServer) bool {
 		// Skip over any servers that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//
@@ -967,6 +974,9 @@ func (s *localSite) sshTunnelStats() error {
 
 		return err != nil
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))
