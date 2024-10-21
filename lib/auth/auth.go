@@ -1502,8 +1502,6 @@ func (a *Server) runPeriodicOperations() {
 			case localReleaseCheckKey:
 				go a.syncReleaseAlerts(a.closeCtx, false)
 			case instancePeriodicsKey:
-				// instance periodics are rate-limited and may be time-consuming in large
-				// clusters, so launch them in the background.
 				go a.doInstancePeriodics(a.closeCtx)
 			case desktopCheckKey:
 				go a.syncDesktopsLimitAlert(a.closeCtx)
@@ -1527,7 +1525,7 @@ func (a *Server) tallyRoles(ctx context.Context) {
 		a.logger.DebugContext(ctx, "tallying roles completed", "role_count", count)
 	}()
 
-	req := &proto.ListRolesRequest{}
+	req := &proto.ListRolesRequest{Limit: 20}
 
 	readLimiter := time.NewTicker(20 * time.Millisecond)
 	defer readLimiter.Stop()
