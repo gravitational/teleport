@@ -4,13 +4,11 @@ title: Getting Started With Per-Resource Role-Based Access Control
 description: Implementing fine-grained access control with RBAC.
 ---
 
+Per-resource RBAC enables administrators to control user access on a per-resource basis. Using a granular approach allows you to grant more precise management of user permissions in your environment.
 
 ## What is per-resource RBAC?
 
-This granular approach allows you to grant more precise management of user permissions.
-
-Unlike broader, traditional role-based permissions, which can apply to all resources within a namespace or across an entire infrastructure, per-resource RBAC enables administrators to control user access on a per-resource basis. 
-This feature is especially valuable in complex environments with diverse user groups, where some users need restricted access to sensitive systems while others may require broad access.
+This capability is particularly useful in complex, multi-tenant environments where user groups have varying levels of access requirements. It allows for precise control over permissions, enabling restricted access to sensitive resources for certain users while granting broader access to others based on their operational needs.
 
 ## Use cases
 
@@ -90,19 +88,3 @@ spec:
 This role provides read-only access to production PostgreSQL databases named 'analytics' and 'reporting' using the 'readonly' database user.
 
 
-## Best practices
-
-- **Regular audits**: 
-Periodically review and update RBAC policies to ensure they align with current organizational needs and security best practices.
-
-- **Principle of Least Privilege**: 
-Always start with minimal access and gradually increase permissions as needed.
-
-- **Integration with identity providers (IdPs) like Okta and AWS OIDC**:
-Leverage existing identity management systems to streamline user management and access control.
-
-- **Monitoring and alerting**:
-Set up comprehensive logging and alerting for access events, especially for sensitive resources.
-
-- **User education**:
-Ensure that all users understand their access levels and the importance of adhering to security policies.
