@@ -94,15 +94,16 @@ export default function useAccessRequestCheckout() {
   const workspaceAccessRequest =
     ctx.workspacesService.getActiveWorkspaceAccessRequestsService();
   const docService = ctx.workspacesService.getActiveWorkspaceDocumentService();
-  const pendingAccessRequest =
+  const pendingAccessRequestRequest =
     workspaceAccessRequest?.getPendingAccessRequest();
 
-  const pendingAccessRequestsPerResource =
-    getPendingAccessRequestsPerResource(pendingAccessRequest);
+  const pendingAccessRequests = getPendingAccessRequestsPerResource(
+    pendingAccessRequestRequest
+  );
 
-  const pendingAccessRequestsPerResourceWithoutParentResources =
-    pendingAccessRequestsPerResource.filter(
-      p => !isKubeClusterWithNamespaces(p, pendingAccessRequestsPerResource)
+  const pendingAccessRequestsWithoutParentResource =
+    pendingAccessRequests.filter(
+      p => !isKubeClusterWithNamespaces(p, pendingAccessRequests)
     );
 
   useEffect(() => {
@@ -114,10 +115,10 @@ export default function useAccessRequestCheckout() {
     if (showCheckout && requestedCount == 0) {
       performDryRun();
     }
-  }, [showCheckout, pendingAccessRequest]);
+  }, [showCheckout, pendingAccessRequestRequest]);
 
   useEffect(() => {
-    if (!pendingAccessRequest || requestedCount > 0) {
+    if (!pendingAccessRequestRequest || requestedCount > 0) {
       return;
     }
 
@@ -125,7 +126,7 @@ export default function useAccessRequestCheckout() {
       retryWithRelogin(ctx, clusterUri, async () => {
         const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
-          resourceIds: pendingAccessRequestsPerResourceWithoutParentResources
+          resourceIds: pendingAccessRequestsWithoutParentResource
             .filter(d => d.kind !== 'role')
             .map(d => ({
               // We have to use id, not name.
@@ -141,7 +142,7 @@ export default function useAccessRequestCheckout() {
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
     );
-  }, [pendingAccessRequest]);
+  }, [pendingAccessRequestRequest]);
 
   useEffect(() => {
     clearCreateAttempt();
@@ -289,7 +290,7 @@ export default function useAccessRequestCheckout() {
       reason: req.reason,
       suggestedReviewers: req.suggestedReviewers || [],
       dryRun: req.dryRun,
-      resourceIds: pendingAccessRequestsPerResourceWithoutParentResources
+      resourceIds: pendingAccessRequestsWithoutParentResource
         .filter(d => d.kind !== 'role')
         .map(d => {
           if (d.kind === 'namespace') {
@@ -307,7 +308,7 @@ export default function useAccessRequestCheckout() {
             subResourceName: '',
           };
         }),
-      roles: pendingAccessRequestsPerResourceWithoutParentResources
+      roles: pendingAccessRequestsWithoutParentResource
         .filter(d => d.kind === 'role')
         .map(d => d.name),
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
@@ -332,8 +333,7 @@ export default function useAccessRequestCheckout() {
         return {
           accessRequest: response.request,
           requestedCount:
-            pendingAccessRequestsPerResourceWithoutParentResources.filter
-              .length,
+            pendingAccessRequestsWithoutParentResource.filter.length,
         };
       })
     ).catch(e => {
@@ -430,8 +430,8 @@ export default function useAccessRequestCheckout() {
   }
 
   const shouldShowClusterNameColumn =
-    pendingAccessRequest?.kind === 'resource' &&
-    Array.from(pendingAccessRequest.resources.values()).some(a =>
+    pendingAccessRequestRequest?.kind === 'resource' &&
+    Array.from(pendingAccessRequestRequest.resources.values()).some(a =>
       routing.isLeafCluster(a.resource.uri)
     );
 
@@ -440,7 +440,7 @@ export default function useAccessRequestCheckout() {
     isCollapsed,
     assumedRequests: getAssumedRequests(),
     toggleResource,
-    data: pendingAccessRequestsPerResource,
+    data: pendingAccessRequests,
     shouldShowClusterNameColumn,
     createRequest,
     reset,
