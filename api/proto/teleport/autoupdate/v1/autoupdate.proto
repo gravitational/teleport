@@ -45,7 +45,7 @@ message AutoUpdateConfigSpecTools {
   string mode = 1;
 }
 
-// AutoUpdateConfigSpecTools encodes the parameters of automatic agent updates.
+// AutoUpdateConfigSpecAgents encodes the parameters of automatic agent updates.
 message AutoUpdateConfigSpecAgents {
   // mode specifies whether agent autoupdates are enabled, disabled, or paused.
   string mode = 1;
