@@ -265,7 +265,7 @@ func TestUpdater_Enable(t *testing.T) {
 
 			var installedVersion, installedTemplate string
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, version, template string) error {
+				FuncInstall: func(_ context.Context, version, template string, _ InstallFlags) error {
 					installedVersion = version
 					installedTemplate = template
 					return tt.installErr
@@ -302,12 +302,12 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall func(ctx context.Context, version, template string) error
+	FuncInstall func(ctx context.Context, version, template string, flags InstallFlags) error
 	FuncRemove  func(ctx context.Context, version string) error
 }
 
-func (ti *testInstaller) Install(ctx context.Context, version, template string) error {
-	return ti.FuncInstall(ctx, version, template)
+func (ti *testInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
+	return ti.FuncInstall(ctx, version, template, flags)
 }
 
 func (ti *testInstaller) Remove(ctx context.Context, version string) error {
