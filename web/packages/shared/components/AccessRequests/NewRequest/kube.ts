@@ -26,24 +26,21 @@ export type KubeNamespaceRequest = {
 };
 
 /**
- * Returns true if the currItem is a kube cluster or is a namespace
- * of the currItem.
+ * Returns true if the item is a kube cluster or is a namespace
+ * of the item.
  *
  * Technically you can request for both a kube_cluster and its subresources
  * but it's probably not what a user would expect from the web UI because
  * requesting for subresources means narrowing access versus requesting
  * access to the whole kube_cluster.
  */
-export function excludeKubeClusterWithNamespaces(
-  currItem: PendingListItem,
+export function isKubeClusterWithNamespaces(
+  item: PendingListItem,
   allItems: PendingListItem[]
 ) {
   return (
-    currItem.kind !== 'kube_cluster' ||
-    !(
-      currItem.kind === 'kube_cluster' &&
-      allItems.find(a => a.kind === 'namespace' && a.id == currItem.id)
-    )
+    item.kind === 'kube_cluster' &&
+    allItems.find(a => a.kind === 'namespace' && a.id == item.id)
   );
 }
 
