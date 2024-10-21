@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,10 +48,12 @@ func TestMultiIntervalReset(t *testing.T) {
 			resetTimer := time.NewTimer(duration / 3)
 			defer resetTimer.Stop()
 
-			interval := NewMulti[string](SubInterval[string]{
-				Key:      "key",
-				Duration: duration,
-			})
+			interval := NewMulti[string](
+				clockwork.NewRealClock(),
+				SubInterval[string]{
+					Key:      "key",
+					Duration: duration,
+				})
 			defer interval.Stop()
 
 			start := time.Now()
@@ -92,6 +95,7 @@ func TestMultiIntervalReset(t *testing.T) {
 func TestMultiIntervalBasics(t *testing.T) {
 	t.Parallel()
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:      "fast",
 			Duration: time.Millisecond * 8,
@@ -151,6 +155,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 	bar.counter.Store(1)
 
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:              "foo",
 			VariableDuration: foo,
@@ -216,6 +221,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 func TestMultiIntervalPush(t *testing.T) {
 	t.Parallel()
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:      "foo",
 			Duration: time.Millisecond * 6,
@@ -289,6 +295,7 @@ func TestMultiIntervalFireNow(t *testing.T) {
 	// set up one sub-interval that fires frequently, and another that will never
 	// fire during this test unless we trigger with FireNow.
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:      "slow",
 			Duration: time.Hour,
