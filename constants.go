@@ -549,13 +549,16 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
-	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// HomeDirNotFound is returned when the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254
-	// HomeDirNotAccessible is returned when a the "teleport checkhomedir" command has
+	// HomeDirNotAccessible is returned when the "teleport checkhomedir" command has
 	// found the user's home directory, but the user does NOT have permissions to
 	// access it.
 	HomeDirNotAccessible = 253
+	// UnexpectedCredentials is returned when a command is no longer running with the expected
+	// credentials.
+	UnexpectedCredentials = 252
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
