@@ -96,11 +96,11 @@ type App struct {
 	// controlling how resources are shared across different origins.
 	CORS *CORS
 
-	// Ports is a list of ports and port ranges that an app agent can forward connections to.
+	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
 	// Only applicable to TCP App Access.
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
-	Ports []PortRange
+	TCPPorts []PortRange
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -191,7 +191,7 @@ func (a *App) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(a.Ports) != 0 {
+	if len(a.TCPPorts) != 0 {
 		if err := a.checkPorts(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -223,7 +223,7 @@ func (a *App) checkPorts() error {
 
 	const minPort = 1
 	const maxPort = 65535
-	for _, portRange := range a.Ports {
+	for _, portRange := range a.TCPPorts {
 		if portRange.Port < minPort || portRange.Port > maxPort {
 			return trace.BadParameter("app port must be between %d and %d, but got %d", minPort, maxPort, portRange.Port)
 		}

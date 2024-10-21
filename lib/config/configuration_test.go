@@ -2465,7 +2465,7 @@ app_service:
   apps:
     - name: foo
       uri: "tcp://127.0.0.1"
-      ports:
+      tcp_ports:
       - port: 1234
       - port: 30000
         end_port: 30768
@@ -2480,7 +2480,7 @@ app_service:
   apps:
     - name: foo
       uri: "tcp://127.0.0.1"
-      ports:
+      tcp_ports:
       - end_port: 30000
 `,
 			name:   "TCP app with only end port",
