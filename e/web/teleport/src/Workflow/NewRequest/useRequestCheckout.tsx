@@ -53,7 +53,7 @@ export function useRequestCheckout({
   } = useSpecifiableFields();
 
   // Format data suitable for table listing.
-  const data: {
+  const pendingAccessRequests: {
     kind: ResourceKind;
     name: string;
     id: string;
@@ -61,7 +61,7 @@ export function useRequestCheckout({
   const resourceKeys = Object.keys(addedResources) as ResourceKind[];
   resourceKeys.forEach(kind => {
     Object.keys(addedResources[kind]).forEach(id =>
-      data.push({
+      pendingAccessRequests.push({
         kind: kind,
         name: addedResources[kind][id],
         id: id,
@@ -113,9 +113,9 @@ export function useRequestCheckout({
     let roles: string[];
     let resourceIds: ResourceId[];
     if (selectedResource == 'role') {
-      roles = data.map(item => item.name);
+      roles = pendingAccessRequests.map(item => item.name);
     } else {
-      resourceIds = data.map(item => ({
+      resourceIds = pendingAccessRequests.map(item => ({
         name: item.id,
         kind: item.kind as ResourceIdKind,
         clusterName: clusterId,
@@ -140,7 +140,7 @@ export function useRequestCheckout({
     createAccessRequest(req)
       .then(() => {
         createAttempt.setAttempt({ status: 'success' });
-        setNumRequestedResources(data.length);
+        setNumRequestedResources(pendingAccessRequests.length);
         reset();
       })
       .catch((err: Error) => {
@@ -158,7 +158,7 @@ export function useRequestCheckout({
       kind: ResourceIdKind;
       name: string;
       clusterName: string;
-    }[] = data.map(resource => ({
+    }[] = pendingAccessRequests.map(resource => ({
       kind: resource.kind as ResourceIdKind,
       name: resource.id,
       clusterName: clusterId,
@@ -191,7 +191,7 @@ export function useRequestCheckout({
     setSelectedReviewers,
     createRequest,
     resourceRequestRoles,
-    data,
+    pendingAccessRequests,
     clearAttempt,
     numRequestedResources,
     selectedResourceRequestRoles,
