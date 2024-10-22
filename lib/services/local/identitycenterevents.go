@@ -1,11 +1,12 @@
 package local
 
 import (
+	"github.com/gravitational/trace"
+
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 type identityCenterAccountParser struct {

@@ -3,8 +3,9 @@ package cache
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // genericCollection is a generic collection implementation for resource type T with collection-specific logic

@@ -34,6 +34,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|account_assignment_labels|object|AccountAssignmentLabels is a map of AccountAssignment labels used to mark resources affected by this condition|
+|account_assignments|[][object](#specallowaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition|
 |app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
@@ -72,6 +74,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
+
+### spec.allow.account_assignments items
+
+|Field|Type|Description|
+|---|---|---|
+|account|string||
+|name|string||
+|permission_set|string||
 
 ### spec.allow.db_permissions items
 
@@ -184,6 +194,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|account_assignment_labels|object|AccountAssignmentLabels is a map of AccountAssignment labels used to mark resources affected by this condition|
+|account_assignments|[][object](#specdenyaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition|
 |app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
@@ -222,6 +234,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels|object|WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.|
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
+
+### spec.deny.account_assignments items
+
+|Field|Type|Description|
+|---|---|---|
+|account|string||
+|name|string||
+|permission_set|string||
 
 ### spec.deny.db_permissions items
 

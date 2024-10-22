@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type UnifiedResource153[T interface{ CloneResource() T }] interface {

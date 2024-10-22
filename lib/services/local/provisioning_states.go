@@ -19,13 +19,14 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	libbackend "github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils/pagination"
-	"github.com/gravitational/trace"
 )
 
 const (

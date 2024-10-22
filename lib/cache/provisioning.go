@@ -19,11 +19,12 @@ package cache
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
-	"github.com/gravitational/trace"
 )
 
 type provisioningStateGetter interface {
