@@ -69,9 +69,12 @@ var _ cloudClientGCP = (*cloudClientGCPImpl[iamCredentialsClient])(nil)
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
-	// Log is the Logger.
-	LegacyLog logrus.FieldLogger
-	Log       *slog.Logger
+	// LegacyLogger is the old logger.
+	// Should be removed gradually.
+	// Deprecated: use Log instead.
+	LegacyLogger logrus.FieldLogger
+	// Log is a logger for the handler.
+	Log *slog.Logger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// cloudClientGCP holds a reference to GCP IAM client. Normally set in CheckAndSetDefaults, it is overridden in tests.
@@ -91,10 +94,10 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = slog.Default().With(teleport.ComponentKey, "gcp:fwd")
+		s.Log = slog.With(teleport.ComponentKey, "gcp:fwd")
 	}
-	if s.LegacyLog == nil {
-		s.LegacyLog = logrus.WithField(teleport.ComponentKey, "gcp:fwd")
+	if s.LegacyLogger == nil {
+		s.LegacyLogger = logrus.WithField(teleport.ComponentKey, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
 		clients, err := cloud.NewClients()
@@ -146,7 +149,7 @@ func newGCPHandler(ctx context.Context, config HandlerConfig) (*handler, error) 
 
 	svc.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.LegacyLog),
+		reverseproxy.WithLogger(config.LegacyLogger),
 		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
 	)
 	return svc, trace.Wrap(err)
@@ -172,7 +175,7 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 	s.Log.With(
 		"session_id", sessionCtx.Identity.RouteToApp.SessionID,
 		"gcp_service_account", sessionCtx.Identity.RouteToApp.GCPServiceAccount,
-	).DebugContext(context.Background(), "Processing request")
+	).DebugContext(req.Context(), "Processing request")
 
 	fwdRequest, err := s.prepareForwardRequest(req, sessionCtx)
 	if err != nil {
@@ -184,17 +187,13 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 
 	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, status, nil); err != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.With(
-			"error", err,
-		).WarnContext(context.Background(), "Failed to emit audit event.")
+		s.Log.WarnContext(req.Context(), "Failed to emit audit event.", "error", err)
 	}
 	return nil
 }
 
 func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.With(
-		"error", err,
-	).DebugContext(context.Background(), "Failed to process request.")
+	s.Log.DebugContext(r.Context(), "Failed to process request.", "error", err)
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -236,7 +235,7 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
 	auth := reqCopy.Header.Get("Authorization")
 	if auth == "" {
-		s.Log.DebugContext(context.Background(), "No Authorization header present, skipping replacement.")
+		s.Log.DebugContext(r.Context(), "No Authorization header present, skipping replacement.")
 		return nil
 	}
 
