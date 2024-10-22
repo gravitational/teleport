@@ -293,7 +293,7 @@ func (u *Updater) update(ctx context.Context, pkg packageURL) error {
 	}
 	// Cleanup the tools directory with previously downloaded and un-archived versions.
 	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffix, pkgName); err != nil {
-		return trace.Wrap(err)
+		slog.WarnContext(ctx, "failed to clean up tools directory", "error", err)
 	}
 
 	return nil

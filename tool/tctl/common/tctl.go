@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
@@ -103,8 +104,36 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand) {
-	err := TryRun(commands, os.Args[1:])
+func Run(ctx context.Context, commands []CLICommand) {
+	// The user has typed a command like `tsh ssh ...` without being logged in,
+	// if the running binary needs to be updated, update and re-exec.
+	//
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	//
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
+	toolsVersion, reExec := updater.CheckLocal()
+	if reExec {
+		// Download the version of client tools required by the cluster. This
+		// is required if the user passed in the TELEPORT_TOOLS_VERSION
+		// explicitly.
+		err := updater.UpdateWithLock(ctx, toolsVersion)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec()
+		if err != nil {
+			utils.FatalError(err)
+		}
+		os.Exit(code)
+	}
+
+	err = TryRun(commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {

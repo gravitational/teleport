@@ -25,11 +25,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 )
 
@@ -45,7 +43,7 @@ func main() {
 	ctx, _ = signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 	updater := tools.NewUpdater(
-		clientTools(),
+		tools.DefaultClientTools(),
 		toolsDir,
 		version,
 		tools.WithBaseURL(baseURL),
@@ -74,15 +72,5 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "version" {
 		fmt.Printf("Teleport v%v git\n", version)
-	}
-}
-
-// clientTools list of the client tools needs to be updated.
-func clientTools() []string {
-	switch runtime.GOOS {
-	case constants.WindowsOS:
-		return []string{"tsh.exe", "tctl.exe"}
-	default:
-		return []string{"tsh", "tctl"}
 	}
 }

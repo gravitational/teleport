@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -697,6 +698,36 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
+	}
+
+	// The user has typed a command like `tsh ssh ...` without being logged in,
+	// if the running binary needs to be updated, update and re-exec.
+	//
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	//
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
+	toolsVersion, reExec, err := updater.CheckRemote(ctx, tc.WebProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if reExec {
+		// Download the version of client tools required by the cluster.
+		err := updater.UpdateWithLock(ctx, toolsVersion)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		os.Exit(code)
 	}
 
 	if opt.afterLoginHook != nil {

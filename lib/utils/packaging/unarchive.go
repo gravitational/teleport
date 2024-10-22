@@ -59,12 +59,13 @@ func RemoveWithSuffix(dir, suffix, skipName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	var aggErr []error
 	for _, path := range removePaths {
 		if err := os.RemoveAll(path); err != nil {
-			return trace.Wrap(err)
+			aggErr = append(aggErr, err)
 		}
 	}
-	return nil
+	return trace.NewAggregate(aggErr...)
 }
 
 // replaceZip un-archives the Teleport package in .zip format, iterates through

@@ -33,6 +33,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,6 +51,16 @@ func Dir() (string, error) {
 	}
 
 	return filepath.Join(home, ".tsh", "bin"), nil
+}
+
+// DefaultClientTools list of the client tools needs to be updated by default.
+func DefaultClientTools() []string {
+	switch runtime.GOOS {
+	case constants.WindowsOS:
+		return []string{"tsh.exe", "tctl.exe"}
+	default:
+		return []string{"tsh", "tctl"}
+	}
 }
 
 func checkToolVersion(toolsDir string) (string, error) {
