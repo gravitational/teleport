@@ -1086,7 +1086,7 @@ func (p *dynamicWindowsDesktopCollector) processEventsAndUpdateCurrent(ctx conte
 	var updated bool
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindDynamicWindowsDesktop {
-			p.Log.Warnf("Unexpected event: %v.", event)
+			p.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
 			continue
 		}
 		switch event.Type {
@@ -1096,13 +1096,13 @@ func (p *dynamicWindowsDesktopCollector) processEventsAndUpdateCurrent(ctx conte
 		case types.OpPut:
 			dynamicWindowsDesktop, ok := event.Resource.(types.DynamicWindowsDesktop)
 			if !ok {
-				p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				p.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
 				continue
 			}
 			p.current[dynamicWindowsDesktop.GetName()] = dynamicWindowsDesktop
 			updated = true
 		default:
-			p.Log.Warnf("Unsupported event type %s.", event.Type)
+			p.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
 		}
 	}
 
