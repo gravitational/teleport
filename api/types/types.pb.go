@@ -19127,6 +19127,13 @@ type AWSOIDCIntegrationSpecV1 struct {
 	IssuerS3URI string `protobuf:"bytes,2,opt,name=IssuerS3URI,proto3" json:"issuer_s3_uri,omitempty"` // Deprecated: Do not use.
 	// Audiences is used to record name of a plugin or discover services in Teleport
 	// that depends on this integration.
+	// Audiences value can be empty or configured with supported preset audience
+	// values. For example, an OIDC integration that is shared amongst multiple
+	// discover services or plugins may have a multiple audiences.
+	// But integration created for a bespoke plugin like aws-identity-center will always
+	// have a single value configured in the audiences.
+	// Each preset audience may impose specific behavior on the integration CRUD API,
+	// such as preventing integration from update or deletion.
 	Audiences            []string `protobuf:"bytes,3,rep,name=audiences,proto3" json:"audiences,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
