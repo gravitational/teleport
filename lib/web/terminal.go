@@ -586,20 +586,10 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
-	mfaCeremony := &mfa.Ceremony{
-		CreateAuthenticateChallenge: t.ctx.cfg.RootClient.CreateAuthenticateChallenge,
-		SolveAuthenticateChallenge: func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-			span.AddEvent("prompting user with mfa challenge")
-			assertion, err := mfaPrompt(wsStream, protobufMFACodec{}).Run(ctx, chal)
-			span.AddEvent("user completed mfa challenge")
-			return assertion, trace.Wrap(err)
-		},
-	}
-
 	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFACeremony:       mfaCeremony,
+		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge),
 		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
@@ -619,9 +609,19 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func mfaPrompt(stream *terminal.WSStream, codec terminal.MFACodec) mfa.Prompt {
+func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc) *mfa.Ceremony {
+	return &mfa.Ceremony{
+		CreateAuthenticateChallenge: createAuthenticateChallenge,
+		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
+			return newMFAPrompt(stream)
+		},
+	}
+}
+
+func newMFAPrompt(stream *terminal.WSStream) mfa.Prompt {
 	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
+		var codec protobufMFACodec
 
 		// Convert from proto to JSON types.
 		switch {
@@ -797,7 +797,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), mfaPrompt(t.stream.WSStream, protobufMFACodec{})); err != nil {
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), newMFAPrompt(t.stream.WSStream)); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
