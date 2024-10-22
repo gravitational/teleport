@@ -63,7 +63,10 @@ export type MetadataModel = {
 };
 
 /** A model for access specifications section. */
-export type AccessSpec = KubernetesAccessSpec | ServerAccessSpec;
+export type AccessSpec =
+  | KubernetesAccessSpec
+  | ServerAccessSpec
+  | AppAccessSpec;
 
 /**
  * A base for all access specification section models. Contains a type
@@ -79,7 +82,7 @@ type AccessSpecBase<T extends AccessSpecKind> = {
   kind: T;
 };
 
-export type AccessSpecKind = 'node' | 'kube_cluster';
+export type AccessSpecKind = 'node' | 'kube_cluster' | 'app';
 
 /** Model for the Kubernetes access specification section. */
 export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'> & {
@@ -209,6 +212,13 @@ export type ServerAccessSpec = AccessSpecBase<'node'> & {
   logins: readonly Option[];
 };
 
+export type AppAccessSpec = AccessSpecBase<'app'> & {
+  labels: UILabel[];
+  awsRoleARNs: string[];
+  azureIdentities: string[];
+  gcpServiceAccounts: string[];
+};
+
 const roleVersion = 'v7';
 
 /**
@@ -229,12 +239,23 @@ export function newRole(): Role {
   };
 }
 
+export function newAccessSpec(kind: 'node'): ServerAccessSpec;
+export function newAccessSpec(kind: 'kube_cluster'): KubernetesAccessSpec;
+export function newAccessSpec(kind: 'app'): AppAccessSpec;
 export function newAccessSpec(kind: AccessSpecKind): AccessSpec {
   switch (kind) {
     case 'node':
       return { kind: 'node', labels: [], logins: [] };
     case 'kube_cluster':
       return { kind: 'kube_cluster', groups: [], labels: [], resources: [] };
+    case 'app':
+      return {
+        kind: 'app',
+        labels: [],
+        awsRoleARNs: [],
+        azureIdentities: [],
+        gcpServiceAccounts: [],
+      };
     default:
       kind satisfies never;
   }
@@ -300,11 +321,18 @@ function roleConditionsToAccessSpecs(conditions: RoleConditions): {
   const {
     node_labels,
     logins,
+
     kubernetes_groups,
     kubernetes_labels,
     kubernetes_resources,
+
+    app_labels,
+    aws_role_arns,
+    azure_identities,
+    gcp_service_accounts,
     ...rest
   } = conditions;
+
   const accessSpecs: AccessSpec[] = [];
 
   const nodeLabelsModel = labelsToModel(node_labels);
@@ -338,6 +366,26 @@ function roleConditionsToAccessSpecs(conditions: RoleConditions): {
       resources: kubeResourcesModel,
     });
   }
+
+  const appLabelsModel = labelsToModel(app_labels);
+  const awsRoleARNsModel = aws_role_arns ?? [];
+  const azureIdentitiesModel = azure_identities ?? [];
+  const gcpServiceAccountsModel = gcp_service_accounts ?? [];
+  if (
+    appLabelsModel.length > 0 ||
+    awsRoleARNsModel.length > 0 ||
+    azureIdentitiesModel.length > 0 ||
+    gcpServiceAccountsModel.length > 0
+  ) {
+    accessSpecs.push({
+      kind: 'app',
+      labels: appLabelsModel,
+      awsRoleARNs: awsRoleARNsModel,
+      azureIdentities: azureIdentitiesModel,
+      gcpServiceAccounts: gcpServiceAccountsModel,
+    });
+  }
+
   return {
     accessSpecs,
     requiresReset: !isEmpty(rest),
@@ -407,12 +455,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   for (const spec of roleModel.accessSpecs) {
     const { kind } = spec;
     switch (kind) {
-      case 'node': {
+      case 'node':
         role.spec.allow.node_labels = labelsModelToLabels(spec.labels);
         role.spec.allow.logins = spec.logins.map(opt => opt.value);
         break;
-      }
-      case 'kube_cluster': {
+
+      case 'kube_cluster':
         role.spec.allow.kubernetes_groups = spec.groups.map(opt => opt.value);
         role.spec.allow.kubernetes_labels = labelsModelToLabels(spec.labels);
         role.spec.allow.kubernetes_resources = spec.resources.map(
@@ -424,7 +472,14 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
           })
         );
         break;
-      }
+
+      case 'app':
+        role.spec.allow.app_labels = labelsModelToLabels(spec.labels);
+        role.spec.allow.aws_role_arns = spec.awsRoleARNs;
+        role.spec.allow.azure_identities = spec.azureIdentities;
+        role.spec.allow.gcp_service_accounts = spec.gcpServiceAccounts;
+        break;
+
       default:
         kind satisfies never;
     }

@@ -60,9 +60,11 @@ import {
   kubernetesResourceKindOptions,
   kubernetesVerbOptions,
   KubernetesResourceModel,
+  AppAccessSpec,
 } from './standardmodel';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
+import { FieldMultiInput } from '../../../../shared/components/FieldMultiInput/FieldMultiInput';
 
 export type StandardEditorProps = {
   originalRole: RoleWithYaml;
@@ -356,7 +358,7 @@ const Section = ({
 /**
  * All access spec kinds, in order of appearance in the resource kind dropdown.
  */
-const allAccessSpecKinds: AccessSpecKind[] = ['kube_cluster', 'node'];
+const allAccessSpecKinds: AccessSpecKind[] = ['kube_cluster', 'node', 'app'];
 
 /** Maps access specification kind to UI component configuration. */
 const specSections: Record<
@@ -376,6 +378,11 @@ const specSections: Record<
     title: 'Servers',
     tooltip: 'Configures access to SSH servers',
     component: ServerAccessSpecSection,
+  },
+  app: {
+    title: 'Applications',
+    tooltip: 'Configures access to applications',
+    component: AppAccessSpecSection,
   },
 };
 
@@ -586,6 +593,45 @@ function KubernetesResourceView({
         mb={0}
       />
     </Box>
+  );
+}
+
+export function AppAccessSpecSection({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<AppAccessSpec>) {
+  return (
+    <Flex flexDirection="column" gap={3}>
+      <Box>
+        <Text typography="body3" mb={1}>
+          Labels
+        </Text>
+        <LabelsInput
+          disableBtns={isProcessing}
+          labels={value.labels}
+          setLabels={labels => onChange?.({ ...value, labels })}
+        />
+      </Box>
+      <FieldMultiInput
+        label="AWS Role ARNs"
+        disabled={isProcessing}
+        value={value.awsRoleARNs}
+        onChange={arns => onChange?.({ ...value, awsRoleARNs: arns })}
+      />
+      <FieldMultiInput
+        label="Azure Identities"
+        disabled={isProcessing}
+        value={value.azureIdentities}
+        onChange={ids => onChange?.({ ...value, azureIdentities: ids })}
+      />
+      <FieldMultiInput
+        label="GCP Service Accounts"
+        disabled={isProcessing}
+        value={value.gcpServiceAccounts}
+        onChange={accts => onChange?.({ ...value, gcpServiceAccounts: accts })}
+      />
+    </Flex>
   );
 }
 
