@@ -41,7 +41,7 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
     totpChallenge: false,
   });
 
-  // TODO (avatus), this is stubbed for types but wont not be called
+  // TODO (avatus), this is stubbed for types but will not be called
   // until SSO as MFA backend is in.
   function onSsoAuthenticate() {
     // eslint-disable-next-line no-console
