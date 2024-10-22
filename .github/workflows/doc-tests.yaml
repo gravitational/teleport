@@ -11,7 +11,6 @@ jobs:
       pull-requests: read
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
-      changed_files: ${{ steps.changes.outputs.changed_files }}
     steps:
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
@@ -91,20 +90,19 @@ jobs:
         run: yarn markdown-lint
 
       - name: Lint docs prose
-        # v2.1.0
-        uses: 'errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018'
-        working-directory: '$GITHUB_WORKSPACE/docs/content/teleport'
+        uses: 'errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018' # v2.1.0
         with:
           version: 3.8.0
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
           separator: ','
-          files: ${{ needs.changes.outputs.changed_files }}
+          files: '$GITHUB_WORKSPACE/docs/content/teleport/docs/pages'
+
           # Restrict the linter to lines modified/added by a PR, not entire
           # changed files.
           filter_mode: added
           fail_on_error: true
-          vale_flags: '--config=docs/.vale.ini'
+          vale_flags: '--config=$GITHUB_WORKSPACE/docs/.vale.ini'
 
       - name: Test the docs build
         working-directory: '$GITHUB_WORKSPACE/docs'
