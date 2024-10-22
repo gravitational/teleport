@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport-plugins/tooling/internal/terraform/registry"
@@ -20,48 +20,56 @@ import (
 
 func main() {
 	args := parseCommandLine()
+	ctx := context.Background()
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel(args)})))
 
 	localRegistry, err := setupRegistryDirectory(args.registryDirectoryPath)
 	if err != nil {
-		log.WithError(err).Fatalf("Failed setting up registry file tree")
+		slog.ErrorContext(ctx, "Failed setting up registry file tree", "error", err)
+		os.Exit(1)
 	}
-
-	log.StandardLogger().SetLevel(logLevel(args))
 
 	signingEntity, err := loadSigningEntity(args.signingKeyText)
 	if err != nil {
-		log.WithError(err).Fatalf("Failed decoding signing key")
+		slog.ErrorContext(ctx, "Failed decoding signing key", "error", err)
+		os.Exit(1)
 	}
 
 	files, err := getArtifactFiles(args.artifactDirectoryPath)
 	if err != nil {
-		log.WithError(err).Fatalf("failed to list artifacts in %q", args.artifactDirectoryPath)
+		slog.ErrorContext(ctx, "Failed to list artifactes directory", "path", args.artifactDirectoryPath, "error", err)
+		os.Exit(1)
 	}
 
 	objectStoreUrl := args.registryURL + "store/"
 
 	versionRecord, newFiles, err := repackProviders(files, localRegistry, objectStoreUrl, signingEntity, args.protocolVersions, args.providerNamespace, args.providerName)
 	if err != nil {
-		log.WithError(err).Fatalf("Failed repacking artifacts")
+		slog.ErrorContext(ctx, "Failed repacking artifacts", "error", err)
+		os.Exit(1)
 	}
 
 	err = updateRegistry(context.Background(), localRegistry, args.providerNamespace, args.providerName, versionRecord, newFiles)
 	if err != nil {
-		log.WithError(err).Fatal("Failed updating registry")
+		slog.ErrorContext(ctx, "Failed updating registry", "error", err)
+		os.Exit(1)
 	}
 }
 
-func logLevel(args *args) log.Level {
+func logLevel(args *args) slog.Leveler {
+	var level slog.LevelVar
+
 	switch {
 	case args.verbosity >= 2:
-		return log.TraceLevel
-
+		level.Set(slog.LevelDebug - 4)
 	case args.verbosity == 1:
-		return log.DebugLevel
-
+		level.Set(slog.LevelDebug)
 	default:
-		return log.InfoLevel
+		level.Set(slog.LevelInfo)
 	}
+
+	return &level
 }
 
 // updateRegistry fetches the live registry and adds our new providers to it.
@@ -84,7 +92,7 @@ func updateRegistry(ctx context.Context, workspace *registryPaths, namespace, pr
 			return trace.Wrap(err, "failed to stat the version file at %q")
 		}
 
-		log.Warnf("No index found at %q. Using empty index.", versionsFilePath)
+		slog.WarnContext(ctx, "No index found, using empty index", "path", versionsFilePath)
 	} else {
 		if !versionsFileStat.Mode().Type().IsRegular() {
 			return trace.Errorf("the versions fs object at %q is not a regular file", versionsFilePath)
@@ -95,7 +103,7 @@ func updateRegistry(ctx context.Context, workspace *registryPaths, namespace, pr
 			return trace.Wrap(err, "failed to load versions file from %q", versionsFilePath)
 		}
 
-		log.Infof("Loaded versions file from %q.", versionsFilePath)
+		slog.InfoContext(ctx, "Loaded versions file", "path", versionsFilePath)
 	}
 
 	// Index the available version by their semver version, so that we can find the
@@ -146,14 +154,14 @@ func repackProviders(providerArtifacts []string, localRegistry *registryPaths, o
 	unsetVersion := semver.Version{}
 
 	for _, providerArtifact := range providerArtifacts {
-		log.Infof("Found provider tarball %s", providerArtifact)
+		slog.InfoContext(context.Background(), "Found provider tarball", "artifact", providerArtifact)
 
 		registryInfo, err := registry.RepackProvider(localRegistry.objectStoreDir, providerArtifact, signingEntity)
 		if err != nil {
 			return registry.Version{}, nil, trace.Wrap(err, "failed repacking provider")
 		}
 
-		log.Infof("Provider repacked to %s", registryInfo.Zip)
+		slog.InfoContext(context.Background(), "Provider repacked", "path", registryInfo.Zip)
 		newFiles = append(newFiles, registryInfo.Zip, registryInfo.Sum, registryInfo.Sig)
 
 		if versionRecord.Version == unsetVersion {
@@ -228,12 +236,12 @@ func getArtifactFiles(artifactDirectoryPath string) ([]string, error) {
 	for _, fsObject := range fsObjects {
 		fsObjectPath := filepath.Join(artifactDirectoryPath, fsObject.Name())
 		if !fsObject.Type().IsRegular() {
-			log.Debugf("Skipping non-regular file fs object %q", fsObjectPath)
+			slog.DebugContext(context.Background(), "Skipping non-regular file fs object", "path", fsObjectPath)
 			continue
 		}
 
 		if !registry.IsProviderTarball(fsObjectPath) {
-			log.Debugf("Skipping Terraform provider file %q", fsObjectPath)
+			slog.DebugContext(context.Background(), "Skipping Terraform provider file", "path", fsObjectPath)
 			continue
 		}
 
@@ -244,7 +252,7 @@ func getArtifactFiles(artifactDirectoryPath string) ([]string, error) {
 }
 
 func loadSigningEntity(keyText string) (*openpgp.Entity, error) {
-	log.Info("Decoding signing key")
+	slog.InfoContext(context.Background(), "Decoding signing key")
 
 	block, err := armor.Decode(strings.NewReader(keyText))
 	if err != nil {

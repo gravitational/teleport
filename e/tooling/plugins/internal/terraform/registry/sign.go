@@ -2,15 +2,16 @@ package registry
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport-plugins/tooling/internal/filename"
 )
@@ -71,7 +72,7 @@ func RepackProvider(dstDir string, srcFileName string, signingEntity *openpgp.En
 		return nil, trace.Wrap(err, "bad filename %q", srcFileName)
 	}
 
-	log.Debugf("Provider platform: %s/%s/%s", info.Version, info.OS, info.Arch)
+	slog.DebugContext(context.Background(), "Provider platform", "version", info.Version, "os", info.OS, "arch", info.Arch)
 
 	src, err := os.Open(srcFileName)
 	if err != nil {
@@ -100,7 +101,7 @@ func RepackProvider(dstDir string, srcFileName string, signingEntity *openpgp.En
 		}
 	}()
 
-	log.Debugf("Repacking into zipfile: %s", tmpZipFile.Name())
+	slog.DebugContext(context.Background(), "Repacking into zipfile", "file", tmpZipFile.Name())
 	err = repack(tmpZipFile, src)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed repacking provider")
@@ -151,20 +152,20 @@ func RepackProvider(dstDir string, srcFileName string, signingEntity *openpgp.En
 // writeOutput writes the in-memory signature data to file, and moves the temporary
 // zip file into place
 func writeOutput(entry *RepackResult, zipFilePath string, sums, sig []byte) error {
-	log.Debugf("Writing sum file to %s", entry.Sum)
+	slog.DebugContext(context.Background(), "Writing sum file", "path", entry.Sum)
 	err := ioutil.WriteFile(entry.Sum, sums, 0644)
 	if err != nil {
 		return trace.Wrap(err, "writing sumfile failed")
 	}
 
-	log.Debugf("Writing signature file to %s", entry.Sig)
+	slog.DebugContext(context.Background(), "Writing signature file", "path", entry.Sig)
 	err = ioutil.WriteFile(entry.Sig, sig, 0644)
 	if err != nil {
 		return trace.Wrap(err, "writing sumfile failed")
 	}
 
 	// Do this _last_, as we want the temp file cleaned up if any of the above fails.
-	log.Debugf("Moving tmp zipfile %s into place at %s", zipFilePath, entry.Zip)
+	slog.DebugContext(context.Background(), "Moving tmp zipfile into place", "temp_file", zipFilePath, "destination", entry.Zip)
 	err = os.Rename(zipFilePath, entry.Zip)
 	if err != nil {
 		return trace.Wrap(err, "moving zipfile into place")

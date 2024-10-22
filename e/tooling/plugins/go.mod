@@ -9,7 +9,6 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/gravitational/kingpin v2.1.10+incompatible
 	github.com/gravitational/trace v1.4.0
-	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
