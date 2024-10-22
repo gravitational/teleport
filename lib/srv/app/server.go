@@ -204,7 +204,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		legacyLog: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.ComponentApp,
 		}),
-		log:           slog.Default().With(teleport.ComponentKey, teleport.ComponentApp),
+		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
@@ -368,7 +368,7 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 func (s *Server) getRotationState() types.Rotation {
 	rotation, err := s.c.GetRotation(types.RoleApp)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
-		s.log.With("error", err).WarnContext(s.closeContext, "Failed to get rotation state.")
+		s.log.WarnContext(s.closeContext, "Failed to get rotation state.", "error", err)
 	}
 	if rotation != nil {
 		return *rotation
@@ -492,20 +492,20 @@ func (s *Server) close(ctx context.Context) error {
 
 		if heartbeat != nil {
 			log := s.log.With("app", name)
-			log.DebugContext(s.closeContext, "Stopping app")
+			log.DebugContext(ctx, "Stopping app")
 			if err := heartbeat.Close(); err != nil {
-				log.With("error", err).WarnContext(s.closeContext, "Failed to stop app.")
+				log.WarnContext(ctx, "Failed to stop app.", "error", err)
 			} else {
-				log.DebugContext(s.closeContext, "Stopped app")
+				log.DebugContext(ctx, "Stopped app")
 			}
 
 			if shouldDeleteApps {
 				g.Go(func() error {
 					log.DebugContext(ctx, "Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
-						log.With("error", err).WarnContext(s.closeContext, "Failed to delete app.")
+						log.WarnContext(ctx, "Failed to delete app.", "error", err)
 					} else {
-						log.DebugContext(s.closeContext, "Deleted app")
+						log.DebugContext(ctx, "Deleted app")
 					}
 					return nil
 				})
@@ -515,7 +515,7 @@ func (s *Server) close(ctx context.Context) error {
 	s.mu.RUnlock()
 
 	if err := g.Wait(); err != nil {
-		s.log.With("error", err).WarnContext(s.closeContext, "Deleting all apps failed")
+		s.log.WarnContext(ctx, "Deleting all apps failed", "error", err)
 	}
 
 	s.mu.Lock()

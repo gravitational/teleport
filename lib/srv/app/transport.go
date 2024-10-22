@@ -62,7 +62,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("jwt missing")
 	}
 	if c.log == nil {
-		c.log = slog.Default().With(teleport.ComponentKey, "transport")
+		c.log = slog.With(teleport.ComponentKey, "transport")
 	}
 
 	return nil
@@ -185,15 +185,15 @@ func rewriteHeaders(r *http.Request, c *transportConfig) {
 	}
 	for _, header := range c.app.GetRewrite().Headers {
 		if common.IsReservedHeader(header.Name) {
-			c.log.With("header_name", header.Name).DebugContext(context.Background(), "Not rewriting Teleport reserved header")
+			c.log.With("header_name", header.Name).DebugContext(r.Context(), "Not rewriting Teleport reserved header")
 			continue
 		}
 		values, err := services.ApplyValueTraits(header.Value, c.traits)
 		if err != nil {
-			c.log.With(
+			c.log.DebugContext(r.Context(), "Failed to apply traits",
 				"header_value", header.Value,
 				"error", err,
-			).DebugContext(context.Background(), "Failed to apply traits")
+			)
 			continue
 		}
 		r.Header.Del(header.Name)
