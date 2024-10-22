@@ -2096,6 +2096,7 @@ message AuthPreferenceSpecV2 {
 
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
   // If unspecified, the current default value is "legacy".
+  // 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
 
   // SecondFactors is a list of supported second factor types.
