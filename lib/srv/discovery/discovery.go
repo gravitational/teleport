@@ -989,10 +989,10 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 					installerScript: req.InstallerScriptName(),
 				},
 				&usertasksv1.DiscoverEC2Instance{
-					// TODO(marco): add instance name
 					DiscoveryConfig: instances.DiscoveryConfig,
 					DiscoveryGroup:  s.DiscoveryGroup,
 					InstanceId:      instance.InstanceID,
+					Name:            instance.InstanceName,
 					SyncTime:        timestamppb.New(s.clock.Now()),
 				},
 			)
