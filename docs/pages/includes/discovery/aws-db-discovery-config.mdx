@@ -1,0 +1,35 @@
+{{ roleARN="arn:aws:iam::123456789012:role/example-role" }}
+
+```yaml
+version: v1
+kind: "discovery_config"
+metadata:
+  name: "example"
+spec:
+  # Only Discovery services in this discovery_group will use the matchers from
+  # this dynamic config.
+  discovery_group: <Var name="aws-example"/>
+  aws:
+    # Database types. Valid options are:
+    # 'docdb' - discovers and registers Amazon DocumentDB databases.
+    # 'elasticache' - discovers Amazon ElastiCache Redis databases.
+    # 'memorydb' - discovers Amazon MemoryDB Redis databases.
+    # 'opensearch' - discovers Amazon OpenSearch Redis databases.
+    # 'rds' - discovers Amazon RDS and Aurora databases.
+    # 'rdsproxy' - discovers Amazon RDS Proxy databases.
+    # 'redshift' - discovers Amazon Redshift databases.
+    # 'redshift-serverless' - discovers Amazon Redshift Serverless databases.
+  - types: ["{{ matcherType }}"]
+    regions: ["<Var name="us-east-1"/>"]
+    # AWS tags to match where "*" is a wildcard.
+    # You can use "*": "*" to match all database resource tags.
+    tags:
+      "env": "prod" # this example matches only databases tagged with env=prod.
+    # Optionally assume an AWS IAM role before calling the AWS API to discover
+    # databases.
+    assume_role:
+      role_arn: "" # "{{ roleARN }}"
+      # Optional AWS external ID that the Database Service will use to assume
+      # a role in an external AWS account.
+      external_id: "" # "example-external-id"
+```

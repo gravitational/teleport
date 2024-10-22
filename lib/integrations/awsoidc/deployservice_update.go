@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
@@ -44,7 +45,7 @@ type UpdateServiceRequest struct {
 	// TeleportVersionTag specifies the desired teleport version in the format "13.4.0"
 	TeleportVersionTag string
 	// OwnershipTags specifies ownership tags
-	OwnershipTags AWSTags
+	OwnershipTags tags.AWSTags
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -70,7 +71,10 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 		return trace.Wrap(err)
 	}
 
-	teleportImage := getDistrolessTeleportImage(req.TeleportVersionTag)
+	teleportImage, err := getDistrolessTeleportImage(req.TeleportVersionTag)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	services, err := getManagedServices(ctx, clt, log, req.TeleportClusterName, req.OwnershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -90,7 +94,7 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 	return nil
 }
 
-func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, teleportImage string, ownershipTags AWSTags) error {
+func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, log *slog.Logger, service *ecsTypes.Service, teleportImage string, ownershipTags tags.AWSTags) error {
 	taskDefinition, err := getManagedTaskDefinition(ctx, clt, aws.ToString(service.TaskDefinition), ownershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -104,6 +108,7 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 	// There is no need to update the ecs service if the ecs service is already
 	// running the latest stable version of teleport.
 	if currentTeleportImage == teleportImage {
+		log.InfoContext(ctx, "ECS service version already matches, not updating")
 		return nil
 	}
 
@@ -166,7 +171,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 	return ret, nil
 }
 
-func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.Logger, teleportClusterName string, ownershipTags AWSTags) ([]ecsTypes.Service, error) {
+func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.Logger, teleportClusterName string, ownershipTags tags.AWSTags) ([]ecsTypes.Service, error) {
 	// The Cluster name is created using the Teleport Cluster Name.
 	// Check the DeployDatabaseServiceRequest.CheckAndSetDefaults
 	// and DeployServiceRequest.CheckAndSetDefaults.
@@ -224,7 +229,7 @@ func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.
 	return ecsServices, nil
 }
 
-func getManagedTaskDefinition(ctx context.Context, clt DeployServiceClient, taskDefinitionName string, ownershipTags AWSTags) (*ecsTypes.TaskDefinition, error) {
+func getManagedTaskDefinition(ctx context.Context, clt DeployServiceClient, taskDefinitionName string, ownershipTags tags.AWSTags) (*ecsTypes.TaskDefinition, error) {
 	describeTaskDefinitionOut, err := clt.DescribeTaskDefinition(ctx, &ecs.DescribeTaskDefinitionInput{
 		TaskDefinition: aws.String(taskDefinitionName),
 		Include:        []ecsTypes.TaskDefinitionField{ecsTypes.TaskDefinitionFieldTags},

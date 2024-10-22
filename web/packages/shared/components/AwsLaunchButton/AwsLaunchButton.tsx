@@ -141,7 +141,7 @@ function RoleItemList({
     <Flex flexDirection="column">
       <Text
         px="2"
-        fontSize="11px"
+        typography="body3"
         css={`
           color: ${props => props.theme.colors.text.main};
           background: ${props => props.theme.colors.spotBackground[2]};

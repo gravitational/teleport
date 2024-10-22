@@ -11,11 +11,11 @@ deps:
 
 lint:
   use:
+    - STANDARD
     - COMMENT_ENUM
     - COMMENT_MESSAGE
     - COMMENT_RPC
     - COMMENT_SERVICE
-    - DEFAULT
     - PACKAGE_NO_IMPORT_CYCLE
     - UNARY_RPC
   except:

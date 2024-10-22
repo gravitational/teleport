@@ -50,13 +50,16 @@ export default function generateResourcePath(
 
   const output = path
     .replace(':clusterId', params.clusterId)
-    .replace(':limit?', params.limit)
+    .replace(':limit?', params.limit || '')
     .replace(':startKey?', params.startKey || '')
     .replace(':query?', processedParams.query || '')
     .replace(':search?', processedParams.search || '')
     .replace(':searchAsRoles?', processedParams.searchAsRoles || '')
     .replace(':sort?', processedParams.sort || '')
+    .replace(':kind?', processedParams.kind || '')
     .replace(':kinds?', processedParams.kinds || '')
+    .replace(':kubeCluster?', processedParams.kubeCluster || '')
+    .replace(':kubeNamespace?', processedParams.kubeNamespace || '')
     .replace(':pinnedOnly?', processedParams.pinnedOnly || '')
     .replace(
       ':includedResourceMode?',

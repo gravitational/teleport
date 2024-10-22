@@ -9,7 +9,9 @@ description: Configure automatic user provisioning for PostgreSQL.
 
 - Teleport cluster v13.1 or above with a configured [self-hosted
   PostgreSQL](../enroll-self-hosted-databases/postgres-self-hosted.mdx) or [RDS
-  PostgreSQL](../enroll-aws-databases/rds.mdx) database.
+  PostgreSQL](../enroll-aws-databases/rds.mdx) database. To configure
+  permissions for database objects like tables, your cluster must be on version
+  v15.2 or above.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="warning" title="RDS compatibility">
@@ -177,7 +179,7 @@ You may encounter the following error when the admin user or the roles assigned
 to the auto-provisioned user do not have permission to connect to the target
 database:
 
-```shell
+```code
 $ tsh db connect --db-name <database> example
 ...
 FATAL: permission denied for database "<database>"
@@ -194,7 +196,7 @@ GRANT CONNECT ON DATABASE <database> to "reader";
 
 You may encounter the following error when connecting to an Amazon RDS Aurora
 reader endpoint:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -208,7 +210,7 @@ endpoints. Please use auto-user provisioning on the primary endpoints.
 
 You may encounter the following error when connecting if the admin user does
 not have `USAGE` permission on the schema:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -225,7 +227,7 @@ GRANT CREATE ON SCHEMA public TO "teleport-admin";
 ### Permission denied to grant role "rds_iam"
 
 You may encounter the following error when connecting to an RDS database:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -274,11 +276,11 @@ admin user through Teleport.
 - Connect using your [GUI database
   client](../../../connect-your-client/gui-clients.mdx).
 - Learn about [role
-  templating](../../../access-controls/guides/role-templates.mdx#interpolation-rules).
+  templating](../../../admin-guides/access-controls/guides/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
 - Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
 - The `internal.db_roles` traits we illustrated in this guide
   are replaced with values from the Teleport local user database. For full
   details on how variable expansion works in Teleport roles, see the [Teleport
-  Access Controls Reference](../../../access-controls/reference.mdx).
+  Access Controls Reference](../../../reference/access-controls/roles.mdx).
 

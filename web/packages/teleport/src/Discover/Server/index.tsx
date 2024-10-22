@@ -30,20 +30,20 @@ import {
 import cfg from 'teleport/config';
 
 import { ResourceSpec, ServerLocation } from '../SelectResource';
+import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
 
 import { EnrollEc2Instance } from './EnrollEc2Instance/EnrollEc2Instance';
 import { CreateEc2Ice } from './CreateEc2Ice/CreateEc2Ice';
 
 import { ServerWrapper } from './ServerWrapper';
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm/DiscoveryConfigSsm';
-import { ConfigureDiscoveryService } from './ConfigureDiscoveryService/ConfigureDiscoveryService';
 
 export const ServerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Server,
   wrapper: (component: React.ReactNode) => (
     <ServerWrapper>{component}</ServerWrapper>
   ),
-  shouldPrompt(currentStep, resourceSpec) {
+  shouldPrompt(currentStep, currentView, resourceSpec) {
     if (resourceSpec?.nodeMeta?.location === ServerLocation.Aws) {
       // Allow user to bypass prompting on this step (Connect AWS Connect)
       // on exit because users might need to change route to setup an
@@ -52,7 +52,7 @@ export const ServerResource: ResourceViewConfig<ResourceSpec> = {
         return false;
       }
     }
-    return true;
+    return currentView?.eventName !== DiscoverEvent.Completed;
   },
 
   views(resource) {

@@ -77,30 +77,30 @@ func withProxySyncInterval(interval time.Duration) func(site *localSite) {
 	}
 }
 
-// withCertificateCache sets the certificateCache of the site. This is particularly
-// helpful for tests because construction of the default cache will
-// call [native.PrecomputeKeys] which will consume a decent amount of CPU
-// to generate keys.
-func withCertificateCache(cache *certificateCache) func(site *localSite) {
-	return func(site *localSite) {
-		site.certificateCache = cache
-	}
-}
-
 func newLocalSite(srv *server, domainName string, authServers []string, opts ...func(*localSite)) (*localSite, error) {
 	err := metrics.RegisterPrometheusCollectors(localClusterCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// instantiate a cache of host certificates for the forwarding server. the
+	// certificate cache is created in each site (instead of creating it in
+	// reversetunnel.server and passing it along) so that the host certificate
+	// is signed by the correct certificate authority.
+	certificateCache, err := newHostCertificateCache(srv.localAuthClient, srv.localAccessPoint, srv.Clock)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s := &localSite{
-		srv:         srv,
-		client:      srv.localAuthClient,
-		accessPoint: srv.LocalAccessPoint,
-		domainName:  domainName,
-		authServers: authServers,
-		remoteConns: make(map[connKey][]*remoteConn),
-		clock:       srv.Clock,
+		srv:              srv,
+		client:           srv.localAuthClient,
+		accessPoint:      srv.LocalAccessPoint,
+		certificateCache: certificateCache,
+		domainName:       domainName,
+		authServers:      authServers,
+		remoteConns:      make(map[connKey][]*remoteConn),
+		clock:            srv.Clock,
 		log: log.WithFields(log.Fields{
 			teleport.ComponentKey: teleport.ComponentReverseTunnelServer,
 			teleport.ComponentFields: map[string]string{
@@ -115,19 +115,6 @@ func newLocalSite(srv *server, domainName string, authServers []string, opts ...
 
 	for _, opt := range opts {
 		opt(s)
-	}
-
-	if s.certificateCache == nil {
-		// instantiate a cache of host certificates for the forwarding server. the
-		// certificate cache is created in each site (instead of creating it in
-		// reversetunnel.server and passing it along) so that the host certificate
-		// is signed by the correct certificate authority.
-		certificateCache, err := newHostCertificateCache(srv.localAuthClient)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		s.certificateCache = certificateCache
 	}
 
 	// Start periodic functions for the local cluster in the background.
@@ -517,6 +504,11 @@ with the cluster.`
 		toAddr = params.To.String()
 	}
 
+	// Prefer providing the hostname over an address.
+	if params.TargetServer != nil {
+		toAddr = params.TargetServer.GetHostname()
+	}
+
 	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
 }
 
@@ -613,7 +605,8 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
 	}
 
-	if s.tryProxyPeering(params) {
+	peeringEnabled := s.tryProxyPeering(params)
+	if peeringEnabled {
 		s.log.Info("Dialing over peer proxy")
 		conn, peerErr = s.peerClient.DialNode(
 			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
@@ -623,25 +616,41 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		}
 	}
 
-	err = trace.NewAggregate(tunnelErr, peerErr)
-	tunnelMsg := getTunnelErrorMessage(params, "reverse tunnel", err)
+	// If a connection via tunnel failed directly and via a remote peer,
+	// then update the tunnel message to indicate that tunnels were not
+	// found in either place. Avoid aggregating the local and peer errors
+	// to reduce duplicate data since this message makes its way back to
+	// users and can be confusing.
+	msg := "reverse tunnel"
+	if peeringEnabled {
+		msg = "local and peer reverse tunnels"
+	}
+	tunnelMsg := getTunnelErrorMessage(params, msg, tunnelErr)
 
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
 	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
 	}
 
 	skip, err := s.skipDirectDial(params)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	} else if skip {
-		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
 	}
 
 	// If no tunnel connection was found, dial to the target host.
 	dialer := proxyutils.DialerFromEnvironment(params.To.String())
-	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultIOTimeout)
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	if cnc, err := s.accessPoint.GetClusterNetworkingConfig(s.srv.Context); err != nil {
+		s.log.WithError(err).Warn("Failed to get cluster networking config - using default dial timeout")
+	} else {
+		dialTimeout = cnc.GetSSHDialTimeout()
+	}
+
+	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), dialTimeout)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithField("address", params.To.String()).Debugf("All attempted dial methods failed. tunnel=%q, peer=%q, direct=%q", tunnelErr, peerErr, directErr)

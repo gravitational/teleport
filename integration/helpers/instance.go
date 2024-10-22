@@ -84,10 +84,10 @@ func fatalIf(err error) {
 }
 
 type User struct {
-	Username      string       `json:"username"`
-	AllowedLogins []string     `json:"logins"`
-	Key           *client.Key  `json:"key"`
-	Roles         []types.Role `json:"-"`
+	Username      string          `json:"username"`
+	AllowedLogins []string        `json:"logins"`
+	KeyRing       *client.KeyRing `json:"key"`
+	Roles         []types.Role    `json:"-"`
 }
 
 type InstanceSecrets struct {
@@ -1640,7 +1640,7 @@ func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg Clien
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	err = tc.AddKey(&creds.Key)
+	err = tc.AddKeyRing(&creds.KeyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

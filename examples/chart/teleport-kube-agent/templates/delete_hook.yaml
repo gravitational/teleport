@@ -73,6 +73,15 @@ spec:
   template:
     metadata:
       name: {{ .Release.Name }}-delete-hook
+{{- if .Values.annotations.pod }}
+      annotations:
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        app: {{ .Release.Name }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
     spec:
 {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -108,4 +117,7 @@ spec:
         args: ["kube-state", "delete"]
         {{- if .Values.securityContext }}
         securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
+        {{- if .Values.resources }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
         {{- end }}

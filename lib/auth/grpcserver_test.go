@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/modules"
@@ -87,8 +88,12 @@ func TestMFADeviceManagement(t *testing.T) {
 
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		Type: constants.Local,
+		SecondFactors: []types.SecondFactorType{
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -290,12 +295,25 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
-	// Register a 2nd passwordless device, so we can test removal of the
-	// 2nd-to-last resident credential.
-	// This is already tested above so we just use RegisterTestDevice here.
-	const pwdless2DevName = "pwdless2"
-	_, err = RegisterTestDevice(ctx, userClient, pwdless2DevName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev, WithPasswordless())
+	// Register an extra device to test allow deletion of other devices and test that
+	// the last device cannot be deleted.
+	const lastDeviceName = "lastDevice"
+	lastDevice, err := RegisterTestDevice(ctx, userClient, lastDeviceName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, devs.WebDev)
 	require.NoError(t, err, "RegisterTestDevice failed")
+
+	// Also add a password so we can testing add last non-passkey MFA device. Testing the
+	// deletion of the last passkey is handled in TestDeletingLastPasswordlessDevice below.
+	err = authServer.UpsertPassword(user.GetName(), []byte("living on the edge"))
+	require.NoError(t, err, "UpsertPassword")
+
+	// Since this device won't be deleted, we can use it to solve webauthn
+	// challenges throughout the tests below.
+	lastDeviceWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+		mfaResp, err := lastDevice.SolveAuthn(challenge)
+		require.NoError(t, err, "SolveAuthn")
+		return mfaResp
+	}
 
 	// Check that all new devices are registered.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
@@ -307,7 +325,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		deviceIDs[dev.GetName()] = dev.Id
 	}
 	sort.Strings(deviceNames)
-	require.Equal(t, []string{pwdlessDevName, pwdless2DevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
+	require.Equal(t, []string{lastDeviceName, pwdlessDevName, devs.TOTPName, devs.WebName, webDev2Name}, deviceNames)
 
 	// Delete several of the MFA devices.
 	deleteTests := []struct {
@@ -318,7 +336,7 @@ func TestMFADeviceManagement(t *testing.T) {
 			desc: "fail to delete an unknown device",
 			opts: mfaDeleteTestOpts{
 				deviceName:  "unknown-dev",
-				authHandler: devs.totpAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.Error,
 			},
 		},
@@ -370,55 +388,46 @@ func TestMFADeviceManagement(t *testing.T) {
 			desc: "delete TOTP device by name",
 			opts: mfaDeleteTestOpts{
 				deviceName:  devs.TOTPName,
-				authHandler: devs.totpAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.NoError,
-			},
-		},
-		{
-			desc: "delete pwdless device by name",
-			opts: mfaDeleteTestOpts{
-				deviceName:  pwdlessDevName,
-				authHandler: devs.webAuthHandler,
-				checkErr:    require.NoError,
-			},
-		},
-		{
-			desc: "delete last passwordless device fails",
-			opts: mfaDeleteTestOpts{
-				deviceName:  pwdless2DevName,
-				authHandler: devs.webAuthHandler,
-				checkErr: func(t require.TestingT, err error, _ ...interface{}) {
-					require.ErrorContains(t,
-						err,
-						"last passwordless credential",
-						"Unexpected error deleting last passwordless device",
-					)
-				},
 			},
 		},
 		{
 			desc: "delete webauthn device by name",
 			opts: mfaDeleteTestOpts{
 				deviceName:  devs.WebName,
-				authHandler: devs.webAuthHandler,
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "delete passwordless device by name",
+			opts: mfaDeleteTestOpts{
+				deviceName:  pwdlessDevName,
+				authHandler: lastDeviceWebAuthnHandler,
 				checkErr:    require.NoError,
 			},
 		},
 		{
 			desc: "delete webauthn device by ID",
 			opts: mfaDeleteTestOpts{
-				deviceName: deviceIDs[webDev2Name],
-				authHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
-					resp, err := webKey2.SignAssertion(
-						webOrigin, wantypes.CredentialAssertionFromProto(challenge.WebauthnChallenge))
-					require.NoError(t, err)
-					return &proto.MFAAuthenticateResponse{
-						Response: &proto.MFAAuthenticateResponse_Webauthn{
-							Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
-						},
-					}
+				deviceName:  deviceIDs[webDev2Name],
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr:    require.NoError,
+			},
+		},
+		{
+			desc: "fail to delete last device",
+			opts: mfaDeleteTestOpts{
+				deviceName:  lastDeviceName,
+				authHandler: lastDeviceWebAuthnHandler,
+				checkErr: func(t require.TestingT, err error, _ ...any) {
+					require.ErrorContains(t,
+						err,
+						"cannot delete the last MFA device for this user",
+						"Unexpected error deleting last MFA device",
+					)
 				},
-				checkErr: require.NoError,
 			},
 		},
 	}
@@ -428,10 +437,126 @@ func TestMFADeviceManagement(t *testing.T) {
 		})
 	}
 
-	// Check no remaining devices, apart from the additional passwordless device that we can't delete.
+	// Check no remaining devices, apart from the additional device that we can't delete.
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
-	require.Equal(t, "pwdless2", resp.Devices[0].GetName())
+	require.Equal(t, lastDeviceName, resp.Devices[0].GetName())
+}
+
+func TestMFADeviceManagement_SSO(t *testing.T) {
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+	ctx := context.Background()
+
+	// Enable MFA support.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type: constants.Local,
+		SecondFactors: []types.SecondFactorType{
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+		},
+		Webauthn: &types.Webauthn{
+			RPID: "localhost",
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Create a fake user.
+	user, _, err := CreateUserAndRole(authServer, "mfa-user", []string{"role"}, nil)
+	require.NoError(t, err)
+	userClient, err := testServer.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// Create an auth connector.
+	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: user.GetRoles()},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Convert the user to an SSO user for this auth connector.
+	userCreatedAt := authServer.clock.Now()
+	user.SetCreatedBy(types.CreatedBy{
+		Time: userCreatedAt,
+		Connector: &types.ConnectorRef{
+			ID:   samlConnector.GetKind(),
+			Type: samlConnector.GetName(),
+		},
+	})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// No MFA devices should exist for the user.
+	resp, err := userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Empty(t, resp.Devices)
+
+	// prepare a passwordless device.
+	passkeyName := "passkey"
+	passkey, err := RegisterTestDevice(ctx, userClient, passkeyName, proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil, WithPasswordless())
+	require.NoError(t, err, "RegisterTestDevice")
+
+	passkeyWebAuthnHandler := func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+		require.NotNil(t, challenge.WebauthnChallenge, "nil Webauthn challenge")
+		mfaResp, err := passkey.SolveAuthn(challenge)
+		require.NoError(t, err, "SolveAuthn")
+		return mfaResp
+	}
+
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Devices, 1)
+	webauthnDevice := resp.Devices[0]
+
+	// Update the auth connector to enable SSO MFA.
+	samlConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled: true,
+		Issuer:  "test",
+		Sso:     "https://localhost:65535/sso", // not called
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Ephemeral sso device should show up in the list now. It can't be deleted.
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	assert.NoError(t, err)
+	assert.Len(t, resp.Devices, 2)
+
+	expectSSODev, err := types.NewMFADevice(samlConnector.GetDisplay(), samlConnector.GetName(), userCreatedAt, &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   samlConnector.GetName(),
+			ConnectorType: samlConnector.GetKind(),
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*types.MFADevice{webauthnDevice, expectSSODev}, resp.Devices)
+
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  "saml",
+		authHandler: passkeyWebAuthnHandler,
+		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assert.ErrorAs(t, err, new(*trace.BadParameterError))
+			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
+		}},
+	)
+
+	// Last non-SSO, passwordless device can be deleted now.
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  passkeyName,
+		authHandler: passkeyWebAuthnHandler,
+		checkErr:    require.NoError,
+	})
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
@@ -446,31 +571,26 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
-			name:  "fails",
+			name:  "NOK no other MFA device",
 			setup: func(*testing.T, string, *authclient.Client, *TestDevice) {},
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
 					err,
-					"last passwordless credential",
+					"cannot delete the last MFA device for this user",
 					"Unexpected error deleting last passwordless device",
 				)
 			},
 		},
 		{
-			name: "succeeds when passwordless is off",
-			setup: func(t *testing.T, _ string, _ *authclient.Client, _ *TestDevice) {
-				authPref, err := authServer.GetAuthPreference(ctx)
-				require.NoError(t, err, "GetAuthPreference")
-
-				// Turn off passwordless authentication.
-				authPref.SetAllowPasswordless(false)
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err, "UpsertAuthPreference")
+			name: "OK extra passwordless device",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				_, err := RegisterTestDevice(ctx, userClient, "another-passkey", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev, WithPasswordless())
+				require.NoError(t, err, "RegisterTestDevice failed")
 			},
 			checkErr: require.NoError,
 		},
 		{
-			name: "succeeds when there is a password and other WebAuthn MFAs",
+			name: "OK password set with other WebAuthn device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
@@ -481,7 +601,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			name: "succeeds when there is a password and TOTP MFA",
+			name: "OK password set with other TOTP device",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
@@ -492,21 +612,72 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
-			name: "fails even if there is password, but no other MFAs",
+			name: "OK SSO user with other device",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				user, err := authServer.GetUser(ctx, username, false)
+				require.NoError(t, err, "GetUser")
+				user.SetCreatedBy(types.CreatedBy{
+					Connector: &types.ConnectorRef{},
+				})
+				_, err = authServer.UpsertUser(ctx, user)
+				require.NoError(t, err, "UpsertUser")
+				_, err = RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, pwdlessDev)
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.NoError,
+		},
+		{
+			name: "NOK password set but no other MFAs",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
 				require.NoError(t, err, "UpsertPassword")
 			},
-			checkErr: require.Error,
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete the last MFA device for this user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
 		},
 		{
-			name: "fails even if there is another MFA, but no password",
+			name: "NOK other MFAs, but no password set",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				_, err := RegisterTestDevice(
 					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
 				require.NoError(t, err, "RegisterTestDevice")
 			},
-			checkErr: require.Error,
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete last passwordless credential for user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
+		},
+		{
+			name: "NOK other MFAs, but no password set, passwordless is off",
+			setup: func(t *testing.T, _ string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				// Register a non-passwordless device without adding a password.
+				_, err := RegisterTestDevice(ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+
+				authPref, err := authServer.GetAuthPreference(ctx)
+				require.NoError(t, err, "GetAuthPreference")
+
+				// Turn off passwordless authentication.
+				authPref.SetAllowPasswordless(false)
+				_, err = authServer.UpsertAuthPreference(ctx, authPref)
+				require.NoError(t, err, "UpsertAuthPreference")
+			},
+			checkErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t,
+					err,
+					"cannot delete last passwordless credential for user",
+					"Unexpected error deleting last passwordless device",
+				)
+			},
 		},
 	}
 
@@ -514,8 +685,11 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Enable MFA support.
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				Type: constants.Local,
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				},
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
 				},
@@ -788,8 +962,10 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err, "GenerateKeyPair failed")
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err, "MarshalPublicKey failed")
 
 	wantExtensions := &tlsca.DeviceExtensions{
 		DeviceID:     "device1",
@@ -835,9 +1011,9 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 			require.NoError(t, err, "NewClient failed")
 
 			resp, err := userClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey: pub,
-				Username:  user.GetName(),
-				Expires:   testServer.Clock().Now().Add(1 * time.Hour),
+				TLSPublicKey: publicKeyPEM,
+				Username:     user.GetName(),
+				Expires:      testServer.Clock().Now().Add(1 * time.Hour),
 			})
 			require.NoError(t, err, "GenerateUserCerts failed")
 
@@ -925,7 +1101,10 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	const rpID = "localhost"
 	const origin = "https://" + rpID + ":3080" // matches RPID.
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactors(
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})
@@ -939,13 +1118,12 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	clientWithoutDevice.SetMFAPromptConstructor(promptConstructor)
 	clientWithDevice.SetMFAPromptConstructor(promptConstructor)
 
-	// Create a public key for UserCertsRequest.
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err, "GenerateKeyPair failed")
+	// Create public keys for UserCertsRequest.
+	_, sshPub, _, tlsPub := newSSHAndTLSKeyPairs(t)
 
 	expires := clock.Now().Add(1 * time.Hour)
 	sshReq := proto.UserCertsRequest{
-		PublicKey:      pub,
+		SSHPublicKey:   sshPub,
 		Username:       username,
 		Expires:        expires,
 		RouteToCluster: clusterName,
@@ -954,7 +1132,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		SSHLogin:       "llama",
 	}
 	appReq := proto.UserCertsRequest{
-		PublicKey:      pub,
+		TLSPublicKey:   tlsPub,
 		Username:       username,
 		Expires:        expires,
 		RouteToCluster: clusterName,
@@ -966,7 +1144,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		},
 	}
 	winReq := proto.UserCertsRequest{
-		PublicKey:      pub,
+		TLSPublicKey:   tlsPub,
 		Username:       username,
 		Expires:        expires,
 		RouteToCluster: clusterName,
@@ -1135,7 +1313,10 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 
 	// Enable webauthn
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactors(
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})
@@ -1331,6 +1512,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
+	fakeClock, ok := clock.(clockwork.FakeClock)
+	require.True(t, ok)
+	fakeClock.Advance(-60 * time.Second)
 
 	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
@@ -1343,8 +1528,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 		}
 	}
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
+	_, sshPub, _, tlsPub := newSSHAndTLSKeyPairs(t)
 
 	// Used for device trust tests.
 	wantDeviceExtensions := tlsca.DeviceExtensions{
@@ -1362,8 +1546,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "ssh using webauthn",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1394,8 +1578,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "ssh - adjusted expiry",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1426,8 +1610,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "k8s",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1461,8 +1645,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "db",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1499,8 +1683,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "app",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1529,7 +1713,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
@@ -1538,8 +1722,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "db with ttl limit disabled",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry should *not* be adjusted to single user cert TTL,
 					// since ttl limiting is disabled when requester is a local proxy tunnel.
 					// It *should* be adjusted to the user cert ttl though.
@@ -1577,8 +1761,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "kube with ttl limit disabled",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry should *not* be adjusted to single user cert TTL,
 					// since ttl limiting is disabled when requester is a local proxy.
 					// It *should* be adjusted to the user cert ttl though.
@@ -1614,8 +1798,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "app with ttl limit disabled",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry should *not* be adjusted to single user cert TTL,
 					// since ttl limiting is disabled when requester is a local proxy.
 					// It *should* be adjusted to the user cert ttl though.
@@ -1646,7 +1830,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
@@ -1655,8 +1839,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "desktops",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1692,11 +1876,12 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "fail - wrong usage",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_All,
-					NodeName:  "node-a",
+					SSHPublicKey: sshPub,
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					Expires:      clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:        proto.UserCertsRequest_All,
+					NodeName:     "node-a",
 				},
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "all purposes")
@@ -1707,12 +1892,13 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "fail - mfa challenge fail",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_SSH,
-					NodeName:  "node-a",
-					SSHLogin:  "role",
+					SSHPublicKey: sshPub,
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					Expires:      clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:        proto.UserCertsRequest_SSH,
+					NodeName:     "node-a",
+					SSHLogin:     "role",
 				},
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
@@ -1742,12 +1928,12 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			opts: generateUserSingleUseCertsTestOpts{
 				// Same as SSH options. Nothing special here.
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_SSH,
-					NodeName:  "node-a",
-					SSHLogin:  "role",
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
+					Expires:      clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:        proto.UserCertsRequest_SSH,
+					NodeName:     "node-a",
+					SSHLogin:     "role",
 				},
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
@@ -1789,10 +1975,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			opts: generateUserSingleUseCertsTestOpts{
 				// Same as Database options. Nothing special here.
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_Database,
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					Expires:      clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:        proto.UserCertsRequest_Database,
 					RouteToDatabase: proto.RouteToDatabase{
 						ServiceName: "db-a",
 					},
@@ -1825,11 +2011,12 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "mfa unspecified when no SSHLogin provided",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_SSH,
-					NodeName:  "node-a",
+					SSHPublicKey: sshPub,
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					Expires:      clock.Now().Add(teleport.UserSingleUseCertTTL),
+					Usage:        proto.UserCertsRequest_SSH,
+					NodeName:     "node-a",
 				},
 				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
 					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
@@ -1847,8 +2034,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "k8s in leaf cluster",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1883,8 +2070,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "db in leaf cluster",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1922,8 +2109,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "app in leaf cluster",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
@@ -1953,7 +2140,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-b", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
@@ -1962,8 +2149,8 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			desc: "ssh in leaf node",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
 					// This expiry is longer than allowed, should be
 					// automatically adjusted.
 					Expires:        clock.Now().Add(2 * teleport.UserSingleUseCertTTL),

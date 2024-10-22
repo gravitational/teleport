@@ -63,7 +63,7 @@ export default function TrustedListItem(props: Props) {
           color="text.main"
         />
         <Text
-          bold
+          typography="h3"
           mb="1"
           textAlign="center"
           title={name}

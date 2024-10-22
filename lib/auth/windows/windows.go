@@ -129,19 +129,26 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
-	// Note: this CRL DN may or may not be the same DN published in updateCRL.
-	//
-	// There can be multiple AD domains connected to Teleport. Each
-	// windows_desktop_service is connected to a single AD domain and publishes
-	// CRLs in it. Each service can also handle RDP connections for a different
-	// domain, with the assumption that some other windows_desktop_service
-	// published a CRL there.
-	crlDN := crlDN(req.ClusterName, req.LDAPConfig, req.CAType)
-	return &certRequest{
-		csrPEM:      csrPEM,
-		crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN),
-		keyDER:      keyDER,
-	}, nil
+	cr := &certRequest{
+		csrPEM: csrPEM,
+		keyDER: keyDER,
+	}
+
+	if !req.OmitCDP {
+		// Note: this CRL DN may or may not be the same DN published in updateCRL.
+		//
+		// There can be multiple AD domains connected to Teleport. Each
+		// windows_desktop_service is connected to a single AD domain and publishes
+		// CRLs in it. Each service can also handle RDP connections for a different
+		// domain, with the assumption that some other windows_desktop_service
+		// published a CRL there.
+		crlDN := crlDN(req.ClusterName, req.LDAPConfig, req.CAType)
+
+		// TODO(zmb3) consider making Teleport itself the CDP (via HTTP) instead of LDAP
+		cr.crlEndpoint = fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
+	}
+
+	return cr, nil
 }
 
 // AuthInterface is a subset of auth.ClientI
@@ -182,6 +189,11 @@ type GenerateCredentialsRequest struct {
 	CreateUser bool
 	// Groups are groups that user should be member of
 	Groups []string
+
+	// OmitCDP can be used to prevent Teleport from issuing certs with a
+	// CRL Distribution Point (CDP). CDPs are required in user certificates
+	// for RDP, but they can be omitted for certs that are used for LDAP binds.
+	OmitCDP bool
 	AD     bool
 }
 
@@ -320,7 +332,7 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 	// Setting otherName SAN according to
 	// https://samfira.com/2020/05/16/golang-x-509-certificates-and-othername/
 	//
-	// othernName SAN is needed to pass the UPN of the user, per
+	// otherName SAN is needed to pass the UPN of the user, per
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	ext := pkix.Extension{Id: SubjectAltNameExtensionOID}
 	var err error

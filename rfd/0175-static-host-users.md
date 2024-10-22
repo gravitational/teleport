@@ -1,6 +1,6 @@
 ---
 author: Andrew Burke (andrew.burke@goteleport.com)
-state: draft
+state: implemented (v16.3)
 ---
 
 # RFD 175 - Static Host Users
@@ -26,30 +26,31 @@ a Teleport user needing to log in first.
 To create a static host user, an admin will create a `static_host_user` resource:
 
 ```yaml
-# foo-dev.yaml
+# foo.yaml
 kind: static_host_user
 metadata:
-    name: foo-dev
+  name: foo
 spec:
-    login: foo
-    node_labels:
-        env: dev
+  matchers:
+    - node_labels:
+      - name: env
+        values: [dev]
 ```
 
 Then create it with `tctl`:
 
 ```code
-$ tctl create foo-dev.yaml
+$ tctl create foo.yaml
 ```
 
 The user `foo` will eventually appear on nodes with label `env: dev` once the
-`foo-dev` resource makes it through the cache.
+`foo` resource makes it through the cache.
 
-To update an existing static host user, an admin will update update `foo-dev.yaml`,
+To update an existing static host user, an admin will update update `foo.yaml`,
 then update the resource in Teleport with `tctl`:
 
 ```code
-$ tctl create -f foo-dev.yaml
+$ tctl create -f foo.yaml
 ```
 
 ### Resource
@@ -61,21 +62,31 @@ to select specific nodes the user should be created on.
 ```yaml
 kind: static_host_user
 metadata:
-    name: hostuser
+    # The name of the resource is also the login that will be created.
+    name: user1
 spec:
-    login: user1
-    # groups and sudoers are identical to their role counterparts
-    groups: [abc, def]
-    sudoers: [
-        # ...
-    ]
-    # same as from user traits
-    uid: "1234"
-    gid: "5678"
-    # same as allow rules in roles
-    node_labels:
-        # ...
-    node_labels_expression: # ...
+  matchers:
+    # Use either node_labels or node_labels_expression to select which servers
+    # to create the host user on. Only one is required.
+    - node_labels:
+      - name: foo
+        values: [bar]
+      node_labels_expression: "labels.foo == 'bar'"
+      # groups and sudoers are identical to their role counterparts
+      groups: [abc, def]
+      sudoers: [
+          # ...
+      ]
+      # same as from user traits
+      uid: "1234"
+      gid: "5678"
+      # optional default shell
+      default_shell: /bin/bash
+      # optionally take ownership of an existing host user if it exists
+      take_ownership_if_user_exists: false
+    # More matchers can be specified to add the user to different nodes with
+    # different traits.
+    # - node_labels: ...
 ```
 
 ```proto
@@ -89,14 +100,18 @@ message StaticHostUser {
 }
 
 message StaticHostUserSpec {
-    string login = 1;
-    repeated string groups = 2;
-    repeated string sudoers = 3;
-    string uid = 4;
-    string gid = 5;
+    repeated Matcher matchers = 1;
+}
 
-    wrappers.LabelValues node_labels = 6;
-    string node_labels_expression = 7;
+message Matcher {
+  repeated teleport.label.v1.Label node_labels = 1;
+  string node_labels_expression = 2;
+  repeated string groups = 3;
+  repeated string sudoers = 4;
+  int64 uid = 5;
+  int64 gid = 6;
+  string default_shell = 7;
+  bool take_ownership_if_user_exists = 8;
 }
 
 service UsersService {
@@ -165,12 +180,16 @@ override the existing user. When a `static_host_user` is deleted, any host users
 created by it are *not* deleted (same behavior as `keep` mode for current host
 user creation).
 
+If a node matches multiple matchers in one `static_host_user` resource, the
+node will do nothing and log a warning (since the correct traits to apply
+are ambiguous).
+
 Nodes that disable host user creation (by setting `ssh_service.disable_create_host_user`
 to true in their config) will ignore `static_host_user`s entirely.
 
 ### Audit events
 
-The `session.start` audit event will be extened to include a flag
+The `session.start` audit event will be extend to include a flag
 indicating whether or not the host user for an SSH session was
 created by Teleport (for both static and non-static host users).
 

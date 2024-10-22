@@ -70,6 +70,7 @@ export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   }
 
   return {
+    totpChallenge: json.totp_challenge,
     webauthnPublicKey: webauthnPublicKey,
   };
 }
@@ -92,6 +93,7 @@ export function makeWebauthnCreationResponse(res) {
     type: res.type,
     extensions: {
       appid: Boolean(clientExtentions?.appid),
+      credProps: clientExtentions?.credProps,
     },
     rawId: bufferToBase64url(res.rawId),
     response: {

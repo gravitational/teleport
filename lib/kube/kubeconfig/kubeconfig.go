@@ -58,7 +58,7 @@ type Values struct {
 	ClusterAddr string
 	// Credentials are user credentials to use for authentication the
 	// ClusterAddr. Only TLS fields (key/cert/CA) from Credentials are used.
-	Credentials *client.Key
+	Credentials *client.KeyRing
 	// Exec contains optional values to use, when configuring tsh as an exec
 	// auth plugin in kubeconfig.
 	//
@@ -252,7 +252,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 
 		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to
 		// use hardware private keys for kube credentials (if possible)
-		keyPEM, err := v.Credentials.PrivateKey.SoftwarePrivateKeyPEM()
+		keyPEM, err := v.Credentials.TLSPrivateKey.SoftwarePrivateKeyPEM()
 		if err == nil {
 			if len(v.Credentials.TLSCert) == 0 {
 				return trace.BadParameter("TLS certificate missing in provided credentials")

@@ -19,6 +19,7 @@
 package postgres
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -33,12 +34,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
 	logutil "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -149,6 +147,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		cancelAutoUserLease()
 		return trace.Wrap(err)
 	}
+	sessionCtx.PostgresPID = hijackedConn.PID
+	e.Log = e.Log.With("pg_backend_pid", hijackedConn.PID)
 	e.rawServerConn = hijackedConn.Conn
 	// Release the auto-users semaphore now that we've successfully connected.
 	cancelAutoUserLease()
@@ -227,6 +227,16 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	// Don't allow an empty user names. Postgres will silently use
+	// the user name as the database name if no database name is passed which
+	// can cause Teleport to allow connections that are explicitly blocked by
+	// RBAC rules. Follow Postgres' behavior and use the user name as the
+	// database name if no database name is passed.
+	if sessionCtx.DatabaseUser == "" {
+		return trace.BadParameter("user name must not be empty")
+	}
+	sessionCtx.DatabaseName = cmp.Or(sessionCtx.DatabaseName, sessionCtx.DatabaseUser)
+
 	if err := sessionCtx.CheckUsernameForAutoUserProvisioning(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -256,7 +266,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 // the hijacked connection and the frontend, an interface used for message
 // exchange with the database.
 func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgproto3.Frontend, *pgconn.HijackedConn, error) {
-	connectConfig, err := e.getConnectConfig(ctx, sessionCtx)
+	connectConfig, err := e.newConnector(sessionCtx).getConnectConfig(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -490,80 +500,19 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	log.DebugContext(e.Context, "Stopped receiving from server.", "total_bytes", total)
 }
 
-// getConnectConfig returns config that can be used to connect to the
-// database instance.
-func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Session) (*pgconn.Config, error) {
-	// The driver requires the config to be built by parsing the connection
-	// string so parse the basic template and then fill in the rest of
-	// parameters such as TLS configuration.
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", sessionCtx.Database.GetURI()))
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (e *Engine) newConnector(sessionCtx *common.Session) *connector {
+	conn := &connector{
+		auth:         e.Auth,
+		cloudClients: e.CloudClients,
+		log:          e.Log,
+
+		certExpiry:    sessionCtx.GetExpiry(),
+		database:      sessionCtx.Database,
+		databaseUser:  sessionCtx.DatabaseUser,
+		databaseName:  sessionCtx.DatabaseName,
+		startupParams: sessionCtx.StartupParameters,
 	}
-	// TLS config will use client certificate for an onprem database or
-	// will contain RDS root certificate for RDS/Aurora.
-	config.TLSConfig, err = e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	config.User = sessionCtx.DatabaseUser
-	config.Database = sessionCtx.DatabaseName
-	// Pgconn adds fallbacks to retry connection without TLS if the TLS
-	// attempt fails. Reset the fallbacks to avoid retries, otherwise
-	// it's impossible to debug TLS connection errors.
-	config.Fallbacks = nil
-	// Set startup parameters that the client sent us.
-	config.RuntimeParams = sessionCtx.StartupParameters
-	// AWS RDS/Aurora and GCP Cloud SQL use IAM authentication so request an
-	// auth token and use it as a password.
-	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
-		config.Password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case types.DatabaseTypeRedshift:
-		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case types.DatabaseTypeRedshiftServerless:
-		config.User, config.Password, err = e.Auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, sessionCtx.DatabaseName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case types.DatabaseTypeCloudSQL:
-		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx.DatabaseUser)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// Detect whether the instance is set to require SSL.
-		// Fallback to not requiring SSL for access denied errors.
-		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		}
-		// Create ephemeral certificate and append to TLS config when
-		// the instance requires SSL.
-		if requireSSL {
-			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, config.TLSConfig)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	case types.DatabaseTypeAzure:
-		config.Password, err = e.Auth.GetAzureAccessToken(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		config.User = discoverycommon.MakeAzureDatabaseLoginUsername(sessionCtx.Database, config.User)
-	}
-	return config, nil
+	return conn
 }
 
 // handleCancelRequest handles a cancel request and returns immediately (closing the connection).

@@ -28,7 +28,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -52,6 +52,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
+const (
+	discoverNotice = "" +
+		"Teleport Discover has successfully configured /etc/teleport.yaml for this server to join the cluster.\n" +
+		"Discover might replace the configuration if the server fails to join the cluster.\n" +
+		"Please remove this file if you are managing this instance using another tool or doing so manually.\n"
+)
+
 // AutoDiscoverNodeInstallerConfig installs and configures a Teleport Server into the current system.
 type AutoDiscoverNodeInstallerConfig struct {
 	Logger *slog.Logger
@@ -61,7 +68,7 @@ type AutoDiscoverNodeInstallerConfig struct {
 	ProxyPublicAddr string
 
 	// TeleportPackage contains the teleport package name.
-	// Allowed values: teleport, teleport-ent
+	// Allowed values: teleport, teleport-ent, teleport-ent-fips
 	TeleportPackage string
 
 	// RepositoryChannel is the repository channel to use.
@@ -122,8 +129,12 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("teleport-package must be one of %+v", types.PackageNameKinds)
 	}
 
-	if c.AutoUpgrades && c.TeleportPackage != types.PackageNameEnt {
+	if c.AutoUpgrades && c.TeleportPackage == types.PackageNameOSS {
 		return trace.BadParameter("only enterprise package supports auto upgrades")
+	}
+
+	if c.AutoUpgrades && c.TeleportPackage == types.PackageNameEntFIPS {
+		return trace.BadParameter("auto upgrades are not supported in FIPS environments")
 	}
 
 	if c.autoUpgradesChannelURL == "" {
@@ -214,7 +225,7 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	}
 	ani.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
 
-	// Check if teleport is already installed and install it, if it's absent
+	// Check if teleport is already installed and install it, if it's absent.
 	if _, err := os.Stat(ani.binariesLocation.Teleport); err != nil {
 		ani.Logger.InfoContext(ctx, "Installing teleport")
 		if err := ani.installTeleportFromRepo(ctx); err != nil {
@@ -312,6 +323,7 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 		_ = os.Remove(teleportYamlConfigurationPathNew)
 	}()
 
+	discoverNoticeFile := teleportYamlConfigurationPath + ".discover"
 	// Check if file already exists and has the same content that we are about to write
 	if _, err := os.Stat(teleportYamlConfigurationPath); err == nil {
 		hashExistingFile, err := checksum(teleportYamlConfigurationPath)
@@ -325,7 +337,27 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 		}
 
 		if hashExistingFile == hashNewFile {
+			if err := os.WriteFile(discoverNoticeFile, []byte(discoverNotice), 0o644); err != nil {
+				return trace.Wrap(err)
+			}
+
 			return trace.AlreadyExists("teleport.yaml is up to date")
+		}
+
+		// If a previous /etc/teleport.yaml configuration file exists and is different from the target one, it might be because one of the following reasons:
+		// - discover installation params (eg token name) were changed
+		// - `$ teleport node configure` command produces a different output
+		// - teleport was manually installed / configured
+		//
+		// For the first two scenarios, it's fine, and even desired in most cases, to restart teleport with the new configuration.
+		//
+		// However, for the last scenario (teleport was manually installed), this flow must not replace the currently running teleport service configuration.
+		// To prevent this, this flow checks for the existence of the discover notice file, and only allows replacement if it does exist.
+		if _, err := os.Stat(discoverNoticeFile); err != nil {
+			ani.Logger.InfoContext(ctx, "Refusing to replace the existing teleport configuration. For the script to replace the existing configuration remove the Teleport configuration.",
+				"teleport_configuration", teleportYamlConfigurationPath,
+				"discover_notice_file", discoverNoticeFile)
+			return trace.BadParameter("missing discover notice file")
 		}
 	}
 
@@ -333,11 +365,15 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 		return trace.Wrap(err)
 	}
 
+	if err := os.WriteFile(discoverNoticeFile, []byte(discoverNotice), 0o644); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
 func checksum(filename string) (string, error) {
-	f, err := utils.OpenFileNoUnsafeLinks(filename)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -493,8 +529,9 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 			return nil, trace.Wrap(err)
 		}
 
-		nodeLabels[types.NameLabel] = name
-		nodeLabels[types.ZoneLabel] = zone
+		nodeLabels[types.NameLabelDiscovery] = name
+		nodeLabels[types.ZoneLabelDiscovery] = zone
+		nodeLabels[types.ProjectIDLabelDiscovery] = projectID
 		nodeLabels[types.ProjectIDLabel] = projectID
 
 	default:
@@ -505,8 +542,8 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 }
 
 // buildAbsoluteFilePath creates the absolute file path
-func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
-	return path.Join(ani.fsRootPrefix, filepath)
+func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(path string) string {
+	return filepath.Join(ani.fsRootPrefix, path)
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.

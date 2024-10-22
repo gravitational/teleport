@@ -207,13 +207,10 @@ export function Pills({ targets }: { targets: LockTarget[] }) {
   const pills = targets.map((target, index) => {
     const labelText = `${target.kind}: ${target.name}`;
     return (
-      <Pill
-        key={`${target.kind}${target.name}${index}`}
-        mr="1"
-        kind="secondary"
-      >
-        {labelText}
-      </Pill>
+      <React.Fragment key={`${target.kind}${target.name}${index}`}>
+        {index > 0 && ' '}
+        <Pill kind="secondary">{labelText}</Pill>
+      </React.Fragment>
     );
   });
 

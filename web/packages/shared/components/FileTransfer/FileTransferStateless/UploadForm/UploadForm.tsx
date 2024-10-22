@@ -111,8 +111,10 @@ export function UploadForm(props: UploadFormProps) {
         }}
       >
         <NoteAdded size="extraLarge" mb={2} />
-        <Text typography="h6">Drag your files here</Text>
-        <Text typography="body2">
+        <Text typography="body2" bold>
+          Drag your files here
+        </Text>
+        <Text typography="body3">
           or Browse your computer to start uploading
         </Text>
       </Dropzone>

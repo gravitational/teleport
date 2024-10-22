@@ -5,8 +5,11 @@
 # Set $(PKGCONF) to either pkgconf or pkg-config if either are installed
 # or /usr/bin/false if not. When it is set to "false", running $(PKGCONF)
 # will exit non-zero with no output.
+#
+# Before GNU make 4.4, exported variables were not exported for $(shell ...)
+# expressions, so explicitly set PKG_CONFIG_PATH when running $(PKGCONF).
 
-PKGCONF := $(firstword $(shell which pkgconf pkg-config false 2>/dev/null))
+PKGCONF := PKG_CONFIG_PATH=$(PKG_CONFIG_PATH) $(firstword $(shell which pkgconf pkg-config false 2>/dev/null))
 
 # -----------------------------------------------------------------------------
 # libbpf detection
@@ -42,12 +45,10 @@ LIBBPF_LIBS := -L/usr/libbpf-$(LIBBPF_VER)/lib64 -lbpf
 # libbpf needs libelf. Try to find it with pkg-config/pkgconf and fallback to
 # hard-coded defaults if pkg-config says nothing.
 LIBBPF_LIBS += $(or $(shell $(PKGCONF) --silence-errors --static --libs libelf),-lelf -lz)
-else
-ifneq (,$(shell $(PKGCONF) --exists 'libbpf = $(LIBBPF_VER)' && echo true))
+else ifneq (,$(shell $(PKGCONF) --exists 'libbpf = $(LIBBPF_VER)' && echo true))
 FOUND_LIBBPF := true
 LIBBPF_INCLUDES := $(shell $(PKGCONF) --cflags libbpf)
 LIBBPF_LIBS := $(shell $(PKGCONF) --libs --static libbpf)
-endif
 endif
 
 # Is this build targeting the same OS & architecture it is being compiled on, or

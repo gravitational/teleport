@@ -36,7 +36,7 @@ export function Loaded() {
 
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
+      <ContextProvider ctx={createTeleportContextWithApiMock()}>
         <Sessions {...props} />
       </ContextProvider>
     </MemoryRouter>
@@ -51,7 +51,7 @@ export function ActiveSessionsCTA() {
 
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
+      <ContextProvider ctx={createTeleportContextWithApiMock()}>
         <Sessions {...props} />
       </ContextProvider>
     </MemoryRouter>
@@ -66,21 +66,47 @@ export function ModeratedSessionsCTA() {
 
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>
+      <ContextProvider ctx={createTeleportContextWithApiMock()}>
         <Sessions {...props} />
       </ContextProvider>
     </MemoryRouter>
   );
 }
 
-const ctx = createTeleportContext();
+function createTeleportContextWithApiMock() {
+  const ctx = createTeleportContext();
+  ctx.clusterService.fetchClusters = () =>
+    Promise.resolve([
+      {
+        clusterId: 'im-a-cluster-name',
+        lastConnected: new Date('2022-02-02T14:03:00.355597-05:00'),
+        connectedText: '2022-02-02 19:03:00',
+        status: 'online',
+        url: '/web/cluster/im-a-cluster-name/',
+        authVersion: '8.0.0-alpha.1',
+        publicURL: 'mockurl:3080',
+        proxyVersion: '8.0.0-alpha.1',
+      },
+      {
+        clusterId: 'im-a-cluster-name-2',
+        lastConnected: new Date('2022-02-02T14:03:00.355597-05:00'),
+        connectedText: '2022-02-02 19:03:00',
+        status: 'online',
+        url: '/web/cluster/im-a-cluster-name-2/',
+        authVersion: '8.0.0-alpha.1',
+        publicURL: 'mockurl:3081',
+        proxyVersion: '8.0.0-alpha.1',
+      },
+    ]);
+  return ctx;
+}
 
 const makeSessionProps = (
   overrides: Partial<typeof useSessions> = {}
 ): ReturnType<typeof useSessions> => {
   return Object.assign(
     {
-      ctx,
+      ctx: createTeleportContextWithApiMock(),
       clusterId: 'teleport.example.sh',
       sessions,
       attempt: {

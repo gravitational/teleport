@@ -19,8 +19,6 @@
 
 package daemon
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
-// #cgo LDFLAGS: -framework Foundation
 // #include <stdlib.h>
 // #include "service_darwin.h"
 import "C"
@@ -32,6 +30,8 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // Start starts an XPC listener and waits for it to receive a message with VNet config.
@@ -42,12 +42,28 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 		return trace.Wrap(err)
 	}
 
-	log.InfoContext(ctx, "Starting daemon", "bundle_path", bundlePath)
+	log.InfoContext(ctx, "Starting daemon", "version", teleport.Version, "bundle_path", bundlePath)
 
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
 
-	C.DaemonStart(cBundlePath)
+	var result C.DaemonStartResult
+	defer func() {
+		C.free(unsafe.Pointer(result.error_domain))
+		C.free(unsafe.Pointer(result.error_description))
+	}()
+	C.DaemonStart(cBundlePath, &result)
+	if !result.ok {
+		errorDomain := C.GoString(result.error_domain)
+		errorCode := int(result.error_code)
+
+		if errorDomain == vnetErrorDomain && errorCode == errorCodeMissingCodeSigningIdentifiers {
+			return trace.Wrap(errMissingCodeSigningIdentifiers)
+		}
+
+		return trace.Errorf("could not start daemon: %s", C.GoString(result.error_description))
+	}
+
 	defer func() {
 		log.InfoContext(ctx, "Stopping daemon")
 		C.DaemonStop()
@@ -63,6 +79,7 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 		"ipv6_prefix", config.IPv6Prefix,
 		"dns_addr", config.DNSAddr,
 		"home_path", config.HomePath,
+		"client_cred", config.ClientCred,
 	)
 
 	return trace.Wrap(workFn(ctx, config))
@@ -87,8 +104,10 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 			C.free(unsafe.Pointer(result.home_path))
 		}()
 
+		var clientCred C.ClientCred
+
 		// This call gets unblocked when the daemon gets stopped through C.DaemonStop.
-		C.WaitForVnetConfig(&result)
+		C.WaitForVnetConfig(&result, &clientCred)
 		if !result.ok {
 			errC <- trace.Wrap(errors.New(C.GoString(result.error_description)))
 			return
@@ -99,6 +118,11 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 			IPv6Prefix: C.GoString(result.ipv6_prefix),
 			DNSAddr:    C.GoString(result.dns_addr),
 			HomePath:   C.GoString(result.home_path),
+			ClientCred: ClientCred{
+				Valid: bool(clientCred.valid),
+				Egid:  int(clientCred.egid),
+				Euid:  int(clientCred.euid),
+			},
 		}
 		errC <- nil
 	}()

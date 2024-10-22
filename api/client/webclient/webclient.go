@@ -297,6 +297,8 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+	// AutoUpdateSettings contains the auto update settings.
+	AutoUpdate AutoUpdateSettings `json:"auto_update"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
 
@@ -326,6 +328,14 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
+}
+
+// AutoUpdateSettings contains information about the auto update requirements.
+type AutoUpdateSettings struct {
+	// ToolsVersion defines the version of {tsh, tctl} for client auto update.
+	ToolsVersion string `json:"tools_version"`
+	// ToolsMode defines mode client auto update feature `enabled|disabled`.
+	ToolsMode string `json:"tools_mode"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -360,6 +370,9 @@ type SSHProxySettings struct {
 
 	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
 	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
+
+	// DialTimeout indicates the SSH timeout clients should use.
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // DBProxySettings contains database access specific proxy settings.
@@ -420,6 +433,9 @@ type AuthenticationSettings struct {
 	// DefaultSessionTTL is the TTL requested for user certs if
 	// a TTL is not otherwise specified.
 	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
+	// SignatureAlgorithmSuite is the configured signature algorithm suite for
+	// the cluster.
+	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.

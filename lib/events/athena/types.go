@@ -52,3 +52,15 @@ func auditEventToParquet(event apievents.AuditEvent) (*eventParquet, error) {
 		EventData: string(jsonBlob),
 	}, nil
 }
+
+func auditEventFromParquet(event eventParquet) (apievents.AuditEvent, error) {
+	var fields events.EventFields
+	if err := utils.FastUnmarshal([]byte(event.EventData), &fields); err != nil {
+		return nil, trace.Wrap(err, "failed to unmarshal event, %s", event.EventData)
+	}
+	e, err := events.FromEventFields(fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return e, nil
+}

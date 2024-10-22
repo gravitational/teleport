@@ -36,19 +36,23 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -138,9 +142,9 @@ type Config struct {
 	// Default: [github.com/gravitational/teleport/lib/srv/discovery/common.DefaultDiscoveryPollInterval]
 	PollInterval time.Duration
 
-	// ServerCredentials are the credentials used to identify the discovery service
+	// GetClientCert returns credentials used to identify the discovery service
 	// to the Access Graph service.
-	ServerCredentials *tls.Config
+	GetClientCert func() (*tls.Certificate, error)
 	// AccessGraphConfig is the configuration for the Access Graph client
 	AccessGraphConfig AccessGraphConfig
 
@@ -327,7 +331,9 @@ type Server struct {
 
 	dynamicDiscoveryConfig map[string]*discoveryconfig.DiscoveryConfig
 
-	awsSyncStatus awsSyncStatus
+	awsSyncStatus         awsSyncStatus
+	awsEC2ResourcesStatus awsResourcesStatus
+	awsEC2Tasks           awsEC2Tasks
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -447,7 +453,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.CloudClients)
+	const noDiscoveryConfig = ""
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, ec2Matchers, s.CloudClients, noDiscoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -456,6 +463,10 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		s.ctx, s.getAllAWSServerFetchers, s.caRotationCh,
 		server.WithPollInterval(s.PollInterval),
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
+		server.WithPreFetchHookFn(func() {
+			s.awsEC2ResourcesStatus.reset()
+			s.awsEC2Tasks.reset()
+		}),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -465,7 +476,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	if s.ec2Installer == nil {
 		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter: s.Emitter,
+			ReportSSMInstallationResultFunc: s.ReportEC2SSMInstallationResult,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -528,12 +539,12 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 }
 
 // awsServerFetchersFromMatchers converts Matchers into a set of AWS EC2 Fetchers.
-func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher) ([]server.Fetcher, error) {
+func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfig string) ([]server.Fetcher, error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.CloudClients)
+	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, serverMatchers, s.CloudClients, discoveryConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -567,7 +578,12 @@ func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []t
 		return nil, trace.Wrap(err)
 	}
 
-	return server.MatchersToGCPInstanceFetchers(serverMatchers, client), nil
+	projectsClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return server.MatchersToGCPInstanceFetchers(serverMatchers, client, projectsClient), nil
 }
 
 // databaseFetchersFromMatchers converts Matchers into a set of Database Fetchers.
@@ -729,19 +745,26 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	projectClient, err := s.CloudClients.GetGCPProjectsClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "unable to create gcp project client")
+	}
 	for _, matcher := range otherMatchers {
 		for _, projectID := range matcher.ProjectIDs {
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
 					case types.GCPMatcherKubernetes:
-						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
-							Client:       kubeClient,
-							Location:     location,
-							FilterLabels: matcher.GetLabels(),
-							ProjectID:    projectID,
-							Log:          s.Log,
-						})
+						fetcher, err := fetchers.NewGKEFetcher(
+							ctx,
+							fetchers.GKEFetcherConfig{
+								GKEClient:     kubeClient,
+								ProjectClient: projectClient,
+								Location:      location,
+								FilterLabels:  matcher.GetLabels(),
+								ProjectID:     projectID,
+								Log:           s.Log,
+							})
 						if err != nil {
 							return trace.Wrap(err)
 						}
@@ -825,9 +848,17 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// they all need to have the command run on them
 	//
 	// EICE Nodes must never be filtered, so that we can extend their expiration and sync labels.
+	totalInstancesFound := len(instances.Instances)
 	if !instances.Rotation && instances.EnrollMode != types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
 		s.filterExistingEC2Nodes(instances)
 	}
+
+	instancesAlreadyEnrolled := totalInstancesFound - len(instances.Instances)
+	s.awsEC2ResourcesStatus.incrementEnrolled(awsResourceGroup{
+		discoveryConfig: instances.DiscoveryConfig,
+		integration:     instances.Integration,
+	}, instancesAlreadyEnrolled)
+
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
@@ -865,6 +896,11 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		eiceNode, err := common.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
 			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
+
+			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+				discoveryConfig: instances.DiscoveryConfig,
+				integration:     instances.Integration,
+			}, 1)
 			continue
 		}
 
@@ -903,6 +939,10 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
 			instanceID := eiceNode.GetAWSInstanceID()
 			s.Log.WithField("instance_id", instanceID).Warnf("Error upserting EC2 instance: %v", err)
+			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+				discoveryConfig: instances.DiscoveryConfig,
+				integration:     instances.Integration,
+			}, 1)
 		}
 	})
 	if err != nil {
@@ -924,14 +964,40 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
 
 	req := server.SSMRunRequest{
-		DocumentName: instances.DocumentName,
-		SSM:          ec2Client,
-		Instances:    instances.Instances,
-		Params:       instances.Parameters,
-		Region:       instances.Region,
-		AccountID:    instances.AccountID,
+		DocumentName:    instances.DocumentName,
+		SSM:             ec2Client,
+		Instances:       instances.Instances,
+		Params:          instances.Parameters,
+		Region:          instances.Region,
+		AccountID:       instances.AccountID,
+		IntegrationName: instances.Integration,
+		DiscoveryConfig: instances.DiscoveryConfig,
 	}
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
+		s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+			discoveryConfig: instances.DiscoveryConfig,
+			integration:     instances.Integration,
+		}, len(req.Instances))
+
+		for _, instance := range req.Instances {
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2TaskKey{
+					accountID:       instances.AccountID,
+					integration:     instances.Integration,
+					issueType:       usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+					region:          instances.Region,
+					ssmDocument:     req.DocumentName,
+					installerScript: req.InstallerScriptName(),
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					InstanceId:      instance.InstanceID,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+				},
+			)
+		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1034,9 +1100,17 @@ func (s *Server) handleEC2Discovery() {
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
 				ec2Instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
 
+			s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
+				discoveryConfig: instances.EC2.DiscoveryConfig,
+				integration:     instances.EC2.Integration,
+			}, len(instances.EC2.Instances))
+
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
 				s.logHandleInstancesErr(err)
 			}
+
+			s.updateDiscoveryConfigStatus(instances.EC2.DiscoveryConfig)
+			s.upsertTasksForAWSEC2FailedEnrollments()
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
 			return
@@ -1135,9 +1209,9 @@ func (s *Server) handleAzureDiscovery() {
 func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
 	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
-		_, projectIDOK := labels[types.ProjectIDLabel]
-		_, zoneOK := labels[types.ZoneLabel]
-		_, nameOK := labels[types.NameLabel]
+		_, projectIDOK := labels[types.ProjectIDLabelDiscovery]
+		_, zoneOK := labels[types.ZoneLabelDiscovery]
+		_, nameOK := labels[types.NameLabelDiscovery]
 		return projectIDOK && zoneOK && nameOK
 	})
 	var filtered []*gcpimds.Instance
@@ -1145,9 +1219,9 @@ outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {
 			match := types.MatchLabels(node, map[string]string{
-				types.ProjectIDLabel: inst.ProjectID,
-				types.ZoneLabel:      inst.Zone,
-				types.NameLabel:      inst.Name,
+				types.ProjectIDLabelDiscovery: inst.ProjectID,
+				types.ZoneLabelDiscovery:      inst.Zone,
+				types.NameLabelDiscovery:      inst.Name,
 			})
 			if match {
 				continue outer
@@ -1171,6 +1245,10 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 	s.Log.Debugf("Running Teleport installation on these virtual machines: ProjectID: %s, VMs: %s",
 		instances.ProjectID, genGCPInstancesLogStr(instances.Instances),
 	)
+	sshKeyAlgo, err := cryptosuites.AlgorithmForKey(s.ctx, cryptosuites.GetCurrentSuiteFromPing(s.AccessPoint), cryptosuites.UserSSH)
+	if err != nil {
+		return trace.Wrap(err, "finding algorithm for SSH key from ping response")
+	}
 	req := server.GCPRunRequest{
 		Client:          client,
 		Instances:       instances.Instances,
@@ -1179,6 +1257,7 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		Params:          instances.Parameters,
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
+		SSHKeyAlgo:      sshKeyAlgo,
 	}
 	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1512,7 +1591,7 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	}
 	s.discardUnsupportedMatchers(&matchers)
 
-	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS)
+	awsServerFetchers, err := s.awsServerFetchersFromMatchers(s.ctx, matchers.AWS, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1645,8 +1724,9 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:    teleport.ComponentDiscovery,
-			Log:          s.Log,
+			Component: teleport.ComponentDiscovery,
+			// TODO(tross): update this after converting logging to use slog
+			// Logger:          s.Logger,
 			Client:       s.AccessPoint,
 			MaxStaleness: time.Minute,
 		},
@@ -1686,14 +1766,42 @@ func splitMatchers[T types.Matcher](matchers []T, matcherTypeCheck func(string) 
 	return
 }
 
-func (s *Server) updatesEmptyDiscoveryGroup(getter func() (types.ResourceWithLabels, error)) bool {
-	if s.DiscoveryGroup == "" {
-		return false
+func (s *Server) resolveCreateErr(createErr error, discoveryOrigin string, getter func() (types.ResourceWithLabels, error)) error {
+	// We can only resolve the error if we have a discovery group configured
+	// and the error is that the resource already exists.
+	if s.DiscoveryGroup == "" || !trace.IsAlreadyExists(createErr) {
+		return trace.Wrap(createErr)
 	}
+
 	old, err := getter()
 	if err != nil {
-		return false
+		return trace.NewAggregate(createErr, err)
 	}
+
+	// Check that the registered resource origin matches the origin we want.
+	oldOrigin, err := types.GetOrigin(old)
+	if err != nil {
+		return trace.NewAggregate(createErr, err)
+	}
+	if oldOrigin != discoveryOrigin {
+		return trace.Wrap(createErr,
+			"not updating because the resource origin indicates that it is not managed by auto-discovery",
+		)
+	}
+
+	// Check that the registered resource's discovery group is blank or matches
+	// this server's discovery group.
+	// We check if the old group is empty because that's a special case where
+	// the old/new groups don't match but we still want to update the resource.
+	// In this way, discovery agents with a discovery_group essentially claim
+	// the resources they discover that used to be (or currently are) discovered
+	// by an agent that did not have a discovery_group configured.
 	oldDiscoveryGroup, _ := old.GetLabel(types.TeleportInternalDiscoveryGroupName)
-	return oldDiscoveryGroup == ""
+	if oldDiscoveryGroup != "" && oldDiscoveryGroup != s.DiscoveryGroup {
+		return trace.Wrap(createErr,
+			"not updating because the resource is in a different discovery group",
+		)
+	}
+
+	return nil
 }

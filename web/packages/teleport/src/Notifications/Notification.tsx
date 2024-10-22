@@ -22,7 +22,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 
 import * as Icons from 'design/Icon';
 
-import Text from 'design/Text';
+import Text, { P3 } from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
 
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
@@ -67,6 +67,10 @@ export function Notification({
   const { clusterId } = useStickyClusterId();
 
   const content = ctx.notificationContentFactory(notification);
+  // If there is no notification content because it is an unsupported kind, don't render anything.
+  if (!content) {
+    return null;
+  }
 
   const [markAsClickedAttempt, markAsClicked] = useAsync(() =>
     ctx.notificationService
@@ -104,9 +108,29 @@ export function Notification({
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
 
-  // If the notification is unsupported or hidden, or if the view is "Unread" and the notification has been read,
-  // it should not be shown.
-  if (!content || (view === 'Unread' && notification.clicked)) {
+  // If the view is "Unread" and the notification has been read, it should not be shown.
+  if (view === 'Unread' && notification.clicked) {
+    // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
+    // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
+    if (content.kind == 'text') {
+      return (
+        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
+          <DialogHeader>
+            <DialogTitle>{content.title}</DialogTitle>
+          </DialogHeader>
+          <DialogContent>{content.textContent}</DialogContent>
+          <DialogFooter>
+            <ButtonSecondary
+              onClick={() => setShowTextContentDialog(false)}
+              size="small"
+              className={IGNORE_CLICK_CLASSNAME}
+            >
+              Close
+            </ButtonSecondary>
+          </DialogFooter>
+        </Dialog>
+      );
+    }
     return null;
   }
 
@@ -140,6 +164,7 @@ export function Notification({
   function onClick() {
     if (content.kind === 'text') {
       setShowTextContentDialog(true);
+      onMarkAsClicked();
       return;
     }
     onMarkAsClicked();
@@ -158,11 +183,7 @@ export function Notification({
         onClick={onNotificationClick}
         className="notification"
         tabIndex={0}
-        onKeyDown={e => {
-          if (e.key === 'Enter') {
-            onClick();
-          }
-        }}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>
@@ -179,21 +200,21 @@ export function Notification({
               <content.QuickAction markAsClicked={onMarkAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
-              <Text typography="subtitle3" color="error.main">
+              <Text typography="body4" color="error.main">
                 Failed to hide notification:{' '}
                 {hideNotificationAttempt.statusText}
               </Text>
             )}
             {markAsClickedAttempt.status === 'error' && (
-              <Text typography="subtitle3" color="error.main">
+              <P3 color="error.main">
                 Failed to mark notification as read:{' '}
                 {markAsClickedAttempt.statusText}
-              </Text>
+              </P3>
             )}
           </ContentBody>
           <SideContent>
             {!content?.hideDate && (
-              <Text typography="subtitle3">{formattedDate}</Text>
+              <Text typography="body4">{formattedDate}</Text>
             )}
             {!notification.localNotification && (
               <MenuIcon
@@ -279,11 +300,11 @@ function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
     return `
         background: transparent;
         &:hover {
-          background: ${theme.colors.interactive.tonal.neutral[0].background};
+          background: ${theme.colors.interactive.tonal.neutral[0]};
         }
         &:active {
           outline: none;
-          background: ${theme.colors.interactive.tonal.neutral[1].background};
+          background: ${theme.colors.interactive.tonal.neutral[1]};
         }
         &:focus {
           outline: ${theme.borders[2]} ${theme.colors.text.slightlyMuted};
@@ -292,16 +313,16 @@ function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
   }
 
   return `
-    background: ${theme.colors.interactive.tonal.primary[0].background};
+    background: ${theme.colors.interactive.tonal.primary[0]};
     &:hover {
-      background: ${theme.colors.interactive.tonal.primary[1].background};
+      background: ${theme.colors.interactive.tonal.primary[1]};
     }
     &:active {
       outline: none;
-      background: ${theme.colors.interactive.tonal.primary[2].background};
+      background: ${theme.colors.interactive.tonal.primary[2]};
     }
     &:focus {
-      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default.background};
+      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default};
     }
     `;
 }
@@ -351,28 +372,28 @@ function getIconColors(
   switch (type) {
     case 'success':
       return {
-        primary: theme.colors.interactive.solid.success.active.background,
-        secondary: theme.colors.interactive.tonal.success[0].background,
+        primary: theme.colors.interactive.solid.success.active,
+        secondary: theme.colors.interactive.tonal.success[0],
       };
     case 'success-alt':
       return {
-        primary: theme.colors.interactive.solid.accent.active.background,
-        secondary: theme.colors.interactive.tonal.informational[0].background,
+        primary: theme.colors.interactive.solid.accent.active,
+        secondary: theme.colors.interactive.tonal.informational[0],
       };
     case 'informational':
       return {
         primary: theme.colors.brand,
-        secondary: theme.colors.interactive.tonal.primary[0].background,
+        secondary: theme.colors.interactive.tonal.primary[0],
       };
     case `warning`:
       return {
-        primary: theme.colors.interactive.solid.alert.active.background,
-        secondary: theme.colors.interactive.tonal.alert[0].background,
+        primary: theme.colors.interactive.solid.alert.active,
+        secondary: theme.colors.interactive.tonal.alert[0],
       };
     case 'failure':
       return {
         primary: theme.colors.error.main,
-        secondary: theme.colors.interactive.tonal.danger[0].background,
+        secondary: theme.colors.interactive.tonal.danger[0],
       };
   }
 }

@@ -52,7 +52,8 @@ export const StyledTable = styled.table<BorderRadiusProps>`
 
   & > thead > tr > th {
     color: ${props => props.theme.colors.text.main};
-    ${props => props.theme.typography.h6};
+    ${props => props.theme.typography.h3};
+    line-height: 24px;
     cursor: pointer;
     padding-bottom: 0;
     padding-top: 0;

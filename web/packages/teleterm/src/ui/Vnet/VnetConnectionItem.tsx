@@ -143,7 +143,7 @@ const VnetConnectionItemBase = forwardRef<
           `}
         >
           <Text
-            typography="body1"
+            typography="body2"
             bold
             color="text.main"
             css={`
@@ -152,7 +152,7 @@ const VnetConnectionItemBase = forwardRef<
           >
             VNet
           </Text>
-          <Text color="text.slightlyMuted" typography="body2">
+          <Text color="text.slightlyMuted" typography="body3">
             Virtual Network Emulation
           </Text>
         </div>
@@ -286,7 +286,7 @@ export const AppConnectionItem = (props: {
           `}
         >
           <Text
-            typography="body1"
+            typography="body2"
             color="text.main"
             css={`
               line-height: 16px;
@@ -297,7 +297,7 @@ export const AppConnectionItem = (props: {
           {props.error && (
             <Text
               color="text.slightlyMuted"
-              typography="body2"
+              typography="body3"
               title={props.error}
             >
               {props.error}

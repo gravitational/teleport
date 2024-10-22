@@ -108,7 +108,6 @@ export function UserAddEdit(props: ReturnType<typeof useDialog>) {
                 placeholder="Click to select roles"
                 isSearchable
                 isMulti
-                isSimpleValue
                 isClearable={false}
                 value={selectedRoles}
                 onChange={values => onChangeRoles(values as Option[])}

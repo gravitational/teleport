@@ -32,6 +32,8 @@ type JoinToken struct {
 	// SafeName returns the name of the token, sanitized appropriately for
 	// join methods where the name is secret.
 	SafeName string `json:"safeName"`
+	// BotName is the name of the bot this token grants access to, if any
+	BotName string `json:"bot_name"`
 	// Expiry is the time that the token resource expires. Tokens that do not expire
 	// should expect a zero value time to be returned.
 	Expiry time.Time `json:"expiry"`
@@ -41,8 +43,10 @@ type JoinToken struct {
 	IsStatic bool `json:"isStatic"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
-	// AllowRules is a list of allow rules
-	AllowRules []string `json:"allowRules,omitempty"`
+	// Allow is a list of allow rules
+	Allow []*types.TokenRule `json:"allow,omitempty"`
+	// GCP allows the configuration of options specific to the "gcp" join method.
+	GCP *types.ProvisionTokenSpecV2GCP `json:"gcp,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
 }
@@ -52,15 +56,22 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &JoinToken{
+	uiToken := &JoinToken{
 		ID:       token.GetName(),
 		SafeName: token.GetSafeName(),
+		BotName:  token.GetBotName(),
 		Expiry:   token.Expiry(),
 		Roles:    token.GetRoles(),
 		IsStatic: token.IsStatic(),
 		Method:   token.GetJoinMethod(),
+		Allow:    token.GetAllowRules(),
 		Content:  string(content[:]),
-	}, nil
+	}
+
+	if uiToken.Method == types.JoinMethodGCP {
+		uiToken.GCP = token.GetGCPRules()
+	}
+	return uiToken, nil
 }
 
 func MakeJoinTokens(tokens []types.ProvisionToken) (joinTokens []JoinToken, err error) {

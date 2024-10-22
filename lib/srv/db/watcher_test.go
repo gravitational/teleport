@@ -283,6 +283,15 @@ func setDiscoveryGroupLabel(r types.ResourceWithLabels, discoveryGroup string) {
 	r.SetStaticLabels(staticLabels)
 }
 
+func setDiscoveryTypeLabel(r types.ResourceWithLabels, matcherType string) {
+	staticLabels := r.GetStaticLabels()
+	if staticLabels == nil {
+		staticLabels = make(map[string]string)
+	}
+	staticLabels[types.DiscoveryTypeLabel] = matcherType
+	r.SetStaticLabels(staticLabels)
+}
+
 // TestWatcherCloudFetchers tests usage of discovery database fetchers by the
 // database service.
 func TestWatcherCloudFetchers(t *testing.T) {
@@ -293,11 +302,13 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
+	setDiscoveryTypeLabel(redshiftServerlessDatabase, types.AWSMatcherRedshiftServerless)
 	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
 	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, types.AWSMatcherRedshiftServerless)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
+	setDiscoveryTypeLabel(azSQLServerDatabase, types.AzureMatcherSQLServer)
 	azSQLServerDatabase.SetOrigin(types.OriginCloud)
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)

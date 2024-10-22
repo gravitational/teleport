@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -148,6 +149,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	err = tc.TransferFiles(ctx, req.login, req.serverID+":0", cfg)
 	if err != nil {
+		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+			return nil, trace.Errorf("transferring directories through the Web UI is not supported at the moment, please use tsh scp -r")
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -228,9 +232,9 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 
 	// Always acquire certs from the root cluster, that is where both the user and their devices are registered.
 	cert, err := f.sctx.cfg.RootClient.GenerateUserCerts(httpReq.Context(), proto.UserCertsRequest{
-		PublicKey: pk.MarshalSSHPublicKey(),
-		Username:  f.sctx.GetUser(),
-		Expires:   time.Now().Add(time.Minute).UTC(),
+		SSHPublicKey: pk.MarshalSSHPublicKey(),
+		Username:     f.sctx.GetUser(),
+		Expires:      time.Now().Add(time.Minute).UTC(),
 		MFAResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaResp.WebauthnAssertionResponse),

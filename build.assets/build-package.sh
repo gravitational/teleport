@@ -218,12 +218,12 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         ARCH_TAG="-${PACKAGE_ARCH}"
     fi
     SIGN_PKG="true"
-    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport"
+    FILE_LIST="${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport"
     BUNDLE_ID="${b:-com.gravitational.teleport}"
     if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
         PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     else
-        PKG_FILENAME="teleport-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
+        PKG_FILENAME="teleport-bin-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
 else
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport ${TAR_PATH}/examples/systemd/teleport.service ${TAR_PATH}/examples/systemd/post-upgrade"

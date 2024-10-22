@@ -1,0 +1,26 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "DocumentDBConnectAsIAMRole",
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": [
+                "arn:aws:iam::<Var name="aws-account-id"/>:role/{{ dbUserRole }}"
+            ]
+        },
+        {
+            "Sid": "DocumentDBCheckDomainURL",
+            "Effect": "Allow",
+            "Action": "rds:DescribeDBClusters",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`DocumentDBConnectAsIAMRole`| Assume an IAM role to connect to a DocumentDB cluster with IAM authentication. |
+|`DocumentDBCheckDomainURL` | Validate a domain's URL if it was auto-discovered by the Discovery Service. |

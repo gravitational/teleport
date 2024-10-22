@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { forwardRef, useRef, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import {
   Alert,
   Box,
+  ButtonBorder,
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
@@ -29,6 +30,8 @@ import {
   Image,
   Indicator,
   LabelInput,
+  P3,
+  Subtitle2,
   Text,
 } from 'design';
 import {
@@ -45,81 +48,89 @@ import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
-
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { mergeRefs } from 'shared/libs/mergeRefs';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
 
 import { ReviewerOption } from './types';
-
 import shieldCheck from './shield-check.png';
 import { SelectReviewers } from './SelectReviewers';
 import { AdditionalOptions } from './AdditionalOptions';
 
 import type { TransitionStatus } from 'react-transition-group';
-
 import type { AccessRequest } from 'shared/services/accessRequests';
 import type { ResourceKind } from '../resource';
 
-export function RequestCheckoutWithSlider<
-  T extends PendingListItem = PendingListItem,
->({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
-  const ref = useRef<HTMLDivElement>();
+export const RequestCheckoutWithSlider = forwardRef<
+  HTMLDivElement,
+  RequestCheckoutWithSliderProps<PendingListItem>
+>(
+  (
+    { transitionState, ...props },
+    /**
+     * ref is extra ref that can be passed to RequestCheckoutWithSlider, at the moment used for
+     * animations.
+     */
+    ref
+  ) => {
+    const wrapperRef = useRef<HTMLDivElement>();
 
-  // Listeners are attached to enable overflow on the parent container after
-  // transitioning ends (entered) or starts (exits). Enables vertical scrolling
-  // when content gets too big.
-  //
-  // Overflow is initially hidden to prevent
-  // brief flashing of horizontal scroll bar resulting from positioning
-  // the container off screen to the right for the slide affect.
-  React.useEffect(() => {
-    function applyOverflowAutoStyle(e: TransitionEvent) {
-      if (e.propertyName === 'right') {
-        ref.current.style.overflow = `auto`;
-        // There will only ever be one 'end right' transition invoked event, so we remove it
-        // afterwards, and listen for the 'start right' transition which is only invoked
-        // when user exits this component.
+    // Listeners are attached to enable overflow on the wrapper div after
+    // transitioning ends (entered) or starts (exits). Enables vertical scrolling
+    // when content gets too big.
+    //
+    // Overflow is initially hidden to prevent
+    // brief flashing of horizontal scroll bar resulting from positioning
+    // the container off screen to the right for the slide affect.
+    useEffect(() => {
+      function applyOverflowAutoStyle(e: TransitionEvent) {
+        if (e.propertyName === 'right') {
+          wrapperRef.current.style.overflow = `auto`;
+          // There will only ever be one 'end right' transition invoked event, so we remove it
+          // afterwards, and listen for the 'start right' transition which is only invoked
+          // when user exits this component.
+          window.removeEventListener('transitionend', applyOverflowAutoStyle);
+          window.addEventListener('transitionstart', applyOverflowHiddenStyle);
+        }
+      }
+
+      function applyOverflowHiddenStyle(e: TransitionEvent) {
+        if (e.propertyName === 'right') {
+          wrapperRef.current.style.overflow = `hidden`;
+        }
+      }
+
+      window.addEventListener('transitionend', applyOverflowAutoStyle);
+
+      return () => {
         window.removeEventListener('transitionend', applyOverflowAutoStyle);
-        window.addEventListener('transitionstart', applyOverflowHiddenStyle);
-      }
-    }
+        window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
+      };
+    }, []);
 
-    function applyOverflowHiddenStyle(e: TransitionEvent) {
-      if (e.propertyName === 'right') {
-        ref.current.style.overflow = `hidden`;
-      }
-    }
-
-    window.addEventListener('transitionend', applyOverflowAutoStyle);
-
-    return () => {
-      window.removeEventListener('transitionend', applyOverflowAutoStyle);
-      window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
-    };
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      css={`
-        position: absolute;
-        width: 100vw;
-        height: 100vh;
-        top: 0;
-        left: 0;
-        overflow: hidden;
-      `}
-    >
-      <Dimmer className={transitionState} />
-      <SidePanel className={transitionState}>
-        <RequestCheckout {...props} />
-      </SidePanel>
-    </div>
-  );
-}
+    return (
+      <div
+        ref={mergeRefs([wrapperRef, ref])}
+        css={`
+          position: absolute;
+          width: 100vw;
+          height: 100vh;
+          top: 0;
+          left: 0;
+          overflow: hidden;
+        `}
+      >
+        <Dimmer className={transitionState} />
+        <SidePanel className={transitionState}>
+          <RequestCheckout {...props} />
+        </SidePanel>
+      </div>
+    );
+  }
+);
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
@@ -191,6 +202,7 @@ export function RequestCheckout<T extends PendingListItem>({
         <ArrowBack
           size="large"
           mr={3}
+          data-testid="close-checkout"
           onClick={onClose}
           style={{ cursor: 'pointer' }}
         />
@@ -222,12 +234,12 @@ export function RequestCheckout<T extends PendingListItem>({
           {createAttempt.status === 'success' ? (
             <>
               <Box>
-                <Box mt={2} mb={7} textAlign="center">
+                <Box as="header" mt={2} mb={7} textAlign="center">
                   <H2 mb={1}>Resources Requested Successfully</H2>
-                  <Text typography="subtitle1" color="text.slightlyMuted">
+                  <Subtitle2 color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}
-                  </Text>
+                  </Subtitle2>
                 </Box>
                 <Flex justifyContent="center" mb={3}>
                   <Image src={shieldCheck} width="250px" height="179px" />
@@ -485,14 +497,25 @@ function ResourceRequestRoles({
             border-color: ${props => props.theme.colors.spotBackground[1]};
           `}
         >
-          <Flex flexDirection="column" width="100%">
-            <LabelInput mb={0} style={{ cursor: 'pointer' }}>
-              Roles
-            </LabelInput>
-            <Text typography="subtitle2" mb={2}>
-              {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
-              selected
-            </Text>
+          <Flex alignItems="center" gap={2}>
+            <Flex flexDirection="column" width="100%">
+              <LabelInput mb={0} style={{ cursor: 'pointer' }}>
+                Roles
+              </LabelInput>
+              <Text typography="body4" mb={2}>
+                {selectedRoles.length} role
+                {selectedRoles.length !== 1 ? 's' : ''} selected
+              </Text>
+            </Flex>
+            {selectedRoles.length ? (
+              <ButtonBorder
+                onClick={() => setSelectedRoles([])}
+                size="small"
+                width="50px"
+              >
+                Clear
+              </ButtonBorder>
+            ) : null}
           </Flex>
           {fetchAttempt.status === 'processing' ? (
             <Flex
@@ -551,10 +574,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <Text typography="subtitle2">
+              <P3>
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </Text>
+              </P3>
             </Flex>
           )}
         </Box>
@@ -670,6 +693,8 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'User Group';
     case 'windows_desktop':
       return 'Desktop';
+    case 'saml_idp_service_provider':
+      return 'SAML Application';
     default:
       kind satisfies never;
       return kind;

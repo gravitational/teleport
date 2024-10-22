@@ -13,7 +13,7 @@ deps:
 
 lint:
   use:
-    - DEFAULT
+    - STANDARD
     - PACKAGE_NO_IMPORT_CYCLE
     # Top-level types require comments.
     # TODO(codingllama): Fix messages and enable linters below.
@@ -28,7 +28,7 @@ lint:
     - ENUM_VALUE_UPPER_SNAKE_CASE
     - FIELD_LOWER_SNAKE_CASE
     - ONEOF_LOWER_SNAKE_CASE
-    # DEFAULT
+    # STANDARD
     - ENUM_VALUE_PREFIX
     - ENUM_ZERO_VALUE_SUFFIX
     - PACKAGE_VERSION_SUFFIX

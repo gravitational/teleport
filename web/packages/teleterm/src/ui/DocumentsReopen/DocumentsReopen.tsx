@@ -22,9 +22,11 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Text } from 'design';
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 import { Cross } from 'design/Icon';
 import { pluralize } from 'shared/utils/text';
+
+import { P } from 'design/Text/Text';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -75,11 +77,10 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text typography="body1" color="text.slightlyMuted">
+          <P color="text.slightlyMuted">
             Do you want to reopen tabs from the previous session?
-          </Text>
-          <Text
-            typography="body1"
+          </P>
+          <P
             color="text.slightlyMuted"
             // Split long continuous cluster names into separate lines.
             css={`
@@ -98,7 +99,7 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
               {pluralize(props.numberOfDocuments, 'tab')}
             </strong>{' '}
             open in <strong>{clusterName}</strong>.
-          </Text>
+          </P>
         </DialogContent>
         <DialogFooter>
           <ButtonPrimary autoFocus mr={3} type="submit">

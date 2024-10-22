@@ -36,7 +36,10 @@ module.exports = {
   // 'node_modules/.pnpm/@scope+pkg-b@x.x.x/node_modules/@scope/pkg-b/'.
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
-  testPathIgnorePatterns: ['e2e'],
+  testPathIgnorePatterns: ['e2e', 'docs/check-redirects'],
+  testEnvironmentOptions: {
+    customExportConditions: [''],
+  },
   setupFilesAfterEnv: [
     '<rootDir>/web/packages/build/jest/setupTests.ts',
     '<rootDir>/web/packages/build/jest/customMatchers.ts',

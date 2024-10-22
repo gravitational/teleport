@@ -1,0 +1,482 @@
+---
+title: Teleport Authentication with Google Workspace (G Suite)
+description: How to configure Teleport access with Google Workspace (formerly known as G Suite)
+videoBanner: WTLWc6nnPfk
+---
+
+This guide explains how to configure [Google Workspace](https://workspace.google.com/)
+to be a single sign-on (SSO) provider that issues Teleport credentials to specific
+groups of users. When you use Google Workspace in combination with Teleport role-based 
+access control (RBAC), you can define policies like the following:
+
+- Only members of the "DBA" Google group can connect to PostgreSQL databases.
+- Developers must never use SSH to access production servers.
+
+## Prerequisites
+
+Before you get started, verify the following:
+
+- You have a Google Workspace super administrator account. 
+  As a best practice, you should set up a separate account that requires multifactor 
+  authentication to perform administrative actions. In most cases, you should avoid 
+  granting your own sign-in user account elevated administrative privileges.
+
+- You can sign up for Google Cloud and create a Google Cloud project. 
+  Note that this guide doesn't require using any paid Google Cloud services.
+
+- You can set up Google Workspace groups.
+
+- You have a Teleport role with permission to maintain `oidc` resources. 
+  This permission is available in the preset `editor` role.
+
+- You have a Teleport cluster, Enterprise edition, and command-line tools.
+   
+  (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/4. Configure Google Workspace
+
+The following steps are required to configure Google Workspace to work with Teleport:
+
+- Review your Google Workspace edition to determine how it integrates with Teleport.
+- Create a new project on the Google Cloud Platform.
+- Configure OAuth consent for the new project.
+- Enable the required APIs.
+- Create an OAuth client ID to allow Google Workspace users to log in to your Teleport cluster.
+- Create a service account for Teleport to access additional Google Groups information.
+- Configure domain-wide delegation for the service account.
+
+### Review your Google Workspace edition
+
+Google Workspace is available in multiple editions with different features and capabilities
+for individuals and organizations. Because of differences between Google Workspace editions,
+there are fundamental differences in how Teleport integrates with Google Workspace depending on
+the Google Workspace edition you use. 
+
+Some editions of Google Workspace provide **transitive group membership**.
+With transitive group membership, a user can be a member of one group by virtue of being in 
+another group. For example, if there is a child group nested within a parent group, every 
+member of the child group is also a member of the parent group. Teleport can support both 
+direct group membership and transitive group membership, but does so using different methods.
+
+#### Google Workspace editions and API
+
+Google Workspace service accounts can determine whether a user has a transitive
+membership in a specific group by calling methods in the Google Workspace
+**Cloud Identity API**. These API methods are only usable for users belonging to
+specific Google Workspace editions.
+
+The Google Workspace **Directory API** allows administrators to list users and
+groups in their Google Workspace domain, but does not enable them to query
+transitive group memberships. The Directory API is available for all Google
+Workspace editions.
+
+#### How Teleport uses Google Workspace APIs
+
+The Teleport OIDC connector uses the Google Workspace APIs to map Google Workspace 
+group members to the Teleport roles they belong to.
+
+To list a user's Google Workspace groups, Teleport first attempts to
+get credentials by calling Cloud Identity API methods. If successful, Teleport uses 
+the credentials to query a user's transitive group memberships.
+
+If the credentials don't exist, Teleport gets credentials by calling 
+Directory API methods. Teleport then uses the Directory API to list the 
+user's groups in the entire Google Workspace for your organization. 
+Groups that the user belongs to that are external to the workspace aren't listed.
+
+#### How to check your current edition
+
+To determine whether your Google Workspace edition supports querying transitive
+group memberships:
+
+1. Open [Inspect Groups](https://admin.google.com/ac/groupsinspection)
+in the Google Workspace Admin Console. 
+
+   Group inspection relies on the Cloud Identity API. 
+   
+1. Select **List all groups for a member** and **Include external groups**.
+   
+   If your Google Workspace edition supports the Cloud Identity API, you should
+   block access to external groups at the workspace level as described in [Allow or block
+   access to external groups](https://support.google.com/a/answer/9468710). Otherwise, 
+   membership in any group external to the workspace will prevent users from signing in.
+   
+   If your Google Workspace edition doesn't support the Cloud Identity API, you must
+   ensure that your role-based access controls don't depend on transitive group memberships.
+
+### Create a new project
+
+If you want to add single sign-on for Teleport to an existing Google Cloud project, you can 
+select that project in the Google Cloud console and skip this step. If you don't have a project 
+or want to create a new project specifically for Teleport, you can go directly to the 
+Enabled APIs & Service [project selector dashboard](https://console.cloud.google.com/projectselector2/apis/dashboard) 
+to create one.
+
+To create a new project:
+
+1. Open the Google Cloud console.
+
+1. In the Google Cloud console navigation menu, click **APIs & Services**.
+
+1. In **Enabled APIs and services**, click the project selector, then click **New Project**.
+   If there are no projects to select in the dashboard, click **Create Project**.
+   
+   ![Create or select a project](../../../../img/sso/googleoidc/google-new-project.png)
+
+1. Type a Project name and select an organization and a location for the project, then 
+click **Create**.
+
+### Configure OAuth consent
+
+To configure OAuth consent for the new project:
+
+1. In the Google Cloud console sidebar, click **OAuth consent screen**.
+
+1. Select **Internal** as the User Type, then click **Create**.
+   
+   ![Select Internals](../../../../img/sso/googleoidc/google-oauth-consent.png)
+
+1. Configure the OAuth client consent information by doing the following:
+   
+   - Type an application name.
+   - Select a user or group to receive email messages from users about their OAuth consent.
+   - Set other application options, as needed.
+   - Provide the email address of the developer to contact if there are changes to the project.
+
+1. Click **Save and continue**.
+
+1. Click **Add or remove scopes**.
+
+1. Select **.../auth/userinfo.email** and **openid** scopes, then click **Update**.
+
+1. Click **Save and continue**.
+
+1. Review the information on the Summary page, then click **Back to dashboard**.
+
+### Enable the required APIs
+
+To enable required APIs for the OAuth client:
+
+1. Select [Admin SDK API](https://console.cloud.google.com/apis/library/admin.googleapis.com)
+in the API Library, then click **Enable** to support direct group membership.
+1. Select [Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com) 
+in the API Library, then click **Enable** to support transitive group membership.
+
+You can enable one or both API libraries.
+However, your Google Workspace edition must support the API you choose to use.
+Consult the documentation for the API library to ensure that you have a
+supported Google Workspace edition.
+
+### Create an OAuth client ID
+
+To create an OAuth client identifier:
+
+1. In the Google Cloud console sidebar, click **APIs & Services**.
+
+1. In the APIs & Services sidebar, click **Credentials**.
+
+1. Click **Create credentials** to display a list of the credentials you can create.
+   
+   ![Create credentials](../../../../img/sso/googleoidc/google-create-credentials.png)
+
+1. Select **OAuth client ID**.
+
+1. Select **Web application** as the Application type, and type a name for the application.
+
+1. Under Authorized redirect URIs, click **Add URI**.
+
+1. Set the redirect URI to the address of your Teleport cluster, then add 
+`/v1/webapi/oidc/callback` to the URI.
+   
+   ![OAuth client ID creation](../../../../img/sso/googleoidc/redirect-uri.png)
+
+1. Click **Create**.
+
+1. Copy the **Client ID** and **Client secret** from the OAuth client created or click **Download JSON**
+to save this information, then click **OK**.
+   
+   If you choose to save the client identifier and client secret by clicking **Download JSON**, 
+   be aware that this JSON file isn't the one used to handle the credentials for authentication.
+   A second JSON file is generated when you create the service account for the OAuth client.
+
+   For example:
+
+   ![OAuth client data](../../../../img/sso/googleoidc/oauth-client-id-and-secret.png)
+
+### Create a service account
+
+To create a service account:
+
+1. In the Google Cloud console sidebar, click **IAM & admin**, then select **Service Accounts**. 
+
+1. Click **Create service account**.
+
+1. Type a name for your service account and, optionally, a description of what the service account is for.
+   
+1. Click **Create and continue**, then click **Done**.
+
+   ![Create the service account](../../../../img/sso/googleoidc/google-service-account.png)
+
+   After you click **Done**, the new service account is added to the list of service accounts for the current
+   project. You can click the newly-created account to view its details and to edit information for the
+   account.
+
+1. Click the new service account to displays its Details, and copy its **Unique ID** for later.
+   
+   ![Copy the Unique ID for the service account](../../../../img/sso/googleoidc/service-account-unique-id.png)
+
+1. Click **Keys**, click **Add key**, and select **Create new key** to create keys for the service account.
+
+   ![service account key creation](../../../../img/sso/googleoidc/service-account-keys.png)
+
+1. Select **JSON** as the Key type, then click **Create**.
+   
+   Google Cloud automatically downloads a JSON file with the keys for the service account 
+   similar to the following:
+
+   ```yaml
+   {
+      "type": "service_account",
+      "project_id": "teleport-project-xxxxxx",
+      "private_key_id": "f06e000000000000000dc18",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
+      "client_email": "g-w-sso@teleport-project-xxxxxx.iam.gserviceaccount.com",
+      "client_id": "11xxxxxxxxxxxxx76",
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/gwsso%40teleport-project-xxxxxx.iam.gserviceaccount.com",
+      "universe_domain": "googleapis.com"
+    }
+    ```
+
+   This file is used to configure the OIDC connector for the Teleport Auth Service to use, 
+   either by referencing a local file on the host running the Teleport Auth Service or including the contents 
+   in the command line to create the connector resource.
+   
+### Configure domain-wide delegation
+
+Now that you have a service account for Teleport to use, you can configure 
+[domain-wide delegation](https://admin.google.com/ac/owl/domainwidedelegation) for the
+service account.
+
+To configure delegation:
+
+1. Open the Google Workspace Admin console and navigate to 
+[Manage domain-wide delegation](https://admin.google.com/ac/owl/domainwidedelegation).
+
+1. Click **Add new**.
+
+1. Paste the numeric Unique ID that you copied from the service account.
+
+1. Add **one** of the following scopes depending on your Google Workspace edition:
+   
+   - For direct groups only, add:
+      `https://www.googleapis.com/auth/admin.directory.group.readonly`
+   - For direct and transitive group membership support, add:
+      `https://www.googleapis.com/auth/cloud-identity.groups.readonly`
+
+1. Click **Authorize**.
+
+## Step 2/4. Create an OIDC connector
+
+After you have prepared Google Workspace, you can create the OIDC connector by 
+running the `tctl sso configure oidc` command. Depending on how you have deployed
+your Teleport cluster, you can create the OIDC connector resource in one of two ways:
+
+- You can **embed** the service account information in the connector resource.
+- You can **upload** the service account JSON file to hosts running the Teleport Auth Service.
+
+The service account JSON must be available to **all Teleport Auth Service hosts** if you 
+deploy Teleport as a high availability cluster. In most cases, you should use the 
+**embedded JSON** method to create the connector in high availability and cloud deployments to avoid 
+storing credentials in a file on multiple servers.
+
+The alternative to creating the OIDC connector with embedded JSON is to upload the JSON file.
+If you have a self-hosted Teleport cluster, you can upload the service account JSON file to all hosts 
+running the Teleport Auth Service.
+
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
+
+<Tabs>
+<TabItem label="Embed JSON">
+
+The following command defines the service account by embedding JSON in the command used to create the connector resource.
+With this method, you don't have to provide the JSON file to all of the hosts running the Teleport Auth Service.
+
+```code
+$ tctl sso configure oidc --preset google --id <CLIENT-ID> \
+--secret $( cat client-secret.txt) \
+--claims-to-roles groups,auditor@example.com,auditor \
+--claims-to-roles groups,teleport-developers@example.com,access \
+--google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> \
+--google-acc '
+{
+  "type": "service_account",
+  "project_id": <GOOGLE-PROJECT-ID>,
+  "private_key_id": <GOOGLE-PRIVATE-KEY-ID>,
+  "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
+  "client_email": <GOOGLE-SERVICE-ACCOUNT-EMAIL>,
+  "client_id": <GOOGLE-SERVICE-ACCOUNT-UNIQUE-ID>,
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/gwsso%40teleport-project-xxxxxx.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}'
+```
+
+After copying this command, be sure to remove the brackets (< >) and replace the placeholder strings with the 
+appropriate information for your Google Workspace. For example, replace `<GOOGLE-WORKSPACE-ADMIN-EMAIL>` with 
+the email address for the domain administrator similar to `admin@yourdomain.com`.
+
+This command creates a file similar to the following:
+
+```yaml
+kind: oidc
+metadata:
+  name: google
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - auditor
+    value: auditor@example.com
+  - claim: groups
+    roles:
+    - access
+    value: teleport-developers@example.com
+  client_id: <CLIENT-ID>
+  client_secret: <CLIENT-SECRET>
+  display: Google
+  google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
+  google_service_account: |2-
+
+    {
+      "type": "service_account",
+      "project_id": <GOOGLE-CLOUD-PROJECT-ID>,
+      "private_key_id": <GOOGLE-SERVICE-ACCOUNT-PRIVATE-KEY-ID>,
+      "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
+      "client_email": <GOOGLE-SERVICE-ACCOUNT-EMAIL>,
+      "client_id": <GOOGLE-SERVICE-ACCOUNT-UNIQUE-ID>,
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/gwsso%40teleport-project-xxxxxx.iam.gserviceaccount.com",
+      "universe_domain": "googleapis.com"
+    }
+  issuer_url: https://accounts.google.com
+  redirect_url: https://example.teleport.sh:443/v1/webapi/oidc/callback
+version: v3
+```
+
+</TabItem>
+<TabItem label="Upload JSON">
+
+The following command specifies the path to the JSON file on a host running the Teleport Auth Service.
+You can use this method for self-hosted Teleport Auth Service instances if you can
+make the JSON file available to all hosts running the Teleport Auth Service.
+
+```code
+$ tctl sso configure oidc --preset google --id <CLIENT-ID> \
+--secret $( cat client-secret.txt) \
+--google-acc-uri <PATH/TO/SERVICE-ACCOUNT-KEY>.json \
+--claims-to-roles groups,auditor@example.com,auditor \
+--claims-to-roles groups,teleport-developers@example.com,access \
+--google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> > gworkspace-connector.yaml
+```
+
+After copying this command, be sure to remove the brackets (< >) and replace the placeholder strings with the 
+appropriate information for your Google Workspace. For example, replace `<GOOGLE-WORKSPACE-ADMIN-EMAIL>` with 
+the email address for the domain administrator similar to `admin@yourdomain.com`.
+
+This command creates a file similar to the following:
+
+```yaml
+kind: oidc
+metadata:
+  name: google
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - auditor
+    value: auditor@example.com
+  - claim: groups
+    roles:
+    - access
+    value: teleport-developers@example.com
+  client_id: <CLIENT-ID>
+  client_secret: <CLIENT-SECRET>
+  display: Google
+  google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
+  google_service_account_uri: </PATH-TO-SERVICE-ACCOUNT-KEY>.json
+  issuer_url: https://accounts.google.com
+  redirect_url: https://teleport.example.com/v1/webapi/oidc/callback
+version: v3
+```
+
+</TabItem>
+</Tabs>
+
+The email that you set for `google_admin_email` **must** be the email address of
+an account that has permission to list all groups, users, and group membership in
+Google Workspace. In general, this user account must have full administrative privileges 
+or group administrative privileges.
+
+Don't use the email of the service account for `google_admin_email`. The
+configuration might look the same, but the service account doesn't have
+the required domain-wide delegation.
+
+The `client_id` field must be the unique numeric ID for the service account that you created 
+for the OAuth client in the Google Cloud console. You can check whether this setting is configured 
+correctly by viewing the audit logs on the host running the Teleport Auth Service or from 
+the **Management** tab in the Teleport Web UI. If you see "invalid Google Workspace 
+credentials for scopes [...]" in audit log messages, change the `client_id` setting in the 
+resource configuration file. For more information about viewing audit logs, see 
+[Troubleshooting](#troubleshooting).
+
+To test the connector, run the following command:
+
+```code
+$ cat gworkspace-connector.yaml | tctl sso test
+```
+
+This command opens the browser and attempts to sign you in to your Teleport cluster
+using Google. If it fails, review the command output for troubleshooting
+information.
+
+To create the connector using the `tctl` tool, run the following command:
+
+```code
+$ tctl create -f gworkspace-connector.yaml
+```
+
+## Step 3/4. Test your Google Workspace OIDC connector
+
+After you create the connector, the Teleport Web UI displays a new sign-in option, **Login with Google**. 
+To sign in from the command-line:
+
+```code
+$ tsh --proxy=proxy.example.com login --auth=google
+```
+
+This command displays the single sign-on endpoint URL and tries to open it
+automatically in a browser.
+
+## Step 4/4. Enable default OIDC authentication
+
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
+
+## Troubleshooting
+
+(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+
+## Further reading
+
+- [Google Workspace Cloud Identity API](https://cloud.google.com/identity)
+- [Google Workspace Directory API](https://developers.google.com/admin-sdk/directory)
+- [How nested Google Workspace groups work](https://support.google.com/a/answer/167100?hl=en)

@@ -56,6 +56,15 @@ export const CommunityAcknowledgement = () => {
   cfg.edition = 'community';
   return <Login {...sample} licenseAcknowledged={false} />;
 };
+export const MessageOfTheDay = () => {
+  return (
+    <Login
+      {...sample}
+      motd="One often meets his destiny on the road he takes to avoid it."
+      showMotd={true}
+    />
+  );
+};
 export const Success = () => <LoginSuccess />;
 export const TerminalRedirect = () => (
   <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>

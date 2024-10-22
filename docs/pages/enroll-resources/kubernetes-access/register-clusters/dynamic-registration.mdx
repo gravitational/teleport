@@ -390,13 +390,14 @@ $ tctl get kube_clusters
 ### Update a Kubernetes cluster resource
 
 To update the `kube_cluster` resource you created earlier, execute the following
-command to retrieve the resource as it exists on the Auth Service's backend:
+command to open the resource as it exists on the Auth Service's backend in your
+text editor:
 
 ```code
-$ tctl get kube_clusters/mycluster > kube_cluster.yaml
+$ tctl edit kube_clusters/mycluster
 ```
 
-Edit the `kube_cluster.yaml` file to add a label to your `kube_cluster`:
+Edit the resource to add a label to your `kube_cluster`:
 
 ```diff
   kind: kube_cluster
@@ -413,12 +414,7 @@ Edit the `kube_cluster.yaml` file to add a label to your `kube_cluster`:
   version: v3
 ```
 
-Update the resource:
-
-```code
-$ tctl create -f kube_cluster.yaml
-kubernetes cluster "mycluster" has been updated
-```
+Save and close the file in your editor to apply your changes.
 
 You should now see the updated labels:
 

@@ -30,7 +30,7 @@ func PackageManagerForSystem(osRelease *linux.OSRelease, fsRootPrefix string, bi
 	aptWellKnownIDs := []string{"debian", "ubuntu"}
 	legacyAPT := []string{"xenial", "trusty"}
 
-	yumWellKnownIDs := []string{"amzn", "rhel", "centos"}
+	yumWellKnownIDs := []string{"amzn", "rhel", "centos", "rocky", "almalinux"}
 
 	zypperWellKnownIDs := []string{"sles", "opensuse-tumbleweed", "opensuse-leap"}
 

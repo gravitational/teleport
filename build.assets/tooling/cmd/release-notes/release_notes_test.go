@@ -32,6 +32,7 @@ func Test_generateReleaseNotes(t *testing.T) {
 	tests := []struct {
 		name           string
 		releaseVersion string
+		labels         string
 		clFile         *os.File
 		want           string
 		wantErr        bool
@@ -41,6 +42,14 @@ func Test_generateReleaseNotes(t *testing.T) {
 			releaseVersion: "16.0.1",
 			clFile:         mustOpen(t, "test-changelog.md"),
 			want:           mustRead(t, "expected-release-notes.md"),
+			wantErr:        false,
+		},
+		{
+			name:           "with labels",
+			releaseVersion: "16.0.1",
+			labels:         "security-patch=yes, security-patch-alts=v16.0.0,v16.0.1",
+			clFile:         mustOpen(t, "test-changelog.md"),
+			want:           mustRead(t, "expected-with-labels.md"),
 			wantErr:        false,
 		},
 		{
@@ -55,6 +64,7 @@ func Test_generateReleaseNotes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &releaseNotesGenerator{
 				releaseVersion: tt.releaseVersion,
+				labels:         tt.labels,
 			}
 
 			got, err := r.generateReleaseNotes(tt.clFile)

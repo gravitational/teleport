@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -58,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -94,6 +94,10 @@ type TestAuthServerConfig struct {
 	// RunWhileLockedRetryInterval is the interval to retry the run while locked
 	// operation.
 	RunWhileLockedRetryInterval time.Duration
+	// FIPS means the cluster should run in FIPS mode.
+	FIPS bool
+	// KeystoreConfig is configuration for the CA keystore.
+	KeystoreConfig servicecfg.KeystoreConfig
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -261,7 +265,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity := local.NewTestIdentityService(srv.Backend)
+	identity, err := local.NewTestIdentityService(srv.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,
@@ -299,6 +306,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ClusterName:            clusterName,
 		HostUUID:               uuid.New().String(),
 		AccessLists:            accessLists,
+		FIPS:                   cfg.FIPS,
+		KeyStoreConfig:         cfg.KeystoreConfig,
 	},
 		WithClock(cfg.Clock),
 	)
@@ -311,13 +320,51 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv.AuthServer.bcryptCostOverride = &minCost
 
 	if cfg.CacheEnabled {
-		srv.AuthServer.Cache, err = accesspoint.NewAccessCache(accesspoint.AccessCacheConfig{
-			Context:   srv.AuthServer.CloseContext(),
-			Services:  srv.AuthServer.Services,
-			Setup:     cache.ForAuth,
-			CacheName: []string{teleport.ComponentAuth},
-			Events:    true,
-			Unstarted: true,
+		svces := srv.AuthServer.Services
+		srv.AuthServer.Cache, err = accesspoint.NewCache(accesspoint.Config{
+			Context:      srv.AuthServer.CloseContext(),
+			Setup:        cache.ForAuth,
+			CacheName:    []string{teleport.ComponentAuth},
+			EventsSystem: true,
+			Unstarted:    true,
+
+			Access:                  svces.Access,
+			AccessLists:             svces.AccessLists,
+			AccessMonitoringRules:   svces.AccessMonitoringRules,
+			AppSession:              svces.Identity,
+			Apps:                    svces.Apps,
+			ClusterConfig:           svces.ClusterConfiguration,
+			AutoUpdateService:       svces.AutoUpdateService,
+			CrownJewels:             svces.CrownJewels,
+			DatabaseObjects:         svces.DatabaseObjects,
+			DatabaseServices:        svces.DatabaseServices,
+			Databases:               svces.Databases,
+			DiscoveryConfigs:        svces.DiscoveryConfigs,
+			DynamicAccess:           svces.DynamicAccessExt,
+			Events:                  svces.Events,
+			Integrations:            svces.Integrations,
+			KubeWaitingContainers:   svces.KubeWaitingContainer,
+			Kubernetes:              svces.Kubernetes,
+			Notifications:           svces.Notifications,
+			Okta:                    svces.Okta,
+			Presence:                svces.PresenceInternal,
+			Provisioner:             svces.Provisioner,
+			ProvisioningStates:      svces.ProvisioningStates,
+			Restrictions:            svces.Restrictions,
+			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
+			SAMLIdPSession:          svces.Identity,
+			SecReports:              svces.SecReports,
+			SnowflakeSession:        svces.Identity,
+			SPIFFEFederations:       svces.SPIFFEFederations,
+			StaticHostUsers:         svces.StaticHostUser,
+			Trust:                   svces.TrustInternal,
+			UserGroups:              svces.UserGroups,
+			UserTasks:               svces.UserTasks,
+			UserLoginStates:         svces.UserLoginStates,
+			Users:                   svces.Identity,
+			WebSession:              svces.Identity.WebSessions(),
+			WebToken:                svces.WebTokens(),
+			WindowsDesktops:         svces.WindowsDesktops,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -352,6 +399,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	authPreference, err := types.NewAuthPreferenceFromConfigFile(*cfg.AuthPreferenceSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if authPreference.GetSignatureAlgorithmSuite() == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
+		authPreference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 	}
 	_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
@@ -834,8 +884,7 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 	// use very permissive limiter configuration by default
 	if cfg.Limiter == nil {
 		cfg.Limiter = &limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		}
 	}
 	return nil
@@ -962,8 +1011,9 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
-			Role:     role,
-			Username: serverID,
+			Role:                  types.RoleInstance,
+			Username:              serverID,
+			AdditionalSystemRoles: types.SystemRoles{role},
 			Identity: tlsca.Identity{
 				Username: serverID,
 			},
@@ -1168,12 +1218,22 @@ func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.V
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*state.Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	publicTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1183,14 +1243,14 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*stat
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
-			PublicTLSKey: publicTLS,
-			PublicSSHKey: pub,
+			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+			PublicTLSKey: tlsPubKey,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return state.ReadIdentityFromKeyPair(priv, certs)
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
 }
 
 // clt limits required interface to the necessary methods
@@ -1298,11 +1358,38 @@ func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Ro
 	return created, trace.Wrap(err)
 }
 
+// createUserAndRoleOptions is a set of options for CreateUserAndRole
+type createUserAndRoleOptions struct {
+	mutateUser []func(user types.User)
+	mutateRole []func(role types.Role)
+}
+
+// CreateUserAndRoleOption is a functional option for CreateUserAndRole
+type CreateUserAndRoleOption func(*createUserAndRoleOptions)
+
+// WithUserMutator sets a function that will be called to mutate the user before it is created
+func WithUserMutator(mutate ...func(user types.User)) CreateUserAndRoleOption {
+	return func(o *createUserAndRoleOptions) {
+		o.mutateUser = append(o.mutateUser, mutate...)
+	}
+}
+
+// WithRoleMutator sets a function that will be called to mutate the role before it is created
+func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
+	return func(o *createUserAndRoleOptions) {
+		o.mutateRole = append(o.mutateRole, mutate...)
+	}
+}
+
 // CreateUserAndRole creates user and role and assigns role to a user, used in tests
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
-func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule) (types.User, types.Role, error) {
+func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
+	o := createUserAndRoleOptions{}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
@@ -1314,13 +1401,18 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 	if allowRules != nil {
 		role.SetRules(types.Allow, allowRules)
 	}
-
+	for _, mutate := range o.mutateRole {
+		mutate(role)
+	}
 	upsertedRole, err := clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	user.AddRole(upsertedRole.GetName())
+	for _, mutate := range o.mutateUser {
+		mutate(user)
+	}
 	created, err := clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

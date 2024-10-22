@@ -158,7 +158,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	}
 
 	// Generate known hosts
-	knownHosts, err := ssh.GenerateKnownHosts(
+	knownHosts, _, err := ssh.GenerateKnownHosts(
 		ctx,
 		s.botAuthClient,
 		clusterNames,
@@ -192,8 +192,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	}
 
 	var sshConfigBuilder strings.Builder
-	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
-	err = sshConf.GetMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
+	err = openssh.WriteMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
 		AppName:         openssh.TbotApp,
 		ClusterNames:    clusterNames,
 		KnownHostsPath:  filepath.Join(absPath, ssh.KnownHostsName),
@@ -358,6 +357,19 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 	if err != nil {
 		return nil, trace.Wrap(err, "adding identity to agent")
 	}
+	// There's a bug with Paramiko and older versions of OpenSSH that requires
+	// that the bare key also be included in the agent or the key with the
+	// certificate will not be used.
+	// See the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
+	err = newAgent.Add(agent.AddedKey{
+		PrivateKey:   id.PrivateKey,
+		Certificate:  nil,
+		LifetimeSecs: 0,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "adding bare key to agent")
+	}
+
 	s.agentMu.Lock()
 	s.agent = newAgent.(agent.ExtendedAgent)
 	s.agentMu.Unlock()

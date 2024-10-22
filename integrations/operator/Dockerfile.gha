@@ -75,6 +75,7 @@ RUN go mod download
 COPY *.go ./
 COPY lib/ lib/
 COPY gen/ gen/
+COPY entitlements/ entitlements/
 COPY integrations/lib/embeddedtbot/ integrations/lib/embeddedtbot/
 COPY integrations/operator/apis/ integrations/operator/apis/
 COPY integrations/operator/controllers/ integrations/operator/controllers/

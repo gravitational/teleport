@@ -33,6 +33,7 @@ import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
+import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
 
 import {
   makeUnifiedResourceViewItemApp,
@@ -102,56 +103,51 @@ const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 export const Cards: Story = {
   render() {
     return (
-      <Grid gap={2}>
-        {[
-          ...apps.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, {
-              ActionButton: (
-                <ResourceActionButton
-                  resource={resource}
-                  setResourceSpec={() =>
-                    alert('Sets resource spec and opens update dialog')
-                  }
-                />
-              ),
-            })
-          ),
-          ...databases.map(resource =>
-            makeUnifiedResourceViewItemDatabase(resource, {
-              ActionButton,
-            })
-          ),
-          ...kubes.map(resource =>
-            makeUnifiedResourceViewItemKube(resource, { ActionButton })
-          ),
-          ...nodes.map(resource =>
-            makeUnifiedResourceViewItemNode(resource, {
-              ActionButton,
-            })
-          ),
-          ...additionalResources.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
-          ),
-          ...desktops.map(resource =>
-            makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
-          ),
-        ].map((res, i) => (
-          <ResourceCard
-            key={i}
-            pinned={false}
-            pinResource={() => {}}
-            selectResource={() => {}}
-            selected={false}
-            pinningSupport={PinningSupport.Supported}
-            name={res.name}
-            primaryIconName={res.primaryIconName}
-            SecondaryIcon={res.SecondaryIcon}
-            cardViewProps={res.cardViewProps}
-            labels={res.labels}
-            ActionButton={res.ActionButton}
-          />
-        ))}
-      </Grid>
+      <SamlAppActionProvider>
+        <Grid gap={2}>
+          {[
+            ...apps.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, {
+                ActionButton: <ResourceActionButton resource={resource} />,
+              })
+            ),
+            ...databases.map(resource =>
+              makeUnifiedResourceViewItemDatabase(resource, {
+                ActionButton,
+              })
+            ),
+            ...kubes.map(resource =>
+              makeUnifiedResourceViewItemKube(resource, { ActionButton })
+            ),
+            ...nodes.map(resource =>
+              makeUnifiedResourceViewItemNode(resource, {
+                ActionButton,
+              })
+            ),
+            ...additionalResources.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, { ActionButton })
+            ),
+            ...desktops.map(resource =>
+              makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
+            ),
+          ].map((res, i) => (
+            <ResourceCard
+              key={i}
+              pinned={false}
+              pinResource={() => {}}
+              selectResource={() => {}}
+              selected={false}
+              pinningSupport={PinningSupport.Supported}
+              name={res.name}
+              primaryIconName={res.primaryIconName}
+              SecondaryIcon={res.SecondaryIcon}
+              cardViewProps={res.cardViewProps}
+              labels={res.labels}
+              ActionButton={res.ActionButton}
+            />
+          ))}
+        </Grid>
+      </SamlAppActionProvider>
     );
   },
 };

@@ -1,0 +1,107 @@
+---
+title: SPIFFE Federation
+description: An overview of the Teleport Workload Identity SPIFFE Federation feature.
+---
+
+(!/docs/pages/includes/workload-id-preview.mdx!)
+
+Federation allows a relationship to be established between your Teleport
+Workload Identity trust domain and another trust domain, enabling workloads
+within the two trust domains to validate each other's identities. This can be
+used to allow workloads within different environments or different organizations
+to communicate securely.
+
+SPIFFE sets out a standard for federation that allows trust domains managed by
+different implementations to federate with one another. For example, a trust
+domain managed by Teleport Workload Identity could federate with a trust domain
+managed by SPIRE.
+
+The SPIFFE Federation process relies on the exchange of trust bundles between
+the trust domains. These trust bundles contain the certificates and public keys
+of the trust domain's issuer that are required to validate the identities that
+it has issued.
+
+Federation relationships are "one way" meaning that workloads within one trust
+domain can validate the identities of workloads in the other trust domain, but
+workloads in the other trust domain cannot validate the identities of workloads
+in the first trust domain. It is therefore typical to establish the federation
+relationship in both directions.
+
+SPIFFE Federation support was introduced in Teleport version 16.3.0. Both your
+Teleport Auth Service and tbot agent must be running at least this version.
+
+<Admonition type="warning" title="Teleport Enterprise Required">
+A valid Teleport Enterprise license is required to use the federation features
+of Teleport Workload Identity.
+</Admonition>
+
+## Federation to Teleport Workload Identity
+
+This section discusses how to configure another trust domain to trust a Teleport
+Workload Identity hosted trust domain.
+
+In order to configure a trust domain to trust Teleport Workload Identity, the
+control plane of the trust domain must be able to access the SPIFFE Bundle
+Endpoint exposed on the Teleport Proxy Service.
+
+The Teleport Workload Identity SPIFFE Bundle Endpoint implements the "https_web"
+profile as defined by the SPIFFE Federation specification. This means that the
+endpoint is served using the standard web TLS certificates configured for your
+Teleport Proxy.
+
+The SPIFFE Bundle Endpoint is exposed on the Teleport Proxy Service at the path
+`/webapi/spiffe/bundle.json`.
+
+## Federation from Teleport Workload Identity
+
+This section discusses how to configure a Teleport Workload Identity hosted
+trust domain to trust another trust domain.
+
+Teleport Workload Identity only supports federating with trust domains that
+offer a SPIFFE Bundle Endpoint that abides by the "https_web" profile as defined
+by the SPIFFE Federation specification.
+
+The `spiffe_federation` resource configures a trust relationship between the
+Teleport Workload Identity trust domain and a remote trust domain.
+
+For example, to federate with a trust domain named `example.com` that has a
+SPIFFE Bundle Endpoint at `https://example.com/spiffe/bundle.json`, you would
+create a `spiffe_federation` resource like so:
+
+```yaml
+kind: spiffe_federation
+version: v1
+metadata:
+  name: example.com
+spec:
+  bundle_source:
+    https_web:
+      bundle_endpoint_url: https://example.com/spiffe/bundle.json
+```
+
+A background process will periodically fetch the trust bundle from the remote
+trust domain according to the refresh hint provided by the remote trust domain.
+
+You can check the status of the federation relationship using the `tctl` CLI:
+
+```code
+$ tctl get spiffe_federation/example.com
+```
+
+This will show the last fetched bundle, the time it was fetched, and the time
+that the next fetch is scheduled.
+
+Once the resource has been created and has successfully been synced, `tbot`
+will begin to serve the federated trust bundle to your workloads via the
+Workload API.
+
+## Next steps
+
+- [Workload Identity Overview](./introduction.mdx): Overview of Teleport
+Workload Identity.
+- [Best Practices](./best-practices.mdx): Best practices for using Workload
+Identity in Production.
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.
+- Read the [SPIFFE Federation Specification](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md)
+to understand the technical details of SPIFFE Federation.

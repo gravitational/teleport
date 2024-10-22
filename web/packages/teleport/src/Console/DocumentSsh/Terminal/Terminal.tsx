@@ -23,7 +23,7 @@ import React, {
   useRef,
 } from 'react';
 import { Flex } from 'design';
-import { ITheme } from 'xterm';
+import { ITheme } from '@xterm/xterm';
 
 import { getPlatformType } from 'design/platform';
 

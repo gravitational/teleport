@@ -63,17 +63,6 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// tlsConfig is the DiscoveryService's TLS certificate signed by the cluster's
-	// Host certificate authority.
-	// It is used to authenticate the DiscoveryService to the Access Graph service.
-	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if tlsConfig != nil {
-		tlsConfig.ServerName = "" /* empty the server name to avoid SNI collisions with access graph addr */
-	}
 
 	accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
 		process.ExitContext(),
@@ -102,7 +91,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		ClusterName:       conn.ClusterName(),
 		ClusterFeatures:   process.GetClusterFeatures,
 		PollInterval:      process.Config.Discovery.PollInterval,
-		ServerCredentials: tlsConfig,
+		GetClientCert:     conn.ClientGetCertificate,
 		AccessGraphConfig: accessGraphCfg,
 	})
 	if err != nil {

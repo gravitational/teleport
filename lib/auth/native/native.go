@@ -22,10 +22,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -47,15 +45,6 @@ var precomputedKeys = make(chan *rsa.PrivateKey, 25)
 
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
-
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func IsBoringBinary() bool {
-	// Check the package name for one of the boring primitives, if the package
-	// path is from BoringCrypto, we know this binary was compiled against the
-	// dev.boringcrypto branch of Go.
-	hash := sha256.New()
-	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
-}
 
 // GenerateKeyPair generates a new RSA key pair.
 func GenerateKeyPair() ([]byte, []byte, error) {
@@ -139,14 +128,15 @@ func precomputeKeys() {
 }
 
 func precomputeTestKeys() {
-	testKeys, err := generateTestKeys()
-	if err != nil {
-		// Use only in tests. Safe to panic.
-		panic(err)
+	generatedTestKeys := generateTestKeys()
+	keysToReuse := make([]*rsa.PrivateKey, 0, testKeysNumber)
+	for range testKeysNumber {
+		k := <-generatedTestKeys
+		precomputedKeys <- k
+		keysToReuse = append(keysToReuse, k)
 	}
-
 	for {
-		for _, k := range testKeys {
+		for _, k := range keysToReuse {
 			precomputedKeys <- k
 		}
 	}
@@ -155,36 +145,21 @@ func precomputeTestKeys() {
 // testKeysNumber is the number of RSA keys generated in tests.
 const testKeysNumber = 25
 
-func generateTestKeys() ([]*rsa.PrivateKey, error) {
-	privateKeys := make([]*rsa.PrivateKey, 0, testKeysNumber)
-	keysChan := make(chan *rsa.PrivateKey)
-	errC := make(chan error)
-
-	go func() {
-		for i := 0; i < testKeysNumber; i++ {
-			// Generate each key in a separate goroutine to take advantage of
-			// multiple cores if possible.
-			go func() {
-				private, err := generateRSAPrivateKey()
-				if err != nil {
-					errC <- trace.Wrap(err)
-					return
-				}
-				keysChan <- private
-			}()
-		}
-	}()
-
-	for i := 0; i < testKeysNumber; i++ {
-		select {
-		case err := <-errC:
-			return nil, trace.Wrap(err)
-		case privKey := <-keysChan:
-			privateKeys = append(privateKeys, privKey)
-		}
+func generateTestKeys() <-chan *rsa.PrivateKey {
+	generatedTestKeys := make(chan *rsa.PrivateKey, testKeysNumber)
+	for range testKeysNumber {
+		// Generate each key in a separate goroutine to take advantage of
+		// multiple cores if possible.
+		go func() {
+			private, err := generateRSAPrivateKey()
+			if err != nil {
+				// Use only in tests. Safe to panic.
+				panic(err)
+			}
+			generatedTestKeys <- private
+		}()
 	}
-
-	return privateKeys, nil
+	return generatedTestKeys
 }
 
 // PrecomputeKeys sets this package into a mode where a small backlog of keys are

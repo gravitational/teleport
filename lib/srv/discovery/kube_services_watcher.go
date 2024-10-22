@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -61,7 +62,8 @@ func (s *Server) startKubeAppsWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(appResources, types.Application.GetName)
 			},
-			Log:      s.Log.WithField("kind", types.KindApp),
+			// TODO(tross): update to use the server logger once it is converted to use slog
+			Logger:   slog.With("kind", types.KindApp),
 			OnCreate: s.onAppCreate,
 			OnUpdate: s.onAppUpdate,
 			OnDelete: s.onAppDelete,
@@ -122,11 +124,14 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 	// In this case, we need to update the resource with the
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
-	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onAppUpdate(ctx, app, nil))
-	}
 	if err != nil {
-		return trace.Wrap(err)
+		err := s.resolveCreateErr(err, types.OriginDiscoveryKubernetes, func() (types.ResourceWithLabels, error) {
+			return s.AccessPoint.GetApp(ctx, app.GetName())
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.onAppUpdate(ctx, app, nil))
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		appEventPrefix + app.GetName(): {

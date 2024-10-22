@@ -85,7 +85,11 @@ func (req *ListResourcesRequest) RequiresFakePagination() bool {
 	return req.SortBy.Field != "" ||
 		req.NeedTotalCount ||
 		req.ResourceType == types.KindKubernetesCluster ||
-		req.ResourceType == types.KindAppOrSAMLIdPServiceProvider
+		req.ResourceType == types.KindAppOrSAMLIdPServiceProvider ||
+		// KindSAMLIdPServiceProvider supports paginated List, but it is not
+		// available in the Presence service, hence defined here under
+		// RequiresFakePagination.
+		req.ResourceType == types.KindSAMLIdPServiceProvider
 }
 
 // UpstreamInventoryMessage is a sealed interface representing the possible

@@ -23,7 +23,7 @@ import {
   Flex,
   H2,
   Indicator,
-  Text,
+  Subtitle2,
 } from 'design';
 import React from 'react';
 import styled, { useTheme, css } from 'styled-components';
@@ -49,7 +49,7 @@ export function Header({
       {/* lineHeight=0 prevents the icon background from being larger than
           required by the icon itself. */}
       <Box
-        bg={theme.colors.interactive.tonal.neutral[0].background}
+        bg={theme.colors.interactive.tonal.neutral[0]}
         lineHeight={0}
         p={2}
         borderRadius={3}
@@ -58,9 +58,9 @@ export function Header({
       </Box>
       <Box flex="1">
         <H2>{title}</H2>
-        <Text typography="body1" color={theme.colors.text.slightlyMuted}>
+        <Subtitle2 color={theme.colors.text.slightlyMuted}>
           {description}
-        </Text>
+        </Subtitle2>
       </Box>
       {/* Indicator is always in the layout so that the description text doesn't
           reflow if visibility changes. */}

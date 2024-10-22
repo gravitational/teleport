@@ -698,10 +698,15 @@ tsh ssh node-that-requires-device-trust
     - [ ] SSH
     - [ ] App Access
     - [ ] Desktop Access
+    - [ ] GitHub user
+    - [ ] OIDC user
+    - [ ] SAML user
 
     Confirm that it works by failing first. Most protocols can be tested using
     device_trust.mode="required". App Access and Desktop Access require a custom
     role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
+
+    For SSO users confirm that device web authentication happens successfully.
 
 - [ ] Device authorization
   - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
@@ -1401,18 +1406,28 @@ TODO(lxea): replace links with actual docs once merged
 [Host users creation docs](../../docs/pages/server-access/guides/host-user-creation.mdx)
 [Host users creation RFD](../../rfd/0057-automatic-user-provisioning.md)
 -->
+Host users are considered "managed" when they belong to one of the teleport system groups: `teleport-system`, `teleport-keep`. Users outside of these groups are considered "unmanaged". Any users in the `teleport-static` group are
+also managed, but not considered for role-based host user creation.
 
 - Verify host users creation functionality
   - [ ] non-existing users are created automatically
+  - [ ] non-existing configured groups are created automatically
   - [ ] users are added to groups
-    - [ ] non-existing configured groups are created
-	- [ ] created users are added to the `teleport-system` group
-  - [ ] users are cleaned up after their session ends
-	- [ ] cleanup occurs if a program was left running after session ends
+    - [ ] created and/or managed users are added to the `teleport-system` group when `create_host_user_mode: "insecure-drop"`
+    - [ ] created and/or managed users are added to the `teleport-keep` group when `create_host_user_mode: "keep"`
+  - [ ] managed users have their groups reconciled to reflect any `host_groups` changes (additions and removals)
+  - [ ] failure to create or update host users does not bail out of SSH connections when host user already exists (can be forced by setting `create_host_user_mode: "off"`)
+  - [ ] users belonging to `teleport-system` are cleaned up after their session ends
+    - [ ] cleanup occurs if a program was left running after session ends
+  - [ ] users belonging to `teleport-keep` are not cleaned up after their session ends
   - [ ] sudoers file creation is successful
-	- [ ] Invalid sudoers files are _not_ created
-  - [ ] existing host users are not modified
+    - [ ] invalid sudoers files are _not_ created
+    - [ ] failure to write sudoers file, such as for invalid entries, does not bail out of SSH connections
+  - [ ] unmanaged host users are accessible over SSH
+    - [ ] unmanaged host users are not modified when `teleport-keep` is not included in `host_groups`
+    - [ ] unmanaged host users are modified when `teleport-keep` is included in `host_groups`
   - [ ] setting `disable_create_host_user: true` stops user creation from occurring
+  - [ ] setting `create_host_user_default_shell: <bash, zsh, fish, etc.>` should set the default shell for a newly created host user to the chosen shell (validated by confirming shell path has been written to the end of the user's record in `/etc/passwd`)
 
 ## CA rotations
 

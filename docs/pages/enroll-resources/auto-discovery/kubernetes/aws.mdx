@@ -9,6 +9,8 @@ configured labels.
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
+(!docs/pages/includes/discovery/same-host-tip.mdx serviceName="Kubernetes" resourceDesc="cluster" !)
+
 ## How it works
 
 The Teleport Discovery Service scans configured cloud providers, including AWS,
@@ -141,7 +143,7 @@ subjects:
 Create an EKS access entry to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
 to the Kubernetes Group `teleport` we created in the previous step.
 
-```shell
+```code
 $ aws eks create-access-entry \
   --cluster-name <Var name="eks-cluster" /> \
   --region <Var name="eu-west-1" /> \
@@ -221,7 +223,7 @@ To follow least privilege principle we do not recommend using this method in pro
 Create an EKS access entry and Access Policy to link the <Var name="arn:aws:iam::222222222222:role/teleport-role" />
 to the cluster wide policy `arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy` (equivalent of `cluster-admin` `ClusterRole`).
 
-```shell
+```code
 $ aws eks create-access-entry \
   --cluster-name <Var name="eks-cluster" /> \
   --region <Var name="eu-west-1" /> \

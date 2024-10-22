@@ -39,6 +39,9 @@ type PluginStaticCredentials interface {
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 
+	// UpdatePluginStaticCredentials will update a plugin static credentials' resource.
+	UpdatePluginStaticCredentials(ctx context.Context, pluginStaticCredentials types.PluginStaticCredentials) (types.PluginStaticCredentials, error)
+
 	// DeletePluginStaticCredentials will delete a plugin static credentials resource.
 	DeletePluginStaticCredentials(ctx context.Context, name string) error
 }

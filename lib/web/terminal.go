@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -55,7 +54,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
@@ -100,12 +98,12 @@ type TerminalRequest struct {
 // UserAuthClient is a subset of the Auth API that performs
 // operations on behalf of the user so that the correct RBAC is applied.
 type UserAuthClient interface {
-	GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
 	CreateAuthenticateChallenge(ctx context.Context, req *authproto.CreateAuthenticateChallengeRequest) (*authproto.MFAAuthenticateChallenge, error)
 	GenerateUserCerts(ctx context.Context, req authproto.UserCertsRequest) (*authproto.Certs, error)
 	MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error)
+	ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -136,6 +134,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			router:             cfg.Router,
 			tracer:             cfg.tracer,
 			resolver:           cfg.HostNameResolver,
+			sshDialTimeout:     cfg.SSHDialTimeout,
 		},
 		displayLogin:    cfg.DisplayLogin,
 		term:            cfg.Term,
@@ -198,6 +197,8 @@ type TerminalHandlerConfig struct {
 	Clock clockwork.Clock
 	// WebsocketConn is the active websocket connection
 	WebsocketConn *websocket.Conn
+	// SSHDialTimeout is the dial timeout that should be enforced on ssh connections.
+	SSHDialTimeout time.Duration
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -283,6 +284,9 @@ type sshBaseHandler struct {
 	interactiveCommand []string
 	// resolver looks up the hostname for the server UUID.
 	resolver func(serverID string) (hostname string, err error)
+	// sshDialTimeout is the maximum time to wait for an SSH connection
+	// to be established before aborting.
+	sshDialTimeout time.Duration
 }
 
 // localAccessPoint is a subset of the cache used to look up
@@ -507,6 +511,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	clientConfig.SessionID = t.sessionData.ID.String()
 	clientConfig.ClientAddr = clientAddr
 	clientConfig.Tracer = t.tracer
+	clientConfig.SSHDialTimeout = t.sshDialTimeout
 
 	if len(t.interactiveCommand) > 0 {
 		clientConfig.InteractiveCommand = true
@@ -571,7 +576,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	}
 	expires := time.Unix(int64(sshCert.ValidBefore), 0)
 	certsReq := &authproto.UserCertsRequest{
-		PublicKey:      pk.MarshalSSHPublicKey(),
+		SSHPublicKey:   pk.MarshalSSHPublicKey(),
 		Username:       sshCert.KeyId, // SSH cert KeyId is set to teleport username.
 		Expires:        expires,
 		RouteToCluster: t.sessionData.ClusterName,
@@ -581,21 +586,13 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
-	_, certs, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-			span.AddEvent("prompting user with mfa challenge")
-			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{}).Run(ctx, chal)
-			span.AddEvent("user completed mfa challenge")
-			return assertion, trace.Wrap(err)
-		}),
-		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
-		MFARequiredReq: mfaRequiredReq,
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-		},
-		CertsReq: certsReq,
+		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
+		MFARequiredReq:    mfaRequiredReq,
+		CertsReq:          certsReq,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -612,9 +609,19 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec) mfa.Prompt {
+func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc) *mfa.Ceremony {
+	return &mfa.Ceremony{
+		CreateAuthenticateChallenge: createAuthenticateChallenge,
+		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
+			return newMFAPrompt(stream)
+		},
+	}
+}
+
+func newMFAPrompt(stream *terminal.WSStream) mfa.Prompt {
 	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
+		var codec protobufMFACodec
 
 		// Convert from proto to JSON types.
 		switch {
@@ -790,7 +797,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), newMFAPrompt(t.stream.WSStream)); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
@@ -892,6 +899,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 		User:            tc.HostLogin,
 		Auth:            tc.AuthMethods,
 		HostKeyCallback: tc.HostKeyCallback,
+		Timeout:         t.sshDialTimeout,
 	}
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
@@ -902,6 +910,21 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 		// The close error is ignored instead of using [trace.NewAggregate] because
 		// aggregate errors do not allow error inspection with things like [trace.IsAccessDenied].
 		_ = conn.Close()
+
+		// Since connection attempts are made via UUID and not hostname, any access denied errors
+		// will not contain the resolved host address. To provide an easier troubleshooting experience
+		// for users, attempt to resolve the hostname of the server and augment the error message with it.
+		if trace.IsAccessDenied(err) {
+			if resp, err := t.userAuthClient.ListUnifiedResources(ctx, &authproto.ListUnifiedResourcesRequest{
+				SortBy:              types.SortBy{Field: types.ResourceKind},
+				Kinds:               []string{types.KindNode},
+				Limit:               1,
+				PredicateExpression: fmt.Sprintf(`resource.metadata.name == "%s"`, t.sessionData.ServerID),
+			}); err == nil && len(resp.Resources) > 0 {
+				return nil, trace.AccessDenied("access denied to %q connecting to %v", sshConfig.User, resp.Resources[0].GetNode().GetHostname())
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -929,6 +952,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws termin
 		User:            tc.HostLogin,
 		Auth:            authMethods,
 		HostKeyCallback: tc.HostKeyCallback,
+		Timeout:         t.sshDialTimeout,
 	}
 
 	// connect to the node again with the new certs

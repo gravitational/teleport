@@ -89,6 +89,9 @@ type Role interface {
 	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
 
+	// GetRoleConditions gets the RoleConditions for the RoleConditionType.
+	GetRoleConditions(rct RoleConditionType) RoleConditions
+
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
 	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
@@ -1002,7 +1005,9 @@ func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults checks validity of all parameters and sets defaults
+// CheckAndSetDefaults checks validity of all parameters and sets defaults.
+// Must be kept in sync with
+// `web/packages/teleport/src/Roles/RoleEditor/withDefaults.ts`.
 func (r *RoleV6) CheckAndSetDefaults() error {
 	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
@@ -1693,6 +1698,16 @@ func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
 	return roleConditions.ReviewRequests.PreviewAsRoles
 }
 
+// GetRoleConditions returns the role conditions for the role.
+func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
+	roleConditions := r.Spec.Allow
+	if rct == Deny {
+		roleConditions = r.Spec.Deny
+	}
+
+	return roleConditions
+}
+
 // SetPreviewAsRoles sets the list of extra roles which should apply to a
 // reviewer while they are viewing a Resource Access Request for the
 // purposes of viewing details such as the hostname and labels of requested
@@ -1744,7 +1759,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		}
 
 		for _, verb := range kubeResource.Verbs {
-			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard {
+			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard && !strings.Contains(verb, "{{") {
 				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
 			}
 			if verb == Wildcard && len(kubeResource.Verbs) > 1 {
@@ -1829,7 +1844,10 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
 	case KindKubernetesCluster:
 		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
-	case KindApp:
+	case KindApp, KindSAMLIdPServiceProvider:
+		// app_labels will be applied to both app and saml_idp_service_provider resources.
+		// Access to the saml_idp_service_provider can be controlled by the both
+		// app_labels and verbs targeting saml_idp_service_provider resource.
 		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
 	case KindDatabase:
 		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
@@ -1867,7 +1885,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 		cond.KubernetesLabels = labelMatchers.Labels
 		cond.KubernetesLabelsExpression = labelMatchers.Expression
 		return nil
-	case KindApp:
+	case KindApp, KindSAMLIdPServiceProvider:
+		// app_labels will be applied to both app and saml_idp_service_provider resources.
+		// Access to the saml_idp_service_provider can be controlled by the both
+		// app_labels and verbs targeting saml_idp_service_provider resource.
 		cond.AppLabels = labelMatchers.Labels
 		cond.AppLabelsExpression = labelMatchers.Expression
 		return nil

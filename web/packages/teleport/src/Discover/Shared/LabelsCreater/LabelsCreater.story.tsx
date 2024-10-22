@@ -76,3 +76,18 @@ export const DisabledAddButton = () => {
     </Validation>
   );
 };
+
+export const NoDuplicates = () => {
+  const [labels, setLabels] = useState([]);
+
+  return (
+    <Validation>
+      <LabelsCreater
+        labels={labels}
+        setLabels={setLabels}
+        isLabelOptional={true}
+        noDuplicateKey
+      />
+    </Validation>
+  );
+};

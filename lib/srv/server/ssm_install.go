@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libevents "github.com/gravitational/teleport/lib/events"
 )
@@ -42,11 +43,30 @@ import (
 // SSMInstallerConfig represents configuration for an SSM install
 // script executor.
 type SSMInstallerConfig struct {
-	// Emitter is an events emitter.
-	Emitter apievents.Emitter
+	// ReportSSMInstallationResultFunc is a func that must be called after getting the result of running the Installer script in a single instance.
+	ReportSSMInstallationResultFunc func(context.Context, *SSMInstallationResult) error
 	// Logger is used to log messages.
 	// Optional. A logger is created if one not supplied.
 	Logger *slog.Logger
+}
+
+// SSMInstallationResult contains the result of trying to install teleport
+type SSMInstallationResult struct {
+	// SSMRunEvent is an Audit Event that will be emitted.
+	SSMRunEvent *apievents.SSMRun
+	// IntegrationName is the integration name when using integration credentials.
+	// Empty if using ambient credentials.
+	IntegrationName string
+	// DiscoveryConfig is the DiscoveryConfig name which originated this Run Request.
+	// Empty if using static matchers (coming from the `teleport.yaml`).
+	DiscoveryConfig string
+	// IssueType identifies the type of issue that occurred if the installation failed.
+	// These are well known identifiers that can be found at types.AutoDiscoverEC2Issue*.
+	IssueType string
+	// SSMDocumentName is the Amazon SSM Document Name used to install Teleport into the instance.
+	SSMDocumentName string
+	// InstallerScript is the Teleport Installer script name used to install Teleport into the instance.
+	InstallerScript string
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -71,12 +91,28 @@ type SSMRunRequest struct {
 	Region string
 	// AccountID is the AWS account being used to execute the SSM document.
 	AccountID string
+	// IntegrationName is the integration name when using integration credentials.
+	// Empty if using ambient credentials.
+	IntegrationName string
+	// DiscoveryConfig is the DiscoveryConfig name which originated this Run Request.
+	// Empty if using static matchers (coming from the `teleport.yaml`).
+	DiscoveryConfig string
+}
+
+// InstallerScriptName returns the Teleport Installer script name.
+// Returns empty string if not defined.
+func (r *SSMRunRequest) InstallerScriptName() string {
+	if r == nil || r.Params == nil {
+		return ""
+	}
+
+	return r.Params[ParamScriptName]
 }
 
 // CheckAndSetDefaults ensures the emitter is present and creates a default logger if one is not provided.
 func (c *SSMInstallerConfig) checkAndSetDefaults() error {
-	if c.Emitter == nil {
-		return trace.BadParameter("missing audit event emitter")
+	if c.ReportSSMInstallationResultFunc == nil {
+		return trace.BadParameter("missing report installation result function")
 	}
 
 	if c.Logger == nil {
@@ -173,46 +209,56 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	return trace.Wrap(g.Wait())
 }
 
-func invalidSSMInstanceEvent(accountID, region, instanceID, status string) apievents.SSMRun {
-	return apievents.SSMRun{
-		Metadata: apievents.Metadata{
-			Type: libevents.SSMRunEvent,
-			Code: libevents.SSMRunFailCode,
+func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, status, issueType string) *SSMInstallationResult {
+	return &SSMInstallationResult{
+		SSMRunEvent: &apievents.SSMRun{
+			Metadata: apievents.Metadata{
+				Type: libevents.SSMRunEvent,
+				Code: libevents.SSMRunFailCode,
+			},
+			CommandID:  "no-command",
+			AccountID:  req.AccountID,
+			Region:     req.Region,
+			ExitCode:   -1,
+			InstanceID: instanceID,
+			Status:     status,
 		},
-		CommandID:  "no-command",
-		AccountID:  accountID,
-		Region:     region,
-		ExitCode:   -1,
-		InstanceID: instanceID,
-		Status:     status,
+		IntegrationName: req.IntegrationName,
+		DiscoveryConfig: req.DiscoveryConfig,
+		IssueType:       issueType,
+		SSMDocumentName: req.DocumentName,
+		InstallerScript: req.InstallerScriptName(),
 	}
 }
 
 func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState) error {
 	var errs []error
 	for _, instanceID := range instanceIDsState.missing {
-		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
+		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
+			usertasks.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 		)
-		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
+		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
 	for _, instanceID := range instanceIDsState.connectionLost {
-		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
+		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
+			usertasks.AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 		)
-		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
+		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
 
 	for _, instanceID := range instanceIDsState.unsupportedOS {
-		event := invalidSSMInstanceEvent(req.AccountID, req.Region, instanceID,
+		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
+			usertasks.AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 		)
-		if err := si.Emitter.EmitAuditEvent(ctx, &event); err != nil {
+		if err := si.ReportSSMInstallationResultFunc(ctx, installationResult); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
@@ -324,7 +370,14 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 					return trace.Wrap(err)
 				}
 
-				return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, invocationResultEvent))
+				return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
+					SSMRunEvent:     invocationResultEvent,
+					IntegrationName: req.IntegrationName,
+					DiscoveryConfig: req.DiscoveryConfig,
+					IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+					SSMDocumentName: req.DocumentName,
+					InstallerScript: req.InstallerScriptName(),
+				}))
 			}
 
 			return trace.Wrap(err)
@@ -333,7 +386,14 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		// Emit an event for the first failed step or for the latest step.
 		lastStep := i+1 == len(invocationSteps)
 		if stepResultEvent.Metadata.Code != libevents.SSMRunSuccessCode || lastStep {
-			return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, stepResultEvent))
+			return trace.Wrap(si.ReportSSMInstallationResultFunc(ctx, &SSMInstallationResult{
+				SSMRunEvent:     stepResultEvent,
+				IntegrationName: req.IntegrationName,
+				DiscoveryConfig: req.DiscoveryConfig,
+				IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+				SSMDocumentName: req.DocumentName,
+				InstallerScript: req.InstallerScriptName(),
+			}))
 		}
 	}
 

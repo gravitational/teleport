@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -77,29 +78,28 @@ func TestHardwareKeyLogin(t *testing.T) {
 	// mock SSO login and count the number of login attempts.
 	var lastLoginCount int
 	mockSSOLogin := mockSSOLogin(authServer, alice)
-	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
+	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		lastLoginCount++
 
 		// Set MockAttestationData to attest the expected key policy and reset it after login.
 		testModules.MockAttestationData = &keys.AttestationData{
-			PrivateKeyPolicy: priv.GetPrivateKeyPolicy(),
+			PrivateKeyPolicy: keyRing.SSHPrivateKey.GetPrivateKeyPolicy(),
 		}
 		defer func() {
 			testModules.MockAttestationData = nil
 		}()
 
-		return mockSSOLogin(ctx, connectorID, priv, protocol)
+		return mockSSOLogin(ctx, connectorID, keyRing, protocol)
 	}
 	setMockSSOLogin := setMockSSOLoginCustom(mockSSOLoginWithCountAndAttestation, connector.GetName())
 
 	t.Run("cap", func(t *testing.T) {
 		setRequireMFAType := func(t *testing.T, requireMFAType types.RequireMFAType) {
 			// Set require MFA type in the cluster auth preference.
-			_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					RequireMFAType: requireMFAType,
-				},
-			})
+			authPref, err := authServer.GetAuthPreference(ctx)
+			require.NoError(t, err)
+			authPref.SetRequireMFAType(requireMFAType)
+			_, err = authServer.UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 		}
 
@@ -348,6 +348,7 @@ func TestHardwareKeyApp(t *testing.T) {
 			Webauthn: &types.Webauthn{
 				RPID: "127.0.0.1",
 			},
+			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 		},
 	})
 	require.NoError(t, err)
@@ -386,7 +387,8 @@ func TestHardwareKeyApp(t *testing.T) {
 	clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
 	require.NoError(t, err)
 
-	resp := testDummyAppConn(t, fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	resp, err := testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "myapp", resp.Header.Get("Server"))
 	resp.Body.Close()
@@ -402,7 +404,8 @@ func TestHardwareKeyApp(t *testing.T) {
 
 	testModules.MockAttestationData = nil
 
-	resp = testDummyAppConn(t, fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	resp.Body.Close()
 
@@ -461,7 +464,8 @@ func TestHardwareKeyApp(t *testing.T) {
 	clientCert, err = tls.LoadX509KeyPair(info.Cert, info.Key)
 	require.NoError(t, err)
 
-	resp = testDummyAppConn(t, fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "myapp", resp.Header.Get("Server"))
 	resp.Body.Close()

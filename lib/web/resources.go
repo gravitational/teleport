@@ -42,6 +42,9 @@ import (
 )
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
+//
+// Deprecated: Use `clusterUnifiedResourcesGet` instead.
+// TODO(kiosion): DELETE in 18.0
 func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of resources.
@@ -50,7 +53,15 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop}
+	resourceKinds := []string{
+		types.KindNode,
+		types.KindDatabaseServer,
+		types.KindAppServer,
+		types.KindKubeServer,
+		types.KindWindowsDesktop,
+		types.KindSAMLIdPServiceProvider,
+	}
+
 	for _, kind := range resourceKinds {
 		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
 			ResourceType: kind,
@@ -271,7 +282,7 @@ func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -324,7 +335,7 @@ type unmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T,
 // a [trace.AlreadyExists] error is returned.
 func CreateResource[T types.Resource](r *http.Request, kind string, unmarshalFn unmarshalFunc[T], createFn func(ctx context.Context, r T) (T, error)) (*ui.ResourceItem, error) {
 	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -361,7 +372,7 @@ func CreateResource[T types.Resource](r *http.Request, kind string, unmarshalFn 
 // a [trace.NotFound] error is returned.
 func UpdateResource[T types.Resource](r *http.Request, params httprouter.Params, kind string, unmarshalFn unmarshalFunc[T], updateFn func(ctx context.Context, r T) (T, error)) (*ui.ResourceItem, error) {
 	var req ui.ResourceItem
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

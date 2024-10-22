@@ -54,6 +54,14 @@ export interface AuthenticateDeviceChallengeResponse {
      * @generated from protobuf field: bytes signature = 1;
      */
     signature: Uint8Array;
+    /**
+     * Signature over the challenge, using the SSH key. This is required when the
+     * SSH and TLS public keys do not match, to prove ownership of the private key
+     * associated with the SSH certificate being augmented.
+     *
+     * @generated from protobuf field: bytes ssh_signature = 2;
+     */
+    sshSignature: Uint8Array;
 }
 /**
  * TPMAuthenticateDeviceChallenge carries the authentication challenge
@@ -84,6 +92,14 @@ export interface TPMAuthenticateDeviceChallengeResponse {
      * @generated from protobuf field: teleport.devicetrust.v1.TPMPlatformParameters platform_parameters = 1;
      */
     platformParameters?: TPMPlatformParameters;
+    /**
+     * Signature over the attestation_nonce, using the SSH key. This is required
+     * when the SSH and TLS public keys do not match, to prove ownership of the
+     * private key associated with the SSH certificate being augmented.
+     *
+     * @generated from protobuf field: bytes ssh_signature = 2;
+     */
+    sshSignature: Uint8Array;
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class AuthenticateDeviceChallenge$Type extends MessageType<AuthenticateDeviceChallenge> {
@@ -136,12 +152,14 @@ export const AuthenticateDeviceChallenge = new AuthenticateDeviceChallenge$Type(
 class AuthenticateDeviceChallengeResponse$Type extends MessageType<AuthenticateDeviceChallengeResponse> {
     constructor() {
         super("teleport.devicetrust.v1.AuthenticateDeviceChallengeResponse", [
-            { no: 1, name: "signature", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+            { no: 1, name: "signature", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 2, name: "ssh_signature", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
         ]);
     }
     create(value?: PartialMessage<AuthenticateDeviceChallengeResponse>): AuthenticateDeviceChallengeResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.signature = new Uint8Array(0);
+        message.sshSignature = new Uint8Array(0);
         if (value !== undefined)
             reflectionMergePartial<AuthenticateDeviceChallengeResponse>(this, message, value);
         return message;
@@ -153,6 +171,9 @@ class AuthenticateDeviceChallengeResponse$Type extends MessageType<AuthenticateD
             switch (fieldNo) {
                 case /* bytes signature */ 1:
                     message.signature = reader.bytes();
+                    break;
+                case /* bytes ssh_signature */ 2:
+                    message.sshSignature = reader.bytes();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -169,6 +190,9 @@ class AuthenticateDeviceChallengeResponse$Type extends MessageType<AuthenticateD
         /* bytes signature = 1; */
         if (message.signature.length)
             writer.tag(1, WireType.LengthDelimited).bytes(message.signature);
+        /* bytes ssh_signature = 2; */
+        if (message.sshSignature.length)
+            writer.tag(2, WireType.LengthDelimited).bytes(message.sshSignature);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -230,11 +254,13 @@ export const TPMAuthenticateDeviceChallenge = new TPMAuthenticateDeviceChallenge
 class TPMAuthenticateDeviceChallengeResponse$Type extends MessageType<TPMAuthenticateDeviceChallengeResponse> {
     constructor() {
         super("teleport.devicetrust.v1.TPMAuthenticateDeviceChallengeResponse", [
-            { no: 1, name: "platform_parameters", kind: "message", T: () => TPMPlatformParameters }
+            { no: 1, name: "platform_parameters", kind: "message", T: () => TPMPlatformParameters },
+            { no: 2, name: "ssh_signature", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
         ]);
     }
     create(value?: PartialMessage<TPMAuthenticateDeviceChallengeResponse>): TPMAuthenticateDeviceChallengeResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.sshSignature = new Uint8Array(0);
         if (value !== undefined)
             reflectionMergePartial<TPMAuthenticateDeviceChallengeResponse>(this, message, value);
         return message;
@@ -246,6 +272,9 @@ class TPMAuthenticateDeviceChallengeResponse$Type extends MessageType<TPMAuthent
             switch (fieldNo) {
                 case /* teleport.devicetrust.v1.TPMPlatformParameters platform_parameters */ 1:
                     message.platformParameters = TPMPlatformParameters.internalBinaryRead(reader, reader.uint32(), options, message.platformParameters);
+                    break;
+                case /* bytes ssh_signature */ 2:
+                    message.sshSignature = reader.bytes();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -262,6 +291,9 @@ class TPMAuthenticateDeviceChallengeResponse$Type extends MessageType<TPMAuthent
         /* teleport.devicetrust.v1.TPMPlatformParameters platform_parameters = 1; */
         if (message.platformParameters)
             TPMPlatformParameters.internalBinaryWrite(message.platformParameters, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* bytes ssh_signature = 2; */
+        if (message.sshSignature.length)
+            writer.tag(2, WireType.LengthDelimited).bytes(message.sshSignature);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

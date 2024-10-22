@@ -248,6 +248,10 @@ message SessionStartDesktopMetadata {
   // enabled for the session. (This does not mean that the user will
   // be created, as Teleport does not know whether the user already exists.)
   bool allow_user_creation = 4;
+
+  // Indicates whether network level authentication (NLA) was used to
+  // establish this RDP session.
+  bool nla = 5;
 }
 
 // the issuance of a user certificate from the user CA
@@ -652,6 +656,13 @@ message UIDiscoverCreateNodeEvent {
   DiscoverStepStatus status = 3;
 }
 
+// UIDiscoverCreateAppServerEvent is emitted when an app server is created.
+message UIDiscoverCreateAppServerEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
 // UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
 message UIDiscoverDatabaseConfigureIAMPolicyEvent {
   DiscoverMetadata metadata = 1;
@@ -1022,6 +1033,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 21;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
+  INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1212,6 +1224,85 @@ message TAGExecuteQueryEvent {
   bool is_success = 4;
 }
 
+// AccessGraphSecretsScanAuthorizedKeysEvent is emitted when the Access Graph
+// SSH authorized keys scan is performed.
+message AccessGraphSecretsScanAuthorizedKeysEvent {
+  // anonymized
+  string host_id = 1;
+  // total_keys is the total amount of keys found in the authorized keys file.
+  uint64 total_keys = 2;
+}
+
+// AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when the Access Graph
+// SSH private keys scan is performed.
+message AccessGraphSecretsScanSSHPrivateKeysEvent {
+  // anonymized
+  string device_id = 1;
+  // total_keys is the total amount of keys found in the private keys file.
+  uint64 total_keys = 2;
+  // device OS type
+  string device_os_type = 3;
+}
+
+// AccessGraphGitlabScanEvent is emitted when the Access Graph
+// Gitlab scan is enabled.
+message AccessGraphGitlabScanEvent {
+  // total_projects is the total amount of projects found in the Gitlab scan.
+  uint64 total_projects = 1;
+  // total_users is the total amount of users found in the Gitlab scan.
+  uint64 total_users = 2;
+  // total_groups is the total amount of groups found in the Gitlab scan.
+  uint64 total_groups = 3;
+}
+
+// AccessGraphAWSScanEvent is emitted when the Access Graph
+// AWS scan is enabled.
+message AccessGraphAWSScanEvent {
+  // total_ec2_instances is the total amount of EC2 instances found in the AWS scan.
+  uint64 total_ec2_instances = 1;
+  // total_users is the total amount of users found in the AWS scan.
+  uint64 total_users = 2;
+  // total_groups is the total amount of groups found in the AWS scan.
+  uint64 total_groups = 3;
+  // total_roles is the total amount of roles found in the AWS scan.
+  uint64 total_roles = 4;
+  // total_policies is the total amount of policies found in the AWS scan.
+  uint64 total_policies = 5;
+  // total_eks_clusters is the total amount of EKS clusters found in the AWS scan.
+  uint64 total_eks_clusters = 6;
+  // total_rds_instances is the total amount of RDS instances found in the AWS scan.
+  uint64 total_rds_instances = 7;
+  // total_s3_buckets is the total amount of S3 buckets found in the AWS scan.
+  uint64 total_s3_buckets = 8;
+  // total_saml_providers is the total amount of SAML providers found in the AWS scan.
+  uint64 total_saml_providers = 9;
+  // total_oidc_providers is the total amount of OIDC providers found in the AWS scan.
+  uint64 total_oidc_providers = 10;
+  // total_accounts is the total amount of accounts synchronized in the AWS scan.
+  uint64 total_accounts = 11;
+}
+
+// AccessGraphAccessPathChangedEvent is emitted when the Crown Jewel functionality
+// is enabled and the Access Graph access path is changed.
+message AccessGraphAccessPathChangedEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+message UIAccessGraphCrownJewelDiffViewEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
+// Crown Jewel Resource.
+message AccessGraphCrownJewelCreateEvent {}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1305,6 +1396,38 @@ message DatabaseUserPermissionsUpdateEvent {
   // How many total table permissions were given to the user.
   // For example {SELECT,UPDATE} on ten tables gives a total of twenty.
   int32 num_tables_permissions = 4;
+}
+
+// UserTaskStateEvent is emitted when a UserTask state changes.
+// This can happen when the Task is created, when it's manually
+// resolved by the user or when it changes back to being open
+// when the issue happens again.
+//
+// PostHog event: tp.usertask.state
+message UserTaskStateEvent {
+  // task_type is the identifier for the type of task.
+  // Eg, discover-ec2
+  //
+  // PostHog property: tp.usertask.task_type
+  string task_type = 1;
+
+  // issue_type is the identifier for the type of issue that occurred.
+  //
+  // PostHog property: tp.usertask.issue_type
+  string issue_type = 2;
+
+  // state identifies the new state for this task.
+  // One of: OPEN, RESOLVED
+  //
+  // PostHog property: tp.usertask.state
+  string state = 3;
+
+  // instances_count contains the number of instances that were affected by the issue
+  // This field is only present for the following task_types:
+  // - discover-ec2
+  //
+  // PostHog property: tp.usertask.discover_ec2.instances_count
+  int32 instances_count = 4;
 }
 
 message SubmitEventRequest {
@@ -1443,6 +1566,24 @@ message SubmitEventRequest {
     UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 83;
 
     UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84;
+
+    UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85;
+
+    AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86;
+
+    AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87;
+
+    AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
+
+    AccessGraphAWSScanEvent access_graph_aws_scan = 89;
+
+    AccessGraphAccessPathChangedEvent access_graph_access_path_changed = 90;
+
+    AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
+
+    UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+
+    UserTaskStateEvent user_task_state = 94;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

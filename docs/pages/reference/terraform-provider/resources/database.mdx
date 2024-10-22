@@ -3,6 +3,9 @@ title: Reference for the teleport_database Terraform resource
 description: This page describes the supported values of the teleport_database resource of the Teleport Terraform provider.
 ---
 
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+
 
 
 ## Example Usage
@@ -11,6 +14,7 @@ description: This page describes the supported values of the teleport_database r
 # Teleport Database
 
 resource "teleport_database" "example" {
+  version = "v3"
   metadata = {
     name        = "example"
     description = "Test database"
@@ -99,6 +103,7 @@ Optional:
 
 - `account_id` (String) AccountID is the AWS account ID this database belongs to.
 - `assume_role_arn` (String) AssumeRoleARN is an optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.
+- `docdb` (Attributes) DocumentDB contains AWS DocumentDB specific metadata. (see [below for nested schema](#nested-schema-for-specawsdocdb))
 - `elasticache` (Attributes) ElastiCache contains AWS ElastiCache Redis specific metadata. (see [below for nested schema](#nested-schema-for-specawselasticache))
 - `external_id` (String) ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 - `iam_policy_status` (Number) IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
@@ -111,6 +116,15 @@ Optional:
 - `region` (String) Region is a AWS cloud region.
 - `secret_store` (Attributes) SecretStore contains secret store configurations. (see [below for nested schema](#nested-schema-for-specawssecret_store))
 - `session_tags` (Map of String) SessionTags is a list of AWS STS session tags.
+
+### Nested Schema for `spec.aws.docdb`
+
+Optional:
+
+- `cluster_id` (String) ClusterID is the cluster identifier.
+- `endpoint_type` (String) EndpointType is the type of the endpoint.
+- `instance_id` (String) InstanceID is the instance identifier.
+
 
 ### Nested Schema for `spec.aws.elasticache`
 
@@ -149,6 +163,7 @@ Optional:
 - `iam_auth` (Boolean) IAMAuth indicates whether database IAM authentication is enabled.
 - `instance_id` (String) InstanceID is the RDS instance identifier.
 - `resource_id` (String) ResourceID is the RDS instance resource identifier (db-xxx).
+- `security_groups` (List of String) SecurityGroups is a list of attached security groups for the RDS instance.
 - `subnets` (List of String) Subnets is a list of subnets for the RDS instance.
 - `vpc_id` (String) VPCID is the VPC where the RDS is running.
 

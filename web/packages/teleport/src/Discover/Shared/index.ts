@@ -32,7 +32,10 @@ export {
 export { useShowHint } from './useShowHint';
 export { StepBox } from './StepBox';
 export { SecurityGroupPicker } from './SecurityGroupPicker';
-export type { ViewRulesSelection } from './SecurityGroupPicker';
+export type {
+  ViewRulesSelection,
+  SecurityGroupWithRecommendation,
+} from './SecurityGroupPicker';
 export { AwsAccount } from './AwsAccount';
 export { StatusLight, ItemStatus } from './StatusLight';
 export {
@@ -42,10 +45,6 @@ export {
   RadioCell,
   StatusCell,
 } from './Aws';
-export {
-  AutoEnrollDialog,
-  SelfHostedAutoDiscoverDirections,
-} from './AutoDiscovery';
 export { StyledBox } from './StyledBox';
 
 export type { DiscoverLabel } from './LabelsCreater';

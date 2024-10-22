@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -160,8 +161,10 @@ func TestUpdateDeployServices(t *testing.T) {
 
 	clusterName := "my-cluster"
 	integrationName := "my-integration"
-	ownershipTags := defaultResourceCreationTags(clusterName, integrationName)
-	teleportVersion := teleport.Version
+	ownershipTags := tags.DefaultResourceCreationTags(clusterName, integrationName)
+	semVer := *teleport.SemVersion
+	semVer.PreRelease = ""
+	teleportVersion := semVer.String()
 	log := utils.NewSlogLoggerForTests().With("test", t.Name())
 
 	t.Run("only legacy service present", func(t *testing.T) {

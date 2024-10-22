@@ -19,15 +19,15 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Flex, Link } from 'design';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
-import { Windows, Linux, Apple } from 'design/Icon';
-
-import { LockIcon } from 'design/SVGIcon';
+import { Windows, Linux, Apple, Lock } from 'design/Icon';
 
 import Table, { Cell } from 'design/DataTable';
+
+import { P } from 'design/Text/Text';
 
 import {
   DeviceListProps,
@@ -66,9 +66,9 @@ export function DeviceTrustLocked() {
       </Box>
       <StyledMessageContainer>
         <Box p="3" borderRadius="50%">
-          <IconCircle Icon={LockIcon} size={64} />
+          <IconCircle Icon={Lock} size={64} />
         </Box>
-        <Text typography="subtitle1" textAlign="justify">
+        <P textAlign="justify">
           Device Trust enables trusted and authenticated device access. When
           resources are configured with the Device Trust mode “required”,
           Teleport will authenticate the Trusted Device, in addition to
@@ -84,7 +84,7 @@ export function DeviceTrustLocked() {
             Device Trust documentation
           </Link>
           .
-        </Text>
+        </P>
         <Box>
           <ButtonLockedFeature event={CtaEvent.CTA_TRUSTED_DEVICES}>
             Unlock Device Trust with Teleport Enterprise

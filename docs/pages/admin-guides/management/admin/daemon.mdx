@@ -1,0 +1,193 @@
+---
+title: Run Teleport as a Daemon
+description: Configure Teleport to run as a daemon using systemd
+---
+On Linux systems in non-containerized environments, we recommend running the `teleport` binary as a daemon using systemd.
+Using a daemon helps to ensure that the `teleport` process can remain running and available regardless of a controlling terminal session or parent process, and opens up additional
+configuration options that allow for better optimization, uptime, and availability.
+
+This guide will outline best practices for installing, configuring, and starting teleport as a daemon on a Linux host using systemd.
+
+## Prerequisites
+
+- A Linux host where you will install Teleport. The host must be configured to use
+systemd. To ensure that your host supports systemd, check whether `/sbin/init` is symbolically linked to
+`/lib/systemd/systemd` or similar:
+
+```code
+$ readlink /sbin/init
+/lib/systemd/systemd
+```
+
+<Notice
+  type="danger"
+  scope={["oss", "enterprise"]}
+>
+
+  Teleport stores data in `/var/lib/teleport`. Make sure that regular/non-admin
+  users do not have access to this folder on the Auth Service host.
+
+</Notice>
+
+## Step 1/3. Install and configure Teleport
+
+Select and complete the appropriate installation instructions for your environment.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Teleport requires a configuration YAML file to be created and configured in order to run. After initial installation, no
+configuration file exists until we create it. This guide will use a minimal Teleport configuration based on defaults, however in production environments we
+recommend reviewing configuration file options to better suit your needs.
+
+To create the default Teleport configuration file, enter the following command:
+
+```code
+$ sudo teleport configure -o file
+Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy Teleporting!
+```
+
+## Step 2/3. Create and configure a systemd service
+
+Once you've installed the `teleport` binary and created a Teleport configuration file, let's create and configure the Teleport daemon.
+
+Systemd is designed to use **unit files**, which are the files used to define and configure
+any service daemon on systemd, in this case the `teleport` service. The rest of this guide will focus on creating and configuring the `teleport` service daemon depending on your preferred installation method, either a package manager, or from source.
+
+<Tabs>
+  <TabItem label="Package Manager Installation">
+
+  We have included a default `teleport` daemon configuration for packages installed with DEM or RPM package managers. To check that this daemon was installed correctly,
+  enter the following command:
+
+  ```code
+  $ sudo systemctl status teleport
+  ```
+
+  You will see output similar to the following, including the file path (`/lib/systemd/system/teleport.service`) that contains the unit file for the systemd configuration being applied:
+
+  ```code
+  ● teleport.service - Teleport Service
+       Loaded: loaded (/lib/systemd/system/teleport.service; disabled; vendor preset: enabled)
+       Active: inactive (dead)
+  ```
+
+  Enter the following command to enable the systemd `teleport` daemon. Enabling the daemon using `systemctl` allows systemd to place the daemon in its dependency tree, ensuring that the Teleport service will be automatically restarted on any potential reboot:
+
+  ```code
+  $ sudo systemctl enable teleport
+  ```
+
+  Next, enter the following command to start the teleport service daemon:
+
+  ```code
+  $ sudo systemctl start teleport
+  ```
+
+  Confirm that the Teleport daemon was installed correctly by checking the service status. The following command will output a status of `Active: active (running)`:
+
+  ```code
+  $ sudo systemctl status teleport | grep Active
+  Active: active (running) since Mon 2022-04-18 18:33:41 UTC; 41s ago
+  ```
+  </TabItem>
+
+  <TabItem label="Source Installation">
+
+  Enter the following `teleport` command to have Teleport output a systemd unit file to `stdout` to be reviewed and applied as needed:
+
+  ```code
+  $ teleport install systemd
+  ```
+
+  If the output describes a good configuration for your environment, enter the command once again using the `-o` flag to
+  write the output to a file within one of systemd's accepted unit file load paths. For most use cases, we recommend using the path `/etc/systemd/system/teleport.service` for your unit file:
+
+  ```code
+  $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+  ```
+
+  Enable the `teleport` service daemon using `systemctl` so that systemd can place it in its dependency tree. This also ensures that the `teleport` service will be automatically restarted on any potential reboot:
+
+  ```code
+  $ sudo systemctl enable teleport
+  ```
+
+  Start the `teleport` service daemon using systemctl:
+
+  ```code
+  $ sudo systemctl start teleport
+  ```
+
+  Finally, confirm that the Teleport daemon has been installed correctly by checking the service daemon's status. The following command will output a status of `Active: active (running)` if the configuration has been applied correctly:
+
+  ```code
+  $ sudo systemctl status teleport | grep Active
+  Active: active (running) since Mon 2022-04-18 18:33:41 UTC; 41s ago
+  ```
+  </TabItem>
+</Tabs>
+
+## Step 3/3. Restart the Teleport daemon
+
+Teleport supports graceful restarts, enabling you to easily change your Teleport
+configuration or upgrade your `teleport` binary without sacrificing
+availability.
+
+Run the following command to gracefully restart the `teleport` daemon:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+This will perform a graceful restart, i.e. the Teleport daemon will fork a new
+process to handle new incoming requests, leaving the old daemon process running
+until existing clients disconnect (with a timeout of 30 hours).
+
+<Admonition title="Upgrading" type="tip">
+
+To upgrade a host to a newer version of Teleport, you must:
+
+- Replace the Teleport binaries, usually
+  [`teleport`](../../../reference/cli/teleport.mdx) and
+  [`tctl`](../../../reference/cli/tctl.mdx).
+- Execute `systemctl reload teleport`.
+
+</Admonition>
+
+## Understanding Teleport daemon command line options for unit file configuration
+
+The `teleport install systemd` command includes a number of optional flags that you can use to strictly define parameters of the generated unit file and set where that output will be written.
+The following table includes all command line options available with the `teleport install systemd` command, a brief description of what they do, and their default settings:
+
+| Flag | Description | Default |
+| --- | ----------- | ---- |
+| `--fd-limit` | The maximum number of open file descriptors by the service, defined by `LimitNOFILE` in the unit file. |  `--fd-limit=8192` |
+| `--env-file` | The path to the `EnvironmentFile` defined by the system unit file, containing any potential variables to be used in the configuration. | `--envfile=/etc/default/teleport` |
+| `--pid-file` | The path to the pid file containing the process identification number. | `--pid-file=/run/teleport.pid` |
+| `--teleport-path` | The full path to the `teleport` binary. | `--teleport-path=/usr/local/bin/teleport` |
+| `-o`, `--output` | The full unit file load path which will define where to create and store the system unit file itself. This flag is used to write the output to the designated file. | `--output=/etc/systemd/system/teleport.service` |
+
+While a default configuration can always be created using the `sudo teleport install systemd -o /etc/systemd/system/teleport.service`command,
+the same configuration using command line options is demonstrated below:
+
+```code
+$ sudo teleport install systemd \
+--fd-limit=8192 \
+--env-file=/etc/default/teleport \
+--pid-file=/run/teleport.pid \
+--teleport-path=/usr/local/bin/teleport \
+--output=/etc/systemd/system/teleport.service
+```
+
+## Next steps
+
+In this guide, we showed you how to run `teleport start` as a systemd service.
+To see all commands that you can run via the `teleport` binary, see the
+[Teleport CLI Reference](../../../reference/cli/teleport.mdx).
+
+While we used a minimal configuration in this guide, for a production Teleport
+cluster, you should consult our
+[Configuration Reference](../../../reference/config.mdx).
+
+For information on unit file configurations and unit file load paths,
+see [systemd's documentation on systemd.unit configurations](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)

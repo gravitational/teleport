@@ -39,7 +39,7 @@ export type SamlIdpServiceProviderSpec = {
   attribute_mapping: AttributeMapping[];
   entity_descriptor: string;
   entity_id: string;
-  preset: string;
+  preset: SamlServiceProviderPreset;
   relay_state: string;
 };
 
@@ -71,8 +71,25 @@ export enum SamlServiceProviderPreset {
  * preserved throughout the flow.
  */
 export type SamlGcpWorkforce = {
-  isAutoConfig: boolean;
   orgId: string;
   poolName: string;
   poolProviderName: string;
+};
+
+/**
+ * SamlAppToDelete is used to define the name of an
+ * SAML app item to be deleted and its deletion state in the
+ * backend. Intended to be used in the unified resource view.
+ */
+export type SamlAppToDelete = {
+  /**
+   * name is the name of Saml app item to delete.
+   */
+  name: string;
+  // kind: string;
+  /**
+   * backendDeleted specifies if the item is deleted
+   * in the backend.
+   */
+  backendDeleted: boolean;
 };

@@ -115,8 +115,11 @@ describe('test EnrollEksCluster.tsx', () => {
     fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
     fireEvent.click(screen.getByText('us-east-2'));
 
-    // EKS results are rendered.
     await screen.findByText(/eks1/i);
+
+    // Toggle on auto enroll.
+    act(() => screen.getByText(/auto-enroll all/i).click());
+
     // Cloud uses a default discovery group name.
     expect(
       screen.queryByText(/define a discovery group name/i)
@@ -152,6 +155,12 @@ describe('test EnrollEksCluster.tsx', () => {
     fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
     fireEvent.click(screen.getByText('us-east-2'));
 
+    await screen.findByText(/eks1/i);
+
+    // Toggle on auto enroll.
+    act(() => screen.getByText(/auto-enroll all/i).click());
+    expect(screen.queryByText(/eks1/i)).not.toBeInTheDocument();
+
     // Only self-hosted need to define a discovery group name.
     await screen.findByText(/define a discovery group name/i);
     // There should be no table rendered.
@@ -186,11 +195,6 @@ describe('test EnrollEksCluster.tsx', () => {
     fireEvent.click(screen.getByText('us-east-2'));
 
     await screen.findByText(/eks1/i);
-
-    // disable auto enroll
-    expect(screen.getByText('Next')).toBeEnabled();
-    act(() => screen.getByText(/auto-enroll all/i).click());
-    expect(screen.getByText('Enroll EKS Cluster')).toBeDisabled();
 
     act(() => screen.getByRole('radio').click());
 

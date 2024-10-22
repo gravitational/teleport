@@ -27,7 +27,6 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -203,6 +202,32 @@ func TestLoadKeyPair(t *testing.T) {
 	require.False(t, ok, "expiry should be unknown on a broken credential")
 }
 
+func TestKeyPair(t *testing.T) {
+	t.Parallel()
+
+	// Load expected tls.Config.
+	expectedTLSConfig := getExpectedTLSConfig(t)
+
+	// Load key pair from disk.
+	creds, err := KeyPair(tlsCert, keyPEM, tlsCACert)
+	require.NoError(t, err)
+
+	// Build tls.Config and compare to expected tls.Config.
+	tlsConfig, err := creds.TLSConfig()
+	require.NoError(t, err)
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
+
+	// Load invalid keypairs.
+	invalidIdentityCreds, err := KeyPair([]byte("invalid_cert"), []byte("invalid_key"), []byte("invalid_ca_cert"))
+	require.NoError(t, err)
+	_, err = invalidIdentityCreds.TLSConfig()
+	require.Error(t, err)
+
+	// Load missing keypairs
+	_, err = KeyPair(nil, nil, nil)
+	require.Error(t, err)
+}
+
 func TestLoadProfile(t *testing.T) {
 	t.Parallel()
 	profileName := "proxy.example.com"
@@ -260,7 +285,8 @@ func writeProfile(t *testing.T, p *profile.Profile) {
 	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.ProxyKeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.TLSClusterCASDir(), 0700))
-	require.NoError(t, os.WriteFile(p.UserKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.UserSSHKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.UserTLSKeyPath(), keyPEM, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCertPath(), tlsCert, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCAPathCluster(p.SiteName), tlsCACert, 0600))
 	require.NoError(t, os.WriteFile(p.KnownHostsPath(), sshCACert, 0600))
@@ -418,7 +444,7 @@ Private-MAC: 8951bbe929e0714a61df01bc8fbc5223e3688f174aee29339931984fb9224c7d`)
 
 func TestDynamicIdentityFileCreds(t *testing.T) {
 	dir := t.TempDir()
-	identityPath := path.Join(dir, "identity")
+	identityPath := filepath.Join(dir, "identity")
 
 	idFile := &identityfile.IdentityFile{
 		PrivateKey: keyPEM,

@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonSecondary, Text, Box, LabelInput } from 'design';
+import { ButtonSecondary, Box, LabelInput, H3, Subtitle3 } from 'design';
 import Select from 'shared/components/Select';
 
 import cfg from 'teleport/config';
@@ -98,10 +98,10 @@ export function TestConnection(props: AgentStepProps) {
         just added.
       </HeaderSubtitle>
       <StyledBox mb={5}>
-        <Text bold>Step 1</Text>
-        <Text typography="subtitle1" mb={3}>
-          Pick the OS user to test
-        </Text>
+        <header>
+          <H3>Step 1</H3>
+          <Subtitle3 mb={3}>Pick the OS user to test</Subtitle3>
+        </header>
         <Box width="320px">
           <LabelInput>Select Login</LabelInput>
           <Select
@@ -121,10 +121,10 @@ export function TestConnection(props: AgentStepProps) {
         stepDescription="Verify that the server is accessible"
       />
       <StyledBox>
-        <Text bold>Step 3</Text>
-        <Text typography="subtitle1" mb={3}>
-          Connect to the server
-        </Text>
+        <header>
+          <H3>Step 3</H3>
+          <Subtitle3 mb={3}>Connect to the server</Subtitle3>
+        </header>
         <ButtonSecondary
           width="200px"
           onClick={() => startSshSession(selectedOpt.value)}

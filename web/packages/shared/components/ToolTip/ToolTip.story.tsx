@@ -17,41 +17,96 @@
  */
 
 import React from 'react';
-import { Text, Flex } from 'design';
+import { Text, Flex, ButtonPrimary } from 'design';
+
+import styled, { useTheme } from 'styled-components';
+import { P } from 'design/Text/Text';
+import { logos } from 'teleport/components/LogoHero/LogoHero';
 
 import { ToolTipInfo } from './ToolTip';
+import { HoverTooltip } from './HoverTooltip';
 
 export default {
-  title: 'Shared/ToolTip/Info',
+  title: 'Shared/ToolTip',
 };
 
 export const ShortContent = () => (
-  <>
-    <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
-      Hover the icon
-    </span>
-    <ToolTipInfo>"some popover content"</ToolTipInfo>
-  </>
+  <Grid>
+    <div style={{ gridColumn: '2/3' }}>
+      <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+        Hover the icon
+      </span>
+      <ToolTipInfo position="bottom">"some popover content"</ToolTipInfo>
+    </div>
+    <div style={{ gridColumn: '1/2' }}>
+      <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+        Hover the icon
+      </span>
+      <ToolTipInfo position="right">"some popover content"</ToolTipInfo>
+    </div>
+    <div style={{ gridColumn: '3/4' }}>
+      <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+        Hover the icon
+      </span>
+      <ToolTipInfo position="left">"some popover content"</ToolTipInfo>
+    </div>
+    <div style={{ gridColumn: '2/3' }}>
+      <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+        Hover the icon
+      </span>
+      <ToolTipInfo position="top">"some popover content"</ToolTipInfo>
+    </div>
+  </Grid>
 );
 
-export const LongContent = () => (
-  <Flex alignItems="center">
-    <Text mr={1}>Hover the icon</Text>
-    <ToolTipInfo>
-      <Text>
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 200px);
+  grid-template-rows: repeat(3, 100px);
+`;
+
+export const LongContent = () => {
+  const theme = useTheme();
+  return (
+    <>
+      <Flex alignItems="center" mb={3}>
+        <Text mr={1}>Hover the icon</Text>
+        <ToolTipInfo>
+          <P>
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
+            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+            aliquip ex ea commodo consequat.
+          </P>
+          <P>
+            Duis aute irure dolor in reprehenderit in voluptate velit esse
+            cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat
+            cupidatat non proident, sunt in culpa qui officia deserunt mollit
+            anim id est laborum.
+          </P>
+        </ToolTipInfo>
+      </Flex>
+      <P>
+        Here's some content that shouldn't interfere with the semi-transparent
+        background:
+      </P>
+      <P>
+        <div style={{ float: 'left', margin: '0 10px 10px 0' }}>
+          <img src={logos.oss[theme.type]} style={{ float: 'left' }} />
+        </div>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
         veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
         commodo consequat.
-      </Text>
-      <Text mt={1}>
+      </P>
+      <P>
         Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
         dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
         proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-      </Text>
-    </ToolTipInfo>
-  </Flex>
-);
+      </P>
+    </>
+  );
+};
 
 export const WithMutedIconColor = () => (
   <>
@@ -60,4 +115,31 @@ export const WithMutedIconColor = () => (
     </span>
     <ToolTipInfo muteIconColor>"some popover content"</ToolTipInfo>
   </>
+);
+
+export const WithKindWarning = () => (
+  <>
+    <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+      Hover the icon
+    </span>
+    <ToolTipInfo kind="warning">"some popover content"</ToolTipInfo>
+  </>
+);
+
+export const WithKindError = () => (
+  <>
+    <span css={{ marginRight: '4px', verticalAlign: 'middle' }}>
+      Hover the icon
+    </span>
+    <ToolTipInfo kind="error">"some popover content"</ToolTipInfo>
+  </>
+);
+
+export const HoverToolTip = () => (
+  <Flex alignItems="baseline" gap={2}>
+    <span>Hover the</span>
+    <HoverTooltip position="bottom" tipContent="some popover content">
+      <ButtonPrimary>button</ButtonPrimary>
+    </HoverTooltip>
+  </Flex>
 );

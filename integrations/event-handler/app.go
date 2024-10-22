@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -27,18 +28,19 @@ import (
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/integrations/diagnostics"
 )
 
 // App is the app structure
 type App struct {
 	// Fluentd represents the instance of Fluentd client
 	Fluentd *FluentdClient
-	// EventWatcher represents the instance of TeleportEventWatcher
-	EventWatcher *TeleportEventsWatcher
 	// State represents the instance of the persistent state
 	State *State
 	// cmd is start command CLI config
 	Config *StartCmdConfig
+	// client is the teleport api client
+	client TeleportSearchEventsClient
 	// eventsJob represents main audit log event consumer job
 	eventsJob *EventsJob
 	// sessionEventsJob represents session events consumer job
@@ -77,10 +79,8 @@ func (a *App) Run(ctx context.Context) error {
 
 	a.SpawnCriticalJob(a.eventsJob)
 	a.SpawnCriticalJob(a.sessionEventsJob)
+	a.SpawnCritical(a.sessionEventsJob.processMissingRecordings)
 	<-a.Process.Done()
-
-	lastWindow := a.EventWatcher.getWindowStartTime()
-	a.State.SetLastWindowTime(&lastWindow)
 
 	return a.Err()
 }
@@ -119,7 +119,7 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 				break
 			}
 
-			log.Error("Error sending event to fluentd: ", err)
+			log.Debug("Error sending event to fluentd: ", err)
 
 			bErr := backoff.Do(ctx)
 			if bErr != nil {
@@ -128,10 +128,14 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 
 			backoffCount--
 			if backoffCount < 0 {
-				if !lib.IsCanceled(err) {
-					return trace.Wrap(err)
+				if lib.IsCanceled(err) {
+					return nil
 				}
-				return nil
+				log.WithFields(logrus.Fields{
+					"error":    err.Error(), // omitting the stack trace (too verbose)
+					"attempts": sendBackoffNumTries,
+				}).Error("failed to send event to fluentd")
+				return trace.Wrap(err)
 			}
 		}
 	}
@@ -142,70 +146,34 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 	}
 
 	log.WithFields(fields).Debug("Event sent")
-	log.WithField("event", e).Debug("Event dump")
 
 	return nil
 }
 
 // init initializes application state
 func (a *App) init(ctx context.Context) error {
-	log := logger.Get(ctx)
-
 	a.Config.Dump(ctx)
 
-	s, err := NewState(a.Config)
+	var err error
+	a.client, err = newClient(ctx, a.Config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = a.setStartTime(ctx, s)
+	a.State, err = NewState(a.Config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	f, err := NewFluentdClient(&a.Config.FluentdConfig)
+	err = a.setStartTime(ctx, a.State)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	latestCursor, err := s.GetCursor()
+	a.Fluentd, err = NewFluentdClient(&a.Config.FluentdConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	latestID, err := s.GetID()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	startTime, err := s.GetStartTime()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	lastWindowTime, err := s.GetLastWindowTime()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// if lastWindowTime is nil, set it to startTime
-	// lastWindowTime is used to track the last window of events ingested
-	// and is updated on exit
-	if lastWindowTime == nil {
-		lastWindowTime = startTime
-	}
-
-	t, err := NewTeleportEventsWatcher(ctx, a.Config, *lastWindowTime, latestCursor, latestID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	a.State = s
-	a.Fluentd = f
-	a.EventWatcher = t
-
-	log.WithField("cursor", latestCursor).Info("Using initial cursor value")
-	log.WithField("id", latestID).Info("Using initial ID value")
-	log.WithField("value", startTime).Info("Using start time from state")
 
 	return nil
 }
@@ -245,5 +213,11 @@ func (a *App) RegisterSession(ctx context.Context, e *TeleportEvent) {
 	log := logger.Get(ctx)
 	if err := a.sessionEventsJob.RegisterSession(ctx, e); err != nil {
 		log.Error("Registering session: ", err)
+	}
+}
+
+func (a *App) Profile() {
+	if err := diagnostics.Profile(filepath.Join(a.Config.StorageDir, "profiles")); err != nil {
+		logrus.WithError(err).Warn("failed to capture profiles")
 	}
 }

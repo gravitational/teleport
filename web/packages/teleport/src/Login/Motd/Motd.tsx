@@ -25,16 +25,10 @@ export function Motd({ message, onClick }: Props) {
   return (
     <StyledCard bg="levels.surface" my={6} mx="auto">
       <Box p={6}>
-        <StyledText typography="h5" mb={3} textAlign="left">
+        <StyledText typography="body1" mb={3} textAlign="left">
           {message}
         </StyledText>
-        <ButtonPrimary
-          width="100%"
-          mt={3}
-          size="large"
-          onClick={onClick}
-          align="center"
-        >
+        <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
           Acknowledge
         </ButtonPrimary>
       </Box>

@@ -19,7 +19,6 @@
 
 #include "client_darwin.h"
 #include "common_darwin.h"
-#include "protocol_darwin.h"
 
 #import <Foundation/Foundation.h>
 #import <ServiceManagement/ServiceManagement.h>
@@ -74,19 +73,17 @@ void OpenSystemSettingsLoginItems(void) {
   }
 }
 
-@interface VNEDaemonClient ()
+@implementation VNEDaemonClient {
+  NSXPCConnection *_connection;
+  NSString *_bundlePath;
+  NSString *_codeSigningRequirement;
+}
 
-@property(nonatomic, strong, readwrite) NSXPCConnection *connection;
-@property(nonatomic, strong, readonly) NSString *bundlePath;
-
-@end
-
-@implementation VNEDaemonClient
-
-- (id)initWithBundlePath:(NSString *)bundlePath {
+- (id)initWithBundlePath:(NSString *)bundlePath codeSigningRequirement:(NSString *)codeSigningRequirement {
   self = [super init];
   if (self) {
     _bundlePath = bundlePath;
+    _codeSigningRequirement = codeSigningRequirement;
   }
   return self;
 }
@@ -102,13 +99,19 @@ void OpenSystemSettingsLoginItems(void) {
       self->_connection = nil;
     };
 
+    // The daemon won't even be started on macOS < 13.0, so we don't have to handle the else branch
+    // of this condition.
+    if (@available(macOS 13, *)) {
+      [_connection setCodeSigningRequirement:_codeSigningRequirement];
+    }
+
     // New connections always start in a suspended state.
     [_connection resume];
   }
   return _connection;
 }
 
-- (void)startVnet:(VnetConfig *)vnetConfig completion:(void (^)(NSError *))completion {
+- (void)startVnet:(VNEConfig *)config completion:(void (^)(NSError *))completion {
   // This way of calling the XPC proxy ensures either the error handler or
   // the reply block gets called.
   // https://forums.developer.apple.com/forums/thread/713429
@@ -116,10 +119,9 @@ void OpenSystemSettingsLoginItems(void) {
     completion(error);
   }];
 
-  [(id<VNEDaemonProtocol>)proxy startVnet:vnetConfig
-                               completion:^(NSError *error) {
-                                 completion(error);
-                               }];
+  [(id<VNEDaemonProtocol>)proxy startVnet:config completion:^(NSError *error) {
+    completion(error);
+  }];
 }
 
 - (void)invalidate {
@@ -134,14 +136,32 @@ static VNEDaemonClient *daemonClient = NULL;
 
 void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
   if (!daemonClient) {
-    daemonClient = [[VNEDaemonClient alloc] initWithBundlePath:@(request->bundle_path)];
+    NSString *requirement = nil;
+    NSError *error = nil;
+    bool ok = getCodeSigningRequirement(&requirement, &error);
+    if (!ok) {
+      outResult->ok = false;
+      outResult->error_domain = VNECopyNSString([error domain]);
+      outResult->error_code = (int)[error code];
+      outResult->error_description = VNECopyNSString([error description]);
+      return;
+    }
+
+    daemonClient = [[VNEDaemonClient alloc] initWithBundlePath:@(request->bundle_path) codeSigningRequirement:requirement];
   }
+
+  VNEConfig *config = [[VNEConfig alloc] init];
+  [config setSocketPath:@(request->socket_path)];
+  [config setIpv6Prefix:@(request->ipv6_prefix)];
+  [config setDnsAddr:@(request->dns_addr)];
+  [config setHomePath:@(request->home_path)];
 
   dispatch_semaphore_t sema = dispatch_semaphore_create(0);
 
-  [daemonClient startVnet:request->vnet_config
+  [daemonClient startVnet:config
                completion:^(NSError *error) {
                  if (error) {
+                   outResult->ok = false;
                    outResult->error_domain = VNECopyNSString([error domain]);
                    outResult->error_code = (int)[error code];
                    outResult->error_description = VNECopyNSString([error description]);

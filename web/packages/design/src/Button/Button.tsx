@@ -17,9 +17,9 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 
-import { CSSObject } from 'styled-components';
+import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
 
 import {
   space,
@@ -31,15 +31,17 @@ import {
   WidthProps,
   HeightProps,
   AlignSelfProps,
+  GapProps,
 } from 'design/system';
-import { TextAndBackgroundColors, Theme } from 'design/theme/themes/types';
+import { Theme } from 'design/theme/themes/types';
 
 export type ButtonProps<E extends React.ElementType> =
   React.ComponentPropsWithoutRef<E> &
     SpaceProps &
     WidthProps &
     HeightProps &
-    AlignSelfProps & {
+    AlignSelfProps &
+    GapProps & {
       /**
        * Specifies if an element's display is set to block or not. Set to true
        * to set display to block.
@@ -60,6 +62,11 @@ export type ButtonProps<E extends React.ElementType> =
        * button labels.
        */
       inputAlignment?: boolean;
+
+      /**
+       * If set to true, renders a button with the smallest horizontal paddings.
+       */
+      compact?: boolean;
 
       /**
        * Specifies the case transform of the button text. Default is no
@@ -119,7 +126,7 @@ const themedStyles = <E extends React.ElementType>(
   const style = buttonStyle(props);
 
   let disabledStyle: CSSObject = {
-    backgroundColor: colors.interactive.tonal.neutral[0].background,
+    backgroundColor: colors.interactive.tonal.neutral[0],
     color: colors.buttons.textDisabled,
     borderColor: 'transparent',
     boxShadow: 'none',
@@ -160,12 +167,11 @@ const buttonStyle = <E extends React.ElementType>(
   return {
     backgroundColor: palette.default.background,
     color: palette.default.text,
-    borderColor: props.fill === 'border' ? palette.default.text : 'transparent',
+    borderColor: palette.default.border ?? 'transparent',
     ['&:focus-visible, .teleport-button__force-focus-visible &']: {
-      backgroundColor:
-        props.fill !== 'minimal' ? palette.focus.background : 'transparent',
+      backgroundColor: palette.focus.background,
       color: palette.focus.text,
-      borderColor: palette.focus.text,
+      borderColor: palette.focus.border ?? 'transparent',
       borderRadius: intent === 'neutral' || fill === 'minimal' ? '4px' : '2px',
       outline:
         intent !== 'neutral' && fill !== 'minimal'
@@ -174,7 +180,7 @@ const buttonStyle = <E extends React.ElementType>(
     },
     '&:hover, .teleport-button__force-hover &': {
       backgroundColor: palette.hover.background,
-      borderColor: 'transparent',
+      borderColor: palette.hover.border ?? 'transparent',
       color: palette.hover.text,
       boxShadow:
         intent === 'neutral' || fill === 'minimal'
@@ -185,17 +191,23 @@ const buttonStyle = <E extends React.ElementType>(
     },
     '&:active, .teleport-button__force-active &': {
       backgroundColor: palette.active.background,
-      borderColor: 'transparent',
+      borderColor: palette.active.border ?? 'transparent',
       color: palette.active.text,
     },
   };
 };
 
+type ButtonPaletteEntry = {
+  text: string;
+  background: string;
+  border?: string;
+};
+
 type ButtonPalette = {
-  default: TextAndBackgroundColors;
-  hover: TextAndBackgroundColors;
-  active: TextAndBackgroundColors;
-  focus: TextAndBackgroundColors;
+  default: ButtonPaletteEntry;
+  hover: ButtonPaletteEntry;
+  active: ButtonPaletteEntry;
+  focus: ButtonPaletteEntry;
 };
 
 const buttonPalette = <E extends React.ElementType>({
@@ -207,52 +219,129 @@ const buttonPalette = <E extends React.ElementType>({
     case 'filled':
       if (intent === 'neutral') {
         return {
-          default: colors.interactive.tonal.neutral[0],
-          hover: colors.interactive.tonal.neutral[1],
-          active: colors.interactive.tonal.neutral[2],
-          focus: colors.interactive.tonal.neutral[0],
+          default: {
+            text: colors.text.slightlyMuted,
+            background: colors.interactive.tonal.neutral[0],
+          },
+          hover: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[1],
+          },
+          active: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[2],
+          },
+          focus: {
+            text: colors.text.slightlyMuted,
+            border: colors.text.slightlyMuted,
+            background: colors.interactive.tonal.neutral[0],
+          },
         };
       } else {
         return {
-          default: colors.interactive.solid[intent].default,
-          hover: colors.interactive.solid[intent].hover,
-          active: colors.interactive.solid[intent].active,
-          focus: colors.interactive.solid[intent].default,
+          default: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].default,
+          },
+          hover: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].hover,
+          },
+          active: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].active,
+          },
+          focus: {
+            text: colors.text.primaryInverse,
+            border: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].default,
+          },
         };
       }
-    case 'minimal':
+    case 'minimal': {
+      if (intent === 'neutral') {
+        return {
+          default: {
+            text: colors.text.slightlyMuted,
+            background: 'transparent',
+          },
+          hover: {
+            text: colors.text.slightlyMuted,
+            background: colors.interactive.tonal[intent][0],
+          },
+          active: {
+            text: colors.text.main,
+            background: colors.interactive.tonal[intent][1],
+          },
+          focus: {
+            text: colors.text.slightlyMuted,
+            border: colors.text.slightlyMuted,
+            background: 'transparent',
+          },
+        };
+      }
       return {
         default: {
+          text: colors.interactive.solid[intent].default,
           background: 'transparent',
-          text:
-            intent === 'neutral'
-              ? colors.text.slightlyMuted
-              : colors.interactive.solid[intent].default.background,
         },
-        hover: colors.interactive.tonal[intent][0],
-        active: colors.interactive.tonal[intent][1],
-        focus: colors.interactive.tonal[intent][0],
+        hover: {
+          text: colors.interactive.solid[intent].hover,
+          background: colors.interactive.tonal[intent][0],
+        },
+        active: {
+          text: colors.interactive.solid[intent].active,
+          background: colors.interactive.tonal[intent][1],
+        },
+        focus: {
+          text: colors.interactive.solid[intent].default,
+          border: colors.interactive.solid[intent].default,
+          background: 'transparent',
+        },
       };
+    }
     case 'border':
       if (intent === 'neutral') {
         return {
           default: {
+            text: colors.text.slightlyMuted,
+            border: colors.interactive.tonal.neutral[2],
             background: 'transparent',
-            text: colors.text.muted,
           },
-          hover: colors.interactive.tonal.neutral[1],
-          active: colors.interactive.tonal.neutral[2],
-          focus: colors.interactive.tonal.neutral[0],
+          hover: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[1],
+          },
+          active: {
+            text: colors.text.main,
+            background: colors.interactive.tonal.neutral[2],
+          },
+          focus: {
+            text: colors.text.slightlyMuted,
+            border: colors.text.slightlyMuted,
+            background: colors.interactive.tonal.neutral[0],
+          },
         };
       } else {
         return {
           default: {
+            text: colors.interactive.solid[intent].default,
+            border: colors.interactive.solid[intent].default,
             background: 'transparent',
-            text: colors.interactive.solid[intent].default.background,
           },
-          hover: colors.interactive.solid[intent].hover,
-          active: colors.interactive.solid[intent].active,
-          focus: colors.interactive.solid[intent].default,
+          hover: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].hover,
+          },
+          active: {
+            text: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].active,
+          },
+          focus: {
+            text: colors.text.primaryInverse,
+            border: colors.text.primaryInverse,
+            background: colors.interactive.solid[intent].default,
+          },
         };
       }
     default:
@@ -263,6 +352,9 @@ const buttonPalette = <E extends React.ElementType>({
 const horizontalPadding = <E extends React.ElementType>(
   props: ButtonProps<E>
 ) => {
+  if (props.compact) {
+    return 4;
+  }
   if (props.inputAlignment) {
     return 16;
   }
@@ -327,7 +419,10 @@ const block = props =>
 const textTransform = props =>
   props.textTransform ? { textTransform: props.textTransform } : null;
 
-const StyledButton = styled.button`
+const StyledButton = styled.button.withConfig({
+  shouldForwardProp: (prop, target) =>
+    !['compact'].includes(prop) && defaultValidatorFn(prop, target),
+})`
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -368,21 +463,21 @@ const StyledButton = styled.button`
   ${themedStyles}
 `;
 
-export const ButtonPrimary = <E extends React.ElementType>(
+export const ButtonPrimary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="primary" {...props} />;
-export const ButtonSecondary = <E extends React.ElementType>(
+export const ButtonSecondary = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="neutral" {...props} />;
-export const ButtonBorder = <E extends React.ElementType>(
+export const ButtonBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="neutral" {...props} />;
-export const ButtonWarning = <E extends React.ElementType>(
+export const ButtonWarning = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="filled" intent="danger" {...props} />;
-export const ButtonWarningBorder = <E extends React.ElementType>(
+export const ButtonWarningBorder = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="border" intent="danger" {...props} />;
-export const ButtonText = <E extends React.ElementType>(
+export const ButtonText = <E extends React.ElementType = 'button'>(
   props: ButtonProps<E>
 ) => <Button fill="minimal" intent="neutral" {...props} />;

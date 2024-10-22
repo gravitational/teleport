@@ -20,7 +20,6 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -131,9 +130,12 @@ type Config struct {
 	ID string
 	// ClusterName is a name of this cluster
 	ClusterName string
-	// ClientTLS is a TLS config associated with this proxy
-	// used to connect to remote auth servers on remote clusters
-	ClientTLS *tls.Config
+	// ClientTLSCipherSuites optionally contains a list of TLS ciphersuites to
+	// use when connecting to other clusters.
+	ClientTLSCipherSuites []uint16
+	// GetClientTLSCertificate returns a TLS certificate to use when connecting
+	// to other clusters.
+	GetClientTLSCertificate utils.GetCertificateFunc
 	// Listener is a listener address for reverse tunnel server
 	Listener net.Listener
 	// HostSigners is a list of host signers
@@ -226,8 +228,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
-	if cfg.ClientTLS == nil {
-		return trace.BadParameter("missing parameter ClientTLS")
+	if cfg.GetClientTLSCertificate == nil {
+		return trace.BadParameter("missing parameter GetClientTLSCertificate")
 	}
 	if cfg.Listener == nil {
 		return trace.BadParameter("missing parameter Listener")
@@ -300,7 +302,8 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: cfg.Component,
 			Client:    cfg.LocalAccessPoint,
-			Log:       cfg.Log,
+			// TODO(tross): update this after converting to slog here
+			// Logger:       cfg.Log,
 		},
 		ProxiesC:    make(chan []types.Server, 10),
 		ProxyGetter: cfg.LocalAccessPoint,
@@ -1209,9 +1212,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.remoteAccessPoint = accessPoint
 	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:    srv.Component,
-			Client:       accessPoint,
-			Log:          srv.Log,
+			Component: srv.Component,
+			Client:    accessPoint,
+			// TODO(tross) update this after converting to use slog
+			// Logger:          srv.Log,
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
@@ -1224,7 +1228,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.localAuthClient)
+	certificateCache, err := newHostCertificateCache(srv.localAuthClient, srv.localAccessPoint, srv.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1244,9 +1248,10 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteWatcher, err := services.NewCertAuthorityWatcher(srv.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			Log:       srv.log,
-			Clock:     srv.Clock,
-			Client:    remoteSite.remoteAccessPoint,
+			// TODO(tross): update this after converting to slog
+			// Logger:       srv.log,
+			Clock:  srv.Clock,
+			Client: remoteSite.remoteAccessPoint,
 		},
 		Types: []types.CertAuthType{types.HostCA},
 	})

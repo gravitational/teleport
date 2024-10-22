@@ -23,7 +23,7 @@
   "private": true,
   "homepage": "https://goteleport.com",
   "dependencies": {
-    "@grpc/grpc-js": "1.10.10",
+    "@grpc/grpc-js": "1.11.3",
     "@types/which": "^3.0.4",
     "node-forge": "^1.3.1",
     "node-pty": "1.1.0-beta14",
@@ -32,9 +32,10 @@
     "strip-ansi": "^7.1.0",
     "tar-fs": "^3.0.6",
     "which": "^4.0.0",
-    "winston": "^3.13.0"
+    "winston": "^3.14.2"
   },
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
@@ -42,9 +43,10 @@
     "@types/node-forge": "^1.3.11",
     "@types/tar-fs": "^2.0.4",
     "@types/whatwg-url": "^11.0.5",
-    "electron": "31.1.0",
-    "electron-builder": "^25.0.1",
-    "electron-notarize": "^1.2.2",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "electron": "32.1.2",
+    "electron-builder": "^25.1.7",
     "electron-vite": "^2.3.0",
     "events": "3.3.0",
     "immer": "^10.1.1",
@@ -52,10 +54,8 @@
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
     "whatwg-url": "^14.0.0",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0",
     "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.1"
+    "zod-to-json-schema": "^3.23.3"
   },
   "productName": "Teleport Connect"
 }

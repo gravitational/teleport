@@ -196,7 +196,7 @@ func (fs *FSTrustedCertsStore) clusterCAPath(proxy, clusterName string) string {
 	return keypaths.TLSCAsPathCluster(fs.Dir, proxy, clusterName)
 }
 
-// tlsCAsPath returns the TLS CA certificates legacy path for the given KeyIndex.
+// tlsCAsPath returns the TLS CA certificates legacy path for the given KeyRingIndex.
 func (fs *FSTrustedCertsStore) tlsCAsPath(proxy string) string {
 	return keypaths.TLSCAsPath(fs.Dir, proxy)
 }

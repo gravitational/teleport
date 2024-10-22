@@ -39,6 +39,7 @@ func TestAuthorizedKey(t *testing.T) {
 				HostId:         uuid.New().String(),
 				KeyFingerprint: "fingerprint",
 				HostUser:       "user",
+				KeyType:        "ssh-rsa",
 			},
 			errValidation: require.NoError,
 		},
@@ -48,6 +49,7 @@ func TestAuthorizedKey(t *testing.T) {
 				HostId:         uuid.New().String(),
 				KeyFingerprint: "",
 				HostUser:       "user",
+				KeyType:        "ssh-rsa",
 			},
 			errValidation: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "KeyFingerprint is unset")
@@ -59,6 +61,7 @@ func TestAuthorizedKey(t *testing.T) {
 				HostId:         uuid.New().String(),
 				KeyFingerprint: "fingerprint",
 				HostUser:       "",
+				KeyType:        "ssh-rsa",
 			},
 			errValidation: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "HostUser is unset")
@@ -69,9 +72,21 @@ func TestAuthorizedKey(t *testing.T) {
 			spec: &accessgraphv1pb.AuthorizedKeySpec{
 				KeyFingerprint: "fingerprint",
 				HostUser:       "user",
+				KeyType:        "ssh-rsa",
 			},
 			errValidation: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "HostId is unset")
+			},
+		},
+		{
+			name: "missing HostID",
+			spec: &accessgraphv1pb.AuthorizedKeySpec{
+				KeyFingerprint: "fingerprint",
+				HostUser:       "user",
+				HostId:         uuid.New().String(),
+			},
+			errValidation: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "KeyType is unset")
 			},
 		},
 	}
