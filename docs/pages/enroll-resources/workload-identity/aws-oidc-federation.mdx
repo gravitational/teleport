@@ -191,9 +191,9 @@ resource "aws_s3_bucket" "example" {
 First, create an IAM policy that will grant access to the S3 bucket. Later,
 you'll attach this to a role that the workload will assume.
 
-To keep things simple within this guide, the policy will grant full access to
-the bucket. In a production environment, you should modify this to grant the 
-least privileges necessary.
+The examples in this guide will create an IAM policy that will grant full access
+to the example bucket. In a production environment, you should modify this to
+grant the least privileges necessary.
 
 <Tabs>
 <TabItem label="Terraform">
