@@ -118,6 +118,9 @@ $ curl https://example.teleport.sh/webapi/thumbprint
 "example589ee4bf31a11b78c72b8d13f0example"%
 ```
 
+Insert the following into a Terraform configuration file which has already
+been configured to manage your AWS account:
+
 ```hcl
 resource "aws_iam_openid_connect_provider" "leaf_tele_ottr_sh_workload_identity" {
   // Replace "example.teleport.sh" with the hostname used to access your
@@ -139,14 +142,14 @@ resource "aws_iam_openid_connect_provider" "leaf_tele_ottr_sh_workload_identity"
 <TabItem label="AWS Console">
 
 1. Browse to IAM
-2. Select "Identity Providers" from the sidebar
-3. Select "Add provider"
-4. Select "OpenID Connect" as the "Provider type".
-5. Specify the public hostname of your Teleport Proxy Service, with
+1. Select "Identity Providers" from the sidebar
+1. Select "Add provider"
+1. Select "OpenID Connect" as the "Provider type".
+1. Specify the public hostname of your Teleport Proxy Service, with
   "/workload-identity" appended as the "Provider URL", e.g
   `https://example.teleport.sh/workload-identity`
-6. Specify `sts.amazonaws.com` as the Audience
-7. Click "Add Provider".
+1. Specify `sts.amazonaws.com` as the Audience
+1. Click "Add Provider".
 
 </TabItem>
 </Tabs>
@@ -173,10 +176,10 @@ resource "aws_s3_bucket" "example" {
 <TabItem label="AWS Console">
 
 1. Browse to S3
-2. Select "Create bucket"
-3. Enter a meaningful, unique name for your bucket, e.g `workload-id-demo`
-4. Leave other settings as default
-5. Click "Create bucket".
+1. Select "Create bucket"
+1. Enter a meaningful, unique name for your bucket, e.g `workload-id-demo`
+1. Leave other settings as default
+1. Click "Create bucket".
 
 </TabItem>
 </Tabs>
@@ -257,37 +260,37 @@ resource "aws_iam_role_policy_attachment" "example" {
 ### Creating an IAM Policy
 
 1. Browse to IAM
-2. Select "Policies" from the sidebar
-3. Click "Create policy"
-4. Choose the "S3" service
-5. Under "Actions allowed", choose "All S3 actions"
-6. Under "Resources", choose "Specific"
-  6a. For "bucket" enter the name of the bucket you created earlier.
-  6b. For "object" enter the name of the bucket you created earlier and select
+1. Select "Policies" from the sidebar
+1. Click "Create policy"
+1. Choose the "S3" service
+1. Under "Actions allowed", choose "All S3 actions"
+1. Under "Resources", choose "Specific"
+  1. For "bucket" enter the name of the bucket you created earlier.
+  1. For "object" enter the name of the bucket you created earlier and select
     "All objects"
-7. Click "Next"
-8. Enter a unique and meaningful name for this policy, in our example, this will
+1. Click "Next"
+1. Enter a unique and meaningful name for this policy, in our example, this will
   be `workload-id-s3-full-access`
-9. Click "Create policy"
+1. Click "Create policy"
 
 ### Creating an IAM Role
 
 1. Browse to IAM
-2. Select "Roles" from the sidebar
-3. Click "Create role"
-4. Select "Web identity" for the "Trusted entity type"
-5. Select your identity provider
-6. Select the `sts.amazonaws.com` audience
-7. Click "Add condition"
-  7a. Select `example.teleport.sh:sub` for the key
-  7b. Select "StringEquals" for the condition
-  7c. Enter the SPIFFE ID of your workload for the value. In our example, this 
+1. Select "Roles" from the sidebar
+1. Click "Create role"
+1. Select "Web identity" for the "Trusted entity type"
+1. Select your identity provider
+1. Select the `sts.amazonaws.com` audience
+1. Click "Add condition"
+  1. Select `example.teleport.sh:sub` for the key
+  1. Select "StringEquals" for the condition
+  1. Enter the SPIFFE ID of your workload for the value. In our example, this 
     will be `spiffe://example.teleport.sh/svc/example
-8. Click "Next"
-9. Select the IAM policy you created earlier, and click "Next"
-10. Enter a unique and meaningful name for this role, in our example, this will
+1. Click "Next"
+1. Select the IAM policy you created earlier, and click "Next"
+1. Enter a unique and meaningful name for this role, in our example, this will
   be `workload-id-demo`
-11. Click "Create role"
+1. Click "Create role"
 
 </TabItem>
 </Tabs>
@@ -411,7 +414,13 @@ $ aws s3 cp hello.txt s3://workload-id-demo
 ```
 
 If everything is configured correctly, you should see this file uploaded to your
-bucket. Inspecting the audit logs on CloudTrail should indicate that the request
+bucket:
+
+```code
+$ aws s3 ls s3://workload-id-demo
+```
+
+Inspecting the audit logs on CloudTrail should indicate that the request
 was authenticated using Workload Identity and specify the SPIFFE ID of the
 workload that made the request.
 
