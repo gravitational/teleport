@@ -100,7 +100,6 @@ const (
 	// HostSSH represents a host SSH key.
 	HostSSH
 	// HostIdentity represents a key used for a Teleport host identity.
-	// TODO(nklaassen): split SSH and TLS keys used for host identities.
 	HostIdentity
 
 	// BotImpersonatedIdentity represents a key used for a general impersonated
