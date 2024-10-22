@@ -47,7 +47,7 @@ export function ChangePin(props: {
   onSuccess(response: PromptHardwareKeyPINChangeResponse): void;
 }) {
   const [pin, setPin] = useState('');
-  const [conformPin, setConfirmPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const [puk, setPuk] = useState('');
   const [newPuk, setNewPuk] = useState('');
   const [confirmNewPuk, setConfirmNewPuk] = useState('');
@@ -107,7 +107,7 @@ export function ChangePin(props: {
                   type="password"
                   label="Confirm New PIV PIN"
                   inputMode="numeric"
-                  value={conformPin}
+                  value={confirmPin}
                   onChange={e => setConfirmPin(e.target.value)}
                   mb={0}
                   rule={requiredAll(
