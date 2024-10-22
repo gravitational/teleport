@@ -86,7 +86,7 @@ export function AccessListsSync({
                   </Flex>
                 ) : (
                   <Text color={'text.slightlyMuted'} mt={2}>
-                    <i>No default owners definfed</i>
+                    <i>No default owners defined</i>
                   </Text>
                 )}
                 {spec.groupFilters.length ? (

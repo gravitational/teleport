@@ -69,7 +69,7 @@ export function AwsIcConfigureIdentitySource() {
 
           <ButtonFileUpload
             text="Upload Identity Center Metadata File"
-            errorMessage="AWS Identity Center SAML service provider metada file is required"
+            errorMessage="AWS Identity Center SAML service provider metadata file is required"
             accept=".xml"
             onFileSelect={onFileSelect}
             showValidationError={showFileValidationError}
