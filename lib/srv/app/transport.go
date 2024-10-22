@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,7 +29,6 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -47,7 +47,7 @@ type transportConfig struct {
 	cipherSuites []uint16
 	jwt          string
 	traits       wrappers.Traits
-	log          logrus.FieldLogger
+	log          *slog.Logger
 }
 
 // Check validates configuration.
@@ -62,7 +62,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("jwt missing")
 	}
 	if c.log == nil {
-		c.log = logrus.WithField(teleport.ComponentKey, "transport")
+		c.log = slog.Default().With(teleport.ComponentKey, "transport")
 	}
 
 	return nil
@@ -185,12 +185,15 @@ func rewriteHeaders(r *http.Request, c *transportConfig) {
 	}
 	for _, header := range c.app.GetRewrite().Headers {
 		if common.IsReservedHeader(header.Name) {
-			c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
+			c.log.With("header_name", header.Name).DebugContext(context.Background(), "Not rewriting Teleport reserved header")
 			continue
 		}
 		values, err := services.ApplyValueTraits(header.Value, c.traits)
 		if err != nil {
-			c.log.Debugf("Failed to apply traits to %q: %v.", header.Value, err)
+			c.log.With(
+				"header_value", header.Value,
+				"error", err,
+			).DebugContext(context.Background(), "Failed to apply traits")
 			continue
 		}
 		r.Header.Del(header.Name)

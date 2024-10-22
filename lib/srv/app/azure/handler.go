@@ -51,11 +51,9 @@ const ComponentKey = "azure:fwd"
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
-	// Log is the Logger.
-	// TODO(greedy52) replace with slog.
-	Log logrus.FieldLogger
 	// Logger is the slog.Logger.
-	Logger *slog.Logger
+	LegacyLogger logrus.FieldLogger
+	Logger       *slog.Logger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 
@@ -75,8 +73,8 @@ func (s *HandlerConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
 	}
-	if s.Log == nil {
-		s.Log = logrus.WithField(teleport.ComponentKey, ComponentKey)
+	if s.LegacyLogger == nil {
+		s.LegacyLogger = logrus.WithField(teleport.ComponentKey, ComponentKey)
 	}
 	if s.Logger == nil {
 		s.Logger = slog.Default().With(teleport.ComponentKey, ComponentKey)
@@ -127,7 +125,7 @@ func newAzureHandler(ctx context.Context, config HandlerConfig) (*handler, error
 
 	svc.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.Log),
+		reverseproxy.WithLogger(config.LegacyLogger),
 		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
 	)
 
@@ -161,13 +159,13 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 
 	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, status, nil); err != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(err).Warn("Failed to emit audit event.")
+		s.Logger.With("error", err).WarnContext(context.Background(), "Failed to emit audit event.")
 	}
 	return nil
 }
 
 func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.WithError(err).Debugf("Failed to process request.")
+	s.Logger.With("error", err).DebugContext(context.Background(), "Failed to process request.")
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -224,7 +222,7 @@ func getPeerKey(certs []*x509.Certificate) (crypto.PublicKey, error) {
 func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
 	auth := reqCopy.Header.Get("Authorization")
 	if auth == "" {
-		s.Log.Debugf("No Authorization header present, skipping replacement.")
+		s.Logger.DebugContext(context.Background(), "No Authorization header present, skipping replacement.")
 		return nil
 	}
 
@@ -238,7 +236,11 @@ func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.Session
 		return trace.Wrap(err, "failed to parse Authorization header")
 	}
 
-	s.Log.Debugf("Processing request, sessionId = %q, azureIdentity = %q, claims = %v", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.AzureIdentity, claims)
+	s.Logger.With(
+		"session_id", sessionCtx.Identity.RouteToApp.SessionID,
+		"azure_identity", sessionCtx.Identity.RouteToApp.AzureIdentity,
+		"claims", claims,
+	).DebugContext(context.Background(), "Processing request.")
 	token, err := s.getToken(r.Context(), sessionCtx.Identity.RouteToApp.AzureIdentity, claims.Resource)
 	if err != nil {
 		return trace.Wrap(err)
