@@ -66,7 +66,7 @@ export function AskPin(props: {
                   Enter your YubiKey PIV PIN.
                   <br />
                   {props.req.pinOptional &&
-                    'To set up the PIN, leave the field blank and click Continue.'}
+                    'To change the default PIN, leave the field blank.'}
                 </P2>
 
                 <FieldInput
