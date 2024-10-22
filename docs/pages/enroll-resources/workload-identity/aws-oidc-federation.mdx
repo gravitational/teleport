@@ -186,7 +186,66 @@ resource "aws_s3_bucket" "example" {
 
 ### Configure RBAC
 
-First, you'll create an IAM role. This role will be assumed by the workload
+#### Create an IAM Policy
+
+First, create an IAM policy that will grant access to the S3 bucket. Later,
+you'll attach this to a role that the workload will assume.
+
+To keep things simple within this guide, the policy will grant full access to
+the bucket. In a production environment, you should modify this to grant the 
+least privileges necessary.
+
+<Tabs>
+<TabItem label="Terraform">
+
+Insert the following into your Terraform configuration file:
+
+```hcl
+resource "aws_iam_policy" "example" {
+  // Choose a unique, meaningful name that describes what the policy grants
+  // access to.
+  name        = "workload-id-s3-full-access"
+  path        = "/"
+
+  // This example policy grants full access to AWS S3. In production, you
+  // may wish to grant a less permissive policy.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "s3:*"
+      Effect = "Allow"
+      Resource = [
+        aws_s3_bucket.workload_id_demo.arn,
+        "${aws_s3_bucket.workload_id_demo.arn}/*"
+      ]
+    }]
+  })
+}
+```
+
+</TabItem>
+<TabItem label="AWS Console">
+
+1. Browse to IAM
+1. Select "Policies" from the sidebar
+1. Click "Create policy"
+1. Choose the "S3" service
+1. Under "Actions allowed", choose "All S3 actions"
+1. Under "Resources", choose "Specific"
+  1. For "bucket" enter the name of the bucket you created earlier.
+  1. For "object" enter the name of the bucket you created earlier and select
+    "All objects"
+1. Click "Next"
+1. Enter a unique and meaningful name for this policy, in our example, this will
+  be `workload-id-s3-full-access`
+1. Click "Create policy"
+
+</TabItem>
+</Tabs>
+
+#### Create an IAM Role
+
+Now, you'll create an IAM role. This role will be assumed by the workload
 after it authenticates to AWS using the JWT SVID issued by Teleport Workload
 Identity.
 
@@ -196,11 +255,13 @@ conditions which will be evaluated against the claims within the JWT SVID
 issued by Teleport Workload Identity. In our case, the only claim we want to 
 evaluate is the `sub` claim, which will contain our workload's SPIFFE ID.
 
-With the IAM role created, you will then attach an IAM policy to it to define
-what privileges the workload will have when it assumes the role.
+Finally, we'll attach the IAM policy we created earlier to this role to grant it
+the privileges specified within the policy.
 
 <Tabs>
 <TabItem label="Terraform">
+
+Insert the following into your Terraform configuration file:
 
 ```hcl
 // Create a role that the workload identity will assume.
@@ -226,54 +287,14 @@ resource "aws_iam_role" "example" {
   })
 }
 
-resource "aws_iam_policy" "example" {
-  // Choose a unique, meaningful name that describes what the policy grants
-  // access to.
-  name        = "workload-id-s3-full-access"
-  path        = "/"
-
-  // This example policy grants full access to AWS S3. In production, you
-  // may wish to grant a less permissive policy.
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "s3:*"
-      Effect = "Allow"
-      Resource = [
-        aws_s3_bucket.workload_id_demo.arn,
-        "${aws_s3_bucket.workload_id_demo.arn}/*"
-      ]
-    }]
-  })
-}
-
-// Attach the policy to the role
+// Attach the policy we created earlier to our role.
 resource "aws_iam_role_policy_attachment" "example" {
     role       = aws_iam_role.example.name
     policy_arn = aws_iam_policy.example.arn
 }
 ```
-
 </TabItem>
 <TabItem label="AWS Console">
-
-### Creating an IAM Policy
-
-1. Browse to IAM
-1. Select "Policies" from the sidebar
-1. Click "Create policy"
-1. Choose the "S3" service
-1. Under "Actions allowed", choose "All S3 actions"
-1. Under "Resources", choose "Specific"
-  1. For "bucket" enter the name of the bucket you created earlier.
-  1. For "object" enter the name of the bucket you created earlier and select
-    "All objects"
-1. Click "Next"
-1. Enter a unique and meaningful name for this policy, in our example, this will
-  be `workload-id-s3-full-access`
-1. Click "Create policy"
-
-### Creating an IAM Role
 
 1. Browse to IAM
 1. Select "Roles" from the sidebar
