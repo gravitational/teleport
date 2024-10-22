@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentCgroup)
@@ -153,7 +152,7 @@ func (s *Service) Remove(sessionID string) error {
 		return trace.Wrap(err)
 	}
 
-	log.DebugContext(context.TODO(), "Removed cgroup for session.", "session_id", sessionID)
+	logger.DebugContext(context.TODO(), "Removed cgroup for session.", "session_id", sessionID)
 	return nil
 }
 
