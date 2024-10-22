@@ -90,7 +90,7 @@ jobs:
           # changed files.
           filter_mode: added
           fail_on_error: true
-          vale_flags: '--config=$GITHUB_WORKSPACE/docs/.vale.ini'
+          vale_flags: '--config=$GITHUB_WORKSPACE/docs/content/teleport/docs/.vale.ini'
 
       - name: Test the docs build
         working-directory: 'docs'
