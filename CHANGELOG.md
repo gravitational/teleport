@@ -6,7 +6,7 @@
 * The `join_token.create` audit event has been enriched with additional metadata. [#47765](https://github.com/gravitational/teleport/pull/47765)
 * Propagate resources configured in teleport-kube-agent chart values to post-install and post-delete hooks. [#47743](https://github.com/gravitational/teleport/pull/47743)
 * Add support for the Datadog Incident Management plugin helm chart. [#47727](https://github.com/gravitational/teleport/pull/47727)
-* Auto-enroll may be locally disabled using the TELEPORT_DEVICE_AUTO_ENROLL_DISABLED=1 environment variable. [#47720](https://github.com/gravitational/teleport/pull/47720)
+* Automatic device enrollment may be locally disabled using the TELEPORT_DEVICE_AUTO_ENROLL_DISABLED=1 environment variable. [#47720](https://github.com/gravitational/teleport/pull/47720)
 * Fixed the Machine ID and GitHub Actions wizard. [#47708](https://github.com/gravitational/teleport/pull/47708)
 * Added migration to update the old import_all_objects database object import rule to the new preset. [#47707](https://github.com/gravitational/teleport/pull/47707)
 * Alter ServiceAccounts in the teleport-cluster Helm chart to automatically disable mounting of service account tokens on newer Kubernetes distributions, helping satisfy security linters. [#47703](https://github.com/gravitational/teleport/pull/47703)
