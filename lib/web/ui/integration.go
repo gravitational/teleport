@@ -528,8 +528,8 @@ type AWSOIDCPingResponse struct {
 
 // AWSOIDCPingRequest contains ping request fields.
 type AWSOIDCPingRequest struct {
-	// ARN is optional, and used for cases such as
+	// RoleARN is optional, and used for cases such as
 	// pinging to check validity before upserting an
 	// AWS OIDC integration.
-	ARN string `json:"arn,omitempty"`
+	RoleARN string `json:"roleArn,omitempty"`
 }
