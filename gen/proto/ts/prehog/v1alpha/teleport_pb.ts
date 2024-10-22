@@ -332,6 +332,13 @@ export interface SessionStartDesktopMetadata {
      * @generated from protobuf field: bool allow_user_creation = 4;
      */
     allowUserCreation: boolean;
+    /**
+     * Indicates whether network level authentication (NLA) was used to
+     * establish this RDP session.
+     *
+     * @generated from protobuf field: bool nla = 5;
+     */
+    nla: boolean;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -2137,6 +2144,199 @@ export interface TAGExecuteQueryEvent {
     isSuccess: boolean;
 }
 /**
+ * AccessGraphSecretsScanAuthorizedKeysEvent is emitted when the Access Graph
+ * SSH authorized keys scan is performed.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+ */
+export interface AccessGraphSecretsScanAuthorizedKeysEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string host_id = 1;
+     */
+    hostId: string;
+    /**
+     * total_keys is the total amount of keys found in the authorized keys file.
+     *
+     * @generated from protobuf field: uint64 total_keys = 2;
+     */
+    totalKeys: bigint;
+}
+/**
+ * AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when the Access Graph
+ * SSH private keys scan is performed.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+ */
+export interface AccessGraphSecretsScanSSHPrivateKeysEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string device_id = 1;
+     */
+    deviceId: string;
+    /**
+     * total_keys is the total amount of keys found in the private keys file.
+     *
+     * @generated from protobuf field: uint64 total_keys = 2;
+     */
+    totalKeys: bigint;
+    /**
+     * device OS type
+     *
+     * @generated from protobuf field: string device_os_type = 3;
+     */
+    deviceOsType: string;
+}
+/**
+ * AccessGraphGitlabScanEvent is emitted when the Access Graph
+ * Gitlab scan is enabled.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphGitlabScanEvent
+ */
+export interface AccessGraphGitlabScanEvent {
+    /**
+     * total_projects is the total amount of projects found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_projects = 1;
+     */
+    totalProjects: bigint;
+    /**
+     * total_users is the total amount of users found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_users = 2;
+     */
+    totalUsers: bigint;
+    /**
+     * total_groups is the total amount of groups found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_groups = 3;
+     */
+    totalGroups: bigint;
+}
+/**
+ * AccessGraphAWSScanEvent is emitted when the Access Graph
+ * AWS scan is enabled.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphAWSScanEvent
+ */
+export interface AccessGraphAWSScanEvent {
+    /**
+     * total_ec2_instances is the total amount of EC2 instances found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_ec2_instances = 1;
+     */
+    totalEc2Instances: bigint;
+    /**
+     * total_users is the total amount of users found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_users = 2;
+     */
+    totalUsers: bigint;
+    /**
+     * total_groups is the total amount of groups found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_groups = 3;
+     */
+    totalGroups: bigint;
+    /**
+     * total_roles is the total amount of roles found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_roles = 4;
+     */
+    totalRoles: bigint;
+    /**
+     * total_policies is the total amount of policies found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_policies = 5;
+     */
+    totalPolicies: bigint;
+    /**
+     * total_eks_clusters is the total amount of EKS clusters found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_eks_clusters = 6;
+     */
+    totalEksClusters: bigint;
+    /**
+     * total_rds_instances is the total amount of RDS instances found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_rds_instances = 7;
+     */
+    totalRdsInstances: bigint;
+    /**
+     * total_s3_buckets is the total amount of S3 buckets found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_s3_buckets = 8;
+     */
+    totalS3Buckets: bigint;
+    /**
+     * total_saml_providers is the total amount of SAML providers found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_saml_providers = 9;
+     */
+    totalSamlProviders: bigint;
+    /**
+     * total_oidc_providers is the total amount of OIDC providers found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_oidc_providers = 10;
+     */
+    totalOidcProviders: bigint;
+    /**
+     * total_accounts is the total amount of accounts synchronized in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_accounts = 11;
+     */
+    totalAccounts: bigint;
+}
+/**
+ * AccessGraphAccessPathChangedEvent is emitted when the Crown Jewel functionality
+ * is enabled and the Access Graph access path is changed.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphAccessPathChangedEvent
+ */
+export interface AccessGraphAccessPathChangedEvent {
+    /**
+     * affected_resource_source is the source of the affected resource.
+     *
+     * @generated from protobuf field: string affected_resource_source = 1;
+     */
+    affectedResourceSource: string;
+    /**
+     * affected_resource_type is the type of the affected resource.
+     *
+     * @generated from protobuf field: string affected_resource_type = 2;
+     */
+    affectedResourceType: string;
+}
+/**
+ * UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
+ */
+export interface UIAccessGraphCrownJewelDiffViewEvent {
+    /**
+     * affected_resource_source is the source of the affected resource.
+     *
+     * @generated from protobuf field: string affected_resource_source = 1;
+     */
+    affectedResourceSource: string;
+    /**
+     * affected_resource_type is the type of the affected resource.
+     *
+     * @generated from protobuf field: string affected_resource_type = 2;
+     */
+    affectedResourceType: string;
+}
+/**
+ * AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
+ * Crown Jewel Resource.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphCrownJewelCreateEvent
+ */
+export interface AccessGraphCrownJewelCreateEvent {
+}
+/**
  * ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
  * Storage feature authenticates to the customer AWS account via OIDC connector.
  * The purpose is to have a regularly emitted event indicating that the External
@@ -2328,6 +2528,54 @@ export interface DatabaseUserPermissionsUpdateEvent {
      * @generated from protobuf field: int32 num_tables_permissions = 4;
      */
     numTablesPermissions: number;
+}
+/**
+ * UserTaskStateEvent is emitted when a UserTask state changes.
+ * This can happen when the Task is created, when it's manually
+ * resolved by the user or when it changes back to being open
+ * when the issue happens again.
+ *
+ * PostHog event: tp.usertask.state
+ *
+ * @generated from protobuf message prehog.v1alpha.UserTaskStateEvent
+ */
+export interface UserTaskStateEvent {
+    /**
+     * task_type is the identifier for the type of task.
+     * Eg, discover-ec2
+     *
+     * PostHog property: tp.usertask.task_type
+     *
+     * @generated from protobuf field: string task_type = 1;
+     */
+    taskType: string;
+    /**
+     * issue_type is the identifier for the type of issue that occurred.
+     *
+     * PostHog property: tp.usertask.issue_type
+     *
+     * @generated from protobuf field: string issue_type = 2;
+     */
+    issueType: string;
+    /**
+     * state identifies the new state for this task.
+     * One of: OPEN, RESOLVED
+     *
+     * PostHog property: tp.usertask.state
+     *
+     * @generated from protobuf field: string state = 3;
+     */
+    state: string;
+    /**
+     * instances_count contains the number of instances that were affected by the issue
+     * This field is only present for the following task_types:
+     * - discover-ec2
+     *
+     * PostHog property: tp.usertask.discover_ec2.instances_count
+     *
+     * @generated from protobuf field: int32 instances_count = 4;
+     */
+    instancesCount: number;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -2852,6 +3100,54 @@ export interface SubmitEventRequest {
          */
         uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent;
     } | {
+        oneofKind: "accessGraphGitlabScan";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86;
+         */
+        accessGraphGitlabScan: AccessGraphGitlabScanEvent;
+    } | {
+        oneofKind: "accessGraphSecretsScanAuthorizedKeys";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87;
+         */
+        accessGraphSecretsScanAuthorizedKeys: AccessGraphSecretsScanAuthorizedKeysEvent;
+    } | {
+        oneofKind: "accessGraphSecretsScanSshPrivateKeys";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
+         */
+        accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent;
+    } | {
+        oneofKind: "accessGraphAwsScan";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphAWSScanEvent access_graph_aws_scan = 89;
+         */
+        accessGraphAwsScan: AccessGraphAWSScanEvent;
+    } | {
+        oneofKind: "accessGraphAccessPathChanged";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphAccessPathChangedEvent access_graph_access_path_changed = 90;
+         */
+        accessGraphAccessPathChanged: AccessGraphAccessPathChangedEvent;
+    } | {
+        oneofKind: "accessGraphCrownJewelCreate";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
+         */
+        accessGraphCrownJewelCreate: AccessGraphCrownJewelCreateEvent;
+    } | {
+        oneofKind: "uiAccessGraphCrownJewelDiffView";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+         */
+        uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent;
+    } | {
+        oneofKind: "userTaskState";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UserTaskStateEvent user_task_state = 94;
+         */
+        userTaskState: UserTaskStateEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -3264,6 +3560,10 @@ export enum CTA {
  * IntegrationEnrollKind represents the types of integration that
  * can be enrolled.
  *
+ * Note: IntegrationEnrollKind enum must be kept in sync with the values defined
+ * in api/proto/teleport/usageevents/v1/usageevents.proto. Values 18-25 have
+ * become out of sync and are manually mapped to each other.
+ *
  * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollKind
  */
 export enum IntegrationEnrollKind {
@@ -3362,7 +3662,15 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
      */
-    ENTRA_ID = 23
+    ENTRA_ID = 23,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
+     */
+    DATADOG_INCIDENT_MANAGEMENT = 24,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
+     */
+    SERVICENOW = 25
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status
@@ -3974,7 +4282,8 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
             { no: 1, name: "desktop_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "windows_domain", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "allow_user_creation", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 4, name: "allow_user_creation", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "nla", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<SessionStartDesktopMetadata>): SessionStartDesktopMetadata {
@@ -3983,6 +4292,7 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
         message.origin = "";
         message.windowsDomain = "";
         message.allowUserCreation = false;
+        message.nla = false;
         if (value !== undefined)
             reflectionMergePartial<SessionStartDesktopMetadata>(this, message, value);
         return message;
@@ -4003,6 +4313,9 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
                     break;
                 case /* bool allow_user_creation */ 4:
                     message.allowUserCreation = reader.bool();
+                    break;
+                case /* bool nla */ 5:
+                    message.nla = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4028,6 +4341,9 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
         /* bool allow_user_creation = 4; */
         if (message.allowUserCreation !== false)
             writer.tag(4, WireType.Varint).bool(message.allowUserCreation);
+        /* bool nla = 5; */
+        if (message.nla !== false)
+            writer.tag(5, WireType.Varint).bool(message.nla);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -8496,6 +8812,449 @@ class TAGExecuteQueryEvent$Type extends MessageType<TAGExecuteQueryEvent> {
  */
 export const TAGExecuteQueryEvent = new TAGExecuteQueryEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphSecretsScanAuthorizedKeysEvent$Type extends MessageType<AccessGraphSecretsScanAuthorizedKeysEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent", [
+            { no: 1, name: "host_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_keys", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphSecretsScanAuthorizedKeysEvent>): AccessGraphSecretsScanAuthorizedKeysEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.hostId = "";
+        message.totalKeys = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphSecretsScanAuthorizedKeysEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphSecretsScanAuthorizedKeysEvent): AccessGraphSecretsScanAuthorizedKeysEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string host_id */ 1:
+                    message.hostId = reader.string();
+                    break;
+                case /* uint64 total_keys */ 2:
+                    message.totalKeys = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphSecretsScanAuthorizedKeysEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string host_id = 1; */
+        if (message.hostId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.hostId);
+        /* uint64 total_keys = 2; */
+        if (message.totalKeys !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalKeys);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+ */
+export const AccessGraphSecretsScanAuthorizedKeysEvent = new AccessGraphSecretsScanAuthorizedKeysEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphSecretsScanSSHPrivateKeysEvent$Type extends MessageType<AccessGraphSecretsScanSSHPrivateKeysEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent", [
+            { no: 1, name: "device_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_keys", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "device_os_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphSecretsScanSSHPrivateKeysEvent>): AccessGraphSecretsScanSSHPrivateKeysEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.deviceId = "";
+        message.totalKeys = 0n;
+        message.deviceOsType = "";
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphSecretsScanSSHPrivateKeysEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphSecretsScanSSHPrivateKeysEvent): AccessGraphSecretsScanSSHPrivateKeysEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string device_id */ 1:
+                    message.deviceId = reader.string();
+                    break;
+                case /* uint64 total_keys */ 2:
+                    message.totalKeys = reader.uint64().toBigInt();
+                    break;
+                case /* string device_os_type */ 3:
+                    message.deviceOsType = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphSecretsScanSSHPrivateKeysEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string device_id = 1; */
+        if (message.deviceId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.deviceId);
+        /* uint64 total_keys = 2; */
+        if (message.totalKeys !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalKeys);
+        /* string device_os_type = 3; */
+        if (message.deviceOsType !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.deviceOsType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+ */
+export const AccessGraphSecretsScanSSHPrivateKeysEvent = new AccessGraphSecretsScanSSHPrivateKeysEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphGitlabScanEvent$Type extends MessageType<AccessGraphGitlabScanEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphGitlabScanEvent", [
+            { no: 1, name: "total_projects", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 2, name: "total_users", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_groups", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphGitlabScanEvent>): AccessGraphGitlabScanEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.totalProjects = 0n;
+        message.totalUsers = 0n;
+        message.totalGroups = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphGitlabScanEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphGitlabScanEvent): AccessGraphGitlabScanEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint64 total_projects */ 1:
+                    message.totalProjects = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_users */ 2:
+                    message.totalUsers = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_groups */ 3:
+                    message.totalGroups = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphGitlabScanEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint64 total_projects = 1; */
+        if (message.totalProjects !== 0n)
+            writer.tag(1, WireType.Varint).uint64(message.totalProjects);
+        /* uint64 total_users = 2; */
+        if (message.totalUsers !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalUsers);
+        /* uint64 total_groups = 3; */
+        if (message.totalGroups !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalGroups);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphGitlabScanEvent
+ */
+export const AccessGraphGitlabScanEvent = new AccessGraphGitlabScanEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphAWSScanEvent$Type extends MessageType<AccessGraphAWSScanEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphAWSScanEvent", [
+            { no: 1, name: "total_ec2_instances", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 2, name: "total_users", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_groups", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 4, name: "total_roles", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 5, name: "total_policies", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 6, name: "total_eks_clusters", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 7, name: "total_rds_instances", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 8, name: "total_s3_buckets", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 9, name: "total_saml_providers", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 10, name: "total_oidc_providers", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 11, name: "total_accounts", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphAWSScanEvent>): AccessGraphAWSScanEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.totalEc2Instances = 0n;
+        message.totalUsers = 0n;
+        message.totalGroups = 0n;
+        message.totalRoles = 0n;
+        message.totalPolicies = 0n;
+        message.totalEksClusters = 0n;
+        message.totalRdsInstances = 0n;
+        message.totalS3Buckets = 0n;
+        message.totalSamlProviders = 0n;
+        message.totalOidcProviders = 0n;
+        message.totalAccounts = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphAWSScanEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphAWSScanEvent): AccessGraphAWSScanEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint64 total_ec2_instances */ 1:
+                    message.totalEc2Instances = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_users */ 2:
+                    message.totalUsers = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_groups */ 3:
+                    message.totalGroups = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_roles */ 4:
+                    message.totalRoles = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_policies */ 5:
+                    message.totalPolicies = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_eks_clusters */ 6:
+                    message.totalEksClusters = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_rds_instances */ 7:
+                    message.totalRdsInstances = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_s3_buckets */ 8:
+                    message.totalS3Buckets = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_saml_providers */ 9:
+                    message.totalSamlProviders = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_oidc_providers */ 10:
+                    message.totalOidcProviders = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_accounts */ 11:
+                    message.totalAccounts = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphAWSScanEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint64 total_ec2_instances = 1; */
+        if (message.totalEc2Instances !== 0n)
+            writer.tag(1, WireType.Varint).uint64(message.totalEc2Instances);
+        /* uint64 total_users = 2; */
+        if (message.totalUsers !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalUsers);
+        /* uint64 total_groups = 3; */
+        if (message.totalGroups !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalGroups);
+        /* uint64 total_roles = 4; */
+        if (message.totalRoles !== 0n)
+            writer.tag(4, WireType.Varint).uint64(message.totalRoles);
+        /* uint64 total_policies = 5; */
+        if (message.totalPolicies !== 0n)
+            writer.tag(5, WireType.Varint).uint64(message.totalPolicies);
+        /* uint64 total_eks_clusters = 6; */
+        if (message.totalEksClusters !== 0n)
+            writer.tag(6, WireType.Varint).uint64(message.totalEksClusters);
+        /* uint64 total_rds_instances = 7; */
+        if (message.totalRdsInstances !== 0n)
+            writer.tag(7, WireType.Varint).uint64(message.totalRdsInstances);
+        /* uint64 total_s3_buckets = 8; */
+        if (message.totalS3Buckets !== 0n)
+            writer.tag(8, WireType.Varint).uint64(message.totalS3Buckets);
+        /* uint64 total_saml_providers = 9; */
+        if (message.totalSamlProviders !== 0n)
+            writer.tag(9, WireType.Varint).uint64(message.totalSamlProviders);
+        /* uint64 total_oidc_providers = 10; */
+        if (message.totalOidcProviders !== 0n)
+            writer.tag(10, WireType.Varint).uint64(message.totalOidcProviders);
+        /* uint64 total_accounts = 11; */
+        if (message.totalAccounts !== 0n)
+            writer.tag(11, WireType.Varint).uint64(message.totalAccounts);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphAWSScanEvent
+ */
+export const AccessGraphAWSScanEvent = new AccessGraphAWSScanEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphAccessPathChangedEvent$Type extends MessageType<AccessGraphAccessPathChangedEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphAccessPathChangedEvent", [
+            { no: 1, name: "affected_resource_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "affected_resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphAccessPathChangedEvent>): AccessGraphAccessPathChangedEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.affectedResourceSource = "";
+        message.affectedResourceType = "";
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphAccessPathChangedEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphAccessPathChangedEvent): AccessGraphAccessPathChangedEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string affected_resource_source */ 1:
+                    message.affectedResourceSource = reader.string();
+                    break;
+                case /* string affected_resource_type */ 2:
+                    message.affectedResourceType = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphAccessPathChangedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string affected_resource_source = 1; */
+        if (message.affectedResourceSource !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.affectedResourceSource);
+        /* string affected_resource_type = 2; */
+        if (message.affectedResourceType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.affectedResourceType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphAccessPathChangedEvent
+ */
+export const AccessGraphAccessPathChangedEvent = new AccessGraphAccessPathChangedEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIAccessGraphCrownJewelDiffViewEvent$Type extends MessageType<UIAccessGraphCrownJewelDiffViewEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent", [
+            { no: 1, name: "affected_resource_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "affected_resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UIAccessGraphCrownJewelDiffViewEvent>): UIAccessGraphCrownJewelDiffViewEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.affectedResourceSource = "";
+        message.affectedResourceType = "";
+        if (value !== undefined)
+            reflectionMergePartial<UIAccessGraphCrownJewelDiffViewEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessGraphCrownJewelDiffViewEvent): UIAccessGraphCrownJewelDiffViewEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string affected_resource_source */ 1:
+                    message.affectedResourceSource = reader.string();
+                    break;
+                case /* string affected_resource_type */ 2:
+                    message.affectedResourceType = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIAccessGraphCrownJewelDiffViewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string affected_resource_source = 1; */
+        if (message.affectedResourceSource !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.affectedResourceSource);
+        /* string affected_resource_type = 2; */
+        if (message.affectedResourceType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.affectedResourceType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
+ */
+export const UIAccessGraphCrownJewelDiffViewEvent = new UIAccessGraphCrownJewelDiffViewEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphCrownJewelCreateEvent$Type extends MessageType<AccessGraphCrownJewelCreateEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphCrownJewelCreateEvent", []);
+    }
+    create(value?: PartialMessage<AccessGraphCrownJewelCreateEvent>): AccessGraphCrownJewelCreateEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphCrownJewelCreateEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphCrownJewelCreateEvent): AccessGraphCrownJewelCreateEvent {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: AccessGraphCrownJewelCreateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphCrownJewelCreateEvent
+ */
+export const AccessGraphCrownJewelCreateEvent = new AccessGraphCrownJewelCreateEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ExternalAuditStorageAuthenticateEvent$Type extends MessageType<ExternalAuditStorageAuthenticateEvent> {
     constructor() {
         super("prehog.v1alpha.ExternalAuditStorageAuthenticateEvent", []);
@@ -8929,6 +9688,77 @@ class DatabaseUserPermissionsUpdateEvent$Type extends MessageType<DatabaseUserPe
  */
 export const DatabaseUserPermissionsUpdateEvent = new DatabaseUserPermissionsUpdateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
+    constructor() {
+        super("prehog.v1alpha.UserTaskStateEvent", [
+            { no: 1, name: "task_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "issue_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "instances_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UserTaskStateEvent>): UserTaskStateEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.taskType = "";
+        message.issueType = "";
+        message.state = "";
+        message.instancesCount = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UserTaskStateEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UserTaskStateEvent): UserTaskStateEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string task_type */ 1:
+                    message.taskType = reader.string();
+                    break;
+                case /* string issue_type */ 2:
+                    message.issueType = reader.string();
+                    break;
+                case /* string state */ 3:
+                    message.state = reader.string();
+                    break;
+                case /* int32 instances_count */ 4:
+                    message.instancesCount = reader.int32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UserTaskStateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string task_type = 1; */
+        if (message.taskType !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.taskType);
+        /* string issue_type = 2; */
+        if (message.issueType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.issueType);
+        /* string state = 3; */
+        if (message.state !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.state);
+        /* int32 instances_count = 4; */
+        if (message.instancesCount !== 0)
+            writer.tag(4, WireType.Varint).int32(message.instancesCount);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UserTaskStateEvent
+ */
+export const UserTaskStateEvent = new UserTaskStateEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -9015,7 +9845,15 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent },
             { no: 83, name: "ui_discover_create_discovery_config", kind: "message", oneof: "event", T: () => UIDiscoverCreateDiscoveryConfigEvent },
             { no: 84, name: "ui_discover_kube_eks_enroll_event", kind: "message", oneof: "event", T: () => UIDiscoverKubeEKSEnrollEvent },
-            { no: 85, name: "ui_discover_create_app_server_event", kind: "message", oneof: "event", T: () => UIDiscoverCreateAppServerEvent }
+            { no: 85, name: "ui_discover_create_app_server_event", kind: "message", oneof: "event", T: () => UIDiscoverCreateAppServerEvent },
+            { no: 86, name: "access_graph_gitlab_scan", kind: "message", oneof: "event", T: () => AccessGraphGitlabScanEvent },
+            { no: 87, name: "access_graph_secrets_scan_authorized_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanAuthorizedKeysEvent },
+            { no: 88, name: "access_graph_secrets_scan_ssh_private_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanSSHPrivateKeysEvent },
+            { no: 89, name: "access_graph_aws_scan", kind: "message", oneof: "event", T: () => AccessGraphAWSScanEvent },
+            { no: 90, name: "access_graph_access_path_changed", kind: "message", oneof: "event", T: () => AccessGraphAccessPathChangedEvent },
+            { no: 91, name: "access_graph_crown_jewel_create", kind: "message", oneof: "event", T: () => AccessGraphCrownJewelCreateEvent },
+            { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent },
+            { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -9529,6 +10367,54 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverCreateAppServerEvent)
                     };
                     break;
+                case /* prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan */ 86:
+                    message.event = {
+                        oneofKind: "accessGraphGitlabScan",
+                        accessGraphGitlabScan: AccessGraphGitlabScanEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphGitlabScan)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys */ 87:
+                    message.event = {
+                        oneofKind: "accessGraphSecretsScanAuthorizedKeys",
+                        accessGraphSecretsScanAuthorizedKeys: AccessGraphSecretsScanAuthorizedKeysEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphSecretsScanAuthorizedKeys)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys */ 88:
+                    message.event = {
+                        oneofKind: "accessGraphSecretsScanSshPrivateKeys",
+                        accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphSecretsScanSshPrivateKeys)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphAWSScanEvent access_graph_aws_scan */ 89:
+                    message.event = {
+                        oneofKind: "accessGraphAwsScan",
+                        accessGraphAwsScan: AccessGraphAWSScanEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphAwsScan)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphAccessPathChangedEvent access_graph_access_path_changed */ 90:
+                    message.event = {
+                        oneofKind: "accessGraphAccessPathChanged",
+                        accessGraphAccessPathChanged: AccessGraphAccessPathChangedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphAccessPathChanged)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create */ 91:
+                    message.event = {
+                        oneofKind: "accessGraphCrownJewelCreate",
+                        accessGraphCrownJewelCreate: AccessGraphCrownJewelCreateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphCrownJewelCreate)
+                    };
+                    break;
+                case /* prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view */ 92:
+                    message.event = {
+                        oneofKind: "uiAccessGraphCrownJewelDiffView",
+                        uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessGraphCrownJewelDiffView)
+                    };
+                    break;
+                case /* prehog.v1alpha.UserTaskStateEvent user_task_state */ 94:
+                    message.event = {
+                        oneofKind: "userTaskState",
+                        userTaskState: UserTaskStateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).userTaskState)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -9793,6 +10679,30 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85; */
         if (message.event.oneofKind === "uiDiscoverCreateAppServerEvent")
             UIDiscoverCreateAppServerEvent.internalBinaryWrite(message.event.uiDiscoverCreateAppServerEvent, writer.tag(85, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86; */
+        if (message.event.oneofKind === "accessGraphGitlabScan")
+            AccessGraphGitlabScanEvent.internalBinaryWrite(message.event.accessGraphGitlabScan, writer.tag(86, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87; */
+        if (message.event.oneofKind === "accessGraphSecretsScanAuthorizedKeys")
+            AccessGraphSecretsScanAuthorizedKeysEvent.internalBinaryWrite(message.event.accessGraphSecretsScanAuthorizedKeys, writer.tag(87, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88; */
+        if (message.event.oneofKind === "accessGraphSecretsScanSshPrivateKeys")
+            AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryWrite(message.event.accessGraphSecretsScanSshPrivateKeys, writer.tag(88, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphAWSScanEvent access_graph_aws_scan = 89; */
+        if (message.event.oneofKind === "accessGraphAwsScan")
+            AccessGraphAWSScanEvent.internalBinaryWrite(message.event.accessGraphAwsScan, writer.tag(89, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphAccessPathChangedEvent access_graph_access_path_changed = 90; */
+        if (message.event.oneofKind === "accessGraphAccessPathChanged")
+            AccessGraphAccessPathChangedEvent.internalBinaryWrite(message.event.accessGraphAccessPathChanged, writer.tag(90, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91; */
+        if (message.event.oneofKind === "accessGraphCrownJewelCreate")
+            AccessGraphCrownJewelCreateEvent.internalBinaryWrite(message.event.accessGraphCrownJewelCreate, writer.tag(91, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92; */
+        if (message.event.oneofKind === "uiAccessGraphCrownJewelDiffView")
+            UIAccessGraphCrownJewelDiffViewEvent.internalBinaryWrite(message.event.uiAccessGraphCrownJewelDiffView, writer.tag(92, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UserTaskStateEvent user_task_state = 94; */
+        if (message.event.oneofKind === "userTaskState")
+            UserTaskStateEvent.internalBinaryWrite(message.event.userTaskState, writer.tag(94, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

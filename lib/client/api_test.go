@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -52,6 +53,7 @@ import (
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	modules.SetInsecureTestMode(true)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	os.Exit(m.Run())
 }
 

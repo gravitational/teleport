@@ -27,12 +27,12 @@ import { requiredField } from 'shared/components/Validation/rules';
 import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
-import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { StepHeader } from 'design/StepSlider';
 
+import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 
 export interface NewMfaDeviceFormProps {
@@ -186,7 +186,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'webauthn' && (
               <Box
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
               >
@@ -214,7 +214,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'otp' && (
               <Flex
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
                 gap={3}

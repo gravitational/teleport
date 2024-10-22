@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -93,6 +94,10 @@ type TestAuthServerConfig struct {
 	// RunWhileLockedRetryInterval is the interval to retry the run while locked
 	// operation.
 	RunWhileLockedRetryInterval time.Duration
+	// FIPS means the cluster should run in FIPS mode.
+	FIPS bool
+	// KeystoreConfig is configuration for the CA keystore.
+	KeystoreConfig servicecfg.KeystoreConfig
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -260,7 +265,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity := local.NewTestIdentityService(srv.Backend)
+	identity, err := local.NewTestIdentityService(srv.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,
@@ -298,6 +306,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ClusterName:            clusterName,
 		HostUUID:               uuid.New().String(),
 		AccessLists:            accessLists,
+		FIPS:                   cfg.FIPS,
+		KeyStoreConfig:         cfg.KeystoreConfig,
 	},
 		WithClock(cfg.Clock),
 	)
@@ -324,6 +334,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			AppSession:              svces.Identity,
 			Apps:                    svces.Apps,
 			ClusterConfig:           svces.ClusterConfiguration,
+			AutoUpdateService:       svces.AutoUpdateService,
 			CrownJewels:             svces.CrownJewels,
 			DatabaseObjects:         svces.DatabaseObjects,
 			DatabaseServices:        svces.DatabaseServices,
@@ -331,6 +342,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			DiscoveryConfigs:        svces.DiscoveryConfigs,
 			DynamicAccess:           svces.DynamicAccessExt,
 			Events:                  svces.Events,
+			IdentityCenter:          svces.IdentityCenter,
 			Integrations:            svces.Integrations,
 			KubeWaitingContainers:   svces.KubeWaitingContainer,
 			Kubernetes:              svces.Kubernetes,
@@ -338,6 +350,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			Okta:                    svces.Okta,
 			Presence:                svces.PresenceInternal,
 			Provisioner:             svces.Provisioner,
+			ProvisioningStates:      svces.ProvisioningStates,
 			Restrictions:            svces.Restrictions,
 			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
 			SAMLIdPSession:          svces.Identity,
@@ -347,6 +360,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			StaticHostUsers:         svces.StaticHostUser,
 			Trust:                   svces.TrustInternal,
 			UserGroups:              svces.UserGroups,
+			UserTasks:               svces.UserTasks,
 			UserLoginStates:         svces.UserLoginStates,
 			Users:                   svces.Identity,
 			WebSession:              svces.Identity.WebSessions(),
@@ -871,8 +885,7 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 	// use very permissive limiter configuration by default
 	if cfg.Limiter == nil {
 		cfg.Limiter = &limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		}
 	}
 	return nil

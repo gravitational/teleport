@@ -8200,7 +8200,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			info, err := accessChecker.HostUsers(tc.server)
 			require.Equal(t, tc.canCreate, err == nil && info != nil)
 			if tc.canCreate {
-				require.Equal(t, tc.expectedMode, info.Mode)
+				require.Equal(t, convertHostUserMode(tc.expectedMode), info.Mode)
 			}
 		})
 	}

@@ -725,6 +725,42 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_PluginDelete{
 			PluginDelete: e,
 		}
+	case *StaticHostUserCreate:
+		out.Event = &OneOf_StaticHostUserCreate{
+			StaticHostUserCreate: e,
+		}
+	case *StaticHostUserUpdate:
+		out.Event = &OneOf_StaticHostUserUpdate{
+			StaticHostUserUpdate: e,
+		}
+	case *StaticHostUserDelete:
+		out.Event = &OneOf_StaticHostUserDelete{
+			StaticHostUserDelete: e,
+		}
+	case *CrownJewelCreate:
+		out.Event = &OneOf_CrownJewelCreate{
+			CrownJewelCreate: e,
+		}
+	case *CrownJewelUpdate:
+		out.Event = &OneOf_CrownJewelUpdate{
+			CrownJewelUpdate: e,
+		}
+	case *CrownJewelDelete:
+		out.Event = &OneOf_CrownJewelDelete{
+			CrownJewelDelete: e,
+		}
+	case *UserTaskCreate:
+		out.Event = &OneOf_UserTaskCreate{
+			UserTaskCreate: e,
+		}
+	case *UserTaskUpdate:
+		out.Event = &OneOf_UserTaskUpdate{
+			UserTaskUpdate: e,
+		}
+	case *UserTaskDelete:
+		out.Event = &OneOf_UserTaskDelete{
+			UserTaskDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

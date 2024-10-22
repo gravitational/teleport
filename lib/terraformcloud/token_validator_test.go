@@ -20,8 +20,7 @@ package terraformcloud
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
+	"crypto"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,18 +31,21 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type fakeIDP struct {
-	t          *testing.T
-	signer     jose.Signer
-	privateKey *rsa.PrivateKey
-	server     *httptest.Server
-	audience   string
+	t         *testing.T
+	signer    jose.Signer
+	publicKey crypto.PublicKey
+	server    *httptest.Server
+	audience  string
 }
 
 func newFakeIDP(t *testing.T, audience string) *fakeIDP {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	// Terraform Cloud uses RSA, prefer to test with it.
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -53,10 +55,10 @@ func newFakeIDP(t *testing.T, audience string) *fakeIDP {
 	require.NoError(t, err)
 
 	f := &fakeIDP{
-		signer:     signer,
-		privateKey: privateKey,
-		t:          t,
-		audience:   audience,
+		signer:    signer,
+		publicKey: privateKey.Public(),
+		t:         t,
+		audience:  audience,
 	}
 
 	providerMux := http.NewServeMux()
@@ -119,7 +121,7 @@ func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
 	jwks := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Key: &f.privateKey.PublicKey,
+				Key: f.publicKey,
 			},
 		},
 	}
@@ -171,6 +173,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		assertError require.ErrorAssertionFunc
 		want        *IDTokenClaims
 		token       string
+		hostname    string
 	}{
 		{
 			name:        "success",
@@ -253,6 +256,27 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				time.Now().Add(5*time.Minute),
 			),
 		},
+		{
+			// A bit weird since we won't be able to test a successful case. We
+			// can't specify a port (only hostname), so won't be able to point
+			// the validator at our fake idp. However, we can make sure the
+			// overridden issuer value is honored by making sure that a request
+			// that would otherwise succeed, fails.
+			name:        "invalid issuer, hostname override",
+			assertError: require.Error,
+			hostname:    "invalid",
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example-organization",
+				"example-project",
+				"example-workspace",
+				"organization:example-organization:project:example-project:workspace:example-workspace:run_phase:apply",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+		},
 	}
 
 	for _, tt := range tests {
@@ -261,15 +285,23 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 
 			issuerAddr := idp.server.Listener.Addr().String()
 
+			// If no hostname is configured, assume we want to validate against
+			// our fake idp
+			hostnameOverride := ""
+			if tt.hostname == "" {
+				hostnameOverride = issuerAddr
+			}
+
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
 				Clock:                  clockwork.NewRealClock(),
 				insecure:               true,
-				issuerHostnameOverride: issuerAddr,
+				issuerHostnameOverride: hostnameOverride,
 			})
 
 			claims, err := v.Validate(
 				ctx,
 				"test-audience",
+				tt.hostname,
 				tt.token,
 			)
 			tt.assertError(t, err)

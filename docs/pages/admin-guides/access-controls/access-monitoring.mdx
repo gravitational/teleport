@@ -143,7 +143,7 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
 You can use our [Terraform Example](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/athena)
 to set up Athena and Access Monitoring AWS resources and generate Athena Backend and Access Monitoring Teleport configuration:
 
-```bash
+```code
 $ terraform apply
 ...
  access_monitoring:
@@ -561,3 +561,5 @@ $ tctl audit query exec 'select event_time,identity_user from cert_create order 
 ```
 
 The query result is returned as a JSON array of arrays. The first array contains the column names, and the subsequent arrays contain the query results.
+
+By default, `tctl audit query exec` will search over the past 7 days. You can specify an alternate time frame with the `--days=N` flag.

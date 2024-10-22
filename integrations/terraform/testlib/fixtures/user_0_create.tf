@@ -9,7 +9,7 @@ resource "teleport_user" "test" {
   }
 
   spec = {
-    roles = ["terraform"]
+    roles = ["terraform-provider"]
 
     traits = {
       logins1 = ["example"]

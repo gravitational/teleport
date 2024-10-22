@@ -37,15 +37,7 @@ export default function useClusterLogin(props: Props) {
   const [webauthnLogin, setWebauthnLogin] = useState<WebauthnLogin>();
 
   const [initAttempt, init] = useAsync(async () => {
-    const authSettings = await clustersService.getAuthSettings(clusterUri);
-
-    if (authSettings.preferredMfa === 'u2f') {
-      throw new Error(`the U2F API for hardware keys is deprecated, \
-        please notify your system administrator to update cluster \
-        settings to use WebAuthn as the second factor protocol.`);
-    }
-
-    return authSettings;
+    return await clustersService.getAuthSettings(clusterUri);
   });
 
   const [loginAttempt, login, setAttempt] = useAsync(
@@ -73,22 +65,13 @@ export default function useClusterLogin(props: Props) {
     }
   );
 
-  const onLoginWithLocal = (
-    username: string,
-    password: string,
-    token: string,
-    secondFactor?: types.Auth2faType
-  ) => {
-    if (secondFactor === 'webauthn') {
-      setWebauthnLogin({ prompt: 'tap' });
-    }
-
+  const onLoginWithLocal = (username: string, password: string) => {
+    setWebauthnLogin({ prompt: 'tap' });
     login({
       kind: 'local',
       clusterUri,
       username,
       password,
-      token,
     });
   };
 
@@ -184,6 +167,7 @@ export default function useClusterLogin(props: Props) {
     onAbort,
     loginAttempt,
     initAttempt,
+    init,
     clearLoginAttempt,
   };
 }

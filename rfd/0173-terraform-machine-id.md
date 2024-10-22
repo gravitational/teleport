@@ -172,7 +172,7 @@ $ terraform apply ...
 - create the 3 bootstrap resources
   - if the call fails because of missing permissions, output a user-friendly error such as:
     ```
-    Failed to create bootstrap resources using your local credentials (user "hugo.hervieux@goteleport.com", address "mytenant.telpeort.sh:443").
+    Failed to create bootstrap resources using your local credentials (user "hugo.hervieux@goteleport.com", address "mytenant.teleport.sh:443").
     Please check if you have the rights to create role, bot and token resources. You might need to re-log in for new rights to take effect.
     (tsh logout --proxy="mytenant.teleport.sh:443" --user="hugo.hervieux@goteleport.com")
     ```

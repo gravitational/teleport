@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -78,7 +79,7 @@ func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
 	}
 	out := make([]types.Namespace, 0, len(result.Items))
 	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			continue
 		}
 		ns, err := services.UnmarshalNamespace(
@@ -417,42 +418,61 @@ func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 }
 
 // DeleteAllReverseTunnels deletes all reverse tunnels
-func (s *PresenceService) DeleteAllReverseTunnels() error {
+func (s *PresenceService) DeleteAllReverseTunnels(ctx context.Context) error {
 	startKey := backend.ExactKey(reverseTunnelsPrefix)
-	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
-// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-func (s *PresenceService) UpsertReverseTunnel(tunnel types.ReverseTunnel) error {
+// UpsertReverseTunnel upserts reverse tunnel entry
+func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
+	_, err := s.UpsertReverseTunnelV2(ctx, tunnel)
+	return trace.Wrap(err)
+}
+
+// UpsertReverseTunnelV2 upserts reverse tunnel entry and returns the upserted
+// value.
+// TODO(noah): In v18, we can rename this to UpsertReverseTunnel and remove the
+// version which does not return the upserted value.
+func (s *PresenceService) UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
 	if err := services.ValidateReverseTunnel(tunnel); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rev := tunnel.GetRevision()
 	value, err := services.MarshalReverseTunnel(tunnel)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(context.TODO(), backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(reverseTunnelsPrefix, tunnel.GetName()),
 		Value:    value,
 		Expires:  tunnel.Expiry(),
 		Revision: rev,
 	})
-	return trace.Wrap(err)
-}
-
-// GetReverseTunnel returns reverse tunnel by name
-func (s *PresenceService) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
-	item, err := s.Get(context.TODO(), backend.NewKey(reverseTunnelsPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalReverseTunnel(item.Value,
-		services.AddOptions(opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+
+	tunnel.SetRevision(lease.Revision)
+	return tunnel, nil
+}
+
+// GetReverseTunnel returns reverse tunnel by name
+func (s *PresenceService) GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error) {
+	item, err := s.Get(ctx, backend.NewKey(reverseTunnelsPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalReverseTunnel(
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
 }
 
 // GetReverseTunnels returns a list of registered servers
-func (s *PresenceService) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+// Deprecated: use ListReverseTunnels
+// TODO(noah): REMOVE IN 18.0.0 - replace with calls to ListReverseTunnels
+func (s *PresenceService) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
 	startKey := backend.ExactKey(reverseTunnelsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -464,7 +484,10 @@ func (s *PresenceService) GetReverseTunnels(ctx context.Context, opts ...service
 	}
 	for i, item := range result.Items {
 		tunnel, err := services.UnmarshalReverseTunnel(
-			item.Value, services.AddOptions(opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -476,9 +499,51 @@ func (s *PresenceService) GetReverseTunnels(ctx context.Context, opts ...service
 }
 
 // DeleteReverseTunnel deletes reverse tunnel by it's cluster name
-func (s *PresenceService) DeleteReverseTunnel(clusterName string) error {
-	err := s.Delete(context.TODO(), backend.NewKey(reverseTunnelsPrefix, clusterName))
+func (s *PresenceService) DeleteReverseTunnel(ctx context.Context, clusterName string) error {
+	err := s.Delete(ctx, backend.NewKey(reverseTunnelsPrefix, clusterName))
 	return trace.Wrap(err)
+}
+
+// ListReverseTunnels returns a paginated list of reverse tunnels
+func (s *PresenceService) ListReverseTunnels(
+	ctx context.Context, pageSize int, pageToken string,
+) ([]types.ReverseTunnel, string, error) {
+	rangeStart := backend.NewKey(reverseTunnelsPrefix, pageToken)
+	rangeEnd := backend.RangeEnd(backend.ExactKey(reverseTunnelsPrefix))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	limit := pageSize + 1
+
+	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	tunnels := make([]types.ReverseTunnel, 0, len(result.Items))
+	for _, item := range result.Items {
+		tunnel, err := services.UnmarshalReverseTunnel(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			slog.WarnContext(ctx, "Skipping item during ListReverseTunnels because conversion from backend item failed", "key", item.Key, "error", err)
+			continue
+		}
+		tunnels = append(tunnels, tunnel)
+	}
+
+	next := ""
+	if len(tunnels) > pageSize {
+		next = backend.GetPaginationKey(tunnels[pageSize])
+		clear(tunnels[pageSize:])
+		// Truncate the last item that was used to determine next row existence.
+		tunnels = tunnels[:pageSize]
+	}
+	return tunnels, next, nil
 }
 
 // this combination of backoff parameters leads to worst-case total time spent

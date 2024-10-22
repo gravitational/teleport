@@ -35,5 +35,73 @@ export type Kind =
   | KindAuthConnectors
   | KindJoinToken;
 
-/** Describes a Teleport role. */
+/** Teleport role in a resource format. */
 export type RoleResource = Resource<KindRole>;
+
+/**
+ * Teleport role in full format, as returned from Teleport API.
+ * TODO(bl-nero): Add all fields supported on the UI side.
+ */
+export type Role = {
+  kind: KindRole;
+  metadata: {
+    name: string;
+    description?: string;
+    labels?: Record<string, string>;
+    expires?: string;
+    revision?: string;
+  };
+  spec: {
+    allow: RoleConditions;
+    deny: RoleConditions;
+    options: RoleOptions;
+  };
+  version: string;
+};
+
+export type RoleConditions = {
+  node_labels?: Labels;
+  logins?: string[];
+};
+
+export type Labels = Record<string, string | string[]>;
+
+/**
+ * Teleport role options in full format, as returned from Teleport API. Note
+ * that its fields follow the snake case convention to match the wire format.
+ */
+export type RoleOptions = {
+  cert_format: string;
+  create_db_user: boolean;
+  create_desktop_user: boolean;
+  desktop_clipboard: boolean;
+  desktop_directory_sharing: boolean;
+  enhanced_recording: string[];
+  forward_agent: boolean;
+  idp: {
+    // There's a subtle quirk in `Rolev6.CheckAndSetDefaults`: if you ask
+    // Teleport to create a resource with `idp` field set to null, it's instead
+    // going to create the entire idp->saml->enabled structure. However, it's
+    // possible to create a role with idp set to an empty object, and the
+    // server will retain this state. This makes the `saml` field optional.
+    saml?: {
+      enabled: boolean;
+    };
+  };
+  max_session_ttl: string;
+  pin_source_ip: boolean;
+  port_forwarding: boolean;
+  record_session: {
+    default: string;
+    desktop: boolean;
+  };
+  ssh_file_copy: boolean;
+};
+
+export type RoleWithYaml = {
+  object: Role;
+  /**
+   * yaml string used with yaml editors.
+   */
+  yaml: string;
+};

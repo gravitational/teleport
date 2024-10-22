@@ -36,9 +36,11 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,7 +52,8 @@ type LoadtestCommand struct {
 
 	nodeHeartbeats *kingpin.CmdClause
 
-	watch *kingpin.CmdClause
+	watch       *kingpin.CmdClause
+	auditEvents *kingpin.CmdClause
 
 	count       int
 	churn       int
@@ -62,6 +65,9 @@ type LoadtestCommand struct {
 	kind   string
 	ops    string
 	format string
+
+	date   string
+	cursor string
 }
 
 // Initialize allows LoadtestCommand to plug itself into the CLI parser
@@ -83,6 +89,10 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 	c.watch.Flag("kind", "Resource kind(s) to watch, e.g. --kind=node,user,role").StringVar(&c.kind)
 	c.watch.Flag("ops", "Operations to watch, e.g. --ops=put,del").Default("put,del").StringVar(&c.ops)
 	c.watch.Flag("format", "Output format").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+
+	c.auditEvents = loadtest.Command("export-audit-events", "Bulk export audit events").Hidden()
+	c.auditEvents.Flag("date", "Date to dump events for").StringVar(&c.date)
+	c.auditEvents.Flag("cursor", "Specify an optional cursor directory").StringVar(&c.cursor)
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
@@ -92,6 +102,8 @@ func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client *authcl
 		err = c.NodeHeartbeats(ctx, client)
 	case c.watch.FullCommand():
 		err = c.Watch(ctx, client)
+	case c.auditEvents.FullCommand():
+		err = c.AuditEvents(ctx, client)
 	default:
 		return false, nil
 	}
@@ -321,6 +333,106 @@ Outer:
 				slog.ErrorContext(ctx, "watcher exited unexpectedly, will retry", "error", watcher.Error())
 				continue Outer
 			}
+		}
+	}
+}
+
+func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Client) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	date := time.Now()
+	if c.date != "" {
+		var err error
+		date, err = time.Parse("2006-01-02", c.date)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	outch := make(chan *auditlogpb.ExportEventUnstructured, 1024)
+	defer close(outch)
+
+	var eventsProcessed atomic.Uint64
+
+	go func() {
+		for event := range outch {
+			s, err := utils.FastMarshal(event.Event.Unstructured)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(string(s))
+			eventsProcessed.Add(1)
+		}
+	}()
+
+	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+		select {
+		case outch <- event:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		return nil
+	}
+
+	var cursor *export.Cursor
+	if c.cursor != "" {
+		var err error
+		cursor, err = export.NewCursor(export.CursorConfig{
+			Dir: c.cursor,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	var state export.ExporterState
+	if cursor != nil {
+		state = cursor.GetState()
+	}
+
+	exporter, err := export.NewExporter(export.ExporterConfig{
+		Client:        client,
+		StartDate:     date,
+		PreviousState: state,
+		Export:        exportFn,
+		Concurrency:   3,
+		BacklogSize:   1,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer exporter.Close()
+
+	if cursor != nil {
+		go func() {
+			syncTicker := time.NewTicker(time.Millisecond * 666)
+			defer syncTicker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-syncTicker.C:
+					cursor.Sync(exporter.GetState())
+				}
+			}
+		}()
+	}
+
+	logTicker := time.NewTicker(time.Minute)
+
+	var prevEventsProcessed uint64
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-logTicker.C:
+			processed := eventsProcessed.Load()
+			slog.InfoContext(ctx, "event processing", "total", processed, "per_minute", processed-prevEventsProcessed)
+			prevEventsProcessed = processed
+		case <-exporter.Done():
+			return trace.Errorf("exporter exited unexpected with state: %+v", exporter.GetState())
 		}
 	}
 }

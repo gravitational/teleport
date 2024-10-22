@@ -35,7 +35,6 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 
 	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -43,6 +42,7 @@ import (
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 //go:embed bytecode
@@ -96,7 +96,7 @@ type Service struct {
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
-	argsCache *ttlmap.TTLMap
+	argsCache *utils.FnCache
 
 	// closeContext is used to signal the BPF service is shutting down to all
 	// goroutines.
@@ -133,10 +133,8 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
-		BPFConfig: config,
-
-		watch: NewSessionWatch(),
-
+		BPFConfig:    config,
+		watch:        NewSessionWatch(),
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
 	}
@@ -157,8 +155,9 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		}
 	}()
 
-	// Create args cache used by the exec BPF program.
-	s.argsCache, err = ttlmap.New(ArgsCacheSize)
+	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: 24 * time.Hour,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -364,27 +363,34 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// Args are sent in their own event by execsnoop to save stack space. Store
 	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
-		var buf []string
-		buffer, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
-		if !ok {
-			buf = make([]string, 0)
-		} else {
-			buf = buffer.([]string)
+		key := strconv.FormatUint(event.PID, 10)
+
+		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
+			return make([]string, 0), nil
+		})
+		if err != nil {
+			log.WithError(err).Warn("Unable to retrieve args from FnCahe - this is a bug!")
+			args = []string{}
 		}
 
 		argv := (*C.char)(unsafe.Pointer(&event.Argv))
-		buf = append(buf, C.GoString(argv))
-		s.argsCache.Set(strconv.FormatUint(event.PID, 10), buf, 24*time.Hour)
+		args = append(args, C.GoString(argv))
+
+		s.argsCache.SetWithTTL(key, args, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
-		args, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
-		if !ok {
+		key := strconv.FormatUint(event.PID, 10)
+
+		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
+			return nil, trace.NotFound("args missing")
+		})
+
+		if err != nil {
 			log.Debugf("Got event with missing args: skipping.")
 			lostCommandEvents.Add(float64(1))
 			return
 		}
-		argv := args.([]string)
 
 		// Emit "command" event.
 		sessionCommandEvent := &apievents.SessionCommand{
@@ -412,15 +418,15 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			PPID:       event.PPID,
 			ReturnCode: event.ReturnCode,
-			Path:       argv[0],
-			Argv:       argv[1:],
+			Path:       args[0],
+			Argv:       args[1:],
 		}
 		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit command event.")
 		}
 
 		// Now that the event has been processed, remove from cache.
-		s.argsCache.Remove(strconv.FormatUint(event.PID, 10))
+		s.argsCache.Remove(key)
 	}
 }
 

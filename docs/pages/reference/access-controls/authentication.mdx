@@ -54,13 +54,13 @@ Add the following to your Teleport configuration file, which is stored in
 
 ### Dynamic resource
 
-Obtain your existing `cluster_auth_preference` resource:
+Edit your `cluster_auth_preference` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-Ensure that `cap.yaml` includes the following content:
+Ensure that the resource includes the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -74,11 +74,8 @@ spec:
 version: v2
 ```
 
-Create the `cluster_auth_preference` resource via `tctl`:
+Save and close the file in your editor to apply changes.
 
-```code
-$ tctl create -f cap.yaml
-```
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
@@ -91,10 +88,10 @@ $ tsh login --proxy=myinstance.teleport.sh
 $ tctl status
 ```
 
-Obtain your existing `cluster_auth_preference` resource:
+Edit your `cluster_auth_preference` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
 Ensure that `cap.yaml` includes the following content:
@@ -111,11 +108,8 @@ spec:
 version: v2
 ```
 
-Create the `cluster_auth_preference` resource via `tctl`:
+Save and close the file in your editor to apply changes.
 
-```code
-$ tctl create -f cap.yaml
-```
 </TabItem>
 </Tabs>
 
@@ -131,13 +125,13 @@ Overriding a block is available to users with rights to maintain `user` resource
 available in the built-in `editor` role. To turn off a block, update the user entry,
 following these steps.
 
-Retrieve the user entry so you can edit the status:
+Open the user resource in your editor:
 
 ```code
-$ tctl get users/<Var name="username" /> > user.yaml
+$ tctl edit users/<Var name="username" />
 ```
 
-The file `user.yaml` should resemble the following:
+The resource should resemble the following:
 
 ```yaml
 kind: user
@@ -153,12 +147,8 @@ spec:
 version: v2
 ```
 
-Update the `is_locked` field under `status` to `false` and save the file. Now
-update the user entry with the command below:
-
-```code
-$ tctl create -f user.yaml
-```
+Update the `is_locked` field under `status` to `false`, save the file, and close
+your editor.
 
 The user will now be unblocked from login attempts and can attempt to authenticate again.
 

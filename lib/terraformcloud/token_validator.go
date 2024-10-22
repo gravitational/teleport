@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 )
 
-// IssuerURL is the issuer URL for Terraform Cloud
-const IssuerURL = "https://app.terraform.io"
+// DefaultIssuerURL is the issuer URL for Terraform Cloud
+const DefaultIssuerURL = "https://app.terraform.io"
 
 // IDTokenValidatorConfig contains the configuration options needed to control
 // the behavior of IDTokenValidator.
@@ -65,9 +65,18 @@ func NewIDTokenValidator(
 	}
 }
 
-func (id *IDTokenValidator) issuerURL() string {
-	if id.issuerHostnameOverride == "" {
-		return IssuerURL
+// issuerURL returns an issuer URL. If overridden by tests with
+// `issuerHostnameOverride`, returns that value. Otherwise, if an issuer is
+// provided via the token (for TFE), returns that, else returns the default
+// issuer for Terraform Cloud.
+func (id *IDTokenValidator) issuerURL(tfeHostname string) string {
+	if id.issuerHostnameOverride == "" && tfeHostname == "" {
+		return DefaultIssuerURL
+	}
+
+	hostname := tfeHostname
+	if id.issuerHostnameOverride != "" {
+		hostname = id.issuerHostnameOverride
 	}
 
 	scheme := "https"
@@ -75,16 +84,16 @@ func (id *IDTokenValidator) issuerURL() string {
 		scheme = "http"
 	}
 
-	return fmt.Sprintf("%s://%s", scheme, id.issuerHostnameOverride)
+	return fmt.Sprintf("%s://%s", scheme, hostname)
 }
 
 // Validate validates a Terraform issued ID token.
 func (id *IDTokenValidator) Validate(
-	ctx context.Context, audience string, token string,
+	ctx context.Context, audience, hostname, token string,
 ) (*IDTokenClaims, error) {
 	p, err := oidc.NewProvider(
 		ctx,
-		id.issuerURL(),
+		id.issuerURL(hostname),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating oidc provider")

@@ -1,0 +1,87 @@
+"ec2-ssm-iam" will perform the following actions:
+
+1. Attach an inline IAM policy named "EC2DiscoverWithSSM" to IAM role "integrationrole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ec2:DescribeInstances",
+                    "ssm:DescribeInstanceInformation",
+                    "ssm:GetCommandInvocation",
+                    "ssm:ListCommandInvocations",
+                    "ssm:SendCommand"
+                ],
+                "Resource": "*"
+            }
+        ]
+    },
+    "PolicyName": "EC2DiscoverWithSSM",
+    "RoleName": "integrationrole"
+}
+
+2. Create an AWS Systems Manager (SSM) Command document "MyDoc".
+CreateDocument: {
+    "Content": {
+        "description": "aws:runShellScript",
+        "mainSteps": [
+            {
+                "action": "aws:downloadContent",
+                "inputs": {
+                    "destinationPath": "/tmp/installTeleport.sh",
+                    "sourceInfo": {
+                        "url": "https://proxy.example.com/webapi/scripts/installer/{{ scriptName }}"
+                    },
+                    "sourceType": "HTTP"
+                },
+                "name": "downloadContent"
+            },
+            {
+                "action": "aws:runShellScript",
+                "inputs": {
+                    "runCommand": [
+                        "/bin/sh /tmp/installTeleport.sh \"{{ token }}\""
+                    ],
+                    "timeoutSeconds": "300"
+                },
+                "name": "runShellScript"
+            }
+        ],
+        "parameters": {
+            "scriptName": {
+                "description": "(Required) The Teleport installer script to use when joining the cluster.",
+                "type": "String"
+            },
+            "token": {
+                "description": "(Required) The Teleport invite token to use when joining the cluster.",
+                "type": "String"
+            }
+        },
+        "schemaVersion": "2.2"
+    },
+    "Name": "MyDoc",
+    "Attachments": null,
+    "DisplayName": null,
+    "DocumentFormat": "YAML",
+    "DocumentType": "Command",
+    "Requires": null,
+    "Tags": [
+        {
+            "Key": "teleport.dev/cluster",
+            "Value": "my-cluster"
+        },
+        {
+            "Key": "teleport.dev/integration",
+            "Value": "my-integration"
+        },
+        {
+            "Key": "teleport.dev/origin",
+            "Value": "integration_awsoidc"
+        }
+    ],
+    "TargetType": null,
+    "VersionName": null
+}
+

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
+	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -79,7 +80,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -156,7 +157,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
-					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
+					client.WithInsecureSkipVerify(cfg.InsecureAddressDiscovery),
 					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
 					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 				)
@@ -294,7 +295,7 @@ func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive)
 }
 
 // GetReverseTunnel not implemented: can only be called locally.
-func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
+func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -376,7 +377,7 @@ func (c *Client) DeleteAllCertAuthorities(caType types.CertAuthType) error {
 }
 
 // DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels() error {
+func (c *Client) DeleteAllReverseTunnels(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -662,6 +663,11 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
+// UserTasksClient returns a client for managing User Task resources.
+func (c *Client) UserTasksClient() services.UserTasks {
+	return c.APIClient.UserTasksServiceClient()
+}
+
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
 }
@@ -810,6 +816,11 @@ func (c *Client) UpsertUserNotification(ctx context.Context, notification *notif
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// ListUserNotificationStatesForAllUsers not implemented: can only be called locally.
+func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // GetAccessGraphSettings gets the access graph settings from the backend.
 func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -885,6 +896,8 @@ type OIDCAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -930,6 +943,8 @@ type SAMLAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -1474,6 +1489,8 @@ type SSHLoginResponse struct {
 	HostSigners []TrustedCerts `json:"host_signers"`
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1570,6 +1587,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
+	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
@@ -1604,6 +1622,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// UserTasksServiceClient returns an User Task service client.
+	UserTasksServiceClient() *usertask.Client
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -1858,42 +1879,4 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-}
-
-type CreateAppSessionForV15Client interface {
-	Ping(ctx context.Context) (proto.PingResponse, error)
-	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
-}
-
-// TryCreateAppSessionForClientCertV15 creates an app session if the auth
-// server is pre-v16 and returns the app session ID. This app session ID
-// is needed for user app certs requests before v16.
-// TODO (Joerger): DELETE IN v17.0.0
-func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSessionForV15Client, username string, routeToApp proto.RouteToApp) (string, error) {
-	pingResp, err := client.Ping(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// If the auth server is v16+, the client does not need to provide a pre-created app session.
-	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
-		return "", nil
-	}
-
-	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:          username,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		AWSRoleARN:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GCPServiceAccount,
-		URI:               routeToApp.URI,
-		AppName:           routeToApp.Name,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return ws.GetName(), nil
 }

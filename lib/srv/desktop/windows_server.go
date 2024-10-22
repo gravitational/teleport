@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -143,6 +144,11 @@ type WindowsService struct {
 	// creating shared directory audit events.
 	auditCache sharedDirectoryAuditCache
 
+	// NLA indicates whether this service will attempt to perform
+	// Network Level Authentication (NLA) when attempting to connect
+	// to domain-joined Windows hosts
+	enableNLA bool
+
 	closeCtx context.Context
 	close    func()
 }
@@ -204,6 +210,8 @@ type WindowsServiceConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
+	// ResourceMatchers match dynamic Windows desktop resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -358,6 +366,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		closeCtx:    ctx,
 		close:       close,
 		auditCache:  newSharedDirectoryAuditCache(),
+
+		// For now, NLA is opt-in via an environment variable.
+		// We'll make it the default behavior in a future release.
+		enableNLA: os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
 	}
 
 	caLDAPConfig := s.cfg.LDAPConfig
@@ -444,6 +456,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		domain:             s.cfg.Domain,
 		ttl:                windowsDesktopServiceCertTTL,
 		activeDirectorySID: s.cfg.SID,
+		omitCDP:            true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -775,6 +788,8 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
+	log = log.With("teleport_user", identity.Username, "desktop_addr", desktop.GetAddr(), "ad", !desktop.NonAD())
+
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -791,6 +806,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	}
 
 	sessionID := session.NewID()
+	log = log.With("session_id", sessionID)
 
 	// in order for the session to be recorded, the cluster's session recording mode must
 	// not be "off" and the user's roles must enable recording
@@ -799,8 +815,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	if !authCtx.Checker.RecordDesktopSession() {
 		recConfig = types.DefaultSessionRecordingConfig()
 		recConfig.SetMode(types.RecordOff)
-		log.InfoContext(ctx, "desktop session will not be recorded, user's roles disable recording",
-			"session_id", string(sessionID), "user", authCtx.User.GetName())
+		log.InfoContext(ctx, "desktop session will not be recorded, user's roles disable recording")
 	} else {
 		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(ctx)
 		if err != nil {
@@ -861,7 +876,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	delay := timer()
 	tdpConn.OnSend = s.makeTDPSendHandler(ctx, recorder, delay, tdpConn, audit)
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
+
 	width, height := desktop.GetScreenSize()
+	log = log.With("screen_size", fmt.Sprintf("%dx%d", width, height))
 
 	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsComputerName)
 	if !ok {
@@ -876,6 +893,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 			computerName = "missing.computer.name"
 		}
 	}
+	log = log.With("computer_name", computerName)
 
 	kdcAddr := s.cfg.KDCAddr
 	if !desktop.NonAD() && kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
@@ -883,6 +901,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 			return trace.Wrap(err, "KDC address is unspecified and LDAP address is invalid")
 		}
 	}
+
+	nla := s.enableNLA && !desktop.NonAD()
+
+	log = log.With("kdc_addr", kdcAddr, "nla", nla)
+	log.InfoContext(context.Background(), "initiating RDP client")
 
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	rdpc, err := rdpclient.New(rdpclient.Config{
@@ -902,6 +925,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Width:                 width,
 		Height:                height,
 		AD:                    !desktop.NonAD(),
+		NLA:                   nla,
 	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username
@@ -958,6 +982,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 
 	startEvent := audit.makeSessionStart(nil)
 	startEvent.AllowUserCreation = createUsers
+
 	s.record(ctx, recorder, startEvent)
 	s.emit(ctx, startEvent)
 
@@ -1257,7 +1282,8 @@ type generateCredentialsRequest struct {
 	// createUser specifies if Windows user should be created if missing
 	createUser bool
 	// groups are groups that user should be member of
-	groups []string
+	groups  []string
+	omitCDP bool
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -1285,6 +1311,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 		AuthClient:         s.cfg.AuthClient,
 		CreateUser:         request.createUser,
 		Groups:             request.groups,
+		OmitCDP:            request.omitCDP,
 	})
 }
 

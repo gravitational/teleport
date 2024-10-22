@@ -90,7 +90,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -164,6 +164,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentDatabase),
 		ConnectionMonitor:    connMonitor,
 		ConnectedProxyGetter: proxyGetter,
+		InventoryHandle:      process.inventoryHandle,
 	})
 	if err != nil {
 		return trace.Wrap(err)

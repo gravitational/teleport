@@ -296,7 +296,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		},
 		{
 			name:     "for cloud based usage, EUB product (no wasm)",
-			features: proto.Features{Cloud: true, IsUsageBased: true, ProductType: proto.ProductType_PRODUCT_TYPE_EUB},
+			features: proto.Features{Cloud: true, IsUsageBased: true, IsStripeManaged: false},
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",

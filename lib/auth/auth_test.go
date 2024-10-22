@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -45,13 +44,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
@@ -63,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -110,6 +111,11 @@ func newTestPack(
 
 	p.versionStorage = NewFakeTeleportVersion()
 
+	identityService, err := local.NewTestIdentityService(p.bk)
+	if err != nil {
+		return p, trace.Wrap(err)
+	}
+
 	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &InitConfig{
 		DataDir:        dataDir,
@@ -119,7 +125,7 @@ func newTestPack(
 		Authority:      testauthority.New(),
 		Emitter:        p.mockEmitter,
 		// This uses lower bcrypt costs for faster tests.
-		Identity:               local.NewTestIdentityService(p.bk),
+		Identity:               identityService,
 		SkipPeriodicOperations: true,
 	}
 	p.a, err = NewServer(authConfig, opts...)
@@ -208,7 +214,7 @@ func newAuthSuite(t *testing.T) *testPack {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
@@ -872,7 +878,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	// Configure auth preferences.
 	authPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err, "GetAuthPreference")
-	authPref.SetSecondFactor(constants.SecondFactorOptional) // good enough
+	authPref.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 	authPref.SetWebauthn(&types.Webauthn{
 		RPID: "localhost",
 	})
@@ -1219,60 +1225,6 @@ func TestUpdateConfig(t *testing.T) {
 	}}))
 }
 
-func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	user, err := types.NewUser("some-user")
-	require.NoError(t, err)
-
-	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-
-	// test create user, happy path
-	user.SetCreatedBy(types.CreatedBy{
-		User: types.UserRef{Name: "some-auth-user"},
-	})
-	user, err = s.a.CreateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
-	createEvt := s.mockEmitter.LastEvent().(*apievents.UserCreate)
-	require.Equal(t, "some-auth-user", createEvt.User)
-	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
-	s.mockEmitter.Reset()
-
-	// test create user with existing user
-	_, err = s.a.CreateUser(ctx, user)
-	require.True(t, trace.IsAlreadyExists(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test createdBy gets set to default
-	user2, err := types.NewUser("some-other-user")
-	require.NoError(t, err)
-	_, err = s.a.CreateUser(ctx, user2)
-	require.NoError(t, err)
-	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
-	createEvt = s.mockEmitter.LastEvent().(*apievents.UserCreate)
-	require.Equal(t, teleport.UserSystem, createEvt.User)
-	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
-	s.mockEmitter.Reset()
-
-	// test update on non-existent user
-	user3, err := types.NewUser("non-existent-user")
-	require.NoError(t, err)
-	_, err = s.a.UpdateUser(ctx, user3)
-	require.True(t, trace.IsNotFound(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test update user
-	_, err = s.a.UpdateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, events.UserUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	updateEvt := s.mockEmitter.LastEvent().(*apievents.UserUpdate)
-	require.Equal(t, teleport.UserSystem, updateEvt.User)
-	require.Equal(t, clientAddr.String(), updateEvt.ConnectionMetadata.RemoteAddr)
-}
-
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -1297,7 +1249,7 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "test")))
 	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "test")))
 
-	err = s.a.createReverseTunnel(tc)
+	err = s.a.createReverseTunnel(ctx, tc)
 	require.NoError(t, err)
 
 	// test create event for switch case: when tc exists but enabled is false
@@ -1389,7 +1341,8 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
-		ClientID: "a",
+		ClientID:     "a",
+		ClientSecret: "b",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "dummy",
@@ -1441,7 +1394,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	testClock := clockwork.NewFakeClock()
@@ -2626,7 +2579,7 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	role, ok := r.(*types.RoleV6)
 	require.True(t, ok)
 
-	priv, err := native.GeneratePrivateKey()
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
 	reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
@@ -2738,7 +2691,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 	hostID := uuid.New().String()
 	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
+	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
@@ -3804,11 +3757,14 @@ func newTestServices(t *testing.T) Services {
 	configService, err := local.NewClusterConfigurationService(bk)
 	require.NoError(t, err)
 
+	identityService, err := local.NewTestIdentityService(bk)
+	require.NoError(t, err)
+
 	return Services{
 		TrustInternal:           local.NewCAService(bk),
 		PresenceInternal:        local.NewPresenceService(bk),
 		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                local.NewTestIdentityService(bk),
+		Identity:                identityService,
 		Access:                  local.NewAccessService(bk),
 		DynamicAccessExt:        local.NewDynamicAccessService(bk),
 		ClusterConfiguration:    configService,
@@ -4243,4 +4199,180 @@ func TestAccessRequestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, userNotifsResp, 2)
 	require.Contains(t, userNotifsResp[1].GetMetadata().GetLabels()[types.NotificationTitleLabel], "reviewer denied your access request")
+}
+
+func TestCleanupNotifications(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	fakeClock := clockwork.NewFakeClock()
+
+	authServer, err := NewTestAuthServer(TestAuthServerConfig{
+		Dir:          t.TempDir(),
+		Clock:        fakeClock,
+		CacheEnabled: true,
+	})
+	require.NoError(t, err)
+
+	srv, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	// Create test users
+	users := []string{"user1", "user2"}
+	for _, username := range users {
+		user, err := types.NewUser(username)
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	// Create notifications and store their IDs
+	type notificationInfo struct {
+		id       string
+		username string
+		isGlobal bool
+	}
+	var createdNotifications []notificationInfo
+
+	createNotifications := func(username string, count int, expiryDuration time.Duration) {
+		for i := 0; i < count; i++ {
+			var id string
+			if username != "" {
+				notification := newUserNotificationWithExpiry(t, username, fmt.Sprintf("%s-notification-%d", username, i+1), timestamppb.New(fakeClock.Now().Add(expiryDuration)))
+				created, err := srv.Auth().CreateUserNotification(ctx, notification)
+				require.NoError(t, err)
+				id = created.GetMetadata().GetName()
+				createdNotifications = append(createdNotifications, notificationInfo{id: id, username: username, isGlobal: false})
+			} else {
+				notification := newGlobalNotificationWithExpiry(t, fmt.Sprintf("global-notification-%d", i+1), timestamppb.New(fakeClock.Now().Add(expiryDuration)))
+				created, err := srv.Auth().CreateGlobalNotification(ctx, notification)
+				require.NoError(t, err)
+				id = created.GetMetadata().GetName()
+				createdNotifications = append(createdNotifications, notificationInfo{id: id, isGlobal: true})
+			}
+		}
+	}
+
+	// Create user notifications
+	createNotifications("user1", 2, 5*time.Minute)  // 2 notifications for user1, expiring in 5 minutes
+	createNotifications("user1", 2, 10*time.Minute) // 2 notifications for user1, expiring in 10 minutes
+	createNotifications("user2", 2, 5*time.Minute)  // 2 notifications for user2, expiring in 5 minutes
+	createNotifications("user2", 2, 10*time.Minute) // 2 notifications for user2, expiring in 10 minutes
+
+	// Create global notifications
+	createNotifications("", 2, 5*time.Minute)  // 2 global notifications, expiring in 5 minutes
+	createNotifications("", 2, 10*time.Minute) // 2 global notifications, expiring in 10 minutes
+
+	// Create notification states for all notifications
+	for _, notif := range createdNotifications {
+		if !notif.isGlobal {
+			_, err := srv.Auth().UpsertUserNotificationState(ctx, notif.username, &notificationsv1.UserNotificationState{
+				Spec: &notificationsv1.UserNotificationStateSpec{
+					Username:       notif.username,
+					NotificationId: notif.id,
+				},
+				Status: &notificationsv1.UserNotificationStateStatus{
+					NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+				},
+			})
+			require.NoError(t, err)
+		} else {
+			// For global notifications, create a state for both users
+			for _, username := range users {
+				_, err := srv.Auth().UpsertUserNotificationState(ctx, username, &notificationsv1.UserNotificationState{
+					Spec: &notificationsv1.UserNotificationStateSpec{
+						Username:       username,
+						NotificationId: notif.id,
+					},
+					Status: &notificationsv1.UserNotificationStateStatus{
+						NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+					},
+				})
+				require.NoError(t, err)
+			}
+		}
+	}
+
+	verifyNotificationCounts := func(collectT *assert.CollectT, expectedUserNotifsCount, expectedGlobalNotifsCount, expectedStatesCount int) {
+		userNotifs, _, err := srv.Auth().Cache.ListUserNotifications(ctx, 20, "")
+		assert.NoError(collectT, err)
+		assert.Len(collectT, userNotifs, expectedUserNotifsCount)
+
+		globalNotifs, _, err := srv.Auth().Cache.ListGlobalNotifications(ctx, 20, "")
+		assert.NoError(collectT, err)
+		assert.Len(collectT, globalNotifs, expectedGlobalNotifsCount)
+
+		states, _, err := srv.Auth().ListNotificationStatesForAllUsers(ctx, 20, "")
+		assert.NoError(collectT, err)
+		assert.Len(collectT, states, expectedStatesCount)
+	}
+
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		// Expect 8 user notifications, 4 global notifications, and 16 states.
+		verifyNotificationCounts(collectT, 8, 4, 16)
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// Advance clock to make half of the notifications expire.
+	fakeClock.Advance(7 * time.Minute)
+	// Run CleanupNotifications.
+	srv.Auth().CleanupNotifications(ctx)
+
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		// Half of each should have been deleted.
+		verifyNotificationCounts(collectT, 4, 2, 8)
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// Advance clock to make the remaining notifications expire.
+	fakeClock.Advance(5 * time.Minute)
+	// Run CleanupNotifications again.
+	srv.Auth().CleanupNotifications(ctx)
+
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		// No notifications nor states should remain.
+		verifyNotificationCounts(collectT, 0, 0, 0)
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+func newUserNotificationWithExpiry(t *testing.T, username string, title string, expires *timestamppb.Timestamp) *notificationsv1.Notification {
+	t.Helper()
+
+	notification := notificationsv1.Notification{
+		SubKind: "test-subkind",
+		Spec: &notificationsv1.NotificationSpec{
+			Username: username,
+		},
+		Metadata: &headerv1.Metadata{
+			Expires: expires,
+			Labels: map[string]string{
+				types.NotificationTitleLabel: title,
+			},
+		},
+	}
+
+	return &notification
+}
+
+func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timestamppb.Timestamp) *notificationsv1.GlobalNotification {
+	t.Helper()
+
+	notification := notificationsv1.GlobalNotification{
+		Spec: &notificationsv1.GlobalNotificationSpec{
+			Matcher: &notificationsv1.GlobalNotificationSpec_All{
+				All: true,
+			},
+			Notification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec:    &notificationsv1.NotificationSpec{},
+				Metadata: &headerv1.Metadata{
+					Expires: expires,
+					Labels: map[string]string{
+						types.NotificationTitleLabel: title,
+					},
+				},
+			},
+		},
+	}
+
+	return &notification
 }

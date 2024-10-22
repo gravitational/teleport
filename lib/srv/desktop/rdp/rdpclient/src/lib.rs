@@ -105,6 +105,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         cgo_handle,
         ConnectParams {
             ad: params.ad,
+            nla: params.nla,
             addr,
             computer_name,
             cert_der,
@@ -466,6 +467,7 @@ pub unsafe extern "C" fn client_write_screen_resize(
 #[repr(C)]
 pub struct CGOConnectParams {
     ad: bool,
+    nla: bool,
     go_addr: *const c_char,
     go_domain: *const c_char,
     go_kdc_addr: *const c_char,

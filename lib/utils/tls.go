@@ -44,8 +44,6 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 	}
 
 	config.MinVersion = tls.VersionTLS12
-	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
 }
 
 // CipherSuiteMapping transforms Teleport formatted cipher suites strings
@@ -191,4 +189,11 @@ func DefaultCipherSuites() []uint16 {
 		tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 	}
+}
+
+// RefreshTLSConfigTickets should be called right before cloning a [tls.Config]
+// for a one-off use to not break TLS session resumption, as a workaround for
+// https://github.com/golang/go/issues/60506 .
+func RefreshTLSConfigTickets(c *tls.Config) {
+	_, _ = c.DecryptTicket(nil, tls.ConnectionState{})
 }

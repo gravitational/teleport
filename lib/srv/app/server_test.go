@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
@@ -73,7 +72,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
@@ -400,8 +399,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	for _, app := range apps {
 		select {
 		case sender := <-inventoryHandle.Sender():
+			appServer, err := s.appServer.getServerInfo(app)
+			require.NoError(t, err)
 			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
-				AppServer: s.appServer.getServerInfo(app),
+				AppServer: appServer,
 			}))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")

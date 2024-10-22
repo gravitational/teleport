@@ -82,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -161,6 +160,11 @@ const (
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
+const (
+	notificationsPageReadInterval = 5 * time.Millisecond
+	notificationsWriteInterval    = 40 * time.Millisecond
+)
+
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
@@ -186,7 +190,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity = local.NewIdentityService(cfg.Backend)
+		cfg.Identity, err = local.NewIdentityServiceV2(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
@@ -200,6 +207,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.ClusterConfiguration = clusterConfig
+	}
+	if cfg.AutoUpdateService == nil {
+		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
@@ -310,6 +323,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.UserTasks == nil {
+		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.DiscoveryConfigs == nil {
 		cfg.DiscoveryConfigs, err = local.NewDiscoveryConfigService(cfg.Backend)
 		if err != nil {
@@ -321,6 +340,19 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.UserLoginState == nil {
 		cfg.UserLoginState, err = local.NewUserLoginStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.ProvisioningStates == nil {
+		cfg.ProvisioningStates, err = local.NewProvisioningStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.IdentityCenter == nil {
+		svcCfg := local.IdentityCenterServiceConfig{Backend: cfg.Backend}
+		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -349,19 +381,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
 	}
-
-	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
-		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
+
+	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
 	keystoreOpts := &keystore.Options{
 		HostUUID:             cfg.HostUUID,
 		ClusterName:          cfg.ClusterName,
-		CloudClients:         cfg.CloudClients,
 		AuthPreferenceGetter: cfg.ClusterConfiguration,
+		FIPS:                 cfg.FIPS,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -375,8 +405,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-	} else {
-		native.PrecomputeKeys()
 	}
 	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
 	if err != nil {
@@ -413,6 +441,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:                    cfg.Access,
 		DynamicAccessExt:          cfg.DynamicAccessExt,
 		ClusterConfiguration:      cfg.ClusterConfiguration,
+		AutoUpdateService:         cfg.AutoUpdateService,
 		Restrictions:              cfg.Restrictions,
 		Apps:                      cfg.Apps,
 		Kubernetes:                cfg.Kubernetes,
@@ -426,6 +455,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:     cfg.SessionTrackerService,
 		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
 		Integrations:              cfg.Integrations,
+		UserTasks:                 cfg.UserTasks,
 		DiscoveryConfigs:          cfg.DiscoveryConfigs,
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
@@ -444,6 +474,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 		StaticHostUser:            cfg.StaticHostUsers,
+		ProvisioningStates:        cfg.ProvisioningStates,
 	}
 
 	as := Server{
@@ -467,6 +498,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		loadAllCAs:              cfg.LoadAllCAs,
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
+		logger:                  cfg.Logger,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -626,6 +658,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.IntegrationsTokenGenerator
+	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
@@ -648,6 +681,9 @@ type Services struct {
 	services.DevicesGetter
 	services.SPIFFEFederations
 	services.StaticHostUser
+	services.AutoUpdateService
+	services.ProvisioningStates
+	services.IdentityCenter
 }
 
 // GetWebSession returns existing web session described by req.
@@ -707,6 +743,14 @@ var (
 		prometheus.GaugeOpts{
 			Name: teleport.MetricHeartbeatsMissed,
 			Help: "Number of heartbeats missed by auth server",
+		},
+	)
+
+	roleCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "roles_total",
+			Help:      "Number of roles that exist in the cluster",
 		},
 	)
 
@@ -794,6 +838,7 @@ var (
 		accessRequestsCreatedMetric,
 		registeredAgentsInstallMethod,
 		userCertificatesGeneratedMetric,
+		roleCount,
 	}
 )
 
@@ -1013,6 +1058,9 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// logger is the logger used by the auth server.
+	logger *slog.Logger
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1261,35 +1309,28 @@ func (a *Server) periodicSyncUpgradeWindowStartHour() {
 	}
 }
 
+// periodicIntervalKey is used to uniquely identify the subintervals registered with
+// the interval.MultiInterval instance that we use for managing periodics operations.
+
+type periodicIntervalKey int
+
+const (
+	heartbeatCheckKey periodicIntervalKey = 1 + iota
+	rotationCheckKey
+	metricsKey
+	releaseCheckKey
+	localReleaseCheckKey
+	instancePeriodicsKey
+	dynamicLabelsCheckKey
+	notificationsCleanupKey
+	desktopCheckKey
+	upgradeWindowCheckKey
+	roleCountKey
+)
+
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
-	ctx := context.TODO()
-	// run periodic functions with a semi-random period
-	// to avoid contention on the database in case if there are multiple
-	// auth servers running - so they don't compete trying
-	// to update the same resources.
-	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
-	log.Debugf("Ticking with period: %v.", period)
-	a.lock.RLock()
-	ticker := a.clock.NewTicker(period)
-	a.lock.RUnlock()
-	// Create a ticker with jitter
-	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL() * 2,
-		Jitter:   retryutils.NewSeventhJitter(),
-	})
-	promTicker := interval.New(interval.Config{
-		FirstDuration: 5 * time.Second,
-		Duration:      defaults.PrometheusScrapeInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	missedKeepAliveCount := 0
-	defer ticker.Stop()
-	defer heartbeatCheckTicker.Stop()
-	defer promTicker.Stop()
-
 	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
 
 	// this environment variable is "unstable" since it will be deprecated
@@ -1298,49 +1339,91 @@ func (a *Server) runPeriodicOperations() {
 		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
 	}
 
-	// note the use of FullJitter for the releases check interval. this lets us ensure
-	// that frequent restarts don't prevent checks from happening despite the infrequent
-	// effective check rate.
-	releaseCheck := interval.New(interval.Config{
-		Duration:      time.Hour * 24,
-		FirstDuration: firstReleaseCheck,
-		Jitter:        retryutils.NewFullJitter(),
-	})
-	defer releaseCheck.Stop()
+	// run periodic functions with a semi-random period
+	// to avoid contention on the database in case if there are multiple
+	// auth servers running - so they don't compete trying
+	// to update the same resources.
+	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
+	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 
-	// more frequent release check that just re-calculates alerts based on previously
-	// pulled versioning info.
-	localReleaseCheck := interval.New(interval.Config{
-		Duration:      time.Minute * 10,
-		FirstDuration: utils.HalfJitter(time.Second * 10),
-		Jitter:        retryutils.NewHalfJitter(),
-	})
-	defer localReleaseCheck.Stop()
+	ticker := interval.NewMulti(
+		a.GetClock(),
+		interval.SubInterval[periodicIntervalKey]{
+			Key:      rotationCheckKey,
+			Duration: period,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           metricsKey,
+			Duration:      defaults.PrometheusScrapeInterval,
+			FirstDuration: 5 * time.Second,
+			Jitter:        retryutils.NewSeventhJitter(),
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           instancePeriodicsKey,
+			Duration:      9 * time.Minute,
+			FirstDuration: utils.HalfJitter(time.Minute),
+			Jitter:        retryutils.NewSeventhJitter(),
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           notificationsCleanupKey,
+			Duration:      48 * time.Hour,
+			FirstDuration: utils.FullJitter(time.Hour),
+			Jitter:        retryutils.NewSeventhJitter(),
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           roleCountKey,
+			Duration:      12 * time.Hour,
+			FirstDuration: utils.FullJitter(time.Minute),
+			Jitter:        retryutils.NewSeventhJitter(),
+		},
+	)
 
-	instancePeriodics := interval.New(interval.Config{
-		Duration:      time.Minute * 9,
-		FirstDuration: utils.HalfJitter(time.Minute),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer instancePeriodics.Stop()
+	defer ticker.Stop()
 
-	var ossDesktopsCheck <-chan time.Time
-	if modules.GetModules().IsOSSBuild() {
-		ossDesktopsCheck = interval.New(interval.Config{
-			Duration:      OSSDesktopsCheckPeriod,
-			FirstDuration: utils.HalfJitter(time.Second * 10),
+	missedKeepAliveCount := 0
+
+	// Prevent some periodic operations from running for dashboard tenants.
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           dynamicLabelsCheckKey,
+			Duration:      dynamicLabelCheckPeriod,
+			FirstDuration: utils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.NewSeventhJitter(),
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:      heartbeatCheckKey,
+			Duration: apidefaults.ServerKeepAliveTTL() * 2,
+			Jitter:   retryutils.NewSeventhJitter(),
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           releaseCheckKey,
+			Duration:      24 * time.Hour,
+			FirstDuration: firstReleaseCheck,
+			// note the use of FullJitter for the releases check interval. this lets us ensure
+			// that frequent restarts don't prevent checks from happening despite the infrequent
+			// effective check rate.
+			Jitter: retryutils.NewFullJitter(),
+		})
+		// more frequent release check that just re-calculates alerts based on previously
+		// pulled versioning info.
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           localReleaseCheckKey,
+			Duration:      10 * time.Minute,
+			FirstDuration: utils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.NewHalfJitter(),
-		}).Next()
-	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
-		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
+		})
 	}
 
-	dynamicLabelsCheck := interval.New(interval.Config{
-		Duration:      dynamicLabelCheckPeriod,
-		FirstDuration: utils.HalfJitter(time.Second * 10),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer dynamicLabelsCheck.Stop()
+	if modules.GetModules().IsOSSBuild() {
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           desktopCheckKey,
+			Duration:      OSSDesktopsCheckPeriod,
+			FirstDuration: utils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.NewHalfJitter(),
+		})
+	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
+		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
+	}
 
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
@@ -1356,7 +1439,7 @@ func (a *Server) runPeriodicOperations() {
 			case <-a.closeCtx.Done():
 				return
 			case <-remoteClustersRefresh.Next():
-				a.refreshRemoteClusters(ctx, r)
+				a.refreshRemoteClusters(a.closeCtx, r)
 			}
 		}
 	}()
@@ -1364,50 +1447,118 @@ func (a *Server) runPeriodicOperations() {
 	// cloud auth servers need to periodically sync the upgrade window
 	// from the cloud db.
 	if modules.GetModules().Features().Cloud {
-		go a.periodicSyncUpgradeWindowStartHour()
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           upgradeWindowCheckKey,
+			Duration:      3 * time.Minute,
+			FirstDuration: utils.FullJitter(30 * time.Second),
+			Jitter:        retryutils.NewSeventhJitter(),
+		})
 	}
 
 	for {
 		select {
 		case <-a.closeCtx.Done():
 			return
-		case <-ticker.Chan():
-			err := a.autoRotateCertAuthorities(ctx)
-			if err != nil {
-				if trace.IsCompareFailed(err) {
-					log.Debugf("Cert authority has been updated concurrently: %v.", err)
-				} else {
-					log.Errorf("Failed to perform cert rotation check: %v.", err)
-				}
+		case tick := <-ticker.Next():
+			switch tick.Key {
+			case rotationCheckKey:
+				go func() {
+					if err := a.AutoRotateCertAuthorities(a.closeCtx); err != nil {
+						if trace.IsCompareFailed(err) {
+							log.Debugf("Cert authority has been updated concurrently: %v.", err)
+						} else {
+							log.Errorf("Failed to perform cert rotation check: %v.", err)
+						}
+					}
+				}()
+			case heartbeatCheckKey:
+				go func() {
+					req := &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindNode}, SortBy: types.SortBy{Field: types.ResourceKind}}
+
+					for {
+						_, next, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx,
+							func(rwl types.ResourceWithLabels) (bool, error) {
+								srv, ok := rwl.(types.Server)
+								if !ok {
+									return false, nil
+								}
+								if services.NodeHasMissedKeepAlives(srv) {
+									missedKeepAliveCount++
+								}
+								return false, nil
+							},
+							req,
+						)
+						if err != nil {
+							log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+							return
+						}
+
+						req.StartKey = next
+						if req.StartKey == "" {
+							break
+						}
+					}
+
+					// Update prometheus gauge
+					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
+				}()
+			case metricsKey:
+				go a.updateAgentMetrics()
+			case releaseCheckKey:
+				go a.syncReleaseAlerts(a.closeCtx, true)
+			case localReleaseCheckKey:
+				go a.syncReleaseAlerts(a.closeCtx, false)
+			case instancePeriodicsKey:
+				go a.doInstancePeriodics(a.closeCtx)
+			case desktopCheckKey:
+				go a.syncDesktopsLimitAlert(a.closeCtx)
+			case dynamicLabelsCheckKey:
+				go a.syncDynamicLabelsAlert(a.closeCtx)
+			case notificationsCleanupKey:
+				go a.CleanupNotifications(a.closeCtx)
+			case upgradeWindowCheckKey:
+				go a.periodicSyncUpgradeWindowStartHour()
+			case roleCountKey:
+				go a.tallyRoles(a.closeCtx)
 			}
-		case <-heartbeatCheckTicker.Next():
-			nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
-			if err != nil {
-				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
-			}
-			for _, node := range nodes {
-				if services.NodeHasMissedKeepAlives(node) {
-					missedKeepAliveCount++
-				}
-			}
-			// Update prometheus gauge
-			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.Next():
-			a.updateAgentMetrics()
-		case <-releaseCheck.Next():
-			a.syncReleaseAlerts(ctx, true)
-		case <-localReleaseCheck.Next():
-			a.syncReleaseAlerts(ctx, false)
-		case <-instancePeriodics.Next():
-			// instance periodics are rate-limited and may be time-consuming in large
-			// clusters, so launch them in the background.
-			go a.doInstancePeriodics(ctx)
-		case <-ossDesktopsCheck:
-			a.syncDesktopsLimitAlert(ctx)
-		case <-dynamicLabelsCheck.Next():
-			a.syncDynamicLabelsAlert(ctx)
 		}
 	}
+}
+
+func (a *Server) tallyRoles(ctx context.Context) {
+	var count = 0
+	a.logger.DebugContext(ctx, "tallying roles")
+	defer func() {
+		a.logger.DebugContext(ctx, "tallying roles completed", "role_count", count)
+	}()
+
+	req := &proto.ListRolesRequest{Limit: 20}
+
+	readLimiter := time.NewTicker(20 * time.Millisecond)
+	defer readLimiter.Stop()
+
+	for {
+		resp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return
+		}
+
+		count += len(resp.Roles)
+		req.StartKey = resp.NextKey
+
+		if req.StartKey == "" {
+			break
+		}
+
+		select {
+		case <-readLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	roleCount.Set(float64(count))
 }
 
 func (a *Server) doInstancePeriodics(ctx context.Context) {
@@ -1512,7 +1663,7 @@ const (
 )
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
-// is true it pulls the latest release info from github.  Otherwise, it loads the versions used
+// is true it pulls the latest release info from GitHub.  Otherwise, it loads the versions used
 // for the most recent alerts and re-syncs with latest cluster state.
 func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	log.Debug("Checking for new teleport releases via github api.")
@@ -1926,7 +2077,6 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 func (a *Server) generateHostCert(
 	ctx context.Context, p services.HostCertParams,
 ) ([]byte, error) {
-
 	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2203,16 +2353,18 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
-	Key                  []byte
-	Username             string
-	TTL                  time.Duration
-	Compatibility        string
-	RouteToCluster       string
-	PinnedIP             string
-	MFAVerified          string
-	AttestationStatement *keys.AttestationStatement
-	AppName              string
-	AppSessionID         string
+	SSHPubKey               []byte
+	TLSPubKey               []byte
+	Username                string
+	TTL                     time.Duration
+	Compatibility           string
+	RouteToCluster          string
+	PinnedIP                string
+	MFAVerified             string
+	SSHAttestationStatement *keys.AttestationStatement
+	TLSAttestationStatement *keys.AttestationStatement
+	AppName                 string
+	AppSessionID            string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2232,31 +2384,20 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.Key
-	cryptoPubKey, err := sshutils.CryptoPublicKey(req.Key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	certs, err := a.generateUserCert(ctx, certRequest{
 		user:                             userState,
 		ttl:                              req.TTL,
 		compatibility:                    req.Compatibility,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKey:                     req.SSHPubKey,
+		tlsPublicKey:                     req.TLSPubKey,
 		routeToCluster:                   req.RouteToCluster,
 		checker:                          checker,
 		traits:                           userState.GetTraits(),
 		loginIP:                          req.PinnedIP,
 		pinIP:                            req.PinnedIP != "",
 		mfaVerified:                      req.MFAVerified,
-		sshPublicKeyAttestationStatement: req.AttestationStatement,
-		tlsPublicKeyAttestationStatement: req.AttestationStatement,
+		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
 	})
@@ -3239,8 +3380,8 @@ func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKe
 	// verify that the required private key policy for the requested identity
 	// is met by the provided attestation statement.
 	attestedKeyPolicy = attestationData.PrivateKeyPolicy
-	if err := params.requiredKeyPolicy.VerifyPolicy(attestedKeyPolicy); err != nil {
-		return attestedKeyPolicy, trace.Wrap(err)
+	if !params.requiredKeyPolicy.IsSatisfiedBy(attestedKeyPolicy) {
+		return attestedKeyPolicy, keys.NewPrivateKeyPolicyError(params.requiredKeyPolicy)
 	}
 
 	var validateSerialNumber bool
@@ -3510,9 +3651,13 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if err := validateAndSetScope(challengeExtensions, mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN); err != nil {
 			return nil, trace.Wrap(ErrDone)
 		}
-
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
-		// TODO(Joerger): in v16.0.0, require scope to be specified in the request.
+
+		// Require that a scope was provided.
+		if challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, trace.BadParameter("scope not present in request")
+		}
+
 		var err error
 		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
@@ -3784,7 +3929,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 //   - Last resident key credential in a passwordless-capable cluster (avoids
 //     passwordless users from locking themselves out).
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
-	devs, err := a.Services.GetMFADevices(ctx, user, true)
+	mfaDevices, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3794,108 +3939,75 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	kindToSF := map[string]constants.SecondFactorType{
-		fmt.Sprintf("%T", &types.MFADevice_Totp{}):     constants.SecondFactorOTP,
-		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorWebauthn,
-		fmt.Sprintf("%T", &types.MFADevice_Webauthn{}): constants.SecondFactorWebauthn,
-	}
-	sfToCount := make(map[constants.SecondFactorType]int)
-	var knownDevices int
-	var deviceToDelete *types.MFADevice
-	var numResidentKeys int
-
-	isResidentKey := func(d *types.MFADevice) bool {
+	isPasskey := func(d *types.MFADevice) bool {
 		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
 	}
 
+	var deviceToDelete *types.MFADevice
+	remainingDevices := make(map[types.SecondFactorType]int)
+	var remainingPasskeys int
+
 	// Find the device to delete and count devices.
-	for _, d := range devs {
+	for _, d := range mfaDevices {
 		// Match device by name or ID.
 		if d.GetName() == deviceName || d.Id == deviceName {
 			deviceToDelete = d
+			switch d.Device.(type) {
+			case *types.MFADevice_Totp, *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			case *types.MFADevice_Sso:
+				return nil, trace.BadParameter("cannot delete ephemeral SSO MFA device")
+			default:
+				return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
+			}
+			continue
 		}
 
-		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
-		switch {
-		case !ok && d == deviceToDelete:
-			return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
-		case !ok:
+		switch d.Device.(type) {
+		case *types.MFADevice_Totp:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_OTP]++
+		case *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN]++
+		case *types.MFADevice_Sso:
+			remainingDevices[types.SecondFactorType_SECOND_FACTOR_TYPE_SSO]++
+		default:
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
 		}
 
-		sfToCount[sf]++
-		knownDevices++
-
-		if isResidentKey(d) {
-			numResidentKeys++
+		if isPasskey(d) {
+			remainingPasskeys++
 		}
 	}
 	if deviceToDelete == nil {
 		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
 	}
 
-	// Prevent users from deleting their last device for clusters that require second factors.
-	const minDevices = 1
-	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
-	case constants.SecondFactorOn:
-		if knownDevices <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
-		}
-	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
-		}
-	default:
-		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
+	var remainingAllowedDevices int
+	for _, sf := range readOnlyAuthPref.GetSecondFactors() {
+		remainingAllowedDevices += remainingDevices[sf]
 	}
 
-	// canDeleteLastPasskey figures out whether the user can safely delete their
-	// credential without locking themselves out in case if it's the last passkey.
-	// It checks whether the credential to delete is a last passkey and whether
-	// the user has other valid local credentials.
-	canDeleteLastPasskey := func() (bool, error) {
-		if !readOnlyAuthPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
-			return true, nil
-		}
+	// Prevent users from deleting their last allowed device for clusters that require second factors.
+	if readOnlyAuthPref.IsSecondFactorEnforced() && remainingAllowedDevices == 0 {
+		return nil, trace.BadParameter("cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
+	}
 
-		// Deleting the last passkey is OK if the user has a password set and an
-		// additional MFA device, otherwise they would be locked out.
+	// Check whether the device to delete is the last passwordless device,
+	// and whether deleting it would lockout the user from login.
+	//
+	// Note: the user may already be locked out from login if a password
+	// is not set and passwordless is disabled. Prevent them from deleting
+	// their last passkey to prevent them from being locked out further,
+	// in the case of passwordless being re-enabled.
+	if isPasskey(deviceToDelete) && remainingPasskeys == 0 {
 		u, err := a.Services.GetUser(ctx, user, false /* withSecrets */)
 		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		if u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
-			return false, nil
+			return nil, trace.Wrap(err)
 		}
 
-		// Minimum number of WebAuthn devices includes the passkey that we attempt
-		// to delete, hence 2.
-		if sfToCount[constants.SecondFactorWebauthn] >= 2 {
-			return true, nil
+		if u.GetUserType() != types.UserTypeSSO && u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
+			return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 		}
-
-		// Whether we take TOTPs into consideration or not depends on whether it's
-		// enabled.
-		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-			if sfToCount[constants.SecondFactorOTP] >= 1 {
-				return true, nil
-			}
-		}
-
-		return false, nil
-	}
-
-	can, err := canDeleteLastPasskey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !can {
-		return nil, trace.BadParameter("cannot delete last passwordless credential for user")
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
@@ -4000,7 +4112,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.Wrap(err)
 	}
 
-	if cap.GetSecondFactor() == constants.SecondFactorOff {
+	if !cap.IsSecondFactorEnabled() {
 		return nil, trace.BadParameter("second factor disabled by cluster configuration")
 	}
 
@@ -4595,9 +4707,13 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
-			NodeHeartbeats: true,
-			AppHeartbeats:  true,
-			AppCleanup:     true,
+			NodeHeartbeats:       true,
+			AppHeartbeats:        true,
+			AppCleanup:           true,
+			DatabaseHeartbeats:   true,
+			DatabaseCleanup:      true,
+			KubernetesHeartbeats: true,
+			KubernetesCleanup:    true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -5421,7 +5537,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
 			},
-			Expires: timestamppb.New(req.Expiry())},
+			Expires: timestamppb.New(req.Expiry()),
+		},
 	}
 }
 
@@ -5757,6 +5874,136 @@ func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
 	}
 	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
 		log.Warnf("Failed to set %s alert: %v", dynamicLabelAlertID, err)
+	}
+}
+
+// CleanupNotifications deletes all expired user notifications and global notifications, as well as any associated notification states, for all users.
+func (a *Server) CleanupNotifications(ctx context.Context) {
+	var userNotifications []*notificationsv1.Notification
+	var userNotificationsPageKey string
+	userNotificationsReadLimiter := time.NewTicker(notificationsPageReadInterval)
+	defer userNotificationsReadLimiter.Stop()
+	for {
+		select {
+		case <-userNotificationsReadLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.Cache.ListUserNotifications(ctx, 20, userNotificationsPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to list user notifications for periodic cleanup", "error", err)
+		}
+		userNotifications = append(userNotifications, response...)
+		if nextKey == "" {
+			break
+		}
+		userNotificationsPageKey = nextKey
+	}
+
+	var globalNotifications []*notificationsv1.GlobalNotification
+	var globalNotificationsPageKey string
+	globalNotificationsReadLimiter := time.NewTicker(notificationsPageReadInterval)
+	defer globalNotificationsReadLimiter.Stop()
+	for {
+		select {
+		case <-globalNotificationsReadLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.Cache.ListGlobalNotifications(ctx, 20, globalNotificationsPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to list global notifications for periodic cleanup", "error", err)
+		}
+		globalNotifications = append(globalNotifications, response...)
+		if nextKey == "" {
+			break
+		}
+		globalNotificationsPageKey = nextKey
+	}
+
+	timeNow := a.clock.Now()
+
+	notificationsDeleteLimiter := time.NewTicker(notificationsWriteInterval)
+	defer notificationsDeleteLimiter.Stop()
+
+	// Initialize a map for non-expired notifications where the key is the notification id.
+	nonExpiredGlobalNotificationsByID := make(map[string]*notificationsv1.GlobalNotification)
+	for _, gn := range globalNotifications {
+		notificationID := gn.GetMetadata().GetName()
+		expiry := gn.GetSpec().GetNotification().GetMetadata().GetExpires()
+
+		if timeNow.After(expiry.AsTime()) {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteGlobalNotification(ctx, notificationID); err != nil && !trace.IsNotFound(err) {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup global notification", "error", err, "notification_id", notificationID)
+			}
+		} else {
+			nonExpiredGlobalNotificationsByID[notificationID] = gn
+		}
+	}
+
+	// Initialize a map for non-expired notifications where the key is the notification id.
+	nonExpiredUserNotificationsByID := make(map[string]*notificationsv1.Notification)
+	for _, un := range userNotifications {
+		notificationID := un.GetMetadata().GetName()
+		user := un.GetSpec().GetUsername()
+		expiry := un.GetMetadata().GetExpires()
+
+		if timeNow.After(expiry.AsTime()) {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteUserNotification(ctx, user, notificationID); err != nil && !trace.IsNotFound(err) {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup user notification", "error", err, "notification_id", notificationID, "target_user", user)
+			}
+		} else {
+			nonExpiredUserNotificationsByID[notificationID] = un
+		}
+	}
+
+	var userNotificationStates []*notificationsv1.UserNotificationState
+	var userNotificationStatesPageKey string
+	notificationStatesTicker := time.NewTicker(notificationsPageReadInterval)
+	defer notificationStatesTicker.Stop()
+	for {
+		select {
+		case <-notificationStatesTicker.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.ListNotificationStatesForAllUsers(ctx, 20, userNotificationStatesPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "encountered error attempting to list notification states for cleanup", "error", err)
+		}
+		userNotificationStates = append(userNotificationStates, response...)
+		if nextKey == "" {
+			break
+		}
+		userNotificationStatesPageKey = nextKey
+	}
+
+	for _, uns := range userNotificationStates {
+		id := uns.GetSpec().GetNotificationId()
+		username := uns.GetSpec().GetUsername()
+
+		// If this notification state is for a notification which doesn't exist in either the non-expired global notifications map or
+		// the non-expired user notifications map, then delete it.
+		if nonExpiredGlobalNotificationsByID[id] == nil && nonExpiredUserNotificationsByID[id] == nil {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteUserNotificationState(ctx, username, id); err != nil {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup notification state", "error", err, "user", username, "id", id)
+			}
+		}
 	}
 }
 
@@ -6158,13 +6405,22 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return proto.PingResponse{}, nil
+	}
+
+	licenseExpiry := modules.GetModules().LicenseExpiry()
+
 	return proto.PingResponse{
-		ClusterName:     cn.GetClusterName(),
-		ServerVersion:   teleport.Version,
-		ServerFeatures:  features,
-		ProxyPublicAddr: a.getProxyPublicAddr(),
-		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LoadAllCAs:      a.loadAllCAs,
+		ClusterName:             cn.GetClusterName(),
+		ServerVersion:           teleport.Version,
+		ServerFeatures:          features,
+		ProxyPublicAddr:         a.getProxyPublicAddr(),
+		IsBoring:                modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:              a.loadAllCAs,
+		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+		LicenseExpiry:           &licenseExpiry,
 	}, nil
 }
 
@@ -6616,6 +6872,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
+	SSO      *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
@@ -6632,6 +6889,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 			if groupWebauthn {
 				res.Webauthn = append(res.Webauthn, dev)
 			}
+		case *types.MFADevice_Sso:
+			res.SSO = dev
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
@@ -6693,7 +6952,6 @@ func (a *Server) ValidateMFAAuthResponse(
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
-
 	authData, validateErr := a.validateMFAAuthResponseInternal(ctx, resp, user, requiredExtensions)
 	// validateErr handled after audit.
 
@@ -6900,7 +7158,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add JWT keys if necessary.
 	switch caID.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -6949,6 +7207,8 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.OIDCIdPCAJWT
 	case types.SPIFFECA:
 		return cryptosuites.SPIFFECAJWT
+	case types.OktaCA:
+		return cryptosuites.OktaCAJWT
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

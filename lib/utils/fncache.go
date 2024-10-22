@@ -170,6 +170,34 @@ func (c *FnCache) Shutdown(ctx context.Context) {
 	}
 }
 
+// Remove purges a specific item in the cache.
+func (c *FnCache) Remove(key any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, key)
+}
+
+// Set places an item in the cache using the default TTL.
+func (c *FnCache) Set(key, value any) {
+	c.SetWithTTL(key, value, c.cfg.TTL)
+}
+
+// SetWithTTL places an item in the cache with an explicit TTL.
+func (c *FnCache) SetWithTTL(key, value any, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	loaded := make(chan struct{})
+	close(loaded)
+
+	c.entries[key] = &fnCacheEntry{
+		v:      value,
+		t:      c.cfg.Clock.Now(),
+		ttl:    ttl,
+		loaded: loaded,
+	}
+}
+
 // RemoveExpired purges any items from the cache which have exceeded their TTL.
 func (c *FnCache) RemoveExpired() {
 	c.mu.Lock()

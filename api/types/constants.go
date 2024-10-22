@@ -40,6 +40,8 @@ const (
 	PackageNameOSS = "teleport"
 	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
+	// PackageNameEntFIPS is the teleport package name for the Enterprise with FIPS enabled version.
+	PackageNameEntFIPS = "teleport-ent-fips"
 
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
@@ -116,7 +118,10 @@ const (
 	// KindSession is a recorded SSH session.
 	KindSession = "session"
 
-	// KindSSHSession is an active SSH session.
+	// KindSSHSession represents an active SSH session in early versions of Teleport
+	// prior to the introduction of moderated sessions. Note that ssh_session is not
+	// a "real" resource, and it is never used as the "session kind" value in the
+	// session_tracker resource.
 	KindSSHSession = "ssh_session"
 
 	// KindWebSession is a web session resource
@@ -320,6 +325,18 @@ const (
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
 
+	// KindAutoUpdateConfig is the resource with autoupdate configuration.
+	KindAutoUpdateConfig = "autoupdate_config"
+
+	// KindAutoUpdateVersion is the resource with autoupdate versions.
+	KindAutoUpdateVersion = "autoupdate_version"
+
+	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
+	MetaNameAutoUpdateConfig = "autoupdate-config"
+
+	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
+	MetaNameAutoUpdateVersion = "autoupdate-version"
+
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
 
@@ -473,6 +490,9 @@ const (
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
+	// KindUserTask is a task representing an issue with some other resource.
+	KindUserTask = "user_task"
+
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
 
@@ -531,6 +551,10 @@ const (
 	// a managed device.
 	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
 
+	// KindProvisioningPrincipalState is a resource that tracks provisioning of a user or access
+	// list in a downstream SCIM server
+	KindProvisioningPrincipalState = "provisioning_principal_state"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
 
@@ -539,6 +563,20 @@ const (
 
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
+
+	// KindIdentityCenterAccount describes an Identity-Center managed AWS Account
+	KindIdentityCenterAccount = "aws_ic_account"
+
+	// KindIdentityCenterPermissionSet describes an AWS Identity Center Permission Set
+	KindIdentityCenterPermissionSet = "aws_ic_permission_set"
+
+	// KindIdentityCenterPermissionSet describes an AWS Principal Assignment, representing
+	// a collection Account Assignments assigned to a Teleport User or AccessList
+	KindIdentityCenterPrincipalAssignment = "aws_ic_principal_assignment"
+
+	// KindIdentityCenterAccountAssignment describes an AWS Account and Permission Set
+	// pair that can be requested by a Teleport User.
+	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
@@ -568,7 +606,7 @@ const (
 )
 
 // PackageNameKinds is the list of valid teleport package names.
-var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -1013,6 +1051,11 @@ const (
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 
+	// ProxyPeerQUICLabel is the internal-user label for proxy heartbeats that's
+	// used to signal that the proxy supports receiving proxy peering
+	// connections over QUIC.
+	ProxyPeerQUICLabel = TeleportInternalLabelPrefix + "proxy-peer-quic"
+
 	// OktaAppNameLabel is the individual app name label.
 	OktaAppNameLabel = TeleportInternalLabelPrefix + "okta-app-name"
 
@@ -1301,6 +1344,9 @@ const (
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
 	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )
 
 const (
@@ -1372,4 +1418,18 @@ const (
 	// SCIMBaseURLLabel defines a label indicating the base URL for
 	// interacting with a plugin via SCIM. Useful for diagnostic display.
 	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
+)
+
+const (
+	// DatadogCredentialLabel is used by Datadog-managed PluginStaticCredentials
+	// to indiciate credential type.
+	DatadogCredentialLabel = "datadog/credential"
+
+	// DatadogCredentialAPIKey indicates that the credential is used as a
+	// Datadog API key.
+	DatadogCredentialAPIKey = "datadog-api-key"
+
+	// DatadogCredentialApplicationKey indicates that the credential is used as
+	// a Datadog Application key.
+	DatadogCredentialApplicationKey = "datadog-application-key"
 )

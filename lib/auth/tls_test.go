@@ -438,7 +438,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -458,7 +458,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance((gracePeriod*2)/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -481,7 +481,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// complete rotation - advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
@@ -540,7 +540,7 @@ func TestAutoFallback(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -1360,7 +1360,7 @@ func TestGetCurrentUser(t *testing.T) {
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1401,7 +1401,7 @@ func TestAuthPreferenceSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "local", gotAP.GetType())
-	require.Equal(t, constants.SecondFactorOTP, gotAP.GetSecondFactor())
+	require.Equal(t, []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP}, gotAP.GetSecondFactors())
 	require.True(t, gotAP.GetDisconnectExpiredCert())
 	require.Empty(t, cmp.Diff(upsertedAP, gotAP, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
@@ -1419,58 +1419,6 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 		Clock:  clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(t)
-}
-
-func TestRemoteClustersCRUD(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	testSrv := newTestTLSServer(t)
-	clt, err := testSrv.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	clusterName := "example.com"
-	out, err := clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	rc, err := types.NewRemoteCluster(clusterName)
-	require.NoError(t, err)
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
-
-	rc, err = testSrv.Auth().CreateRemoteCluster(ctx, rc)
-	require.NoError(t, err)
-
-	out, err = clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out[0], rc))
-
-	update := rc.Clone()
-	update.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	_, err = clt.UpdateRemoteCluster(ctx, update)
-	require.NoError(t, err)
-	updated, err := clt.GetRemoteCluster(ctx, rc.GetName())
-	require.NoError(t, err)
-	require.Equal(t, teleport.RemoteClusterStatusOnline, updated.GetConnectionStatus())
-	// Ensure other fields unchanged
-	require.Empty(t,
-		cmp.Diff(
-			rc,
-			updated,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-			cmpopts.IgnoreFields(types.RemoteClusterStatusV3{}, "Connection"),
-		),
-	)
-
-	err = clt.DeleteRemoteCluster(ctx, clusterName)
-	require.NoError(t, err)
-	err = clt.DeleteRemoteCluster(ctx, clusterName)
-	require.True(t, trace.IsNotFound(err))
-
-	out, err = clt.GetRemoteClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
 }
 
 func TestServersCRUD(t *testing.T) {
@@ -3498,14 +3446,6 @@ func TestRegisterCAPin(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Generate public and private keys for node.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
 	// Calculate what CA pin should be.
 	localCAResponse, err := testSrv.AuthServer.AuthServer.GetClusterCACert(ctx)
 	require.NoError(t, err)
@@ -3524,8 +3464,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{caPin},
 		Clock:                clock,
 	})
@@ -3542,8 +3480,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", caPin},
 		Clock:                clock,
 	})
@@ -3559,8 +3495,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123"},
 		Clock:                clock,
 	})
@@ -3576,8 +3510,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", "sha256:456"},
 		Clock:                clock,
 	})
@@ -3612,8 +3544,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               caPins,
 		Clock:                clock,
 	})
@@ -3639,16 +3569,8 @@ func TestRegisterCAPath(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Generate public and private keys for node.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
 	// Attempt to register with nothing at the CA path, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	_, err := join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3657,8 +3579,6 @@ func TestRegisterCAPath(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		Clock:                clock,
 	})
 	require.NoError(t, err)
@@ -3686,8 +3606,6 @@ func TestRegisterCAPath(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,
 		Clock:                clock,
 	})
@@ -4475,6 +4393,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-creator",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4503,6 +4425,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-creator",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
@@ -4626,6 +4552,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-upserter",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4654,6 +4584,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
@@ -4685,6 +4619,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "**************",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",

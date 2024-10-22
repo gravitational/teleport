@@ -33,11 +33,9 @@ import {
   DbType,
 } from 'shared/services/databases';
 
-import { Flex, ButtonPrimary, Text, Link, H1 } from 'design';
+import { Flex, ButtonPrimary, Text, Link, H1, ResourceIcon } from 'design';
 
 import * as icons from 'design/Icon';
-import Image from 'design/Image';
-import stack from 'design/assets/resources/stack.png';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -568,7 +566,7 @@ function NoResources(props: {
     );
     $content = (
       <>
-        <Image src={stack} ml="auto" mr="auto" mb={4} height="100px" />
+        <ResourceIcon name="server" mx="auto" mb={4} height="100px" />
         <H1 mb={2}>Add your first resource to Teleport</H1>
         <Text color="text.slightlyMuted">
           {props.canUseConnectMyComputer ? (

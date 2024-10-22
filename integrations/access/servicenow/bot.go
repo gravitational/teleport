@@ -120,3 +120,8 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
 	return nil, trace.NotImplemented("ServiceNow plugin does not use recipients")
 }
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
+}

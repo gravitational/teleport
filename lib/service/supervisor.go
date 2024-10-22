@@ -87,6 +87,10 @@ type Supervisor interface {
 	// value immediately. The broadcasting will stop when the context is done.
 	ListenForEvents(ctx context.Context, name string, eventC chan<- Event)
 
+	// ListenForNewEvents arranges for eventC to receive new events with the
+	// specified name. The broadcasting will stop when the context is done.
+	ListenForNewEvents(ctx context.Context, name string, eventC chan<- Event)
+
 	// RegisterEventMapping registers event mapping -
 	// when the sequence in the event mapping triggers, the
 	// outbound event will be generated.
@@ -99,10 +103,6 @@ type Supervisor interface {
 	// GracefulExitContext returns context that will be closed when
 	// a graceful or hard TeleportExitEvent is broadcast.
 	GracefulExitContext() context.Context
-
-	// ReloadContext returns context that will be closed when
-	// TeleportReloadEvent is broadcasted.
-	ReloadContext() context.Context
 }
 
 // EventMapping maps a sequence of incoming
@@ -161,9 +161,6 @@ type LocalSupervisor struct {
 	gracefulExitContext context.Context
 	signalGracefulExit  context.CancelFunc
 
-	reloadContext context.Context
-	signalReload  context.CancelFunc
-
 	eventMappings []EventMapping
 	id            string
 
@@ -183,8 +180,6 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 	// in the event of graceful exit must also terminate in the event of an immediate exit.
 	gracefulExitContext, signalGracefulExit := context.WithCancel(exitContext)
 
-	reloadContext, signalReload := context.WithCancel(ctx)
-
 	srv := &LocalSupervisor{
 		state:        stateCreated,
 		id:           id,
@@ -201,9 +196,7 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 		gracefulExitContext: gracefulExitContext,
 		signalGracefulExit:  signalGracefulExit,
 
-		reloadContext: reloadContext,
-		signalReload:  signalReload,
-		log:           parentLog.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
+		log: parentLog.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
 	}
 	go srv.fanOut()
 	return srv
@@ -284,6 +277,7 @@ var metricsServicesRunning = prometheus.NewGaugeVec(
 	},
 	[]string{teleport.TagServiceName},
 )
+
 var metricsServicesRunningMap = map[string]string{
 	"discovery.init":       "discovery_service",
 	"ssh.node":             "ssh_service",
@@ -385,20 +379,13 @@ func (s *LocalSupervisor) GracefulExitContext() context.Context {
 	return s.gracefulExitContext
 }
 
-// ReloadContext returns context that will be closed when
-// TeleportReloadEvent is broadcasted.
-func (s *LocalSupervisor) ReloadContext() context.Context {
-	return s.reloadContext
-}
-
 // BroadcastEvent generates event and broadcasts it to all
 // subscribed parties.
 func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
 
-	switch event.Name {
-	case TeleportExitEvent:
+	if event.Name == TeleportExitEvent {
 		// if exit event includes a context payload, it is a "graceful" exit, and
 		// we need to hold off closing the supervisor's exit context until after
 		// the graceful context has closed.  If not, it is an immediate exit.
@@ -414,8 +401,6 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 		} else {
 			s.signalExit()
 		}
-	case TeleportReloadEvent:
-		s.signalReload()
 	}
 
 	s.events[event.Name] = event
@@ -508,6 +493,14 @@ func (s *LocalSupervisor) ListenForEvents(ctx context.Context, name string, even
 	if ok {
 		go waiter.notify(event)
 	}
+	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
+}
+
+func (s *LocalSupervisor) ListenForNewEvents(ctx context.Context, name string, eventC chan<- Event) {
+	s.Lock()
+	defer s.Unlock()
+
+	waiter := &waiter{eventC: eventC, context: ctx}
 	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
 }
 

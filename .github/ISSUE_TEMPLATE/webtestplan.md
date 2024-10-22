@@ -259,6 +259,99 @@ spec:
 - [ ] Verify that root is marked with a `root` pill
 - [ ] Verify that cluster dropdown menu items goes to the correct route
 
+## Application Access
+
+### Required Applications
+
+Create two apps running locally, a frontend app and a backend app. The frontend app should
+make an API request to the backend app at its teleport public_addr
+
+<details>
+	<summary>You can use this example app if you don't have a frontend/backend setup</summary>
+  
+  ```go
+  package main
+
+  import (
+    "encoding/json"
+    "fmt"
+    "log"
+    "net/http"
+  )
+
+  // change to your cluster addr
+  const clusterName = "avatus.sh"
+
+  func main() {
+    // handler for the html page. this is the "client".
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+      html := fmt.Sprintf(html, clusterName)
+      w.Header().Set("Content-Type", "text/html")
+      w.Write([]byte(html))
+    })
+
+    // Handler for the API endpoint
+    http.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
+      w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("https://client.%s", clusterName))
+      w.Header().Set("Access-Control-Allow-Credentials", "true")
+      data := map[string]string{"hello": "world"}
+      w.Header().Set("Content-Type", "application/json")
+      json.NewEncoder(w).Encode(data)
+    })
+
+    log.Println("Server starting on http://localhost:8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
+  }
+
+  const html = `
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>API Data Fetcher</title>
+  </head>
+  <body>
+      <div id="result"></div>
+      <div id="cors-result"></div>
+      <script>
+          fetch('https://api.%s/api/data', { credentials: 'include' })
+              .then(response => response.json())
+              .then(data => {
+                  document.getElementById('result').textContent = JSON.stringify(data);
+              })
+              .catch(error => console.error('Error:', error));
+      </script>
+  </body>
+  </html>
+  `
+```
+</details>
+
+Update your app service to serve the apps like this (update your public addr to what makes sense for your cluster)
+```
+app_service:
+  enabled: "yes"
+  debug_app: true
+  apps:
+    - name: client
+      uri: http://localhost:8080
+      public_addr: client.avatus.sh
+      required_apps:
+      - api
+    - name: api
+      uri: http://localhost:8080
+      public_addr: api.avatus.sh
+      cors:
+        allowed_origins:
+          - https://client.avatus.sh
+```
+
+Launch your cluster and make sure you are logged out of your api by going to `https://api.avatus.sh/teleport-logout`
+
+- [ ] Launch the client app and you should see `{"hello":"world"}` response
+- [ ] You should see no CORS issues in the console
+
 ## Access Requests
 
 Not available for OSS

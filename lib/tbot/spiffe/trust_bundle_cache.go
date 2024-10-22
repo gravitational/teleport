@@ -29,15 +29,21 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"go.opentelemetry.io/otel"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/spiffe")
 
 type BundleSet struct {
 	// Local is the trust bundle for the local trust domain.
@@ -47,6 +53,13 @@ type BundleSet struct {
 	// (the name of the SPIFFEFederation resource) and excludes the spiffe://
 	// prefix.
 	Federated map[string]*spiffebundle.Bundle
+	stale     chan struct{}
+}
+
+// Stale returns a channel that will be closed when the BundleSet is stale
+// and a new BundleSet is available.
+func (b *BundleSet) Stale() <-chan struct{} {
+	return b.stale
 }
 
 // Clone returns a deep copy of the BundleSet.
@@ -54,6 +67,7 @@ func (b *BundleSet) Clone() *BundleSet {
 	clone := &BundleSet{
 		Local:     b.Local.Clone(),
 		Federated: make(map[string]*spiffebundle.Bundle),
+		stale:     b.stale,
 	}
 	for k, v := range b.Federated {
 		clone.Federated[k] = v.Clone()
@@ -106,6 +120,44 @@ func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
 	return bundles
 }
 
+// MarshaledJWKSBundles returns a map of trust domain names to their JWT-SVID
+// signing keys encoded in the RFC 7517 JWKS format. If includeLocal is true,
+// the local trust domain will be included in the output.
+func (b *BundleSet) MarshaledJWKSBundles(includeLocal bool) (map[string][]byte, error) {
+	bundles := make(map[string][]byte)
+	if includeLocal {
+		marshaled, err := b.Local.JWTBundle().Marshal()
+		if err != nil {
+			return nil, trace.Wrap(err, "marshaling local trust bundle")
+		}
+		bundles[b.Local.TrustDomain().IDString()] = marshaled
+	}
+	for _, v := range b.Federated {
+		marshaled, err := v.JWTBundle().Marshal()
+		if err != nil {
+			return nil, trace.Wrap(
+				err,
+				"marshaling federated trust bundle (%s)",
+				v.TrustDomain().Name(),
+			)
+		}
+		bundles[v.TrustDomain().IDString()] = marshaled
+	}
+	return bundles, nil
+}
+
+// GetJWTBundleForTrustDomain returns the JWT bundle for the given trust domain.
+// Implements the jwtbundle.Source interface.
+func (b *BundleSet) GetJWTBundleForTrustDomain(trustDomain spiffeid.TrustDomain) (*jwtbundle.Bundle, error) {
+	if trustDomain.Name() == b.Local.TrustDomain().Name() {
+		return b.Local.JWTBundle(), nil
+	}
+	if bundle, ok := b.Federated[trustDomain.Name()]; ok {
+		return bundle.JWTBundle(), nil
+	}
+	return nil, trace.NotFound("trust domain %q not found", trustDomain.Name())
+}
+
 type eventsWatcher interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
@@ -126,9 +178,10 @@ type TrustBundleCache struct {
 
 	logger *slog.Logger
 
-	mu          sync.RWMutex
-	bundleSet   *BundleSet
-	subscribers map[chan<- struct{}]struct{}
+	mu        sync.RWMutex
+	bundleSet *BundleSet
+	// initialized will close when the cache is fully initialized.
+	initialized chan struct{}
 }
 
 // String returns a string representation of the TrustBundleCache. Implements
@@ -166,7 +219,7 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 		eventsClient:     cfg.EventsClient,
 		clusterName:      cfg.ClusterName,
 		logger:           cfg.Logger,
-		subscribers:      map[chan<- struct{}]struct{}{},
+		initialized:      make(chan struct{}),
 	}, nil
 }
 
@@ -273,50 +326,22 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
 	}
 
-	bundleSet := &BundleSet{
-		Federated: make(map[string]*spiffebundle.Bundle),
-	}
-
 	// Now that we know our watcher is streaming events, we can fetch the
 	// current point-in-time list of resources.
-	spiffeCA, err := m.trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
-		Type:       string(types.SPIFFECA),
-		Domain:     m.clusterName,
-		IncludeKey: false,
-	})
+	bundleSet, err := FetchInitialBundleSet(
+		ctx,
+		m.logger,
+		m.federationClient,
+		m.trustClient,
+		authSupportsSPIFFEFederation,
+		m.clusterName,
+	)
 	if err != nil {
-		return trace.Wrap(err, "fetching spiffe CA")
-	}
-	bundleSet.Local, err = convertSPIFFECAToBundle(spiffeCA)
-	if err != nil {
-		return trace.Wrap(err, "converting SPIFFE CA to trust bundle")
-	}
-
-	if authSupportsSPIFFEFederation {
-		spiffeFederations, err := listAllSPIFFEFederations(
-			ctx, m.federationClient,
-		)
-		if err != nil {
-			return trace.Wrap(err, "fetching SPIFFE federations")
-		}
-		for _, federation := range spiffeFederations {
-			bundle, err := convertSPIFFEFederationToBundle(federation)
-			if err != nil {
-				m.logger.WarnContext(
-					ctx,
-					"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
-					"trust_domain", federation.GetMetadata().Name,
-					"error", err,
-				)
-				continue
-			}
-			bundleSet.Federated[federation.Metadata.Name] = bundle
-		}
-
+		return trace.Wrap(err, "fetching initial bundle set")
 	}
 
 	// The initial state of the bundleSet is now complete, we can set it.
-	m.setAndBroadcastBundleSet(bundleSet)
+	m.setBundleSet(bundleSet)
 
 	m.logger.InfoContext(ctx, "Successfully initialized trust bundle cache")
 	for {
@@ -338,70 +363,39 @@ func (m *TrustBundleCache) getBundleSet() *BundleSet {
 		return nil
 	}
 	// Clone so a receiver cannot mutate the current state without calling
-	// setAndBroadcastBundleSet.
+	// setBundleSet.
 	return m.bundleSet.Clone()
 }
 
-func (m *TrustBundleCache) setAndBroadcastBundleSet(bundleSet *BundleSet) {
+func (m *TrustBundleCache) setBundleSet(bundleSet *BundleSet) {
 	m.mu.Lock()
+	old := m.bundleSet
+
 	// Clone the bundle set to avoid the caller mutating the state after it has
 	// been set.
 	m.bundleSet = bundleSet.Clone()
-	for sub := range m.subscribers {
-		select {
-		case sub <- struct{}{}:
-		default:
-		}
+	m.bundleSet.stale = make(chan struct{})
+
+	if old == nil {
+		// Indicate that the first bundle set is now available.
+		close(m.initialized)
+	} else {
+		// Indicate that a new bundle set is available.
+		close(old.stale)
 	}
 	m.mu.Unlock()
 }
 
-// Subscribe returns a channel which will receive the latest state of the
-// bundle set. If the cache is initialized, the current state will be sent
-// immediately.
-//
-// The implementation here is a little "odd":
-//   - We didn't want to block the broadcaster if a consumer was slow.
-//   - We don't care if a consumer misses an intermediate state, just that they
-//     know the state has changed and that they receive the latest state.
-func (m *TrustBundleCache) Subscribe() (<-chan *BundleSet, func()) {
-	stopCh := make(chan struct{})
-	notifyCh := make(chan struct{}, 1)
-	m.mu.Lock()
-	m.subscribers[notifyCh] = struct{}{}
-	m.mu.Unlock()
-	outCh := make(chan *BundleSet)
-	go func() {
-		unsent := m.getBundleSet() // can be nil i.e not yet initialized
-		for {
-			// We only want to try and send to outCh if we have a value to send.
-			var maybeOutCh chan *BundleSet
-			if unsent != nil {
-				maybeOutCh = outCh
-			}
-			select {
-			case maybeOutCh <- unsent:
-				// If we have a value to send, and, another goroutine
-				// (the consumer) is ready to receive, send it, and then clear
-				// unsent to indicate that the consumer has received the latest
-				// state.
-				// It's worth highlighting that outCh is unbuffered!
-				unsent = nil
-			case <-notifyCh:
-				// The broadcaster has flagged that new state is available, so
-				// we grab a local copy for our "unsent" value.
-				unsent = m.getBundleSet()
-			case <-stopCh:
-				// The consumer has indicated they no longer want to receive
-				// updates, we can exit.
-				return
-			}
-		}
-	}()
-	return outCh, func() {
-		m.mu.Lock()
-		delete(m.subscribers, notifyCh)
-		m.mu.Unlock()
+// GetBundleSet returns the current BundleSet. If the cache is not yet
+// initialized, it will block until it is.
+func (m *TrustBundleCache) GetBundleSet(
+	ctx context.Context,
+) (*BundleSet, error) {
+	select {
+	case <-m.initialized:
+		return m.getBundleSet(), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
@@ -441,7 +435,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				ctx, "Processed deletion for federated trust bundle",
 			)
 			delete(bundleSet.Federated, event.Resource.GetName())
-			m.setAndBroadcastBundleSet(bundleSet)
+			m.setBundleSet(bundleSet)
 		}
 	case types.OpPut:
 		switch event.Resource.GetKind() {
@@ -505,7 +499,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				"x509_authorities", len(bundle.X509Authorities()),
 			)
 			bundleSet.Local = bundle
-			m.setAndBroadcastBundleSet(bundleSet)
+			m.setBundleSet(bundleSet)
 		case types.KindSPIFFEFederation:
 			r153, ok := event.Resource.(types.Resource153Unwrapper)
 			if !ok {
@@ -557,11 +551,69 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				"x509_authorities", len(bundle.X509Authorities()),
 			)
 			bundleSet.Federated[federation.Metadata.Name] = bundle
-			m.setAndBroadcastBundleSet(bundleSet)
+			m.setBundleSet(bundleSet)
 		}
 	default:
 		log.WarnContext(ctx, "Ignoring unexpected event type")
 	}
+}
+
+// FetchInitialBundleSet fetches a BundleSet of trust bundles from the Auth
+// Server. If fetchFederatedBundles is true, then federated trust bundles will
+// also be included as well as the trust bundle for the local trust domain.
+func FetchInitialBundleSet(
+	ctx context.Context,
+	log *slog.Logger,
+	federationClient machineidv1pb.SPIFFEFederationServiceClient,
+	trustClient trustv1.TrustServiceClient,
+	fetchFederatedBundles bool,
+	clusterName string,
+) (*BundleSet, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"FetchInitialBundleSet",
+	)
+	defer span.End()
+
+	bs := &BundleSet{
+		Federated: make(map[string]*spiffebundle.Bundle),
+	}
+	spiffeCA, err := trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+		Type:       string(types.SPIFFECA),
+		Domain:     clusterName,
+		IncludeKey: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching spiffe CA")
+	}
+	bs.Local, err = convertSPIFFECAToBundle(spiffeCA)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting SPIFFE CA to trust bundle")
+	}
+
+	if fetchFederatedBundles {
+		spiffeFederations, err := listAllSPIFFEFederations(
+			ctx, federationClient,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching SPIFFE federations")
+		}
+		for _, federation := range spiffeFederations {
+			bundle, err := convertSPIFFEFederationToBundle(federation)
+			if err != nil {
+				log.WarnContext(
+					ctx,
+					"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
+					"trust_domain", federation.GetMetadata().Name,
+					"error", err,
+				)
+				continue
+			}
+			bs.Federated[federation.Metadata.Name] = bundle
+		}
+	}
+
+	return bs, nil
 }
 
 func listAllSPIFFEFederations(
@@ -576,6 +628,11 @@ func listAllSPIFFEFederations(
 			PageToken: token,
 		})
 		if err != nil {
+			// Support auth server being too old.
+			// TODO(noah): DELETE IN V17.0.0
+			if trace.IsNotImplemented(err) {
+				return []*machineidv1pb.SPIFFEFederation{}, nil
+			}
 			return nil, trace.Wrap(err, "listing SPIFFEFederations")
 		}
 		spiffeFeds = append(spiffeFeds, res.SpiffeFederations...)
@@ -594,6 +651,8 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 	}
 
 	bundle := spiffebundle.New(td)
+
+	// Add X509 authorities to the trust bundle.
 	for _, certBytes := range services.GetTLSCerts(ca) {
 		block, _ := pem.Decode(certBytes)
 		cert, err := x509.ParseCertificate(block.Bytes)
@@ -601,6 +660,21 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 			return nil, trace.Wrap(err, "parsing cert")
 		}
 		bundle.AddX509Authority(cert)
+	}
+
+	// Add JWT authorities to the trust bundle.
+	for _, keyPair := range ca.GetTrustedJWTKeyPairs() {
+		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing public key")
+		}
+		kid, err := jwt.KeyID(pubKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating key ID")
+		}
+		if err := bundle.AddJWTAuthority(kid, pubKey); err != nil {
+			return nil, trace.Wrap(err, "adding JWT authority to bundle")
+		}
 	}
 
 	return bundle, nil

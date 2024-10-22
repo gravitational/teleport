@@ -25,7 +25,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -38,6 +38,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -49,15 +50,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -158,6 +160,9 @@ type InitConfig struct {
 	// ClusterConfiguration is a services that holds cluster wide configuration.
 	ClusterConfiguration services.ClusterConfiguration
 
+	// AutoUpdateService is a service of autoupdate configuration and version.
+	AutoUpdateService services.AutoUpdateService
+
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
 
@@ -227,6 +232,9 @@ type InitConfig struct {
 
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
+
+	// UserTasks is a service that manages UserTasks.
+	UserTasks services.UserTasks
 
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
@@ -313,6 +321,17 @@ type InitConfig struct {
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
+
+	// ProvisioningStates is a service that manages the storage and retrieval of
+	// downstream User and Access List provisioning records
+	ProvisioningStates services.ProvisioningStates
+
+	// Logger is the logger instance for the auth service to use.
+	Logger *slog.Logger
+
+	// IdentityCenter is the Identity Center state storage service to use in
+	// this node.
+	IdentityCenter services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -336,9 +355,9 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err := backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  cfg.Backend,
-				LockName: domainName,
-				TTL:      30 * time.Second,
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{domainName},
+				TTL:                30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}, func(ctx context.Context) error {
@@ -421,7 +440,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+		if err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
@@ -520,7 +539,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	cfg.ClusterName = cn
 
 	// Apply any outstanding migrations.
-	if err := migration.Apply(ctx, cfg.Backend); err != nil {
+	if err := migration.Apply(ctx, asrv.logger, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
 
@@ -758,26 +777,43 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				err := modules.ValidateResource(storedAuthPref)
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
 				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
 					return trace.Wrap(err, secondFactorUpgradeInstructions)
 				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
 		}
 
 		if storedAuthPref == nil {
 			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
+
+			if newAuthPref.Origin() == types.OriginDefaults {
+				// Set a default signature algorithm suite for a new cluster.
+				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+					FIPS:          asrv.fips,
+					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+					Cloud:         modules.GetModules().Features().Cloud,
+				})
+			}
+
 			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
 
 			return trace.Wrap(err)
+		}
+
+		if newAuthPref.Origin() == types.OriginDefaults {
+			// Never overwrite a stored signature algorithm suite with a default
+			// signature algorithm suite. This prevents the suite from being
+			// "upgraded" by a Teleport version upgrade alone, even if defaults
+			// are used on both versions.
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
 		}
 
 		newAuthPref.SetRevision(storedAuthPref.GetRevision())
@@ -1099,6 +1135,25 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 
@@ -1151,7 +1206,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA:
+			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -1189,12 +1244,17 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsNames []string) (*state.Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1206,9 +1266,14 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			Role:                 id.Role,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PublicSSHKey:         pub,
+			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
 		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, err := keys.MarshalPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

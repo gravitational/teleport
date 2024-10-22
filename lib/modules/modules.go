@@ -25,7 +25,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -34,12 +33,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -290,6 +287,8 @@ type Modules interface {
 	EnableAccessGraph()
 	// EnableAccessMonitoring enables the usage of access monitoring.
 	EnableAccessMonitoring()
+	// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+	LicenseExpiry() time.Time
 }
 
 const (
@@ -321,14 +320,10 @@ var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authe
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
-	if GetModules().Features().Cloud ||
-		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
-
+	if GetModules().Features().Cloud || !IsInsecureTestMode() {
 		switch r := res.(type) {
 		case types.AuthPreference:
-			switch r.GetSecondFactor() {
-			case constants.SecondFactorOff, constants.SecondFactorOptional:
+			if !r.IsSecondFactorEnforced() {
 				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}
@@ -379,6 +374,12 @@ func (p *defaultModules) PrintVersion() {
 	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+// Returns the zero value for time.Time for OSS.
+func (p *defaultModules) LicenseExpiry() time.Time {
+	return time.Time{}
+}
+
 // Features returns supported features for default modules which is applied for OSS users
 // todo (michellescripts) remove deprecated features
 func (p *defaultModules) Features() Features {
@@ -405,7 +406,7 @@ func (p *defaultModules) SetFeatures(f Features) {
 }
 
 func (p *defaultModules) IsBoringBinary() bool {
-	return native.IsBoringBinary()
+	return IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key.
