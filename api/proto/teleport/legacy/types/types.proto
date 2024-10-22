@@ -6518,6 +6518,14 @@ message PluginAWSICSettings {
 
   // Provisioning holds settings for provisioing users and groups into AWS
   AWSICProvisioningSpec provisioning_spec = 4;
+
+  // AccessListDefaultOwners is a list of default owners for Access List created for
+  // user groups imported from AWS Idenity Center.
+  repeated string access_list_default_owners = 5;
+
+  // SAMLIdPServiceProviderName is the name of a SAML service provider created
+  // for the Identity Center.
+  string saml_idp_service_provider_name = 6;
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
