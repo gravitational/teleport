@@ -122,7 +122,7 @@ Insert the following into a Terraform configuration file which has already
 been configured to manage your AWS account:
 
 ```hcl
-resource "aws_iam_openid_connect_provider" "leaf_tele_ottr_sh_workload_identity" {
+resource "aws_iam_openid_connect_provider" "example_teleport_sh_workload_identity" {
   // Replace "example.teleport.sh" with the hostname used to access your
   // Teleport Proxy Service.
   url = "https://example.teleport.sh/workload-identity"
@@ -398,7 +398,7 @@ To proceed, you'll need to know the ARN of the role you created earlier.
 Add the following to your `~/.aws/config` file:
 
 ```ini
-# You can replace "workload-id-demo" with a recognisable name that identifies
+# You can replace "workload-id-demo" with a recognizable name that identifies
 # your use-case.
 [profile workload-id-demo]
 # Replace with the ARN of the role you created earlier.
