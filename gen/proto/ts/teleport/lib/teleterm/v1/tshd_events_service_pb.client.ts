@@ -93,8 +93,7 @@ export interface ITshdEventsServiceClient {
      */
     promptHardwareKeyPIN(input: PromptHardwareKeyPINRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse>;
     /**
-     * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
-     * provide the hardware key touch.
+     * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
      *
      * @generated from protobuf rpc: PromptHardwareKeyTouch(teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse);
      */
@@ -197,8 +196,7 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
         return stackIntercept<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
-     * provide the hardware key touch.
+     * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
      *
      * @generated from protobuf rpc: PromptHardwareKeyTouch(teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse);
      */

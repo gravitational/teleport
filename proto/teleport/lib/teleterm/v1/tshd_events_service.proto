@@ -48,8 +48,8 @@ service TshdEventsService {
   // provide the hardware key PIN.
   rpc PromptHardwareKeyPIN(PromptHardwareKeyPINRequest) returns (PromptHardwareKeyPINResponse);
 
-  // PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
-  // provide the hardware key touch.
+  // PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+  // When the daemon detects the touch, it cancels the prompt.
   rpc PromptHardwareKeyTouch(PromptHardwareKeyTouchRequest) returns (PromptHardwareKeyTouchResponse);
 
   // PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
@@ -171,6 +171,7 @@ message PromptHardwareKeyPINRequest {
 
 // Response for PromptHardwareKeyPIN.
 message PromptHardwareKeyPINResponse {
+  // pin as inputted by the user in the Electron app.
   string pin = 1;
 }
 

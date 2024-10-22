@@ -803,6 +803,7 @@ type PromptHardwareKeyPINResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// pin as inputted by the user in the Electron app.
 	Pin string `protobuf:"bytes,1,opt,name=pin,proto3" json:"pin,omitempty"`
 }
 

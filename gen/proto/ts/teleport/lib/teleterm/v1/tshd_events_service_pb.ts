@@ -270,6 +270,8 @@ export interface PromptHardwareKeyPINRequest {
  */
 export interface PromptHardwareKeyPINResponse {
     /**
+     * pin as inputted by the user in the Electron app.
+     *
      * @generated from protobuf field: string pin = 1;
      */
     pin: string;

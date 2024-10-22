@@ -73,8 +73,8 @@ type TshdEventsServiceClient interface {
 	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key PIN.
 	PromptHardwareKeyPIN(ctx context.Context, in *PromptHardwareKeyPINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error)
-	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
-	// provide the hardware key touch.
+	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+	// When the daemon detects the touch, it cancels the prompt.
 	PromptHardwareKeyTouch(ctx context.Context, in *PromptHardwareKeyTouchRequest, opts ...grpc.CallOption) (*PromptHardwareKeyTouchResponse, error)
 	// PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
 	// change the hardware key PIN.
@@ -171,10 +171,10 @@ func (c *tshdEventsServiceClient) PromptHardwareKeyPINChange(ctx context.Context
 	return out, nil
 }
 
-func (c *tshdEventsServiceClient) PromptHardwareKeySlotOverwrite(ctx context.Context, in *PromptHardwareKeySlotOverwriteRequest, opts ...grpc.CallOption) (*PromptHardwareKeySlotOverwriteResponse, error) {
+func (c *tshdEventsServiceClient) ConfirmHardwareKeySlotOverwrite(ctx context.Context, in *ConfirmHardwareKeySlotOverwriteRequest, opts ...grpc.CallOption) (*ConfirmHardwareKeySlotOverwriteResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(PromptHardwareKeySlotOverwriteResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeySlotOverwrite_FullMethodName, in, out, cOpts...)
+	out := new(ConfirmHardwareKeySlotOverwriteResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_ConfirmHardwareKeySlotOverwrite_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -226,8 +226,8 @@ type TshdEventsServiceServer interface {
 	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key PIN.
 	PromptHardwareKeyPIN(context.Context, *PromptHardwareKeyPINRequest) (*PromptHardwareKeyPINResponse, error)
-	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
-	// provide the hardware key touch.
+	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+	// When the daemon detects the touch, it cancels the prompt.
 	PromptHardwareKeyTouch(context.Context, *PromptHardwareKeyTouchRequest) (*PromptHardwareKeyTouchResponse, error)
 	// PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
 	// change the hardware key PIN.
