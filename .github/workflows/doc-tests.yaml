@@ -70,11 +70,11 @@ jobs:
           yarn build-node
 
       - name: Check spelling
-        working-directory: '$GITHUB_WORKSPACE/docs'
+        working-directory: 'docs'
         run: yarn spellcheck content/teleport
 
       - name: Lint docs formatting
-        working-directory: '$GITHUB_WORKSPACE/docs'
+        working-directory: 'docs'
         run: yarn markdown-lint
 
       - name: Lint docs prose
@@ -93,5 +93,5 @@ jobs:
           vale_flags: '--config=$GITHUB_WORKSPACE/docs/.vale.ini'
 
       - name: Test the docs build
-        working-directory: '$GITHUB_WORKSPACE/docs'
+        working-directory: 'docs'
         run: yarn install && yarn build
