@@ -16,17 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import { FC, PropsWithChildren } from 'react';
 
 import { Box } from 'design';
 import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
-import {
-  appUri,
-  makeDatabaseGateway,
-  makeKubeGateway,
-} from 'teleterm/services/tshd/testHelpers';
 
 import {
   ClusterLoginPresentation,
@@ -108,70 +103,6 @@ export const LocalDisabled = () => {
 export const LocalOnly = () => {
   const props = makeProps();
   props.initAttempt.data.allowPasswordless = false;
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalOnlyWithReasonGatewayCertExpiredWithDbGateway = () => {
-  const props = makeProps();
-  props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.gateway-cert-expired',
-    targetUri: dbGateway.targetUri,
-    gateway: dbGateway,
-  };
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalOnlyWithReasonGatewayCertExpiredWithKubeGateway = () => {
-  const props = makeProps();
-  props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.gateway-cert-expired',
-    targetUri: kubeGateway.targetUri,
-    gateway: kubeGateway,
-  };
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
-  const props = makeProps();
-  props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.gateway-cert-expired',
-    targetUri: dbGateway.targetUri,
-    gateway: undefined,
-  };
-
-  return (
-    <TestContainer>
-      <ClusterLoginPresentation {...props} />
-    </TestContainer>
-  );
-};
-
-export const LocalOnlyWithReasonVnetCertExpired = () => {
-  const props = makeProps();
-  props.initAttempt.data.allowPasswordless = false;
-  props.reason = {
-    kind: 'reason.vnet-cert-expired',
-    targetUri: appUri,
-    publicAddr: 'tcp-app.teleport.example.com',
-  };
 
   return (
     <TestContainer>
@@ -368,7 +299,7 @@ export const SsoPrompt = () => {
   );
 };
 
-const TestContainer: React.FC<PropsWithChildren> = ({ children }) => (
+const TestContainer: FC<PropsWithChildren> = ({ children }) => (
   <>
     <span>Bordered box is not part of the component</span>
     <Box
@@ -382,23 +313,3 @@ const TestContainer: React.FC<PropsWithChildren> = ({ children }) => (
     </Box>
   </>
 );
-
-const dbGateway = makeDatabaseGateway({
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-});
-
-const kubeGateway = makeKubeGateway({
-  uri: '/gateways/gateway2',
-  targetName: 'minikube',
-  targetUri: '/clusters/teleport-local/kubes/minikube',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59117',
-});
