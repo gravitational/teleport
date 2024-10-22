@@ -1,5 +1,32 @@
 # Changelog
 
+## 16.4.4 (10/22/2024)
+
+* Teleport's Windows Desktop service now filters domain-joined Linux hosts out during LDAP discovery. [#47773](https://github.com/gravitational/teleport/pull/47773)
+* The `join_token.create` audit event has been enriched with additional metadata. [#47765](https://github.com/gravitational/teleport/pull/47765)
+* Propagate resources configured in teleport-kube-agent chart values to post-install and post-delete hooks. [#47743](https://github.com/gravitational/teleport/pull/47743)
+* Add support for the Datadog Incident Management plugin helm chart. [#47727](https://github.com/gravitational/teleport/pull/47727)
+* Automatic device enrollment may be locally disabled using the TELEPORT_DEVICE_AUTO_ENROLL_DISABLED=1 environment variable. [#47720](https://github.com/gravitational/teleport/pull/47720)
+* Fixed the Machine ID and GitHub Actions wizard. [#47708](https://github.com/gravitational/teleport/pull/47708)
+* Added migration to update the old import_all_objects database object import rule to the new preset. [#47707](https://github.com/gravitational/teleport/pull/47707)
+* Alter ServiceAccounts in the teleport-cluster Helm chart to automatically disable mounting of service account tokens on newer Kubernetes distributions, helping satisfy security linters. [#47703](https://github.com/gravitational/teleport/pull/47703)
+* Avoid tsh auto-enroll escalation in machines without a TPM. [#47695](https://github.com/gravitational/teleport/pull/47695)
+* Fixed a bug that prevented users from canceling `tsh scan keys` executions. [#47658](https://github.com/gravitational/teleport/pull/47658)
+* Postgres database session start events now include the Postgres backend PID for the session. [#47643](https://github.com/gravitational/teleport/pull/47643)
+* Reworked the `teleport-event-handler` integration to significantly improve performance, especially when running with larger `--concurrency` values. [#47633](https://github.com/gravitational/teleport/pull/47633)
+* Fixes a bug where Let's Encrypt certificate renewal failed in AMI and HA deployments due to insufficient disk space caused by syncing audit logs. [#47622](https://github.com/gravitational/teleport/pull/47622)
+* Adds support for custom SQS consumer lock name and disabling a consumer. [#47614](https://github.com/gravitational/teleport/pull/47614)
+* Fixed an issue that prevented RDS Aurora discovery configuration in the AWS OIDC enrollment wizard when any cluster existed without member instances. [#47605](https://github.com/gravitational/teleport/pull/47605)
+* Extend the Datadog plugin to support automatic approvals. [#47602](https://github.com/gravitational/teleport/pull/47602)
+* Allow using a custom database for Firestore backends. [#47583](https://github.com/gravitational/teleport/pull/47583)
+* Include host name instead of host uuid in error messages when SSH connections are prevented due to an invalid login. [#47578](https://github.com/gravitational/teleport/pull/47578)
+* Fix the example Terraform code to support the new larger Teleport Enterprise licenses and updates output of web address to use fqdn when ACM is disabled. [#47512](https://github.com/gravitational/teleport/pull/47512)
+* Add new `tctl` subcommands to manage bot instances. [#47225](https://github.com/gravitational/teleport/pull/47225)
+
+Enterprise:
+* Device auto-enroll failures are now recorded in the audit log.
+* Fixed possible panic when processing Okta assignments.
+
 ## 16.4.3 (10/16/2024)
 
 * Extended Teleport Discovery Service to support resource discovery across all projects accessible by the service account. [#47568](https://github.com/gravitational/teleport/pull/47568)
