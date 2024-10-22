@@ -487,6 +487,7 @@ func getHostAddresses(params RegisterParams) []string {
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
 func insecureRegisterClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
+	//nolint:sloglint // Conjoined string literals trip up the linter.
 	slog.WarnContext(ctx, "Joining cluster without validating the identity of the Auth "+
 		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an "+
 		"attacker can gain privileged network access. To remedy this, use the CA pin "+
