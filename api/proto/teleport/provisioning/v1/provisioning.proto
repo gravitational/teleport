@@ -104,4 +104,12 @@ message PrincipalStateStatus {
 
   // Error holds a description of the last provisioing error, if any.
   string error = 4;
+
+  // Revision hold the revision of the principal record provisioned into the
+  // downstream system
+  string revision = 6;
+
+  // ActiveLocks holds the list of known active locks on the principal. Used to
+  // store the lock state across restarts of Teleport
+  repeated string active_locks = 7;
 }
