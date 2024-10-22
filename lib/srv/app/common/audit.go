@@ -20,11 +20,11 @@ package common
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -75,7 +75,7 @@ type audit struct {
 	// cfg is the audit events emitter configuration.
 	cfg AuditConfig
 	// log is used for logging
-	log logrus.FieldLogger
+	log *slog.Logger
 }
 
 // NewAudit returns a new instance of the audit events emitter.
@@ -85,7 +85,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}
 	return &audit{
 		cfg: config,
-		log: logrus.WithField(teleport.ComponentKey, "app:audit"),
+		log: slog.Default().With(teleport.ComponentKey, "app:audit"),
 	}, nil
 }
 
@@ -199,7 +199,7 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
 	body, err := awsutils.UnmarshalRequestBody(req)
 	if err != nil {
-		a.log.WithError(err).Warn("Failed to read request body as JSON, omitting the body from the audit event.")
+		a.log.With("error", err).WarnContext(ctx, "Failed to read request body as JSON, omitting the body from the audit event.")
 	}
 	// get the API target from the request header, according to the API request format documentation:
 	// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html#Programming.LowLevelAPI.RequestFormat

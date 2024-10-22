@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -54,7 +55,8 @@ type signerHandler struct {
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
 	// Log is a logger for the handler.
-	Log logrus.FieldLogger
+	LegacyLogger logrus.FieldLogger
+	Log          *slog.Logger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
@@ -77,8 +79,11 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		}
 		cfg.RoundTripper = tr
 	}
+	if cfg.LegacyLogger == nil {
+		cfg.LegacyLogger = logrus.WithField(teleport.ComponentKey, "aws:signer")
+	}
 	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(teleport.ComponentKey, "aws:signer")
+		cfg.Log = slog.Default().With(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -106,7 +111,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 	var err error
 	handler.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.Log),
+		reverseproxy.WithLogger(config.LegacyLogger),
 		reverseproxy.WithErrorHandler(handler.formatForwardResponseError),
 	)
 
@@ -115,7 +120,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 
 // formatForwardResponseError converts an error to a status code and writes the code to a response.
 func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.WithError(err).Debugf("Failed to process request.")
+	s.Log.With("error", err).DebugContext(s.closeContext, "Failed to process request.")
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -217,7 +222,7 @@ func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Requ
 	}
 	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
+		s.Log.With("error", auditErr).WarnContext(s.closeContext, "Failed to emit audit event.")
 	}
 }
 

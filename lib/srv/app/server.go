@@ -23,6 +23,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"sync"
 
@@ -131,8 +132,9 @@ func (c *Config) CheckAndSetDefaults() error {
 // Server is an application server. It authenticates requests from the web
 // proxy and forwards th to internal applications.
 type Server struct {
-	c   *Config
-	log *logrus.Entry
+	c         *Config
+	legacyLog *logrus.Entry
+	log       *slog.Logger
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
@@ -199,9 +201,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s := &Server{
 		c: c,
 		// TODO(greedy52) replace with slog from Config.Logger.
-		log: logrus.WithFields(logrus.Fields{
+		legacyLog: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.ComponentApp,
 		}),
+		log:           slog.Default().With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
@@ -231,7 +234,7 @@ func (s *Server) startApp(ctx context.Context, app types.Application) error {
 	if err := s.startHeartbeat(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Started %v.", app)
+	s.log.With("app", app).DebugContext(ctx, "App started.")
 	return nil
 }
 
@@ -241,7 +244,7 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Stopped app %q.", name)
+	s.log.With("app", name).DebugContext(ctx, "App stopped.")
 	return nil
 }
 
@@ -365,7 +368,7 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 func (s *Server) getRotationState() types.Rotation {
 	rotation, err := s.c.GetRotation(types.RoleApp)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
+		s.log.With("error", err).WarnContext(s.closeContext, "Failed to get rotation state.")
 	}
 	if rotation != nil {
 		return *rotation
@@ -488,21 +491,21 @@ func (s *Server) close(ctx context.Context) error {
 		}
 
 		if heartbeat != nil {
-			log := s.log.WithField("app", name)
-			log.Debug("Stopping app")
+			log := s.log.With("app", name)
+			log.DebugContext(s.closeContext, "Stopping app")
 			if err := heartbeat.Close(); err != nil {
-				log.WithError(err).Warn("Failed to stop app.")
+				log.With("error", err).WarnContext(s.closeContext, "Failed to stop app.")
 			} else {
-				log.Debug("Stopped app")
+				log.DebugContext(s.closeContext, "Stopped app")
 			}
 
 			if shouldDeleteApps {
 				g.Go(func() error {
-					log.Debug("Deleting app")
+					log.DebugContext(ctx, "Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
-						log.WithError(err).Warn("Failed to delete app.")
+						log.With("error", err).WarnContext(s.closeContext, "Failed to delete app.")
 					} else {
-						log.Debug("Deleted app")
+						log.DebugContext(s.closeContext, "Deleted app")
 					}
 					return nil
 				})
@@ -512,7 +515,7 @@ func (s *Server) close(ctx context.Context) error {
 	s.mu.RUnlock()
 
 	if err := g.Wait(); err != nil {
-		s.log.WithError(err).Warn("Deleting all apps failed")
+		s.log.With("error", err).WarnContext(s.closeContext, "Deleting all apps failed")
 	}
 
 	s.mu.Lock()

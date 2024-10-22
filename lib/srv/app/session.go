@@ -21,6 +21,7 @@ package app
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -83,7 +84,9 @@ type sessionChunk struct {
 	// for ~7 minutes at most.
 	closeTimeout time.Duration
 
-	log *logrus.Entry
+	log *slog.Logger
+
+	legacyLogger *logrus.Entry
 }
 
 // sessionOpt defines an option function for creating sessionChunk.
@@ -99,10 +102,11 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: sessionChunkCloseTimeout,
-		log:          c.legacyLogger,
+		log:          c.log,
+		legacyLogger: c.legacyLogger,
 	}
 
-	sess.log.Debugf("Creating app session chunk %s", sess.id)
+	sess.log.With("session_id", sess.id).DebugContext(ctx, "Creating app session chunk")
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
@@ -139,7 +143,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 
-	sess.log.Debugf("Created app session chunk %s", sess.id)
+	sess.log.With("session_id", sess.id).DebugContext(ctx, "Created app session chunk")
 	return sess, nil
 }
 
@@ -188,7 +192,7 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 			cipherSuites: c.cfg.CipherSuites,
 			jwt:          jwt,
 			traits:       traits,
-			log:          c.legacyLogger,
+			log:          c.log,
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -198,7 +202,7 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 	sess.handler, err = reverseproxy.New(
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(sess.log),
+		reverseproxy.WithLogger(sess.legacyLogger),
 		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
@@ -262,16 +266,24 @@ func (s *sessionChunk) close(ctx context.Context) error {
 		if s.inflight == 0 {
 			break
 		} else if time.Now().After(deadline) {
-			s.log.Debugf("Timeout expired, forcibly closing session chunk %s, inflight requests: %d", s.id, s.inflight)
+			s.log.With(
+				"session_id", s.id,
+				"inflight_requests", s.inflight,
+			).DebugContext(ctx, "Timeout expired, forcibly closing session chunk")
 			break
 		}
-		s.log.Debugf("Inflight requests: %d, waiting to close session chunk %s", s.inflight, s.id)
+		s.log.With(
+			"session_id", s.id,
+			"inflight_requests", s.inflight,
+		).DebugContext(ctx, "Waiting to close session chunk")
 		s.inflightCond.Wait()
 	}
 	s.inflight = -1
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
-	s.log.Debugf("Closed session chunk %s", s.id)
+	s.log.With(
+		"session_id", s.id,
+	).DebugContext(ctx, "Closed session chunk")
 	return trace.Wrap(s.streamCloser.Close(ctx))
 }
 
