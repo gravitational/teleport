@@ -31,7 +31,7 @@ import (
 // Config represents plugin configuration
 type Config struct {
 	// Client is the Teleport API client.
-	Client teleport.Client
+	Client     teleport.Client
 	Teleport   lib.TeleportConfig
 	Recipients common.RawRecipientsMap `toml:"role_to_recipients"`
 	Log        logger.Config
