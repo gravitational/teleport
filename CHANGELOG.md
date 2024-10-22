@@ -2,7 +2,7 @@
 
 ## 16.4.4 (10/22/2024)
 
-* Teleport's Windows desktop service now filters domain-joined Linux hosts out during LDAP discovery. [#47773](https://github.com/gravitational/teleport/pull/47773)
+* Teleport's Windows Desktop service now filters domain-joined Linux hosts out during LDAP discovery. [#47773](https://github.com/gravitational/teleport/pull/47773)
 * The `join_token.create` audit event has been enriched with additional metadata. [#47765](https://github.com/gravitational/teleport/pull/47765)
 * Propagate resources configured in teleport-kube-agent chart values to post-install and post-delete hooks. [#47743](https://github.com/gravitational/teleport/pull/47743)
 * Add support for the Datadog Incident Management plugin helm chart. [#47727](https://github.com/gravitational/teleport/pull/47727)
