@@ -81,6 +81,10 @@ const (
 	// RoleAccessGraphPlugin is a role for Access Graph plugins to access
 	// Teleport's internal API and access graph.
 	RoleAccessGraphPlugin SystemRole = "AccessGraphPlugin"
+
+	// RoleAWSIdentityCenter is the role used by the AWS Identity Center integration
+	// when manipulating Teleport resources.
+	RoleAWSIdentityCenter SystemRole = "AWS-IdentityCenter"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -108,6 +112,7 @@ var roleMappings = map[string]SystemRole{
 	"okta":              RoleOkta,
 	"mdm":               RoleMDM,
 	"accessgraphplugin": RoleAccessGraphPlugin,
+	"aws_ic":            RoleAWSIdentityCenter,
 }
 
 func normalizedSystemRole(s string) SystemRole {
