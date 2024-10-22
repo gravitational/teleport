@@ -68,7 +68,8 @@ const (
 
 	// OriginEntraID indicates that the resource was imported
 	// from the Entra ID directory.
-	OriginEntraID = "entra-id"
+	OriginEntraID           = "entra-id"
+	OriginAWSIdentityCenter = "aws-identity-center"
 )
 
 // OriginValues lists all possible origin values.
@@ -82,4 +83,5 @@ var OriginValues = []string{
 	OriginSCIM,
 	OriginDiscoveryKubernetes,
 	OriginEntraID,
+	OriginAWSIdentityCenter,
 }
