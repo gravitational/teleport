@@ -63,10 +63,26 @@ export enum IntegrationKind {
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
+
+/**
+ * IntegrationAudience specifies supported audience values for IntegrationSpecAwsOidc
+ * audiences field.
+ */
+export enum IntegrationAudience {
+  AwsIdentityCenter = 'aws-identity-center',
+}
+
+const auds = Object.values(IntegrationAudience);
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
+  /**
+   * audiences is used to record name of a plugin or discover services in Teleport
+   * that depends on this integration.
+   */
+  audiences?: typeof auds;
 };
 
 export enum IntegrationStatusCode {
@@ -177,7 +193,6 @@ export type PluginKind =
   | 'servicenow'
   | 'jamf'
   | 'entra-id'
-  | 'aws-identity-center'
   | 'datadog';
 
 export type PluginOktaSpec = {
@@ -325,6 +340,10 @@ export type AwsRdsDatabase = {
   subnets: string[];
   // vpcId is the AWS VPC ID for the DB.
   vpcId: string;
+  /**
+   * securityGroups is a list of AWS security group IDs attached to the DB.
+   */
+  securityGroups: string[];
   // region is the AWS cloud region that this database is from.
   region: Regions;
   // status contains this Instance status.

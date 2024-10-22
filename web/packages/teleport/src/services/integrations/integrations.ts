@@ -419,6 +419,7 @@ function makeIntegration(json: any): Integration {
       roleArn: awsoidc?.roleArn,
       issuerS3Bucket: awsoidc?.issuerS3Bucket,
       issuerS3Prefix: awsoidc?.issuerS3Prefix,
+      audiences: awsoidc?.audiences,
     },
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
@@ -442,6 +443,7 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     subnets: aws?.rds?.subnets,
     resourceId: aws?.rds?.resource_id,
     vpcId: aws?.rds?.vpc_id,
+    securityGroups: aws?.rds?.security_groups,
     accountId: aws?.account_id,
     region: aws?.region,
   };

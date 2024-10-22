@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // IntegrationAWSOIDCSpec contain the specific fields for the `aws-oidc` subkind integration.
@@ -37,6 +38,17 @@ type IntegrationAWSOIDCSpec struct {
 	IssuerS3Bucket string `json:"issuerS3Bucket,omitempty"`
 	// IssuerS3Prefix is the prefix for the bucket above.
 	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
+
+	// Audiences is used to record name of a plugin or discover services in Teleport
+	// that depends on this integration.
+	// Audiences value can be empty or configured with supported preset audience
+	// values. For example, an OIDC integration that is shared amongst multiple
+	// discover services or plugins may have a multiple audiences.
+	// But integration created for a bespoke plugin like aws-identity-center will always
+	// have a single value configured in the audiences.
+	// Each preset audience may impose specific behavior on the integration CRUD API,
+	// such as preventing integration from update or deletion.
+	Audiences []string `json:"audiences,omitempty"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -61,9 +73,6 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
-	// Origin is the name of the Teleport feature specific integration of which
-	// this integratin is part of. The value will be applied to the label
-	Origin string `json:"origin,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -153,9 +162,8 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
+			Audiences:      ig.GetAWSOIDCIntegrationSpec().Audiences,
 		}
-
-		ret.Origin = ig.Origin()
 	}
 
 	return ret, nil
@@ -218,7 +226,7 @@ type AWSOIDCDeployServiceRequest struct {
 
 	// DatabaseAgentMatcherLabels are the labels to be used when deploying a Database Service.
 	// Those are the resource labels that the Service will monitor and proxy connections to.
-	DatabaseAgentMatcherLabels []Label `json:"databaseAgentMatcherLabels"`
+	DatabaseAgentMatcherLabels []ui.Label `json:"databaseAgentMatcherLabels"`
 }
 
 // AWSOIDCDeployServiceResponse contains the resources that were used to deploy a Teleport Service.
