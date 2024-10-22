@@ -328,6 +328,10 @@ type InitConfig struct {
 
 	// Logger is the logger instance for the auth service to use.
 	Logger *slog.Logger
+
+	// IdentityCenter is the Identity Center state storage service to use in
+	// this node.
+	IdentityCenter services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -1240,7 +1244,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsNames []string) (*state.Identity, error) {
-	// TODO(nklaassen): split SSH and TLS keys for host identities.
 	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)

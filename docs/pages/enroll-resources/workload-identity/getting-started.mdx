@@ -3,12 +3,7 @@ title: Getting Started with Workload Identity
 description: Getting started with Teleport Workload Identity for SPIFFE and Machine ID
 ---
 
-<Admonition type="tip" title="Preview">
-Teleport Workload Identity is currently in Preview. This means that some
-features may be missing. We're actively looking for design partners to help us
-shape the future of Workload Identity and would love to
-[hear your feedback](mailto:product@goteleport.com).
-</Admonition>
+(!/docs/pages/includes/workload-id-preview.mdx!)
 
 Teleport's Workload Identity issues flexible short-lived identities intended
 for workloads. It is compatible with the industry-standard SPIFFE specification
@@ -63,7 +58,7 @@ Now, use `tctl bots update` to add the role to the Bot. Replace `example-bot`
 with the name of the Bot you created in the deployment guide and `spiffe-issuer`
 with the name of the role you just created:
 
-```bash
+```code
 $ tctl bots update example-bot --add-roles spiffe-issuer
 ```
 
@@ -193,7 +188,7 @@ Use the `spiffe-inspect` command with `--path` to specify the path to the
 Workload API socket, replacing `/opt/machine-id/workload.sock` with the path you
 configured in the previous step:
 
-```bash
+```code
 $ tbot spiffe-inspect --path unix:///opt/machine-id/workload.sock
 INFO [TBOT]      Inspecting SPIFFE Workload API Endpoint unix:///opt/machine-id/workload.sock tbot/spiffe.go:31
 INFO [TBOT]      Received X.509 SVID context from Workload API bundles_count:1 svids_count:1 tbot/spiffe.go:46

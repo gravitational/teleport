@@ -66,20 +66,6 @@ func TestPerformMFACeremony(t *testing.T) {
 				assert.Equal(t, testMFAResponse, mr)
 			},
 		}, {
-			name: "OK ceremony success solve",
-			ceremony: &mfa.Ceremony{
-				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-					return testMFAChallenge, nil
-				},
-				SolveAuthenticateChallenge: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-					return testMFAResponse, nil
-				},
-			},
-			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
-				assert.NoError(t, err)
-				assert.Equal(t, testMFAResponse, mr)
-			},
-		}, {
 			name: "OK ceremony not required",
 			ceremony: &mfa.Ceremony{
 				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
@@ -87,8 +73,10 @@ func TestPerformMFACeremony(t *testing.T) {
 						MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
 					}, nil
 				},
-				SolveAuthenticateChallenge: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-					return nil, trace.BadParameter("expected mfa not required")
+				PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return nil, trace.BadParameter("expected mfa not required")
+					})
 				},
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
@@ -101,8 +89,10 @@ func TestPerformMFACeremony(t *testing.T) {
 				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 					return nil, errors.New("create authenticate challenge failure")
 				},
-				SolveAuthenticateChallenge: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-					return nil, trace.BadParameter("expected challenge failure")
+				PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return nil, trace.BadParameter("expected challenge failure")
+					})
 				},
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
@@ -123,20 +113,6 @@ func TestPerformMFACeremony(t *testing.T) {
 			},
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
 				assert.ErrorContains(t, err, "prompt mfa failure")
-				assert.Nil(t, mr)
-			},
-		}, {
-			name: "NOK solve mfa fail",
-			ceremony: &mfa.Ceremony{
-				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-					return testMFAChallenge, nil
-				},
-				SolveAuthenticateChallenge: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-					return nil, errors.New("solve mfa failure")
-				},
-			},
-			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
-				assert.ErrorContains(t, err, "solve mfa failure")
 				assert.Nil(t, mr)
 			},
 		},
