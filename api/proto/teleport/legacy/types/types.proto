@@ -2095,7 +2095,7 @@ message AuthPreferenceSpecV2 {
   HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
 
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
-  // The current default value is "legacy". This field is not yet fully supported.
+  // If unspecified, the current default value is "legacy".
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
 
   // SecondFactors is a list of supported second factor types.

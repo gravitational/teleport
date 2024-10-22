@@ -6175,7 +6175,7 @@ type AuthPreferenceSpecV2 struct {
 	// HardwareKey are the settings for hardware key support.
 	HardwareKey *HardwareKey `protobuf:"bytes,19,opt,name=HardwareKey,proto3" json:"hardware_key,omitempty"`
 	// SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
-	// The current default value is "legacy". This field is not yet fully supported.
+	// If unspecified, the current default value is "legacy".
 	SignatureAlgorithmSuite SignatureAlgorithmSuite `protobuf:"varint,20,opt,name=signature_algorithm_suite,json=signatureAlgorithmSuite,proto3,enum=types.SignatureAlgorithmSuite" json:"signature_algorithm_suite,omitempty"`
 	// SecondFactors is a list of supported second factor types.
 	SecondFactors        []SecondFactorType `protobuf:"varint,21,rep,packed,name=SecondFactors,proto3,enum=types.SecondFactorType" json:"second_factors,omitempty"`
