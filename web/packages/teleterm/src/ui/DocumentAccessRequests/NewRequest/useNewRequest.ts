@@ -293,6 +293,7 @@ export default function useNewRequest(rootCluster: Cluster) {
     agents: fetchedData.agents,
     agentFilter,
     updateSort,
+    fetch,
     attempt,
     fetchStatus,
     updateQuery,

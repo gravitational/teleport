@@ -48,11 +48,11 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -455,6 +455,11 @@ func (p *cliModules) BuildType() string {
 	return "CLI"
 }
 
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+func (p *cliModules) LicenseExpiry() time.Time {
+	return time.Time{}
+}
+
 // IsEnterpriseBuild returns false for [cliModules].
 func (p *cliModules) IsEnterpriseBuild() bool {
 	return false
@@ -519,13 +524,15 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	caCheckers, err := sshutils.GetCheckers(openSSHCA)
 	require.NoError(t, err)
 
-	key, err := native.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
 	require.NoError(t, err)
 
 	nodeUUID := uuid.New().String()
 	hostCertBytes, err := authServer.GenerateHostCert(
 		ctx,
-		key.MarshalSSHPublicKey(),
+		ssh.MarshalAuthorizedKey(sshPub),
 		"",
 		"",
 		[]string{nodeUUID, nodeHostname, Loopback},
@@ -537,7 +544,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 
 	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
 	require.NoError(t, err)
-	signer, err := ssh.NewSignerFromSigner(key.Signer)
+	signer, err := ssh.NewSignerFromSigner(key)
 	require.NoError(t, err)
 	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
 	require.NoError(t, err)
@@ -562,7 +569,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	require.NoError(t, err)
 
 	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
+	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)
 	w, err := authServer.NewWatcher(timedCtx, types.Watch{
 		Name: "node-create watcher",
@@ -600,6 +607,11 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			cert, ok := key.(*ssh.Certificate)
 			if !ok {
 				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
+			}
+
+			// Sanity check incoming cert from proxy has Ed25519 key.
+			if cert.Key.Type() != ssh.KeyAlgoED25519 {
+				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
 			}
 
 			for _, pubKey := range caPubKeys {

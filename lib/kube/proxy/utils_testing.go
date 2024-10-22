@@ -121,7 +121,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
-	kubeConfigLocation := newKubeConfigFile(ctx, t, cfg.Clusters...)
+	kubeConfigLocation := newKubeConfigFile(t, cfg.Clusters...)
 
 	// Create and start test auth server.
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
@@ -142,8 +142,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// this issue.
 		auth.WithLimiterConfig(
 			&limiter.Config{
-				MaxConnections:   100000,
-				MaxNumberOfUsers: 1000,
+				MaxConnections: 100000,
 			},
 		),
 	)
@@ -273,8 +272,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		TLS:           kubeServiceTLSConfig.Clone(),
 		AccessPoint:   client,
 		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		},
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
@@ -357,8 +355,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		AccessPoint:              client,
 		KubernetesServersWatcher: kubeServersWatcher,
 		LimiterConfig: limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		},
 		Log:             log,
 		InventoryHandle: inventoryHandle,
@@ -478,7 +475,7 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	return c.CreateUserWithTraitsAndRole(ctx, t, username, nil, roleSpec)
 }
 
-func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeClusterConfig) string {
+func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
 	tmpDir := t.TempDir()
 
 	kubeConf := clientcmdapi.NewConfig()

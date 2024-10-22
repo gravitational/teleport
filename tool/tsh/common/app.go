@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -113,15 +112,7 @@ func appLogin(
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
 ) (*client.KeyRing, error) {
-	// TODO (Joerger): DELETE IN v17.0.0
-	var err error
-	appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, tc.Username, appCertParams.RouteToApp)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams,
-		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", appCertParams.RouteToApp.Name)))
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
 	return keyRing, trace.Wrap(err)
 }
 
@@ -367,7 +358,6 @@ func onAppConfig(cf *CLIConf) error {
 	}
 	routeToApp := proto.RouteToApp{
 		Name:              app.Name,
-		SessionID:         app.SessionID,
 		PublicAddr:        app.PublicAddr,
 		ClusterName:       app.ClusterName,
 		AWSRoleARN:        app.AWSRoleARN,

@@ -20,13 +20,14 @@ package auth
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -34,7 +35,7 @@ import (
 
 func newUserWithOrigin(t *testing.T, origin string) types.User {
 	t.Helper()
-	user, err := types.NewUser(t.Name())
+	user, err := types.NewUser(uuid.NewString())
 	require.NoError(t, err)
 
 	if origin != "" {
@@ -67,280 +68,6 @@ func newTestServerWithRoles(t *testing.T, srv *TestAuthServer, role types.System
 	return authWithRole
 }
 
-// TestOktaServiceUserCRUD() asserts that user operations involving Okta-origin
-// users obey the following rules:
-//
-// 1. Only the Teleport Okta service may create an Okta-origin user.
-// 2. Only the Teleport Okta service may modify an Okta-origin user.
-// 3. Anyone with User RW can delete an Okta-origin user.
-//
-// TODO(tcsc): DELETE IN 16.0.0 (or when user management is excised from ServerWithRoles)
-func TestOktaServiceUserCRUD(t *testing.T) {
-	ctx := context.Background()
-
-	// Given an auth server...
-	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { srv.Close() })
-
-	// And an RBAC-checking `ServerWithRoles` facade configured with the
-	// built-in Okta Role...
-	authWithOktaRole := newTestServerWithRoles(t, srv, types.RoleOkta)
-
-	// And another RBAC-checking `ServerWithRoles` facade configured with the
-	// something other than the built-in Okta Role...
-	authWithAdminRole := newTestServerWithRoles(t, srv, types.RoleAdmin)
-
-	t.Run("update", func(t *testing.T) {
-		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err := srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			// When I (as the Okta service) modify the user and attempt to update the backend record...
-			user.SetTraits(map[string][]string{"foo": {"bar", "baz"}})
-
-			// Expect the operation to succeed
-			_, err = authWithOktaRole.UpdateUser(ctx, user)
-			require.NoError(t, err)
-		})
-
-		t.Run("okta service updating non-okta user is an error", func(t *testing.T) {
-			// Given an existing non-okta user
-			user, err := types.NewUser(t.Name())
-			require.NoError(t, err)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			// When I (as the Okta service) attempt modify that user
-			user.SetOrigin(types.OriginOkta)
-			_, err = authWithOktaRole.UpdateUser(ctx, user)
-
-			// Expect the attempt to fail
-			requireAccessDenied(t, err)
-		})
-
-		t.Run("okta service removing okta origin is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			// When I (as the Okta service) attempt reset the user origin
-			user.SetOrigin(types.OriginDynamic)
-
-			// Expect the attempt to fail
-			_, err = authWithOktaRole.UpdateUser(ctx, user)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("okta service updating a non-existent user is an error", func(t *testing.T) {
-			// Given an okta user not present in the user DB
-			user := newOktaUser(t)
-
-			// when I try to update that user, an error is returned rather than
-			// having the whole system crash
-			_, err = authWithOktaRole.UpdateUser(ctx, user)
-			require.Error(t, err)
-		})
-
-		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			// When I (as a non-Okta service) attempt reset the user origin
-			user.SetOrigin(types.OriginDynamic)
-
-			// Expect the attempt to fail
-			_, err = authWithAdminRole.UpdateUser(ctx, user)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("non-okta service updating okta user is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			// When I (as a non-Okta service) attempt modify that user
-			user.SetTraits(map[string][]string{"foo": {"bar", "baz"}})
-			_, err = authWithAdminRole.UpdateUser(ctx, user)
-
-			// Expect the attempt to fail
-			requireBadParameter(t, err)
-		})
-	})
-
-	t.Run("upsert", func(t *testing.T) {
-		t.Run("okta service creating non-okta user is an error", func(t *testing.T) {
-			user, err := types.NewUser(t.Name())
-			require.NoError(t, err)
-
-			_, err = authWithOktaRole.UpsertUser(ctx, user)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("okta service updating okta user is allowed", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			user.SetTraits(map[string][]string{"foo": {"bar", "baz"}})
-
-			_, err = authWithOktaRole.UpsertUser(ctx, user)
-			require.NoError(t, err)
-		})
-
-		t.Run("okta service updating non-okta user is an error", func(t *testing.T) {
-			// Given an existing non-okta user
-			user, err := types.NewUser(t.Name())
-			require.NoError(t, err)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			user.SetOrigin(types.OriginOkta)
-
-			_, err = authWithOktaRole.UpsertUser(ctx, user)
-			requireAccessDenied(t, err)
-		})
-
-		t.Run("okta service removing the okta origin is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			user.SetOrigin(types.OriginDynamic)
-
-			_, err = authWithOktaRole.UpsertUser(ctx, user)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("non-okta service creating okta user is an error", func(t *testing.T) {
-			user := newOktaUser(t)
-			_, err = authWithAdminRole.UpsertUser(ctx, user)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			user.SetOrigin(types.OriginDynamic)
-
-			_, err = authWithAdminRole.UpsertUser(ctx, user)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			user.AddRole(teleport.PresetAccessRoleName)
-
-			_, err = authWithAdminRole.UpsertUser(ctx, user)
-			requireBadParameter(t, err)
-		})
-	})
-
-	t.Run("compare and swap", func(t *testing.T) {
-		t.Run("okta service updating Okta user is allowed", func(t *testing.T) {
-			// Given an existing okta user
-			existing := newOktaUser(t)
-			existing, err = srv.AuthServer.CreateUser(ctx, existing)
-			require.NoError(t, err)
-
-			modified, err := srv.AuthServer.GetUser(ctx, existing.GetName(), false)
-			require.NoError(t, err)
-			modified.SetTraits(map[string][]string{"foo": {"bar", "baz"}})
-
-			err = authWithOktaRole.CompareAndSwapUser(ctx, modified, existing)
-			require.NoError(t, err)
-		})
-
-		t.Run("okta service updating non-Okta user is an error", func(t *testing.T) {
-			// Given an existing non-okta existing
-			existing, err := types.NewUser(t.Name())
-			require.NoError(t, err)
-			existing, err = srv.AuthServer.CreateUser(ctx, existing)
-			require.NoError(t, err)
-
-			modified, err := srv.AuthServer.GetUser(ctx, existing.GetName(), false)
-			require.NoError(t, err)
-			modified.SetOrigin(types.OriginOkta)
-
-			err = authWithOktaRole.CompareAndSwapUser(ctx, modified, existing)
-			requireAccessDenied(t, err)
-		})
-
-		t.Run("okta service removing Okta origin is an error", func(t *testing.T) {
-			// Given an existing okta existing
-			existing := newOktaUser(t)
-			existing, err = srv.AuthServer.CreateUser(ctx, existing)
-			require.NoError(t, err)
-
-			modified, err := srv.AuthServer.GetUser(ctx, existing.GetName(), false)
-			require.NoError(t, err)
-			modified.SetOrigin(types.OriginDynamic)
-
-			err = authWithOktaRole.CompareAndSwapUser(ctx, modified, existing)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("okta service updating a non-existent user is an error", func(t *testing.T) {
-			// Given an okta user not present in the user DB
-			user := newOktaUser(t)
-
-			// when I try to update that user, an error is returned rather than
-			// having the whole system crash
-			err := authWithOktaRole.CompareAndSwapUser(ctx, user, user)
-			require.Error(t, err)
-		})
-
-		t.Run("non-okta service removing okta origin is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			original, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
-			require.NoError(t, err)
-
-			modified, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
-			require.NoError(t, err)
-			modified.SetOrigin(types.OriginDynamic)
-
-			err = authWithAdminRole.CompareAndSwapUser(ctx, modified, original)
-			requireBadParameter(t, err)
-		})
-
-		t.Run("non-okta service updating an okta user is an error", func(t *testing.T) {
-			// Given an existing okta user
-			user := newOktaUser(t)
-			user, err = srv.AuthServer.CreateUser(ctx, user)
-			require.NoError(t, err)
-
-			original, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
-			require.NoError(t, err)
-
-			modified, err := srv.AuthServer.GetUser(ctx, user.GetName(), false)
-			require.NoError(t, err)
-			modified.AddRole(teleport.PresetAccessRoleName)
-
-			err = authWithAdminRole.CompareAndSwapUser(ctx, modified, original)
-			requireBadParameter(t, err)
-		})
-	})
-}
-
 func TestOktaMayNotResetPasswords(t *testing.T) {
 	ctx := context.Background()
 
@@ -366,7 +93,7 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 
 	t.Run("non-okta user", func(t *testing.T) {
 		// Given an existing non-okta existing
-		existing, err := types.NewUser(t.Name())
+		existing, err := types.NewUser(uuid.NewString())
 		require.NoError(t, err)
 		existing, err = srv.AuthServer.CreateUser(ctx, existing)
 		require.NoError(t, err)
@@ -395,7 +122,7 @@ func newTestLock(t *testing.T, target types.User, origin string) types.Lock {
 			User: target.GetName(),
 		},
 	}
-	lock, err := types.NewLock(t.Name(), lockSpec)
+	lock, err := types.NewLock(strings.ReplaceAll(uuid.NewString(), "-", ""), lockSpec)
 	require.NoError(t, err)
 
 	if origin != "" {
@@ -492,7 +219,7 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 					Node: "banana",
 				},
 			}
-			lock, err := types.NewLock(t.Name(), lockSpec)
+			lock, err := types.NewLock(strings.ReplaceAll(uuid.NewString(), "-", ""), lockSpec)
 			require.NoError(t, err)
 			lock.SetOrigin(types.OriginOkta)
 
@@ -585,7 +312,7 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 
 			// And an un-locked non-okta user
 			nonOktaUser := newUserWithOrigin(t, "")
-			nonOktaUser.SetName(t.Name() + "non-okta")
+			nonOktaUser.SetName(nonOktaUser.GetName() + "non-okta")
 			_, err = srv.AuthServer.CreateUser(ctx, nonOktaUser)
 			require.NoError(t, err)
 

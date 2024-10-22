@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -171,6 +170,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 			},
 			"tctl bots rm": {
 				command:    fmt.Sprintf("bots rm %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
 				cliCommand: &tctl.BotsCommand{},
 				setup:      createBot,
 				cleanup:    deleteBot,
@@ -447,11 +452,7 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	ctx := context.Background()
 
-	sshSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
-	sshKey, err := keys.NewSoftwarePrivateKey(sshSigner)
-	require.NoError(t, err)
-	sshKeyPEM, err := sshKey.MarshalSSHPrivateKey()
+	sshKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
 	tlsKey, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
@@ -462,9 +463,8 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		ClusterName: "clustername",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     sshKeyPEM,
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      sshKey.MarshalSSHPublicKey(),
+				PrivateKey: sshKey.PrivateKeyPEM(),
+				PublicKey:  sshKey.MarshalSSHPublicKey(),
 			}},
 			TLS: []*types.TLSKeyPair{{
 				Cert: cert,

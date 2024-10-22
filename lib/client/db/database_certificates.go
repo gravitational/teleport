@@ -27,9 +27,11 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -38,6 +40,7 @@ type CertificateSigner interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+	Ping(context.Context) (proto.PingResponse, error)
 }
 
 // GenerateDatabaseCertificatesRequest contains the required fields used to generate database certificates
@@ -94,12 +97,17 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 	}
 
 	if req.KeyRing == nil {
-		// TODO(nklaassen): don't hardcode RSA here.
-		keyRing, err := client.GenerateRSAKeyRing()
+		key, err := cryptosuites.GenerateKey(ctx,
+			cryptosuites.GetCurrentSuiteFromPing(req.ClusterAPI),
+			cryptosuites.DatabaseServer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		req.KeyRing = keyRing
+		privateKey, err := keys.NewSoftwarePrivateKey(key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		req.KeyRing = client.NewKeyRing(privateKey, privateKey)
 	}
 
 	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.KeyRing.TLSPrivateKey)

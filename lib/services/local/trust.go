@@ -77,7 +77,7 @@ func (s *CA) CreateCertAuthorities(ctx context.Context, cas ...types.CertAuthori
 			return "", trace.Wrap(err)
 		}
 
-		item, err := caToItem(nil, ca)
+		item, err := caToItem(backend.Key{}, ca)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

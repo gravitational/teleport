@@ -20,54 +20,15 @@ package peer
 
 import (
 	"context"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-// serverCredentials wraps a [crendentials.TransportCredentials] that
-// extends the ServerHandshake to ensure the credentials contain the proxy system role.
-type serverCredentials struct {
-	credentials.TransportCredentials
-}
-
-// newServerCredentials creates new serverCredentials from the given [crendentials.TransportCredentials].
-func newServerCredentials(creds credentials.TransportCredentials) *serverCredentials {
-	return &serverCredentials{
-		TransportCredentials: creds,
-	}
-}
-
-// ServerHandshake performs the TLS handshake and then verifies that the client
-// attempting to connect is a Proxy.
-func (c *serverCredentials) ServerHandshake(conn net.Conn) (_ net.Conn, _ credentials.AuthInfo, err error) {
-	conn, authInfo, err := c.TransportCredentials.ServerHandshake(conn)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	defer func() {
-		if err != nil {
-			conn.Close()
-		}
-	}()
-
-	identity, err := getIdentity(authInfo)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	if err := checkProxyRole(identity); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return conn, authInfo, nil
-}
 
 // clientCredentials wraps a [crendentials.TransportCredentials] that
 // extends the ClientHandshake to ensure the credentials contain the proxy system role
@@ -76,16 +37,16 @@ type clientCredentials struct {
 	credentials.TransportCredentials
 	peerID   string
 	peerAddr string
-	logger   logrus.FieldLogger
+	log      *slog.Logger
 }
 
 // newClientCredentials creates new clientCredentials from the given [crendentials.TransportCredentials].
-func newClientCredentials(peerID, peerAddr string, logger logrus.FieldLogger, creds credentials.TransportCredentials) *clientCredentials {
+func newClientCredentials(peerID, peerAddr string, log *slog.Logger, creds credentials.TransportCredentials) *clientCredentials {
 	return &clientCredentials{
 		TransportCredentials: creds,
 		peerID:               peerID,
 		peerAddr:             peerAddr,
-		logger:               logger,
+		log:                  log,
 	}
 }
 
@@ -112,14 +73,15 @@ func (c *clientCredentials) ClientHandshake(ctx context.Context, laddr string, c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	const duplicatePeerMsg = "Detected multiple Proxy Peers with the same public address %q when connecting to Proxy %q which can lead to inconsistent state and problems establishing sessions. For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
 	if err := validatePeer(c.peerID, identity); err != nil {
-		c.logger.Errorf(duplicatePeerMsg, c.peerAddr, c.peerID)
+		c.log.ErrorContext(ctx, duplicatePeerMsg, "peer_addr", c.peerAddr, "peer_id", c.peerID)
 		return nil, nil, trace.Wrap(err)
 	}
 
 	return conn, authInfo, nil
 }
+
+const duplicatePeerMsg = "Detected multiple Proxy Peers with the same public address when connecting to a Proxy which can lead to inconsistent state and problems establishing sessions. For best results ensure that `peer_public_addr` is unique per proxy and not a load balancer."
 
 // getIdentity returns a [tlsca.Identity] that is created from the certificate
 // presented during the TLS handshake.

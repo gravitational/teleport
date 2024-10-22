@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { ButtonSecondary, H2 } from 'design';
+import { ButtonSecondary, H2, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 
@@ -55,11 +55,10 @@ export function SecurityGroupRulesDialog({
             {
               altKey: 'portRange',
               headerText: 'Port Range',
-              render: ({ fromPort, toPort }) => {
-                // If they are the same, only show one number.
-                const portRange =
-                  fromPort === toPort ? fromPort : `${fromPort} - ${toPort}`;
-                return <Cell>{portRange}</Cell>;
+              render: ({ ipProtocol, fromPort, toPort }) => {
+                return (
+                  <Cell>{getPortRange(ipProtocol, fromPort, toPort)}</Cell>
+                );
               },
             },
             {
@@ -67,7 +66,11 @@ export function SecurityGroupRulesDialog({
               headerText: 'Source',
               render: ({ source }) => {
                 if (source) {
-                  return <Cell>{source}</Cell>;
+                  return (
+                    <Cell>
+                      <Text title={source}>{source}</Text>
+                    </Cell>
+                  );
                 }
                 return null;
               },
@@ -77,7 +80,11 @@ export function SecurityGroupRulesDialog({
               headerText: 'Description',
               render: ({ description }) => {
                 if (description) {
-                  return <Cell>{description}</Cell>;
+                  return (
+                    <Cell>
+                      <Text title={description}>{description}</Text>
+                    </Cell>
+                  );
                 }
                 return null;
               },
@@ -104,6 +111,8 @@ const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: middle;
     text-align: left;
+    max-width: 200px;
+    text-wrap: nowrap;
   }
 
   & > thead > tr > th {
@@ -114,3 +123,17 @@ const StyledTable = styled(Table)`
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
 ` as typeof Table;
+
+function getPortRange(
+  ipProtocol: string,
+  fromPort: string,
+  toPort: string
+): string {
+  if (ipProtocol === 'all') {
+    // fromPort and toPort are irrelevant and AWS currently returns 0 for both
+    // in this case.
+    return 'all';
+  }
+  // If they are the same, only show one number.
+  return fromPort === toPort ? fromPort : `${fromPort} - ${toPort}`;
+}

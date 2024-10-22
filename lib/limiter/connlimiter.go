@@ -22,12 +22,12 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 )
 
 // ConnectionsLimiter is a network connection limiter.
@@ -63,23 +63,21 @@ func (l *ConnectionsLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: use net.SplitHostPort to be more compatible with IPv6
-	token, _, _ := strings.Cut(r.RemoteAddr, ":")
-	if token == "" {
+	clientIP, err := ratelimit.ExtractClientIP(r)
+	if err != nil {
 		l.log.WarnContext(context.Background(), "failed to extract source IP", "remote_addr", r.RemoteAddr)
-		sc := http.StatusInternalServerError
-		http.Error(w, http.StatusText(sc), sc)
+		ratelimit.ServeHTTPError(w, r, err)
 		return
 	}
 
-	if err := l.AcquireConnection(token); err != nil {
-		l.log.InfoContext(context.Background(), "limiting request", "token", token, "error", err)
+	if err := l.AcquireConnection(clientIP); err != nil {
+		l.log.InfoContext(context.Background(), "limiting request", "token", clientIP, "error", err)
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte(trace.UserMessage(err)))
 		return
 	}
 
-	defer l.ReleaseConnection(token)
+	defer l.ReleaseConnection(clientIP)
 
 	l.next.ServeHTTP(w, r)
 }

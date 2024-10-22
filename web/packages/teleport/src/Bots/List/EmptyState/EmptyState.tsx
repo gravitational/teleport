@@ -19,7 +19,6 @@
 import React, { useState, useEffect } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
-import { GitHubIcon, SpaceliftIcon, AnsibleIcon } from 'design/SVGIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import {
   Description,
@@ -190,15 +189,15 @@ const integrationsTop = [
 const integrationsBottom = [
   {
     title: 'GitHub',
-    icon: <GitHubIcon size={TILE_ICON_HEIGHT} />,
+    icon: <ResourceIcon height={TILE_ICON_HEIGHT} name="github" />,
   },
   {
     title: 'Ansible',
-    icon: <AnsibleIcon size={TILE_ICON_HEIGHT} />,
+    icon: <ResourceIcon height={TILE_ICON_HEIGHT} name="ansible" />,
   },
   {
     title: 'Spacelift',
-    icon: <SpaceliftIcon size={TILE_ICON_HEIGHT} />,
+    icon: <ResourceIcon height={TILE_ICON_HEIGHT} name="spacelift" />,
   },
 ];
 

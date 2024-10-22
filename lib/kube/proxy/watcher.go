@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -45,7 +46,8 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		// TODO(tross): update to use the server logger once it has been converted to slog
+		Logger: slog.With("kind", types.KindKubernetesCluster),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,8 +98,9 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 	watcher, err := services.NewKubeClusterWatcher(ctx, services.KubeClusterWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: s.Component,
-			Log:       s.log,
-			Client:    s.AccessPoint,
+			// TODO(tross): update this once converted to use slog
+			// Logger:       s.log,
+			Client: s.AccessPoint,
 		},
 	})
 	if err != nil {
@@ -190,7 +193,7 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 		return trace.Wrap(err)
 	}
 	s.fwd.upsertKubeDetails(cluster.GetName(), clusterDetails)
-	return trace.Wrap(s.startHeartbeat(ctx, cluster.GetName()))
+	return trace.Wrap(s.startHeartbeat(cluster.GetName()))
 }
 
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {

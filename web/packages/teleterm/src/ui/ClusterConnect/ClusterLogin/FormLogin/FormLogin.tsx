@@ -23,8 +23,6 @@ import * as Alerts from 'design/Alert';
 import { StepSlider } from 'design/StepSlider';
 import { Attempt } from 'shared/hooks/useAsync';
 
-import { P } from 'design/Text/Text';
-
 import * as types from 'teleterm/ui/services/clusters/types';
 
 import { PromptWebauthn } from './PromptWebauthn';
@@ -63,8 +61,8 @@ export default function LoginForm(props: Props) {
     return (
       <FlexBordered p={4} pb={5}>
         {loginAttempt.status === 'error' && (
-          <Alerts.Danger m={5} mb={0}>
-            {loginAttempt.statusText}
+          <Alerts.Danger m={5} mb={0} details={loginAttempt.statusText}>
+            Could not log in
           </Alerts.Danger>
         )}
         <FormSso {...props} />
@@ -75,11 +73,9 @@ export default function LoginForm(props: Props) {
   if (!localAuthEnabled) {
     return (
       <FlexBordered p={4}>
-        <Alerts.Danger>Login has not been enabled</Alerts.Danger>
-        <P>
-          The ability to login has not been enabled. Please contact your system
-          administrator for more information.
-        </P>
+        <Alerts.Danger details="The ability to login has not been enabled. Please contact your system administrator for more information.">
+          Login has not been enabled
+        </Alerts.Danger>
       </FlexBordered>
     );
   }
@@ -88,8 +84,8 @@ export default function LoginForm(props: Props) {
   return (
     <FlexBordered>
       {loginAttempt.status === 'error' && (
-        <Alerts.Danger m={4} mb={0}>
-          {loginAttempt.statusText}
+        <Alerts.Danger m={4} mb={0} details={loginAttempt.statusText}>
+          Could not log in
         </Alerts.Danger>
       )}
       <StepSlider<typeof loginViews>
@@ -272,11 +268,6 @@ export type Props = types.AuthSettings & {
   onAbort(): void;
   onLoginWithSso(provider: types.AuthProvider): void;
   onLoginWithPasswordless(): void;
-  onLogin(
-    username: string,
-    password: string,
-    token: string,
-    auth2fa: types.Auth2faType
-  ): void;
+  onLogin(username: string, password: string): void;
   autoFocus?: boolean;
 };
