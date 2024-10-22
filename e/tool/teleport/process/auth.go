@@ -12,7 +12,7 @@ import (
 )
 
 // extendAuthServer extends the auth server with enterprise specific features.
-func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile.LicenseFile, authPlugin *auth.Plugin) (service.Process, error) {
+func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile.LicenseFile, authPlugin *auth.Plugin, licensePath string) (service.Process, error) {
 	ctx := process.ExitContext()
 	process.Config.Logger.InfoContext(ctx, "Starting enterprise auth services")
 	cleanup, err := auth.StartServices(ctx, authPlugin)
@@ -47,6 +47,7 @@ func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile
 		AuthPlugin:  authPlugin,
 		OSSProcess:  process,
 		LicenseFile: licenseFile,
+		LicensePath: licensePath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -9,6 +9,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -20,6 +22,8 @@ type Config struct {
 	LicenseFile *licensefile.LicenseFile
 	// AuthPlugin is the AuthPlugin
 	AuthPlugin *auth.Plugin
+	// LicensePath is the path of the license on disk
+	LicensePath string
 }
 
 // CheckAndSetDefaults checks and sets default config values
@@ -30,6 +34,10 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 
 	if c.LicenseFile == nil {
 		return trace.BadParameter("missing LicenseFile")
+	}
+
+	if c.LicensePath == "" {
+		return trace.BadParameter("missing LicensePath")
 	}
 
 	if c.AuthPlugin == nil {
@@ -82,6 +90,19 @@ func NewTeleport(cfg Config) (*Process, error) {
 	}
 
 	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
+
+	// run the license auto update service if the entitlement is enabled
+	if info, ok := modules.GetModules().Features().Entitlements[entitlements.LicenseAutoUpdate]; ok && info.Enabled {
+		updateService, err := newLicenseUpdateService(licenseUpdateServiceConfig{
+			ServerID:    process.GetAuthServer().ServerID,
+			LicenseFile: process.LicenseFile,
+			LicensePath: cfg.LicensePath,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		go updateService.Run(process.ExitContext())
+	}
 
 	// todo (michellescripts) set this in getSelfHostedLicenseFeatures and treat Features as source of truth
 	if cfg.LicenseFile.License.GetSalesCenterReporting() {

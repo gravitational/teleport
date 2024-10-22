@@ -66,10 +66,10 @@ func NewClientFromConnection(conn *grpc.ClientConn) (Client, error) {
 }
 
 const (
-	// defaultAPIServerAddr is default cloud API server address
-	defaultAPIServerAddr = "api.teleport.sh"
-	// defaultAPIServerPort is the default SalesCenter API port
-	defaultAPIServerPort = 443
+	// DefaultAPIServerAddr is default cloud API server address
+	DefaultAPIServerAddr = "api.teleport.sh"
+	// DefaultAPIServerPort is the default SalesCenter API port
+	DefaultAPIServerPort = 443
 	// EnvVarHostPort is used to override the default cloud api server address
 	EnvVarHostPort = "TELEPORT_CLOUD_HOSTPORT"
 )
@@ -78,12 +78,12 @@ const (
 // as a base. The Cloud server address defaults to api.teleport.sh but can
 // be overridden via the TELEPORT_CLOUD_HOSTPORT envvar
 func NewClientFromTLSConfig(cfg *tls.Config) (Client, error) {
-	cloudAPIServerAddr := defaultAPIServerAddr
+	cloudAPIServerAddr := DefaultAPIServerAddr
 	if addr := os.Getenv(EnvVarHostPort); addr != "" {
 		cloudAPIServerAddr = addr
 	}
 
-	apiServerAddr, err := utils.ParseHostPortAddr(cloudAPIServerAddr, defaultAPIServerPort)
+	apiServerAddr, err := utils.ParseHostPortAddr(cloudAPIServerAddr, DefaultAPIServerPort)
 	if err != nil {
 		return nil, trace.BadParameter("invalid cloud API server address")
 	}

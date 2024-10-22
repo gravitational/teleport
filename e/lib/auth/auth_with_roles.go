@@ -183,3 +183,14 @@ func (ac *cloudWithRoles) hasBuiltinProxyRole(ctx context.Context) error {
 
 	return nil
 }
+
+// GetUpdatedLicense returns the customer's license if it is different from the license
+// provided as the mTLS peer certificate.
+func (ac *cloudWithRoles) GetUpdatedLicense(ctx context.Context, in *v1.GetUpdatedLicenseRequest) (*v1.GetUpdatedLicenseResponse, error) {
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.GetUpdatedLicense(ctx, in)
+}

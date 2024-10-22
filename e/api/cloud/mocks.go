@@ -41,6 +41,9 @@ type MockedClient struct {
 	// MockClusterAlertInfo is a mock implementation of ClusterAlertInfo which returns information about a cluster that
 	// will determine if the Teleport usage reporter should generate a cluster alert
 	MockClusterAlertInfo func(context.Context, *v1.EmptyRequest) (*v1.ClusterAlertInfoResponse, error)
+	// MockGetUpdatedLicense returns the customer's license if it is different from the license
+	// provided as the mTLS peer certificate.
+	MockGetUpdatedLicense func(ctx context.Context, req *v1.GetUpdatedLicenseRequest, opts ...grpc.CallOption) (*v1.GetUpdatedLicenseResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -145,4 +148,12 @@ func (m *MockedClient) ClusterAlertInfo(ctx context.Context, in *v1.EmptyRequest
 	}
 
 	return nil, trace.NotImplemented("ClusterAlertInfo is not implemented")
+}
+
+func (m *MockedClient) GetUpdatedLicense(ctx context.Context, req *v1.GetUpdatedLicenseRequest, _ ...grpc.CallOption) (*v1.GetUpdatedLicenseResponse, error) {
+	if m.MockGetUpdatedLicense != nil {
+		return m.MockGetUpdatedLicense(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("GetUpdatedLicense is not implemented")
 }

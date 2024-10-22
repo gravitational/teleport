@@ -101,7 +101,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	// This needs to be the last thing in NewTeleport because it needs to
 	// return an enterprise specific process.
 	if cfg.Auth.Enabled {
-		authProcess, err := extendAuthServer(ossProcess, license, authPlugin)
+		authProcess, err := extendAuthServer(ossProcess, license, authPlugin, cfg.Auth.LicenseFile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
