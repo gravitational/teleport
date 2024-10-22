@@ -1456,7 +1456,7 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 
 	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{
 		Integration: integrationName,
-		Arn:         req.ARN,
+		Arn:         req.RoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
