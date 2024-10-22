@@ -77,6 +77,20 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 	}
 
 	mfaCeremony := &mfa.Ceremony{
+		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
+
+				mfaResp, err := mfaPrompt.Run(ctx, chal)
+				if err != nil {
+					fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
+					return nil, trace.Wrap(err)
+				}
+
+				fmt.Fprint(term, "\r\nTeleport > Received MFA presence confirmation\r\n")
+				return mfaResp, nil
+			})
+		},
 		CreateAuthenticateChallenge: func(ctx context.Context, _ *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
@@ -98,18 +112,6 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 			challenge.TOTP = nil
 
 			return challenge, nil
-		},
-		SolveAuthenticateChallenge: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
-
-			mfaResp, err := mfaPrompt.Run(ctx, chal)
-			if err != nil {
-				fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
-				return nil, trace.Wrap(err)
-			}
-
-			fmt.Fprint(term, "\r\nTeleport > Received MFA presence confirmation\r\n")
-			return mfaResp, nil
 		},
 	}
 

@@ -95,6 +95,7 @@ class AccessRequests implements TeleportFeature {
     getLink() {
       return cfg.routes.accessRequest;
     },
+    searchableTags: ['access requests'],
   };
 
   topMenuItem = this.navigationItem;
@@ -118,6 +119,7 @@ export class FeatureJoinTokens implements TeleportFeature {
     path: cfg.routes.joinTokens,
     exact: true,
     component: JoinTokens,
+    searchableTags: ['join tokens', 'join', 'tokens'],
   };
 
   hasAccess(flags: FeatureFlags): boolean {
@@ -145,6 +147,18 @@ export class FeatureUnifiedResources implements TeleportFeature {
     getLink(clusterId: string) {
       return cfg.getUnifiedResourcesRoute(clusterId);
     },
+    searchableTags: [
+      'resources',
+      'nodes',
+      'servers',
+      'applications',
+      'apps',
+      'desktops',
+      'databases',
+      'dbs',
+      'kubes',
+      'kubernetes',
+    ],
   };
 
   hasAccess() {
@@ -178,6 +192,7 @@ export class FeatureSessions implements TeleportFeature {
     getLink(clusterId: string) {
       return cfg.getSessionsRoute(clusterId);
     },
+    searchableTags: ['active sessions', 'active', 'sessions'],
   };
   topMenuItem = this.navigationItem;
 }
@@ -211,6 +226,7 @@ export class FeatureUsers implements TeleportFeature {
     getLink() {
       return cfg.getUsersRoute();
     },
+    searchableTags: ['users'],
   };
 
   getRoute() {
@@ -241,6 +257,7 @@ export class FeatureBots implements TeleportFeature {
     getLink() {
       return cfg.getBotsRoute();
     },
+    searchableTags: ['bots'],
   };
 
   getRoute() {
@@ -293,6 +310,7 @@ export class FeatureRoles implements TeleportFeature {
     getLink() {
       return cfg.routes.roles;
     },
+    searchableTags: ['roles', 'user roles'],
   };
 }
 
@@ -319,6 +337,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
     getLink() {
       return cfg.routes.sso;
     },
+    searchableTags: ['auth connectors', 'saml', 'okta', 'oidc', 'github'],
   };
 }
 
@@ -345,6 +364,7 @@ export class FeatureLocks implements TeleportFeature {
     getLink() {
       return cfg.getLocksRoute();
     },
+    searchableTags: ['locks'],
   };
 }
 
@@ -387,6 +407,7 @@ export class FeatureDiscover implements TeleportFeature {
     getLink() {
       return cfg.routes.discover;
     },
+    searchableTags: ['new resource', 'add'],
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -421,6 +442,7 @@ export class FeatureIntegrations implements TeleportFeature {
     getLink() {
       return cfg.routes.integrations;
     },
+    searchableTags: ['integrations'],
   };
 
   getRoute() {
@@ -485,6 +507,7 @@ export class FeatureRecordings implements TeleportFeature {
     getLink(clusterId: string) {
       return cfg.getRecordingsRoute(clusterId);
     },
+    searchableTags: ['recorded sessions', 'recordings', 'sessions'],
   };
 }
 
@@ -509,6 +532,7 @@ export class FeatureAudit implements TeleportFeature {
     getLink(clusterId: string) {
       return cfg.getAuditRoute(clusterId);
     },
+    searchableTags: ['audit log'],
   };
 }
 
@@ -537,6 +561,7 @@ export class FeatureClusters implements TeleportFeature {
     getLink() {
       return cfg.routes.clusters;
     },
+    searchableTags: ['clusters', 'manage clusters'],
   };
 }
 
@@ -561,6 +586,7 @@ export class FeatureTrust implements TeleportFeature {
     getLink() {
       return cfg.routes.trustedClusters;
     },
+    searchableTags: ['clusters', 'trusted clusters'],
   };
 }
 
@@ -586,6 +612,7 @@ class FeatureDeviceTrust implements TeleportFeature {
     getLink() {
       return cfg.routes.deviceTrust;
     },
+    searchableTags: ['device trust', 'trusted devices', 'devices'],
   };
 }
 

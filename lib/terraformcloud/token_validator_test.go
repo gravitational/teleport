@@ -20,8 +20,7 @@ package terraformcloud
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
+	"crypto"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,18 +31,21 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type fakeIDP struct {
-	t          *testing.T
-	signer     jose.Signer
-	privateKey *rsa.PrivateKey
-	server     *httptest.Server
-	audience   string
+	t         *testing.T
+	signer    jose.Signer
+	publicKey crypto.PublicKey
+	server    *httptest.Server
+	audience  string
 }
 
 func newFakeIDP(t *testing.T, audience string) *fakeIDP {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	// Terraform Cloud uses RSA, prefer to test with it.
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -53,10 +55,10 @@ func newFakeIDP(t *testing.T, audience string) *fakeIDP {
 	require.NoError(t, err)
 
 	f := &fakeIDP{
-		signer:     signer,
-		privateKey: privateKey,
-		t:          t,
-		audience:   audience,
+		signer:    signer,
+		publicKey: privateKey.Public(),
+		t:         t,
+		audience:  audience,
 	}
 
 	providerMux := http.NewServeMux()
@@ -119,7 +121,7 @@ func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
 	jwks := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Key: &f.privateKey.PublicKey,
+				Key: f.publicKey,
 			},
 		},
 	}

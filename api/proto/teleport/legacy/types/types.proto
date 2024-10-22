@@ -2095,7 +2095,8 @@ message AuthPreferenceSpecV2 {
   HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
 
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
-  // The current default value is "legacy". This field is not yet fully supported.
+  // If unspecified, the current default value is "legacy".
+  // 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
 
   // SecondFactors is a list of supported second factor types.
@@ -6347,6 +6348,21 @@ message PluginOktaSettings {
 
   // Sync settings controls the user and access list sync settings for Okta.
   PluginOktaSyncSettings sync_settings = 4;
+
+  // CredentialsInfo contains information about the Okta credentials.
+  PluginOktaCredentialsInfo credentials_info = 5;
+}
+
+// PluginOktaCredentialsInfo contains information about the Okta credentials.
+// This is used to determine if the plugin has configured the necessary credentials.
+message PluginOktaCredentialsInfo {
+  option (gogoproto.equal) = true;
+  // HasSSMSToken is true if the plugin has configured SSMSToken.
+  bool has_ssm_token = 1;
+  // HasOauthCredentials is true if the plugin has configured OauthCredentials.
+  bool has_oauth_credentials = 2;
+  // HasSCIMToken is true if the plugin has configured SCIMToken.
+  bool has_scim_token = 3;
 }
 
 // Defines settings for syncing users and access lists from Okta.
@@ -6503,6 +6519,14 @@ message PluginAWSICSettings {
 
   // Provisioning holds settings for provisioing users and groups into AWS
   AWSICProvisioningSpec provisioning_spec = 4;
+
+  // AccessListDefaultOwners is a list of default owners for Access List created for
+  // user groups imported from AWS Idenity Center.
+  repeated string access_list_default_owners = 5;
+
+  // SAMLIdPServiceProviderName is the name of a SAML service provider created
+  // for the Identity Center.
+  string saml_idp_service_provider_name = 6;
 }
 
 // AWSICProvisioningSpec holds provisioning-specific Identity Center settings
