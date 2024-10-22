@@ -34,11 +34,12 @@ jobs:
   doc-tests:
     name: Lint (Docs)
     needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout
@@ -87,28 +88,15 @@ jobs:
           yarn build-node
 
       - name: Check spelling
-        run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/teleport
+        working-directory: "$GITHUB_WORKSPACE/docs"
+        run: yarn spellcheck content/teleport
 
-      - name: Lint the docs
-        run: cd $GITHUB_WORKSPACE/docs && yarn markdown-lint
+      - name: Lint docs formatting
+        working-directory: "$GITHUB_WORKSPACE/docs"
+        run: yarn markdown-lint
 
-      - name: Test the docs build
-        run: cd $GITHUB_WORKSPACE/docs && yarn install && yarn build
-
-  stylecheck:
-    name: Lint docs prose style
-    runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
-    permissions:
-      pull-requests: read
-    steps:
-      - name: Check out the teleport repo
-        uses: actions/checkout@v4
-        with:
-          repository: "gravitational/teleport"
-
-      - name: Run the linter
+      - name: Lint docs prose
+        working-directory: "$GITHUB_WORKSPACE/docs/content/teleport"
         uses: errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018 # v2.1.0
         with:
           version: 3.8.0
@@ -121,4 +109,8 @@ jobs:
           filter_mode: added
           fail_on_error: true
           vale_flags: "--config=docs/.vale.ini"
+
+      - name: Test the docs build
+        working-directory: "$GITHUB_WORKSPACE/docs" 
+        run: yarn install && yarn build
 
