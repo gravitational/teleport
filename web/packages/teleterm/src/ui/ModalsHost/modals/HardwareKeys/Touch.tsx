@@ -39,27 +39,25 @@ export function Touch(props: {
         width: '100%',
       })}
     >
-      <form onSubmit={e => e.preventDefault()}>
-        <CommonHeader
-          onCancel={props.onCancel}
-          rootClusterUri={props.req.rootClusterUri}
-        />
+      <CommonHeader
+        onCancel={props.onCancel}
+        rootClusterUri={props.req.rootClusterUri}
+      />
 
-        <DialogContent mb={4}>
-          <Flex
-            flexDirection="column"
-            gap={4}
-            alignItems="center"
-            css={`
-              position: relative;
-            `}
-          >
-            <Image mb={4} width="200px" src={svgHardwareKey} />
-            <P2 bold>Touch your YubiKey</P2>
-            <LinearProgress />
-          </Flex>
-        </DialogContent>
-      </form>
+      <DialogContent mb={4}>
+        <Flex
+          flexDirection="column"
+          gap={4}
+          alignItems="center"
+          css={`
+            position: relative;
+          `}
+        >
+          <Image mb={4} width="200px" src={svgHardwareKey} />
+          <P2 bold>Touch your YubiKey</P2>
+          <LinearProgress />
+        </Flex>
+      </DialogContent>
     </DialogConfirmation>
   );
 }
