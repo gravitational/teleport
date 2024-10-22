@@ -257,11 +257,11 @@ export interface PromptHardwareKeyPINRequest {
      */
     rootClusterUri: string;
     /**
-     * Message to display in the prompt.
+     * Specifies if a PIN is optional, allowing the user to set it up if left empty.
      *
-     * @generated from protobuf field: string message = 2;
+     * @generated from protobuf field: bool pin_optional = 2;
      */
-    message: string;
+    pinOptional: boolean;
 }
 /**
  * Response for PromptHardwareKeyPIN.
@@ -1037,13 +1037,13 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest", [
             { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "pin_optional", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyPINRequest>): PromptHardwareKeyPINRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.rootClusterUri = "";
-        message.message = "";
+        message.pinOptional = false;
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyPINRequest>(this, message, value);
         return message;
@@ -1056,8 +1056,8 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
                 case /* string root_cluster_uri */ 1:
                     message.rootClusterUri = reader.string();
                     break;
-                case /* string message */ 2:
-                    message.message = reader.string();
+                case /* bool pin_optional */ 2:
+                    message.pinOptional = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1074,9 +1074,9 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
         /* string root_cluster_uri = 1; */
         if (message.rootClusterUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
-        /* string message = 2; */
-        if (message.message !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.message);
+        /* bool pin_optional = 2; */
+        if (message.pinOptional !== false)
+            writer.tag(2, WireType.Varint).bool(message.pinOptional);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

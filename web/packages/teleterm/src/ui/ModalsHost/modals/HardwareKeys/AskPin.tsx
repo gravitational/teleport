@@ -25,6 +25,7 @@ import DialogConfirmation, {
 import { ButtonPrimary, Flex, P2 } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
@@ -47,11 +48,11 @@ export function AskPin(props: {
       })}
     >
       <Validation>
-        {() => (
+        {({ validator }) => (
           <form
             onSubmit={e => {
               e.preventDefault();
-              props.onSuccess(pin);
+              validator.validate() && props.onSuccess(pin);
             }}
           >
             <CommonHeader
@@ -61,12 +62,22 @@ export function AskPin(props: {
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <P2 color="text.slightlyMuted">{props.req.message}</P2>
+                <P2 color="text.slightlyMuted">
+                  Enter your YubiKey PIV PIN.
+                  <br />
+                  {props.req.pinOptional &&
+                    'To set up the PIN, leave the field blank and click Continue.'}
+                </P2>
 
                 <FieldInput
                   flex="1"
                   autoFocus
                   type="password"
+                  rule={
+                    props.req.pinOptional
+                      ? undefined
+                      : requiredField('PIV PIN is required')
+                  }
                   label="PIV PIN"
                   inputMode="numeric"
                   value={pin}

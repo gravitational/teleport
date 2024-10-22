@@ -374,7 +374,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := y.prompt.AskPIN(ctx, "Enter your YubiKey PIV PIN")
+		pass, err := y.prompt.AskPIN(ctx, PINRequired)
 		return pass, trace.Wrap(err)
 	}
 
@@ -666,7 +666,7 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
-	pin, err := y.prompt.AskPIN(ctx, "Enter your YubiKey PIV PIN [blank to use default PIN]")
+	pin, err := y.prompt.AskPIN(ctx, PINOptional)
 	if err != nil {
 		return trace.Wrap(err)
 	}

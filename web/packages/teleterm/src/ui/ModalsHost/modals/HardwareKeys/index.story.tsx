@@ -31,14 +31,27 @@ export default {
   title: 'Teleterm/ModalsHost/HardwareKeys',
 } satisfies Meta;
 
-export function AskPin() {
+export function AskPinOptional() {
   return (
     <AskPinComponent
       onSuccess={() => {}}
       onCancel={() => {}}
       req={{
         rootClusterUri: rootCluster.uri,
-        message: 'Enter your YubiKey PIV PIN',
+        pinOptional: true,
+      }}
+    />
+  );
+}
+
+export function AskPinRequired() {
+  return (
+    <AskPinComponent
+      onSuccess={() => {}}
+      onCancel={() => {}}
+      req={{
+        rootClusterUri: rootCluster.uri,
+        pinOptional: false,
       }}
     />
   );

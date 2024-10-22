@@ -55,14 +55,14 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context) error {
 }
 
 // AskPIN prompts the user for a PIN.
-func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, message string) (string, error) {
+func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPromptRequirement) (string, error) {
 	if err := h.s.importantModalSemaphore.Acquire(ctx); err != nil {
 		return "", trace.Wrap(err)
 	}
 	defer h.s.importantModalSemaphore.Release()
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		RootClusterUri: h.rootClusterURI.String(),
-		Message:        message,
+		PinOptional:    requirement == keys.PINOptional,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

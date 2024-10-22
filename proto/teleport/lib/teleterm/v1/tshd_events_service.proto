@@ -165,8 +165,8 @@ message PromptMFAResponse {
 // Request for PromptHardwareKeyPIN.
 message PromptHardwareKeyPINRequest {
   string root_cluster_uri = 1;
-  // Message to display in the prompt.
-  string message = 2;
+  // Specifies if a PIN is optional, allowing the user to set it up if left empty.
+  bool pin_optional = 2;
 }
 
 // Response for PromptHardwareKeyPIN.
