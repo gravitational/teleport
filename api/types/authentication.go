@@ -621,6 +621,9 @@ type SignatureAlgorithmSuiteParams struct {
 // brand new cluster or after resetting the auth preference.
 func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlgorithmSuiteParams) {
 	switch {
+	case c.Spec.SignatureAlgorithmSuite != SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED && c.Metadata.Labels[OriginLabel] != OriginDefaults:
+		// If the suite is set and it's not a default value, return.
+		return
 	case params.FIPS:
 		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1)
 	case params.UsingHSMOrKMS || params.Cloud:
