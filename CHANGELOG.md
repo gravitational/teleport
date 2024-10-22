@@ -1,5 +1,62 @@
 # Changelog
 
+## 15.4.21 (10/22/24)
+
+### Security fixes
+
+#### [High] Privilege persistence in Okta SCIM-only integration
+
+When Okta SCIM-only integration is enabled, in certain cases Teleport could
+calculate the effective set of permission based on SSO user's stale traits. This
+could allow a user who was unassigned from an Okta group to log into a Teleport
+cluster once with a role granted by the unassigned group being present in their
+effective role set.
+
+Note: This issue only affects Teleport clusters that have installed a SCIM-only
+Okta integration as described in this guide. If you have an Okta integration
+with user sync enabled or only using Okta SSO auth connector to log into your
+Teleport cluster without SCIM integration configured, you're unaffected. To
+verify your configuration:
+
+- Use `tctl get plugins/okta --format=json | jq ".[].spec.Settings.okta.sync_settings.sync_users"`
+  command to check if you have Okta integration with user sync enabled. If it
+  outputs null or false, you may be affected and should upgrade.
+- Check SCIM provisioning settings for the Okta application you created or
+  updated while following the SCIM-only setup guide. If SCIM provisioning is
+  enabled, you may be affected and should upgrade.
+
+We strongly recommend customers who use Okta SCIM integration to upgrade their
+auth servers to version 15.4.19 or later. Teleport services other than auth
+(proxy, SSH, Kubernetes, desktop, application, database and discovery) are not
+impacted and do not need to be updated.
+
+### Other improvements and fixes
+
+* Added a new teleport_roles_total metric that exposes the number of roles which exist in a cluster. [#47811](https://github.com/gravitational/teleport/pull/47811)
+* The `join_token.create` audit event has been enriched with additional metadata. [#47766](https://github.com/gravitational/teleport/pull/47766)
+* Automatic device enrollment may be locally disabled using the TELEPORT_DEVICE_AUTO_ENROLL_DISABLED=1 environment variable. [#47719](https://github.com/gravitational/teleport/pull/47719)
+* Fixed the Machine ID and GitHub Actions wizard. [#47709](https://github.com/gravitational/teleport/pull/47709)
+* Alter ServiceAccounts in the teleport-cluster Helm chart to automatically disable mounting of service account tokens on newer Kubernetes distributions, helping satisfy security linters. [#47702](https://github.com/gravitational/teleport/pull/47702)
+* Avoid tsh auto-enroll escalation in machines without a TPM. [#47696](https://github.com/gravitational/teleport/pull/47696)
+* Fixed a bug that prevented users from canceling `tsh scan keys` executions. [#47657](https://github.com/gravitational/teleport/pull/47657)
+* Reworked the `teleport-event-handler` integration to significantly improve performance, especially when running with larger `--concurrency` values. [#47632](https://github.com/gravitational/teleport/pull/47632)
+* Fixes a bug where Let's Encrypt certificate renewal failed in AMI and HA deployments due to insufficient disk space caused by syncing audit logs. [#47624](https://github.com/gravitational/teleport/pull/47624)
+* Adds support for custom SQS consumer lock name and disabling a consumer. [#47613](https://github.com/gravitational/teleport/pull/47613)
+* Allow using a custom database for Firestore backends. [#47584](https://github.com/gravitational/teleport/pull/47584)
+* Include host name instead of host uuid in error messages when SSH connections are prevented due to an invalid login. [#47579](https://github.com/gravitational/teleport/pull/47579)
+* Extended Teleport Discovery Service to support resource discovery across all projects accessible by the service account. [#47567](https://github.com/gravitational/teleport/pull/47567)
+* Fixed a bug that could allow users to list active sessions even when prohibited by RBAC. [#47563](https://github.com/gravitational/teleport/pull/47563)
+* The tctl tokens ls command redacts secret join tokens by default. To include the token values, provide the new --with-secrets flag. [#47546](https://github.com/gravitational/teleport/pull/47546)
+* Fix the example Terraform code to support the new larger Teleport Enterprise licenses and updates output of web address to use fqdn when ACM is disabled. [#47511](https://github.com/gravitational/teleport/pull/47511)
+* Added missing field-level documentation to the terraform provider reference. [#47470](https://github.com/gravitational/teleport/pull/47470)
+* Fixed a bug where tsh logout failed to parse flags passed with spaces. [#47462](https://github.com/gravitational/teleport/pull/47462)
+* Fixed the resource-based labels handler crashing without restarting. [#47453](https://github.com/gravitational/teleport/pull/47453)
+* Fix possibly missing rules when using large amount of Access Monitoring Rules. [#47429](https://github.com/gravitational/teleport/pull/47429)
+
+Enterprise:
+* Device auto-enroll failures are now recorded in the audit log.
+* Fixed possible panic when processing Okta assignments.
+
 ## 15.4.20 (10/10/24)
 
 * Added ability to list/get access monitoring rules resources with `tctl`. [#47402](https://github.com/gravitational/teleport/pull/47402)
