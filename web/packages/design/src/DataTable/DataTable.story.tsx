@@ -16,85 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
+import { useState } from 'react';
 
-import { SortType, TableProps } from 'design/DataTable/types';
-
+import { TableProps } from './types';
 import Table from './Table';
 import { ClickableLabelCell, DateCell, LabelCell } from './Cells';
 
 export default {
   title: 'Design/DataTable',
-};
-
-// `if (serversideProps)` is the first view conditionally rendered by Table
-// it returns a ServersideTable wrapped in StyledTableWrapper
-export const WithServersideProps = () => {
-  const [sort, setSort] = useState<SortType>({ fieldName: 'name', dir: 'ASC' });
-  const [allData, setAllData] = useState(data);
-
-  const props = getDefaultProps();
-  props.data = allData;
-  props.fetching = {
-    onFetchMore: () => setAllData([...allData, ...extraData]),
-    fetchStatus: '',
-  };
-  props.serversideProps = {
-    serversideSearchPanel: (
-      <ServersideSearchPanelWithPageIndicator
-        pageIndicators={{
-          from: 1,
-          to: allData.length,
-          totalCount: allData.length,
-        }}
-        params={{
-          search: '',
-          query: '',
-          sort: { fieldName: 'hostname', dir: 'ASC' },
-        }}
-        setParams={() => null}
-        pathname=""
-        replaceHistory={() => null}
-      />
-    ),
-    sort: sort,
-    setSort: setSort,
-  };
-  return <Table<DummyDataType> {...props} />;
-};
-
-export const WithServersidePropsEmpty = () => {
-  const [sort, setSort] = useState<SortType>({ fieldName: 'name', dir: 'ASC' });
-
-  const props = getDefaultProps();
-  props.data = [];
-  props.fetching = {
-    onFetchMore: () => {},
-    fetchStatus: '',
-  };
-  props.serversideProps = {
-    serversideSearchPanel: (
-      <ServersideSearchPanelWithPageIndicator
-        pageIndicators={{
-          from: 1,
-          to: 0,
-          totalCount: 0,
-        }}
-        params={{
-          search: '',
-          query: '',
-          sort: { fieldName: 'hostname', dir: 'ASC' },
-        }}
-        setParams={() => null}
-        pathname=""
-        replaceHistory={() => null}
-      />
-    ),
-    sort: sort,
-    setSort: setSort,
-  };
-  return <Table<DummyDataType> {...props} />;
 };
 
 // `if (state.pagination)` is the second view conditionally rendered by Table

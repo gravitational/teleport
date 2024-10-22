@@ -80,6 +80,7 @@ linters:
     - testifylint
     - unconvert
     - unused
+    - forbidigo
 
 linters-settings:
   depguard:
@@ -228,6 +229,10 @@ linters-settings:
       - len
       - suite-extra-assert-call
       - suite-thelper
+  forbidigo:
+    forbid:
+      - p: '^rsa\.GenerateKey$'
+        msg: 'generating RSA keys is slow, use lib/cryptosuites to generate an appropriate key type'
 
 output:
   uniq-by-line: false

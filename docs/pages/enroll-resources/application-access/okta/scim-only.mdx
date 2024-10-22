@@ -57,7 +57,7 @@ Run the following `tctl` command to install the SCIM integration.
 <Tabs>
 <TabItem label="Without API token">
 
-```bash
+```code
 $ tctl plugins install okta  \
   --org https://trial-12356.okta.com \
   --saml-connector "${SAML_CONNECTOR_NAME}" \
@@ -75,7 +75,7 @@ SCIM Bearer Token: 1234567891234567891234567890
 </TabItem>
 <TabItem label="With API token">
 
-```bash
+```code
 $ tctl plugins install okta  \
   --org https://trial-12356.okta.com \
   --saml-connector "${SAML_CONNECTOR_NAME}" \
@@ -125,7 +125,7 @@ with a subset and/or mapped version of the full User profile.
 You can delete the SCIM integration via the Integrations page in the Teleport UI,
 or with tctl like so:
 
-```bash
+```code
 $ tctl plugins delete okta
 ```
 
@@ -138,7 +138,7 @@ You can semi-manually delete all SCIM-provisioned users using a combination of
 tctl and jq.
 
 For example:
-```bash
+```code
 tctl get users --format=json \
  |  jq '.[] | select(.metadata.labels["teleport.dev/origin"] == "okta") | .metadata.name' -r \
  | xargs -L 1 tctl users rm

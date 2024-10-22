@@ -92,14 +92,18 @@ Before you get started, you’ll need:
 
    ![Put in Security group claim](../../../../img/azuread/azuread-8b-groupclaim.png)
 
-1. Add a claim that transforms the format of the Azure AD username to lower case, in order to pass it to
-   Teleport. Set the Source to "Transformation". In the new panel:
+1. (optional) Add a claim that transforms the format of the Azure AD username to lower case, in order to use it inside
+   Teleport roles as the `{{external.username}}` property.
+
+   Set the Source to "Transformation". In the new panel:
 
    - Set the Transformation value to "Extract()"
 
    - Set the Attribute name to `user.userprincipalname`.
 
-   - Set the Value to `ToLowercase()`.
+   - Set the Value to `@`.
+
+   - Click "Add Transformation" and set the Transformation to `ToLowercase()`.
 
      ![Add a transformed username](../../../../img/azuread/azuread-8c-usernameclaim.png)
 
@@ -173,10 +177,7 @@ $ tctl create -f azure-connector.yaml
 Create a Teleport role resource that will use external username data from the
 Azure AD connector to determine which Linux logins to allow on a host.
 
-Users with the following `dev` role are only allowed to log in to nodes with
-the `access: relaxed` Teleport label. They can log in as either `ubuntu` or a
-username that is passed in from the Azure AD connector. Users with this role can't
-obtain admin access to Teleport.
+Create a file called `dev.yaml` with the following content:
 
 ```yaml
 kind: role
@@ -187,12 +188,27 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{{external.username}}", ubuntu ]
+    # only allow login as either ubuntu or the 'windowsaccountname' claim
+    logins: [ '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}', ubuntu ]
     node_labels:
       access: relaxed
 ```
 
-Replace `ubuntu` with the Linux login available on your servers.
+Users with the `dev` role are only allowed to log in to nodes with the `access:
+relaxed` Teleport label. They can log in as either `ubuntu` or a username that
+is passed in from the Azure AD connector using the `windowsaccountname`
+attribute.
+
+The login
+<nobr>`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`</nobr>
+configures Teleport to look at the
+`http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname`
+attribute and use that field as an allowed login for each user. Since the name
+of the attribute contains characters besides letters, numbers, and underscores,
+you must use double quotes (`"`) and square brackets (`[]`) around the name of
+the attribute.
+
+Create the role:
 
 ```code
 $ tctl create dev.yaml
