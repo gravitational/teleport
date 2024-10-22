@@ -172,10 +172,10 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.Log.With(
+	s.Log.DebugContext(req.Context(), "Processing request",
 		"session_id", sessionCtx.Identity.RouteToApp.SessionID,
 		"gcp_service_account", sessionCtx.Identity.RouteToApp.GCPServiceAccount,
-	).DebugContext(req.Context(), "Processing request")
+	)
 
 	fwdRequest, err := s.prepareForwardRequest(req, sessionCtx)
 	if err != nil {
