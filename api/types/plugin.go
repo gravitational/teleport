@@ -75,6 +75,8 @@ const (
 	PluginTypeSCIM = "scim"
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
+	// PluginTypeAWSIC indicates the AWS IdentityCenter integration
+	PluginTypeAWSIC = "aws-ic"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -512,6 +514,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSCIM
 	case *PluginSpecV1_Datadog:
 		return PluginTypeDatadog
+	case *PluginSpecV1_AwsIc:
+		return PluginTypeAWSIC
 
 	default:
 		return PluginTypeUnknown
