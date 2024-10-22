@@ -161,7 +161,7 @@ func (svc *IdentityCenterService) ListIdentityCenterAccounts(ctx context.Context
 
 	result := make([]services.IdentityCenterAccount, len(accounts))
 	for i, acct := range accounts {
-		result[i] = services.IdentityCenterAccount{acct}
+		result[i] = services.IdentityCenterAccount{Account: acct}
 	}
 
 	return result, pagination.NextPageToken(nextPage), nil
@@ -173,7 +173,7 @@ func (svc *IdentityCenterService) CreateIdentityCenterAccount(ctx context.Contex
 	if err != nil {
 		return services.IdentityCenterAccount{}, trace.Wrap(err, "creating identity center account")
 	}
-	return services.IdentityCenterAccount{created}, nil
+	return services.IdentityCenterAccount{Account: created}, nil
 }
 
 // GetIdentityCenterAccount fetches a specific Identity Center Account
@@ -182,7 +182,7 @@ func (svc *IdentityCenterService) GetIdentityCenterAccount(ctx context.Context, 
 	if err != nil {
 		return services.IdentityCenterAccount{}, trace.Wrap(err, "fetching identity center account")
 	}
-	return services.IdentityCenterAccount{acct}, nil
+	return services.IdentityCenterAccount{Account: acct}, nil
 }
 
 // UpdateIdentityCenterAccount performs a conditional update on an Identity
@@ -192,7 +192,7 @@ func (svc *IdentityCenterService) UpdateIdentityCenterAccount(ctx context.Contex
 	if err != nil {
 		return services.IdentityCenterAccount{}, trace.Wrap(err, "updating identity center account record")
 	}
-	return services.IdentityCenterAccount{updated}, nil
+	return services.IdentityCenterAccount{Account: updated}, nil
 }
 
 // UpsertIdentityCenterAccount performs an *unconditional* upsert on an
@@ -204,7 +204,7 @@ func (svc *IdentityCenterService) UpsertIdentityCenterAccount(ctx context.Contex
 	if err != nil {
 		return services.IdentityCenterAccount{}, trace.Wrap(err, "upserting identity center account record")
 	}
-	return services.IdentityCenterAccount{updated}, nil
+	return services.IdentityCenterAccount{Account: updated}, nil
 }
 
 // DeleteIdentityCenterAccount deletes an Identity Center Account record
