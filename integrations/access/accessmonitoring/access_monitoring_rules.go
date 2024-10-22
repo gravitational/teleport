@@ -131,7 +131,7 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 		}
 		amrh.accessMonitoringRules.rules[req.Metadata.Name] = req
 		if amrh.onCacheUpdateCallback != nil {
-			amrh.onCacheUpdateCallback(req.Metadata.Name)
+			amrh.onCacheUpdateCallback(types.OpPut, req.GetMetadata().Name, req)
 		}
 		return nil
 	case types.OpDelete:

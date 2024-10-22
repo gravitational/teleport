@@ -467,7 +467,7 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		mu.Lock()
 		require.Contains(t, collectedNames, ruleName)
-		mu.UnLock()
+		mu.Unlock()
 	}, 3*time.Second, time.Millisecond*100, "new access monitoring rule did not begin applying")
 
 	// Test execution: create an access request
@@ -489,7 +489,7 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	assert.Equal(t, s.pdNotifyService2.ID, pluginData.ServiceID)
 
 	assert.NoError(t, s.ClientByName(integration.RulerUserName).
-		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-pagerduty-amr"))
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, ruleName))
 }
 
 func (s *PagerdutyBaseSuite) assertNewEvent(ctx context.Context, watcher types.Watcher, opType types.OpType, resourceKind, resourceName string) types.Event {
