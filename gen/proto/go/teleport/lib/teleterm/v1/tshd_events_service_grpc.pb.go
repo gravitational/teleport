@@ -40,7 +40,7 @@ const (
 	TshdEventsService_SendNotification_FullMethodName                  = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
 	TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendPendingHeadlessAuthentication"
 	TshdEventsService_PromptMFA_FullMethodName                         = "/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA"
-	TshdEventsService_PromptHardwareKeyPINAsk_FullMethodName           = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPINAsk"
+	TshdEventsService_PromptHardwareKeyPIN_FullMethodName              = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPIN"
 	TshdEventsService_PromptHardwareKeyTouch_FullMethodName            = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyTouch"
 	TshdEventsService_PromptHardwareKeyPINChange_FullMethodName        = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPINChange"
 	TshdEventsService_PromptHardwareKeySlotOverwrite_FullMethodName    = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeySlotOverwrite"
@@ -70,9 +70,9 @@ type TshdEventsServiceClient interface {
 	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
 	// code.
 	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
-	// PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key PIN.
-	PromptHardwareKeyPINAsk(ctx context.Context, in *PromptHardwareKeyPINAskRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error)
+	PromptHardwareKeyPIN(ctx context.Context, in *PromptHardwareKeyPINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error)
 	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key touch.
 	PromptHardwareKeyTouch(ctx context.Context, in *PromptHardwareKeyTouchRequest, opts ...grpc.CallOption) (*PromptHardwareKeyTouchResponse, error)
@@ -141,10 +141,10 @@ func (c *tshdEventsServiceClient) PromptMFA(ctx context.Context, in *PromptMFARe
 	return out, nil
 }
 
-func (c *tshdEventsServiceClient) PromptHardwareKeyPINAsk(ctx context.Context, in *PromptHardwareKeyPINAskRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error) {
+func (c *tshdEventsServiceClient) PromptHardwareKeyPIN(ctx context.Context, in *PromptHardwareKeyPINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PromptHardwareKeyPINResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyPINAsk_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyPIN_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -223,9 +223,9 @@ type TshdEventsServiceServer interface {
 	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
 	// code.
 	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
-	// PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key PIN.
-	PromptHardwareKeyPINAsk(context.Context, *PromptHardwareKeyPINAskRequest) (*PromptHardwareKeyPINResponse, error)
+	PromptHardwareKeyPIN(context.Context, *PromptHardwareKeyPINRequest) (*PromptHardwareKeyPINResponse, error)
 	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
 	// provide the hardware key touch.
 	PromptHardwareKeyTouch(context.Context, *PromptHardwareKeyTouchRequest) (*PromptHardwareKeyTouchResponse, error)
@@ -266,8 +266,8 @@ func (UnimplementedTshdEventsServiceServer) SendPendingHeadlessAuthentication(co
 func (UnimplementedTshdEventsServiceServer) PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromptMFA not implemented")
 }
-func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyPINAsk(context.Context, *PromptHardwareKeyPINAskRequest) (*PromptHardwareKeyPINResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeyPINAsk not implemented")
+func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyPIN(context.Context, *PromptHardwareKeyPINRequest) (*PromptHardwareKeyPINResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeyPIN not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyTouch(context.Context, *PromptHardwareKeyTouchRequest) (*PromptHardwareKeyTouchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeyTouch not implemented")
@@ -377,20 +377,20 @@ func _TshdEventsService_PromptMFA_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TshdEventsService_PromptHardwareKeyPINAsk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PromptHardwareKeyPINAskRequest)
+func _TshdEventsService_PromptHardwareKeyPIN_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptHardwareKeyPINRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TshdEventsServiceServer).PromptHardwareKeyPINAsk(ctx, in)
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyPIN(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TshdEventsService_PromptHardwareKeyPINAsk_FullMethodName,
+		FullMethod: TshdEventsService_PromptHardwareKeyPIN_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TshdEventsServiceServer).PromptHardwareKeyPINAsk(ctx, req.(*PromptHardwareKeyPINAskRequest))
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyPIN(ctx, req.(*PromptHardwareKeyPINRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -509,8 +509,8 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TshdEventsService_PromptMFA_Handler,
 		},
 		{
-			MethodName: "PromptHardwareKeyPINAsk",
-			Handler:    _TshdEventsService_PromptHardwareKeyPINAsk_Handler,
+			MethodName: "PromptHardwareKeyPIN",
+			Handler:    _TshdEventsService_PromptHardwareKeyPIN_Handler,
 		},
 		{
 			MethodName: "PromptHardwareKeyTouch",

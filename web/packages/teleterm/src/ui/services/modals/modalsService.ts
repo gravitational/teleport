@@ -220,9 +220,9 @@ export interface DialogChangeAccessRequestKind {
   onCancel(): void;
 }
 
-export interface DialogHardwareKeyPinAsk {
-  kind: 'hardware-key-pin-ask';
-  req: tshdEventsApi.PromptHardwareKeyPINAskRequest;
+export interface DialogHardwareKeyPin {
+  kind: 'hardware-key-pin';
+  req: tshdEventsApi.PromptHardwareKeyPINRequest;
   onSuccess(pin: string): void;
   onCancel(): void;
 }
@@ -258,7 +258,7 @@ export type Dialog =
   | DialogHeadlessAuthentication
   | DialogReAuthenticate
   | DialogChangeAccessRequestKind
-  | DialogHardwareKeyPinAsk
+  | DialogHardwareKeyPin
   | DialogHardwareKeyTouch
   | DialogHardwareKeyPinChange
   | DialogHardwareKeySlotOverwrite

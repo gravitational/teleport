@@ -60,7 +60,7 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, message string) (strin
 		return "", trace.Wrap(err)
 	}
 	defer h.s.importantModalSemaphore.Release()
-	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINAsk(ctx, &api.PromptHardwareKeyPINAskRequest{
+	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		RootClusterUri: h.rootClusterURI.String(),
 		Message:        message,
 	})

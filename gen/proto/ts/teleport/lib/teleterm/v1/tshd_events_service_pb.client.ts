@@ -35,7 +35,7 @@ import type { PromptHardwareKeyPINChangeRequest } from "./tshd_events_service_pb
 import type { PromptHardwareKeyTouchResponse } from "./tshd_events_service_pb";
 import type { PromptHardwareKeyTouchRequest } from "./tshd_events_service_pb";
 import type { PromptHardwareKeyPINResponse } from "./tshd_events_service_pb";
-import type { PromptHardwareKeyPINAskRequest } from "./tshd_events_service_pb";
+import type { PromptHardwareKeyPINRequest } from "./tshd_events_service_pb";
 import type { PromptMFAResponse } from "./tshd_events_service_pb";
 import type { PromptMFARequest } from "./tshd_events_service_pb";
 import type { SendPendingHeadlessAuthenticationResponse } from "./tshd_events_service_pb";
@@ -86,12 +86,12 @@ export interface ITshdEventsServiceClient {
      */
     promptMFA(input: PromptMFARequest, options?: RpcOptions): UnaryCall<PromptMFARequest, PromptMFAResponse>;
     /**
-     * PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+     * PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
      * provide the hardware key PIN.
      *
-     * @generated from protobuf rpc: PromptHardwareKeyPINAsk(teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
+     * @generated from protobuf rpc: PromptHardwareKeyPIN(teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
      */
-    promptHardwareKeyPINAsk(input: PromptHardwareKeyPINAskRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINAskRequest, PromptHardwareKeyPINResponse>;
+    promptHardwareKeyPIN(input: PromptHardwareKeyPINRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse>;
     /**
      * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
      * provide the hardware key touch.
@@ -187,14 +187,14 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
         return stackIntercept<PromptMFARequest, PromptMFAResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+     * PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
      * provide the hardware key PIN.
      *
-     * @generated from protobuf rpc: PromptHardwareKeyPINAsk(teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
+     * @generated from protobuf rpc: PromptHardwareKeyPIN(teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
      */
-    promptHardwareKeyPINAsk(input: PromptHardwareKeyPINAskRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINAskRequest, PromptHardwareKeyPINResponse> {
+    promptHardwareKeyPIN(input: PromptHardwareKeyPINRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse> {
         const method = this.methods[4], opt = this._transport.mergeOptions(options);
-        return stackIntercept<PromptHardwareKeyPINAskRequest, PromptHardwareKeyPINResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to

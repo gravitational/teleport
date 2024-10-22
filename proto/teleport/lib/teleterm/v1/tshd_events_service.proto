@@ -44,9 +44,9 @@ service TshdEventsService {
   // code.
   rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
 
-  // PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+  // PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
   // provide the hardware key PIN.
-  rpc PromptHardwareKeyPINAsk(PromptHardwareKeyPINAskRequest) returns (PromptHardwareKeyPINResponse);
+  rpc PromptHardwareKeyPIN(PromptHardwareKeyPINRequest) returns (PromptHardwareKeyPINResponse);
 
   // PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
   // provide the hardware key touch.
@@ -162,8 +162,8 @@ message PromptMFAResponse {
   string totp_code = 1;
 }
 
-// Request for PromptHardwareKeyPINAsk.
-message PromptHardwareKeyPINAskRequest {
+// Request for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINRequest {
   string root_cluster_uri = 1;
   // Message to display in the prompt.
   string message = 2;

@@ -104,14 +104,14 @@ export function createTshdEventsContextBridgeService(
       return {};
     },
 
-    promptHardwareKeyPINAsk: async ({ request, onRequestCancelled }) => {
+    promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
       ctx.mainProcessClient.forceFocusWindow();
       const { pin, hasCanceledModal } = await new Promise<{
         pin: string;
         hasCanceledModal: boolean;
       }>(resolve => {
         const { closeDialog } = ctx.modalsService.openImportantDialog({
-          kind: 'hardware-key-pin-ask',
+          kind: 'hardware-key-pin',
           req: request,
           onSuccess: pin => resolve({ hasCanceledModal: false, pin }),
           onCancel: () =>

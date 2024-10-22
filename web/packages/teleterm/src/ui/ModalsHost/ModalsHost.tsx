@@ -203,7 +203,7 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
         />
       );
     }
-    case 'hardware-key-pin-ask': {
+    case 'hardware-key-pin': {
       return (
         <AskPin
           req={dialog.req}

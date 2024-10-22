@@ -32,7 +32,7 @@ import { PromptHardwareKeyPINChangeRequest } from "./tshd_events_service_pb";
 import { PromptHardwareKeyTouchResponse } from "./tshd_events_service_pb";
 import { PromptHardwareKeyTouchRequest } from "./tshd_events_service_pb";
 import { PromptHardwareKeyPINResponse } from "./tshd_events_service_pb";
-import { PromptHardwareKeyPINAskRequest } from "./tshd_events_service_pb";
+import { PromptHardwareKeyPINRequest } from "./tshd_events_service_pb";
 import { PromptMFAResponse } from "./tshd_events_service_pb";
 import { PromptMFARequest } from "./tshd_events_service_pb";
 import { SendPendingHeadlessAuthenticationResponse } from "./tshd_events_service_pb";
@@ -81,12 +81,12 @@ export interface ITshdEventsService extends grpc.UntypedServiceImplementation {
      */
     promptMFA: grpc.handleUnaryCall<PromptMFARequest, PromptMFAResponse>;
     /**
-     * PromptHardwareKeyPINAsk notifies the Electron app that the daemon is waiting for the user to
+     * PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
      * provide the hardware key PIN.
      *
-     * @generated from protobuf rpc: PromptHardwareKeyPINAsk(teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
+     * @generated from protobuf rpc: PromptHardwareKeyPIN(teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
      */
-    promptHardwareKeyPINAsk: grpc.handleUnaryCall<PromptHardwareKeyPINAskRequest, PromptHardwareKeyPINResponse>;
+    promptHardwareKeyPIN: grpc.handleUnaryCall<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse>;
     /**
      * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
      * provide the hardware key touch.
@@ -178,15 +178,15 @@ export const tshdEventsServiceDefinition: grpc.ServiceDefinition<ITshdEventsServ
         responseSerialize: value => Buffer.from(PromptMFAResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(PromptMFARequest.toBinary(value))
     },
-    promptHardwareKeyPINAsk: {
-        path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPINAsk",
-        originalName: "PromptHardwareKeyPINAsk",
+    promptHardwareKeyPIN: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPIN",
+        originalName: "PromptHardwareKeyPIN",
         requestStream: false,
         responseStream: false,
         responseDeserialize: bytes => PromptHardwareKeyPINResponse.fromBinary(bytes),
-        requestDeserialize: bytes => PromptHardwareKeyPINAskRequest.fromBinary(bytes),
+        requestDeserialize: bytes => PromptHardwareKeyPINRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(PromptHardwareKeyPINResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(PromptHardwareKeyPINAskRequest.toBinary(value))
+        requestSerialize: value => Buffer.from(PromptHardwareKeyPINRequest.toBinary(value))
     },
     promptHardwareKeyTouch: {
         path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyTouch",

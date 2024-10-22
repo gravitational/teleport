@@ -247,11 +247,11 @@ export interface PromptMFAResponse {
     totpCode: string;
 }
 /**
- * Request for PromptHardwareKeyPINAsk.
+ * Request for PromptHardwareKeyPIN.
  *
- * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest
+ * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
  */
-export interface PromptHardwareKeyPINAskRequest {
+export interface PromptHardwareKeyPINRequest {
     /**
      * @generated from protobuf field: string root_cluster_uri = 1;
      */
@@ -1031,22 +1031,22 @@ class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
  */
 export const PromptMFAResponse = new PromptMFAResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class PromptHardwareKeyPINAskRequest$Type extends MessageType<PromptHardwareKeyPINAskRequest> {
+class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINRequest> {
     constructor() {
-        super("teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest", [
+        super("teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest", [
             { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<PromptHardwareKeyPINAskRequest>): PromptHardwareKeyPINAskRequest {
+    create(value?: PartialMessage<PromptHardwareKeyPINRequest>): PromptHardwareKeyPINRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.rootClusterUri = "";
         message.message = "";
         if (value !== undefined)
-            reflectionMergePartial<PromptHardwareKeyPINAskRequest>(this, message, value);
+            reflectionMergePartial<PromptHardwareKeyPINRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyPINAskRequest): PromptHardwareKeyPINAskRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeyPINRequest): PromptHardwareKeyPINRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -1068,7 +1068,7 @@ class PromptHardwareKeyPINAskRequest$Type extends MessageType<PromptHardwareKeyP
         }
         return message;
     }
-    internalBinaryWrite(message: PromptHardwareKeyPINAskRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: PromptHardwareKeyPINRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string root_cluster_uri = 1; */
         if (message.rootClusterUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
@@ -1082,9 +1082,9 @@ class PromptHardwareKeyPINAskRequest$Type extends MessageType<PromptHardwareKeyP
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINAskRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
  */
-export const PromptHardwareKeyPINAskRequest = new PromptHardwareKeyPINAskRequest$Type();
+export const PromptHardwareKeyPINRequest = new PromptHardwareKeyPINRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class PromptHardwareKeyPINResponse$Type extends MessageType<PromptHardwareKeyPINResponse> {
     constructor() {
@@ -1614,7 +1614,7 @@ export const TshdEventsService = new ServiceType("teleport.lib.teleterm.v1.TshdE
     { name: "SendNotification", options: {}, I: SendNotificationRequest, O: SendNotificationResponse },
     { name: "SendPendingHeadlessAuthentication", options: {}, I: SendPendingHeadlessAuthenticationRequest, O: SendPendingHeadlessAuthenticationResponse },
     { name: "PromptMFA", options: {}, I: PromptMFARequest, O: PromptMFAResponse },
-    { name: "PromptHardwareKeyPINAsk", options: {}, I: PromptHardwareKeyPINAskRequest, O: PromptHardwareKeyPINResponse },
+    { name: "PromptHardwareKeyPIN", options: {}, I: PromptHardwareKeyPINRequest, O: PromptHardwareKeyPINResponse },
     { name: "PromptHardwareKeyTouch", options: {}, I: PromptHardwareKeyTouchRequest, O: PromptHardwareKeyTouchResponse },
     { name: "PromptHardwareKeyPINChange", options: {}, I: PromptHardwareKeyPINChangeRequest, O: PromptHardwareKeyPINChangeResponse },
     { name: "PromptHardwareKeySlotOverwrite", options: {}, I: PromptHardwareKeySlotOverwriteRequest, O: PromptHardwareKeySlotOverwriteResponse },
