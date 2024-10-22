@@ -56,9 +56,9 @@ service TshdEventsService {
   // change the hardware key PIN.
   rpc PromptHardwareKeyPINChange(PromptHardwareKeyPINChangeRequest) returns (PromptHardwareKeyPINChangeResponse);
 
-  // PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
-  // confirm if the slot's private key and certificate can be overridden.
-  rpc PromptHardwareKeySlotOverwrite(PromptHardwareKeySlotOverwriteRequest) returns (PromptHardwareKeySlotOverwriteResponse);
+  // ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+  // the slot's private key and certificate should be overwritten.
+  rpc ConfirmHardwareKeySlotOverwrite(ConfirmHardwareKeySlotOverwriteRequest) returns (ConfirmHardwareKeySlotOverwriteResponse);
 
   // GetUsageReportingSettings returns the current state of usage reporting.
   // At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
@@ -199,15 +199,15 @@ message PromptHardwareKeyPINChangeResponse {
   bool puk_changed = 3;
 }
 
-// Request for PromptHardwareKeySlotOverwrite.
-message PromptHardwareKeySlotOverwriteRequest {
+// Request for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteRequest {
   string root_cluster_uri = 1;
   // Message to display in the prompt.
   string message = 2;
 }
 
-// Response for PromptHardwareKeySlotOverwrite.
-message PromptHardwareKeySlotOverwriteResponse {
+// Response for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteResponse {
   // If true, the slot will be overridden.
   bool confirmed = 1;
 }

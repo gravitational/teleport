@@ -198,7 +198,10 @@ export function createTshdEventsContextBridgeService(
       return res;
     },
 
-    promptHardwareKeySlotOverwrite: async ({ request, onRequestCancelled }) => {
+    confirmHardwareKeySlotOverwrite: async ({
+      request,
+      onRequestCancelled,
+    }) => {
       const { hasCanceledModal, confirmed } = await new Promise<{
         hasCanceledModal: boolean;
         confirmed: boolean;

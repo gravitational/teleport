@@ -97,7 +97,7 @@ func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message 
 		return false, trace.Wrap(err)
 	}
 	defer h.s.importantModalSemaphore.Release()
-	res, err := h.s.tshdEventsClient.PromptHardwareKeySlotOverwrite(ctx, &api.PromptHardwareKeySlotOverwriteRequest{
+	res, err := h.s.tshdEventsClient.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
 		RootClusterUri: h.rootClusterURI.String(),
 		Message:        message,
 	})

@@ -332,11 +332,11 @@ export interface PromptHardwareKeyPINChangeResponse {
     pukChanged: boolean;
 }
 /**
- * Request for PromptHardwareKeySlotOverwrite.
+ * Request for ConfirmHardwareKeySlotOverwrite.
  *
- * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest
+ * @generated from protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
  */
-export interface PromptHardwareKeySlotOverwriteRequest {
+export interface ConfirmHardwareKeySlotOverwriteRequest {
     /**
      * @generated from protobuf field: string root_cluster_uri = 1;
      */
@@ -349,11 +349,11 @@ export interface PromptHardwareKeySlotOverwriteRequest {
     message: string;
 }
 /**
- * Response for PromptHardwareKeySlotOverwrite.
+ * Response for ConfirmHardwareKeySlotOverwrite.
  *
- * @generated from protobuf message teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse
+ * @generated from protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
  */
-export interface PromptHardwareKeySlotOverwriteResponse {
+export interface ConfirmHardwareKeySlotOverwriteResponse {
     /**
      * If true, the slot will be overridden.
      *
@@ -1317,22 +1317,22 @@ class PromptHardwareKeyPINChangeResponse$Type extends MessageType<PromptHardware
  */
 export const PromptHardwareKeyPINChangeResponse = new PromptHardwareKeyPINChangeResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class PromptHardwareKeySlotOverwriteRequest$Type extends MessageType<PromptHardwareKeySlotOverwriteRequest> {
+class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHardwareKeySlotOverwriteRequest> {
     constructor() {
-        super("teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest", [
+        super("teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest", [
             { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<PromptHardwareKeySlotOverwriteRequest>): PromptHardwareKeySlotOverwriteRequest {
+    create(value?: PartialMessage<ConfirmHardwareKeySlotOverwriteRequest>): ConfirmHardwareKeySlotOverwriteRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.rootClusterUri = "";
         message.message = "";
         if (value !== undefined)
-            reflectionMergePartial<PromptHardwareKeySlotOverwriteRequest>(this, message, value);
+            reflectionMergePartial<ConfirmHardwareKeySlotOverwriteRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeySlotOverwriteRequest): PromptHardwareKeySlotOverwriteRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfirmHardwareKeySlotOverwriteRequest): ConfirmHardwareKeySlotOverwriteRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -1354,7 +1354,7 @@ class PromptHardwareKeySlotOverwriteRequest$Type extends MessageType<PromptHardw
         }
         return message;
     }
-    internalBinaryWrite(message: PromptHardwareKeySlotOverwriteRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: ConfirmHardwareKeySlotOverwriteRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string root_cluster_uri = 1; */
         if (message.rootClusterUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
@@ -1368,24 +1368,24 @@ class PromptHardwareKeySlotOverwriteRequest$Type extends MessageType<PromptHardw
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
  */
-export const PromptHardwareKeySlotOverwriteRequest = new PromptHardwareKeySlotOverwriteRequest$Type();
+export const ConfirmHardwareKeySlotOverwriteRequest = new ConfirmHardwareKeySlotOverwriteRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class PromptHardwareKeySlotOverwriteResponse$Type extends MessageType<PromptHardwareKeySlotOverwriteResponse> {
+class ConfirmHardwareKeySlotOverwriteResponse$Type extends MessageType<ConfirmHardwareKeySlotOverwriteResponse> {
     constructor() {
-        super("teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse", [
+        super("teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse", [
             { no: 1, name: "confirmed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
-    create(value?: PartialMessage<PromptHardwareKeySlotOverwriteResponse>): PromptHardwareKeySlotOverwriteResponse {
+    create(value?: PartialMessage<ConfirmHardwareKeySlotOverwriteResponse>): ConfirmHardwareKeySlotOverwriteResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.confirmed = false;
         if (value !== undefined)
-            reflectionMergePartial<PromptHardwareKeySlotOverwriteResponse>(this, message, value);
+            reflectionMergePartial<ConfirmHardwareKeySlotOverwriteResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PromptHardwareKeySlotOverwriteResponse): PromptHardwareKeySlotOverwriteResponse {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ConfirmHardwareKeySlotOverwriteResponse): ConfirmHardwareKeySlotOverwriteResponse {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -1404,7 +1404,7 @@ class PromptHardwareKeySlotOverwriteResponse$Type extends MessageType<PromptHard
         }
         return message;
     }
-    internalBinaryWrite(message: PromptHardwareKeySlotOverwriteResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: ConfirmHardwareKeySlotOverwriteResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* bool confirmed = 1; */
         if (message.confirmed !== false)
             writer.tag(1, WireType.Varint).bool(message.confirmed);
@@ -1415,9 +1415,9 @@ class PromptHardwareKeySlotOverwriteResponse$Type extends MessageType<PromptHard
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
  */
-export const PromptHardwareKeySlotOverwriteResponse = new PromptHardwareKeySlotOverwriteResponse$Type();
+export const ConfirmHardwareKeySlotOverwriteResponse = new ConfirmHardwareKeySlotOverwriteResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetUsageReportingSettingsRequest$Type extends MessageType<GetUsageReportingSettingsRequest> {
     constructor() {
@@ -1619,7 +1619,7 @@ export const TshdEventsService = new ServiceType("teleport.lib.teleterm.v1.TshdE
     { name: "PromptHardwareKeyPIN", options: {}, I: PromptHardwareKeyPINRequest, O: PromptHardwareKeyPINResponse },
     { name: "PromptHardwareKeyTouch", options: {}, I: PromptHardwareKeyTouchRequest, O: PromptHardwareKeyTouchResponse },
     { name: "PromptHardwareKeyPINChange", options: {}, I: PromptHardwareKeyPINChangeRequest, O: PromptHardwareKeyPINChangeResponse },
-    { name: "PromptHardwareKeySlotOverwrite", options: {}, I: PromptHardwareKeySlotOverwriteRequest, O: PromptHardwareKeySlotOverwriteResponse },
+    { name: "ConfirmHardwareKeySlotOverwrite", options: {}, I: ConfirmHardwareKeySlotOverwriteRequest, O: ConfirmHardwareKeySlotOverwriteResponse },
     { name: "GetUsageReportingSettings", options: {}, I: GetUsageReportingSettingsRequest, O: GetUsageReportingSettingsResponse },
     { name: "ReportUnexpectedVnetShutdown", options: {}, I: ReportUnexpectedVnetShutdownRequest, O: ReportUnexpectedVnetShutdownResponse }
 ]);

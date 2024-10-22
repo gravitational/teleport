@@ -215,8 +215,8 @@ function createService(logger: Logger): {
     promptHardwareKeyPINChange: (call, callback) =>
       processEvent('promptHardwareKeyPINChange', call, callback),
 
-    promptHardwareKeySlotOverwrite: (call, callback) =>
-      processEvent('promptHardwareKeySlotOverwrite', call, callback),
+    confirmHardwareKeySlotOverwrite: (call, callback) =>
+      processEvent('confirmHardwareKeySlotOverwrite', call, callback),
 
     sendNotification: (call, callback) =>
       processEvent('sendNotification', call, callback),

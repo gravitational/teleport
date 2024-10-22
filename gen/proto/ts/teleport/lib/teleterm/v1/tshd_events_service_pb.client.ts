@@ -28,8 +28,8 @@ import type { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service
 import type { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import type { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
 import type { GetUsageReportingSettingsRequest } from "./tshd_events_service_pb";
-import type { PromptHardwareKeySlotOverwriteResponse } from "./tshd_events_service_pb";
-import type { PromptHardwareKeySlotOverwriteRequest } from "./tshd_events_service_pb";
+import type { ConfirmHardwareKeySlotOverwriteResponse } from "./tshd_events_service_pb";
+import type { ConfirmHardwareKeySlotOverwriteRequest } from "./tshd_events_service_pb";
 import type { PromptHardwareKeyPINChangeResponse } from "./tshd_events_service_pb";
 import type { PromptHardwareKeyPINChangeRequest } from "./tshd_events_service_pb";
 import type { PromptHardwareKeyTouchResponse } from "./tshd_events_service_pb";
@@ -94,6 +94,7 @@ export interface ITshdEventsServiceClient {
     promptHardwareKeyPIN(input: PromptHardwareKeyPINRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse>;
     /**
      * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+     * When the daemon detects the touch, it cancels the prompt.
      *
      * @generated from protobuf rpc: PromptHardwareKeyTouch(teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse);
      */
@@ -106,12 +107,12 @@ export interface ITshdEventsServiceClient {
      */
     promptHardwareKeyPINChange(input: PromptHardwareKeyPINChangeRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeyPINChangeRequest, PromptHardwareKeyPINChangeResponse>;
     /**
-     * PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
-     * confirm if the slot's private key and certificate can be overridden.
+     * ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+     * the slot's private key and certificate should be overwritten.
      *
-     * @generated from protobuf rpc: PromptHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse);
+     * @generated from protobuf rpc: ConfirmHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse);
      */
-    promptHardwareKeySlotOverwrite(input: PromptHardwareKeySlotOverwriteRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeySlotOverwriteRequest, PromptHardwareKeySlotOverwriteResponse>;
+    confirmHardwareKeySlotOverwrite(input: ConfirmHardwareKeySlotOverwriteRequest, options?: RpcOptions): UnaryCall<ConfirmHardwareKeySlotOverwriteRequest, ConfirmHardwareKeySlotOverwriteResponse>;
     /**
      * GetUsageReportingSettings returns the current state of usage reporting.
      * At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
@@ -197,6 +198,7 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
     }
     /**
      * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+     * When the daemon detects the touch, it cancels the prompt.
      *
      * @generated from protobuf rpc: PromptHardwareKeyTouch(teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse);
      */
@@ -215,14 +217,14 @@ export class TshdEventsServiceClient implements ITshdEventsServiceClient, Servic
         return stackIntercept<PromptHardwareKeyPINChangeRequest, PromptHardwareKeyPINChangeResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
-     * confirm if the slot's private key and certificate can be overridden.
+     * ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+     * the slot's private key and certificate should be overwritten.
      *
-     * @generated from protobuf rpc: PromptHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse);
+     * @generated from protobuf rpc: ConfirmHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse);
      */
-    promptHardwareKeySlotOverwrite(input: PromptHardwareKeySlotOverwriteRequest, options?: RpcOptions): UnaryCall<PromptHardwareKeySlotOverwriteRequest, PromptHardwareKeySlotOverwriteResponse> {
+    confirmHardwareKeySlotOverwrite(input: ConfirmHardwareKeySlotOverwriteRequest, options?: RpcOptions): UnaryCall<ConfirmHardwareKeySlotOverwriteRequest, ConfirmHardwareKeySlotOverwriteResponse> {
         const method = this.methods[7], opt = this._transport.mergeOptions(options);
-        return stackIntercept<PromptHardwareKeySlotOverwriteRequest, PromptHardwareKeySlotOverwriteResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<ConfirmHardwareKeySlotOverwriteRequest, ConfirmHardwareKeySlotOverwriteResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * GetUsageReportingSettings returns the current state of usage reporting.

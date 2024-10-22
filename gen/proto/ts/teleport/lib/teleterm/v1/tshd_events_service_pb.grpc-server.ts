@@ -25,8 +25,8 @@ import { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service_pb";
 import { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
 import { GetUsageReportingSettingsRequest } from "./tshd_events_service_pb";
-import { PromptHardwareKeySlotOverwriteResponse } from "./tshd_events_service_pb";
-import { PromptHardwareKeySlotOverwriteRequest } from "./tshd_events_service_pb";
+import { ConfirmHardwareKeySlotOverwriteResponse } from "./tshd_events_service_pb";
+import { ConfirmHardwareKeySlotOverwriteRequest } from "./tshd_events_service_pb";
 import { PromptHardwareKeyPINChangeResponse } from "./tshd_events_service_pb";
 import { PromptHardwareKeyPINChangeRequest } from "./tshd_events_service_pb";
 import { PromptHardwareKeyTouchResponse } from "./tshd_events_service_pb";
@@ -102,12 +102,12 @@ export interface ITshdEventsService extends grpc.UntypedServiceImplementation {
      */
     promptHardwareKeyPINChange: grpc.handleUnaryCall<PromptHardwareKeyPINChangeRequest, PromptHardwareKeyPINChangeResponse>;
     /**
-     * PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
-     * confirm if the slot's private key and certificate can be overridden.
+     * ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+     * the slot's private key and certificate should be overwritten.
      *
-     * @generated from protobuf rpc: PromptHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeySlotOverwriteResponse);
+     * @generated from protobuf rpc: ConfirmHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse);
      */
-    promptHardwareKeySlotOverwrite: grpc.handleUnaryCall<PromptHardwareKeySlotOverwriteRequest, PromptHardwareKeySlotOverwriteResponse>;
+    confirmHardwareKeySlotOverwrite: grpc.handleUnaryCall<ConfirmHardwareKeySlotOverwriteRequest, ConfirmHardwareKeySlotOverwriteResponse>;
     /**
      * GetUsageReportingSettings returns the current state of usage reporting.
      * At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
@@ -208,15 +208,15 @@ export const tshdEventsServiceDefinition: grpc.ServiceDefinition<ITshdEventsServ
         responseSerialize: value => Buffer.from(PromptHardwareKeyPINChangeResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(PromptHardwareKeyPINChangeRequest.toBinary(value))
     },
-    promptHardwareKeySlotOverwrite: {
-        path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeySlotOverwrite",
-        originalName: "PromptHardwareKeySlotOverwrite",
+    confirmHardwareKeySlotOverwrite: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/ConfirmHardwareKeySlotOverwrite",
+        originalName: "ConfirmHardwareKeySlotOverwrite",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => PromptHardwareKeySlotOverwriteResponse.fromBinary(bytes),
-        requestDeserialize: bytes => PromptHardwareKeySlotOverwriteRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(PromptHardwareKeySlotOverwriteResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(PromptHardwareKeySlotOverwriteRequest.toBinary(value))
+        responseDeserialize: bytes => ConfirmHardwareKeySlotOverwriteResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ConfirmHardwareKeySlotOverwriteRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ConfirmHardwareKeySlotOverwriteResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ConfirmHardwareKeySlotOverwriteRequest.toBinary(value))
     },
     getUsageReportingSettings: {
         path: "/teleport.lib.teleterm.v1.TshdEventsService/GetUsageReportingSettings",

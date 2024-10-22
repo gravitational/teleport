@@ -43,7 +43,7 @@ const (
 	TshdEventsService_PromptHardwareKeyPIN_FullMethodName              = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPIN"
 	TshdEventsService_PromptHardwareKeyTouch_FullMethodName            = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyTouch"
 	TshdEventsService_PromptHardwareKeyPINChange_FullMethodName        = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPINChange"
-	TshdEventsService_PromptHardwareKeySlotOverwrite_FullMethodName    = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeySlotOverwrite"
+	TshdEventsService_ConfirmHardwareKeySlotOverwrite_FullMethodName   = "/teleport.lib.teleterm.v1.TshdEventsService/ConfirmHardwareKeySlotOverwrite"
 	TshdEventsService_GetUsageReportingSettings_FullMethodName         = "/teleport.lib.teleterm.v1.TshdEventsService/GetUsageReportingSettings"
 	TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName      = "/teleport.lib.teleterm.v1.TshdEventsService/ReportUnexpectedVnetShutdown"
 )
@@ -79,9 +79,9 @@ type TshdEventsServiceClient interface {
 	// PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
 	// change the hardware key PIN.
 	PromptHardwareKeyPINChange(ctx context.Context, in *PromptHardwareKeyPINChangeRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINChangeResponse, error)
-	// PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
-	// confirm if the slot's private key and certificate can be overridden.
-	PromptHardwareKeySlotOverwrite(ctx context.Context, in *PromptHardwareKeySlotOverwriteRequest, opts ...grpc.CallOption) (*PromptHardwareKeySlotOverwriteResponse, error)
+	// ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+	// the slot's private key and certificate should be overwritten.
+	ConfirmHardwareKeySlotOverwrite(ctx context.Context, in *ConfirmHardwareKeySlotOverwriteRequest, opts ...grpc.CallOption) (*ConfirmHardwareKeySlotOverwriteResponse, error)
 	// GetUsageReportingSettings returns the current state of usage reporting.
 	// At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
 	// with the only exception being the first start of the app when they're prompted about telemetry.
@@ -232,9 +232,9 @@ type TshdEventsServiceServer interface {
 	// PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
 	// change the hardware key PIN.
 	PromptHardwareKeyPINChange(context.Context, *PromptHardwareKeyPINChangeRequest) (*PromptHardwareKeyPINChangeResponse, error)
-	// PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
-	// confirm if the slot's private key and certificate can be overridden.
-	PromptHardwareKeySlotOverwrite(context.Context, *PromptHardwareKeySlotOverwriteRequest) (*PromptHardwareKeySlotOverwriteResponse, error)
+	// ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+	// the slot's private key and certificate should be overwritten.
+	ConfirmHardwareKeySlotOverwrite(context.Context, *ConfirmHardwareKeySlotOverwriteRequest) (*ConfirmHardwareKeySlotOverwriteResponse, error)
 	// GetUsageReportingSettings returns the current state of usage reporting.
 	// At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
 	// with the only exception being the first start of the app when they're prompted about telemetry.
@@ -275,8 +275,8 @@ func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyTouch(context.Conte
 func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyPINChange(context.Context, *PromptHardwareKeyPINChangeRequest) (*PromptHardwareKeyPINChangeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeyPINChange not implemented")
 }
-func (UnimplementedTshdEventsServiceServer) PromptHardwareKeySlotOverwrite(context.Context, *PromptHardwareKeySlotOverwriteRequest) (*PromptHardwareKeySlotOverwriteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeySlotOverwrite not implemented")
+func (UnimplementedTshdEventsServiceServer) ConfirmHardwareKeySlotOverwrite(context.Context, *ConfirmHardwareKeySlotOverwriteRequest) (*ConfirmHardwareKeySlotOverwriteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ConfirmHardwareKeySlotOverwrite not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) GetUsageReportingSettings(context.Context, *GetUsageReportingSettingsRequest) (*GetUsageReportingSettingsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUsageReportingSettings not implemented")
@@ -431,20 +431,20 @@ func _TshdEventsService_PromptHardwareKeyPINChange_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TshdEventsService_PromptHardwareKeySlotOverwrite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PromptHardwareKeySlotOverwriteRequest)
+func _TshdEventsService_ConfirmHardwareKeySlotOverwrite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmHardwareKeySlotOverwriteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TshdEventsServiceServer).PromptHardwareKeySlotOverwrite(ctx, in)
+		return srv.(TshdEventsServiceServer).ConfirmHardwareKeySlotOverwrite(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TshdEventsService_PromptHardwareKeySlotOverwrite_FullMethodName,
+		FullMethod: TshdEventsService_ConfirmHardwareKeySlotOverwrite_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TshdEventsServiceServer).PromptHardwareKeySlotOverwrite(ctx, req.(*PromptHardwareKeySlotOverwriteRequest))
+		return srv.(TshdEventsServiceServer).ConfirmHardwareKeySlotOverwrite(ctx, req.(*ConfirmHardwareKeySlotOverwriteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -521,8 +521,8 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TshdEventsService_PromptHardwareKeyPINChange_Handler,
 		},
 		{
-			MethodName: "PromptHardwareKeySlotOverwrite",
-			Handler:    _TshdEventsService_PromptHardwareKeySlotOverwrite_Handler,
+			MethodName: "ConfirmHardwareKeySlotOverwrite",
+			Handler:    _TshdEventsService_ConfirmHardwareKeySlotOverwrite_Handler,
 		},
 		{
 			MethodName: "GetUsageReportingSettings",

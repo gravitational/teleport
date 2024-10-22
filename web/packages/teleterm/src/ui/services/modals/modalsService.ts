@@ -242,7 +242,7 @@ export interface DialogHardwareKeyPinChange {
 
 export interface DialogHardwareKeySlotOverwrite {
   kind: 'hardware-key-slot-overwrite';
-  req: tshdEventsApi.PromptHardwareKeySlotOverwriteRequest;
+  req: tshdEventsApi.ConfirmHardwareKeySlotOverwriteRequest;
   onConfirm(): void;
   onCancel(): void;
 }

@@ -21,12 +21,12 @@ import DialogConfirmation, {
   DialogFooter,
 } from 'design/DialogConfirmation';
 import { ButtonPrimary, ButtonSecondary, Flex, P2 } from 'design';
-import { PromptHardwareKeySlotOverwriteRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import { ConfirmHardwareKeySlotOverwriteRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import { CommonHeader } from './CommonHeader';
 
 export function OverwriteSlot(props: {
-  req: PromptHardwareKeySlotOverwriteRequest;
+  req: ConfirmHardwareKeySlotOverwriteRequest;
   onCancel(): void;
   onConfirm(): void;
 }) {
