@@ -137,11 +137,14 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 // sessionID, connector details, and challenge extensions.
 func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
 	err := a.UpsertSSOMFASessionData(ctx, &services.SSOMFASessionData{
-		Username:            user,
-		RequestID:           sessionID,
-		ConnectorID:         connectorID,
-		ConnectorType:       connectorType,
-		ChallengeExtensions: ext,
+		Username:      user,
+		RequestID:     sessionID,
+		ConnectorID:   connectorID,
+		ConnectorType: connectorType,
+		ChallengeExtensions: &services.ChallengeExtensions{
+			Scope:      ext.Scope,
+			AllowReuse: ext.AllowReuse,
+		},
 	})
 	return trace.Wrap(err)
 }
