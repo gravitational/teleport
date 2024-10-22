@@ -61,7 +61,10 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 	case resp.SSOResponse != nil:
 		return &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_SSO{
-				SSO: resp.SSOResponse,
+				SSO: &authproto.SSOResponse{
+					RequestId: resp.SSOResponse.RequestID,
+					Token:     resp.SSOResponse.Token,
+				},
 			},
 		}, nil
 	case resp.TOTPCode != "":
