@@ -488,7 +488,7 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *clien
 		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
 	}
 	if protoChal.GetSSOChallenge() != nil {
-		chal.SSOChallenge = protoChal.GetSSOChallenge()
+		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
 	}
 	return chal
 }
