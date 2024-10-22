@@ -93,7 +93,6 @@ export function ChangePin(props: {
                   autoFocus
                   type="password"
                   label="New PIV PIN"
-                  inputMode="numeric"
                   value={pin}
                   onChange={e => setPin(e.target.value)}
                   mb={0}
@@ -106,7 +105,6 @@ export function ChangePin(props: {
                 <FieldInput
                   type="password"
                   label="Confirm New PIV PIN"
-                  inputMode="numeric"
                   value={confirmPin}
                   onChange={e => setConfirmPin(e.target.value)}
                   mb={0}
@@ -140,7 +138,6 @@ export function ChangePin(props: {
                   <FieldInput
                     type="password"
                     label="PUK"
-                    inputMode="numeric"
                     value={puk}
                     onChange={e => setPuk(e.target.value)}
                     mb={0}
@@ -155,7 +152,6 @@ export function ChangePin(props: {
                     <FieldInput
                       type="password"
                       label="New PUK"
-                      inputMode="numeric"
                       value={newPuk}
                       onChange={e => setNewPuk(e.target.value)}
                       mb={0}
@@ -168,7 +164,6 @@ export function ChangePin(props: {
                     <FieldInput
                       type="password"
                       label="Confirm New PUK"
-                      inputMode="numeric"
                       value={confirmNewPuk}
                       onChange={e => setConfirmNewPuk(e.target.value)}
                       mb={0}

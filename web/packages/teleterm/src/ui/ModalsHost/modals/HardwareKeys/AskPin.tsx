@@ -79,7 +79,6 @@ export function AskPin(props: {
                       : requiredField('PIV PIN is required')
                   }
                   label="PIV PIN"
-                  inputMode="numeric"
                   value={pin}
                   onChange={e => setPin(e.target.value)}
                   placeholder="123 456"
