@@ -316,12 +316,6 @@ func (r *ResponseStatusRecorder) WriteHeader(status int) {
 
 // Flush optionally flushes the inner ResponseWriter if it supports that.
 // Otherwise, Flush is a noop.
-//
-// Flush is optionally used by github.com/gravitational/oxy/forward to flush
-// pending data on streaming HTTP responses (like streaming pod logs).
-//
-// Without this, oxy/forward will handle streaming responses by accumulating
-// ~32kb of response in a buffer before flushing it.
 func (r *ResponseStatusRecorder) Flush() {
 	if r.flusher != nil {
 		r.flusher.Flush()

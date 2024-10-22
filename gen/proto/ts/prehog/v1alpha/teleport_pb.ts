@@ -3560,6 +3560,10 @@ export enum CTA {
  * IntegrationEnrollKind represents the types of integration that
  * can be enrolled.
  *
+ * Note: IntegrationEnrollKind enum must be kept in sync with the values defined
+ * in api/proto/teleport/usageevents/v1/usageevents.proto. Values 18-25 have
+ * become out of sync and are manually mapped to each other.
+ *
  * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollKind
  */
 export enum IntegrationEnrollKind {
@@ -3662,7 +3666,11 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
      */
-    DATADOG_INCIDENT_MANAGEMENT = 24
+    DATADOG_INCIDENT_MANAGEMENT = 24,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
+     */
+    SERVICENOW = 25
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status

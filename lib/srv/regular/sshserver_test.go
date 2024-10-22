@@ -2803,6 +2803,7 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 	role.SetRules(types.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)
+	//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 	opts.CreateHostUser = types.NewBoolOption(true)
 	role.SetOptions(opts)
 	role.SetLogins(types.Allow, allowedLogins)

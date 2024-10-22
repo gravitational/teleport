@@ -29,13 +29,10 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
-	// teleportCDNLocation is the Teleport's CDN URL
-	// This is used to download the Teleport Binary
-	teleportCDNLocation = "https://cdn.teleport.dev"
-
 	// binUname is the default binary name for inspecting the host's OS.
 	binUname = "uname"
 
@@ -113,12 +110,12 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.binSudo = "sudo"
 	}
 
-	if p.CDNBaseURL == "" {
-		p.CDNBaseURL = teleportCDNLocation
-	}
-
 	if p.TeleportVersion == "" {
 		p.TeleportVersion = "v" + api.Version
+	}
+
+	if p.CDNBaseURL == "" {
+		p.CDNBaseURL = teleportassets.CDNBaseURL()
 	}
 
 	if p.TeleportFlavor == "" {
