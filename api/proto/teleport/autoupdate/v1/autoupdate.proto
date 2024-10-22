@@ -38,6 +38,7 @@ message AutoUpdateConfigSpec {
   reserved 1;
   reserved "tools_autoupdate"; // ToolsAutoupdate is replaced by tools.mode.
   AutoUpdateConfigSpecTools tools = 2;
+  AutoUpdateConfigSpecAgents agents = 3;
 }
 
 // AutoUpdateConfigSpecTools encodes the parameters for client tools auto updates.
@@ -48,6 +49,8 @@ message AutoUpdateConfigSpecTools {
 
 // AutoUpdateConfigSpecAgents encodes the parameters of automatic agent updates.
 message AutoUpdateConfigSpecAgents {
+  reserved 5;
+  reserved "agent_schedules";
   // mode specifies whether agent autoupdates are enabled, disabled, or paused.
   string mode = 1;
   // strategy to use for updating the agents.
@@ -56,8 +59,8 @@ message AutoUpdateConfigSpecAgents {
   // Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next
   // maintenance window.
   google.protobuf.Duration maintenance_window_duration = 3;
-  // agent_schedules specifies schedules for updates of grouped agents.
-  AgentAutoUpdateSchedules agent_schedules = 5;
+  // schedules specifies schedules for updates of grouped agents.
+  AgentAutoUpdateSchedules schedules = 6;
 }
 
 // AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
