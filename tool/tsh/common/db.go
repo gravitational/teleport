@@ -1783,6 +1783,18 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample)
 }
 
+// formatDbProxyAutoTunnel makes the message printed when "tsh proxy db"
+// automatically enables the "--tunnel" flag.
+func formatDbProxyAutoTunnel(reasons ...string) string {
+	templateData := map[string]any{
+		"reasons": reasons,
+	}
+
+	buf := bytes.NewBuffer(nil)
+	_ = dbProxyAutoTunnelTemplate.Execute(buf, templateData)
+	return buf.String()
+}
+
 // resourceSelectors is a helper struct for gathering up the selectors for a
 // resource, as an aggregate of name, labels, and predicate query.
 type resourceSelectors struct {
@@ -1870,6 +1882,17 @@ Please use one of the following commands to connect to the database:
     {{.}}{{end -}}
 {{- end}}`))
 
+	// dbProxyAutoTunnelTemplate is the message printed when "tsh proxy db"
+	// automatically enables the "--tunnel" flag.
+	dbProxyAutoTunnelTemplate = template.Must(template.New("").Parse(`Note: "--tunnel" flag has been automatically enabled{{if .reasons}} when:
+{{- range $reason := .reasons }}
+  - {{ $reason }}.
+{{- end}}
+{{- else}}.
+{{- end}}
+To avoid this note, please add the "--tunnel" flag to this "tsh proxy db" command.
+
+`))
 	// dbConnectTemplate is the message printed after a successful "tsh db login" on how to connect.
 	dbConnectTemplate = template.Must(template.New("").Parse(`Connection information for database "{{ .name }}" has been saved.
 
