@@ -234,7 +234,7 @@ func (s *Server) startApp(ctx context.Context, app types.Application) error {
 	if err := s.startHeartbeat(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.With("app", app).DebugContext(ctx, "App started.")
+	s.log.DebugContext(ctx, "App started.", "app", app)
 	return nil
 }
 
@@ -244,7 +244,7 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.With("app", name).DebugContext(ctx, "App stopped.")
+	s.log.DebugContext(ctx, "App stopped.", "app", name)
 	return nil
 }
 
