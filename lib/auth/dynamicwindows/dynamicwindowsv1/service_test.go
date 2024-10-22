@@ -79,56 +79,44 @@ func TestServiceAccess(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			// test the method with allowed admin states, each one separately.
-			t.Run("allowed admin states", func(t *testing.T) {
-				for _, state := range tt.allowedStates {
-					t.Run(stateToString(state), func(t *testing.T) {
-						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
-							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-								service := newService(t, state, fakeChecker{allowedVerbs: verbs})
-								err := callMethod(t, service, tt.name)
-								// expect access denied except with full set of verbs.
-								if len(verbs) == len(tt.allowedVerbs) {
-									require.False(t, trace.IsAccessDenied(err))
-								} else {
-									require.Error(t, err)
-									require.True(t, trace.IsAccessDenied(err), "expected access denied for verbs %v, got err=%v", verbs, err)
-								}
-							})
-						}
-					})
-				}
-			})
+		for _, state := range tt.allowedStates {
+			for _, verbs := range utils.Combinations(tt.allowedVerbs) {
+				t.Run(fmt.Sprintf("%v,allowed:%v,verbs:%v", tt.name, stateToString(state), verbs), func(t *testing.T) {
+					service := newService(t, state, fakeChecker{allowedVerbs: verbs})
+					err := callMethod(service, tt.name)
+					// expect access denied except with full set of verbs.
+					if len(verbs) == len(tt.allowedVerbs) {
+						require.False(t, trace.IsAccessDenied(err))
+					} else {
+						require.Error(t, err)
+						require.True(t, trace.IsAccessDenied(err), "expected access denied for verbs %v, got err=%v", verbs, err)
+					}
+				})
+			}
+		}
 
-			// test the method with disallowed admin states; expect failures.
-			t.Run("disallowed admin states", func(t *testing.T) {
-				disallowedStates := otherAdminStates(tt.allowedStates)
-				for _, state := range disallowedStates {
-					t.Run(stateToString(state), func(t *testing.T) {
-						// it is enough to test against tt.allowedVerbs,
-						// this is the only different data point compared to the test cases above.
-						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs})
-						err := callMethod(t, service, tt.name)
-						require.True(t, trace.IsAccessDenied(err))
-					})
-				}
+		disallowedStates := otherAdminStates(tt.allowedStates)
+		for _, state := range disallowedStates {
+			t.Run(fmt.Sprintf("%v,disallowed:%v", tt.name, stateToString(state)), func(t *testing.T) {
+				// it is enough to test against tt.allowedVerbs,
+				// this is the only different data point compared to the test cases above.
+				service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs})
+				err := callMethod(service, tt.name)
+				require.True(t, trace.IsAccessDenied(err))
 			})
-		})
+		}
 	}
 
 	// verify that all declared methods have matching test cases
-	t.Run("verify coverage", func(t *testing.T) {
-		for _, method := range dynamicwindowsv1.DynamicWindowsService_ServiceDesc.Methods {
-			t.Run(method.MethodName, func(t *testing.T) {
-				match := false
-				for _, testCase := range testCases {
-					match = match || testCase.name == method.MethodName
-				}
-				require.True(t, match, "method %v without coverage, no matching tests", method.MethodName)
-			})
-		}
-	})
+	for _, method := range dynamicwindowsv1.DynamicWindowsService_ServiceDesc.Methods {
+		t.Run(fmt.Sprintf("%v covered", method.MethodName), func(t *testing.T) {
+			match := false
+			for _, testCase := range testCases {
+				match = match || testCase.name == method.MethodName
+			}
+			require.True(t, match, "method %v without coverage, no matching tests", method.MethodName)
+		})
+	}
 }
 
 var allAdminStates = map[authz.AdminActionAuthState]string{
@@ -159,7 +147,7 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 }
 
 // callMethod calls a method with given name in the DynamicWindowsDesktop service
-func callMethod(t *testing.T, service *Service, method string) error {
+func callMethod(service *Service, method string) error {
 	for _, desc := range dynamicwindowsv1.DynamicWindowsService_ServiceDesc.Methods {
 		if desc.MethodName == method {
 			_, err := desc.Handler(service, context.Background(), func(arg any) error {
@@ -178,8 +166,7 @@ func callMethod(t *testing.T, service *Service, method string) error {
 			return err
 		}
 	}
-	require.FailNow(t, "method %v not found", method)
-	panic("this line should never be reached: FailNow() should interrupt the test")
+	return fmt.Errorf("method %v not found", method)
 }
 
 type fakeChecker struct {
