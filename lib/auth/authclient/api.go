@@ -755,6 +755,9 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
+
+	// GetUserTask gets a single User Task by its name.
+	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
