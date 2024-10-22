@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"os/user"
@@ -183,11 +184,6 @@ func (w *Watcher) start(ctx context.Context) error {
 		w.logger.WarnContext(ctx, "Failed to add watcher for file", "error", err)
 	}
 
-	stream, err := w.client.AccessGraphSecretsScannerClient().ReportAuthorizedKeys(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Wait for the initial delay before sending the first report to spread the load.
 	// The initial delay is a random value between 0 and maxInitialDelay.
 	const maxInitialDelay = 5 * time.Minute
@@ -205,8 +201,11 @@ func (w *Watcher) start(ctx context.Context) error {
 	defer timer.Stop()
 	for {
 
-		if err := w.fetchAndReportAuthorizedKeys(ctx, stream, fileWatcher); err != nil {
+		err := w.fetchAndReportAuthorizedKeys(ctx, fileWatcher)
+		interval := maxReSendInterval
+		if err != nil {
 			w.logger.WarnContext(ctx, "Failed to report authorized keys", "error", err)
+			interval = maxInitialDelay
 		}
 
 		if !timer.Stop() {
@@ -215,7 +214,7 @@ func (w *Watcher) start(ctx context.Context) error {
 			default:
 			}
 		}
-		timer.Reset(jitterFunc(maxReSendInterval))
+		timer.Reset(jitterFunc(interval))
 
 		select {
 		case <-ctx.Done():
@@ -238,9 +237,9 @@ func (w *Watcher) isAuthorizedKeysReportEnabled(ctx context.Context) (bool, erro
 // fetchAndReportAuthorizedKeys fetches the authorized keys from the system and reports them to the cluster.
 func (w *Watcher) fetchAndReportAuthorizedKeys(
 	ctx context.Context,
-	stream accessgraphsecretsv1pb.SecretsScannerService_ReportAuthorizedKeysClient,
 	fileWatcher *fsnotify.Watcher,
-) error {
+) (returnErr error) {
+
 	users, err := w.getHostUsers()
 	if err != nil {
 		return trace.Wrap(err)
@@ -274,6 +273,26 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 		}
 	}
 
+	stream, err := w.client.AccessGraphSecretsScannerClient().ReportAuthorizedKeys(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if closeErr := stream.CloseSend(); closeErr != nil && !errors.Is(closeErr, io.EOF) {
+			w.logger.WarnContext(ctx, "Failed to close stream", "error", closeErr)
+		}
+
+		// wait for the stream to be closed by the server.
+		_, err = stream.Recv()
+		if errors.Is(returnErr, io.EOF) {
+			returnErr = err
+		} else {
+			returnErr = trace.NewAggregate(err, returnErr)
+		}
+		if errors.Is(returnErr, io.EOF) {
+			returnErr = nil
+		}
+	}()
 	const maxKeysPerReport = 500
 	for i := 0; i < len(keys); i += maxKeysPerReport {
 		start := i

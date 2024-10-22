@@ -1,5 +1,47 @@
 # Changelog
 
+## 16.4.3 (10/16/2024)
+
+* Extended Teleport Discovery Service to support resource discovery across all projects accessible by the service account. [#47568](https://github.com/gravitational/teleport/pull/47568)
+* Fixed a bug that could allow users to list active sessions even when prohibited by RBAC. [#47564](https://github.com/gravitational/teleport/pull/47564)
+* The `tctl tokens ls` command redacts secret join tokens by default. To include the token values, provide the new `--with-secrets flag`. [#47545](https://github.com/gravitational/teleport/pull/47545)
+* Added missing field-level documentation to the terraform provider reference. [#47469](https://github.com/gravitational/teleport/pull/47469)
+* Fixed a bug where `tsh logout` failed to parse flags passed with spaces. [#47460](https://github.com/gravitational/teleport/pull/47460)
+* Fixed the resource-based labels handler crashing without restarting. [#47452](https://github.com/gravitational/teleport/pull/47452)
+* Install teleport FIPS binary in FIPS environments during Server Auto Discover. [#47437](https://github.com/gravitational/teleport/pull/47437)
+* Fix possibly missing rules when using large amount of Access Monitoring Rules. [#47430](https://github.com/gravitational/teleport/pull/47430)
+* Added ability to list/get AccessMonitoringRule resources with `tctl`. [#47401](https://github.com/gravitational/teleport/pull/47401)
+* Include JWK header in JWTs issued by Teleport Application Access. [#47393](https://github.com/gravitational/teleport/pull/47393)
+* Teleport Workload ID now supports issuing JWT SVIDs via the Workload API. [#47389](https://github.com/gravitational/teleport/pull/47389)
+* Added kubeconfig context name to the output table of `tsh proxy kube` command for enhanced clarity. [#47383](https://github.com/gravitational/teleport/pull/47383)
+* Improve error messaging when connections to offline agents are attempted. [#47361](https://github.com/gravitational/teleport/pull/47361)
+* Allow specifying the instance type of AWS HA Terraform bastion instance. [#47338](https://github.com/gravitational/teleport/pull/47338)
+* Added a config option to Teleport Connect to control how it interacts with the local SSH agent (`sshAgent.addKeysToAgent`). [#47324](https://github.com/gravitational/teleport/pull/47324)
+* Teleport Workload ID issued JWT SVIDs are now compatible with OIDC federation with a number of platforms. [#47317](https://github.com/gravitational/teleport/pull/47317)
+* The "ha-autoscale-cluster" terraform module now support default AWS resource tags and ASG instance refresh on configuration or launch template changes. [#47299](https://github.com/gravitational/teleport/pull/47299)
+* Fixed error in Workload ID in cases where the process ID cannot be resolved. [#47274](https://github.com/gravitational/teleport/pull/47274)
+* Teleport Connect for Linux now requires glibc 2.31 or later. [#47262](https://github.com/gravitational/teleport/pull/47262)
+* Fixed a bug where security group rules that refer to another security group by ID were not displayed in web UI enrollment wizards when viewing security group rules. [#47246](https://github.com/gravitational/teleport/pull/47246)
+* Improve the msteams access plugin debug logging. [#47158](https://github.com/gravitational/teleport/pull/47158)
+* Fix missing tsh MFA prompt in certain OTP+WebAuthn scenarios. [#47154](https://github.com/gravitational/teleport/pull/47154)
+* Updates self-hosted db discover flow to generate 2190h TTL certs, not 12h. [#47125](https://github.com/gravitational/teleport/pull/47125)
+* Fixes an issue preventing access requests from displaying user friendly resource names. [#47112](https://github.com/gravitational/teleport/pull/47112)
+* Fixed a bug where only one IP CIDR block security group rule for a port range was displayed in the web UI RDS enrollment wizard when viewing a security group. [#47077](https://github.com/gravitational/teleport/pull/47077)
+* The `tsh play` command now supports a text output format. [#47073](https://github.com/gravitational/teleport/pull/47073)
+* Updated Go to 1.22.8. [#47050](https://github.com/gravitational/teleport/pull/47050)
+* Fixed the "source path is empty" error when attempting to upload a file in Teleport Connect. [#47011](https://github.com/gravitational/teleport/pull/47011)
+* Added static host users to Terraform provider. [#46974](https://github.com/gravitational/teleport/pull/46974)
+* Enforce a global `device_trust.mode=required` on OSS processes paired with an Enterprise Auth. [#46947](https://github.com/gravitational/teleport/pull/46947)
+* Added a new config option in Teleport Connect to control SSH agent forwarding (`ssh.forwardAgent`); starting in Teleport Connect v17, this option will be disabled by default. [#46895](https://github.com/gravitational/teleport/pull/46895)
+* Correctly display available allowed logins of leaf AWS Console Apps on `tsh app login`. [#46806](https://github.com/gravitational/teleport/pull/46806)
+* Allow all audit events to be trimmed if necessary. [#46499](https://github.com/gravitational/teleport/pull/46499)
+
+Enterprise:
+* Fixed possible panic when processing Okta assignments.
+* Fixed bug where an unknown device aborts device web authentication.
+* Add the Datadog Incident Management Plugin as a hosted plugin.
+* Permit bootstrapping enterprise clusters with state from an open source cluster.
+
 ## 16.4.2 (09/25/2024)
 
 * Fixed a panic when using the self-hosted PagerDuty plugin. [#46925](https://github.com/gravitational/teleport/pull/46925)

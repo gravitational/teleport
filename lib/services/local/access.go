@@ -360,9 +360,9 @@ func (s *AccessService) DeleteAllLocks(ctx context.Context) error {
 func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName string, newRemoteLocks []types.Lock) error {
 	return backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.Backend,
-			LockName: "ReplaceRemoteLocks/" + clusterName,
-			TTL:      time.Minute,
+			Backend:            s.Backend,
+			LockNameComponents: []string{"ReplaceRemoteLocks", clusterName},
+			TTL:                time.Minute,
 		},
 	}, func(ctx context.Context) error {
 		remoteLocksKey := backend.ExactKey(locksPrefix, clusterName)

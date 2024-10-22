@@ -145,6 +145,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 		Status: events.Status{
 			Success: true,
 		},
+		PostgresPID: session.PostgresPID,
 	}
 	event.SetTime(session.StartTime)
 

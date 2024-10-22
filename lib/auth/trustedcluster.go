@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
@@ -76,7 +75,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 	}
 
 	// Update role map
-	if existingCluster != nil && !cmp.Equal(existingCluster.GetRoleMap(), trustedCluster.GetRoleMap()) {
+	if existingCluster != nil && !existingCluster.GetRoleMap().IsEqual(trustedCluster.GetRoleMap()) {
 		if err := a.UpdateUserCARoleMap(ctx, existingCluster.GetName(), trustedCluster.GetRoleMap(),
 			existingCluster.GetEnabled()); err != nil {
 			return nil, trace.Wrap(err)

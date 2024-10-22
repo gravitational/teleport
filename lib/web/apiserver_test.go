@@ -4250,7 +4250,7 @@ func TestClusterKubesGet(t *testing.T) {
 	}
 }
 
-func TestClusterKubePodsGet(t *testing.T) {
+func TestClusterKubeResourcesGet(t *testing.T) {
 	t.Parallel()
 	kubeClusterName := "kube_cluster"
 
@@ -4268,6 +4268,10 @@ func TestClusterKubePodsGet(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
+					},
+					{
+						Kind: types.KindKubeNamespace,
+						Name: types.Wildcard,
 					},
 				},
 			},
@@ -4287,11 +4291,15 @@ func TestClusterKubePodsGet(t *testing.T) {
 	tt := []struct {
 		name             string
 		user             string
+		kind             string
+		kubeCluster      string
 		expectedResponse []ui.KubeResource
+		wantErr          bool
 	}{
 		{
-			name: "get pods from gRPC server",
-			user: "test-user@example.com",
+			name:        "get pods from gRPC server",
+			kind:        types.KindKubePod,
+			kubeCluster: kubeClusterName,
 			expectedResponse: []ui.KubeResource{
 				{
 					Kind:        types.KindKubePod,
@@ -4309,6 +4317,38 @@ func TestClusterKubePodsGet(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "get namespaces",
+			kind:        types.KindKubeNamespace,
+			kubeCluster: kubeClusterName,
+			expectedResponse: []ui.KubeResource{
+				{
+					Kind:        types.KindKubeNamespace,
+					Name:        "default",
+					Namespace:   "",
+					Labels:      []ui.Label{{Name: "app", Value: "test"}},
+					KubeCluster: kubeClusterName,
+				},
+			},
+		},
+		{
+			name:        "missing kind",
+			kind:        "",
+			kubeCluster: kubeClusterName,
+			wantErr:     true,
+		},
+		{
+			name:        "invalid kind",
+			kind:        "invalid-kind",
+			kubeCluster: kubeClusterName,
+			wantErr:     true,
+		},
+		{
+			name:        "missing kube cluster",
+			kind:        types.KindKubeNamespace,
+			kubeCluster: "",
+			wantErr:     true,
+		},
 	}
 	proxy := env.proxies[0]
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -4318,22 +4358,27 @@ func TestClusterKubePodsGet(t *testing.T) {
 	addr := utils.MustParseAddr(listener.Addr().String())
 	proxy.handler.handler.cfg.ProxyWebAddr = *addr
 
+	user := "test-user@example.com"
+	pack := proxy.authPack(t, user, roleWithFullAccess(user))
+
 	for _, tc := range tt {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			pack := proxy.authPack(t, tc.user, roleWithFullAccess(tc.user))
-
-			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "pods")
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
 			params := url.Values{}
-			params.Add("kubeCluster", kubeClusterName)
+			params.Add("kubeCluster", tc.kubeCluster)
+			params.Add("kind", tc.kind)
 			re, err := pack.clt.Get(context.Background(), endpoint, params)
-			require.NoError(t, err)
 
-			resp := testResponse{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.Len(t, resp.Items, 2)
-			require.Equal(t, 2, resp.TotalCount)
-			require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+			if tc.wantErr {
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+				resp := testResponse{}
+				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+				require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+			}
+
 		})
 	}
 }
@@ -4552,6 +4597,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	handler := env.proxies[0].handler.handler
 
 	// Set auth preference with passwordless.
 	const MOTD = "Welcome to cluster, your activity will be recorded."
@@ -4581,6 +4627,11 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+
+	// start the feature watcher so the web config gets new features
+	go handler.startFeatureWatcher()
+	<-handler.featureWatcherReady // await until the watcher is ready
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
@@ -4671,6 +4722,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			},
 		},
 	})
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	require.NoError(t, err)
 	// This version is too high and MUST NOT be used
@@ -4681,7 +4733,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		},
 	}
 	require.NoError(t, channels.CheckAndSetDefaults())
-	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
+	handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
@@ -4697,14 +4749,18 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
 	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
-	// request and verify enabled features are enabled.
-	re, err = clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+	// request and verify enabled features are eventually enabled.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		assert.Empty(t, diff)
+
+	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
 	// cluster config
@@ -4727,20 +4783,26 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			IsUsageBasedBilling: false,
 		},
 	})
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	// request and verify again
-	re, err = clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		assert.Empty(t, diff)
+
+	}, time.Second*5, time.Millisecond*50)
 }
 
 func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	handler := env.proxies[0].handler.handler
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
@@ -4755,6 +4817,10 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			},
 		},
 	})
+	// start the feature watcher so the web config gets new features
+	go handler.startFeatureWatcher()
+	<-handler.featureWatcherReady // await until the watcher is ready
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
@@ -4803,20 +4869,23 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		},
 	}
 
-	// Make a request.
 	clt := env.proxies[0].newClient(t)
-	endpoint := clt.Endpoint("web", "config.js")
-	re, err := clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Make a request.
+		endpoint := clt.Endpoint("web", "config.js")
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+		// Response is type application/javascript, we need to strip off the variable name
+		// and the semicolon at the end, then we are left with json like object.
+		var cfg webclient.WebConfig
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		assert.Empty(t, diff)
+	}, time.Second*5, time.Millisecond*50)
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {
@@ -7723,6 +7792,10 @@ type authProviderMock struct {
 	server types.ServerV2
 }
 
+func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error) {
+	return nil, nil
+}
+
 func (mock authProviderMock) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	return &mock.server, nil
 }
@@ -9486,35 +9559,59 @@ type fakeKubeService struct {
 }
 
 func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
-	return &kubeproto.ListKubernetesResourcesResponse{
-		Resources: []*types.KubernetesResourceV1{
-			{
-				Kind: types.KindKubePod,
-				Metadata: types.Metadata{
-					Name: "test-pod",
-					Labels: map[string]string{
-						"app": "test",
+	switch req.GetResourceType() {
+	case types.KindKubePod:
+		{
+			return &kubeproto.ListKubernetesResourcesResponse{
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: types.KindKubePod,
+						Metadata: types.Metadata{
+							Name: "test-pod",
+							Labels: map[string]string{
+								"app": "test",
+							},
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "default",
+						},
+					},
+					{
+						Kind: types.KindKubePod,
+						Metadata: types.Metadata{
+							Name: "test-pod2",
+							Labels: map[string]string{
+								"app": "test2",
+							},
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "default",
+						},
 					},
 				},
-				Spec: types.KubernetesResourceSpecV1{
-					Namespace: "default",
-				},
-			},
-			{
-				Kind: types.KindKubePod,
-				Metadata: types.Metadata{
-					Name: "test-pod2",
-					Labels: map[string]string{
-						"app": "test2",
+				TotalCount: 2,
+			}, nil
+		}
+	case types.KindKubeNamespace:
+		{
+			return &kubeproto.ListKubernetesResourcesResponse{
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: types.KindNamespace,
+						Metadata: types.Metadata{
+							Name: "default",
+							Labels: map[string]string{
+								"app": "test",
+							},
+						},
 					},
 				},
-				Spec: types.KubernetesResourceSpecV1{
-					Namespace: "default",
-				},
-			},
-		},
-		TotalCount: 2,
-	}, nil
+				TotalCount: 1,
+			}, nil
+		}
+	default:
+		return nil, trace.BadParameter("kubernetes resource kind %q is not mocked", req.GetResourceType())
+	}
 }
 
 func TestWebSocketAuthenticateRequest(t *testing.T) {

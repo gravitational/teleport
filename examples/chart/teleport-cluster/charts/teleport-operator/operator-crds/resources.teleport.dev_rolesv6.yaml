@@ -301,7 +301,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -827,7 +827,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -1136,8 +1136,7 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
                   create_host_user_default_shell:
                     description: CreateHostUserDefaultShell is used to configure the

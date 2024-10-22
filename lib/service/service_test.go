@@ -541,6 +541,16 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			},
 		},
 		{
+			name:          "valid athena config with disabled consumer",
+			uris:          []string{sampleAthenaURI + "&consumerDisabled=true"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+				require.True(t, v.IsConsumerDisabled(), "consumer is not disabled")
+			},
+		},
+		{
 			name:          "config with rate limit - should use events.SearchEventsLimiter",
 			uris:          []string{sampleAthenaURI + "&limiterRefillAmount=3&limiterBurst=2"},
 			externalAudit: externalAuditStorageDisabled,
@@ -1775,12 +1785,16 @@ func TestInitDatabaseService(t *testing.T) {
 
 			cfg := servicecfg.MakeDefaultConfig()
 			cfg.DataDir = t.TempDir()
+			cfg.DebugService = servicecfg.DebugConfig{
+				Enabled: false,
+			}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Hostname = "default.example.com"
 			cfg.Auth.Enabled = true
 			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 			cfg.Proxy.Enabled = true
 			cfg.Proxy.DisableWebInterface = true
 			cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}

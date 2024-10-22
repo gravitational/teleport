@@ -61,7 +61,10 @@ func TestAuditPostgres(t *testing.T) {
 	// Connect should trigger successful session start event.
 	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 	require.NoError(t, err)
-	requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+	startEvt, ok := requireEvent(t, testCtx, libevents.DatabaseSessionStartCode).(*events.DatabaseSessionStart)
+	require.True(t, ok)
+	require.NotNil(t, startEvt)
+	require.NotZero(t, startEvt.PostgresPID)
 
 	// Simple query should trigger the query event.
 	_, err = psql.Exec(ctx, "select 1").ReadAll()

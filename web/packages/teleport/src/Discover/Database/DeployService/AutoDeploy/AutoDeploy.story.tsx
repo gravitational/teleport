@@ -74,11 +74,13 @@ Init.parameters = {
 };
 
 export const InitWithAutoDiscover = () => {
+  const dbMeta = getDbMeta();
+  dbMeta.selectedAwsRdsDb = undefined; // there is no selection for discovery
   return (
     <TeleportProvider
       resourceKind={ResourceKind.Database}
       agentMeta={{
-        ...getDbMeta(),
+        ...dbMeta,
         autoDiscovery: {
           config: { name: '', discoveryGroup: '', aws: [] },
         },
@@ -255,7 +257,7 @@ const securityGroupsResponse = [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -271,13 +273,22 @@ const securityGroupsResponse = [
         cidrs: [
           { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
         ],
+        groups: [
+          { groupId: 'sg-1', description: 'Trusts itself in port range' },
+        ],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '8080',
+        toPort: '8080',
+        groups: [{ groupId: 'sg-3', description: 'Trusts other group' }],
       },
     ],
     outboundRules: [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -288,11 +299,24 @@ const securityGroupsResponse = [
       },
       {
         ipProtocol: 'tcp',
+        fromPort: '8080',
+        toPort: '8080',
+        groups: [
+          {
+            groupId: 'sg-4',
+            description:
+              'a trusted group on port 8080 for some reason and this description rambles a lot so the table better truncate it with ellipses but you should still see the full thing by hovering on it :D',
+          },
+        ],
+      },
+      {
+        ipProtocol: 'tcp',
         fromPort: '2000',
         toPort: '5000',
         cidrs: [
           { cidr: '10.0.0.0/16', description: 'Subnet Mask 255.255.0.0' },
         ],
+        groups: [{ groupId: 'sg-4', description: 'some other group' }],
       },
     ],
   },
@@ -304,7 +328,7 @@ const securityGroupsResponse = [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -321,12 +345,20 @@ const securityGroupsResponse = [
           { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
         ],
       },
+      {
+        ipProtocol: 'all',
+        fromPort: '0',
+        toPort: '0',
+        groups: [
+          { groupId: 'sg-3', description: 'trusts all traffic from sg-3' },
+        ],
+      },
     ],
     outboundRules: [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -352,8 +384,31 @@ const securityGroupsResponse = [
     inboundRules: [
       {
         ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
+        ],
+      },
+    ],
+    outboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '22',
+        toPort: '22',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+    ],
+  },
+  {
+    name: 'security-group-4',
+    id: 'sg-4',
+    description: 'this is security group 4',
+    inboundRules: [
+      {
+        ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -374,15 +429,9 @@ const securityGroupsResponse = [
     outboundRules: [
       {
         ipProtocol: 'tcp',
-        fromPort: '0',
-        toPort: '0',
-        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
-      },
-      {
-        ipProtocol: 'tcp',
         fromPort: '22',
         toPort: '22',
-        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything ssh' }],
       },
       {
         ipProtocol: 'tcp',

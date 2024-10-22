@@ -119,7 +119,7 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 	}
 
 	if issuer == "" {
-		issuer, err = oidc.IssuerForCluster(ctx, cacheClt)
+		issuer, err = oidc.IssuerForCluster(ctx, cacheClt, "")
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
