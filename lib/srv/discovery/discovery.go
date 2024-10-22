@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
 	"slices"
 	"strings"
 	"sync"
@@ -334,6 +335,11 @@ type Server struct {
 	muDynamicTAGSyncFetchers sync.RWMutex
 	staticTAGSyncFetchers    []aws_sync.AWSSync
 
+	// dynamicTAGSyncAzureFetchers holds the current Azure TAG Fetchers for the Dynamic Matchers (those coming from DiscoveryConfig resource).
+	dynamicTAGSyncAzureFetchers   map[string][]azure_sync.Fetcher
+	muDynamicTAGSyncAzureFetchers sync.RWMutex
+	staticTAGSyncAzureFetchers    []azure_sync.Fetcher
+
 	// dynamicKubeFetchers holds the current kube fetchers that use integration as a source of credentials,
 	// for the Dynamic Matchers (those coming from DiscoveryConfig resource).
 	// The key is the DiscoveryConfig name.
@@ -366,18 +372,19 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:                     cfg,
-		ctx:                        localCtx,
-		cancelfn:                   cancelfn,
-		usageEventCache:            make(map[string]struct{}),
-		dynamicKubeFetchers:        make(map[string][]common.Fetcher),
-		dynamicDatabaseFetchers:    make(map[string][]common.Fetcher),
-		dynamicServerAWSFetchers:   make(map[string][]server.Fetcher),
-		dynamicServerAzureFetchers: make(map[string][]server.Fetcher),
-		dynamicServerGCPFetchers:   make(map[string][]server.Fetcher),
-		dynamicTAGSyncFetchers:     make(map[string][]aws_sync.AWSSync),
-		dynamicDiscoveryConfig:     make(map[string]*discoveryconfig.DiscoveryConfig),
-		awsSyncStatus:              awsSyncStatus{},
+		Config:                      cfg,
+		ctx:                         localCtx,
+		cancelfn:                    cancelfn,
+		usageEventCache:             make(map[string]struct{}),
+		dynamicKubeFetchers:         make(map[string][]common.Fetcher),
+		dynamicDatabaseFetchers:     make(map[string][]common.Fetcher),
+		dynamicServerAWSFetchers:    make(map[string][]server.Fetcher),
+		dynamicServerAzureFetchers:  make(map[string][]server.Fetcher),
+		dynamicServerGCPFetchers:    make(map[string][]server.Fetcher),
+		dynamicTAGSyncFetchers:      make(map[string][]aws_sync.AWSSync),
+		dynamicTAGSyncAzureFetchers: make(map[string][]azure_sync.Fetcher),
+		dynamicDiscoveryConfig:      make(map[string]*discoveryconfig.DiscoveryConfig),
+		awsSyncStatus:               awsSyncStatus{},
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -414,6 +421,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	if err := s.initAccessGraphWatchers(s.ctx, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.initTAGAzureWatchers(s.ctx, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1619,6 +1630,10 @@ func (s *Server) deleteDynamicFetchers(name string) {
 	delete(s.dynamicTAGSyncFetchers, name)
 	s.muDynamicTAGSyncFetchers.Unlock()
 
+	s.muDynamicTAGSyncAzureFetchers.Lock()
+	delete(s.dynamicTAGSyncAzureFetchers, name)
+	s.muDynamicTAGSyncAzureFetchers.Unlock()
+
 	s.muDynamicKubeFetchers.Lock()
 	delete(s.dynamicKubeFetchers, name)
 	s.muDynamicKubeFetchers.Unlock()
@@ -1665,15 +1680,21 @@ func (s *Server) upsertDynamicMatchers(ctx context.Context, dc *discoveryconfig.
 	s.dynamicDatabaseFetchers[dc.GetName()] = databaseFetchers
 	s.muDynamicDatabaseFetchers.Unlock()
 
-	awsSyncMatchers, err := s.accessGraphFetchersFromMatchers(
-		ctx, matchers, dc.GetName(),
-	)
+	awsSyncMatchers, err := s.accessGraphFetchersFromMatchers(ctx, matchers, dc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	s.muDynamicTAGSyncFetchers.Lock()
 	s.dynamicTAGSyncFetchers[dc.GetName()] = awsSyncMatchers
 	s.muDynamicTAGSyncFetchers.Unlock()
+
+	azureSyncMatchers, err := s.accessGraphAzureFetchersFromMatchers(matchers, dc.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.muDynamicTAGSyncAzureFetchers.Lock()
+	s.dynamicTAGSyncAzureFetchers[dc.GetName()] = azureSyncMatchers
+	s.muDynamicTAGSyncAzureFetchers.Unlock()
 
 	kubeFetchers, err := s.kubeFetchersFromMatchers(matchers)
 	if err != nil {

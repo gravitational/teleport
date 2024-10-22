@@ -31,6 +31,7 @@ message AzureResourceList {
 message AzureResource {
   oneof resource {
     AzureVirtualMachine virtual_machine = 1;
+    AzureUser user = 2;
   }
 }
 

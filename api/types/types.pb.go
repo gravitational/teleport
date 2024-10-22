@@ -20647,7 +20647,7 @@ var xxx_messageInfo_AccessGraphAWSSync proto.InternalMessageInfo
 
 type AccessGraphAzureSync struct {
 	Regions              []string `protobuf:"bytes,1,rep,name=Regions,proto3" json:"regions,omitempty"`
-	Subscriptions        []string `protobuf:"bytes,2,rep,name=Subscriptions,proto3" json:"regions,omitempty"`
+	SubscriptionID       string   `protobuf:"bytes,2,opt,name=SubscriptionID,proto3" json:"regions,omitempty"`
 	UmiClientId          string   `protobuf:"bytes,3,opt,name=UmiClientId,proto3" json:"regions,omitempty"`
 	Integration          string   `protobuf:"bytes,4,opt,name=Integration,proto3" json:"integration,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -48700,14 +48700,12 @@ func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	if len(m.Subscriptions) > 0 {
-		for iNdEx := len(m.Subscriptions) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Subscriptions[iNdEx])
-			copy(dAtA[i:], m.Subscriptions[iNdEx])
-			i = encodeVarintTypes(dAtA, i, uint64(len(m.Subscriptions[iNdEx])))
-			i--
-			dAtA[i] = 0x12
-		}
+	if len(m.SubscriptionID) > 0 {
+		i -= len(m.SubscriptionID)
+		copy(dAtA[i:], m.SubscriptionID)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.SubscriptionID)))
+		i--
+		dAtA[i] = 0x12
 	}
 	if len(m.Regions) > 0 {
 		for iNdEx := len(m.Regions) - 1; iNdEx >= 0; iNdEx-- {
@@ -59721,11 +59719,9 @@ func (m *AccessGraphAzureSync) Size() (n int) {
 			n += 1 + l + sovTypes(uint64(l))
 		}
 	}
-	if len(m.Subscriptions) > 0 {
-		for _, s := range m.Subscriptions {
-			l = len(s)
-			n += 1 + l + sovTypes(uint64(l))
-		}
+	l = len(m.SubscriptionID)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
 	}
 	l = len(m.UmiClientId)
 	if l > 0 {
@@ -129903,7 +129899,7 @@ func (m *AccessGraphAzureSync) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Subscriptions", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SubscriptionID", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -129931,7 +129927,7 @@ func (m *AccessGraphAzureSync) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Subscriptions = append(m.Subscriptions, string(dAtA[iNdEx:postIndex]))
+			m.SubscriptionID = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {

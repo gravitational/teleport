@@ -28,6 +28,11 @@ import (
 	"sync"
 )
 
+const (
+	featNameVms   = "azure/virtualmachines"
+	featNameUsers = "azure/users"
+)
+
 const FetcherConcurrency = 5
 
 type Config struct {
@@ -67,11 +72,26 @@ type azureFetcher struct {
 	lastResult              *Resources
 }
 
-func NewAzureFetcher(cfg Config) (Fetcher, error) {
+func NewFetcher(cfg Config) (Fetcher, error) {
 	return &azureFetcher{
 		Config:     cfg,
 		lastResult: &Resources{},
 	}, nil
+}
+
+// BuildFeatures builds the feature flags based on supported types returned by Access Graph
+// Azure endpoints.
+func BuildFeatures(values ...string) Features {
+	features := Features{}
+	for _, value := range values {
+		switch value {
+		case featNameVms:
+			features.VirtualMachines = true
+		case featNameUsers:
+			features.Users = true
+		}
+	}
+	return features
 }
 
 func (a *azureFetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {

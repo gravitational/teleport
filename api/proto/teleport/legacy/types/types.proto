@@ -7777,7 +7777,7 @@ message AccessGraphAWSSync {
 
 message AccessGraphAzureSync {
   repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
-  repeated string Subscriptions = 2 [(gogoproto.jsontag) = "regions,omitempty"];
+  string SubscriptionID = 2 [(gogoproto.jsontag) = "regions,omitempty"];
   string UmiClientId = 3 [(gogoproto.jsontag) = "regions,omitempty"];
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }
