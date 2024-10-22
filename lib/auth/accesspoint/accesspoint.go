@@ -106,6 +106,7 @@ type Config struct {
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
 	ProvisioningStates      services.ProvisioningStates
+	IdentityCenter          services.IdentityCenter
 }
 
 func (c *Config) CheckAndSetDefaults() error {

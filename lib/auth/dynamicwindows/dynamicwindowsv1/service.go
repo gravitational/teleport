@@ -53,23 +53,27 @@ type ServiceConfig struct {
 	Logger *slog.Logger
 }
 
+// Backend is the interface used for writing dynamic Windows desktops
 type Backend interface {
-	Cache
 	CreateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	UpdateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	UpsertDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 	DeleteDynamicWindowsDesktop(ctx context.Context, name string) error
 }
 
+// Cache is the interface used for reading dynamic Windows desktops
 type Cache interface {
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
+// NewService creates new dynamic Windows desktop service
 func NewService(cfg ServiceConfig) (*Service, error) {
 	switch {
 	case cfg.Backend == nil:
 		return nil, trace.BadParameter("backend service is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	}
