@@ -69,7 +69,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
-				require.ErrorContains(t, err, "TargetVersion is unset")
+				require.ErrorContains(t, err, "target_version\n\tversion is unset")
 			},
 		},
 		{
@@ -80,7 +80,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
-				require.ErrorContains(t, err, "TargetVersion is not a valid semantic version")
+				require.ErrorContains(t, err, "target_version\n\tversion \"17-0-0\" is not a valid semantic version")
 			},
 		},
 		{
@@ -88,6 +88,91 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 			spec: nil,
 			assertErr: func(t *testing.T, err error, a ...any) {
 				require.ErrorContains(t, err, "Spec is nil")
+			},
+		},
+		{
+			name: "success agents autoupdate version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "1.2.3-dev.1",
+					TargetVersion: "1.2.3-dev.2",
+					Schedule:      AgentsScheduleRegular,
+					Mode:          AgentsUpdateModeEnabled,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.NoError(t, err)
+			},
+			want: &autoupdate.AutoUpdateVersion{
+				Kind:    types.KindAutoUpdateVersion,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAutoUpdateVersion,
+				},
+				Spec: &autoupdate.AutoUpdateVersionSpec{
+					Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+						StartVersion:  "1.2.3-dev.1",
+						TargetVersion: "1.2.3-dev.2",
+						Schedule:      AgentsScheduleRegular,
+						Mode:          AgentsUpdateModeEnabled,
+					},
+				},
+			},
+		},
+		{
+			name: "invalid empty agents start version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "",
+					TargetVersion: "1.2.3",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleRegular,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "start_version\n\tversion is unset")
+			},
+		},
+		{
+			name: "invalid empty agents target version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "1.2.3-dev",
+					TargetVersion: "",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleRegular,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "target_version\n\tversion is unset")
+			},
+		},
+		{
+			name: "invalid semantic agents start version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "17-0-0",
+					TargetVersion: "1.2.3",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleRegular,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "start_version\n\tversion \"17-0-0\" is not a valid semantic version")
+			},
+		},
+		{
+			name: "invalid semantic agents target version",
+			spec: &autoupdate.AutoUpdateVersionSpec{
+				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
+					StartVersion:  "1.2.3",
+					TargetVersion: "17-0-0",
+					Mode:          AgentsUpdateModeEnabled,
+					Schedule:      AgentsScheduleRegular,
+				},
+			},
+			assertErr: func(t *testing.T, err error, a ...any) {
+				require.ErrorContains(t, err, "target_version\n\tversion \"17-0-0\" is not a valid semantic version")
 			},
 		},
 	}

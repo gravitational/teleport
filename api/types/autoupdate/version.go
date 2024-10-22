@@ -19,7 +19,6 @@
 package autoupdate
 
 import (
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -61,11 +60,22 @@ func ValidateAutoUpdateVersion(v *autoupdate.AutoUpdateVersion) error {
 	}
 
 	if v.Spec.Tools != nil {
-		if v.Spec.Tools.TargetVersion == "" {
-			return trace.BadParameter("TargetVersion is unset")
+		if err := checkVersion(v.Spec.Tools.TargetVersion); err != nil {
+			return trace.Wrap(err, "validating spec.tools.target_version")
 		}
-		if _, err := semver.NewVersion(v.Spec.Tools.TargetVersion); err != nil {
-			return trace.BadParameter("TargetVersion is not a valid semantic version")
+	}
+	if v.Spec.Agents != nil {
+		if err := checkVersion(v.Spec.Agents.StartVersion); err != nil {
+			return trace.Wrap(err, "validating spec.agents.start_version")
+		}
+		if err := checkVersion(v.Spec.Agents.TargetVersion); err != nil {
+			return trace.Wrap(err, "validating spec.agents.target_version")
+		}
+		if err := checkAgentsMode(v.Spec.Agents.Mode); err != nil {
+			return trace.Wrap(err, "validating spec.agents.mode")
+		}
+		if err := checkScheduleName(v.Spec.Agents.Schedule); err != nil {
+			return trace.Wrap(err, "validating spec.agents.schedule")
 		}
 	}
 
