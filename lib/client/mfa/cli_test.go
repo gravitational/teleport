@@ -239,7 +239,6 @@ Enter your security key PIN:
 			prompt.SetStdin(stdin)
 
 			cfg := mfa.NewPromptConfig("proxy.example.com")
-			cfg.AllowStdinHijack = true
 			cfg.WebauthnSupported = true
 			if tc.makeWebauthnLoginFunc != nil {
 				cfg.WebauthnLoginFunc = tc.makeWebauthnLoginFunc(stdin)
@@ -261,7 +260,13 @@ Enter your security key PIN:
 			buffer := make([]byte, 0, 100)
 			out := bytes.NewBuffer(buffer)
 
-			prompt := mfa.NewCLIPrompt(cfg, out)
+			prompt := &mfa.CLIPrompt{
+				CLIPromptConfig: mfa.CLIPromptConfig{
+					PromptConfig:     *cfg,
+					Writer:           out,
+					AllowStdinHijack: true,
+				},
+			}
 			resp, err := prompt.Run(ctx, tc.challenge)
 
 			if tc.expectErr != nil {
