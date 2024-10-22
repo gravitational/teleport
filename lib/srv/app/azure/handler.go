@@ -239,11 +239,11 @@ func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.Session
 		return trace.Wrap(err, "failed to parse Authorization header")
 	}
 
-	s.Log.With(
+	s.Log.DebugContext(r.Context(), "Processing request.",
 		"session_id", sessionCtx.Identity.RouteToApp.SessionID,
 		"azure_identity", sessionCtx.Identity.RouteToApp.AzureIdentity,
 		"claims", claims,
-	).DebugContext(r.Context(), "Processing request.")
+	)
 	token, err := s.getToken(r.Context(), sessionCtx.Identity.RouteToApp.AzureIdentity, claims.Resource)
 	if err != nil {
 		return trace.Wrap(err)

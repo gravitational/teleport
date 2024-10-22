@@ -185,7 +185,7 @@ func rewriteHeaders(r *http.Request, c *transportConfig) {
 	}
 	for _, header := range c.app.GetRewrite().Headers {
 		if common.IsReservedHeader(header.Name) {
-			c.log.With("header_name", header.Name).DebugContext(r.Context(), "Not rewriting Teleport reserved header")
+			c.log.DebugContext(r.Context(), "Not rewriting Teleport reserved header", "header_name", header.Name)
 			continue
 		}
 		values, err := services.ApplyValueTraits(header.Value, c.traits)

@@ -106,7 +106,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		legacyLogger: c.legacyLogger,
 	}
 
-	sess.log.With("session_id", sess.id).DebugContext(ctx, "Creating app session chunk")
+	sess.log.DebugContext(ctx, "Creating app session chunk", "session_id", sess.id)
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
@@ -143,7 +143,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 
-	sess.log.With("session_id", sess.id).DebugContext(ctx, "Created app session chunk")
+	sess.log.DebugContext(ctx, "Created app session chunk", "session_id", sess.id)
 	return sess, nil
 }
 
@@ -266,24 +266,22 @@ func (s *sessionChunk) close(ctx context.Context) error {
 		if s.inflight == 0 {
 			break
 		} else if time.Now().After(deadline) {
-			s.log.With(
+			s.log.DebugContext(ctx, "Timeout expired, forcibly closing session chunk",
 				"session_id", s.id,
 				"inflight_requests", s.inflight,
-			).DebugContext(ctx, "Timeout expired, forcibly closing session chunk")
+			)
 			break
 		}
-		s.log.With(
+		s.log.DebugContext(ctx, "Waiting to close session chunk",
 			"session_id", s.id,
 			"inflight_requests", s.inflight,
-		).DebugContext(ctx, "Waiting to close session chunk")
+		)
 		s.inflightCond.Wait()
 	}
 	s.inflight = -1
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
-	s.log.With(
-		"session_id", s.id,
-	).DebugContext(ctx, "Closed session chunk")
+	s.log.DebugContext(ctx, "Closed session chunk", "session_id", s.id)
 	return trace.Wrap(s.streamCloser.Close(ctx))
 }
 
