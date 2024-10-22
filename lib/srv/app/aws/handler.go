@@ -54,9 +54,12 @@ type signerHandler struct {
 
 // SignerHandlerConfig is the awsSignerHandler configuration.
 type SignerHandlerConfig struct {
-	// Log is a logger for the handler.
+	// LegacyLogger is the old logger.
+	// Should be removed gradually.
+	// Deprecated: use Log instead.
 	LegacyLogger logrus.FieldLogger
-	Log          *slog.Logger
+	// Log is a logger for the handler.
+	Log *slog.Logger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
@@ -83,7 +86,7 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		cfg.LegacyLogger = logrus.WithField(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Log == nil {
-		cfg.Log = slog.Default().With(teleport.ComponentKey, "aws:signer")
+		cfg.Log = slog.With(teleport.ComponentKey, "aws:signer")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -120,7 +123,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 
 // formatForwardResponseError converts an error to a status code and writes the code to a response.
 func (s *signerHandler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.With("error", err).DebugContext(s.closeContext, "Failed to process request.")
+	s.Log.DebugContext(r.Context(), "Failed to process request.", "error", err)
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -222,7 +225,7 @@ func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Requ
 	}
 	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.With("error", auditErr).WarnContext(s.closeContext, "Failed to emit audit event.")
+		s.Log.With("error", auditErr).WarnContext(req.Context(), "Failed to emit audit event.")
 	}
 }
 

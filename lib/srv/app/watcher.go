@@ -50,12 +50,12 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			select {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
-					s.log.With("error", err).ErrorContext(s.closeContext, "Failed to reconcile.")
+					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
 				} else if s.c.OnReconcile != nil {
 					s.c.OnReconcile(s.getApps())
 				}
 			case <-ctx.Done():
-				s.log.DebugContext(s.closeContext, "Reconciler done.")
+				s.log.DebugContext(ctx, "Reconciler done.")
 				return
 			}
 		}
@@ -115,10 +115,10 @@ func (s *Server) guessPublicAddr(app types.Application) types.Application {
 	if err == nil {
 		appCopy.Spec.PublicAddr = pubAddr
 	} else {
-		s.log.With(
+		s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
 			"app_name", app.GetName(),
 			"error", err,
-		).ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty")
+		)
 	}
 	return appCopy
 }
