@@ -112,7 +112,13 @@ type MFAChallengeResponse struct {
 	// WebauthnResponse is a response from a webauthn device.
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 	// SSOResponse is a response from an SSO MFA flow.
-	SSOResponse *proto.SSOResponse `json:"sso_response,omitempty"`
+	SSOResponse *SSOResponse `json:"sso_response"`
+}
+
+// SSOResponse is a json compatible [proto.SSOResponse].
+type SSOResponse struct {
+	RequestID string `json:"request_id,omitempty"`
+	Token     string `json:"token,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
@@ -460,7 +466,33 @@ type MFAAuthenticateChallenge struct {
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
 	// SSOChallenge is an SSO MFA challenge.
-	SSOChallenge *proto.SSOChallenge `json:"sso_challenge"`
+	SSOChallenge *SSOChallenge `json:"sso_challenge"`
+}
+
+// SSOChallenge is a json compatible [proto.SSOChallenge].
+type SSOChallenge struct {
+	RequestID   string        `json:"request_id,omitempty"`
+	RedirectURL string        `json:"redirect_url,omitempty"`
+	Device      *SSOMFADevice `json:"device"`
+}
+
+// SSOMFADevice is a json compatible [proto.SSOMFADevice].
+type SSOMFADevice struct {
+	ConnectorID   string `json:"connector_id,omitempty"`
+	ConnectorType string `json:"connector_type,omitempty"`
+	DisplayName   string `json:"display_name,omitempty"`
+}
+
+func SSOChallengeFromProto(ssoChal *proto.SSOChallenge) *SSOChallenge {
+	return &SSOChallenge{
+		RequestID:   ssoChal.RequestId,
+		RedirectURL: ssoChal.RedirectUrl,
+		Device: &SSOMFADevice{
+			ConnectorID:   ssoChal.Device.ConnectorId,
+			ConnectorType: ssoChal.Device.ConnectorType,
+			DisplayName:   ssoChal.Device.DisplayName,
+		},
+	}
 }
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.

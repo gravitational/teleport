@@ -632,7 +632,7 @@ func newMFAPrompt(stream *terminal.WSStream) mfa.Prompt {
 			challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
 		}
 		if chal.SSOChallenge != nil {
-			challenge.SSOChallenge = chal.SSOChallenge
+			challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
 		}
 
 		if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
