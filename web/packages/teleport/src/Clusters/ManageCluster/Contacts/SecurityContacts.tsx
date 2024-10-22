@@ -4,26 +4,12 @@ import { Flex, H2, Text } from 'design';
 import { MultiRowBox } from 'design/MultiRowBox';
 import * as Icons from 'design/Icon';
 
-import { Contact } from 'teleport/services/contacts/contacts';
-
-import { ContactList } from './ContactList';
+import { ContactList, ContactListProps } from './ContactList';
 import { StyledIconBox, StyledRow } from './BusinessContacts';
 
-type SecurityContactsProps = {
-  contacts: Contact[];
-  maxContacts: number;
-  onSubmit: (contact: Contact) => void;
-  onDelete: (contact: Contact) => void;
-  isLoading: boolean;
-};
+type SecurityContactsProps = ContactListProps;
 
-export function SecurityContacts({
-  contacts,
-  maxContacts,
-  onSubmit,
-  onDelete,
-  isLoading,
-}: SecurityContactsProps) {
+export function SecurityContacts(props: SecurityContactsProps) {
   return (
     <MultiRowBox>
       <StyledRow>
@@ -45,13 +31,7 @@ export function SecurityContacts({
               contacts.
             </Text>
           </Flex>
-          <ContactList
-            contacts={[...contacts]}
-            maxContacts={maxContacts}
-            onDelete={onDelete}
-            onSubmit={onSubmit}
-            isLoading={isLoading}
-          />
+          <ContactList {...props} />
         </Flex>
       </StyledRow>
     </MultiRowBox>

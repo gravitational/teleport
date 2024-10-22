@@ -12,11 +12,13 @@ import { H3 } from 'design/Text';
 
 import { Contact, ContactStatus } from 'teleport/services/contacts/contacts';
 
-export type EmailListProps = {
+export type ContactListProps = {
   maxContacts: number;
   contacts: Contact[];
   onSubmit: (contact: Contact) => void;
   onDelete: (contact: Contact) => void;
+  onNew: () => void;
+  onChange: (contactId: string, email: string) => void;
   isLoading: boolean;
 };
 
@@ -27,68 +29,26 @@ export function ContactList({
   contacts,
   onSubmit,
   onDelete,
+  onNew,
+  onChange,
   isLoading,
-}: EmailListProps) {
-  // stores in the component's state newly
-  //  created contact inputs that weren't commited to the backend yet
-  const [newContacts, setNewContacts] = useState<Contact[]>([]);
-
+}: ContactListProps) {
   const qtyVerifiedContacts = contacts.filter(
     c => c.status === ContactStatus.VERIFIED
   ).length;
-  const qtyContacts = contacts.length + newContacts.length;
-
-  function handleDelete(contact: Contact, isNew: boolean) {
-    if (isNew) {
-      setNewContacts(prev => prev.filter(e => e.email !== contact.email));
-      return;
-    }
-    // call onDelete
-    onDelete(contact);
-  }
-
-  function handleNew() {
-    if (qtyContacts >= maxContacts) {
-      return;
-    }
-
-    setNewContacts(prev => [
-      ...prev,
-      {
-        email: '',
-        status: ContactStatus.PENDING,
-        // Actual ID will be provided by the server when the user submits the contact,
-        // for now we just need something that won't conflict with other new contacts.
-        id: Math.floor(Math.random() * 100000).toString(),
-        business: false,
-        security: false,
-      },
-    ]);
-  }
-
-  function handleNewContactChange(id: string, email: string) {
-    setNewContacts(prev => prev.map(e => (e.id !== id ? e : { ...e, email })));
-  }
-
-  function handleSubmit(contact: Contact) {
-    onSubmit(contact);
-    setNewContacts(prev => prev.filter(e => e.email !== contact.email));
-    return;
-  }
 
   return (
     <Flex flexDirection="column" width="100%" gap="3">
       <H3 mb="1">Email Address</H3>
-      {/* existing contacts */}
       {contacts.map(contact => (
         <ContactInput
           key={contact.id}
           contact={contact}
-          onChange={null} // existing contacts cannot be updated
-          onSubmit={null} // existing contacts cannot be resubmitted
-          onDelete={contact => handleDelete(contact, false)}
-          isNew={false}
-          disableInput={true}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          onDelete={onDelete}
+          isNew={contact.status === ContactStatus.UNCOMMITED}
+          isLoading={isLoading}
           disableAction={
             isLoading ||
             (contact.status === ContactStatus.VERIFIED &&
@@ -96,25 +56,12 @@ export function ContactList({
           }
         />
       ))}
-      {/* new contacts */}
-      {newContacts.map(contact => (
-        <ContactInput
-          key={contact.id}
-          contact={contact}
-          onChange={handleNewContactChange}
-          onSubmit={handleSubmit}
-          onDelete={contact => handleDelete(contact, true)}
-          disableInput={isLoading}
-          disableAction={isLoading}
-          isNew={true}
-        />
-      ))}
       <Box maxWidth="108px">
         <Button
           px="3"
           py="2"
           disabled={contacts.length >= maxContacts}
-          onClick={handleNew}
+          onClick={onNew}
         >
           <Plus size="small" /> Add New
         </Button>
@@ -128,8 +75,8 @@ type ContactInputProps = {
   onChange?: (contactId: string, email: string) => void;
   onSubmit?: (contact: Contact) => void;
   onDelete: (contact: Contact) => void;
+  isLoading: boolean;
   isNew: boolean;
-  disableInput: boolean;
   disableAction: boolean;
 };
 
@@ -138,8 +85,8 @@ function ContactInput({
   onChange,
   onDelete,
   onSubmit,
+  isLoading,
   isNew,
-  disableInput,
   disableAction,
 }: ContactInputProps) {
   return (
@@ -150,7 +97,7 @@ function ContactInput({
         placeholder="mail@example.com"
         value={contact.email}
         onChange={e => onChange(contact.id, e.target.value)}
-        disabled={disableInput}
+        disabled={isLoading || !isNew}
       />
       {!isNew && (
         <Label kind={getLabelKind(contact.status)}>

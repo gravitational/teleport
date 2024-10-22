@@ -5,25 +5,11 @@ import { Flex, H2, Text } from 'design';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import * as Icons from 'design/Icon';
 
-import { Contact } from 'teleport/services/contacts/contacts';
+import { ContactList, ContactListProps } from './ContactList';
 
-import { ContactList } from './ContactList';
+type BusinessContactsProps = ContactListProps;
 
-type BusinessContactsProps = {
-  contacts: Contact[];
-  maxContacts: number;
-  onSubmit: (contact: Contact) => void;
-  onDelete: (contact: Contact) => void;
-  isLoading: boolean;
-};
-
-export function BusinessContacts({
-  contacts,
-  maxContacts,
-  onSubmit,
-  onDelete,
-  isLoading,
-}: BusinessContactsProps) {
+export function BusinessContacts(props: BusinessContactsProps) {
   return (
     <MultiRowBox>
       <StyledRow>
@@ -44,13 +30,7 @@ export function BusinessContacts({
               have up-to 3 business contacts.
             </Text>
           </Flex>
-          <ContactList
-            contacts={[...contacts]}
-            maxContacts={maxContacts}
-            onDelete={onDelete}
-            onSubmit={onSubmit}
-            isLoading={isLoading}
-          />
+          <ContactList {...props} />
         </Flex>
       </StyledRow>
     </MultiRowBox>

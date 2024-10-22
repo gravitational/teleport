@@ -6,7 +6,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { useTeleport } from 'teleport/index';
 import { contactsService } from 'teleport/services/contacts';
-import { Contact } from 'teleport/services/contacts/contacts';
+import { Contact, ContactStatus } from 'teleport/services/contacts/contacts';
 
 import { BusinessContacts } from './BusinessContacts';
 import { SecurityContacts } from './SecurityContacts';
@@ -16,15 +16,20 @@ type ContactType = 'business' | 'security';
 
 // TODO:check permissions
 export function Contacts() {
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
+
+  const [contacts, setContacts] = useState<Contact[]>([]);
+
   const { attempt, run } = useAttempt();
+  const isLoading = attempt.status == 'processing';
+
+  const businessContacts = contacts.filter(c => c.business);
+  const securityContacts = contacts.filter(c => c.security);
 
   console.log('contacts', contacts);
-  const businessContacts = contacts.filter(c => c.business);
-  console.log('businessContacts', businessContacts);
-  const securityContacts = contacts.filter(c => c.security);
+  console.log('business', businessContacts);
+  console.log('security', securityContacts);
 
   useEffect(() => {
     async function init() {
@@ -38,6 +43,7 @@ export function Contacts() {
   function handleSubmit(contact: Contact, contactType: ContactType) {
     const security = contactType === 'security';
     const business = !security;
+    const prevId = contact.id;
     run(() =>
       contactsService
         .createContact(cluster.clusterId, {
@@ -46,17 +52,19 @@ export function Contacts() {
           business,
         })
         .then(resp => {
-          console.log('got back', resp);
-          // resp may or may not be a new contact, since the server will reuse
-          // an existing contact if its email already exists among the cluster's contacts
-          setContacts(prev => prev.map(e => (e.id === resp.id ? resp : e)));
+          setContacts(
+            prev =>
+              prev
+                .filter(c => c.id !== resp.id) // remove possible duplicates
+                .map(c => (c.id === prevId ? { ...resp } : c)) // update the new contact with the server response
+          );
+          return;
         })
     );
   }
 
-  const isLoading = attempt.status == 'processing';
-
   function handleDelete(contact: Contact, contactType: ContactType) {
+    console.log('delete contact', contact.id);
     // toggle flag of the contact type we're updating
     // and use the previous value for the other one
     const security = contactType === 'security' ? false : contact.security;
@@ -67,14 +75,37 @@ export function Contacts() {
           security,
           business,
         })
-        .then(updatedContact => {
-          console.log('got back', updatedContact);
-          const newContacts = contacts.map(e =>
-            e.id === updatedContact.id ? updatedContact : e
+        .then(resp => {
+          console.log('delete resp', resp);
+          setContacts(prev =>
+            prev.map(c => (c.id === resp.id ? { ...resp } : c))
           );
-          console.log('newContacts', newContacts);
-          setContacts(newContacts);
         })
+    );
+  }
+
+  function handleNew(contactType: ContactType) {
+    setContacts([
+      ...contacts,
+      {
+        email: '',
+        status: ContactStatus.UNCOMMITED,
+        // Actual ID will be provided by the server when the user submits the contact,
+        // for now we just need something that won't conflict with other new contacts.
+        id: Math.floor(Math.random() * 100000).toString(),
+        business: contactType === 'business',
+        security: contactType === 'security',
+      },
+    ]);
+  }
+
+  function handleChange(contactId: string, email: string) {
+    setContacts(prev =>
+      prev.map(c =>
+        c.id === contactId && c.status === ContactStatus.UNCOMMITED // only uncommited emails can be changed
+          ? { ...c, email }
+          : c
+      )
     );
   }
 
@@ -93,6 +124,8 @@ export function Contacts() {
           maxContacts={MAX_CONTACTS}
           onSubmit={contact => handleSubmit(contact, 'business')}
           onDelete={contact => handleDelete(contact, 'business')}
+          onNew={() => handleNew('business')}
+          onChange={handleChange}
           isLoading={isLoading}
         />
       </Box>
@@ -101,6 +134,8 @@ export function Contacts() {
         maxContacts={MAX_CONTACTS}
         onSubmit={contact => handleSubmit(contact, 'security')}
         onDelete={contact => handleDelete(contact, 'security')}
+        onNew={() => handleNew('security')}
+        onChange={handleChange}
         isLoading={isLoading}
       />
     </>

@@ -1,11 +1,13 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-// Should match `e/lib/web/ui/contact.go`
+// Should match `e/lib/web/ui/contact.go`, except for UNCOMMITED
 export enum ContactStatus {
   PENDING = 0,
   VERIFIED = 1,
   EXPIRED = 2,
+  // UI-only status, signals that a contact exists only on the web UI state
+  UNCOMMITED = 1000,
 }
 
 export type Contact = {
