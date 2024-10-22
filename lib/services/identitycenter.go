@@ -48,7 +48,7 @@ type IdentityCenterAccount struct {
 }
 
 // CloneResource creates a deep copy of the underlying account resource
-func (a *IdentityCenterAccount) CloneResource() IdentityCenterAccount {
+func (a IdentityCenterAccount) CloneResource() IdentityCenterAccount {
 	return IdentityCenterAccount{
 		Account: proto.Clone(a.Account).(*identitycenterv1.Account),
 	}
