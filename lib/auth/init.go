@@ -328,6 +328,10 @@ type InitConfig struct {
 
 	// Logger is the logger instance for the auth service to use.
 	Logger *slog.Logger
+
+	// IdentityCenter is the Identity Center state storage service to use in
+	// this node.
+	IdentityCenter services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer

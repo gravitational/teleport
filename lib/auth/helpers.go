@@ -342,6 +342,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			DiscoveryConfigs:        svces.DiscoveryConfigs,
 			DynamicAccess:           svces.DynamicAccessExt,
 			Events:                  svces.Events,
+			IdentityCenter:          svces.IdentityCenter,
 			Integrations:            svces.Integrations,
 			KubeWaitingContainers:   svces.KubeWaitingContainer,
 			Kubernetes:              svces.Kubernetes,
