@@ -2259,15 +2259,18 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
+
 	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
 	// kept a secret on the front end to minimize the risk of a phishing attack.
-	if response.ClientRedirectURL == sso.WebMFARedirect && response.MFAToken != "" {
-		u.RawQuery = url.Values{"response": {string(out)}}.Encode()
+	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+		q := u.Query()
+		q.Add("response", string(out))
+		u.RawQuery = q.Encode()
 		return u, nil
 	}
 
-	// Extract secret out of the request.
-	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}

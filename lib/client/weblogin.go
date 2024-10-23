@@ -474,6 +474,9 @@ type SSOChallenge struct {
 	RequestID   string        `json:"requestId,omitempty"`
 	RedirectURL string        `json:"redirectUrl,omitempty"`
 	Device      *SSOMFADevice `json:"device"`
+	// ChannelID is used by the front end to differentiate multiple ongoing SSO
+	// MFA requests so they don't interfere with each other.
+	ChannelID string `json:"channelId"`
 }
 
 // SSOMFADevice is a json compatible [proto.SSOMFADevice].
