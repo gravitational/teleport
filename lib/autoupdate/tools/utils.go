@@ -63,7 +63,8 @@ func DefaultClientTools() []string {
 	}
 }
 
-func checkToolVersion(toolsDir string) (string, error) {
+// CheckToolVersion returns current installed client tools version
+func CheckToolVersion(toolsDir string) (string, error) {
 	// Find the path to the current executable.
 	path, err := toolName(toolsDir)
 	if err != nil {
@@ -87,7 +88,7 @@ func checkToolVersion(toolsDir string) (string, error) {
 	command.Env = []string{teleportToolsVersionEnv + "=off"}
 	output, err := command.Output()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.WrapWithMessage(err, "failed to determine version of %q tool", path)
 	}
 
 	// The output for "{tsh, tctl} version" can be multiple lines. Find the

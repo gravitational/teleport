@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -114,30 +115,33 @@ func NewUpdater(tools []string, toolsDir string, localVersion string, options ..
 // CheckLocal is run at client tool startup and will only perform local checks.
 // Returns the version needs to be updated and re-executed, by re-execution flag we
 // understand that update and re-execute is required.
-func (u *Updater) CheckLocal() (version string, reExec bool) {
+func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case "off":
-		return "", false
+		return "", false, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		return u.localVersion, false
+		return u.localVersion, false, nil
+	}
+
+	if requestedVersion != "" {
+		if _, err := semver.NewVersion(requestedVersion); err != nil {
+			return "", false, trace.WrapWithMessage(err, "not valid semantic version")
+		}
+		return requestedVersion, true, nil
 	}
 
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
-	toolsVersion, err := checkToolVersion(u.toolsDir)
+	toolsVersion, err := CheckToolVersion(u.toolsDir)
 	if err != nil {
-		return "", false
-	}
-	// The user has requested a specific version of client tools.
-	if requestedVersion != "" && requestedVersion != toolsVersion {
-		return requestedVersion, true
+		return "", false, trace.Wrap(err)
 	}
 
-	return toolsVersion, false
+	return toolsVersion, true, nil
 }
 
 // CheckRemote first checks the version set by the environment variable. If not set or disabled,
@@ -157,6 +161,13 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 		return u.localVersion, false, nil
 	}
 
+	if requestedVersion != "" {
+		if _, err := semver.NewVersion(requestedVersion); err != nil {
+			return "", false, trace.WrapWithMessage(err, "not valid semantic version")
+		}
+		return requestedVersion, true, nil
+	}
+
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return "", false, trace.Wrap(err)
@@ -173,23 +184,21 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
-	toolsVersion, err := checkToolVersion(u.toolsDir)
+	toolsVersion, err := CheckToolVersion(u.toolsDir)
 	if err != nil {
 		return "", false, trace.Wrap(err)
 	}
 
 	switch {
-	case requestedVersion != "" && requestedVersion != toolsVersion:
-		return requestedVersion, true, nil
 	case resp.AutoUpdate.ToolsMode != autoupdate.ToolsUpdateModeEnabled || resp.AutoUpdate.ToolsVersion == "":
-		return "", false, nil
+		return toolsVersion, true, nil
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
 		return resp.AutoUpdate.ToolsVersion, false, nil
 	case resp.AutoUpdate.ToolsVersion != toolsVersion:
 		return resp.AutoUpdate.ToolsVersion, true, nil
 	}
 
-	return toolsVersion, false, nil
+	return toolsVersion, true, nil
 }
 
 // UpdateWithLock acquires filesystem lock, downloads requested version package,
@@ -211,12 +220,12 @@ func (u *Updater) UpdateWithLock(ctx context.Context, toolsVersion string) (err 
 	// If the version of the running binary or the version downloaded to
 	// tools directory is the same as the requested version of client tools,
 	// nothing to be done, exit early.
-	teleportVersion, err := checkToolVersion(u.toolsDir)
+	teleportVersion, err := CheckToolVersion(u.toolsDir)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 
 	}
-	if toolsVersion == u.localVersion || toolsVersion == teleportVersion {
+	if toolsVersion == teleportVersion {
 		return nil
 	}
 
@@ -237,10 +246,18 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 		return trace.Wrap(err)
 	}
 
+	var pkgNames []string
 	for _, pkg := range packages {
-		if err := u.update(ctx, pkg); err != nil {
+		pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffix)
+		if err := u.update(ctx, pkg, pkgName); err != nil {
 			return trace.Wrap(err)
 		}
+		pkgNames = append(pkgNames, pkgName)
+	}
+
+	// Cleanup the tools directory with previously downloaded and un-archived versions.
+	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffix, pkgNames); err != nil {
+		slog.WarnContext(ctx, "failed to clean up tools directory", "error", err)
 	}
 
 	return nil
@@ -248,7 +265,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 
 // update downloads the archive and validate against the hash. Download to a
 // temporary path within tools directory.
-func (u *Updater) update(ctx context.Context, pkg packageURL) error {
+func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) error {
 	hash, err := u.downloadHash(ctx, pkg.Hash)
 	if pkg.Optional && trace.IsNotFound(err) {
 		return nil
@@ -279,7 +296,6 @@ func (u *Updater) update(ctx context.Context, pkg packageURL) error {
 		return trace.BadParameter("hash of archive does not match downloaded archive")
 	}
 
-	pkgName := fmt.Sprint(uuid.New().String(), updatePackageSuffix)
 	extractDir := filepath.Join(u.toolsDir, pkgName)
 	if runtime.GOOS != constants.DarwinOS {
 		if err := os.Mkdir(extractDir, 0o755); err != nil {
@@ -290,10 +306,6 @@ func (u *Updater) update(ctx context.Context, pkg packageURL) error {
 	// Perform atomic replace so concurrent exec do not fail.
 	if err := packaging.ReplaceToolsBinaries(u.toolsDir, f.Name(), extractDir, u.tools); err != nil {
 		return trace.Wrap(err)
-	}
-	// Cleanup the tools directory with previously downloaded and un-archived versions.
-	if err := packaging.RemoveWithSuffix(u.toolsDir, updatePackageSuffix, pkgName); err != nil {
-		slog.WarnContext(ctx, "failed to clean up tools directory", "error", err)
 	}
 
 	return nil
@@ -340,7 +352,7 @@ func (u *Updater) downloadHash(ctx context.Context, url string) ([]byte, error) 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, trace.NotFound("hash file is not found: %v", resp.StatusCode)
+		return nil, trace.NotFound("hash file is not found: %q", url)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, trace.BadParameter("bad status when downloading archive hash: %v", resp.StatusCode)

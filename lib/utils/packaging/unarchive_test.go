@@ -132,7 +132,7 @@ func TestRemoveWithSuffix(t *testing.T) {
 	dirInSkipPath := filepath.Join(skipPath, dirForRemove)
 	require.NoError(t, os.MkdirAll(skipPath, 0o755))
 
-	err := RemoveWithSuffix(testDir, dirForRemove, skipName)
+	err := RemoveWithSuffix(testDir, dirForRemove, []string{skipName})
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(testDir, dirForRemove))

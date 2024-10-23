@@ -116,7 +116,10 @@ func Run(ctx context.Context, commands []CLICommand) {
 		utils.FatalError(err)
 	}
 	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
-	toolsVersion, reExec := updater.CheckLocal()
+	toolsVersion, reExec, err := updater.CheckLocal()
+	if err != nil {
+		utils.FatalError(err)
+	}
 	if reExec {
 		// Download the version of client tools required by the cluster. This
 		// is required if the user passed in the TELEPORT_TOOLS_VERSION

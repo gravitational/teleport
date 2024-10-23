@@ -38,13 +38,13 @@ const (
 )
 
 // RemoveWithSuffix removes all that matches the provided suffix, except for file or directory with `skipName`.
-func RemoveWithSuffix(dir, suffix, skipName string) error {
+func RemoveWithSuffix(dir, suffix string, skipNames []string) error {
 	var removePaths []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if skipName == info.Name() {
+		if slices.Contains(skipNames, info.Name()) {
 			return nil
 		}
 		if !strings.HasSuffix(info.Name(), suffix) {

@@ -48,7 +48,10 @@ func main() {
 		version,
 		tools.WithBaseURL(baseURL),
 	)
-	toolsVersion, reExec := updater.CheckLocal()
+	toolsVersion, reExec, err := updater.CheckLocal()
+	if err != nil {
+		log.Fatal(err)
+	}
 	if reExec {
 		// Download and update the version of client tools required by the cluster.
 		// This is required if the user passed in the TELEPORT_TOOLS_VERSION explicitly.
