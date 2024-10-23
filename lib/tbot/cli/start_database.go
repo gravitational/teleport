@@ -34,10 +34,10 @@ type DatabaseCommand struct {
 	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Format      string
-	Service     string
-	Username    string
-	Database    string
+	Format   string
+	Service  string
+	Username string
+	Database string
 }
 
 // NewDatabaseCommand initializes a command and flags for database outputs and

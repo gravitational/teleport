@@ -24,11 +24,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 func TestDestinationDirectory_Lock(t *testing.T) {

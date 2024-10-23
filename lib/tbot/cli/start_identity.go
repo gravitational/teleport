@@ -34,7 +34,7 @@ type IdentityCommand struct {
 	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Cluster     string
+	Cluster string
 }
 
 // NewIdentityCommand initializes the command and flags for identity outputs

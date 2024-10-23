@@ -168,12 +168,13 @@ func (dd *DestinationDirectory) Init(ctx context.Context, subdirs []string) erro
 					"underlying issue.")
 			}
 
+			const msg = "ACLs were requested but could not be configured, they " +
+				"will be disabled. To resolve this warning, ensure ACLs are " +
+				"supported and the directory is owned by the bot user, or " +
+				"remove any configured readers to disable ACLs"
 			log.WarnContext(
 				ctx,
-				"ACLs were requested but could not be configured, they will be "+
-					"disabled. To resolve this warning, ensure ACLs are supported "+
-					"and the directory is owned by the bot user, or remove any "+
-					"configured readers to disable ACLs",
+				msg,
 				"path", dd.Path,
 				"error", err,
 				"readers", dd.Readers,
@@ -322,11 +323,12 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	if len(dd.Readers) > 0 {
 		// TODO: consider moving ownership check into Init()?
 		if !ownedByBot {
+			const msg = "This destination is not owned by the bot user so ACLs " +
+				"will not be enforced. To silence this warning, fix destination " +
+				"file ownership or remove configured `readers`"
 			log.WarnContext(
 				context.TODO(),
-				"This destination is not owned by the bot user so ACLs will "+
-					"not be enforced. To silence this warning, fix destination "+
-					"file ownership or remove configured `readers`",
+				msg,
 				"path", dd.Path,
 			)
 

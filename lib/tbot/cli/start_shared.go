@@ -238,7 +238,7 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 
 // sharedDestinationArgs are arguments common to all commands that accept a
 // --destination flag and any related flags. Downstream commands will need to
-// call `BuildDestination()` to retreive the value.
+// call `BuildDestination()` to retrieve the value.
 type sharedDestinationArgs struct {
 	Destination  string
 	ReaderUsers  []string
