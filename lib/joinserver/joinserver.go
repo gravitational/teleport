@@ -68,13 +68,12 @@ type joinServiceClient interface {
 type JoinServiceGRPCServer struct {
 	proto.UnimplementedJoinServiceServer
 
-	isProxy           bool
 	joinServiceClient joinServiceClient
 	clock             clockwork.Clock
 }
 
 // NewJoinServiceGRPCServer returns a new JoinServiceGRPCServer.
-func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient, isProxy bool) *JoinServiceGRPCServer {
+func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceGRPCServer {
 	return &JoinServiceGRPCServer{
 		joinServiceClient: joinServiceClient,
 		clock:             clockwork.NewRealClock(),
@@ -384,23 +383,16 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 
 // RegisterUsingToken allows nodes and proxies to join the cluster using
 // legacy join methods which do not yet have their own RPC.
-// On the Auth server, this method will call the auth.ServerWithRoles's
+// On the Auth server, this method will call the auth.Server's
 // RegisterUsingToken method. When running on the Proxy, this method will
-// forward the request to the Auth server.
+// forward the request to the Auth server's JoinServiceServer.
 func (s *JoinServiceGRPCServer) RegisterUsingToken(
 	ctx context.Context, req *types.RegisterUsingTokenRequest,
 ) (*proto.Certs, error) {
-	// We only want to set bot params/client id if we are the proxy, because
-	// ServerWithRoles currently handles this for us on the auth server. If the
-	// auth server join service also did this, we would emit concerning warnings
-	// about potential fakes.
-	// TODO(strideynet): In v18.0.0, we can move the handling up ServerWithRoles
-	// and into here once the legacy HTTP endpoint is gone.
-	if s.isProxy {
-		if err := setClientRemoteAddr(ctx, req); err != nil {
-			return nil, trace.Wrap(err, "setting client address")
-		}
-		setBotParameters(ctx, req)
+	if err := setClientRemoteAddr(ctx, req); err != nil {
+		return nil, trace.Wrap(err, "setting client address")
 	}
+	setBotParameters(ctx, req)
+
 	return s.joinServiceClient.RegisterUsingToken(ctx, req)
 }

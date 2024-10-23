@@ -573,9 +573,12 @@ func (a *ServerWithRoles) GetClusterCACert(
 	return a.authServer.GetClusterCACert(ctx)
 }
 
+// Deprecated: This method only exists to service the RegisterUsingToken HTTP
+// RPC, which has been replaced by an RPC on the JoinServiceServer.
+// JoinServiceServer directly invokes auth.Server and performs its own checks
+// on metadata.
+// TODO(strideynet): DELETE IN V18.0.0
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	// TODO(strideynet): In v18.0.0, this logic can be moved into
-	// JoinServiceGRPCServer.
 	isProxy := a.hasBuiltinRole(types.RoleProxy)
 
 	// We do not trust remote addr in the request unless it's coming from the Proxy.
@@ -615,48 +618,6 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
-}
-
-// RegisterUsingIAMMethod registers the caller using the IAM join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingIAMMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
-	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
-	return certs, trace.Wrap(err)
-}
-
-// RegisterUsingAzureMethod registers the caller using the Azure join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingAzureMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
-	certs, err := a.authServer.RegisterUsingAzureMethod(ctx, challengeResponse)
-	return certs, trace.Wrap(err)
-}
-
-// RegisterUsingTPMMethod registers the caller using the TPM join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingTPMMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingTPMMethod(
-	ctx context.Context,
-	initReq *proto.RegisterUsingTPMMethodInitialRequest,
-	solveChallenge client.RegisterTPMChallengeResponseFunc,
-) (*proto.Certs, error) {
-	certs, err := a.authServer.registerUsingTPMMethod(
-		ctx, initReq, solveChallenge,
-	)
-	return certs, trace.Wrap(err)
 }
 
 // GenerateHostCerts generates new host certificates (signed

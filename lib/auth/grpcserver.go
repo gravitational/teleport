@@ -5164,12 +5164,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	trustv1pb.RegisterTrustServiceServer(server, trust)
 
-	// create server with no-op role to pass to JoinService server
-	serverWithNopRole, err := serverWithNopRole(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole, false)
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(cfg.AuthServer)
 	authpb.RegisterJoinServiceServer(server, joinServiceServer)
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{

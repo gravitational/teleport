@@ -49,6 +49,7 @@ type mockJoinServiceClient struct {
 	gotAzureChallengeResponse *proto.RegisterUsingAzureMethodRequest
 	gotTPMChallengeResponse   *proto.RegisterUsingTPMMethodChallengeResponse
 	gotTPMInitReq             *proto.RegisterUsingTPMMethodInitialRequest
+	gotRegisterUsingTokenReq  *types.RegisterUsingTokenRequest
 }
 
 func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
@@ -82,6 +83,14 @@ func (c *mockJoinServiceClient) RegisterUsingTPMMethod(
 		return nil, trace.Wrap(err)
 	}
 	c.gotTPMChallengeResponse = resp
+	return c.returnCerts, c.returnError
+}
+
+func (c *mockJoinServiceClient) RegisterUsingToken(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	c.gotRegisterUsingTokenReq = req
 	return c.returnCerts, c.returnError
 }
 
@@ -133,7 +142,7 @@ func newTestPack(t *testing.T) *testPack {
 	// create the first instance of JoinServiceGRPCServer wrapping the mock auth
 	// server, to imitate the JoinServiceGRPCServer which runs on Auth
 	authGRPCServer, authGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
-	authServer := NewJoinServiceGRPCServer(mockAuthServer, false)
+	authServer := NewJoinServiceGRPCServer(mockAuthServer)
 	proto.RegisterJoinServiceServer(authGRPCServer, authServer)
 
 	// create a client to the "auth" gRPC service
@@ -144,7 +153,7 @@ func newTestPack(t *testing.T) *testPack {
 	// create a second instance of JoinServiceGRPCServer wrapping the "auth"
 	// gRPC client, to imitate the JoinServiceGRPCServer which runs on Proxy
 	proxyGRPCServer, proxyGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
-	proxyServer := NewJoinServiceGRPCServer(authJoinServiceClient, true)
+	proxyServer := NewJoinServiceGRPCServer(authJoinServiceClient)
 	proto.RegisterJoinServiceServer(proxyGRPCServer, proxyServer)
 
 	// create a client to the "proxy" gRPC service
