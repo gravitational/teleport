@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
+
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import Flex from 'design/Flex';
@@ -25,6 +27,12 @@ import * as Icons from 'design/Icon';
 import Text, { H2 } from 'design/Text';
 
 import Box, { BoxProps } from 'design/Box';
+
+import { useParams } from 'react-router';
+
+import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
+
+import { ShimmerBox } from 'design/ShimmerBox';
 
 import {
   FeatureBox,
@@ -37,34 +45,49 @@ import { useNoMinWidth } from 'teleport/Main';
 import { Cluster } from 'teleport/services/clusters';
 
 export function ManageCluster() {
-  // TODO: use cluster ID from path?
-  // const { clusterId } = useParams<{
-  //   clusterId: string;
-  // }>();
+  const { clusterId } = useParams<{
+    clusterId: string;
+  }>();
   const ctx = useTeleport();
-  const cluster = ctx.storeUser.state.cluster;
+
+  const [cluster, setCluster] = useState<Cluster>(null);
+  const { attempt, run } = useAttempt();
+
+  useEffect(() => {
+    function init() {
+      run(() =>
+        ctx.clusterService.fetchClusterDetails(clusterId).then(setCluster)
+      );
+    }
+
+    init();
+  }, [clusterId, run, ctx.clusterService]);
 
   useNoMinWidth();
 
+  const isLoading = attempt.status === 'processing';
+
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
-        <FeatureHeaderTitle>
-          {/* todo breadcrumbs/header */}
-          Manage Clusters / {cluster.clusterId}
-        </FeatureHeaderTitle>
+      <FeatureHeader>
+        <FeatureHeaderTitle>{clusterId}</FeatureHeaderTitle>
       </FeatureHeader>
-      <ClusterInformation cluster={cluster} />
+      {attempt.status === 'failed' && attempt.statusText}
+      {attempt.status !== 'failed' && (
+        <ClusterInformation cluster={cluster} isLoading={isLoading} />
+      )}
     </FeatureBox>
   );
 }
 
 type ClusterInformationProps = {
-  cluster: Cluster;
+  cluster?: Cluster;
+  isLoading: boolean;
   style?: React.CSSProperties;
 } & BoxProps;
 export function ClusterInformation({
   cluster,
+  isLoading,
   style,
   ...rest
 }: ClusterInformationProps) {
@@ -79,18 +102,35 @@ export function ClusterInformation({
         </Flex>
       </Row>
       <Row>
-        <DataItem title="Cluster Name" data={cluster.clusterId} />
-        <DataItem title="Teleport Version" data={cluster.authVersion} />
-        <DataItem title="Public Address" data={cluster.publicURL} />
+        <DataItem
+          title="Cluster Name"
+          data={cluster?.clusterId}
+          isLoading={isLoading}
+        />
+        <DataItem
+          title="Teleport Version"
+          data={cluster?.authVersion}
+          isLoading={isLoading}
+        />
+        <DataItem
+          title="Public Address"
+          data={cluster?.publicURL}
+          isLoading={isLoading}
+        />
         {cfg.tunnelPublicAddress && (
-          <DataItem title="Public SSH Tunnel" data={cfg.tunnelPublicAddress} />
+          <DataItem
+            title="Public SSH Tunnel"
+            data={cfg.tunnelPublicAddress}
+            isLoading={isLoading}
+          />
         )}
         {cfg.edition === 'ent' &&
           !cfg.isCloud &&
-          cluster.licenseExpiryDateText && (
+          cluster?.licenseExpiryDateText && (
             <DataItem
               title="License Expiry"
-              data={cluster.licenseExpiryDateText}
+              data={cluster?.licenseExpiryDateText}
+              isLoading={isLoading}
             />
           )}
       </Row>
@@ -106,19 +146,34 @@ export const IconBox = styled(Box)`
   background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
 `;
 
-export const DataItem = ({ title = '', data = null }) => (
+export const DataItem = ({ title = '', data = null, isLoading = false }) => (
   <DataItemFlex>
     <Text typography="body2" bold style={{ width: '136px' }}>
       {title}:
     </Text>
-    <Text typography="body2">{data}</Text>
+    {isLoading ? (
+      <LoadingSkeleton
+        count={1}
+        Element={
+          <ShimmerBox height="20px" width={`${randomRange(30, 200)}px`} />
+        }
+      />
+    ) : (
+      <Text typography="body2">{data}</Text>
+    )}
   </DataItemFlex>
 );
 
 const DataItemFlex = styled(Flex)`
   margin-bottom: ${props => props.theme.space[3]}px;
+  align-items: center;
   @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
     flex-direction: column;
     padding-left: ${props => props.theme.space[2]}px;
+    align-items: start;
   }
 `;
+
+function randomRange(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}

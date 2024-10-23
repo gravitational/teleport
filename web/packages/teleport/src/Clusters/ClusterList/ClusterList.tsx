@@ -87,9 +87,9 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
 
   $items.push(<DropdownDivider />);
 
-  const isRoot = cfg.proxyCluster === clusterId;
-  const route = isRoot ? cfg.routes.manageCluster : 'TODO'; // TODO
-  $items.push(renderMenuItem('Manage Cluster', route));
+  $items.push(
+    renderMenuItem('Manage Cluster', cfg.getManageClusterRoute(clusterId))
+  );
 
   return (
     <Cell align="right">{$items && <MenuButton children={$items} />}</Cell>
