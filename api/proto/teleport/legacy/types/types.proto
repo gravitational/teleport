@@ -7209,6 +7209,25 @@ message IntegrationV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+
+  // Status has the current state of the integration.
+  IntegrationStatusV1 Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
+}
+
+// IntegrationStatusV1 contains the current status for a given integration.
+message IntegrationStatusV1 {
+  // PendingUserTasksNotificationID contains the notification ID that indicates that this integration has unresolved user tasks.
+  string PendingUserTasksNotificationID = 1 [(gogoproto.jsontag) = "pending_user_tasks_notification_id,omitempty"];
+  // NeedsAttentionNotificationExpires contains the expiration date for the notification.
+  // Used to ensure new notifications' expiration is the greater between the current notification and the new one.
+  google.protobuf.Timestamp PendingUserTasksNotificationExpires = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "pending_user_tasks_notification_expires,omitempty"
+  ];
 }
 
 // IntegrationSpecV1 contains properties of all the supported integrations.
