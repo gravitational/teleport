@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/externalauditstorage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	ecaint "github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -45,7 +46,7 @@ type ServiceConfig struct {
 	// IntegrationSvc is required to create a configurator on demand for draft testing
 	IntegrationSvc *local.IntegrationsService
 	// OIDCTokenFn is method used to retrieve OIDC tokens for use in OIDC AWS Config
-	OIDCTokenFn ecaint.GenerateOIDCTokenFn
+	OIDCTokenFn awsoidc.GenerateOIDCTokenFn
 	Emitter     apievents.Emitter
 }
 
@@ -59,7 +60,7 @@ type Service struct {
 	externalAuditStorage     *local.ExternalAuditStorageService
 	clusterAuditConfigGetter ClusterAuditConfigGetter
 	integrationSvc           *local.IntegrationsService
-	oidcTokenFn              ecaint.GenerateOIDCTokenFn
+	oidcTokenFn              awsoidc.GenerateOIDCTokenFn
 	emitter                  apievents.Emitter
 }
 
