@@ -297,6 +297,7 @@ describe('roleToRoleEditorModel', () => {
           labels: [{ name: 'bar', value: 'foo' }],
           resources: [
             {
+              id: expect.any(String),
               kind: { value: 'pod', label: 'Pod' },
               name: 'some-pod',
               namespace: '*',
@@ -306,6 +307,7 @@ describe('roleToRoleEditorModel', () => {
               ],
             },
             {
+              id: expect.any(String),
               kind: { value: 'kube_node', label: 'Node' },
               name: 'some-node',
               namespace: '',
@@ -391,6 +393,7 @@ describe('roleEditorModelToRole', () => {
             labels: [{ name: 'bar', value: 'foo' }],
             resources: [
               {
+                id: 'dummy-id-1',
                 kind: { value: 'pod', label: 'Pod' },
                 name: 'some-pod',
                 namespace: '*',
@@ -400,6 +403,7 @@ describe('roleEditorModelToRole', () => {
                 ],
               },
               {
+                id: 'dummy-id-2',
                 kind: { value: 'kube_node', label: 'Node' },
                 name: 'some-node',
                 namespace: '',

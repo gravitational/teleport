@@ -466,23 +466,23 @@ export function KubernetesAccessSpecSection({
       />
 
       <Flex flexDirection="column" gap={3} mt={3}>
-        {value.resources.map((resource, iRes) => (
+        {value.resources.map((resource, index) => (
           <KubernetesResourceView
-            key={iRes}
+            key={resource.id}
             value={resource}
             isProcessing={isProcessing}
             onChange={newRes =>
               onChange?.({
                 ...value,
                 resources: value.resources.map((res, i) =>
-                  i === iRes ? newRes : res
+                  i === index ? newRes : res
                 ),
               })
             }
             onRemove={() =>
               onChange?.({
                 ...value,
-                resources: value.resources.toSpliced(iRes, 1),
+                resources: value.resources.toSpliced(index, 1),
               })
             }
           />
