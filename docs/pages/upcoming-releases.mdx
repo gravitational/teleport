@@ -25,11 +25,10 @@ Teleport admins will have the option to use elliptic curve cryptography for the
 majority of user, host, and certificate authority key material. This includes
 Ed25519 SSH keys and ECDSA TLS keys, replacing the RSA keys used today.
 
-#### AWS Identity Center integration
+#### (Preview) AWS Identity Center integration
 
 Teleport will integrate with AWS Identity Center to allow users to sync and
-manage AWS IC group and their members and allow them to request access to AWS
-IC permission sets.
+manage AWS IC group members via Access Lists.
 
 #### Hardware Key support for Teleport Connect
 
@@ -75,6 +74,11 @@ Github with RBAC and audit logging support.
 
 Teleport users will be able to satisfy per-session MFA checks by authenticating with an external
 identity provider as an alternative to using second factors registered with Teleport.
+
+#### Access requests support for AWS Identity Center
+
+AWS Identity Center integration will allow users to request short or long term access to permission
+sets via Access Requests.
 
 #### Database access for PostgreSQL via web UI
 
