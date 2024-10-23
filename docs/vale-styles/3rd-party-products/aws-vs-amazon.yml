@@ -16,7 +16,7 @@
 extends: substitution
 message: "Incorrect AWS product name. Use %s instead of %s."
 scope: raw
-level: warning
+level: error
 ignorecase: true
 swap:
   "Amazon Account Management": AWS Account Management

@@ -1,7 +1,7 @@
 extends: existence
 link: "https://github.com/gravitational/docs/blob/main/docs-contributors/style-guide.md#voice"
 message: "Avoid using '%s' as a qualifier, since it is subject to interpretation. Use more technically precise terms instead."
-level: error
+level: warning
 ignorecase: true
 tokens:
   - "powerful(ly)?"
