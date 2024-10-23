@@ -34,7 +34,6 @@ type IdentityCommand struct {
 	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Destination string
 	Cluster     string
 }
 
@@ -61,7 +60,7 @@ func (c *IdentityCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		return trace.Wrap(err)
 	}
 
-	dest, err := c.sharedDestinationArgs.BuildDestination()
+	dest, err := c.BuildDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}

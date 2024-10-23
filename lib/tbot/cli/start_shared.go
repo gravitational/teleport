@@ -252,7 +252,7 @@ func newSharedDestinationArgs(cmd *kingpin.CmdClause) *sharedDestinationArgs {
 
 	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&args.Destination)
 	cmd.Flag("reader-user", "An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.").StringsVar(&args.ReaderUsers)
-	cmd.Flag("reader-group", "An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.").StringsVar(&args.ReaderUsers)
+	cmd.Flag("reader-group", "An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.").StringsVar(&args.ReaderGroups)
 
 	return args
 }
