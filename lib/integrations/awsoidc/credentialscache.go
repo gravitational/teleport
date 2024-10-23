@@ -131,7 +131,7 @@ func NewCredentialsCache(options CredentialsCacheOptions) (*CredentialsCache, er
 	return &CredentialsCache{
 		roleARN:                 options.RoleARN,
 		integration:             options.Integration,
-		log:                     options.Log,
+		log:                     options.Log.With("integration", options.Integration),
 		initialized:             initialized,
 		closeInitialized:        sync.OnceFunc(func() { close(initialized) }),
 		gotFirstCredsOrErr:      gotFirstCredsOrErr,
@@ -204,8 +204,10 @@ func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
 		// cache are still valid. If yes, just log debug, it will be retried on
 		// next interval check.
 		if credsFromCache.HasKeys() && now.Before(credsFromCache.Expires) {
-			cc.log.DebugContext(ctx, "Using existing credentials",
-				"ttl", ttlValue{now: now, expiry: credsFromCache.Expires})
+			cc.log.DebugContext(ctx, "Continuing to use existing credentials",
+				slog.Duration(
+					"ttl",
+					credsFromCache.Expires.Sub(now).Round(time.Second)))
 			return
 		}
 		// If existing creds are expired, update cached error.
@@ -220,15 +222,6 @@ func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
 		slog.Time("expires", creds.Expires))
 }
 
-type ttlValue struct {
-	now    time.Time
-	expiry time.Time
-}
-
-func (v *ttlValue) LogValue() slog.Value {
-	return slog.DurationValue(v.expiry.Sub(v.now).Round(time.Second))
-}
-
 func (cc *CredentialsCache) setCredsOrErr(coe credsOrErr) {
 	cc.credsOrErrMu.Lock()
 	defer cc.credsOrErrMu.Unlock()
@@ -240,7 +233,7 @@ func (cc *CredentialsCache) refresh(ctx context.Context) (aws.Credentials, error
 	cc.log.InfoContext(ctx, "Refreshing AWS credentials")
 	defer cc.log.InfoContext(ctx, "Exiting AWS credentials refresh")
 
-	cc.log.InfoContext(ctx, "Generating Token", "integration", cc.integration)
+	cc.log.InfoContext(ctx, "Generating Token")
 	oidcToken, err := cc.generateOIDCTokenFn(ctx, cc.integration)
 	if err != nil {
 		cc.log.ErrorContext(ctx, "Token generation failed", errorValue(err))

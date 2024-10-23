@@ -92,8 +92,9 @@ func TestCredentialsCache(t *testing.T) {
 		clock: clock,
 	}
 	cacheUnderTest, err := NewCredentialsCache(CredentialsCacheOptions{
-		STSClient: stsClient,
-		Clock:     clock,
+		STSClient:   stsClient,
+		Integration: "test",
+		Clock:       clock,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, cacheUnderTest)
