@@ -66,7 +66,9 @@ export type MetadataModel = {
 export type AccessSpec =
   | KubernetesAccessSpec
   | ServerAccessSpec
-  | AppAccessSpec;
+  | AppAccessSpec
+  | DatabaseAccessSpec
+  | WindowsDesktopAccessSpec;
 
 /**
  * A base for all access specification section models. Contains a type
@@ -82,7 +84,12 @@ type AccessSpecBase<T extends AccessSpecKind> = {
   kind: T;
 };
 
-export type AccessSpecKind = 'node' | 'kube_cluster' | 'app';
+export type AccessSpecKind =
+  | 'node'
+  | 'kube_cluster'
+  | 'app'
+  | 'db'
+  | 'windows_desktop';
 
 /** Model for the Kubernetes access specification section. */
 export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'> & {
@@ -205,7 +212,7 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
     ] as const
   )
     .toSorted((a, b) => a.localeCompare(b))
-    .map(verb => ({ value: verb, label: verb })),
+    .map(stringToOption),
 ];
 
 /** Model for the server access specification section. */
@@ -219,6 +226,18 @@ export type AppAccessSpec = AccessSpecBase<'app'> & {
   awsRoleARNs: string[];
   azureIdentities: string[];
   gcpServiceAccounts: string[];
+};
+
+export type DatabaseAccessSpec = AccessSpecBase<'db'> & {
+  labels: UILabel[];
+  names: readonly Option[];
+  users: readonly Option[];
+  roles: readonly Option[];
+};
+
+export type WindowsDesktopAccessSpec = AccessSpecBase<'windows_desktop'> & {
+  labels: UILabel[];
+  logins: readonly Option[];
 };
 
 const roleVersion = 'v7';
@@ -244,6 +263,10 @@ export function newRole(): Role {
 export function newAccessSpec(kind: 'node'): ServerAccessSpec;
 export function newAccessSpec(kind: 'kube_cluster'): KubernetesAccessSpec;
 export function newAccessSpec(kind: 'app'): AppAccessSpec;
+export function newAccessSpec(kind: 'db'): DatabaseAccessSpec;
+export function newAccessSpec(
+  kind: 'windows_desktop'
+): WindowsDesktopAccessSpec;
 export function newAccessSpec(kind: AccessSpecKind): AppAccessSpec;
 export function newAccessSpec(kind: AccessSpecKind): AccessSpec {
   switch (kind) {
@@ -259,6 +282,10 @@ export function newAccessSpec(kind: AccessSpecKind): AccessSpec {
         azureIdentities: [],
         gcpServiceAccounts: [],
       };
+    case 'db':
+      return { kind: 'db', labels: [], names: [], users: [], roles: [] };
+    case 'windows_desktop':
+      return { kind: 'windows_desktop', labels: [], logins: [] };
     default:
       kind satisfies never;
   }
@@ -334,17 +361,22 @@ function roleConditionsToAccessSpecs(conditions: RoleConditions): {
     aws_role_arns,
     azure_identities,
     gcp_service_accounts,
+
+    db_labels,
+    db_names,
+    db_users,
+    db_roles,
+
+    windows_desktop_labels,
+    windows_desktop_logins,
     ...rest
   } = conditions;
 
   const accessSpecs: AccessSpec[] = [];
 
   const nodeLabelsModel = labelsToModel(node_labels);
-  const nodeLoginsModel = (logins ?? []).map(login => ({
-    label: login,
-    value: login,
-  }));
-  if (nodeLabelsModel.length > 0 || nodeLoginsModel.length > 0) {
+  const nodeLoginsModel = stringsToOptions(logins ?? []);
+  if (someNonEmpty(nodeLabelsModel, nodeLoginsModel)) {
     accessSpecs.push({
       kind: 'node',
       labels: nodeLabelsModel,
@@ -352,17 +384,10 @@ function roleConditionsToAccessSpecs(conditions: RoleConditions): {
     });
   }
 
-  const kubeGroupsModel = (kubernetes_groups ?? []).map(group => ({
-    label: group,
-    value: group,
-  }));
+  const kubeGroupsModel = stringsToOptions(kubernetes_groups ?? []);
   const kubeLabelsModel = labelsToModel(kubernetes_labels);
   const kubeResourcesModel = kubernetesResourcesToModel(kubernetes_resources);
-  if (
-    kubeGroupsModel.length > 0 ||
-    kubeLabelsModel.length > 0 ||
-    kubeResourcesModel.length > 0
-  ) {
+  if (someNonEmpty(kubeGroupsModel, kubeLabelsModel, kubeResourcesModel)) {
     accessSpecs.push({
       kind: 'kube_cluster',
       groups: kubeGroupsModel,
@@ -376,10 +401,12 @@ function roleConditionsToAccessSpecs(conditions: RoleConditions): {
   const azureIdentitiesModel = azure_identities ?? [];
   const gcpServiceAccountsModel = gcp_service_accounts ?? [];
   if (
-    appLabelsModel.length > 0 ||
-    awsRoleARNsModel.length > 0 ||
-    azureIdentitiesModel.length > 0 ||
-    gcpServiceAccountsModel.length > 0
+    someNonEmpty(
+      appLabelsModel,
+      awsRoleARNsModel,
+      azureIdentitiesModel,
+      gcpServiceAccountsModel
+    )
   ) {
     accessSpecs.push({
       kind: 'app',
@@ -390,10 +417,40 @@ function roleConditionsToAccessSpecs(conditions: RoleConditions): {
     });
   }
 
+  const dbLabelsModel = labelsToModel(db_labels);
+  const dbNamesModel = db_names ?? [];
+  const dbUsersModel = db_users ?? [];
+  const dbRolesModel = db_roles ?? [];
+  if (someNonEmpty(dbLabelsModel, dbNamesModel, dbUsersModel, dbRolesModel)) {
+    accessSpecs.push({
+      kind: 'db',
+      labels: dbLabelsModel,
+      names: stringsToOptions(dbNamesModel),
+      users: stringsToOptions(dbUsersModel),
+      roles: stringsToOptions(dbRolesModel),
+    });
+  }
+
+  const windowsDesktopLabelsModel = labelsToModel(windows_desktop_labels);
+  const windowsDesktopLoginsModel = stringsToOptions(
+    windows_desktop_logins ?? []
+  );
+  if (someNonEmpty(windowsDesktopLabelsModel, windowsDesktopLoginsModel)) {
+    accessSpecs.push({
+      kind: 'windows_desktop',
+      labels: windowsDesktopLabelsModel,
+      logins: windowsDesktopLoginsModel,
+    });
+  }
+
   return {
     accessSpecs,
     requiresReset: !isEmpty(rest),
   };
+}
+
+function someNonEmpty(...arr: any[][]): boolean {
+  return arr.some(x => x.length > 0);
 }
 
 /**
@@ -412,6 +469,14 @@ export function labelsToModel(labels: Labels | undefined): UILabel[] {
       return value.map(v => ({ name, value: v }));
     }
   });
+}
+
+function stringToOption<T extends string>(s: T): Option<T> {
+  return { label: s, value: s };
+}
+
+function stringsToOptions<T extends string>(arr: T[]): Option<T>[] {
+  return arr.map(stringToOption);
 }
 
 function kubernetesResourcesToModel(
@@ -462,18 +527,18 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     switch (kind) {
       case 'node':
         role.spec.allow.node_labels = labelsModelToLabels(spec.labels);
-        role.spec.allow.logins = spec.logins.map(opt => opt.value);
+        role.spec.allow.logins = optionsToStrings(spec.logins);
         break;
 
       case 'kube_cluster':
-        role.spec.allow.kubernetes_groups = spec.groups.map(opt => opt.value);
+        role.spec.allow.kubernetes_groups = optionsToStrings(spec.groups);
         role.spec.allow.kubernetes_labels = labelsModelToLabels(spec.labels);
         role.spec.allow.kubernetes_resources = spec.resources.map(
           ({ kind, name, namespace, verbs }) => ({
             kind: kind.value,
             name,
             namespace,
-            verbs: verbs.map(opt => opt.value),
+            verbs: optionsToStrings(verbs),
           })
         );
         break;
@@ -483,6 +548,20 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.aws_role_arns = spec.awsRoleARNs;
         role.spec.allow.azure_identities = spec.azureIdentities;
         role.spec.allow.gcp_service_accounts = spec.gcpServiceAccounts;
+        break;
+
+      case 'db':
+        role.spec.allow.db_labels = labelsModelToLabels(spec.labels);
+        role.spec.allow.db_names = optionsToStrings(spec.names);
+        role.spec.allow.db_users = optionsToStrings(spec.users);
+        role.spec.allow.db_roles = optionsToStrings(spec.roles);
+        break;
+
+      case 'windows_desktop':
+        role.spec.allow.windows_desktop_labels = labelsModelToLabels(
+          spec.labels
+        );
+        role.spec.allow.windows_desktop_logins = optionsToStrings(spec.logins);
         break;
 
       default:
@@ -509,6 +588,10 @@ export function labelsModelToLabels(uiLabels: UILabel[]): Labels {
     }
   }
   return labels;
+}
+
+function optionsToStrings(opts: readonly Option[]): string[] {
+  return opts.map(opt => opt.value);
 }
 
 /** Detects if fields were modified by comparing against the original role. */

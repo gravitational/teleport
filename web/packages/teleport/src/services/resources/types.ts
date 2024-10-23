@@ -75,6 +75,14 @@ export type RoleConditions = {
   aws_role_arns?: string[];
   azure_identities?: string[];
   gcp_service_accounts?: string[];
+
+  db_labels?: Labels;
+  db_names?: string[];
+  db_users?: string[];
+  db_roles?: string[];
+
+  windows_desktop_labels?: Labels;
+  windows_desktop_logins?: string[];
 };
 
 export type Labels = Record<string, string | string[]>;
