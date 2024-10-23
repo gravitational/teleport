@@ -117,10 +117,9 @@ func (opts *CredentialsCacheOptions) CheckAndSetDefaults() error {
 	return nil
 }
 
-var errNotReady error = errors.New("ExternalAuditStorage: credential cache not yet initialized")
+var errNotReady = errors.New("ExternalAuditStorage: credential cache not yet initialized")
 
 func NewCredentialsCache(options CredentialsCacheOptions) (*CredentialsCache, error) {
-
 	if err := options.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "creating credentials cache")
 	}
