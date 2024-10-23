@@ -20560,7 +20560,7 @@ type AccessGraphSync struct {
 	// AWS is a configuration for AWS Access Graph service poll service.
 	AWS []*AccessGraphAWSSync `protobuf:"bytes,1,rep,name=AWS,proto3" json:"aws,omitempty"`
 	// Azure is a configuration for the Azure Access Graph service poll service.
-	Azure                []*AccessGraphAzureSync `protobuf:"bytes,2,rep,name=Azure,proto3" json:"aws,omitempty"`
+	Azure                []*AccessGraphAzureSync `protobuf:"bytes,2,rep,name=Azure,proto3" json:"azure,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`
 	XXX_sizecache        int32                   `json:"-"`

@@ -7762,7 +7762,7 @@ message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
   // Azure is a configuration for the Azure Access Graph service poll service.
-  repeated AccessGraphAzureSync Azure = 2 [(gogoproto.jsontag) = "aws,omitempty"];
+  repeated AccessGraphAzureSync Azure = 2 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
