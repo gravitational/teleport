@@ -3250,17 +3250,18 @@ message RoleConditions {
   reserved "SAMLIdPServiceProviderLabelsExpression";
 
   // AccountAssignments holds the list of account assignments affected by this
-  // condition
+  // condition.
   repeated IdentityCenterAccountAssignment AccountAssignments = 42 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "account_assignments,omitempty"
   ];
 }
 
-// IdentityCenterAccountAssignment ...
+// IdentityCenterAccountAssignment captures an AWS Identity Center account
+// assignment (acccount + permission set) pair.
 message IdentityCenterAccountAssignment {
   string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
-  string AccountID = 2 [(gogoproto.jsontag) = "account,omitempty"];
+  string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
