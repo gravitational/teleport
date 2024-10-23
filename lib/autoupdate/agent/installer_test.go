@@ -312,6 +312,42 @@ func TestLocalInstaller_Remove(t *testing.T) {
 
 			errMatch: ErrLinked.Error(),
 		},
+		{
+			name:          "version empty",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "",
+
+			errMatch: "outside",
+		},
+		{
+			name:          "version has path",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "one/two",
+
+			errMatch: "outside",
+		},
+		{
+			name:          "version is ..",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "..",
+
+			errMatch: "outside",
+		},
+		{
+			name:          "version is .",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: ".",
+
+			errMatch: "outside",
+		},
 	}
 
 	for _, tt := range tests {
