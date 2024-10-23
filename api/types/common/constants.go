@@ -68,7 +68,11 @@ const (
 
 	// OriginEntraID indicates that the resource was imported
 	// from the Entra ID directory.
-	OriginEntraID           = "entra-id"
+	OriginEntraID = "entra-id"
+
+	// OriginAWSIdentityCenter indicates that the resource was
+	// imported from the AWS Identity Center or created from
+	// the AWS Identity Center plugin.
 	OriginAWSIdentityCenter = "aws-identity-center"
 )
 
