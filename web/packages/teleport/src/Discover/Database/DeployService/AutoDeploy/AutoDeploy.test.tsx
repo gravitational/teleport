@@ -240,7 +240,7 @@ function getMockedContexts() {
   };
 
   jest
-    .spyOn(integrationService, 'deployAwsOidcService')
+    .spyOn(integrationService, 'deployDatabaseServices')
     .mockResolvedValue('dashboard-url');
 
   jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
