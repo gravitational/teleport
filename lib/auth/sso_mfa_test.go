@@ -24,11 +24,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -414,6 +413,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 			ConnectorType: samlConnector.GetKind(),
 		},
 	})
+	require.NoError(t, err)
 
 	// Create a fake saml user with MFA disabled.
 	noMFASAMLUser, noMFASAMLRole, err := CreateUserAndRole(a, "saml-user-no-mfa", []string{"role"}, nil)
@@ -716,7 +716,6 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 			}, tt.username, tt.requiredExtensions)
 			tt.assertValidation(t, data, err)
 		})
-
 	}
 }
 
@@ -727,11 +726,13 @@ type fakeSSOService struct {
 func (s *fakeSSOService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	return nil, nil // unused in these tests.
 }
+
 func (s *fakeSSOService) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
 	req.ID = uuid.NewString()
 	req.RedirectURL = uuid.NewString()
 	return &req, s.a.Services.CreateSAMLAuthRequest(ctx, req, defaults.SAMLAuthRequestTTL)
 }
+
 func (s *fakeSSOService) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	return nil, nil // unused in these tests.
 }
@@ -739,11 +740,13 @@ func (s *fakeSSOService) ValidateSAMLResponse(ctx context.Context, samlResponse,
 func (s *fakeSSOService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	return nil, nil // unused in these tests.
 }
+
 func (s *fakeSSOService) CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	req.StateToken = uuid.NewString()
 	req.RedirectURL = uuid.NewString()
 	return &req, s.a.Services.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
 }
+
 func (s *fakeSSOService) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	return nil, nil // unused in these tests.
 }
