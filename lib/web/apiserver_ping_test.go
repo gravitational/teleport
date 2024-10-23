@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"github.com/gravitational/teleport/api"
 	"net/http"
 	"net/url"
 	"testing"
@@ -31,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
