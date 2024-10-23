@@ -5149,8 +5149,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dynamicWindows, err := dynamicwindowsv1.NewService(dynamicwindowsv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
-		// TODO(probakowski): switch to cache when support is added
-		Cache: cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -331,11 +331,17 @@ const (
 	// KindAutoUpdateVersion is the resource with autoupdate versions.
 	KindAutoUpdateVersion = "autoupdate_version"
 
+	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
+	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
+
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
 
 	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
 	MetaNameAutoUpdateVersion = "autoupdate-version"
+
+	// MetaNameAutoUpdateAgentRollout is the name of the autoupdate agent rollout resource.
+	MetaNameAutoUpdateAgentRollout = "autoupdate-agent-rollout"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
