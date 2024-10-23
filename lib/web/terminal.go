@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -611,28 +613,39 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 }
 
 func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc) *mfa.Ceremony {
+	var channelID string
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: createAuthenticateChallenge,
 		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
-			return newMFAPrompt(stream)
+			return newMFAPrompt(stream, channelID)
 		},
 		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+			channelID = uuid.NewString()
+			u, err := url.Parse(sso.WebMFARedirect)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
 			return &sso.MFACeremony{
-				ClientCallbackURL: sso.WebMFARedirect,
+				ClientCallbackURL: u.String(),
 			}, nil
 		},
 	}
 }
 
-func newMFAPrompt(stream *terminal.WSStream) mfa.Prompt {
+// create a new MFA prompt. When provided, ssoChannelID is used by the front end to differentiate
+// between separate ongoing SSO challenges.
+func newMFAPrompt(stream *terminal.WSStream, ssoChannelID string) mfa.Prompt {
 	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		// Convert from proto to JSON types.
 		var challenge client.MFAAuthenticateChallenge
 		if chal.WebauthnChallenge != nil {
 			challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
 		}
+
 		if chal.SSOChallenge != nil {
 			challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+			challenge.SSOChallenge.ChannelID = ssoChannelID
 		}
 
 		if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil {
@@ -804,7 +817,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), newMFAPrompt(t.stream.WSStream)); err != nil {
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), newMFAPrompt(t.stream.WSStream, "" /*ssoChannelID*/)); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
