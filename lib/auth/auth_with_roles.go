@@ -574,6 +574,8 @@ func (a *ServerWithRoles) GetClusterCACert(
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	// TODO(strideynet): In v18.0.0, this logic can be moved into
+	// JoinServiceGRPCServer.
 	isProxy := a.hasBuiltinRole(types.RoleProxy)
 
 	// We do not trust remote addr in the request unless it's coming from the Proxy.

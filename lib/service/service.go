@@ -6615,7 +6615,7 @@ func (process *TeleportProcess) initPublicGRPCServer(
 		}),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client, true)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
 
 	accessGraphProxySvc, err := secretsscannerproxy.New(

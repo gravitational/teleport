@@ -5169,7 +5169,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole, false)
 	authpb.RegisterJoinServiceServer(server, joinServiceServer)
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{

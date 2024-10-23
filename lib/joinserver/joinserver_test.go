@@ -133,7 +133,7 @@ func newTestPack(t *testing.T) *testPack {
 	// create the first instance of JoinServiceGRPCServer wrapping the mock auth
 	// server, to imitate the JoinServiceGRPCServer which runs on Auth
 	authGRPCServer, authGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
-	authServer := NewJoinServiceGRPCServer(mockAuthServer)
+	authServer := NewJoinServiceGRPCServer(mockAuthServer, false)
 	proto.RegisterJoinServiceServer(authGRPCServer, authServer)
 
 	// create a client to the "auth" gRPC service
@@ -144,7 +144,7 @@ func newTestPack(t *testing.T) *testPack {
 	// create a second instance of JoinServiceGRPCServer wrapping the "auth"
 	// gRPC client, to imitate the JoinServiceGRPCServer which runs on Proxy
 	proxyGRPCServer, proxyGRPCListener := newGRPCServer(t, grpc.ChainStreamInterceptor(ConnectionCountingStreamInterceptor(streamConnectionCount)))
-	proxyServer := NewJoinServiceGRPCServer(authJoinServiceClient)
+	proxyServer := NewJoinServiceGRPCServer(authJoinServiceClient, true)
 	proto.RegisterJoinServiceServer(proxyGRPCServer, proxyServer)
 
 	// create a client to the "proxy" gRPC service
