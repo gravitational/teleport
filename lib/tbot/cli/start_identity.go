@@ -31,6 +31,7 @@ import (
 // `tbot configure identity`.
 type IdentityCommand struct {
 	*sharedStartArgs
+	*sharedDestinationArgs
 	*genericMutatorHandler
 
 	Destination string
@@ -43,10 +44,11 @@ func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Ide
 	cmd := parentCmd.Command("identity", "Start with an identity output for SSH and Teleport API access").Alias("ssh").Alias("id")
 
 	c := &IdentityCommand{}
+	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.sharedStartArgs = newSharedStartArgs(cmd)
+
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster").StringVar(&c.Cluster)
 
 	// Note: roles and ssh_config mode are excluded for now.
@@ -59,7 +61,7 @@ func (c *IdentityCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		return trace.Wrap(err)
 	}
 
-	dest, err := config.DestinationFromURI(c.Destination)
+	dest, err := c.sharedDestinationArgs.BuildDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
