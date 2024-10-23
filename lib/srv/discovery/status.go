@@ -414,12 +414,7 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 	d.issuesSyncQueue[g] = struct{}{}
 }
 
-// acquireSemaphoreForUserTask tries to acquire a semaphore lock for this user task.
-// It returns a func which must be called to release the lock.
-// It also returns a context which is tied to the lease and will be canceled if the lease ends.
-func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn func(), ctx context.Context, err error) {
-	// Use the deterministic task name as semaphore name.
-	semaphoreName := userTaskName
+func (s *Server) acquireSemaphore(kind, semaphoreName string) (releaseFn func(), stopCtx context.Context, err error) {
 	semaphoreExpiration := 5 * time.Second
 
 	// AcquireSemaphoreLock will retry until the semaphore is acquired.
@@ -431,7 +426,7 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 			SemaphoreLockConfig: services.SemaphoreLockConfig{
 				Service: s.AccessPoint,
 				Params: types.AcquireSemaphoreRequest{
-					SemaphoreKind: types.KindUserTask,
+					SemaphoreKind: kind,
 					SemaphoreName: semaphoreName,
 					MaxLeases:     1,
 					Holder:        s.Config.ServerID,
@@ -459,11 +454,25 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 		cancel()
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
-			s.Log.WarnContext(ctx, "Error cleaning up UserTask semaphore", "semaphore", semaphoreName, "error", err)
+			s.Log.WarnContext(s.ctx, "Error cleaning up semaphore", "semaphore_kind", kind, "semaphore", semaphoreName, "error", err)
 		}
 	}
 
 	return releaseFn, ctxWithLease, nil
+}
+
+// acquireSemaphoreForIntegration tries to acquire a semaphore lock for the integration.
+// This allows the process to do two things:
+// - merge the current UserTask with the one stored in the backend, so that no discover-ec2.instance is lost
+// - ensure a single Notification (pending-user-task-integration) is created
+// The former could be achieved using the UserTask name as lock identifier.
+// However, for the latter, we would need a lock for the Integration.
+// Instead of having two locks, locking by the Integration allows us to safely edit both resources.
+//
+// Note: UserTask name is a deterministic value, based on multiple fields, including the integration.
+// Note: UpsertUserTask triggers the creation of a new Notification.
+func (s *Server) acquireSemaphoreForIntegration(integration string) (releaseFn func(), ctx context.Context, err error) {
+	return s.acquireSemaphore(types.KindIntegration, integration)
 }
 
 // mergeUpsertDiscoverEC2Task takes the current DiscoverEC2 User Task issues stored in memory and
@@ -480,7 +489,7 @@ func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInsta
 		InstallerScript: taskGroup.installerScript,
 	})
 
-	releaseFn, ctxWithLease, err := s.acquireSemaphoreForUserTask(userTaskName)
+	releaseFn, ctxWithLease, err := s.acquireSemaphoreForIntegration(taskGroup.integration)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -507,9 +516,11 @@ func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInsta
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
 			DiscoverEc2: &usertasksv1.DiscoverEC2{
-				AccountId: taskGroup.accountID,
-				Region:    taskGroup.region,
-				Instances: failedInstances,
+				AccountId:       taskGroup.accountID,
+				Region:          taskGroup.region,
+				SsmDocument:     taskGroup.ssmDocument,
+				InstallerScript: taskGroup.installerScript,
+				Instances:       failedInstances,
 			},
 		},
 		usertasks.WithExpiration(taskExpiration),
