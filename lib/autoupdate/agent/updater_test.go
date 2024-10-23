@@ -237,7 +237,7 @@ func TestUpdater_Enable(t *testing.T) {
 			removedVersion:    "backup-version",
 		},
 		{
-			name: "backup version kept otherwise",
+			name: "backup version kept for validation",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -246,7 +246,9 @@ func TestUpdater_Enable(t *testing.T) {
 					BackupVersion: "backup-version",
 				},
 			},
-			removedVersion: "",
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			removedVersion:    "",
 		},
 		{
 			name:              "config does not exist",

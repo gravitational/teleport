@@ -285,12 +285,12 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		return trace.Errorf("failed to link: %w", err)
 	}
 	if cfg.Status.ActiveVersion != desiredVersion {
+		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
+		cfg.Status.ActiveVersion = desiredVersion
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
 	} else {
 		u.Log.InfoContext(ctx, "Target version successfully validated.", "version", desiredVersion)
 	}
-	cfg.Status.BackupVersion = cfg.Status.ActiveVersion
-	cfg.Status.ActiveVersion = desiredVersion
 
 	versions, err := u.Installer.List(ctx)
 	if err != nil {

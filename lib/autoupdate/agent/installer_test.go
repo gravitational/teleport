@@ -197,24 +197,31 @@ func TestLocalInstaller_Link(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		files []string
 		dirs  []string
+		files []string
 
 		links    []string
 		errMatch string
 	}{
 		{
 			name:  "present",
-			files: []string{"teleport", "tsh", "tbot"},
-			dirs:  []string{"somedir"},
+			dirs:  []string{"bin", "bin/somedir", "somedir"},
+			files: []string{"bin/teleport", "bin/tsh", "bin/tbot", "README"},
 
 			links: []string{"teleport", "tsh", "tbot"},
 		},
 		{
-			name:  "not present",
-			files: []string{"teleport"},
+			name:  "no links",
+			files: []string{"README"},
+			dirs:  []string{"bin"},
 
-			errMatch: "no such",
+			errMatch: "no binaries",
+		},
+		{
+			name:  "no bin directory",
+			files: []string{"README"},
+
+			errMatch: "binary directory",
 		},
 	}
 
@@ -226,12 +233,12 @@ func TestLocalInstaller_Link(t *testing.T) {
 			err := os.MkdirAll(versionDir, 0o755)
 			require.NoError(t, err)
 
-			for _, n := range tt.files {
-				err := os.WriteFile(filepath.Join(versionDir, n), []byte(n), os.ModePerm)
+			for _, d := range tt.dirs {
+				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
 				require.NoError(t, err)
 			}
-			for _, d := range []string{"somedir"} {
-				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
+			for _, n := range tt.files {
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
 				require.NoError(t, err)
 			}
 
@@ -254,7 +261,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			for _, link := range tt.links {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
-				require.Equal(t, filepath.Base("link"), string(v))
+				require.Equal(t, link, string(v))
 			}
 		})
 	}
@@ -262,28 +269,48 @@ func TestLocalInstaller_Link(t *testing.T) {
 
 func TestLocalInstaller_Remove(t *testing.T) {
 	t.Parallel()
-	const version = "new-version"
+	const version = "existing-version"
 
 	tests := []struct {
-		name  string
-		files []string
-		dirs  []string
+		name          string
+		dirs          []string
+		files         []string
+		createVersion string
+		linkedVersion string
+		removeVersion string
 
-		links    []string
 		errMatch string
 	}{
 		{
-			name:  "present",
-			files: []string{"teleport", "tsh", "tbot"},
-			dirs:  []string{"somedir"},
-
-			links: []string{"teleport", "tsh", "tbot"},
+			name:          "present",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: version,
 		},
 		{
-			name:  "not present",
-			files: []string{"teleport"},
+			name:          "present missing checksum",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{"bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: version,
+		},
+		{
+			name:          "not present",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "missing-version",
+		},
+		{
+			name:          "version linked",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			linkedVersion: version,
+			removeVersion: version,
 
-			errMatch: "no such",
+			errMatch: ErrLinked.Error(),
 		},
 	}
 
@@ -291,16 +318,16 @@ func TestLocalInstaller_Remove(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			versionsDir := t.TempDir()
-			versionDir := filepath.Join(versionsDir, version)
+			versionDir := filepath.Join(versionsDir, tt.createVersion)
 			err := os.MkdirAll(versionDir, 0o755)
 			require.NoError(t, err)
 
-			for _, n := range tt.files {
-				err := os.WriteFile(filepath.Join(versionDir, n), []byte(n), os.ModePerm)
+			for _, d := range tt.dirs {
+				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
 				require.NoError(t, err)
 			}
-			for _, d := range []string{"somedir"} {
-				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
+			for _, n := range tt.files {
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
 				require.NoError(t, err)
 			}
 
@@ -312,19 +339,20 @@ func TestLocalInstaller_Remove(t *testing.T) {
 				Log:        slog.Default(),
 			}
 			ctx := context.Background()
-			err = installer.Link(ctx, version)
+
+			if tt.linkedVersion != "" {
+				err = installer.Link(ctx, tt.linkedVersion)
+				require.NoError(t, err)
+			}
+			err = installer.Remove(ctx, tt.removeVersion)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
 				return
 			}
 			require.NoError(t, err)
-
-			for _, link := range tt.links {
-				v, err := os.ReadFile(filepath.Join(linkDir, link))
-				require.NoError(t, err)
-				require.Equal(t, filepath.Base("link"), string(v))
-			}
+			_, err = os.Stat(filepath.Join(versionDir, "bin", tt.removeVersion))
+			require.ErrorIs(t, err, os.ErrNotExist)
 		})
 	}
 }

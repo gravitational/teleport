@@ -71,7 +71,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	linked, err := li.linkedVersion(version)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Errorf("failed to determine if linked: %w", err)
 	}
 	if linked {
@@ -356,8 +356,9 @@ func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
 	binDir := filepath.Join(ai.InstallDir, version, "bin")
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to find Teleport binary directory: %w", err)
 	}
+	var linked int
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -366,11 +367,16 @@ func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		linked++
+	}
+	if linked == 0 {
+		return trace.Errorf("no binaries available to link")
 	}
 	return nil
 }
 
-// linkedVersion returns true if any
+// linkedVersion returns true if any binaries for the version are linked.
+// Returns os.ErrNotExist error if the version does not exist.
 func (ai *LocalInstaller) linkedVersion(version string) (bool, error) {
 	binDir := filepath.Join(ai.InstallDir, version, "bin")
 	entries, err := os.ReadDir(binDir)
