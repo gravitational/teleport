@@ -214,6 +214,10 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest) {
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
+		// No authenticated user, we don't want to trust the values provided in
+		// the request unless it's coming from a proxy.
+		req.BotInstanceID = ""
+		req.BotGeneration = 0
 		return
 	}
 
