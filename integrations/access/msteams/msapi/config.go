@@ -30,10 +30,13 @@ type Config struct {
 	AppSecret string `toml:"app_secret"`
 	// TenantID ms tenant id
 	TenantID string `toml:"tenant_id"`
-	// Region bot framework api AP region
+	// Region to be used by the Microsoft Graph API client
 	Region string `toml:"region"`
 	// TeamsAppID represents Teams App ID
 	TeamsAppID string `toml:"teams_app_id"`
+	// DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+	DefaultRecipient string `toml:"default_recipient"`
+
 	// url represents url configuration for testing
 	url struct {
 		tokenBaseURL        string

@@ -49,12 +49,11 @@ const (
 type App struct {
 	conf Config
 
-	apiClient  teleport.Client
-	bot        *Bot
-	mainJob    lib.ServiceJob
-	watcherJob lib.ServiceJob
-	pd         *pd.CompareAndSwap[PluginData]
-
+	apiClient             teleport.Client
+	bot                   *Bot
+	mainJob               lib.ServiceJob
+	watcherJob            lib.ServiceJob
+	pd                    *pd.CompareAndSwap[PluginData]
 	log                   *slog.Logger
 	accessMonitoringRules *accessmonitoring.RuleHandler
 
@@ -145,7 +144,7 @@ func (a *App) init(ctx context.Context) error {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 
-	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr, a.log)
+	a.bot, err = NewBot(&a.conf, pong.ClusterName, webProxyAddr, a.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -185,6 +184,13 @@ func (a *App) initBot(ctx context.Context) error {
 		"name", teamsApp.DisplayName,
 		"id", teamsApp.ID)
 
+	if err := a.bot.CheckHealth(ctx); err != nil {
+
+		a.log.WarnContext(ctx, "MS Teams healthcheck failed",
+			"name", teamsApp.DisplayName,
+			"id", teamsApp.ID)
+	}
+
 	if !a.conf.Preload {
 		return nil
 	}
@@ -212,9 +218,6 @@ func (a *App) initBot(ctx context.Context) error {
 
 // run starts the main process
 func (a *App) run(ctx context.Context) error {
-
-	process := lib.MustGetProcess(ctx)
-
 	watchKinds := []types.WatchKind{
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAccessMonitoringRule},
@@ -237,6 +240,7 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	process := lib.MustGetProcess(ctx)
 	process.SpawnCriticalJob(watcherJob)
 
 	ok, err := watcherJob.WaitReady(ctx)
@@ -254,6 +258,7 @@ func (a *App) run(ctx context.Context) error {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
 	}
+
 	a.watcherJob = watcherJob
 	a.watcherJob.SetReady(ok)
 	if ok {
@@ -530,14 +535,10 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := stringset.New()
-
 	a.log.DebugContext(ctx, "Getting suggested reviewer recipients")
 	accessRuleRecipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
-	accessRuleRecipients.ForEach(func(r common.Recipient) {
-		recipientSet.Add(r.Name)
-	})
-	if recipientSet.Len() != 0 {
-		return recipientSet.ToSlice()
+	if accessRuleRecipients.Len() != 0 {
+		return accessRuleRecipients.GetNames()
 	}
 
 	var validEmailsSuggReviewers []string
@@ -557,6 +558,9 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 			recipientSet.Add(recipient)
 		}
 	}
-
+	// Use default recipient if there are non suggested reviewers or Access Monitoring Rules that apply.
+	if recipientSet.Len() == 0 && a.conf.MSAPI.DefaultRecipient != "" {
+		recipientSet.Add(a.conf.MSAPI.DefaultRecipient)
+	}
 	return recipientSet.ToSlice()
 }

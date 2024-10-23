@@ -158,7 +158,8 @@ export type PluginSpec =
   | PluginSlackSpec
   | PluginMattermostSpec
   | PluginOpsgenieSpec
-  | PluginDatadogSpec;
+  | PluginDatadogSpec
+  | PluginMsTeamsSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -216,6 +217,14 @@ export type PluginMattermostSpec = {
   channel: string;
   team: string;
   reportToEmail: string;
+};
+
+export type PluginMsTeamsSpec = {
+  appID: string;
+  tenantID: string;
+  teamsAppID: string;
+  region: string;
+  defaultRecipient: string;
 };
 
 export type PluginOpsgenieSpec = {

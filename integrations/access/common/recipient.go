@@ -150,6 +150,15 @@ func (s *RecipientSet) ToSlice() []Recipient {
 	return recipientSlice
 }
 
+// GetNames returns a slice of the recipient names in the set.
+func (s *RecipientSet) GetNames() []string {
+	names := make([]string, 0, len(s.recipients))
+	for _, recipient := range s.recipients {
+		names = append(names, recipient.Name)
+	}
+	return names
+}
+
 // ForEach applies run the given func with each recipient in the set as the argument.
 func (s *RecipientSet) ForEach(f func(r Recipient)) {
 	for _, v := range s.recipients {

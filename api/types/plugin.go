@@ -75,6 +75,8 @@ const (
 	PluginTypeSCIM = "scim"
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
+	// PluginTypeMSTeams indicates a Microsoft Teams integration
+	PluginTypeMSTeams = "msteams"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -512,7 +514,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSCIM
 	case *PluginSpecV1_Datadog:
 		return PluginTypeDatadog
-
+	case *PluginSpecV1_Msteams:
+		return PluginTypeMSTeams
 	default:
 		return PluginTypeUnknown
 	}

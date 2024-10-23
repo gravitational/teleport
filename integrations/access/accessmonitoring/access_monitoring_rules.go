@@ -159,7 +159,7 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 		for _, recipient := range rule.Spec.Notification.Recipients {
 			rec, err := amrh.fetchRecipientCallback(ctx, recipient)
 			if err != nil {
-				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access moniotring rule recipients")
+				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access monitoring rule recipients")
 				continue
 			}
 			recipientSet.Add(*rec)

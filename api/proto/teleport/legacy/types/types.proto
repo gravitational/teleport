@@ -6223,6 +6223,8 @@ message PluginSpecV1 {
     PluginDatadogAccessSettings datadog = 15;
     // PluginAWSICSettings holds settings for AWSICSettings
     PluginAWSICSettings aws_ic = 16;
+    // Settings for the Microsoft Teams plugin
+    PluginMSTeamsSettings msteams = 17;
   }
 
   // generation contains a unique ID that should:
@@ -6541,6 +6543,21 @@ message AWSICProvisioningSpec {
   // actual credential is stored separetely ain a PluginStaticCredentials
   // service, and populated at runtime as necessary.
   string bearer_token = 2;
+}
+
+// PluginMSTeamsSettings defines the settings for a Microsoft Teams integration plugin
+message PluginMSTeamsSettings {
+  option (gogoproto.equal) = true;
+  // AppId is the Microsoft application ID (uuid, for bots must be underlying app id, not bot's id).
+  string app_id = 1;
+  // TenantId is the Microsoft tenant ID.
+  string tenant_id = 2;
+  // TeamsAppId is the Microsoft teams application ID.
+  string teams_app_id = 3;
+  // Region to be used by the Microsoft Graph API client.
+  string region = 4;
+  // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+  string default_recipient = 5;
 }
 
 message PluginBootstrapCredentialsV1 {
