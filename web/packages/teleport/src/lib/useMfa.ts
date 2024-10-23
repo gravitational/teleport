@@ -41,11 +41,64 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
     totpChallenge: false,
   });
 
-  // TODO (avatus), this is stubbed for types but will not be called
-  // until SSO as MFA backend is in.
+  function clearChallenges() {
+    setState(prevState => ({
+      ...prevState,
+      totpChallenge: false,
+      webauthnPublicKey: null,
+      ssoChallenge: null,
+    }));
+  }
+
+  // open a broadcast channel if sso challenge exists so it can listen
+  // for a confirmation response token
+  useEffect(() => {
+    if (!state.ssoChallenge) {
+      return;
+    }
+
+    const channel = new BroadcastChannel(state.ssoChallenge.channelId);
+
+    function handleMessage(e: MessageEvent<{ mfaToken: string }>) {
+      if (!state.ssoChallenge) {
+        return;
+      }
+
+      emitterSender.sendChallengeResponse({
+        sso_response: {
+          requestId: state.ssoChallenge.requestId,
+          token: e.data.mfaToken,
+        },
+      });
+      clearChallenges();
+    }
+
+    channel.addEventListener('message', handleMessage);
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      channel.close();
+    };
+  }, [state, emitterSender, state.ssoChallenge]);
+
   function onSsoAuthenticate() {
-    // eslint-disable-next-line no-console
-    console.error('not yet implemented');
+    if (!state.ssoChallenge) {
+      setState(prevState => ({
+        ...prevState,
+        errorText: 'Invalid or missing SSO challenge',
+      }));
+      return;
+    }
+
+    // try to center the screen
+    const width = 1045;
+    const height = 550;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    // these params will open a tiny window.
+    const params = `width=${width},height=${height},left=${left},top=${top}`;
+    window.open(state.ssoChallenge.redirectUrl, '_blank', params);
   }
 
   function onWebauthnAuthenticate() {
@@ -83,6 +136,7 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
 
     setState(prevState => ({
       ...prevState,
+      addMfaToScpUrls: true,
       ssoChallenge,
       webauthnPublicKey,
       totpChallenge,

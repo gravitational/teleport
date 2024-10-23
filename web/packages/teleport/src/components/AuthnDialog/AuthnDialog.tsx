@@ -23,13 +23,16 @@ import Dialog, {
   DialogContent,
 } from 'design/Dialog';
 import { Danger } from 'design/Alert';
-import { Text, ButtonPrimary, ButtonSecondary, Flex } from 'design';
+import { Text, ButtonSecondary, Flex, ButtonLink } from 'design';
+
+import { guessProviderType } from 'shared/components/ButtonSso';
+import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
 
 import { MfaState } from 'teleport/lib/useMfa';
 
 export default function AuthnDialog({ mfa, onCancel }: Props) {
   return (
-    <Dialog dialogCss={() => ({ width: '500px' })} open={true}>
+    <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <DialogHeader style={{ flexDirection: 'column' }}>
         <DialogTitle textAlign="center">
           Multi-factor authentication
@@ -37,7 +40,7 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
       </DialogHeader>
       <DialogContent mb={6}>
         {mfa.errorText && (
-          <Danger mt={2} width="100%">
+          <Danger data-testid="danger-alert" mt={2} width="100%">
             {mfa.errorText}
           </Danger>
         )}
@@ -45,18 +48,31 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
           Re-enter your multi-factor authentication in the browser to continue.
         </Text>
       </DialogContent>
-      <Flex textAlign="center" justifyContent="center">
-        {/* TODO (avatus) this will eventually be conditionally rendered based on what
-          type of challenges exist. For now, its only webauthn. */}
-        <ButtonPrimary
-          onClick={mfa.onWebauthnAuthenticate}
-          autoFocus
-          mr={3}
-          width="130px"
-        >
-          {mfa.errorText ? 'Retry' : 'OK'}
-        </ButtonPrimary>
-        <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
+      <Flex textAlign="center" width="100%" flexDirection="column" gap={3}>
+        {mfa.ssoChallenge && (
+          <ButtonSecondary
+            onClick={mfa.onSsoAuthenticate}
+            autoFocus
+            gap={2}
+            block
+          >
+            <SSOIcon
+              type={guessProviderType(
+                mfa.ssoChallenge.device.displayName,
+                mfa.ssoChallenge.device.connectorType
+              )}
+            />
+            {mfa.ssoChallenge.device.displayName}
+          </ButtonSecondary>
+        )}
+        {mfa.webauthnPublicKey && (
+          <ButtonSecondary onClick={mfa.onWebauthnAuthenticate} autoFocus block>
+            Passkey/Hardware Key
+          </ButtonSecondary>
+        )}
+        <ButtonLink block onClick={onCancel}>
+          Cancel
+        </ButtonLink>
       </Flex>
     </Dialog>
   );
