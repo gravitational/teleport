@@ -220,6 +220,33 @@ export interface DialogChangeAccessRequestKind {
   onCancel(): void;
 }
 
+export interface DialogHardwareKeyPin {
+  kind: 'hardware-key-pin';
+  req: tshdEventsApi.PromptHardwareKeyPINRequest;
+  onSuccess(pin: string): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyTouch {
+  kind: 'hardware-key-touch';
+  req: tshdEventsApi.PromptHardwareKeyTouchRequest;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyPinChange {
+  kind: 'hardware-key-pin-change';
+  req: tshdEventsApi.PromptHardwareKeyPINChangeRequest;
+  onSuccess(res: tshdEventsApi.PromptHardwareKeyPINChangeResponse): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeySlotOverwrite {
+  kind: 'hardware-key-slot-overwrite';
+  req: tshdEventsApi.ConfirmHardwareKeySlotOverwriteRequest;
+  onConfirm(): void;
+  onCancel(): void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -231,4 +258,8 @@ export type Dialog =
   | DialogHeadlessAuthentication
   | DialogReAuthenticate
   | DialogChangeAccessRequestKind
+  | DialogHardwareKeyPin
+  | DialogHardwareKeyTouch
+  | DialogHardwareKeyPinChange
+  | DialogHardwareKeySlotOverwrite
   | DialogNone;

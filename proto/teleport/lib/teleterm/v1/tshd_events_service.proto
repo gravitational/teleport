@@ -44,6 +44,22 @@ service TshdEventsService {
   // code.
   rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
 
+  // PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
+  // provide the hardware key PIN.
+  rpc PromptHardwareKeyPIN(PromptHardwareKeyPINRequest) returns (PromptHardwareKeyPINResponse);
+
+  // PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+  // When the daemon detects the touch, it cancels the prompt.
+  rpc PromptHardwareKeyTouch(PromptHardwareKeyTouchRequest) returns (PromptHardwareKeyTouchResponse);
+
+  // PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
+  // change the hardware key PIN.
+  rpc PromptHardwareKeyPINChange(PromptHardwareKeyPINChangeRequest) returns (PromptHardwareKeyPINChangeResponse);
+
+  // ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+  // the slot's private key and certificate should be overwritten.
+  rpc ConfirmHardwareKeySlotOverwrite(ConfirmHardwareKeySlotOverwriteRequest) returns (ConfirmHardwareKeySlotOverwriteResponse);
+
   // GetUsageReportingSettings returns the current state of usage reporting.
   // At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
   // with the only exception being the first start of the app when they're prompted about telemetry.
@@ -144,6 +160,56 @@ message PromptMFARequest {
 // Response for PromptMFA.
 message PromptMFAResponse {
   string totp_code = 1;
+}
+
+// Request for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINRequest {
+  string root_cluster_uri = 1;
+  // Specifies if a PIN is optional, allowing the user to set it up if left empty.
+  bool pin_optional = 2;
+}
+
+// Response for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINResponse {
+  // pin as inputted by the user in the Electron app.
+  string pin = 1;
+}
+
+// Request for PromptHardwareKeyTouchRequest.
+message PromptHardwareKeyTouchRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeyTouch.
+message PromptHardwareKeyTouchResponse {}
+
+// Response for PromptHardwareKeyPINChange.
+message PromptHardwareKeyPINChangeRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeyPINChange.
+message PromptHardwareKeyPINChangeResponse {
+  // New pin set by the user.
+  string pin = 1;
+  // PUK is needed to change the PIN.
+  // This is a new PUK if it has not been changed from the default PUK.
+  string puk = 2;
+  // puk_changed is true if the user changed the default PUK.
+  bool puk_changed = 3;
+}
+
+// Request for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteRequest {
+  string root_cluster_uri = 1;
+  // Message to display in the prompt.
+  string message = 2;
+}
+
+// Response for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteResponse {
+  // If true, the slot will be overridden.
+  bool confirmed = 1;
 }
 
 // Request for GetUsageReportingSettings.
