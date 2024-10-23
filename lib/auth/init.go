@@ -218,8 +218,11 @@ type InitConfig struct {
 	// session related streams
 	Streamer events.Streamer
 
-	// WindowsServices is a service that manages Windows desktop resources.
+	// WindowsDesktops is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
+
+	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
+	DynamicWindowsDesktops services.DynamicWindowsDesktops
 
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
@@ -328,6 +331,10 @@ type InitConfig struct {
 
 	// Logger is the logger instance for the auth service to use.
 	Logger *slog.Logger
+
+	// IdentityCenter is the Identity Center state storage service to use in
+	// this node.
+	IdentityCenter services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -1131,6 +1138,25 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 
@@ -1221,7 +1247,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsNames []string) (*state.Identity, error) {
-	// TODO(nklaassen): split SSH and TLS keys for host identities.
 	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)

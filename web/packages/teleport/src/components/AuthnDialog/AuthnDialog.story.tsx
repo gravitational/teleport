@@ -18,6 +18,8 @@
 
 import React from 'react';
 
+import { makeDefaultMfaState } from 'teleport/lib/useMfa';
+
 import AuthnDialog, { Props } from './AuthnDialog';
 
 export default {
@@ -26,12 +28,9 @@ export default {
 
 export const Loaded = () => <AuthnDialog {...props} />;
 
-export const Error = () => (
-  <AuthnDialog {...props} errorText="some error message" />
-);
+export const Error = () => <AuthnDialog {...props} />;
 
 const props: Props = {
-  onContinue: () => null,
+  mfa: makeDefaultMfaState(),
   onCancel: () => null,
-  errorText: '',
 };

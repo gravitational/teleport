@@ -45,6 +45,8 @@ export interface TeleportFeatureNavigationItem {
    * in the "selected" state in the navigation
    */
   isSelected?: (clusterId: string, pathname: string) => boolean;
+  /** searchableTags is a list of strings by which this feature should be searchable in the nav search. */
+  searchableTags?: string[];
 }
 
 export enum NavTitle {

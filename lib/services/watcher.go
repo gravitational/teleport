@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -90,8 +89,6 @@ func watchKindsString(kinds []types.WatchKind) string {
 type ResourceWatcherConfig struct {
 	// Component is a component used in logs.
 	Component string
-	// TODO(tross): remove this once e has been updated.
-	Log logrus.FieldLogger
 	// Logger emits log messages.
 	Logger *slog.Logger
 	// MaxRetryPeriod is the maximum retry period on failed watchers.
@@ -962,6 +959,162 @@ func (p *databaseCollector) processEventsAndUpdateCurrent(ctx context.Context, e
 }
 
 func (*databaseCollector) notifyStale() {}
+
+type DynamicWindowsDesktopGetter interface {
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+}
+
+// DynamicWindowsDesktopWatcherConfig is a DynamicWindowsDesktopWatcher configuration.
+type DynamicWindowsDesktopWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// DynamicWindowsDesktopGetter is responsible for fetching DynamicWindowsDesktop resources.
+	DynamicWindowsDesktopGetter
+	// DynamicWindowsDesktopsC receives up-to-date list of all DynamicWindowsDesktop resources.
+	DynamicWindowsDesktopsC chan types.DynamicWindowsDesktops
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *DynamicWindowsDesktopWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.DynamicWindowsDesktopGetter == nil {
+		getter, ok := cfg.Client.(DynamicWindowsDesktopGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter DynamicWindowsDesktopGetter and Client %T not usable as DynamicWindowsDesktopGetter", cfg.Client)
+		}
+		cfg.DynamicWindowsDesktopGetter = getter
+	}
+	if cfg.DynamicWindowsDesktopsC == nil {
+		cfg.DynamicWindowsDesktopsC = make(chan types.DynamicWindowsDesktops)
+	}
+	return nil
+}
+
+// NewDynamicWindowsDesktopWatcher returns a new instance of DynamicWindowsDesktopWatcher.
+func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesktopWatcherConfig) (*DynamicWindowsDesktopWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &dynamicWindowsDesktopCollector{
+		DynamicWindowsDesktopWatcherConfig: cfg,
+		initializationC:                    make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &DynamicWindowsDesktopWatcher{watcher, collector}, nil
+}
+
+// DynamicWindowsDesktopWatcher is built on top of resourceWatcher to monitor DynamicWindowsDesktop resources.
+type DynamicWindowsDesktopWatcher struct {
+	*resourceWatcher
+	*dynamicWindowsDesktopCollector
+}
+
+// dynamicWindowsDesktopCollector accompanies resourceWatcher when monitoring DynamicWindowsDesktop resources.
+type dynamicWindowsDesktopCollector struct {
+	// DynamicWindowsDesktopWatcherConfig is the watcher configuration.
+	DynamicWindowsDesktopWatcherConfig
+	// current holds a map of the currently known DynamicWindowsDesktop resources.
+	current map[string]types.DynamicWindowsDesktop
+	// lock protects the "current" map.
+	lock sync.RWMutex
+	// initializationC is used to check that the
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKinds specifies the resource kind to watch.
+func (p *dynamicWindowsDesktopCollector) resourceKinds() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindDynamicWindowsDesktop}}
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *dynamicWindowsDesktopCollector) initializationChan() <-chan struct{} {
+	return p.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *dynamicWindowsDesktopCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	var dynamicWindowsDesktops []types.DynamicWindowsDesktop
+	next := ""
+	for {
+		desktops, token, err := p.DynamicWindowsDesktopGetter.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dynamicWindowsDesktops = append(dynamicWindowsDesktops, desktops...)
+		if token == "" {
+			break
+		}
+		next = token
+	}
+	newCurrent := make(map[string]types.DynamicWindowsDesktop, len(dynamicWindowsDesktops))
+	for _, dynamicWindowsDesktop := range dynamicWindowsDesktops {
+		newCurrent[dynamicWindowsDesktop.GetName()] = dynamicWindowsDesktop
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.defineCollectorAsInitialized()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case p.DynamicWindowsDesktopsC <- dynamicWindowsDesktops:
+	}
+
+	return nil
+}
+
+func (p *dynamicWindowsDesktopCollector) defineCollectorAsInitialized() {
+	p.once.Do(func() {
+		// mark watcher as initialized.
+		close(p.initializationC)
+	})
+}
+
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *dynamicWindowsDesktopCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	var updated bool
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindDynamicWindowsDesktop {
+			p.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
+			continue
+		}
+		switch event.Type {
+		case types.OpDelete:
+			delete(p.current, event.Resource.GetName())
+			updated = true
+		case types.OpPut:
+			dynamicWindowsDesktop, ok := event.Resource.(types.DynamicWindowsDesktop)
+			if !ok {
+				p.Logger.WarnContext(ctx, "Received unexpected resource type", "resource", event.Resource.GetKind())
+				continue
+			}
+			p.current[dynamicWindowsDesktop.GetName()] = dynamicWindowsDesktop
+			updated = true
+		default:
+			p.Logger.WarnContext(ctx, "Received unsupported event type", "event_type", event.Type)
+		}
+	}
+
+	if updated {
+		select {
+		case <-ctx.Done():
+		case p.DynamicWindowsDesktopsC <- resourcesToSlice(p.current):
+		}
+	}
+}
+
+func (*dynamicWindowsDesktopCollector) notifyStale() {}
 
 // AppWatcherConfig is an AppWatcher configuration.
 type AppWatcherConfig struct {
