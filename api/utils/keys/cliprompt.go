@@ -29,7 +29,11 @@ import (
 
 type cliPrompt struct{}
 
-func (c *cliPrompt) AskPIN(ctx context.Context, message string) (string, error) {
+func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
+	message := "Enter your YubiKey PIV PIN"
+	if requirement == PINOptional {
+		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
+	}
 	password, err := prompt.Password(ctx, os.Stderr, prompt.Stdin(), message)
 	return password, trace.Wrap(err)
 }
