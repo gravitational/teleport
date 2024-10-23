@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -36,6 +37,15 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+)
+
+const (
+	// cliMFATypeOTP is the CLI display name for OTP.
+	cliMFATypeOTP = "OTP"
+	// cliMFATypeWebauthn is the CLI display name for Webauthn.
+	cliMFATypeWebauthn = "WEBAUTHN"
+	// cliMFATypeSSO is the CLI display name for SSO.
+	cliMFATypeSSO = "SSO"
 )
 
 // CLIPromptConfig contains CLI prompt config options.
@@ -52,6 +62,9 @@ type CLIPromptConfig struct {
 	// PreferOTP favors OTP challenges, if applicable.
 	// Takes precedence over AuthenticatorAttachment settings.
 	PreferOTP bool
+	// PreferSSO favors SSO challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferSSO bool
 	// StdinFunc allows tests to override prompt.Stdin().
 	// If nil prompt.Stdin() is used.
 	StdinFunc func() prompt.StdinReader
@@ -113,17 +126,25 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	promptSSO := chal.SSOChallenge != nil
 
 	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn {
+	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
+	}
+
+	var availableMethods []string
+	if promptWebauthn {
+		availableMethods = append(availableMethods, cliMFATypeWebauthn)
+	}
+	if promptSSO {
+		availableMethods = append(availableMethods, cliMFATypeSSO)
+	}
+	if promptOTP {
+		availableMethods = append(availableMethods, cliMFATypeOTP)
 	}
 
 	// Check off unsupported methods.
 	if promptWebauthn && !c.cfg.WebauthnSupported {
 		promptWebauthn = false
 		slog.DebugContext(ctx, "hardware device MFA not supported by your platform")
-		if !promptOTP {
-			return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-		}
 	}
 
 	if promptSSO && c.cfg.SSOMFACeremony == nil {
@@ -132,8 +153,17 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	// Prefer whatever method is requested by the client.
-	if c.cfg.PreferOTP && promptOTP {
-		promptWebauthn = false
+	var chosenMethods []string
+	var userSpecifiedMethod bool
+	switch {
+	case c.cfg.PreferSSO && promptSSO:
+		chosenMethods = []string{cliMFATypeSSO}
+		promptWebauthn, promptOTP = false, false
+		userSpecifiedMethod = true
+	case c.cfg.PreferOTP && promptOTP:
+		chosenMethods = []string{cliMFATypeOTP}
+		promptWebauthn, promptSSO = false, false
+		userSpecifiedMethod = true
 	}
 
 	// Use stronger auth methods if hijack is not allowed.
@@ -141,10 +171,32 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		promptOTP = false
 	}
 
-	// If a specific webauthn attachment was requested, skip OTP.
-	// Otherwise, allow dual prompt with OTP.
-	if promptWebauthn && c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto {
+	// If we have multiple viable options, prefer Webauthn > SSO > OTP.
+	switch {
+	case promptWebauthn:
+		chosenMethods = []string{cliMFATypeWebauthn}
+		promptSSO = false
+
+		// If a specific webauthn attachment was requested, skip OTP.
+		// Otherwise, allow dual prompt with OTP.
+		promptOTP = promptOTP && c.cfg.AuthenticatorAttachment == wancli.AttachmentAuto
+		if promptOTP {
+			chosenMethods = append(chosenMethods, cliMFATypeOTP)
+		}
+	case promptSSO:
+		chosenMethods = []string{cliMFATypeSSO}
 		promptOTP = false
+	case promptOTP:
+		chosenMethods = []string{cliMFATypeOTP}
+	}
+
+	// If there are multiple options and we chose one without it being specifically
+	// requested by the user, notify the user about it and how to request a specific method.
+	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
+		const msg = "" +
+			"Available MFA methods [%v]. Continuing with %v.\n" +
+			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n"
+		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "))
 	}
 
 	// DELETE IN v18.0 after TOTP session MFA support is removed (codingllama)
@@ -170,8 +222,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		resp, err := c.promptOTP(ctx, c.cfg.Quiet)
 		return resp, trace.Wrap(err)
 	default:
-		// We shouldn't reach this case as we would have hit the no-op case above.
-		return nil, trace.BadParameter("no MFA methods to prompt")
+		return nil, trace.BadParameter("client does not support any available MFA methods [%v], see debug logs for details", strings.Join(availableMethods, ", "))
 	}
 }
 
