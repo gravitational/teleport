@@ -11,6 +11,7 @@ jobs:
       pull-requests: read
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
+      changed_files: ${{ steps.changes.outputs.changed_files }}
     steps:
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
@@ -93,8 +94,8 @@ jobs:
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
           separator: ','
-          files: '${{ github.workspace }}/docs/content/teleport/docs/pages'
-
+          workdir: '${{ github.workspace }}/docs/content/teleport'
+          files: ${{ needs.changes.outputs.changed_files }}
           # Restrict the linter to lines modified/added by a PR, not entire
           # changed files.
           filter_mode: added
