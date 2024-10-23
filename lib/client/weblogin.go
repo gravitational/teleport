@@ -117,7 +117,7 @@ type MFAChallengeResponse struct {
 
 // SSOResponse is a json compatible [proto.SSOResponse].
 type SSOResponse struct {
-	RequestID string `json:"request_id,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
 	Token     string `json:"token,omitempty"`
 }
 
@@ -471,16 +471,16 @@ type MFAAuthenticateChallenge struct {
 
 // SSOChallenge is a json compatible [proto.SSOChallenge].
 type SSOChallenge struct {
-	RequestID   string        `json:"request_id,omitempty"`
-	RedirectURL string        `json:"redirect_url,omitempty"`
+	RequestID   string        `json:"requestId,omitempty"`
+	RedirectURL string        `json:"redirectUrl,omitempty"`
 	Device      *SSOMFADevice `json:"device"`
 }
 
 // SSOMFADevice is a json compatible [proto.SSOMFADevice].
 type SSOMFADevice struct {
-	ConnectorID   string `json:"connector_id,omitempty"`
-	ConnectorType string `json:"connector_type,omitempty"`
-	DisplayName   string `json:"display_name,omitempty"`
+	ConnectorID   string `json:"connectorId,omitempty"`
+	ConnectorType string `json:"connectorType,omitempty"`
+	DisplayName   string `json:"displayName,omitempty"`
 }
 
 func SSOChallengeFromProto(ssoChal *proto.SSOChallenge) *SSOChallenge {
