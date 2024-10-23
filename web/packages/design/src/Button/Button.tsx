@@ -116,6 +116,8 @@ Button.displayName = 'Button';
 
 export type ThemedButtonProps<E extends React.ElementType> = ButtonProps<E> & {
   theme: Theme;
+  fill: ButtonFill;
+  intent: ButtonIntent;
 };
 
 const themedStyles = <E extends React.ElementType>(
@@ -344,8 +346,6 @@ const buttonPalette = <E extends React.ElementType>({
           },
         };
       }
-    default:
-      fill satisfies never;
   }
 };
 
@@ -404,25 +404,23 @@ const size = <E extends React.ElementType>(props: ButtonProps<E>) => {
         lineHeight: '16px',
         letterSpacing: '0.15px',
       };
-    default:
-      props.size satisfies never;
   }
 };
 
-const block = props =>
+const block = (props: { block?: boolean }) =>
   props.block
     ? {
         width: '100%',
       }
     : null;
 
-const textTransform = props =>
+const textTransform = (props: { textTransform?: string }) =>
   props.textTransform ? { textTransform: props.textTransform } : null;
 
 const StyledButton = styled.button.withConfig({
   shouldForwardProp: (prop, target) =>
     !['compact'].includes(prop) && defaultValidatorFn(prop, target),
-})`
+})<{ fill: ButtonFill; size: ButtonSize; intent: ButtonIntent }>`
   line-height: 1.5;
   margin: 0;
   display: inline-flex;

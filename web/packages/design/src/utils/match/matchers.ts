@@ -29,6 +29,7 @@ export function dateMatcher<T>(
         .toLocaleUpperCase()
         .includes(searchValue);
     }
+    return false;
   };
 }
 
@@ -41,5 +42,6 @@ export function dateTimeMatcher<T>(
         .toLocaleUpperCase()
         .includes(searchValue);
     }
+    return false;
   };
 }

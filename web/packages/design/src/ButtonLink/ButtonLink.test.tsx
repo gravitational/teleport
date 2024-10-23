@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,18 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * selectElementContent selects the entire text contained in the HTML
- * element that is passed in as args
- *
- * @param element the element that contains the text to select
- */
-export default function selectElementContent(element: HTMLElement) {
-  const selection = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  if (selection) {
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-}
+import React from 'react';
+
+import { render } from 'design/utils/testing';
+
+import ButtonLink from './index';
+
+describe('design/ButtonLink', () => {
+  it('respects the "as" prop', () => {
+    const { container } = render(<ButtonLink />);
+    expect(container.firstChild?.nodeName).toBe('A');
+  });
+
+  it('respects the button size prop', () => {
+    const { container } = render(<ButtonLink size="large" />);
+    expect(container.firstChild).toHaveStyle('min-height: 40px');
+  });
+});
