@@ -18,7 +18,7 @@
 
 import { MatchCallback } from 'design/utils/match';
 
-import { State } from './useTable';
+import { AppliedPagination } from './useTable';
 
 export type TableProps<T> = {
   data: T[];
@@ -86,7 +86,7 @@ type TableColumnBase<T> = {
   headerText?: string;
   render?: (row: T) => JSX.Element;
   isSortable?: boolean;
-  onSort?: (a, b) => number;
+  onSort?: (a: T, b: T) => number;
   // isNonRender is a flag that when true,
   // does not render the column or cell in table.
   // Use case: when a column combines two
@@ -142,9 +142,12 @@ export type ServersideProps = {
 // Makes it so either key or altKey is required
 type TableColumnWithKey<T> = TableColumnBase<T> & {
   key: keyof T & string;
-  // altSortKey is the alternative field to sort column by,
-  // if provided. Otherwise it falls back to sorting by field
-  // "key".
+  /**
+   * altSortKey is the alternative field to sort column by,
+   * if provided.
+   * Otherwise, it falls back to sorting by field "key".
+   * @deprecated Provide the custom sorting logic through `onSort` function.
+   */
   altSortKey?: Extract<keyof T, string>;
   altKey?: never;
 };
@@ -205,14 +208,14 @@ export type SearchableBasicTableProps<T> = BasicTableProps<T> & {
 export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   nextPage: () => void;
   prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  fetching?: State<T>['fetching'];
+  pagination: AppliedPagination<T>;
+  fetching?: FetchingConfig;
 };
 
 export type ServersideTableProps<T> = BasicTableProps<T> & {
-  nextPage: () => void;
-  prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  serversideProps: State<T>['serversideProps'];
+  nextPage?: () => void;
+  prevPage?: () => void;
+  pagination?: AppliedPagination<T>;
+  serversideProps: ServersideProps;
   fetchStatus?: FetchStatus;
 };
