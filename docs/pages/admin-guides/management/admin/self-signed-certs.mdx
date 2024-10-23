@@ -110,37 +110,37 @@ running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
     <TabItem label="Helm chart">
     If you are using the `teleport-cluster` Helm chart, set
     [extraArgs](../../../reference/helm-reference/teleport-cluster.mdx)
-    to include the extra argument: `--insecure`:
-    <Tabs>
-      <TabItem label="values.yaml">
-      ```yaml
-      extraArgs:
-      - "--insecure"
+    to include the extra argument: `--insecure`.
+
+    Here is an example of the field within a values file:
+
+    ```yaml
+    extraArgs:
+    - "--insecure"
+    ```
+
+    When using the `--set` flag, use the following syntax:
+
+
+      ```text
+      --set "extraArgs={--insecure}"
       ```
-      </TabItem>
-      <TabItem label="--set">
-      ```code
-      $ --set "extraArgs={--insecure}"
-      ```
-      </TabItem>
-    </Tabs>
-    
     
     If you are using the `teleport-kube-agent` chart, set the 
     [insecureSkipProxyTLSVerify](../../../reference/helm-reference/teleport-kube-agent.mdx)
-    flag to `true`:
-    <Tabs>
-      <TabItem label="values.yaml">
-      ```yaml
-      insecureSkipProxyTLSVerify: true
-      ```
-      </TabItem>
-      <TabItem label="--set">
-      ```code
-      $ --set insecureSkipProxyTLSVerify=true
-      ```
-      </TabItem>
-    </Tabs>
+    flag to `true`.
+
+    In a values file, this would appear as follows:
+
+    ```yaml
+    insecureSkipProxyTLSVerify: true
+    ```
+
+    When using the `--set` flag, use the following syntax:
+
+    ```text
+    --set insecureSkipProxyTLSVerify=true
+    ```
     </TabItem>
 
     <TabItem label="systemd">
