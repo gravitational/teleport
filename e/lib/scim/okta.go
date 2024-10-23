@@ -2,6 +2,7 @@ package scim
 
 import (
 	"context"
+	"log/slog"
 	"math"
 	"strings"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	oktapi "github.com/okta/okta-sdk-golang/v2/okta"
 	oktaquery "github.com/okta/okta-sdk-golang/v2/okta/query"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -38,7 +38,7 @@ type oktaShim struct {
 	roles    RolesService
 	plugin   *types.PluginV1
 	clock    clockwork.Clock
-	log      logrus.FieldLogger
+	logger   *slog.Logger
 	identity IdentityService
 }
 
@@ -58,9 +58,7 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 		return nil, trace.BadParameter("missing okta settings")
 	}
 
-	log := service.log.WithField(
-		teleport.ComponentKey,
-		teleport.Component(ComponentName, eteleport.ComponentOkta))
+	log := slog.With(teleport.ComponentKey, teleport.Component(ComponentName, eteleport.ComponentOkta))
 
 	return &oktaShim{
 		creds:    service.creds,
@@ -70,7 +68,7 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 		roles:    service.roles,
 		identity: service.identity,
 		plugin:   p,
-		log:      log,
+		logger:   log,
 	}, nil
 }
 
@@ -185,7 +183,7 @@ func (s *oktaShim) resourceToUser(ctx context.Context, res *scimpb.Resource) (ty
 		return nil, trace.Wrap(err)
 	}
 
-	s.log.Infof("Attempting to fetch user %s/%s", res.ExternalId, oktaUser.UserName)
+	s.logger.InfoContext(ctx, "Attempting to fetch user", "external_id", res.ExternalId, "username", oktaUser.UserName)
 
 	teleportUser, err := s.getOktaUser(ctx, res.ExternalId, s.plugin.Spec.GetOkta())
 	if err != nil {
@@ -270,15 +268,15 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 // outstanding SCIM locks on that user
 func (s *oktaShim) onCreatedUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
 	oktaSettings := s.plugin.Spec.GetOkta()
-	log := s.log.WithField("user", createdUser.GetName())
-	log.Info("Ensuring newly-created user has no SCIM locks")
+	log := s.logger.With("user", createdUser.GetName())
+	log.InfoContext(ctx, "Ensuring newly-created user has no SCIM locks")
 
 	err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated},
 		oktaSettings.OrgUrl, s.locks)
 	if err != nil {
 		// This is probably not enough of a reason to fail the provisioning, but
 		// it should be logged
-		log.Errorf("Failed unlocking user: %s", err.Error())
+		log.ErrorContext(ctx, "Failed unlocking user", "error", err)
 	}
 	return nil
 }
@@ -293,7 +291,7 @@ type oktaUserResource struct {
 // and deactivation into "update" messages
 func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (types.User, bool, error) {
 	oktaSettings := s.plugin.Spec.GetOkta()
-	log := s.log.WithField("user", teleportUser.GetName())
+	log := s.logger.With("user", teleportUser.GetName())
 
 	var oktaUser oktaUserResource
 	if err := mapstructure.Decode(res.Attributes.AsMap(), &oktaUser); err != nil {
@@ -312,7 +310,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 	if oktaUser.Active != nil {
 		// if this is an activation request...
 		if (*oktaUser.Active) == true {
-			log.Debug("Okta activating user. Unlocking.")
+			log.DebugContext(ctx, "Okta activating user - unlocking")
 			err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated},
 				oktaSettings.OrgUrl, s.locks)
 			if err != nil {
@@ -323,7 +321,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 
 		// if we get to here, this is a deactivation request as per
 		// https://developer.okta.com/docs/reference/scim/scim-20/#delete-users
-		log.Debug("Okta deactivating user. Locking.")
+		log.DebugContext(ctx, "Okta deactivating user - locking")
 		_, err := okta.LockUser(ctx, okta.LockParams{
 			User:     teleportUser,
 			Reason:   okta.LockReasonDeactivated,
@@ -331,7 +329,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 			OrgURL:   oktaSettings.OrgUrl,
 			Clock:    s.clock,
 			LocksSvc: s.locks,
-			Log:      s.log,
+			Logger:   s.logger,
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)
@@ -478,7 +476,7 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 	//  * Okta performs a "starts-with" search, so we may get multiple results.
 	//  * Exact matches are sorted first in the returned list
 
-	s.log.Debugf("Looking up group %q", displayName)
+	s.logger.DebugContext(ctx, "Looking up group", "group_name", displayName)
 	groups, _, err := c.Group.ListGroups(ctx, &oktaquery.Params{Q: displayName, Limit: oktaGroupLimit})
 	if err != nil {
 		return "", trace.Wrap(err, "listing groups")
@@ -488,22 +486,22 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 
 	// Okta performs a "starts-with" search, so we may get multiple results.
 	for _, candidate := range groups {
-		log := s.log.WithField("candidate", candidate.Id)
+		log := s.logger.With("candidate", candidate.Id)
 
 		if candidate.Profile == nil {
-			log.Info("Candidate has no profile")
+			log.InfoContext(ctx, "Candidate has no profile")
 			continue
 		}
 
-		log.Infof("testing group %q", candidate.Profile.Name)
+		log.InfoContext(ctx, "testing group", "group_name", candidate.Profile.Name)
 
 		if candidate.Profile.Name != displayName {
-			log.Infof("Display name mismatch")
+			log.InfoContext(ctx, "Display name mismatch")
 			continue
 		}
 
 		if candidate.Type != "OKTA_GROUP" {
-			log.Infof("Invalid group type")
+			log.InfoContext(ctx, "Invalid group type")
 			continue
 		}
 

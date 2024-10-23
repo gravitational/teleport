@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -189,7 +190,7 @@ type userReconcilerConfig struct {
 	userOrgURL  string
 	emitter     apievents.Emitter
 	clock       clockwork.Clock
-	log         logrus.FieldLogger
+	logger      *slog.Logger
 }
 
 // CheckAndSetDefaults validates the config, supplying defaults as necessary
@@ -206,8 +207,8 @@ func (cfg *userReconcilerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Okta org url")
 	}
 
-	if cfg.log == nil {
-		cfg.log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
+	if cfg.logger == nil {
+		cfg.logger = slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 
 	if cfg.clock == nil {
@@ -261,7 +262,7 @@ func newUserReconciler(cfg userReconcilerConfig) (*userReconciler, error) {
 			OnCreate:            userReconciler.createTeleportUser,
 			OnUpdate:            userReconciler.updateTeleportUser,
 			OnDelete:            userReconciler.deleteTeleportUser,
-			Log:                 cfg.log,
+			Logger:              cfg.logger,
 		})
 
 	if err != nil {
@@ -305,12 +306,10 @@ func (r *userReconciler) createTeleportUser(ctx context.Context, oktaUser types.
 		// Trying to overwrite an existing user isn't allowed, but it is not a
 		// condition we should fail the sync pass for.
 		if trace.IsAlreadyExists(err) {
-			r.cfg.log.
-				WithFields(logrus.Fields{
-					"user_name":    oktaUser.GetName(),
-					"okta_user_id": oktaUserID,
-				}).
-				Warnf("User already exists in Teleport and was not imported.")
+			r.cfg.logger.WarnContext(ctx, "User already exists in Teleport and was not imported",
+				"user_name", oktaUser.GetName(),
+				"okta_user_id", oktaUserID,
+			)
 			return nil
 		}
 
@@ -466,7 +465,7 @@ func (r *userReconciler) reconcileUsers(ctx context.Context, oktaUsers, teleport
 	// Emit an API event marking success or failure
 	event := r.createSyncEvent(reconcileErr)
 	if eventErr := r.cfg.emitter.EmitAuditEvent(ctx, event); eventErr != nil {
-		r.cfg.log.WithError(reconcileErr).Warn("Unable to emit audit event")
+		r.cfg.logger.WarnContext(ctx, "Unable to emit audit event", "error", eventErr)
 	}
 
 	return r.stats, trace.Wrap(reconcileErr)
@@ -481,7 +480,7 @@ type LockParams struct {
 	OrgURL   string
 	Clock    clockwork.Clock
 	LocksSvc LocksService
-	Log      logrus.FieldLogger
+	Logger   *slog.Logger
 }
 
 // CheckAndSetDefaults validates the LockParams values, supplying defaults if
@@ -503,8 +502,8 @@ func (p *LockParams) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing locks service")
 	}
 
-	if p.Log == nil {
-		p.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
+	if p.Logger == nil {
+		p.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 
 	if p.Clock == nil {
@@ -548,16 +547,14 @@ func LockUser(ctx context.Context, args LockParams) (types.Lock, error) {
 	}
 
 	if err := l.CheckAndSetDefaults(); err != nil {
-		args.Log.WithError(err).Error("setting lock defaults")
+		args.Logger.ErrorContext(ctx, "setting lock defaults", "error", err)
 		return nil, trace.Wrap(err, "setting lock defaults")
 	}
 
-	args.Log.
-		WithFields(logrus.Fields{
-			"user_name": args.User.GetName(),
-			"lock_name": l.GetName(),
-		}).
-		Debugf("Locking user %s", args.User.GetName())
+	args.Logger.DebugContext(ctx, "Locking user",
+		"user_name", args.User.GetName(),
+		"lock_name", l.GetName(),
+	)
 
 	if err := args.LocksSvc.UpsertLock(ctx, l); err != nil {
 		return nil, trace.Wrap(err, "locking user %q", args.User.GetName())
@@ -575,7 +572,7 @@ func (r *userReconciler) lockUser(ctx context.Context, user types.User, reason s
 		OrgURL:   r.cfg.userOrgURL,
 		Clock:    r.cfg.clock,
 		LocksSvc: r.cfg.teleportAP,
-		Log:      r.cfg.log,
+		Logger:   r.cfg.logger,
 	})
 }
 

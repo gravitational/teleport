@@ -515,9 +515,10 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		s.userReconciler, err = newUserReconciler(userReconcilerConfig{
 			clusterName: config.ClusterName,
 			teleportAP:  config.AccessPoint,
-			log:         config.Log,
-			userOrgURL:  config.OktaAPIEndpoint,
-			emitter:     config.Emitter,
+			// TODO(tross): convert this once service is migrated to slog
+			logger:     slog.Default(),
+			userOrgURL: config.OktaAPIEndpoint,
+			emitter:    config.Emitter,
 		})
 		if err != nil {
 			s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
@@ -555,7 +556,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 	if config.AccessListSyncEnabled {
 		config.Log.Info("Access list synchronization is enabled. Configuring synchronizer.")
 		alSync, err := newAccessListSync(accessListSyncConfig{
-			Log:                 s.log,
+			// TODO(tross) convert this once service is migrated to slog
+			Logger:              slog.Default(),
 			Clock:               s.clock,
 			ClusterName:         s.clusterName,
 			Client:              s.client,

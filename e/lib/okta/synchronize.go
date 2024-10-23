@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -352,7 +353,8 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		OnCreate:            s.onCreateGroup,
 		OnUpdate:            s.onUpdateGroup,
 		OnDelete:            s.onDeleteGroup,
-		Log:                 s.log,
+		// TODO(tross): convert this once service is migrate to slog
+		Logger: slog.Default(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -365,7 +367,8 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		OnCreate:            s.onCreateApp,
 		OnUpdate:            s.onUpdateApp,
 		OnDelete:            s.onDeleteApp,
-		Log:                 s.log,
+		// TODO(tross): convert this once service is migrate to slog
+		Logger: slog.Default(),
 	})
 
 	return trace.Wrap(err)

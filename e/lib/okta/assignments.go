@@ -8,7 +8,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -93,8 +92,7 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
-		// TODO(tross): convert to using slog once the reconciler supports it
-		Log: logrus.StandardLogger(),
+		Logger:              a.logger,
 	})
 	if err != nil {
 		return trace.Wrap(err)

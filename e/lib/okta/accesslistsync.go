@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"regexp"
 	"sync"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -52,7 +52,7 @@ var (
 // accessListSyncConfig is the configuration for the access list synchronizer.
 type accessListSyncConfig struct {
 	// Log is the logger for the access list synchronizer.
-	Log *logrus.Entry
+	Logger *slog.Logger
 
 	// Clock is the clock to use for the access list synchronizer.
 	Clock clockwork.Clock
@@ -110,8 +110,8 @@ type accessListSyncConfig struct {
 }
 
 func (a *accessListSyncConfig) CheckAndSetDefaults() error {
-	if a.Log == nil {
-		a.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
+	if a.Logger == nil {
+		a.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 
 	if a.Clock == nil {
@@ -180,7 +180,7 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 // accessListSync will import user permissions information from Okta and create access lists
 // and other resources to reflect them.
 type accessListSync struct {
-	log *logrus.Entry
+	logger *slog.Logger
 
 	clock       clockwork.Clock
 	clusterName string
@@ -263,7 +263,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	}
 
 	a := &accessListSync{
-		log:                 cfg.Log,
+		logger:              cfg.Logger,
 		clock:               cfg.Clock,
 		clusterName:         cfg.ClusterName,
 		client:              cfg.Client,
@@ -294,7 +294,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 			return a.onUpsertAccessList(ctx, accessList)
 		},
 		OnDelete: a.onDeleteAccessList,
-		Log:      a.log,
+		Logger:   a.logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -304,7 +304,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 		accesslistsvc.MemberReconcilerConfig{
 			AccessListMembers: a.accessLists,
 			Matcher:           MatchByLabels[*accesslist.AccessListMember](a.orgURL),
-			Log:               a.log,
+			Logger:            a.logger,
 			OnUpsert:          a.onUpsertAccessListMember,
 			OnDelete:          a.onDeleteAccessListMember,
 		})
@@ -321,7 +321,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 			return a.onUpsertRole(ctx, role)
 		},
 		OnDelete: a.onDeleteRole,
-		Log:      a.log,
+		Logger:   a.logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -349,8 +349,8 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 		}
 	}
 
-	a.log.Infof("Reconciling %d new memberships against %d old memberships",
-		len(newMembers), len(existingMembers))
+	a.logger.InfoContext(ctx, "Reconciling new memberships against existing memberships",
+		"new_member_count", len(newMembers), "exiting_member_count", len(existingMembers))
 	memberErr := a.accessListMemberReconciler.Reconcile(ctx, newMembers, existingMembers)
 
 	roleErr := a.roleReconciler.Reconcile(ctx)
@@ -360,14 +360,14 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 
 // startSync will start the access list synchronizer.
 func (a *accessListSync) startSync(ctx context.Context) {
-	a.log.Info("Starting Okta access list synchronizer")
+	a.logger.InfoContext(ctx, "Starting Okta access list synchronizer")
 
 	// Let's make sure that any existing access lists are reflected in the Okta requester role.
 	if err := a.refreshCurrentImports(ctx); err != nil {
-		a.log.Error("Unable to refresh current imports")
+		a.logger.ErrorContext(ctx, "Unable to refresh current imports")
 	} else {
 		if err := a.addRolesToOktaRequester(ctx); err != nil {
-			a.log.Error("Unable to update Okta requester role")
+			a.logger.ErrorContext(ctx, "Unable to update Okta requester role")
 		}
 	}
 
@@ -386,7 +386,7 @@ func (a *accessListSync) startSync(ctx context.Context) {
 
 		// Block if we're actively synchronizing.
 		if a.synchronizerSuccess.Load() {
-			a.log.Info("Synchronizing access lists from Okta.")
+			a.logger.InfoContext(ctx, "Synchronizing access lists from Okta")
 			err := a.importOktaNativeAssignmentsAsAccessLists(ctx)
 
 			a.serviceStatus.UpdateAccessListSync(ctx, a.clock.Now(),
@@ -395,13 +395,13 @@ func (a *accessListSync) startSync(ctx context.Context) {
 				err)
 
 			if err != nil {
-				a.log.WithError(err).Error("error importing Okta native assignments")
+				a.logger.ErrorContext(ctx, "error importing Okta native assignments", "error", err)
 			}
 			if err := a.addRolesToOktaRequester(ctx); err != nil {
-				a.log.Error("Unable to update Okta requester role")
+				a.logger.ErrorContext(ctx, "Unable to update Okta requester role")
 			}
 		} else {
-			a.log.Info("Okta synchronizer has not yet completed successfully")
+			a.logger.InfoContext(ctx, "Okta synchronizer has not yet completed successfully")
 		}
 
 		timer.Reset(jitter(a.syncInterval))
@@ -509,7 +509,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	a.groupsImported.Store(0)
 
 	// Refresh the current imports from what's known in the backend and clear the new imports.
-	a.log.Info("Refreshing current imports")
+	a.logger.InfoContext(ctx, "Refreshing current imports")
 	if err := a.refreshCurrentImports(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -564,7 +564,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	err = eg.Wait()
 	close(importCh)
 	if err != nil {
-		a.log.WithError(err).Error("Access List import will be skipped due Okta API error.")
+		a.logger.ErrorContext(ctx, "Access List import will be skipped due Okta API error", "error", err)
 		a.emitAccessListSyncEvent(ctx, err)
 		return trace.Wrap(err)
 	}
@@ -597,7 +597,7 @@ func (a *accessListSync) convertAccessListMetadata(ctx context.Context, importCh
 
 			accessList, members, roles, err := a.metadataToImportResources(alMetadata)
 			if err != nil {
-				a.log.WithError(err).Error("error converting metadata to resources")
+				a.logger.ErrorContext(ctx, "error converting metadata to resources", "error", err)
 				continue
 			}
 
@@ -659,7 +659,7 @@ func (a *accessListSync) emitAccessListSyncEvent(ctx context.Context, reconcileE
 	event.NumAccessListMembers = int32(a.importAccessListMembers.Len())
 
 	if err := a.emitter.EmitAuditEvent(ctx, event); err != nil {
-		a.log.WithError(err).Warn("Unable to emit audit event")
+		a.logger.WarnContext(ctx, "Unable to emit audit event", "error", err)
 	}
 }
 
@@ -689,24 +689,20 @@ func getAppID(a types.Application) (oktaAppID, bool) {
 func (a *accessListSync) importApps(ctx context.Context, params importAppsParams) error {
 	appIDProcessed := newSet[oktaAppID]()
 	for _, app := range params.apps {
-		log := a.log.WithFields(logrus.Fields{
-			"app_name": app.GetName(),
-		})
+		log := a.logger.With("app_name", app.GetName())
 
 		appID, ok := getAppID(app)
 		if !ok {
-			log.Debug("application has no internal app ID label")
+			log.DebugContext(ctx, "application has no internal app ID label")
 			continue
 		}
 
-		log = log.WithFields(logrus.Fields{
-			"app_id": appID,
-		})
+		log = log.With("app_id", appID)
 
 		// the Okta app name will be used to match against filters.
 		oktaAppName, ok := app.GetLabel(types.OktaAppNameLabel)
 		if !ok {
-			log.Debug("application has no internal Okta app name label")
+			log.DebugContext(ctx, "application has no internal Okta app name label")
 		}
 
 		if len(a.appFilters) > 0 {
@@ -719,19 +715,19 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			}
 
 			if !matchFound {
-				log.Debug("application doesn't match filter, skipping")
+				log.DebugContext(ctx, "application doesn't match filter, skipping")
 				continue
 			}
 		}
 
 		if appIDProcessed.Has(appID) {
-			log.Debug("application ID was already processed")
+			log.DebugContext(ctx, "application ID was already processed")
 			continue
 		}
 
 		irMetadata, err := a.appToImportResources(ctx, appID, app, params.userMapping)
 		if err != nil && !errors.Is(err, errNoAssignments) {
-			log.WithError(err).Error("error importing application")
+			log.ErrorContext(ctx, "error importing application", "error", err)
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
@@ -741,11 +737,11 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 		appIDProcessed.Add(appID)
 
 		if len(irMetadata.members) > 0 {
-			log.Info("Processing application")
+			log.InfoContext(ctx, "Processing application")
 			params.importCh <- irMetadata
 			a.appsImported.Add(1)
 		} else {
-			log.Info("Application has no assignments, skipping")
+			log.InfoContext(ctx, "Application has no assignments, skipping")
 		}
 	}
 	return nil
@@ -759,7 +755,7 @@ func newSet[T comparable](elements ...T) set.Set[T] {
 func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaAppID, app types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
 	title, ok := app.GetLabel(types.OktaAppNameLabel)
 	if !ok {
-		a.log.WithField("app_id", appID).Debug("application ID has no app name to use as a title")
+		a.logger.DebugContext(ctx, "application ID has no app name to use as a title", "app_id", appID)
 	}
 
 	assignments, err := a.client.GetAppAssignments(ctx, appID)
@@ -811,28 +807,28 @@ func getGroupID(g types.UserGroup) (oktaGroupID, bool) {
 func (a *accessListSync) importGroups(ctx context.Context, params importGroupsParams) error {
 	groupIDProcessed := newSet[oktaGroupID]()
 	for _, group := range params.groups {
-		log := a.log.WithField("group_name", group.GetName())
+		log := a.logger.With("group_name", group.GetName())
 
 		groupID, ok := getGroupID(group)
 		if !ok {
-			log.Debug("group has no internal group ID label")
+			log.DebugContext(ctx, "group has no internal group ID label")
 			continue
 		}
 
-		log = log.WithField("group_id", groupID)
+		log = log.With("group_id", groupID)
 
 		if groupIDProcessed.Has(groupID) {
-			log.Debug("group ID was already processed")
+			log.DebugContext(ctx, "group ID was already processed")
 			continue
 		}
 
 		// the Okta group name will be used to match against filters.
 		oktaGroupName, ok := group.GetLabel(types.OktaGroupNameLabel)
 		if !ok {
-			log.Debug("application has no internal Okta group name label")
+			log.DebugContext(ctx, "application has no internal Okta group name label")
 		}
 
-		log = log.WithField("okta_group_name", oktaGroupName)
+		log = log.With("okta_group_name", oktaGroupName)
 
 		if len(a.groupFilters) > 0 {
 			matchFound := false
@@ -844,7 +840,7 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 			}
 
 			if !matchFound {
-				log.Debug("group doesn't match filter, skipping")
+				log.DebugContext(ctx, "group doesn't match filter, skipping")
 				continue
 			}
 		}
@@ -852,7 +848,7 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 		irMetadata, err := a.groupToImportResources(ctx, groupID, group, params.appMapping, params.userMapping)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				log.WithError(err).Error("Error importing group")
+				log.ErrorContext(ctx, "Error importing group", "error", err)
 				return trace.Wrap(err)
 			}
 			continue
@@ -890,13 +886,13 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID okt
 	for _, appName := range group.GetApplications() {
 		app, ok := appMapping[appName]
 		if !ok {
-			a.log.Errorf("Unable to find app %s as part of group %s", appName, group.GetName())
+			a.logger.ErrorContext(ctx, "Unable to find app as part of group", "app", appName, "group", group.GetName())
 			continue
 		}
 
 		oktaAppID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
 		if !ok {
-			a.log.Errorf("Unable to find Okta App ID for app %s", appName)
+			a.logger.ErrorContext(ctx, "Unable to find Okta App ID for app", "app", appName)
 			continue
 		}
 

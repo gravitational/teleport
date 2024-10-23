@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -207,7 +208,7 @@ func newTestReconciler(t *testing.T) (*userReconciler, *userReconcilerFixture) {
 		emitter:     fixture.eventEmitter,
 		userOrgURL:  testOrgURL,
 		clock:       clockwork.NewFakeClock(),
-		log:         logrus.WithField("test", t.Name()),
+		logger:      slog.With("test", t.Name()),
 	})
 	require.NoError(t, err)
 

@@ -2,9 +2,9 @@ package accesslist
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -30,7 +30,7 @@ type MemberReconcilerConfig struct {
 	AccessListMembers AccessListMembers
 
 	// Log is an optional logger. A default logger will be created if not set.
-	Log *logrus.Entry
+	Logger *slog.Logger
 
 	// Matcher is an optional predicate for selecting  resources to reconcile.
 	// Defaults to matching all supplied resources
@@ -56,8 +56,8 @@ func (cfg *MemberReconcilerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("must provide access list service")
 	}
 
-	if cfg.Log == nil {
-		cfg.Log = logrus.WithField(teleport.ComponentKey, componentAccessListService)
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, componentAccessListService)
 	}
 
 	if cfg.Matcher == nil {
@@ -72,7 +72,7 @@ func (cfg *MemberReconcilerConfig) CheckAndSetDefaults() error {
 type MemberReconciler struct {
 	accessListMembers AccessListMembers
 	backend           *services.Reconciler[*accesslist.AccessListMember]
-	log               *logrus.Entry
+	logger            *slog.Logger
 
 	// onUpsert is an optional event handler to be invoked after a member record
 	// has been created or updated. May be nil.
@@ -100,7 +100,7 @@ func NewMemberReconciler(cfg MemberReconcilerConfig) (*MemberReconciler, error) 
 
 	reconciler := &MemberReconciler{
 		accessListMembers: cfg.AccessListMembers,
-		log:               cfg.Log,
+		logger:            cfg.Logger,
 		onUpsert:          cfg.OnUpsert,
 		onDelete:          cfg.OnDelete,
 	}
@@ -113,7 +113,7 @@ func NewMemberReconciler(cfg MemberReconcilerConfig) (*MemberReconciler, error) 
 		OnCreate:            reconciler.upsertMember,
 		OnUpdate:            reconciler.updateMember,
 		OnDelete:            reconciler.deleteMember,
-		Log:                 cfg.Log,
+		Logger:              cfg.Logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

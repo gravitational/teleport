@@ -9,7 +9,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -264,8 +263,7 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
-		// TODO(tross): convert after reconciler is using slog
-		Log: logrus.StandardLogger(),
+		Logger:              a.logger,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
