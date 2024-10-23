@@ -1751,6 +1751,21 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		for _, azureMatcher := range fc.Discovery.AccessGraph.Azure {
+			regions := azureMatcher.Regions
+			if len(regions) == 0 {
+				return trace.BadParameter("missing regions in access_graph.azure")
+			}
+			subscriptionID := azureMatcher.SubscriptionID
+			umiClientID := azureMatcher.UmiClientId
+			integration := azureMatcher.Integration
+			tMatcher.Azure = append(tMatcher.Azure, &types.AccessGraphAzureSync{
+				Regions:        regions,
+				SubscriptionID: subscriptionID,
+				UmiClientId:    umiClientID,
+				Integration:    integration,
+			})
+		}
 		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
