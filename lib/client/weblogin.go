@@ -756,6 +756,8 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 }
 
 // HostCredentials is used to fetch host credentials for a node.
+// TODO(noah): REMOVE IN V18.0.0
+// Deprecated: Use the RegisterUsingToken gRPC method instead.
 func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {

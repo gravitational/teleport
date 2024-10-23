@@ -100,6 +100,8 @@ type RegisterParams struct {
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
 	// Ignored if AuthClient is provided.
+	// TODO(strideynet): REMOVE IN V18.0.0
+	// Deprecated: since v17, the API client can be used for this purpose.
 	GetHostCredentials HostCredentials
 	// Clock specifies the time provider. Will be used to override the time anchor
 	// for TLS certificate verification.
@@ -348,6 +350,9 @@ func registerThroughProxy(
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(strideynet): When the old HTTP based join RPC is completely
+	// removed, this section can be refactored to reduce duplication.
+
 	var certs *proto.Certs
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
@@ -382,16 +387,47 @@ func registerThroughProxy(
 			return nil, trace.Wrap(err)
 		}
 	default:
-		// The rest of the join methods use GetHostCredentials function passed through
-		// params to call proxy HTTP endpoint
-		var err error
-		certs, err = params.GetHostCredentials(ctx,
-			proxyAddr,
-			params.Insecure,
-			*registerUsingTokenRequestForParams(token, hostKeys, params))
+		conn, err := proxyinsecureclient.NewConnection(
+			ctx,
+			proxyinsecureclient.ConnectionConfig{
+				ProxyServer:  proxyAddr,
+				CipherSuites: params.CipherSuites,
+				Clock:        params.Clock,
+				Insecure:     params.Insecure,
+				Log:          slog.Default(),
+			},
+		)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "creating proxy client")
 		}
+		defer conn.Close()
+
+		joinServiceClient := client.NewJoinServiceClient(
+			proto.NewJoinServiceClient(conn),
+		)
+		certs, err = joinServiceClient.RegisterUsingToken(
+			ctx, registerUsingTokenRequestForParams(token, hostKeys, params),
+		)
+		if err != nil {
+			// The rest of the join methods use the RegisterUsingToken RPC
+			// TODO(strideynet): in V18.0.0, we can remove the fallback call to
+			// GetHostCredentials.
+			if !trace.IsNotImplemented(err) {
+				return nil, trace.Wrap(err)
+			}
+			slog.WarnContext(
+				ctx,
+				"Registration falling back to deprecated HTTP API. Your agent may be newer than the Auth Server.",
+			)
+			certs, err = params.GetHostCredentials(ctx,
+				proxyAddr,
+				params.Insecure,
+				*registerUsingTokenRequestForParams(token, hostKeys, params))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 	}
 	return &RegisterResult{
 		Certs:      certs,
