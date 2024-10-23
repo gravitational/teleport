@@ -350,29 +350,25 @@ func registerThroughProxy(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(strideynet): When the old HTTP based join RPC is completely
-	// removed, this section can be refactored to reduce duplication.
+	conn, err := proxyinsecureclient.NewConnection(
+		ctx,
+		proxyinsecureclient.ConnectionConfig{
+			ProxyServer:  proxyAddr,
+			CipherSuites: params.CipherSuites,
+			Clock:        params.Clock,
+			Insecure:     params.Insecure,
+			Log:          slog.Default(),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer conn.Close()
+	joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
 
 	var certs *proto.Certs
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
-		// IAM and Azure join methods require gRPC client
-		conn, err := proxyinsecureclient.NewConnection(
-			ctx,
-			proxyinsecureclient.ConnectionConfig{
-				ProxyServer:  proxyAddr,
-				CipherSuites: params.CipherSuites,
-				Clock:        params.Clock,
-				Insecure:     params.Insecure,
-				Log:          slog.Default(),
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer conn.Close()
-
-		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
 		switch params.JoinMethod {
 		case types.JoinMethodIAM:
 			certs, err = registerUsingIAMMethod(ctx, joinServiceClient, token, hostKeys, params)
@@ -387,24 +383,6 @@ func registerThroughProxy(
 			return nil, trace.Wrap(err)
 		}
 	default:
-		conn, err := proxyinsecureclient.NewConnection(
-			ctx,
-			proxyinsecureclient.ConnectionConfig{
-				ProxyServer:  proxyAddr,
-				CipherSuites: params.CipherSuites,
-				Clock:        params.Clock,
-				Insecure:     params.Insecure,
-				Log:          slog.Default(),
-			},
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating proxy client")
-		}
-		defer conn.Close()
-
-		joinServiceClient := client.NewJoinServiceClient(
-			proto.NewJoinServiceClient(conn),
-		)
 		certs, err = joinServiceClient.RegisterUsingToken(
 			ctx, registerUsingTokenRequestForParams(token, hostKeys, params),
 		)
@@ -427,8 +405,8 @@ func registerThroughProxy(
 				return nil, trace.Wrap(err)
 			}
 		}
-
 	}
+
 	return &RegisterResult{
 		Certs:      certs,
 		PrivateKey: hostKeys.privateKey,
