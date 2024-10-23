@@ -18,48 +18,51 @@
 
 import React from 'react';
 import Dialog, {
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogContent,
 } from 'design/Dialog';
 import { Danger } from 'design/Alert';
-import { Text, ButtonPrimary, ButtonSecondary } from 'design';
+import { Text, ButtonPrimary, ButtonSecondary, Flex } from 'design';
 
-export default function AuthnDialog({
-  onContinue,
-  onCancel,
-  errorText,
-}: Props) {
+import { MfaState } from 'teleport/lib/useMfa';
+
+export default function AuthnDialog({ mfa, onCancel }: Props) {
   return (
-    <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
+    <Dialog dialogCss={() => ({ width: '500px' })} open={true}>
       <DialogHeader style={{ flexDirection: 'column' }}>
         <DialogTitle textAlign="center">
           Multi-factor authentication
         </DialogTitle>
       </DialogHeader>
       <DialogContent mb={6}>
-        {errorText && (
+        {mfa.errorText && (
           <Danger mt={2} width="100%">
-            {errorText}
+            {mfa.errorText}
           </Danger>
         )}
         <Text textAlign="center">
           Re-enter your multi-factor authentication in the browser to continue.
         </Text>
       </DialogContent>
-      <DialogFooter textAlign="center">
-        <ButtonPrimary onClick={onContinue} autoFocus mr={3} width="130px">
-          {errorText ? 'Retry' : 'OK'}
+      <Flex textAlign="center" justifyContent="center">
+        {/* TODO (avatus) this will eventually be conditionally rendered based on what
+          type of challenges exist. For now, its only webauthn. */}
+        <ButtonPrimary
+          onClick={mfa.onWebauthnAuthenticate}
+          autoFocus
+          mr={3}
+          width="130px"
+        >
+          {mfa.errorText ? 'Retry' : 'OK'}
         </ButtonPrimary>
         <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
-      </DialogFooter>
+      </Flex>
     </Dialog>
   );
 }
 
 export type Props = {
-  onContinue: () => void;
+  mfa: MfaState;
   onCancel: () => void;
-  errorText: string;
 };
