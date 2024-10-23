@@ -122,16 +122,12 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
-	if anonymizationKey == "" {
-		return nil, trace.BadParameter("anonymization key is required")
-	}
-	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterName, anonymizer utils.Anonymizer, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+	if anonymizer == nil {
+		return nil, trace.BadParameter("missing anonymizer")
 	}
 
-	err = metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
