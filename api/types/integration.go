@@ -78,6 +78,11 @@ type Integration interface {
 	GetCredentials() PluginCredentials
 	// WithoutCredentials returns a copy without credentials.
 	WithoutCredentials() Integration
+
+	// GetStatus returns the Integration Status.
+	GetStatus() IntegrationStatusV1
+	// SetStatus sets the Integration Status.
+	SetStatus(IntegrationStatusV1)
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -339,6 +344,22 @@ func (ig *IntegrationV1) SetGitHubIntegrationSpec(spec *GitHubIntegrationSpecV1)
 	}
 }
 
+// GetStatus returns the Integration Status.
+func (ig *IntegrationV1) GetStatus() IntegrationStatusV1 {
+	if ig == nil {
+		return IntegrationStatusV1{}
+	}
+	return ig.Status
+}
+
+// SetStatus sets the Integration Status.
+func (ig *IntegrationV1) SetStatus(s IntegrationStatusV1) {
+	if ig == nil {
+		return
+	}
+	ig.Status = s
+}
+
 // Integrations is a list of Integration resources.
 type Integrations []Integration
 
@@ -393,6 +414,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 			GitHub      json.RawMessage `json:"github"`
 			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status"`
 	}{}
 
 	err := json.Unmarshal(data, &d)
@@ -401,6 +423,8 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	}
 
 	integration.ResourceHeader = d.ResourceHeader
+	integration.Status = d.Status
+
 	if len(d.Spec.Credentials) != 0 {
 		var credentials PluginCredentialsV1
 		if err := protojson.Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
@@ -468,9 +492,12 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			GitHub      GitHubIntegrationSpecV1    `json:"github,omitempty"`
 			Credentials json.RawMessage            `json:"credentials,omitempty"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
+	d.Status = ig.Status
+
 	if ig.Spec.Credentials != nil {
 		data, err := protojson.Marshal(protoadapt.MessageV2Of(ig.Spec.Credentials))
 		if err != nil {
