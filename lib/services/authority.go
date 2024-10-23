@@ -47,7 +47,7 @@ import (
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
-		ignoreProtoXXXFields(),
+		IgnoreProtoXXXFields(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {

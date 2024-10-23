@@ -59,7 +59,7 @@ func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter)
 // UsersEquals checks if the users are equal
 func UsersEquals(u types.User, other types.User) bool {
 	return cmp.Equal(u, other,
-		ignoreProtoXXXFields(),
+		IgnoreProtoXXXFields(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
 			return a.Metadata.Name < b.Metadata.Name
