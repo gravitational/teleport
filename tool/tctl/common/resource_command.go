@@ -2522,7 +2522,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		pageToken := ""
 		desktops := make([]types.DynamicWindowsDesktop, 0, 100)
 		for {
-			d, next, err := dynamicDesktopClient.ListDynamicWindowsDesktop(ctx, 100, pageToken)
+			d, next, err := dynamicDesktopClient.ListDynamicWindowsDesktops(ctx, 100, pageToken)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
