@@ -39,6 +39,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
           repository: 'gravitational/docs'
           path: 'docs'
 
@@ -62,10 +68,12 @@ jobs:
           echo "" > .gitmodules
           rm -rf content/*
           cd content
-          # Add a submodule at docs/content/teleport
-          git submodule add --force -b $BRANCH -- https://github.com/gravitational/teleport
+          # Rather than using a submodule, copy the teleport source into the
+          # content directory.
+          cp -r $GITHUB_WORKSPACE/teleport $GITHUB_WORKSPACE/docs/content
           cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$BRANCH\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"teleport\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          cat <<< "$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json)" > package.json
           yarn install
           yarn build-node
 
