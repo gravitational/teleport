@@ -22,7 +22,7 @@ import { Flex, Image, P2 } from 'design';
 import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import { CommonHeader } from './CommonHeader';
 

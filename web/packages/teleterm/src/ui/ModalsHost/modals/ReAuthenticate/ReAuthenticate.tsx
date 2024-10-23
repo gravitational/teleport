@@ -46,7 +46,7 @@ import { Option } from 'shared/components/Select';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { routing } from 'teleterm/ui/uri';

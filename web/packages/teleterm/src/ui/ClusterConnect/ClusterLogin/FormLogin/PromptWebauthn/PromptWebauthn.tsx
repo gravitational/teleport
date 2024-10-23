@@ -23,7 +23,7 @@ import Validation from 'shared/components/Validation';
 
 import styled from 'styled-components';
 
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import svgHardwareKey from './hardware.svg';
 
