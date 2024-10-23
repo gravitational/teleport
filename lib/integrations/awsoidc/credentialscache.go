@@ -216,7 +216,7 @@ func (cc *CredentialsCache) refreshIfNeeded(ctx context.Context) {
 
 	// Refresh went well, update cached creds.
 	cc.setCredsOrErr(credsOrErr{creds: creds})
-	cc.log.Debug("Successfully refreshed credentials",
+	cc.log.DebugContext(ctx, "Successfully refreshed credentials",
 		slog.Time("expires", creds.Expires))
 }
 

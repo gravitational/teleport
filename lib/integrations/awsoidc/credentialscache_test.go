@@ -32,21 +32,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
-
-func testOIDCIntegration(t *testing.T) *types.IntegrationV1 {
-	oidcIntegration, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: "aws-integration-1"},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::account:role/role1",
-		},
-	)
-	require.NoError(t, err)
-	return oidcIntegration
-}
 
 type fakeSTSClient struct {
 	clock clockwork.Clock
@@ -147,7 +135,7 @@ func TestCredentialsCache(t *testing.T) {
 		tick = 1 * time.Millisecond
 	)
 
-	t.Run("Retreive", func(t *testing.T) {
+	t.Run("Retrieve", func(t *testing.T) {
 		// Assert that credentials can be retrieved when everything is happy.
 		// EventuallyWithT is necessary to allow credentialsCache.run to be
 		// scheduled after SetGenerateOIDCTokenFn above.
