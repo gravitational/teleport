@@ -330,7 +330,7 @@ type PrincipalStateStatus struct {
 	Error string `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	// Revision holds the revision of the principal record provisioned into the
 	// downstream system. Used to assert that the latest revision of the principal
-	// is provisioned downstream and detect principal changes that require
+	// is provisioned downstream and detect changes in the principal that require
 	// re-provisoning.
 	ProvisionedPrincipalRevision string `protobuf:"bytes,6,opt,name=provisioned_principal_revision,json=provisionedPrincipalRevision,proto3" json:"provisioned_principal_revision,omitempty"`
 	// ActiveLocks holds the list of known active locks on the principal. Used to
