@@ -113,8 +113,6 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): request only an SSH cert, we don't need TLS here.
-	// GenerateHostCert needs support for this.
 	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
 		Key:         pubBytes,
 		HostId:      principals[0],
