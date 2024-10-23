@@ -204,3 +204,27 @@ func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSi
 	members, nextToken, err := a.memberService.ListResources(ctx, pageSize, pageToken)
 	return members, nextToken, trace.Wrap(err)
 }
+
+// UnconditionalUpsertAccessList creates or updates an Access List resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalUpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	return a.service.UpsertResource(ctx, accessList)
+}
+
+// UnconditionalDeleteAccessList removes the specified Access List resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalDeleteAccessList(ctx context.Context, name string) error {
+	return a.service.DeleteResource(ctx, name)
+}
+
+// UnconditionalUpsertAccessListMember creates or updates an Access List Member resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalUpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	return a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)
+}
+
+// UnconditionalDeleteAccessListMember removes the specified Access List Member resource without any validation.
+// It should only ever be used by the cache.
+func (a *AccessListService) UnconditionalDeleteAccessListMember(ctx context.Context, accessList, memberName string) error {
+	return a.memberService.WithPrefix(accessList).DeleteResource(ctx, memberName)
+}

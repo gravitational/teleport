@@ -177,22 +177,16 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessListHierarchy, err := accesslists.NewHierarchy(ctx, accesslists.HierarchyConfig{
-		AccessLists: accessLists,
-		Locks:       g.accessLists,
-		Members:     g.accessLists,
-		Clock:       g.clock,
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	var allInheritedRoles []string
 	allInheritedTraits := make(map[string][]string)
 
 	for _, accessList := range accessLists {
 		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
-		if membershipKind, err := accessListHierarchy.IsAccessListMember(ctx, user, accessList.GetName()); err == nil && membershipKind != accesslists.MembershipOrOwnershipTypeNone {
+		membershipKind, err := accesslists.IsAccessListMember(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
+		if err != nil {
+			g.log.WithError(err).Warn("checking access list membership")
+		}
+		if membershipKind != accesslists.MembershipOrOwnershipTypeNone {
 			g.grantRolesAndTraits(accessList.Spec.Grants, state)
 			if membershipKind == accesslists.MembershipOrOwnershipTypeInherited {
 				allInheritedRoles = append(allInheritedRoles, accessList.Spec.Grants.Roles...)
@@ -202,7 +196,11 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 			}
 		}
 		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
-		if ownershipType, err := accessListHierarchy.IsAccessListOwner(ctx, user, accessList.GetName()); err == nil && ownershipType != accesslists.MembershipOrOwnershipTypeNone {
+		ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
+		if err != nil {
+			g.log.WithError(err).Warn("checking access list ownership")
+		}
+		if ownershipType != accesslists.MembershipOrOwnershipTypeNone {
 			g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state)
 			if ownershipType == accesslists.MembershipOrOwnershipTypeInherited {
 				allInheritedRoles = append(allInheritedRoles, accessList.Spec.OwnerGrants.Roles...)

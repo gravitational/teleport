@@ -1637,17 +1637,17 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			name: "with ownership through nested list",
 			req:  mustRequest("rev1"),
 			accessLists: []*accesslist.AccessList{
-				mustAccessListWithMembershipKind(
-					"root",
-					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
-					testAccessListOwner{"nested", accesslist.MembershipKindList},
-				),
+				mustAccessList("nested1", "owner1"),
 				mustAccessListWithMembershipKind(
 					"nested",
 					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
 					testAccessListOwner{"nested1", accesslist.MembershipKindList},
 				),
-				mustAccessList("nested1", "owner1"),
+				mustAccessListWithMembershipKind(
+					"root",
+					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
+					testAccessListOwner{"nested", accesslist.MembershipKindList},
+				),
 			},
 			accessListMembers: []struct {
 				Header header.Metadata
