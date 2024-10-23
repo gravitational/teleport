@@ -306,12 +306,17 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	if trace.IsNotImplemented(err) {
 		// If file owners aren't supported, ACLs certainly aren't. Just bail.
 		// (Subject to change if we ever try to support Windows ACLs.)
+		if dd.ACLs == botfs.ACLRequired {
+			return trace.NotImplemented("unable to determine file ownership on this platform but ACLs were marked as required, cannot continue")
+		}
+
 		log.WarnContext(
 			context.TODO(),
 			"unable to determine file ownership on this platform, ACL verification will be skipped",
 			"path", dd.Path,
 			"error", err,
 		)
+
 		return nil
 	} else if err != nil {
 		return trace.Wrap(err)
@@ -321,7 +326,6 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	// destinations to be owned by the bot user. This is somewhat arbitrarily
 	// here instead of in Init() and will run before each write attempt.
 	if len(dd.Readers) > 0 {
-		// TODO: consider moving ownership check into Init()?
 		if !ownedByBot {
 			const msg = "This destination is not owned by the bot user so ACLs " +
 				"will not be enforced. To silence this warning, fix destination " +
