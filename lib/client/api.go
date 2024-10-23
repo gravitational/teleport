@@ -360,6 +360,9 @@ type Config struct {
 	// authenticators, such as remote hosts or virtual machines.
 	PreferOTP bool
 
+	// PreferSSO prefers SSO in favor of other MFA methods.
+	PreferSSO bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool

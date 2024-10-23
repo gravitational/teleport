@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -42,6 +43,8 @@ const (
 	cliMFATypeOTP = "OTP"
 	// cliMFATypeWebauthn is the CLI display name for Webauthn.
 	cliMFATypeWebauthn = "WEBAUTHN"
+	// cliMFATypeSSO is the CLI display name for SSO.
+	cliMFATypeSSO = "SSO"
 )
 
 // CLIPromptConfig contains CLI prompt config options.
@@ -58,6 +61,9 @@ type CLIPromptConfig struct {
 	// PreferOTP favors OTP challenges, if applicable.
 	// Takes precedence over AuthenticatorAttachment settings.
 	PreferOTP bool
+	// PreferSSO favors SSO challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferSSO bool
 	// StdinFunc allows tests to override prompt.Stdin().
 	// If nil prompt.Stdin() is used.
 	StdinFunc func() prompt.StdinReader
@@ -101,40 +107,71 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
+	promptSSO := false // TODO(Joerger): check for SSO challenge once added in separate PR.
 
 	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn {
+	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
+	}
+
+	var availableMethods []string
+	if promptWebauthn {
+		availableMethods = append(availableMethods, cliMFATypeWebauthn)
+	}
+	if promptSSO {
+		availableMethods = append(availableMethods, cliMFATypeSSO)
+	}
+	if promptOTP {
+		availableMethods = append(availableMethods, cliMFATypeOTP)
 	}
 
 	// Check off unsupported methods.
 	if promptWebauthn && !c.WebauthnSupported {
 		promptWebauthn = false
 		slog.DebugContext(ctx, "hardware device MFA not supported by your platform")
-		if !promptOTP {
-			return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-		}
 	}
 
 	// Prefer whatever method is requested by the client.
+	var chosenMethods []string
 	switch {
+	case c.PreferSSO && promptSSO:
+		chosenMethods = []string{cliMFATypeSSO}
+		promptWebauthn, promptOTP = false, false
 	case c.PreferOTP && promptOTP:
-		promptWebauthn = false
+		chosenMethods = []string{cliMFATypeOTP}
+		promptWebauthn, promptSSO = false, false
 	}
 
 	// Use stronger auth methods if hijack is not allowed.
-	if !c.AllowStdinHijack && promptWebauthn {
+	if !c.AllowStdinHijack && (promptWebauthn || promptSSO) {
 		promptOTP = false
 	}
 
-	// If we have multiple viable options, prefer Webauthn > OTP.
+	// If we have multiple viable options, prefer Webauthn > SSO > OTP.
 	switch {
 	case promptWebauthn:
+		chosenMethods = []string{cliMFATypeWebauthn}
+		promptSSO = false
+
 		// If a specific webauthn attachment was requested, skip OTP.
 		// Otherwise, allow dual prompt with OTP.
 		if c.AuthenticatorAttachment != wancli.AttachmentAuto {
 			promptOTP = false
+		} else if promptOTP {
+			chosenMethods = append(chosenMethods, cliMFATypeOTP)
 		}
+	case promptSSO:
+		chosenMethods = []string{cliMFATypeSSO}
+		promptOTP = false
+	case promptOTP:
+		chosenMethods = []string{cliMFATypeOTP}
+	}
+
+	if len(chosenMethods) > 0 {
+		const msg = "" +
+			"Available MFA methods [%v]. Continuing with %v.\n" +
+			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n"
+		fmt.Fprintf(c.Writer, msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, "and "))
 	}
 
 	switch {
@@ -144,12 +181,14 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	case promptWebauthn:
 		resp, err := c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
 		return resp, trace.Wrap(err)
+	case promptSSO:
+		// TODO(Joerger): prompt for SSO once implemented.
+		return nil, trace.NotImplemented("SSO MFA not implemented")
 	case promptOTP:
 		resp, err := c.promptOTP(ctx, c.Quiet)
 		return resp, trace.Wrap(err)
 	default:
-		// We shouldn't reach this case as we would have hit the no-op case above.
-		return nil, trace.BadParameter("no MFA methods to prompt")
+		return nil, trace.BadParameter("client does not support any available MFA methods [%v]", strings.Join(availableMethods, ", "))
 	}
 }
 

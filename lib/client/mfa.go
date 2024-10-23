@@ -62,6 +62,7 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 			PromptConfig:     *cfg,
 			Writer:           tc.Stderr,
 			PreferOTP:        tc.PreferOTP,
+			PreferSSO:        tc.PreferSSO,
 			AllowStdinHijack: tc.AllowStdinHijack,
 			StdinFunc:        tc.StdinFunc,
 		},
