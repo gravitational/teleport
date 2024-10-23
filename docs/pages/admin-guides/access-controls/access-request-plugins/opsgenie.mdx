@@ -76,6 +76,7 @@ spec:
         teleport.dev/notify-services: ['teleport-access-request-notifications']
         teleport.dev/teams: ['teleport-team']
         teleport.dev/schedules: ['teleport-access-alert-schedules']
+        teleport.dev/priority: "P2"
 ```
 
 The `teleport.dev/notify-services` annotation specifies the schedules the alert will be created for.
@@ -83,6 +84,7 @@ The `teleport.dev/teams` annotation specifies the teams the alert will be create
 have multiple schedules with escalations or an Opsgenie integration that only works with teams.
 The `teleport.dev/schedules` annotation specifies the schedules the alert will check, and auto approve the
 Access Request if the requesting user is on-call.
+The `teleport.dev/priority` annotation specifies the priority of the Opsgenie alert.
 
 ### Create a user who will request access
 
