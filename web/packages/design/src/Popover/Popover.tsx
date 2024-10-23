@@ -40,12 +40,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React, { createRef } from 'react';
+import React, { createRef, Component } from 'react';
 import styled, { CSSProp } from 'styled-components';
 
 import Flex from 'design/Flex';
 
-import Modal, { BackdropProps, Props as ModalProps } from '../Modal';
+import Modal, { BackdropProps, ModalProps as ModalProps } from '../Modal';
 
 import { Transition } from './Transition';
 
@@ -178,11 +178,14 @@ function getTransformOriginValue(transformOrigin: Origin): string {
 
 // Sum the scrollTop between two elements.
 function getScrollParent(parent: Element, child: Element): number {
-  let element = child;
+  let element: Element | null = child;
   let scrollTop = 0;
 
   while (element && element !== parent) {
     element = element.parentElement;
+    if (!element) {
+      break;
+    }
     scrollTop += element.scrollTop;
   }
   return scrollTop;
@@ -272,15 +275,15 @@ function getMaskSize(variableSizes: string) {
  * in order to "carve out" a shape of tooltip with an arrow.
  */
 type MaskStyles = {
-  maskImage?: string;
-  maskPosition?: string;
-  maskSize?: string;
+  maskImage: string;
+  maskPosition: string;
+  maskSize: string;
 };
 
 const noMaskStyles = {
-  maskImage: undefined,
-  maskPosition: undefined,
-  maskSize: undefined,
+  maskImage: '',
+  maskPosition: '',
+  maskSize: '',
 };
 
 /**
@@ -297,7 +300,7 @@ const noMaskStyles = {
  */
 function getMaskStyles(
   arrow: boolean,
-  popoverPos: Position,
+  popoverPos: Position | null,
   arrowLeft: number,
   arrowTop: number
 ): MaskStyles {
@@ -418,7 +421,9 @@ function getMaskStyles(
  * along with the arrow, and we push its content so that it doesn't enter the
  * area reserved for the arrow.
  */
-function getArrowPaddingProp(popoverPos: Position | null) {
+function getArrowPaddingProp(
+  popoverPos: Position | null
+): 'paddingBottom' | 'paddingLeft' | 'paddingTop' | 'paddingRight' | null {
   switch (popoverPos) {
     case null:
       return null;
@@ -430,15 +435,12 @@ function getArrowPaddingProp(popoverPos: Position | null) {
       return 'paddingTop';
     case 'left':
       return 'paddingRight';
-    default:
-      popoverPos satisfies never;
   }
 }
 
-export class Popover extends React.Component<Props> {
+export class Popover extends Component<Props> {
   paperRef = createRef<HTMLDivElement>();
-  arrowRef = createRef<HTMLDivElement>();
-  handleResize: () => void;
+  handleResize: () => void = () => {};
 
   static defaultProps = {
     anchorReference: 'anchorEl',
@@ -484,16 +486,20 @@ export class Popover extends React.Component<Props> {
   setPositioningStyles = () => {
     const paper = this.paperRef.current;
 
+    if (!paper) {
+      return;
+    }
+
     const popoverPos = getPopoverPosition(
-      this.props.anchorOrigin,
-      this.props.transformOrigin
+      this.props.anchorOrigin!,
+      this.props.transformOrigin!
     );
 
     const arrowPaddingProp = getArrowPaddingProp(popoverPos);
     if (arrowPaddingProp && this.props.arrow) {
-      this.paperRef.current.style[arrowPaddingProp] = `${arrowLength}px`;
+      paper.style[arrowPaddingProp] = `${arrowLength}px`;
     } else {
-      this.paperRef.current.style.padding = '0';
+      paper.style.padding = '0';
     }
 
     const {
@@ -505,20 +511,20 @@ export class Popover extends React.Component<Props> {
       maskImage,
       maskPosition,
       maskSize,
-    } = this.getPositioningStyle();
+    } = this.getPositioningStyle(paper);
 
     if (this.props.growDirections === 'bottom-right') {
-      if (top !== null) {
+      if (top !== undefined) {
         paper.style.top = top;
       }
-      if (left !== null) {
+      if (left !== undefined) {
         paper.style.left = left;
       }
     } else {
-      if (bottom !== null) {
+      if (bottom !== undefined) {
         paper.style.bottom = bottom;
       }
-      if (right !== null) {
+      if (right !== undefined) {
         paper.style.right = right;
       }
     }
@@ -528,15 +534,18 @@ export class Popover extends React.Component<Props> {
     paper.style.maskSize = maskSize;
   };
 
-  getPositioningStyle = (): {
+  getPositioningStyle = (
+    element: HTMLDivElement
+  ): {
     top?: string;
     left?: string;
     bottom?: string;
     right?: string;
     transformOrigin: string;
   } & MaskStyles => {
-    const element = this.paperRef.current;
-    const { anchorReference, marginThreshold, arrowMargin } = this.props;
+    const anchorReference = this.props.anchorReference!;
+    const marginThreshold = this.props.marginThreshold!;
+    const arrowMargin = this.props.arrowMargin!;
 
     // Check if the parent has requested anchoring on an inner content node
     const contentAnchorOffset = this.getContentAnchorOffset(element);
@@ -550,9 +559,10 @@ export class Popover extends React.Component<Props> {
 
     if (anchorReference === 'none') {
       return {
-        top: null,
-        left: null,
+        top: undefined,
+        left: undefined,
         transformOrigin: getTransformOriginValue(transformOrigin),
+        ...noMaskStyles,
       };
     }
 
@@ -599,8 +609,8 @@ export class Popover extends React.Component<Props> {
     right = left + elemRect.width;
 
     const popoverPos = getPopoverPosition(
-      this.props.anchorOrigin,
-      this.props.transformOrigin
+      this.props.anchorOrigin!,
+      this.props.transformOrigin!
     );
 
     // Calculate the arrow position.
@@ -627,8 +637,6 @@ export class Popover extends React.Component<Props> {
           arrowLeft = elemRect.width - arrowWidth - arrowMargin;
         }
         break;
-      default:
-        popoverPos satisfies never;
     }
 
     return {
@@ -637,7 +645,7 @@ export class Popover extends React.Component<Props> {
       bottom: `${window.innerHeight - bottom}px`,
       right: `${window.innerWidth - right}px`,
       transformOrigin: getTransformOriginValue(transformOrigin),
-      ...getMaskStyles(this.props.arrow, popoverPos, arrowLeft, arrowTop),
+      ...getMaskStyles(this.props.arrow!, popoverPos, arrowLeft, arrowTop),
     };
   };
 
@@ -647,17 +655,17 @@ export class Popover extends React.Component<Props> {
     const { anchorEl, anchorOrigin } = this.props;
 
     // If an anchor element wasn't provided, just use the parent body element of this Popover
-    const anchorElement = getAnchorEl(anchorEl) || document.body;
+    const anchorElement = getAnchorEl(anchorEl!) || document.body;
 
     const anchorRect = anchorElement.getBoundingClientRect();
 
     const anchorVertical =
-      contentAnchorOffset === 0 ? anchorOrigin.vertical : 'center';
+      contentAnchorOffset === 0 ? anchorOrigin!.vertical : 'center';
 
     return {
       top: anchorRect.top + getOffsetTop(anchorRect, anchorVertical),
       left:
-        anchorRect.left + getOffsetLeft(anchorRect, anchorOrigin.horizontal),
+        anchorRect.left + getOffsetLeft(anchorRect, anchorOrigin!.horizontal),
     };
   }
 
@@ -690,18 +698,18 @@ export class Popover extends React.Component<Props> {
     const { transformOrigin } = this.props;
 
     const popoverPos = getPopoverPosition(
-      this.props.anchorOrigin,
-      this.props.transformOrigin
+      this.props.anchorOrigin!,
+      this.props.transformOrigin!
     );
 
     const vertical =
-      getOffsetTop(elemRect, transformOrigin.vertical) +
-      getPopoverMarginTop(popoverPos, this.props.popoverMargin) +
+      getOffsetTop(elemRect, transformOrigin!.vertical) +
+      getPopoverMarginTop(popoverPos, this.props.popoverMargin!) +
       contentAnchorOffset;
 
     const horizontal =
-      getOffsetLeft(elemRect, transformOrigin.horizontal) +
-      getPopoverMarginLeft(popoverPos, this.props.popoverMargin);
+      getOffsetLeft(elemRect, transformOrigin!.horizontal) +
+      getPopoverMarginLeft(popoverPos, this.props.popoverMargin!);
 
     return {
       vertical,
@@ -710,7 +718,7 @@ export class Popover extends React.Component<Props> {
   }
 
   handleEntering = () => {
-    if (this.props.onEntering) {
+    if (this.props.onEntering && this.paperRef.current) {
       this.props.onEntering(this.paperRef.current);
     }
 
@@ -761,7 +769,7 @@ interface Props extends Omit<ModalProps, 'children' | 'open'> {
    * This is the DOM element, or a function that returns the DOM element, that
    * may be used to set the position of the popover.
    */
-  anchorEl?: Element | (() => Element);
+  anchorEl?: Element | (() => Element) | null;
 
   /**
    * This is the point on the anchor where the popover's `anchorEl` will attach
