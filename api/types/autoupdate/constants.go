@@ -19,12 +19,13 @@ package autoupdate
 const (
 	// ToolsUpdateModeEnabled enables client tools automatic updates.
 	ToolsUpdateModeEnabled = "enabled"
-	// AgentsUpdateModeEnabled enabled agent automatic updates.
-	AgentsUpdateModeEnabled
 	// ToolsUpdateModeDisabled disables client tools automatic updates.
 	ToolsUpdateModeDisabled = "disabled"
+
+	// AgentsUpdateModeEnabled enabled agent automatic updates.
+	AgentsUpdateModeEnabled = "enabled"
 	// AgentsUpdateModeDisabled disables agent automatic updates.
-	AgentsUpdateModeDisabled
+	AgentsUpdateModeDisabled = "disabled"
 	// AgentsUpdateModeSuspended temporarily suspends agent automatic updates.
 	AgentsUpdateModeSuspended = "suspended"
 

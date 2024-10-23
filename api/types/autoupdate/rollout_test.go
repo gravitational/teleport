@@ -29,7 +29,6 @@ import (
 )
 
 // TestNewAutoUpdateConfig verifies validation for AutoUpdateConfig resource.
-
 func TestNewAutoUpdateAgentRollout(t *testing.T) {
 	tests := []struct {
 		name      string
