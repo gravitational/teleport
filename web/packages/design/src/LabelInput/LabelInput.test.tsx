@@ -16,22 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { render, theme } from 'design/utils/testing';
 
-import LabelInput from './LabelInput';
-import InputComp from './../Input';
+import { LabelInput } from './LabelInput';
 
-export default {
-  title: 'Design/LabelInput',
-};
+describe('design/LabelInput', () => {
+  it('respects hasError prop', () => {
+    const { container } = render(<LabelInput hasError={true} />);
+    expect(container.firstChild).toHaveStyle({
+      color: theme.colors.error.main,
+    });
+  });
 
-export const Inputs = () => (
-  <>
-    <LabelInput>Label for Input</LabelInput>
-    <InputComp />
-    <LabelInput mt={4} hasError={true}>
-      With Error
-    </LabelInput>
-    <InputComp hasError={true} />
-  </>
-);
+  it('respects default', () => {
+    const { container } = render(<LabelInput />);
+    expect(container.firstChild).toHaveStyle({
+      color: theme.colors.light,
+    });
+  });
+});

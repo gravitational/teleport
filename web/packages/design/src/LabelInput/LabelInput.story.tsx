@@ -16,5 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import LabelInput from './LabelInput';
-export default LabelInput;
+import { LabelInput } from './LabelInput';
+import InputComp from './../Input';
+
+export default {
+  title: 'Design/LabelInput',
+};
+
+export const Inputs = () => (
+  <>
+    <LabelInput>Label for Input</LabelInput>
+    <InputComp />
+    <LabelInput mt={4} hasError={true}>
+      With Error
+    </LabelInput>
+    <InputComp hasError={true} />
+  </>
+);

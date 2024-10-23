@@ -16,24 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { LabelInput } from './LabelInput';
+export { LabelInput };
 
-import { render, theme } from 'design/utils/testing';
-
-import LabelInput from './LabelInput';
-
-describe('design/LabelInput', () => {
-  it('respects hasError prop', () => {
-    const { container } = render(<LabelInput hasError={true} />);
-    expect(container.firstChild).toHaveStyle({
-      color: theme.colors.error.main,
-    });
-  });
-
-  it('respects default', () => {
-    const { container } = render(<LabelInput />);
-    expect(container.firstChild).toHaveStyle({
-      color: theme.colors.light,
-    });
-  });
-});
+/**
+ * @deprecated Use a named import: `import { LabelInput } from 'design/LabelInput'`.
+ */
+export default LabelInput;
