@@ -81,7 +81,12 @@ type Player struct {
 	translator sessionPrintTranslator
 }
 
-const normalPlayback = math.MinInt64
+const (
+	normalPlayback = math.MinInt64
+	// MaxIdleTimeMilliseconds defines the max idle time when skipping idle
+	// periods on the recording.
+	MaxIdleTimeMilliseconds = 500.0
+)
 
 // Streamer is the underlying streamer that provides
 // access to recorded session events.
@@ -134,14 +139,15 @@ func New(cfg *Config) (*Player, error) {
 	}
 
 	p := &Player{
-		clock:     clk,
-		log:       log,
-		sessionID: cfg.SessionID,
-		streamer:  cfg.Streamer,
-		emit:      make(chan events.AuditEvent, 1024),
-		playPause: make(chan chan struct{}, 1),
-		wake:      make(chan int64),
-		done:      make(chan struct{}),
+		clock:        clk,
+		log:          log,
+		sessionID:    cfg.SessionID,
+		streamer:     cfg.Streamer,
+		emit:         make(chan events.AuditEvent, 1024),
+		playPause:    make(chan chan struct{}, 1),
+		wake:         make(chan int64),
+		done:         make(chan struct{}),
+		skipIdleTime: cfg.SkipIdleTime,
 	}
 
 	p.speed.Store(float64(defaultPlaybackSpeed))
@@ -340,7 +346,7 @@ loop:
 		speed := p.speed.Load().(float64)
 		scaled := float64(currentDelay-lastDelay) / speed
 		if p.skipIdleTime {
-			scaled = min(scaled, 500.0*float64(time.Millisecond))
+			scaled = min(scaled, MaxIdleTimeMilliseconds)
 		}
 
 		timer := p.clock.NewTimer(time.Duration(scaled) * time.Millisecond)
