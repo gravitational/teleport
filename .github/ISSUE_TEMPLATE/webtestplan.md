@@ -175,11 +175,14 @@ All actions should require re-authn with a webauthn device.
 
 Use Discover Wizard to enroll new resources and access them:
 
-- [ ] SSH Server (teleport service, singular EC2, SSM agent)
+- [ ] SSH Server using Teleport Service
 - [ ] Self-Hosted PostgreSQL and Mongo
-- [ ] AWS RDS (singular RDS, auto discover with ECS)
 - [ ] Kubernetes
-- [ ] AWS EKS cluster
+- [ ] Using an AWS OIDC Integration
+  - [ ] EC2 Auto Enrollment (SSM)
+  - [ ] RDS flow: single database
+  - [ ] RDS flow: Auto Enrollment (by VPC)
+  - [ ] EKS Clusters
 - [ ] Non-guided cards link out to correct docs
 
 #### Access Lists

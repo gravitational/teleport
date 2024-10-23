@@ -16,21 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { EventEmitter } from 'events';
 
-import { makeDefaultMfaState } from 'teleport/lib/useMfa';
+import { WebauthnAssertionResponse } from 'teleport/services/auth';
 
-import AuthnDialog, { Props } from './AuthnDialog';
+class EventEmitterMfaSender extends EventEmitter {
+  constructor() {
+    super();
+  }
 
-export default {
-  title: 'Teleport/AuthnDialog',
-};
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  sendWebAuthn(data: WebauthnAssertionResponse) {
+    throw new Error('Not implemented');
+  }
+}
 
-export const Loaded = () => <AuthnDialog {...props} />;
-
-export const Error = () => <AuthnDialog {...props} />;
-
-const props: Props = {
-  mfa: makeDefaultMfaState(),
-  onCancel: () => null,
-};
+export { EventEmitterMfaSender };

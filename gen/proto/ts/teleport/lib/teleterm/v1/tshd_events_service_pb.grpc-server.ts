@@ -25,6 +25,14 @@ import { ReportUnexpectedVnetShutdownResponse } from "./tshd_events_service_pb";
 import { ReportUnexpectedVnetShutdownRequest } from "./tshd_events_service_pb";
 import { GetUsageReportingSettingsResponse } from "./tshd_events_service_pb";
 import { GetUsageReportingSettingsRequest } from "./tshd_events_service_pb";
+import { ConfirmHardwareKeySlotOverwriteResponse } from "./tshd_events_service_pb";
+import { ConfirmHardwareKeySlotOverwriteRequest } from "./tshd_events_service_pb";
+import { PromptHardwareKeyPINChangeResponse } from "./tshd_events_service_pb";
+import { PromptHardwareKeyPINChangeRequest } from "./tshd_events_service_pb";
+import { PromptHardwareKeyTouchResponse } from "./tshd_events_service_pb";
+import { PromptHardwareKeyTouchRequest } from "./tshd_events_service_pb";
+import { PromptHardwareKeyPINResponse } from "./tshd_events_service_pb";
+import { PromptHardwareKeyPINRequest } from "./tshd_events_service_pb";
 import { PromptMFAResponse } from "./tshd_events_service_pb";
 import { PromptMFARequest } from "./tshd_events_service_pb";
 import { SendPendingHeadlessAuthenticationResponse } from "./tshd_events_service_pb";
@@ -72,6 +80,34 @@ export interface ITshdEventsService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: PromptMFA(teleport.lib.teleterm.v1.PromptMFARequest) returns (teleport.lib.teleterm.v1.PromptMFAResponse);
      */
     promptMFA: grpc.handleUnaryCall<PromptMFARequest, PromptMFAResponse>;
+    /**
+     * PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
+     * provide the hardware key PIN.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyPIN(teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse);
+     */
+    promptHardwareKeyPIN: grpc.handleUnaryCall<PromptHardwareKeyPINRequest, PromptHardwareKeyPINResponse>;
+    /**
+     * PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+     * When the daemon detects the touch, it cancels the prompt.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyTouch(teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse);
+     */
+    promptHardwareKeyTouch: grpc.handleUnaryCall<PromptHardwareKeyTouchRequest, PromptHardwareKeyTouchResponse>;
+    /**
+     * PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
+     * change the hardware key PIN.
+     *
+     * @generated from protobuf rpc: PromptHardwareKeyPINChange(teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest) returns (teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse);
+     */
+    promptHardwareKeyPINChange: grpc.handleUnaryCall<PromptHardwareKeyPINChangeRequest, PromptHardwareKeyPINChangeResponse>;
+    /**
+     * ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+     * the slot's private key and certificate should be overwritten.
+     *
+     * @generated from protobuf rpc: ConfirmHardwareKeySlotOverwrite(teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest) returns (teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse);
+     */
+    confirmHardwareKeySlotOverwrite: grpc.handleUnaryCall<ConfirmHardwareKeySlotOverwriteRequest, ConfirmHardwareKeySlotOverwriteResponse>;
     /**
      * GetUsageReportingSettings returns the current state of usage reporting.
      * At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
@@ -141,6 +177,46 @@ export const tshdEventsServiceDefinition: grpc.ServiceDefinition<ITshdEventsServ
         requestDeserialize: bytes => PromptMFARequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(PromptMFAResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(PromptMFARequest.toBinary(value))
+    },
+    promptHardwareKeyPIN: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPIN",
+        originalName: "PromptHardwareKeyPIN",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => PromptHardwareKeyPINResponse.fromBinary(bytes),
+        requestDeserialize: bytes => PromptHardwareKeyPINRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(PromptHardwareKeyPINResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(PromptHardwareKeyPINRequest.toBinary(value))
+    },
+    promptHardwareKeyTouch: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyTouch",
+        originalName: "PromptHardwareKeyTouch",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => PromptHardwareKeyTouchResponse.fromBinary(bytes),
+        requestDeserialize: bytes => PromptHardwareKeyTouchRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(PromptHardwareKeyTouchResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(PromptHardwareKeyTouchRequest.toBinary(value))
+    },
+    promptHardwareKeyPINChange: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPINChange",
+        originalName: "PromptHardwareKeyPINChange",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => PromptHardwareKeyPINChangeResponse.fromBinary(bytes),
+        requestDeserialize: bytes => PromptHardwareKeyPINChangeRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(PromptHardwareKeyPINChangeResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(PromptHardwareKeyPINChangeRequest.toBinary(value))
+    },
+    confirmHardwareKeySlotOverwrite: {
+        path: "/teleport.lib.teleterm.v1.TshdEventsService/ConfirmHardwareKeySlotOverwrite",
+        originalName: "ConfirmHardwareKeySlotOverwrite",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ConfirmHardwareKeySlotOverwriteResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ConfirmHardwareKeySlotOverwriteRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ConfirmHardwareKeySlotOverwriteResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ConfirmHardwareKeySlotOverwriteRequest.toBinary(value))
     },
     getUsageReportingSettings: {
         path: "/teleport.lib.teleterm.v1.TshdEventsService/GetUsageReportingSettings",
