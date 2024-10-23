@@ -245,6 +245,7 @@ describe('KubernetesAccessSpecSection', () => {
       labels: [{ name: 'some-key', value: 'some-value' }],
       resources: [
         {
+          id: expect.any(String),
           kind: expect.objectContaining({ value: 'job' }),
           name: 'job-name',
           namespace: 'job-namespace',

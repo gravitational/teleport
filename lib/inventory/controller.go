@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
@@ -288,12 +289,14 @@ func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryContro
 	// as much as possible. this is intended to mitigate load spikes on auth restart, and is reasonably
 	// safe to do since the instance resource is not directly relied upon for use of any particular teleport
 	// service.
-	ticker := interval.NewMulti(interval.SubInterval[intervalKey]{
-		Key:              instanceHeartbeatKey,
-		VariableDuration: c.instanceHBVariableDuration,
-		FirstDuration:    fullJitter(c.instanceHBVariableDuration.Duration()),
-		Jitter:           seventhJitter,
-	})
+	ticker := interval.NewMulti(
+		clockwork.NewRealClock(),
+		interval.SubInterval[intervalKey]{
+			Key:              instanceHeartbeatKey,
+			VariableDuration: c.instanceHBVariableDuration,
+			FirstDuration:    fullJitter(c.instanceHBVariableDuration.Duration()),
+			Jitter:           seventhJitter,
+		})
 	handle := newUpstreamHandle(stream, hello, ticker)
 	c.store.Insert(handle)
 	go c.handleControlStream(handle)

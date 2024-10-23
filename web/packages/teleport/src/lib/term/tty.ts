@@ -18,7 +18,7 @@
 
 import Logger from 'shared/libs/logger';
 
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
@@ -31,7 +31,7 @@ const defaultOptions = {
   buffered: true,
 };
 
-class Tty extends EventEmitterWebAuthnSender {
+class Tty extends EventEmitterMfaSender {
   socket = null;
 
   _buffered = true;
