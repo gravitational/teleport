@@ -102,7 +102,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
 								RoleARN:     "some arn role",
 								IssuerS3URI: "s3://my-issuer/my-prefix",
-								Audiences:   nil,
+								Audience:    "",
 							},
 						},
 					},
@@ -120,7 +120,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 					&AWSOIDCIntegrationSpecV1{
 						RoleARN:     "some arn role",
 						IssuerS3URI: "s3://my-issuer/my-prefix",
-						Audiences:   []string{IntegrationAWSOIDCAudienceAWSIdentityCenter},
+						Audience:    IntegrationAWSOIDCAudienceAWSIdentityCenter,
 					},
 				)
 			},
@@ -140,7 +140,7 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
 								RoleARN:     "some arn role",
 								IssuerS3URI: "s3://my-issuer/my-prefix",
-								Audiences:   []string{IntegrationAWSOIDCAudienceAWSIdentityCenter},
+								Audience:    IntegrationAWSOIDCAudienceAWSIdentityCenter,
 							},
 						},
 					},
@@ -210,8 +210,8 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{
-						RoleARN:   "some-role",
-						Audiences: []string{"testvalue"},
+						RoleARN:  "some-role",
+						Audience: "testvalue",
 					},
 				)
 			},

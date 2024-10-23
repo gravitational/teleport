@@ -65,24 +65,22 @@ export enum IntegrationKind {
 }
 
 /**
- * IntegrationAudience specifies supported audience values for IntegrationSpecAwsOidc
- * audiences field.
+ * IntegrationAudience defines supported audience value for IntegrationSpecAwsOidc
+ * audience field.
  */
 export enum IntegrationAudience {
   AwsIdentityCenter = 'aws-identity-center',
 }
-
-const auds = Object.values(IntegrationAudience);
 
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
   /**
-   * audiences is used to record name of a plugin or discover services in Teleport
+   * audience is used to record name of a plugin or discover services in Teleport
    * that depends on this integration.
    */
-  audiences?: typeof auds;
+  audience?: IntegrationAudience;
 };
 
 export enum IntegrationStatusCode {

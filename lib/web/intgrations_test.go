@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegrationsCreateWithAudiences(t *testing.T) {
+func TestIntegrationsCreateWithAudience(t *testing.T) {
 	t.Parallel()
 	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
@@ -37,21 +37,17 @@ func TestIntegrationsCreateWithAudiences(t *testing.T) {
 	ctx := context.Background()
 
 	const integrationName = "test-integration"
-	audienceReq := []string{"aws-identity-center"}
 	cases := []struct {
-		name          string
-		audiences     []string
-		wantAudiences []string
+		name     string
+		audience string
 	}{
 		{
-			name:          "without audiences",
-			audiences:     nil,
-			wantAudiences: nil,
+			name:     "without audiences",
+			audience: types.IntegrationAWSOIDCAudienceUnspecified,
 		},
 		{
-			name:          "with audiences",
-			audiences:     audienceReq,
-			wantAudiences: audienceReq,
+			name:     "with audiences",
+			audience: types.IntegrationAWSOIDCAudienceAWSIdentityCenter,
 		},
 	}
 
@@ -61,8 +57,8 @@ func TestIntegrationsCreateWithAudiences(t *testing.T) {
 				Name:    integrationName,
 				SubKind: "aws-oidc",
 				AWSOIDC: &ui.IntegrationAWSOIDCSpec{
-					RoleARN:   "arn:aws:iam::026090554232:role/testrole",
-					Audiences: test.audiences,
+					RoleARN:  "arn:aws:iam::026090554232:role/testrole",
+					Audience: test.audience,
 				},
 			}
 			createEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
@@ -73,7 +69,7 @@ func TestIntegrationsCreateWithAudiences(t *testing.T) {
 			// check origin label stored in backend
 			intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
 			require.NoError(t, err)
-			require.Equal(t, test.wantAudiences, intgrationResource.GetAWSOIDCIntegrationSpec().Audiences)
+			require.Equal(t, test.audience, intgrationResource.GetAWSOIDCIntegrationSpec().Audience)
 
 			// check origin label returned in the web api
 			getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)

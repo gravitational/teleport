@@ -39,16 +39,13 @@ type IntegrationAWSOIDCSpec struct {
 	// IssuerS3Prefix is the prefix for the bucket above.
 	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
 
-	// Audiences is used to record name of a plugin or discover services in Teleport
+	// Audience is used to record a name of a plugin or a discover service in Teleport
 	// that depends on this integration.
-	// Audiences value can be empty or configured with supported preset audience
-	// values. For example, an OIDC integration that is shared amongst multiple
-	// discover services or plugins may have a multiple audiences.
-	// But integration created for a bespoke plugin like aws-identity-center will always
-	// have a single value configured in the audiences.
-	// Each preset audience may impose specific behavior on the integration CRUD API,
-	// such as preventing integration from update or deletion.
-	Audiences []string `json:"audiences,omitempty"`
+	// Audience value can be empty or configured with supported preset audience type.
+	// Preset audience may impose specific behavior on the integration CRUD API,
+	// such as preventing integration from update or deletion. Empty audience value
+	// should be treated as a default and backward-compatible behavior of the integration.
+	Audience string `json:"audience,omitempty"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -162,7 +159,7 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
-			Audiences:      ig.GetAWSOIDCIntegrationSpec().Audiences,
+			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
 		}
 	}
 

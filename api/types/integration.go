@@ -35,6 +35,9 @@ const (
 )
 
 const (
+	// IntegrationAWSOIDCAudienceUnspecified denotes an empty audience value. Empty audience value
+	// is used to maintain default OIDC integration behavior and backward compatibility.
+	IntegrationAWSOIDCAudienceUnspecified = ""
 	// IntegrationAWSOIDCAudienceAWSIdentityCenter is an audience name for the Teleport AWS Idenity Center plugin.
 	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
 )
@@ -201,19 +204,15 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ValidateAudience validates if the Audiences field is configured with one of
-// the supported audience values.
+// ValidateAudience validates if the audience field is configured with
+// a supported audience value.
 func (s *IntegrationSpecV1_AWSOIDC) ValidateAudience() error {
-	for _, v := range s.AWSOIDC.Audiences {
-		switch v {
-		case IntegrationAWSOIDCAudienceAWSIdentityCenter:
-			return nil
-		default:
-			return trace.BadParameter("unsupported value %q for audiences", v)
-		}
+	switch s.AWSOIDC.Audience {
+	case IntegrationAWSOIDCAudienceUnspecified, IntegrationAWSOIDCAudienceAWSIdentityCenter:
+		return nil
+	default:
+		return trace.BadParameter("unsupported audience value %q", s.AWSOIDC.Audience)
 	}
-
-	return nil
 }
 
 // Validate validates the configuration for Azure OIDC integration subkind.

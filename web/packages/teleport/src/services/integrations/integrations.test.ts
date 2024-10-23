@@ -62,7 +62,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
   jest.spyOn(api, 'get').mockResolvedValue({
     items: [
       awsOidcIntegration,
-      awsOidcIntegrationWithAudiences,
+      awsOidcIntegrationWithAudience,
       nonAwsOidcIntegration,
     ],
     nextKey: 'some-key',
@@ -79,7 +79,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-123',
-          audiences: undefined,
+          audience: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -89,7 +89,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-12345',
-          audiences: ['aws-identity-center'],
+          audience: 'aws-identity-center',
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -99,7 +99,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         resourceType: 'integration',
         spec: {
           roleArn: undefined,
-          audiences: undefined,
+          audience: undefined,
         },
         statusCode: IntegrationStatusCode.Running,
       },
@@ -218,12 +218,12 @@ const awsOidcIntegration = {
   awsoidc: { roleArn: 'arn-123' },
 };
 
-const awsOidcIntegrationWithAudiences = {
+const awsOidcIntegrationWithAudience = {
   name: 'aws-oidc-integration2',
   subKind: 'aws-oidc',
   awsoidc: {
     roleArn: 'arn-12345',
-    audiences: [IntegrationAudience.AwsIdentityCenter],
+    audience: IntegrationAudience.AwsIdentityCenter,
   },
 };
 

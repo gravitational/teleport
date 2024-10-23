@@ -63,7 +63,7 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			&types.AWSOIDCIntegrationSpecV1{
 				RoleARN:     req.AWSOIDC.RoleARN,
 				IssuerS3URI: s3Location,
-				Audiences:   req.AWSOIDC.Audiences,
+				Audience:    req.AWSOIDC.Audience,
 			},
 		)
 		if err != nil {
