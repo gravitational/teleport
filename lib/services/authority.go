@@ -325,7 +325,7 @@ func (c HostCertParams) Check() error {
 type UserCertParams struct {
 	// CASigner is the signer that will sign the public key of the user with the CA private key
 	CASigner ssh.Signer
-	// PublicUserKey is the public key of the user
+	// PublicUserKey is the public key of the user in SSH authorized_keys format.
 	PublicUserKey []byte
 	// TTL defines how long a certificate is valid for
 	TTL time.Duration

@@ -892,7 +892,7 @@ aliases:
 
 The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To troubleshoot your aliases, set the `TELEPORT_DEBUG=1` environment variable instead. This will cause the `tsh` logs to be printed to the console:
 
-```bash
+```code
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
@@ -1065,7 +1065,7 @@ aliases:
 
 To troubleshoot aliases, set the `TELEPORT_DEBUG=1` environment variable. This will cause detailed logs to be printed to standard error:
 
-```bash
+```code
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
@@ -1137,7 +1137,7 @@ the corresponding cli value will be set.
 If leaf certificates are required to connect to the node, `tsh` automatically
 retrieves leaf certificates from the root cluster:
 
-```bash
+```code
 $ tsh ssh -J {{proxy}} node1.leaf1
 # becomes
 $ tsh ssh -J leaf1.eu.example.com:443 --cluster leaf1 node1
@@ -1145,7 +1145,7 @@ $ tsh ssh -J leaf1.eu.example.com:443 --cluster leaf1 node1
 
 If there is no template matched, an error is returned.
 
-```bash
+```code
 $ tsh ssh -J {{proxy}} node1.none.example.com
 ERROR: proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config
 ```
@@ -1155,7 +1155,7 @@ attempts to match a template, but won't fail if there isn't a match.
 Additionally, `tsh` won't replace the `proxy` value if it's explicitly set by
 the client:
 
-```bash
+```code
 $ tsh ssh -J leaf2.us.example.com:443 node1.leaf2
 # becomes
 $ tsh ssh -J leaf2.us.example.com:443 --cluster leaf2 node1
@@ -1172,7 +1172,7 @@ Host *.example.com
 
 As a result, you can use `tsh ssh` and `ssh` interchangeably.
 
-```bash
+```code
 $ tsh ssh node1.leaf1
 # is equivalent to
 $ ssh node1.leaf1

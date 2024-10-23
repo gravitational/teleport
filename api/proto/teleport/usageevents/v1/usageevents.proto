@@ -551,6 +551,10 @@ message AccessListReviewDelete {
 
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
+//
+// Note: IntegrationEnrollKind enum must be kept in sync with the values defined
+// in proto/prehog/v1alpha/teleport.proto. Values 18-25 have become out of sync
+// and are manually mapped to each other.
 enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
   INTEGRATION_ENROLL_KIND_SLACK = 1;
@@ -573,6 +577,11 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_SERVICENOW = 18;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 19;
   INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 20;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_AWS = 21;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GCP = 22;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE = 23;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 24;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 25;
 }
 
 // IntegrationEnrollMetadata contains common metadata

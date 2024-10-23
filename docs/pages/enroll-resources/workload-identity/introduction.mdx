@@ -1,157 +1,106 @@
 ---
 title: Introduction to Workload Identity
-description: Describes Teleport Workload Identity, which issues flexible, short-lived identities to secure workload-to-workload communications.
+description: Describes Teleport Workload Identity, which securely issues flexible, short-lived cryptographic identities to workloads and non-human identities.
 ---
 
-<Admonition type="tip" title="Preview">
-Teleport Workload Identity is currently in Preview. This means that some
-features may be missing. We're actively looking for design partners to help us
-shape the future of Workload Identity and would love to
-[hear your feedback](mailto:product@goteleport.com).
-</Admonition>
+(!/docs/pages/includes/workload-id-preview.mdx!)
 
-Teleport's Workload Identity issues flexible short-lived identities intended
-for workloads. The term workload refers generally to pieces of software running
-within your system. These identities can be used to secure workload to workload
-communication (e.g mTLS) or to allow these workloads to access third party
-systems.
+Teleport Workload Identity securely issues short-lived cryptographic identities
+to workloads. It is a flexible foundation for workload identity across your 
+infrastructure, creating a uniform way for your workloads to authenticate 
+regardless of where they are running.
 
-It is compatible with the industry-standard
-[Secure Production Identity Framework For Everyone (SPIFFE) Specification](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE.md)
-meaning that it can be used in place of other SPIFFE compatible identity
-providers.
+The flexible nature of Teleport Workload Identity enables it to be used for a
+range of purposes, including:
 
-Teleport Workload Identity brings a number of Teleport features you are
-already familiar with, such as:
+- Workload authentication to third-party APIs on cloud platforms such as AWS, 
+  GCP and Azure.
+- Providing X.509 certificates for mutual TLS authentication between workloads
+  within your infrastructure as part of a Zero Trust strategy.
+- Workload authentication between services within your infrastructure. 
 
-- Auditing of the issuance of SPIFFE SVIDs.
-- RBAC for limiting access to SPIFFE IDs to specific machines and users.
-- Rotation and management of the SPIFFE CA.
-- Using Teleport SPIFFE CA with 3rd party services such as AWS Roles Anywhere.
+Teleport Workload Identity is compatible with the open-source
+[Secure Production Identity Framework For Everyone (SPIFFE)](./spiffe.mdx)
+standard. This enables interoperability between workload identity
+implementations and also provides a wealth of off-the-shelf tools and SDKs to
+simplify integration with your workloads. 
 
-Teleport Workload Identity is different from Teleport Machine Identity in that
-it is intended for workload to workload communication and is not
-intended to grant access to the Teleport cluster itself. Workload Identity does
-not leverage the Teleport Proxy.
+There's a whole host of benefits to adopting Teleport Workload Identity, but
+here's some of the key ones:
 
-## What is SPIFFE?
+- Eliminate the use of long-lived shared secrets within your infrastructure, and
+  reduce the risk of exfiltration and time spent by engineers creating and 
+  rotating these secrets.
+- Establish an out of the box universal form of identity for your workloads,
+  enabling your engineers to get on with building new services without needing 
+  to think about how they'll authenticate.
+- Converge on a first-class form of identity for your workloads, simplifying
+  infrastructure by reducing the number of different ways workloads authenticate.
 
-SPIFFE (Secure Production Identity Framework For Everyone) is a set of standards
-for securely identifying workloads.
+## How it works
 
-SPIFFE sets out:
+Teleport Workload Identity establishes a root certificate authority within your
+Teleport cluster that will be responsible for issuing the short-lived JWTs and
+X509 certificates to workloads.
 
-- A format for uniquely specifying an identity, the SPIFFE ID.
-- Standards for encoding the SPIFFE ID into verifiable documents, the SVID.
-- Processes that workloads should use to validate a received SVID.
-- A set of APIs that workloads can use to request SVIDS, the Workload API.
+These identities are also known as SPIFFE Verifiable Identity Documents (SVIDs)
+and contain the identity of the workload encoded as a URI, also known as a 
+SPIFFE ID. The structure of this SPIFFE ID is up to you and can encode any
+information you need to uniquely identify your workload.
 
-The open nature and popularity of SPIFFE make it a great choice as a foundation
-for a full workload identity implementation. It is supported as an identity
-provider by a number of popular tools (such as Linkerd and Istio) and
-off-the-shelf SDKs exist for implementing SPIFFE directly into your own
-services.
+The ability to request these identities is controlled by Teleport's Role-Based
+Access Control system. Users and Bots are granted roles which will allow them to
+request identities with specific SPIFFE IDs.
 
-It's important to recognize that SPIFFE does not specify how to use SPIFFE IDs
-for authorization. This gives a high level of flexibility, allowing you to
-implement authorization in a way that suits you.
+The `tbot` agent is installed in close proximity to workloads which require an
+identity. It manages the process of requesting and renewing the identities for
+the workloads. The `tbot` agent authenticates to the Teleport cluster using one
+of our support join methods, which in many cases enable it to authenticate 
+on the basis of federated trust rather than the use of long-lived secrets.
 
-## SPIFFE IDs and Trust Domains
+Workloads can receive their identities in one of two ways:
 
-The basis of identity in SPIFFE is the SPIFFE ID. This is a unique string that
-identifies a workload. The SPIFFE ID is formatted as a URI with a scheme of
-`spiffe` and contains a trust domain and a workload identifier.
+- The `tbot` agent can write these identities to a directory on the local
+  filesystem, or, to a Kubernetes secret.
+- The `tbot` agent can expose a SPIFFE Workload API. A standardized gRPC API
+  that allows workloads to request their identities directly from the `tbot`
+  agent.
 
-The trust domain is the "root of trust" for your workload identities. Workloads
-within the trust domain are issued identities by authorities within the trust
-domain, and using the root keys of the trust domain, it is possible to
-validate these identities. The trust domain is encoded as the host within the
-URI. For Teleport Workload Identity, the trust domain is your Teleport cluster,
-and this is represented by the name configured for the cluster,
-e.g `example.teleport.sh`.
+When using the Workload API, the `tbot` agent can perform an additional process
+called Workload Attestation. This allows the issuance of identities to be 
+restricted to specific workloads. For example, you can restrict an identity to
+only be issued to a Linux process with a specific UID or GID, or restrict an
+identity to only be issued to a specific Kubernetes pod. The Workload
+Attestation process eliminates the need for a "bootstrapping" secret to be 
+provided to the workloads.
 
-The workload identifier is encoded in the URI as the path. This should be a
-string that identifies your workload within the trust domain. What you include
-within this path is up to you and your application's requirements. Typically,
-the hierarchical nature of the path is leveraged. For example, you had the
-service `foo` operating in the `europe` region, you may wish to represent this
-as: `/region/europe/svc/foo`.
+![Workload ID overview](../../../img/workload-identity/intro-diagram.png)
 
-Together, this produces a SPIFFE ID that looks like:
+Once the workload has its identity, it can be used for a range of purposes. The
+X.509 certificates can be used to establish Mutual TLS, and the JWTs can be used
+to authenticate with a range of third-party APIs.
 
-```
-spiffe://example.teleport.sh/region/europe/svc/foo
-```
+## Teleport Workload Identity vs Machine ID
 
-## Secure Verifiable Identity Documents (SVIDs)
+Teleport Machine ID issues short-lived credentials to workloads to enable them
+to access resources secured by the Teleport cluster. The credentials issued are
+only compatible with Teleport itself, and access to resources must be through
+the Teleport Proxy.
 
-The SPIFFE ID may be a unique identifier for a workload, but provides no way
-for a workload to verifiably prove its identity. This is where the Secure
-Verifiable Identity Documents (SVIDs) come in.
-
-The SVID is a document that encodes the SPIFFE ID and a cryptographic proof
-which allows the SVID to be verified as issued by a trusted authority.
-
-SPIFFE sets out two formats for SVIDs:
-
-- X.509-SVID: These are X.509 certificates that include the SPIFFE ID encoded in
-  the URI SAN field. This certificate is then signed by a trusted authority
-  within the trust domain.
-- JWT-SVID: These are JWT tokens that include the SPIFFE ID as the `sub` claim.
-  These are signed by a trusted authority within the trust domain.
-
-The data needed by a workload to verify a SVID is known as the trust bundle.
-This is a set of certificates belonging to the trusted authorities within the
-trust domain.
-
-## Workload API
-
-The Workload API is a standardized gRPC API that workloads should use to request
-SVIDs and trust bundles from a SPIFFE identity provider. The Workload API
-server also handles automatically renewing the credentials for subscribed
-workloads.
-
-The Workload API is usually exposed by an agent that is installed on the same
-host as the workloads and is accessed using a unix socket rather than a TCP
-endpoint. It can perform basic authentication and authorization of the workload
-before issuing SVIDs. This is known as Workload Attestation.
-
-## Teleport's Workload Identity
-
-Teleport's Workload Identity is an implementation of SPIFFE. Each Teleport
-cluster acts as a SPIFFE trust domain, with the Auth Service as a certificate
-authority for issuing SVIDs.
-
-Teleport's RBAC system is used to control which Bots and Users are able to
-request a SVID for a given SPIFFE ID. Roles can specify which SPIFFE IDs can
-be issued and this role is then granted to the Bot or User. For example:
-
-```yaml
-kind: role
-version: v6
-metadata:
-  name: europe-foo-svid-issuer
-spec:
-  allow:
-    spiffe:
-    - path: "/region/europe/svc/foo"
-```
-
-The SPIFFE Workload API is implemented as a configurable service within the
-`tbot` agent. The `tbot` agent should be installed close to the workloads that
-need to request SVIDs, and they can then use the Workload API exposed by `tbot`
-to fetch SVIDs and Trust Bundles.
-
-Teleport's Workload Identity supports issuing X.509-SVIDs and JWT-SVIDs.
+Teleport Workload Identity issues cryptographic identities that are compatible
+with the popular SPIFFE standard for interoperable workload identity. These 
+identities are flexible enough to be used for a range of purposes. The 
+Teleport Proxy is not used for securing workload-to-workload communication.
 
 ## Next steps
 
 Learn more about Teleport Workload Identity:
 
+- [SPIFFE](./spiffe.mdx): Learn about the SPIFFE specification and how it is implemented by Teleport Workload Identity.
 - [Workload Attestation](./workload-attestation.mdx): Learn about using Workload Attestation to securely issue SVIDs to specific workloads.
 - [Federation](./federation.mdx): Learn about using Federation to allow workloads to trust workloads from other trust domains.
 - [JWT SVIDs](./jwt-svids.mdx): Learn about the short-lived JWTs issued by Workload Identity.
-- [Best Practices](./best-practices.mdx): Best practices for using Workload Identity in Production
+- [Best Practices](./best-practices.mdx): Best practices for using Workload Identity in Production.
 
 Learn how to configure Teleport Workload Identity for specific use-cases:
 

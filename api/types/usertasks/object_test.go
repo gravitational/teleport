@@ -250,7 +250,7 @@ func TestNewDiscoverEC2UserTask(t *testing.T) {
 				Kind:    "user_task",
 				Version: "v1",
 				Metadata: &headerv1.Metadata{
-					Name:    "154e1429-da26-5ce2-add2-b0e77a27dd96",
+					Name:    "f36b8798-fdec-59fe-8bd0-33f4890ced05",
 					Expires: userTaskExpirationTimestamp,
 				},
 				Spec: baseEC2DiscoverTaskSpec,
