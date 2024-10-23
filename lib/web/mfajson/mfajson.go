@@ -49,7 +49,7 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 	case resp.CredentialAssertionResponse != nil:
 		return &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnResponse),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.CredentialAssertionResponse),
 			},
 		}, nil
 	case resp.WebauthnResponse != nil:

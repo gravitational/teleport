@@ -740,7 +740,7 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	case defaults.MFAChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.MFAChallenge)
+			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.MFAChallenge)
 	}
 
 	var length uint32
@@ -783,7 +783,7 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	case defaults.MFAChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.MFAChallenge)
+			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.MFAChallenge)
 	}
 
 	var length uint32
