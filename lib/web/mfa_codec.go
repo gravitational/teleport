@@ -79,7 +79,7 @@ func (tdpMFACodec) Encode(chal *client.MFAAuthenticateChallenge, envelopeType st
 	case defaults.MFAChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"received envelope type %v, expected %v (WebAuthn)", envelopeType, defaults.MFAChallenge)
+			"received envelope type %v, expected %v (MFAChallenge)", envelopeType, defaults.MFAChallenge)
 	}
 
 	tdpMsg := tdp.MFA{
