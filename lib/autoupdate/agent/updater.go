@@ -118,7 +118,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		cfg.LinkDir = "/usr/local/bin"
 	}
 	if cfg.VersionsDir == "" {
-		cfg.VersionsDir = "/var/lib/teleport/versions"
+		cfg.VersionsDir = filepath.Join(libdefaults.DataDir, "versions")
 	}
 	return &Updater{
 		Log:                cfg.Log,

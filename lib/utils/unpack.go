@@ -37,8 +37,9 @@ import (
 // resulting files and directories are created using the current user context.
 // Extract will only unarchive files into dir, and will fail if the tarball
 // tries to write files outside of dir.
-// If paths are specified, only the specified paths are extracted.
-// The destination specified in the first matching path is used.
+//
+// If any paths are specified, only the specified paths are extracted.
+// The destination specified in the first matching path is selected.
 func Extract(r io.Reader, dir string, paths ...ExtractPath) error {
 	tarball := tar.NewReader(r)
 
@@ -66,45 +67,48 @@ func Extract(r io.Reader, dir string, paths ...ExtractPath) error {
 
 // ExtractPath specifies a path to be extracted.
 type ExtractPath struct {
-	// Src path prefix and Dst path within the archive to extract files to.
-	// Src path directories are not included in the extraction dir.
-	// Trialing slashes are always ignores.
+	// Src path and Dst path within the archive to extract files to.
+	// Directories in the Src path are not included in the extraction dir.
+	// For example, given foo/bar/file.txt with Src=foo/bar Dst=baz, baz/file.txt results.
+	// Trailing slashes are always ignored.
 	Src, Dst string
-	// Skip the path entirely.
+	// Skip extracting the Src path and ignore Dst.
 	Skip bool
 }
 
-func filterHeader(hdr *tar.Header, paths []ExtractPath) (ok bool) {
+// filterHeader modifies the tar header by filtering it through the ExtractPaths.
+// filterHeader returns false if the tar header should be skipped.
+func filterHeader(hdr *tar.Header, paths []ExtractPath) (include bool) {
 	name := path.Clean(hdr.Name)
 	for _, p := range paths {
 		src := path.Clean(p.Src)
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			// If name is a directory,
+			// If name is a directory, then
 			// assume src is a directory prefix, or the directory itself,
-			// and replace that prefix with dst
+			// and replace that prefix with dst.
 			if src != "/" {
-				src += "/"
+				src += "/" // ensure HasPrefix does not match partial names
 			}
 			if !strings.HasPrefix(name, src) {
 				continue
 			}
 			dst := path.Join(p.Dst, strings.TrimPrefix(name, src))
 			if dst != "/" {
-				dst += "/"
+				dst += "/" // tar directory headers end in /
 			}
 			hdr.Name = dst
 			return !p.Skip
 		default:
-			// If name is a file,
+			// If name is a file, then
 			// if src is an exact match to the file name, assume src is a file and write directly to dst,
-			// otherwise, assume src is a directory prefix, and replace that prefix with dst
+			// otherwise, assume src is a directory prefix, and replace that prefix with dst.
 			if src == name {
 				hdr.Name = path.Clean(p.Dst)
 				return !p.Skip
 			}
 			if src != "/" {
-				src += "/"
+				src += "/" // ensure HasPrefix does not match partial names
 			}
 			if !strings.HasPrefix(name, src) {
 				continue
