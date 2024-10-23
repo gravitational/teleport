@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Indicator } from './Indicator';
+export { Indicator };
 
-import Indicator from '.';
-
-export default {
-  title: 'Design/Indicator',
-};
-
-export const Loader = () => <Indicator />;
+/**
+ * @deprecated Use a named import: `import { Indicator } from 'design/Indicator'`.
+ */
+export default Indicator;
