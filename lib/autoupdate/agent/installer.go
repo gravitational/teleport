@@ -71,17 +71,17 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 	// os.RemoveAll is dangerous.
 	// We must validate the version to ensure that we remove only a single path
 	// element under the InstallDir, and not, e.g., InstallDir itself.
-	versionDir := filepath.Join(li.InstallDir, version)
-	if filepath.Dir(versionDir) != filepath.Clean(li.InstallDir) {
-		return trace.Errorf("refusing to directory outside of version directory")
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	linked, err := li.linkedVersion(version)
+	linked, err := li.isLinked(filepath.Join(versionDir, "bin"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Errorf("failed to determine if linked: %w", err)
 	}
 	if linked {
-		return ErrLinked
+		return trace.Wrap(ErrLinked)
 	}
 
 	// invalidate checksum first, to protect against partially-removed
@@ -99,7 +99,10 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 func (li *LocalInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
-	versionDir := filepath.Join(li.InstallDir, version)
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// generate download URI from template
@@ -343,8 +346,8 @@ func uncompressedSize(f io.Reader) (int64, error) {
 }
 
 // List installed versions of Teleport.
-func (ai *LocalInstaller) List(ctx context.Context) (versions []string, err error) {
-	entries, err := os.ReadDir(ai.InstallDir)
+func (li *LocalInstaller) List(ctx context.Context) (versions []string, err error) {
+	entries, err := os.ReadDir(li.InstallDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -358,8 +361,12 @@ func (ai *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 }
 
 // Link the specified version into the system LinkDir.
-func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
-	binDir := filepath.Join(ai.InstallDir, version, "bin")
+func (li *LocalInstaller) Link(ctx context.Context, version string) error {
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	binDir := filepath.Join(versionDir, "bin")
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return trace.Errorf("failed to find Teleport binary directory: %w", err)
@@ -369,7 +376,7 @@ func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
 		if entry.IsDir() {
 			continue
 		}
-		err := renameio.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(ai.LinkDir, entry.Name()))
+		err := renameio.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(li.LinkDir, entry.Name()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -381,10 +388,20 @@ func (ai *LocalInstaller) Link(ctx context.Context, version string) error {
 	return nil
 }
 
-// linkedVersion returns true if any binaries for the version are linked.
+// versionDir returns the storage directory for a Teleport version.
+// versionDir will fail if the version cannot be used to construct the directory name.
+// For example, it ensures that ".." cannot be provided to return a system directory.
+func (li *LocalInstaller) versionDir(version string) (string, error) {
+	versionDir := filepath.Join(li.InstallDir, version)
+	if filepath.Dir(versionDir) != filepath.Clean(li.InstallDir) {
+		return "", trace.Errorf("refusing to directory outside of version directory")
+	}
+	return versionDir, nil
+}
+
+// isLinked returns true if any binaries in binDir are linked.
 // Returns os.ErrNotExist error if the version does not exist.
-func (ai *LocalInstaller) linkedVersion(version string) (bool, error) {
-	binDir := filepath.Join(ai.InstallDir, version, "bin")
+func (li *LocalInstaller) isLinked(binDir string) (bool, error) {
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -393,7 +410,7 @@ func (ai *LocalInstaller) linkedVersion(version string) (bool, error) {
 		if entry.IsDir() {
 			continue
 		}
-		v, err := os.Readlink(filepath.Join(ai.LinkDir, entry.Name()))
+		v, err := os.Readlink(filepath.Join(li.LinkDir, entry.Name()))
 		if err != nil {
 			continue
 		}
