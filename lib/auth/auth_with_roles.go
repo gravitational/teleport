@@ -3156,6 +3156,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
+			AppTargetPort:     uint16(req.RouteToApp.TargetPort),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3200,6 +3201,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appName:                          req.RouteToApp.Name,
 		appPublicAddr:                    req.RouteToApp.PublicAddr,
 		appURI:                           req.RouteToApp.URI,
+		appTargetPort:                    uint16(req.RouteToApp.TargetPort),
 		appClusterName:                   req.RouteToApp.ClusterName,
 		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
 		azureIdentity:                    req.RouteToApp.AzureIdentity,
