@@ -6,5 +6,6 @@
     "outDir": "../../../build.assets/.cache/ts/design",
     "emitDeclarationOnly": true,
     "declarationMap": true,
+    "strict": true
   }
 }
