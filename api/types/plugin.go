@@ -76,7 +76,7 @@ const (
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
 	// PluginTypeAWSIC indicates the AWS IdentityCenter integration
-	PluginTypeAWSIC = "aws-ic"
+	PluginTypeAWSIdentityCenter = "aws-identity-center"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
