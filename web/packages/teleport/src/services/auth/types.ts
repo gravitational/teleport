@@ -32,7 +32,13 @@ export type AuthnChallengeRequest = {
   userCred: UserCredentials;
 };
 
+export type SSOChallenge = {
+  redirectUrl: string;
+  requestId: string;
+};
+
 export type MfaAuthenticateChallenge = {
+  ssoChallenge: SSOChallenge;
   totpChallenge: boolean;
   webauthnPublicKey: PublicKeyCredentialRequestOptions;
 };

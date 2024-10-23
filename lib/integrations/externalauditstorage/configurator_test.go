@@ -47,7 +47,7 @@ func testOIDCIntegration(t *testing.T) *types.IntegrationV1 {
 	oidcIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: "aws-integration-1"},
 		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "role1",
+			RoleARN: "arn:aws:iam::account:role/role1",
 		},
 	)
 	require.NoError(t, err)
