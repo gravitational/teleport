@@ -6458,7 +6458,7 @@ message PluginEntraIDSyncSettings {
   EntraIDCredentialsSource credentials_source = 3;
 
   // tenant_id refers to the Azure Directory that this plugin synchronizes with.
-  // This field is populated on a best-effort basis and will be mandatory for new plugins created after this change is implemented.
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
   // For existing plugins, it is filled in using the Entra integration when utilized.
   string tenant_id = 4;
 }
@@ -6466,6 +6466,7 @@ message PluginEntraIDSyncSettings {
 // EntraIDCredentialsSource defines the credentials source for Entra ID.
 enum EntraIDCredentialsSource {
   // ENTRAID_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not specified.
+  // Due to legacy reasons, UNKNOWN is handled as OIDC.
   ENTRAID_CREDENTIALS_SOURCE_UNKNOWN = 0;
   // ENTRAID_CREDENTIALS_SOURCE_OIDC indicates that the plugin will authenticate with Azure/Entra ID using OIDC.
   ENTRAID_CREDENTIALS_SOURCE_OIDC = 1;

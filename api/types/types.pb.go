@@ -801,6 +801,7 @@ type EntraIDCredentialsSource int32
 
 const (
 	// ENTRAID_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not specified.
+	// Due to legacy reasons, UNKNOWN is handled as OIDC.
 	EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN EntraIDCredentialsSource = 0
 	// ENTRAID_CREDENTIALS_SOURCE_OIDC indicates that the plugin will authenticate with Azure/Entra ID using OIDC.
 	EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC EntraIDCredentialsSource = 1
@@ -16496,7 +16497,7 @@ type PluginEntraIDSyncSettings struct {
 	// credentials_source specifies the source of the credentials used for authentication with Azure.
 	CredentialsSource EntraIDCredentialsSource `protobuf:"varint,3,opt,name=credentials_source,json=credentialsSource,proto3,enum=types.EntraIDCredentialsSource" json:"credentials_source,omitempty"`
 	// tenant_id refers to the Azure Directory that this plugin synchronizes with.
-	// This field is populated on a best-effort basis and will be mandatory for new plugins created after this change is implemented.
+	// This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
 	// For existing plugins, it is filled in using the Entra integration when utilized.
 	TenantId             string   `protobuf:"bytes,4,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
