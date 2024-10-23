@@ -1405,7 +1405,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.Int64Type},
 				},
 				"signature_algorithm_suite": {
-					Description: "SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. The current default value is \"legacy\". This field is not yet fully supported.",
+					Description: "SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster. If unspecified, the current default value is \"legacy\". 1 is \"legacy\", 2 is \"balanced-v1\", 3 is \"fips-v1\", 4 is \"hsm-v1\".",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},

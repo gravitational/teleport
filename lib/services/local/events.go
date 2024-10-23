@@ -167,6 +167,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopServicesParser()
 		case types.KindWindowsDesktop:
 			parser = newWindowsDesktopsParser()
+		case types.KindDynamicWindowsDesktop:
+			parser = newDynamicWindowsDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
@@ -1842,6 +1844,43 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktopService(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDynamicWindowsDesktopsParser() *dynamicWindowsDesktopsParser {
+	return &dynamicWindowsDesktopsParser{
+		baseParser: newBaseParser(backend.NewKey(dynamicWindowsDesktopsPrefix, "")),
+	}
+}
+
+type dynamicWindowsDesktopsParser struct {
+	baseParser
+}
+
+func (p *dynamicWindowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(dynamicWindowsDesktopsPrefix, "")).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindDynamicWindowsDesktop,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalDynamicWindowsDesktop(
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
