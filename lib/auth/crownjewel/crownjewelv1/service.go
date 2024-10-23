@@ -143,7 +143,7 @@ func (s *Service) emitCreateAuditEvent(ctx context.Context, req *crownjewelv1.Cr
 		},
 		CrownJewelQuery: req.GetSpec().GetQuery(),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit crown jewel create event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit crown jewel create event.", "error", auditErr)
 	}
 }
 
@@ -237,7 +237,7 @@ func (s *Service) emitUpdateAuditEvent(ctx context.Context, old, new *crownjewel
 		CurrentCrownJewelQuery: old.GetSpec().GetQuery(),
 		UpdatedCrownJewelQuery: new.GetSpec().GetQuery(),
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit crown jewel update event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit crown jewel update event.", "error", auditErr)
 	}
 }
 
@@ -315,7 +315,7 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 			UpdatedBy: authCtx.Identity.GetIdentity().Username,
 		},
 	}); auditErr != nil {
-		slog.WarnContext(ctx, "Failed to emit crown jewel delete event.", "error", err)
+		slog.WarnContext(ctx, "Failed to emit crown jewel delete event.", "error", auditErr)
 	}
 
 	if err != nil {

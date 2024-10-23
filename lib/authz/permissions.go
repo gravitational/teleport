@@ -1175,6 +1175,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
+						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
 					},
 				},
 			})

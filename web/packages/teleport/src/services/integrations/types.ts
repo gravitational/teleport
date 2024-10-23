@@ -193,7 +193,8 @@ export type PluginKind =
   | 'servicenow'
   | 'jamf'
   | 'entra-id'
-  | 'datadog';
+  | 'datadog'
+  | 'aws-identity-center';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
