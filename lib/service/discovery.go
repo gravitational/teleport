@@ -20,7 +20,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -74,7 +73,6 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err != nil {
 		return trace.Wrap(err, "failed to build access graph configuration")
 	}
-	fmt.Printf("=========l CONFIG: %v", process.Config)
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		IntegrationOnlyCredentials: process.integrationOnlyCredentials(),
 		Matchers: discovery.Matchers{
