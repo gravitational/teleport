@@ -93,13 +93,13 @@ jobs:
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
           separator: ','
-          files: '$GITHUB_WORKSPACE/docs/content/teleport/docs/pages'
+          files: '${{ github.workspace }}/docs/content/teleport/docs/pages'
 
           # Restrict the linter to lines modified/added by a PR, not entire
           # changed files.
           filter_mode: added
           fail_on_error: true
-          vale_flags: '--config=$GITHUB_WORKSPACE/docs/content/teleport/docs/.vale.ini'
+          vale_flags: '--config=${{ github.workspace }}/docs/content/teleport/docs/.vale.ini'
 
 #     - name: Test the docs build
 #       working-directory: 'docs'
