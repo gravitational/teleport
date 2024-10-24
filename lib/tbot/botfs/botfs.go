@@ -100,13 +100,15 @@ type ACLOptions struct {
 }
 
 // ACLSelector is a target for an ACL entry, pointing at e.g. a single user or
-// group.
+// group. Only one field may be specified in a given selector and this should be
+// validated with `CheckAndSetDefaults()`.
 type ACLSelector struct {
 	// User is a user specifier. If numeric, it is treated as a UID. Only one
-	// field may be specified per entry.
+	// field may be specified per ACLSelector.
 	User string `yaml:"user,omitempty"`
 
-	// Group is a group specifier. If numeric, it is treated as a UID.
+	// Group is a group specifier. If numeric, it is treated as a UID. Only one
+	// field may be specified per ACLSelector.
 	Group string `yaml:"group,omitempty"`
 }
 
@@ -162,7 +164,9 @@ func createStandard(path string, isDir bool) error {
 }
 
 // TestACL attempts to create a temporary file in the given parent directory and
-// apply an ACL to it.
+// apply an ACL to it. Note that `readers` should be representative of runtime
+// reader configuration as `ConfigureACL()` may attempt to resolve named users,
+// and may fail if resolution fails.
 func TestACL(directory string, readers []*ACLSelector) error {
 	// Note: we need to create the test file in the dest dir to ensure we
 	// actually test the target filesystem.
