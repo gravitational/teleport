@@ -380,7 +380,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	binDir := filepath.Join(versionDir, "bin")
+
 	// ensure target directories exist before trying to create links
 	err = os.MkdirAll(li.LinkBinDir, 0755)
 	if err != nil {
@@ -392,6 +392,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 	}
 
 	// create binary links
+	binDir := filepath.Join(versionDir, "bin")
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return trace.Errorf("failed to find Teleport binary directory: %w", err)
