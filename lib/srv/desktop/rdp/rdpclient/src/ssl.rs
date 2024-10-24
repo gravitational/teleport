@@ -24,7 +24,10 @@ pub type TlsStream<S> = tokio_boring::SslStream<S>;
 #[cfg(feature = "fips")]
 #[no_mangle]
 pub extern "C" fn rdpclient_assert_fips_enabled() {
-    assert!(boring::fips::enabled(), "FIPS module for rdpclient not available");
+    assert!(
+        boring::fips::enabled(),
+        "FIPS module for rdpclient not available"
+    );
 }
 
 #[cfg(not(feature = "fips"))]
