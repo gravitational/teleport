@@ -1,4 +1,4 @@
-.version: &version "16.4.6"
+.version: &version "16.4.6-gus-test-trivy-bump.1"
 
 apiVersion: v2
 name: teleport-plugin-datadog
