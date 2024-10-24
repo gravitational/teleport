@@ -760,7 +760,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 loop:
 	for {
 		select {
-		case event := <-main.UploadEventsC:
+		case event := <-aux.UploadEventsC:
 			sessionID = event.SessionID
 			break loop
 		case <-timeoutC:
@@ -769,7 +769,7 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
+	capturedStream, err := aux.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
 	require.NoError(t, err)
 
 	require.Equal(t, sessionStream, string(capturedStream))
@@ -1585,7 +1585,6 @@ func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, 
 		}
 
 		s := getContainerStatusByName(p, containerName)
-		fmt.Println("test", s)
 		if s == nil {
 			return false, nil
 		}
