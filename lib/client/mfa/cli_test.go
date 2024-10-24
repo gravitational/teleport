@@ -260,7 +260,7 @@ Enter your security key PIN:
 			buffer := make([]byte, 0, 100)
 			out := bytes.NewBuffer(buffer)
 
-			prompt := mfa.NewCLIPromptV2(&mfa.CLIPromptConfig{
+			prompt := mfa.NewCLIPrompt(&mfa.CLIPromptConfig{
 				PromptConfig:     *cfg,
 				Writer:           out,
 				AllowStdinHijack: true,

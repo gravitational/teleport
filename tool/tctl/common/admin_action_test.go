@@ -1029,7 +1029,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
 		promptCfg.WebauthnSupported = true
-		return libmfa.NewCLIPromptV2(&libmfa.CLIPromptConfig{
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
 			PromptConfig: *promptCfg,
 		})
 	}
