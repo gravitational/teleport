@@ -62,7 +62,7 @@ func (f *Forwarder) deleteResourcesCollection(sess *clusterSession, w http.Respo
 	defer span.End()
 	req = req.WithContext(ctx)
 	var (
-		isLocalKubeCluster = f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
+		isLocalKubeCluster = sess.isLocalKubernetesCluster
 		kubeObjType        string
 		namespace          string
 	)
