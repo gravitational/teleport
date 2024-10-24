@@ -28,6 +28,7 @@ import { ToolTipInfo } from 'shared/components/ToolTip';
 import { ResourceIcon } from 'design/ResourceIcon';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import api from 'teleport/services/api';
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 import {
   getStatusCodeDescription,
@@ -115,20 +116,13 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                       </MenuItem>
                     )}
                     {item.kind === 'msteams' && (
-                      <MenuItem onClick={() => function () {
+                      <MenuItem onClick={() => {
 			  api.fetch(cfg.getMsTeamsAppZipRoute(clusterId, item.name))
 			      .then(response => response.blob())
 			      .then(blob => {
-				  const url = URL.createObjectURL(blob);
-				  const a = document.createElement("a");
-				  a.href = url;
-				  a.download = "app.zip";
-				  document.body.appendChild(a);
-				  a.click();
-				  document.body.removeChild(a);
-				  URL.revokeObjectURL(url);
+				  saveOnDisk(blob, "app.zip", "application/zip")
 			      });
-		      }()}>
+		      }}>
                         Download app.zip
 		      </MenuItem>
                     )}
