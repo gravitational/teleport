@@ -85,6 +85,7 @@ func TestServiceAccess(t *testing.T) {
 		allowedVerbs     []string
 		allowedStates    []authz.AdminActionAuthState
 		disallowedStates []authz.AdminActionAuthState
+		builtinRole      *authz.BuiltinRole
 	}{
 		{
 			name: "CreateAutoUpdateConfig",
@@ -171,6 +172,53 @@ func TestServiceAccess(t *testing.T) {
 			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
 			allowedVerbs:  []string{types.VerbDelete},
 		},
+		// AutoUpdate agent rollout check.
+		{
+			name: "GetAutoUpdateAgentRollout",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead},
+		},
+		{
+			name: "CreateAutoUpdateAgentRollout",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+		},
+		{
+			name: "UpdateAutoUpdateAgentRollout",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+		},
+		{
+			name: "UpsertAutoUpdateAgentRollout",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
+			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+		},
+		{
+			name:          "DeleteAutoUpdateAgentRollout",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
+			builtinRole:   &authz.BuiltinRole{Role: types.RoleAuth},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -181,7 +229,7 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-								service := newService(t, state, fakeChecker{allowedVerbs: verbs}, &libevents.DiscardEmitter{})
+								service := newService(t, state, fakeChecker{allowedVerbs: verbs, builtinRole: tt.builtinRole}, &libevents.DiscardEmitter{})
 								err := callMethod(t, service, tt.name)
 								// expect access denied except with full set of verbs.
 								if len(verbs) == len(tt.allowedVerbs) {
@@ -205,7 +253,7 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						// it is enough to test against tt.allowedVerbs,
 						// this is the only different data point compared to the test cases above.
-						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs}, &libevents.DiscardEmitter{})
+						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs, builtinRole: tt.builtinRole}, &libevents.DiscardEmitter{})
 						err := callMethod(t, service, tt.name)
 						require.True(t, trace.IsAccessDenied(err))
 					})
@@ -214,21 +262,9 @@ func TestServiceAccess(t *testing.T) {
 		})
 	}
 
-	// TODO(hugoShaka): remove this as we implement the service for the autoupdate agent rollout resource
-	notImplementedYetRPCs := []string{
-		"GetAutoUpdateAgentRollout",
-		"CreateAutoUpdateAgentRollout",
-		"UpdateAutoUpdateAgentRollout",
-		"UpsertAutoUpdateAgentRollout",
-		"DeleteAutoUpdateAgentRollout",
-	}
-
 	// verify that all declared methods have matching test cases
 	t.Run("verify coverage", func(t *testing.T) {
 		for _, method := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
-			if slices.Contains(notImplementedYetRPCs, method.MethodName) {
-				continue
-			}
 			t.Run(method.MethodName, func(t *testing.T) {
 				match := false
 				for _, testCase := range testCases {
@@ -334,11 +370,12 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 
 type fakeChecker struct {
 	allowedVerbs []string
+	builtinRole  *authz.BuiltinRole
 	services.AccessChecker
 }
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
-	if resource == types.KindAutoUpdateConfig || resource == types.KindAutoUpdateVersion {
+	if resource == types.KindAutoUpdateConfig || resource == types.KindAutoUpdateVersion || resource == types.KindAutoUpdateAgentRollout {
 		for _, allowedVerb := range f.allowedVerbs {
 			if allowedVerb == verb {
 				return nil
@@ -349,7 +386,21 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, emitter apievents.Emitter) *Service {
+func (f fakeChecker) HasRole(name string) bool {
+	if f.builtinRole == nil {
+		return false
+	}
+	return name == f.builtinRole.Role.String()
+}
+
+func (f fakeChecker) identityGetter() authz.IdentityGetter {
+	if f.builtinRole != nil {
+		return *f.builtinRole
+	}
+	return nil
+}
+
+func newService(t *testing.T, authState authz.AdminActionAuthState, checker fakeChecker, emitter apievents.Emitter) *Service {
 	t.Helper()
 
 	bk, err := memory.New(memory.Config{})
@@ -361,7 +412,7 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	return newServiceWithStorage(t, authState, checker, storage, emitter)
 }
 
-func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.AutoUpdateService, emitter apievents.Emitter) *Service {
+func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker fakeChecker, storage services.AutoUpdateService, emitter apievents.Emitter) *Service {
 	t.Helper()
 
 	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
@@ -369,10 +420,12 @@ func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, c
 		if err != nil {
 			return nil, err
 		}
+
 		return &authz.Context{
 			User:                 user,
 			Checker:              checker,
 			AdminActionAuthState: authState,
+			Identity:             checker.identityGetter(),
 		}, nil
 	})
 

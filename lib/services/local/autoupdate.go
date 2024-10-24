@@ -32,14 +32,16 @@ import (
 )
 
 const (
-	autoUpdateConfigPrefix  = "auto_update_config"
-	autoUpdateVersionPrefix = "auto_update_version"
+	autoUpdateConfigPrefix       = "auto_update_config"
+	autoUpdateVersionPrefix      = "auto_update_version"
+	autoUpdateAgentRolloutPrefix = "auto_update_agent_rollout"
 )
 
 // AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
 type AutoUpdateService struct {
 	config  *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
 	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
+	rollout *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentRollout]
 }
 
 // NewAutoUpdateService returns a new AutoUpdateService.
@@ -74,10 +76,26 @@ func NewAutoUpdateService(backend backend.Backend) (*AutoUpdateService, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	rollout, err := generic.NewServiceWrapper(
+		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateAgentRollout]{
+			Backend:       backend,
+			ResourceKind:  types.KindAutoUpdateAgentRollout,
+			BackendPrefix: autoUpdateAgentRolloutPrefix,
+			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
+			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentRollout],
+			ValidateFunc:  update.ValidateAutoUpdateAgentRollout,
+			KeyFunc: func(_ *autoupdate.AutoUpdateAgentRollout) string {
+				return types.MetaNameAutoUpdateAgentRollout
+			},
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &AutoUpdateService{
 		config:  config,
 		version: version,
+		rollout: rollout,
 	}, nil
 }
 
@@ -207,4 +225,42 @@ func itemFromAutoUpdateVersion(version *autoupdate.AutoUpdateVersion) (*backend.
 		Revision: rev,
 	}
 	return item, nil
+}
+
+// CreateAutoUpdateAgentRollout creates the AutoUpdateAgentRollout singleton resource.
+func (s *AutoUpdateService) CreateAutoUpdateAgentRollout(
+	ctx context.Context,
+	v *autoupdate.AutoUpdateAgentRollout,
+) (*autoupdate.AutoUpdateAgentRollout, error) {
+	rollout, err := s.rollout.CreateResource(ctx, v)
+	return rollout, trace.Wrap(err)
+}
+
+// UpdateAutoUpdateAgentRollout updates the AutoUpdateAgentRollout singleton resource.
+func (s *AutoUpdateService) UpdateAutoUpdateAgentRollout(
+	ctx context.Context,
+	v *autoupdate.AutoUpdateAgentRollout,
+) (*autoupdate.AutoUpdateAgentRollout, error) {
+	rollout, err := s.rollout.UpdateResource(ctx, v)
+	return rollout, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateAgentRollout sets the AutoUpdateAgentRollout singleton resource.
+func (s *AutoUpdateService) UpsertAutoUpdateAgentRollout(
+	ctx context.Context,
+	v *autoupdate.AutoUpdateAgentRollout,
+) (*autoupdate.AutoUpdateAgentRollout, error) {
+	rollout, err := s.rollout.UpsertResource(ctx, v)
+	return rollout, trace.Wrap(err)
+}
+
+// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout singleton resource.
+func (s *AutoUpdateService) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
+	rollout, err := s.rollout.GetResource(ctx, types.MetaNameAutoUpdateAgentRollout)
+	return rollout, trace.Wrap(err)
+}
+
+// DeleteAutoUpdateAgentRollout deletes the AutoUpdateAgentRollout singleton resource.
+func (s *AutoUpdateService) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
+	return trace.Wrap(s.rollout.DeleteResource(ctx, types.MetaNameAutoUpdateAgentRollout))
 }

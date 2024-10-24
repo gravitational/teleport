@@ -41,6 +41,9 @@ type Cache interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 }
 
 // ServiceConfig holds configuration options for the auto update gRPC service.
@@ -509,4 +512,137 @@ func checkAdminCloudAccess(authCtx *authz.Context) error {
 			types.KindAutoUpdateVersion, types.KindAutoUpdateConfig)
 	}
 	return nil
+}
+
+// GetAutoUpdateAgentRollout gets the current AutoUpdateAgentRollout singleton.
+func (s *Service) GetAutoUpdateAgentRollout(ctx context.Context, req *autoupdate.GetAutoUpdateAgentRolloutRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	plan, err := s.cache.GetAutoUpdateAgentRollout(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return plan, nil
+}
+
+// CreateAutoUpdateAgentRollout creates AutoUpdateAgentRollout singleton.
+func (s *Service) CreateAutoUpdateAgentRollout(ctx context.Context, req *autoupdate.CreateAutoUpdateAgentRolloutRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth system role.
+	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// a first class citizen, we'll want to update this permission check.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentRollout, err := s.backend.CreateAutoUpdateAgentRollout(ctx, req.Rollout)
+	return autoUpdateAgentRollout, trace.Wrap(err)
+}
+
+// UpdateAutoUpdateAgentRollout updates AutoUpdateAgentRollout singleton.
+func (s *Service) UpdateAutoUpdateAgentRollout(ctx context.Context, req *autoupdate.UpdateAutoUpdateAgentRolloutRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth system role.
+	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// a first class citizen, we'll want to update this permission check.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentRollout, err := s.backend.UpdateAutoUpdateAgentRollout(ctx, req.Rollout)
+	return autoUpdateAgentRollout, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateAgentRollout updates or creates AutoUpdateAgentRollout singleton.
+func (s *Service) UpsertAutoUpdateAgentRollout(ctx context.Context, req *autoupdate.UpsertAutoUpdateAgentRolloutRequest) (*autoupdate.AutoUpdateAgentRollout, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth system role.
+	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// a first class citizen, we'll want to update this permission check.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentRollout, err := s.backend.UpsertAutoUpdateAgentRollout(ctx, req.Rollout)
+	return autoUpdateAgentRollout, trace.Wrap(err)
+}
+
+// DeleteAutoUpdateAgentRollout deletes AutoUpdateAgentRollout singleton.
+func (s *Service) DeleteAutoUpdateAgentRollout(ctx context.Context, req *autoupdate.DeleteAutoUpdateAgentRolloutRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing the AU agent plan is restricted to cluster administrators. As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth system role.
+	// This is not ideal as it forces local tctl usage. In the future, if we expand the permission system and make cloud
+	// a first class citizen, we'll want to update this permission check.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentRollout, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteAutoUpdateAgentRollout(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }

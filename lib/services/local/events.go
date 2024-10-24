@@ -98,6 +98,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAutoUpdateConfigParser()
 		case types.KindAutoUpdateVersion:
 			parser = newAutoUpdateVersionParser()
+		case types.KindAutoUpdateAgentRollout:
+			parser = newAutoUpdateAgentRolloutParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -773,6 +775,41 @@ func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, er
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(autoUpdateVersion), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateAgentRolloutParser() *autoUpdateAgentRolloutParser {
+	return &autoUpdateAgentRolloutParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateAgentRolloutPrefix)),
+	}
+}
+
+type autoUpdateAgentRolloutParser struct {
+	baseParser
+}
+
+func (p *autoUpdateAgentRolloutParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateAgentRollout,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateAgentRollout, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentRollout](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateAgentRollout), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
