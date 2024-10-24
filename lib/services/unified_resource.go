@@ -195,8 +195,10 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 		return c.nameTree, nil
 	case sortByKind:
 		return c.typeTree, nil
+	case "":
+		return nil, trace.BadParameter("sort field is required")
 	default:
-		return nil, trace.NotImplemented("sorting by %v is not supporting in unified resources", sortField)
+		return nil, trace.NotImplemented("sorting by %v is not supported in unified resources", sortField)
 	}
 
 }
