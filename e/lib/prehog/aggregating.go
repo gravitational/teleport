@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
@@ -124,9 +123,8 @@ func InitAggregatingUsageReporting(
 
 	reporter, err := aggregating.NewReporter(process.ExitContext(),
 		aggregating.ReporterConfig{
-			Backend: process.GetBackend(),
-			// TODO(tross): convert logging to slog
-			Log:              logrus.StandardLogger(),
+			Backend:          process.GetBackend(),
+			Logger:           log,
 			ClusterName:      clusterName,
 			HostID:           process.GetAuthServer().ServerID,
 			AnonymizationKey: anonymizationKey,
@@ -147,9 +145,8 @@ func InitAggregatingUsageReporting(
 		return trace.Wrap(err)
 	}
 	submitterCfg := aggregating.SubmitterConfig{
-		Backend: process.GetBackend(),
-		// TODO(tross): convert logging to slog
-		Log:       logrus.StandardLogger(),
+		Backend:   process.GetBackend(),
+		Logger:    log,
 		Status:    process.GetAuthServer(),
 		Submitter: submitter,
 		HostID:    process.GetAuthServer().ServerID,

@@ -29,7 +29,7 @@ const (
 	// omitted if Prehog's certificate is in the system trust store.
 	envVarPreHogCAPath = "PREHOG_CA_PATH"
 
-	// prehogComponent is the logrus component for the prehog module
+	// prehogComponent is the logging component for the prehog package.
 	prehogComponent = "prehog"
 )
 
