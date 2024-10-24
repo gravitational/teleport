@@ -392,3 +392,25 @@ func TestLocalInstaller_Remove(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalInstaller_List(t *testing.T) {
+	installDir := t.TempDir()
+	versions := []string{"v1", "v2"}
+
+	for _, d := range versions {
+		err := os.Mkdir(filepath.Join(installDir, d), os.ModePerm)
+		require.NoError(t, err)
+	}
+	for _, n := range []string{"file1", "file2"} {
+		err := os.WriteFile(filepath.Join(installDir, n), []byte(filepath.Base(n)), os.ModePerm)
+		require.NoError(t, err)
+	}
+	installer := &LocalInstaller{
+		InstallDir: installDir,
+		Log:        slog.Default(),
+	}
+	ctx := context.Background()
+	versions, err := installer.List(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []string{"v1", "v2"}, versions)
+}

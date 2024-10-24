@@ -45,6 +45,17 @@ const (
 	checksumHexLen = sha256.Size * 2 // bytes to hex
 )
 
+var (
+	tgzExtractPaths = []utils.ExtractPath{
+		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service"},
+		{Src: "teleport/examples", Skip: true},
+		{Src: "teleport/README.md", Dst: "share/README.md"},
+		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md"},
+		{Src: "teleport/VERSION", Dst: "share/VERSION"},
+		{Src: "teleport", Dst: "bin"},
+	}
+)
+
 // LocalInstaller manages the creation and removal of installations
 // of Teleport.
 type LocalInstaller struct {
@@ -68,9 +79,10 @@ var ErrLinked = errors.New("linked version cannot be removed")
 // Remove a Teleport version directory from InstallDir.
 // This function is idempotent.
 func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
-	// os.RemoveAll is dangerous.
+	// os.RemoveAll is dangerous because it can remove an entire directory tree.
 	// We must validate the version to ensure that we remove only a single path
-	// element under the InstallDir, and not, e.g., InstallDir itself.
+	// element under the InstallDir, and not InstallDir or its parents.
+	// versionDir performs these validations.
 	versionDir, err := li.versionDir(version)
 	if err != nil {
 		return trace.Wrap(err)
@@ -315,14 +327,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
-	err = utils.Extract(zr, dstDir, []utils.ExtractPath{
-		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service"},
-		{Src: "teleport/examples", Skip: true},
-		{Src: "teleport/README.md", Dst: "share/README.md"},
-		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md"},
-		{Src: "teleport/VERSION", Dst: "share/VERSION"},
-		{Src: "teleport", Dst: "bin"},
-	}...)
+	err = utils.Extract(zr, dstDir, tgzExtractPaths...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
