@@ -85,7 +85,7 @@ export type ServerAccessSpec = AccessSpecBase<'node'> & {
   logins: readonly Option[];
 };
 
-const roleVersion = 'v7';
+const roleVersion = 'v8';
 
 /**
  * Returns the role object with required fields defined with empty values.

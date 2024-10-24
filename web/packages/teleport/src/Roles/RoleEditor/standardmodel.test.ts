@@ -26,7 +26,7 @@ import {
 import { withDefaults } from './withDefaults';
 
 const minimalRole = () =>
-  withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });
+  withDefaults({ metadata: { name: 'foobar' }, version: 'v8' });
 
 const minimalRoleModel = (): RoleEditorModel => ({
   metadata: { name: 'foobar' },

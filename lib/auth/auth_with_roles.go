@@ -1300,6 +1300,12 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
+	if resourceKind == types.KindSAMLIdPServiceProvider {
+		if !c.accessChecker.CheckRoleSupportsSAMLIdPAppLabelMatcher() {
+			return true, nil
+		}
+	}
+
 	// check access normally if base checker doesnt exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
@@ -1800,6 +1806,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 type resourceAccessChecker interface {
 	CanAccess(resource types.Resource) error
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
+	// CheckRoleSupportsSAMLIdPAppLabelMatcher checks if user has a role version
+	// that supports app_labels matcher for saml_idp_service_provider kind.
+	CheckRoleSupportsSAMLIdPAppLabelMatcher() bool
 }
 
 // resourceChecker is a pass through checker that utilizes the provided
@@ -6812,11 +6821,15 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 
 // TODO(sshah): set MFARequired for SAML IdP admin actions?
 func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
-	return a.context.Checker.CheckAccess(
-		sp,
-		// MFA is not required for operations on SAML resources but
-		// will be enforced at the connection time.
-		services.AccessState{})
+	if a.context.Checker.CheckRoleSupportsSAMLIdPAppLabelMatcher() {
+		return a.context.Checker.CheckAccess(
+			sp,
+			// MFA is not required for operations on SAML resources but
+			// will be enforced at the connection time.
+			services.AccessState{})
+	}
+
+	return nil
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.

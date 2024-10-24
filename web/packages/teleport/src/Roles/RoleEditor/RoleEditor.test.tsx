@@ -98,7 +98,7 @@ test('rendering and switching tabs for new role', async () => {
         deny: {},
         options: {},
       },
-      version: 'v7',
+      version: 'v8',
     })
   );
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
@@ -209,7 +209,7 @@ test('saving a new role', async () => {
         deny: {},
         options: defaultOptions(),
       },
-      version: 'v7',
+      version: 'v8',
     },
   });
   expect(userEventService.captureUserEvent).toHaveBeenCalledWith({

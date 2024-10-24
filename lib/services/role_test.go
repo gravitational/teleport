@@ -1060,10 +1060,35 @@ func TestValidateRole(t *testing.T) {
 			var warning error
 			err := ValidateRole(&types.RoleV6{
 				Metadata: types.Metadata{
-					Name:      "name1",
+					Name:      "role1",
 					Namespace: apidefaults.Namespace,
 				},
 				Version: types.V7,
+				Spec:    tc.spec,
+			}, withWarningReporter(func(err error) {
+				warning = err
+			}))
+			if tc.expectError != nil {
+				require.ErrorIs(t, err, tc.expectError)
+				return
+			}
+			require.NoError(t, err, trace.DebugReport(err))
+
+			if len(tc.expectWarnings) == 0 {
+				require.Empty(t, warning)
+			}
+			for _, msg := range tc.expectWarnings {
+				require.ErrorContains(t, warning, msg)
+			}
+		})
+		t.Run(tc.name, func(t *testing.T) {
+			var warning error
+			err := ValidateRole(&types.RoleV6{
+				Metadata: types.Metadata{
+					Name:      "role2",
+					Namespace: apidefaults.Namespace,
+				},
+				Version: types.V8,
 				Spec:    tc.spec,
 			}, withWarningReporter(func(err error) {
 				warning = err

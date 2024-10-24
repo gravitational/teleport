@@ -1592,6 +1592,19 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	return utils.StringsSliceFromSet(accounts), nil
 }
 
+// CheckRoleSupportsSAMLIdPAppLabelMatcher checks if user has a role
+// that supports app_labels matchers for sam_idp_service_provider kind.
+func (set RoleSet) CheckRoleSupportsSAMLIdPAppLabelMatcher() bool {
+	for _, role := range set {
+		version := role.GetVersion()
+		if version == types.V8 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
 //nolint:revive // Because we want this to be IdP.
@@ -3379,7 +3392,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
