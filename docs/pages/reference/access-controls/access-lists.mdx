@@ -168,6 +168,13 @@ spec:
       - required_value1
 ```
 
+## Access Lists and Deny Rules
+
+Use of [deny rules](./roles.mdx) in Access List roles is discouraged.
+Access Lists are not intended to be used as a tool for privilege reduction,
+and Teleport may assume it is safe to ignore Access Lists under certain conditions.
+Roles intended to reduce privileges should be assigned directly to users.
+
 ## Managing Access Lists from the CLI
 
 In addition to using the web UI, Access Lists can be created and managed from the CLI
