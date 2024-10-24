@@ -82,9 +82,6 @@ type LocalInstaller struct {
 	ReservedFreeInstallDisk uint64
 }
 
-// ErrLinked is returned when a linked version cannot be removed.
-var ErrLinked = errors.New("linked version cannot be removed")
-
 // Remove a Teleport version directory from InstallDir.
 // This function is idempotent.
 func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
@@ -375,50 +372,100 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 }
 
 // Link the specified version into the system LinkBinDir.
-func (li *LocalInstaller) Link(ctx context.Context, version string) error {
+func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
 	versionDir, err := li.versionDir(version)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// ensure target directories exist before trying to create links
 	err = os.MkdirAll(li.LinkBinDir, 0755)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	err = os.MkdirAll(li.LinkServiceDir, 0755)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// create binary links
 	binDir := filepath.Join(versionDir, "bin")
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
-		return trace.Errorf("failed to find Teleport binary directory: %w", err)
+		return nil, trace.Errorf("failed to find Teleport binary directory: %w", err)
 	}
+
+	// setup revert function
+	type symlink struct {
+		old, new string
+	}
+	var revertLinks []symlink
+	revert = func(ctx context.Context) bool {
+		ok := true
+		for _, l := range revertLinks {
+			err := renameio.Symlink(l.old, l.new)
+			if err != nil {
+				ok = false
+				li.Log.ErrorContext(ctx, "Failed to revert symlink", "old", l.old, "new", l.new, "err", err)
+			}
+		}
+		return ok
+	}
+	// revert on error
+	defer func() {
+		if err != nil {
+			revert(ctx)
+		}
+	}()
+
+	// create binary symlinks
+
 	var linked int
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-		err := renameio.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(li.LinkBinDir, entry.Name()))
+		oldname := filepath.Join(binDir, entry.Name())
+		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		orig, err := os.Readlink(newname)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, trace.Wrap(err)
+		}
+		err = renameio.Symlink(oldname, newname)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
+		}
+		if orig != "" {
+			revertLinks = append(revertLinks, symlink{
+				old: orig,
+				new: newname,
+			})
 		}
 		linked++
 	}
 	if linked == 0 {
-		return trace.Errorf("no binaries available to link")
+		return nil, trace.Errorf("no binaries available to link")
 	}
 
 	// create systemd service link
-	service := filepath.Join(versionDir, servicePath)
-	err = renameio.Symlink(service, filepath.Join(li.LinkServiceDir, filepath.Base(servicePath)))
-	if err != nil {
-		return trace.Wrap(err)
+
+	oldname := filepath.Join(versionDir, servicePath)
+	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
+	orig, err := os.Readlink(newname)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	err = renameio.Symlink(oldname, newname)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if orig != "" {
+		revertLinks = append(revertLinks, symlink{
+			old: orig,
+			new: newname,
+		})
+	}
+	return revert, nil
 }
 
 // versionDir returns the storage directory for a Teleport version.
