@@ -56,30 +56,24 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
     if (!state.ssoChallenge) {
       return;
     }
-
     const channel = new BroadcastChannel(state.ssoChallenge.channelId);
 
     function handleMessage(e: MessageEvent<{ mfaToken: string }>) {
-      if (!state.ssoChallenge) {
-        return;
-      }
-
       emitterSender.sendChallengeResponse({
         sso_response: {
-          requestId: state.ssoChallenge.requestId,
+          requestId: state.ssoChallenge?.requestId,
           token: e.data.mfaToken,
         },
       });
       clearChallenges();
     }
-
     channel.addEventListener('message', handleMessage);
 
     return () => {
       channel.removeEventListener('message', handleMessage);
       channel.close();
     };
-  }, [state, emitterSender, state.ssoChallenge]);
+  }, [state.ssoChallenge, emitterSender]);
 
   function onSsoAuthenticate() {
     if (!state.ssoChallenge) {

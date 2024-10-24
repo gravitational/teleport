@@ -94,7 +94,6 @@ class Tty extends EventEmitterMfaSender {
       ...data.webauthn_response,
       ...data,
     };
-    console.log({ data });
     const encoded = this._proto.encodeChallengeResponse(
       JSON.stringify(backwardCompatibleData)
     );
