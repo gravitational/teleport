@@ -2,6 +2,7 @@ package externalauditstoragev1
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -10,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -54,8 +54,7 @@ type ServiceConfig struct {
 type Service struct {
 	pb.UnimplementedExternalAuditStorageServiceServer
 
-	logger *logrus.Entry
-
+	logger                   *slog.Logger
 	authorizer               authz.Authorizer
 	externalAuditStorage     *local.ExternalAuditStorageService
 	clusterAuditConfigGetter ClusterAuditConfigGetter
@@ -81,7 +80,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("Emitter is required")
 	}
 	return &Service{
-		logger:                   logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.service"),
+		logger:                   slog.With(teleport.ComponentKey, teleport.Component("EAS", "service")),
 		authorizer:               cfg.Authorizer,
 		externalAuditStorage:     cfg.ExternalAuditStorage,
 		clusterAuditConfigGetter: cfg.ClusterAuditConfigGetter,
@@ -426,10 +425,7 @@ func (s *Service) getAWSConfig(ctx context.Context, authCtx *authz.Context) (aws
 
 func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
 	if err := s.emitter.EmitAuditEvent(context.Background(), e); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"type":  e.GetType(),
-			"error": err,
-		}).Info("Failed to emit audit event")
+		s.logger.InfoContext(ctx, "Failed to emit audit event", "type", e.GetType(), "error", err)
 	}
 }
 
