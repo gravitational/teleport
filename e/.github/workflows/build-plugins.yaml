@@ -213,6 +213,7 @@ jobs:
       id-token: write  # required for aws-actions/configure-aws-credentials
       security-events: write # required for trivy scan
     strategy:
+      fail-fast: false
       matrix:
         plugins:
           # Access plugins
@@ -282,7 +283,6 @@ jobs:
   smoke-test-linux-amd64:
     needs: [build-plugins, build-docker-images]
     strategy:
-      fail-fast: false
       matrix:
         arch: [amd64, arm64]
         include:
