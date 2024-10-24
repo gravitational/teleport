@@ -791,32 +791,39 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			return nil
 		}
 
+		switch {
+		case storedAuthPref == nil:
+			// This is a brand new cluster with no stored auth pref, set a
+			// default signature algorithm suite.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+				FIPS:          asrv.fips,
+				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+				Cloud:         modules.GetModules().Features().Cloud,
+			})
+		case newAuthPref.Origin() == types.OriginDefaults:
+			// There is a stored auth preference which we are overwriting with a
+			// default auth preference. Maintain the stored signature algorithm
+			// suite to avoid automatically changing it on version upgrades, new
+			// suites should always be opt-in for existing clusters.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		case newAuthPref.GetSignatureAlgorithmSuite() == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED:
+			// There is a stored auth preference and the new auth preference is
+			// coming from a config file where the signature_algorithm_suite is
+			// unset. Maintain the stored signature algorithm suite otherwise we
+			// would unset the default suite after the first auth restart.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		}
+
 		if storedAuthPref == nil {
 			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
-
-			if newAuthPref.Origin() == types.OriginDefaults {
-				// Set a default signature algorithm suite for a new cluster.
-				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-					FIPS:          asrv.fips,
-					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-					Cloud:         modules.GetModules().Features().Cloud,
-				})
-			}
-
 			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
-
 			return trace.Wrap(err)
-		}
-
-		if newAuthPref.Origin() == types.OriginDefaults {
-			// Never overwrite a stored signature algorithm suite with a default
-			// signature algorithm suite. This prevents the suite from being
-			// "upgraded" by a Teleport version upgrade alone, even if defaults
-			// are used on both versions.
-			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
 		}
 
 		newAuthPref.SetRevision(storedAuthPref.GetRevision())
