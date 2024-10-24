@@ -197,6 +197,15 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			preset:           samlsp.Unspecified,
 		},
 		{
+			name:             "aws-identity-center preset",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           acsURL,
+			expectedEntityID: "IAMShowcase",
+			errAssertion:     require.NoError,
+			preset:           samlsp.AWSIdentityCenter,
+		},
+		{
 			name:             "unsupported preset value",
 			entityDescriptor: "",
 			entityID:         "IAMShowcase",

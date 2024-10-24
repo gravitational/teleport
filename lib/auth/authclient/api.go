@@ -314,6 +314,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -1211,6 +1214,9 @@ type Cache interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
