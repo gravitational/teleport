@@ -1,45 +1,71 @@
-import { useState } from 'react';
+import { useState, PropsWithChildren } from 'react';
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import { User } from 'teleport/services/user';
 import Validation from 'shared/components/Validation';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+
+import { pluginMap } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/plugins';
+import {
+  PluginProvider,
+  usePlugin,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
+import {
+  users,
+  groupsWithPermissionAssignment,
+  accounts,
+  permissionSets,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/shared/fixture';
 
 import {
   Account,
-  DirectAssignments as DirectAssignmentsComponent,
   GroupsWithAssignment as GroupsWithAssignmentComponent,
   AwsIcImportResources,
   PermissionSets as PermissionSetsComponent,
 } from './ImportResources';
 
-import type {
-  PluginConfigAwsIcAccounts,
-  PluginConfigAwsIcPermissionSetsTable,
-  PluginConfigAwsIcUserDirectAssignment,
-  PluginConfigAwsIcUserGroupsWithAssignment,
-} from 'e-teleport/services/plugins/types';
+import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export default {
   title: 'TeleportE/Integrations/Enroll/AWSIdentityCenter/ImportResources',
 };
 
+const awsIdentityCenterPlugin = pluginMap[
+  PluginConfigAwsIc.PluginName
+] as CloudHostablePlugin;
+
 export const ImportResources = () => {
-  const ctx = createTeleportContext();
+  const ctx = createTeleportContextE();
   ctx.userService.fetchUsers = () => Promise.resolve<User[]>(users);
+  ctx.pluginsService.getAwsIcAccounts = () => Promise.resolve(accounts);
+  ctx.pluginsService.getAwsIcGroupsWithPermissionAssignments = () =>
+    Promise.resolve(groupsWithPermissionAssignment);
+  ctx.pluginsService.getAwsIcPermissionSets = () =>
+    Promise.resolve(permissionSets);
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <AwsIcImportResources
-          accounts={accounts}
-          groupsWithPermissionAssignment={groupsWithPermissionAssignment}
-          userDirectPermissionAssignment={userDirectPermissionAssignment}
-          permissionSets={permissionSets}
-        />
+        <PluginProvider selectedPlugin={awsIdentityCenterPlugin}>
+          <PluginContextWrapper>
+            <AwsIcImportResources />
+          </PluginContextWrapper>
+        </PluginProvider>
       </ContextProvider>
     </MemoryRouter>
   );
+};
+
+const PluginContextWrapper: React.FC<PropsWithChildren> = ({ children }) => {
+  const { setFormData } = usePlugin();
+  const formData = new FormData();
+  formData.set('region', 'ca-central-1');
+  formData.set('arn', 'arn:aws:sso:::instance/ssoins-8004ee88884dd26a');
+  formData.set(PluginConfigAwsIc.OidcIntegrationName, 'test-integration');
+  setFormData(formData);
+
+  return <>{children}</>;
 };
 
 export const Accounts = () => {
@@ -255,64 +281,6 @@ const GroupsWithDefaultOwnerValidation = props => {
   );
 };
 
-export const DirectAssignments = () => {
-  const [showTable, setShowTable] = useState(false);
-  const props = {
-    userDirectPermissionAssignment: userDirectPermissionAssignment,
-    showTable: showTable,
-    setShowTable: setShowTable,
-    loading: false,
-  };
-  return (
-    <Flex flexDirection="column" gap={3}>
-      <Box>
-        <Text ml={1} bold>
-          Valid
-        </Text>
-        <DirectAssignmentsComponent {...props} />
-      </Box>
-
-      <Box>
-        <Text ml={1} bold>
-          Loading
-        </Text>
-        <DirectAssignmentLoading {...props} />
-      </Box>
-
-      <Box>
-        <Text ml={1} bold>
-          Empty direct assignments
-        </Text>
-        <DirectAssignmentEmpty {...props} />
-      </Box>
-    </Flex>
-  );
-};
-
-const DirectAssignmentEmpty = props => {
-  const [showTable, setShowTable] = useState(true);
-  return (
-    <DirectAssignmentsComponent
-      {...props}
-      showTable={showTable}
-      setShowTable={setShowTable}
-      userDirectPermissionAssignment={[]}
-    />
-  );
-};
-
-const DirectAssignmentLoading = props => {
-  const [showTable, setShowTable] = useState(true);
-  return (
-    <DirectAssignmentsComponent
-      {...props}
-      loading={true}
-      showTable={showTable}
-      setShowTable={setShowTable}
-    />
-  );
-};
-
 export const PermissionSets = () => {
   const [showTable, setShowTable] = useState(false);
   const props = {
@@ -370,98 +338,3 @@ const PermissionSetsEmpty = props => {
     />
   );
 };
-
-const users = [
-  { name: 'access-user', roles: ['access'], authType: 'local' },
-  { name: 'editor-user', roles: ['editor'], authType: 'local' },
-  { name: 'auditor-user', roles: ['auditor'], authType: 'local' },
-];
-
-const accounts: PluginConfigAwsIcAccounts[] = [
-  {
-    name: 'dev-account',
-    arn: 'arn:aws"organizations::1234567890:account/o-u0adfj/123456789',
-    id: '719283048592',
-  },
-  {
-    name: 'prod-account',
-    arn: 'arn:aws"organizations::1234567890:account/o-u0adfj/123456789',
-    id: '719283098752',
-  },
-  {
-    name: 'stage-account',
-    arn: 'arn:aws"organizations::1234567890:account/o-u0adfj/123456789',
-    id: '719283041526',
-  },
-];
-
-const groupsWithPermissionAssignment: PluginConfigAwsIcUserGroupsWithAssignment[] =
-  [
-    {
-      groupname: 'group1',
-      assignments: [
-        {
-          account_name: 'dev-account',
-          permission_set_name: 'NetworkAdministrator',
-        },
-      ],
-    },
-    {
-      groupname: 'group2',
-      assignments: [
-        { account_name: 'dev-account', permission_set_name: 'DevOps' },
-      ],
-    },
-    {
-      groupname: 'group3',
-      assignments: [
-        {
-          account_name: 'stage-account',
-          permission_set_name: 'SecurityAdministrator',
-        },
-      ],
-    },
-  ];
-
-const userDirectPermissionAssignment: PluginConfigAwsIcUserDirectAssignment[] =
-  [
-    {
-      username: 'user1',
-      assignments: [
-        {
-          account_name: 'dev-account',
-          permission_set_name: 'NetworkAdministrator',
-        },
-      ],
-    },
-    {
-      username: 'user2',
-      assignments: [
-        { account_name: 'prod-account', permission_set_name: 'SuperAdmin' },
-      ],
-    },
-    {
-      username: 'user3',
-      assignments: [
-        { account_name: 'dev-account', permission_set_name: 'DevAccess' },
-      ],
-    },
-  ];
-
-const permissionSets: PluginConfigAwsIcPermissionSetsTable[] = [
-  {
-    name: 'AIOps',
-    description: '',
-    arn: 'arn:aws:sso:::permissionSet/ssoins-88345234523dfdd26a/ps-93cddc3fasdf99',
-  },
-  {
-    name: 'NetworkAdministrator',
-    description: 'Network admin role',
-    arn: 'arn:aws:sso:::permissionSet/ssoins-88345234523dfdd26a/ps-93cs09dc3fasdf99',
-  },
-  {
-    name: 'SuperAdmin',
-    description: 'Super admin role',
-    arn: 'arn:aws:sso:::permissionSet/ssoins-88345234523dfdd26a/ps-93cddc3faasd2299',
-  },
-];

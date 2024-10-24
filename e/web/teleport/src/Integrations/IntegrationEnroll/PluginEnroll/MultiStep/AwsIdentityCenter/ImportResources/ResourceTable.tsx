@@ -1,15 +1,15 @@
-import { Flex, Mark, Text } from 'design';
+import { Flex, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { ClientSidePager } from 'design/DataTable/Pager';
 import { StyledTable } from 'design/DataTable/StyledTable';
 import { PagedTableProps } from 'design/DataTable/types';
+import styled from 'styled-components';
 
 import {
-  PluginConfigIcAssignments,
-  PluginConfigAwsIcAccounts,
-  PluginConfigAwsIcPermissionSetsTable,
-  PluginConfigAwsIcUserGroupsWithAssignment,
-  PluginConfigAwsIcUserDirectAssignment,
+  AwsIcPermissionAssignments,
+  AwsIcAccounts,
+  AwsIcPermissionSets,
+  AwsIcGroupsWithAssignment,
 } from 'e-teleport/services/plugins/types';
 
 const PAGE_SIZE = 15;
@@ -18,7 +18,7 @@ export function AccountsTable({
   accounts,
   loading,
 }: {
-  accounts: PluginConfigAwsIcAccounts[];
+  accounts: AwsIcAccounts[];
   loading: boolean;
 }) {
   return (
@@ -30,24 +30,19 @@ export function AccountsTable({
           headerText: 'Name',
         },
         {
-          key: 'id',
-          headerText: 'ID',
-        },
-        {
-          key: 'arn',
-          headerText: 'ARN',
-          render: ({ arn }) => (
-            <Cell
-              css={`
-                text-overflow: ellipsis;
-                overflow: hidden;
-                left: 5px;
-                width: 300px;
-                top: 5px;
-              `}
-              title={arn}
-            >
-              {arn}
+          key: 'permissionSets',
+          headerText: 'Permission Sets',
+          render: ({ permissionSets }) => (
+            <Cell>
+              <Flex gap={2} flexDirection="column">
+                <Text mb={1}>
+                  {permissionSets
+                    .map((p: AwsIcPermissionSets) => {
+                      return p.name;
+                    })
+                    .join(', ')}
+                </Text>
+              </Flex>
             </Cell>
           ),
         },
@@ -68,7 +63,7 @@ export function PermissionSetsTable({
   permissionSets,
   loading,
 }: {
-  permissionSets: PluginConfigAwsIcPermissionSetsTable[];
+  permissionSets: AwsIcPermissionSets[];
   loading: boolean;
 }) {
   return (
@@ -139,30 +134,11 @@ export function PermissionSetsTable({
   );
 }
 
-function AssignmentsRow({
-  assignments,
-}: {
-  assignments: PluginConfigIcAssignments[];
-}) {
-  return (
-    <Flex gap={2}>
-      {assignments.map((a: PluginConfigIcAssignments) => {
-        return (
-          <Text mb={1}>
-            <Mark>{a.permission_set_name}</Mark> on{' '}
-            <Mark>{a.account_name}</Mark> account.
-          </Text>
-        );
-      })}
-    </Flex>
-  );
-}
-
 export function GroupsWithAssigmentTable({
   userGroups,
   loading,
 }: {
-  userGroups: PluginConfigAwsIcUserGroupsWithAssignment[];
+  userGroups: AwsIcGroupsWithAssignment[];
   loading: boolean;
 }) {
   return (
@@ -186,65 +162,20 @@ export function GroupsWithAssigmentTable({
                 top: 5px;
               `}
             >
-              <Flex flexDirection={'column'}>
-                <Flex flexDirection={'row'}>
-                  <AssignmentsRow assignments={assignments} />
-                </Flex>
+              <Flex gap={2} flexDirection="column">
+                {assignments.map((a: AwsIcPermissionAssignments, i: number) => {
+                  return (
+                    <Text mb={1} key={`${i}${a.permissionSetName}`}>
+                      {`Permission set "${a.permissionSetName}" on  "${a.accountName}" account.`}
+                    </Text>
+                  );
+                })}
               </Flex>
             </Cell>
           ),
         },
       ]}
       emptyText="No user groups found"
-      pagination={{
-        pageSize: PAGE_SIZE,
-        CustomTable,
-      }}
-      fetching={{
-        fetchStatus: loading ? 'loading' : '',
-      }}
-    />
-  );
-}
-
-export function DirecthAssigmentTable({
-  userGroups,
-  loading,
-}: {
-  userGroups: PluginConfigAwsIcUserDirectAssignment[];
-  loading: boolean;
-}) {
-  return (
-    <Table
-      data={userGroups}
-      columns={[
-        {
-          key: 'username',
-          headerText: 'User',
-        },
-        {
-          key: 'assignments',
-          headerText: 'Assignments',
-          render: ({ assignments }) => (
-            <Cell
-              css={`
-                text-overflow: ellipsis;
-                overflow: hidden;
-                left: 10px;
-                width: 500px;
-                top: 5px;
-              `}
-            >
-              <Flex flexDirection={'column'}>
-                <Flex flexDirection={'row'}>
-                  <AssignmentsRow assignments={assignments} />
-                </Flex>
-              </Flex>
-            </Cell>
-          ),
-        },
-      ]}
-      emptyText="No direct permission assignments found"
       pagination={{
         pageSize: PAGE_SIZE,
         CustomTable,
@@ -274,10 +205,16 @@ function CustomTable<T>({
         data={data}
         {...pagination}
       />
-      <StyledTable>
+      <StyledTableB>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}
-      </StyledTable>
+      </StyledTableB>
     </>
   );
 }
+
+const StyledTableB = styled(StyledTable)`
+  tbody > tr > td {
+    font-size: 12px;
+  }
+`;

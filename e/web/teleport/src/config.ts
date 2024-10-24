@@ -147,6 +147,11 @@ const cfg = {
 
     azureOidcConfigureScriptPath:
       '/webapi/scripts/integrations/configure/azureoidc.sh?authConnectorName=:authConnectorName',
+
+    awsIdentityCenter: {
+      previewResourcesByType:
+        '/v1/enterprise/pluginconfig/aws-ic/preview-resources',
+    },
   },
 
   getNonExactRoutes() {
@@ -365,6 +370,10 @@ const cfg = {
       generatePath(path, { ...p }) +
       (p.accessGraph ? '&accessGraph=true' : '')
     );
+  },
+
+  getAwsIcPluginResourcePreviewUrl() {
+    return generatePath(cfg.api.awsIdentityCenter.previewResourcesByType);
   },
 
   init(json: object) {

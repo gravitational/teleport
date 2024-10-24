@@ -5,7 +5,13 @@ import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes
 
 import cfg from 'e-teleport/config';
 
-import { PluginConfigOktaGroup, PluginConfigOktaApp } from './types';
+import {
+  PluginConfigOktaGroup,
+  PluginConfigOktaApp,
+  AwsIcAccounts,
+  AwsIcGroupsWithAssignment,
+  AwsIcPermissionSets,
+} from './types';
 
 import type {
   Plugin,
@@ -65,6 +71,31 @@ export const pluginsService = {
   fetchPlugin(name: string): Promise<Plugin> {
     return api.get(cfg.getPluginUrl(name)).then(makePlugin);
   },
+
+  getAwsIcAccounts(
+    params: fetchAwsIcResourceRequest
+  ): Promise<AwsIcAccounts[]> {
+    return api.post(cfg.getAwsIcPluginResourcePreviewUrl(), params);
+  },
+
+  getAwsIcGroupsWithPermissionAssignments(
+    params: fetchAwsIcResourceRequest
+  ): Promise<AwsIcGroupsWithAssignment[]> {
+    return api.post(cfg.getAwsIcPluginResourcePreviewUrl(), params);
+  },
+
+  getAwsIcPermissionSets(
+    params: fetchAwsIcResourceRequest
+  ): Promise<AwsIcPermissionSets[]> {
+    return api.post(cfg.getAwsIcPluginResourcePreviewUrl(), params);
+  },
+};
+
+type fetchAwsIcResourceRequest = {
+  integrationName: string;
+  arn: string;
+  region: string;
+  resourceType: string;
 };
 
 export function makePlugins(json: any): Plugin[] {

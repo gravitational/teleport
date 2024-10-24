@@ -30,6 +30,8 @@ import { CreateEntra } from './MultiStep/Entra/CreateEntra';
 import { FormMixin as EntraFormMixin } from './MultiStep/Entra/FormMixin';
 import { RunScript } from './MultiStep/Entra/RunScript';
 
+import { AwsIdentityCenterPlugin } from './MultiStep/AwsIdentityCenter/Plugin';
+
 import type {
   SelfHostedPlugin,
   CloudHostablePlugin,
@@ -1600,6 +1602,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       );
     },
   },
+  AwsIdentityCenterPlugin,
 ];
 
 export const pluginMap = Object.fromEntries(plugins.map(p => [p.type, p]));

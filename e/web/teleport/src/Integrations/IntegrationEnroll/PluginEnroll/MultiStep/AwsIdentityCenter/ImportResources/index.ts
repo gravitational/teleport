@@ -1,0 +1,1 @@
+export { AwsIcImportResources } from './ImportResources';

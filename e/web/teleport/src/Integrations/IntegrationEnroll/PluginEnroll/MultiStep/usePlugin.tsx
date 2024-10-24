@@ -52,7 +52,7 @@ export function PluginProvider<T>({
 }>) {
   const [currentStep, setCurrentStep] = useState(0);
   const [installedPlugin, setInstalledPlugin] = useState<Plugin<T>>();
-  const [formData, setFormData] = useState<FormData>();
+  const [formData, setFormData] = useState<FormData>(new FormData());
   const [eventId] = useState(() => crypto.randomUUID());
 
   // indexedViews contains views (including nested views)

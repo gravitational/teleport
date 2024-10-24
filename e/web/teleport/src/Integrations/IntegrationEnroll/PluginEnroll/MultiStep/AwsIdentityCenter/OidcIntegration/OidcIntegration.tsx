@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Box,
   Link as ButtonLink,
@@ -14,7 +15,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredAll } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
-import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import { Danger, Info } from 'design/Alert';
 import { StyledBox } from 'teleport/Discover/Shared';
 import { useAwsOidcIntegration } from 'teleport/Integrations/Enroll/AwsOidc/useAwsOidcIntegration';
 import {
@@ -25,10 +26,14 @@ import {
   IntegrationKind,
   integrationService,
   AwsOidcPolicyPreset,
+  IntegrationAudience,
 } from 'teleport/services/integrations';
 import useTeleport from 'teleport/useTeleport';
 
+import ecfg from 'e-teleport/config';
+import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import { PluginConfigAwsIc } from 'e-teleport/services/plugins/types';
 
 import {
   requiredOidcIntegrationName,
@@ -41,6 +46,10 @@ export function AwsIcOidcIntegration() {
   const { storeUser } = useTeleport();
   const integrationAccess = storeUser.getIntegrationsAccess();
   const hasAccess = integrationAccess.list && integrationAccess.read;
+  const { formData, nextStep, setFormData } = usePlugin();
+  if (!formData) {
+    setFormData(new FormData());
+  }
   const {
     integrationConfig,
     setIntegrationConfig,
@@ -48,19 +57,29 @@ export function AwsIcOidcIntegration() {
     setScriptUrl,
     createIntegrationAttempt,
     generateAwsOidcConfigIdpScript,
+    runCreateIntegration,
   } = useAwsOidcIntegration();
 
+  const [existingIntegrationName, setExistingIntegrationName] = useState(null);
   const [fetchIntegrationAttempt, runFetchIntegration] = useAsync(
     useCallback(async () => {
       const resp = await integrationService.fetchIntegrations();
       return resp.items
         .map(i => {
           if (i.kind === IntegrationKind.AwsOidc) {
+            if (i.spec?.audience === IntegrationAudience.AwsIdentityCenter) {
+              setExistingIntegrationName(i.name);
+              setIntegrationConfig({
+                ...integrationConfig,
+                name: i.name,
+                roleName: i.name,
+              });
+            }
             return i.name;
           }
         })
         .filter(Boolean);
-    }, [])
+    }, [integrationConfig, setIntegrationConfig, setExistingIntegrationName])
   );
 
   useEffect(() => {
@@ -69,29 +88,61 @@ export function AwsIcOidcIntegration() {
     }
   }, [hasAccess, runFetchIntegration, fetchIntegrationAttempt]);
 
-  const [region, setRegion] = useState('');
-  const [arn, setArn] = useState('');
+  const [region, setRegion] = useState(
+    formData.get(PluginConfigAwsIc.InstanceRegion)?.toString() || ''
+  );
+  const [arn, setArn] = useState(
+    formData.get(PluginConfigAwsIc.InstanceArn)?.toString() || ''
+  );
 
-  function handleNext(v: Validator) {
+  async function handleNext(v: Validator) {
     if (!v.validate()) {
       return;
     }
 
-    // TODO(sshah): check if integration already exist or create a new one
-    // and move to next step
+    formData.set(PluginConfigAwsIc.InstanceRegion, region);
+    formData.set(PluginConfigAwsIc.InstanceArn, arn);
+    formData.set(PluginConfigAwsIc.OidcIntegrationName, integrationConfig.name);
+
+    if (!existingIntegrationName) {
+      const [, err] = await runCreateIntegration({
+        name: integrationConfig.name,
+        subKind: IntegrationKind.AwsOidc,
+        awsoidc: {
+          roleArn: integrationConfig.roleArn,
+          audience: IntegrationAudience.AwsIdentityCenter,
+        },
+      });
+      if (err) {
+        return;
+      }
+    }
+
+    nextStep();
   }
 
   // AWS Identity Center plugin creates AWS OIDC integration with the
   // same value for integration name and AWS IAM role name.
-  function handleRoleNameChange(e: string) {
+  function handleNameChange(e: string) {
     setIntegrationConfig({ ...integrationConfig, name: e, roleName: e });
   }
 
-  const nextButtonText = fetchIntegrationAttempt.data?.includes(
-    integrationConfig.name
-  )
+  const nextButtonText = existingIntegrationName
     ? 'Next'
     : 'Save integration and proceed to next step';
+
+  const scriptGenButtonText = scriptUrl
+    ? 'Edit'
+    : 'Generate Script that configures AWS';
+
+  function scriptGenButtonOnclick(v: Validator) {
+    scriptUrl
+      ? setScriptUrl('')
+      : generateAwsOidcConfigIdpScript(
+          v,
+          AwsOidcPolicyPreset.AwsIdentityCenter
+        );
+  }
 
   return (
     <Box maxWidth="800px">
@@ -104,12 +155,15 @@ export function AwsIcOidcIntegration() {
         permission assignments to the Identity Center.
       </Text>
       {/* TODO(sshah): add AWS tagging info once we finalize if we need extra tagging for Identity Center */}
-      {fetchIntegrationAttempt.status === 'error' && (
-        <Box mt={3}>
-          <ErrorMessage message={fetchIntegrationAttempt.statusText} />
-        </Box>
-      )}
-
+      <Box mt={3}>
+        {fetchIntegrationAttempt.status === 'error' && (
+          <Danger>{fetchIntegrationAttempt.statusText}</Danger>
+        )}
+        {existingIntegrationName && (
+          <Info>{`OIDC Integration '${existingIntegrationName}' already created for AWS Identity Center plugin. You
+        only need to provide the Identity Center instance region and ARN below.`}</Info>
+        )}
+      </Box>
       {fetchIntegrationAttempt.status === 'processing' ? (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -137,7 +191,7 @@ export function AwsIcOidcIntegration() {
                       rule={requiredAwsIdentityCenterRegion}
                       onChange={e => setRegion(e.target.value)}
                       autoFocus={true}
-                      label="Enter Identity Center region"
+                      label="Enter Identity Center instance region"
                       value={region}
                       placeholder="ca-central-1"
                       toolTipContent={identityCenterRegionToolTip}
@@ -146,78 +200,66 @@ export function AwsIcOidcIntegration() {
                     <FieldInput
                       rule={requiredAwsIdentityCenterInstanceArn}
                       onChange={e => setArn(e.target.value)}
-                      label="Enter Identity Center ARN"
+                      label="Enter Identity Center instance ARN"
                       value={arn}
                       placeholder="arn:aws:sso:::instance/ssoins-xxxxx"
                       toolTipContent={identityCenterArnToolTip}
                       disabled={!!scriptUrl}
                     />
-                    <FieldInput
-                      rule={requiredAll(
-                        requiredOidcIntegrationName,
-                        requireUniqueIntegrationName(
-                          fetchIntegrationAttempt.data
-                        )
-                      )}
-                      value={integrationConfig.name}
-                      label="Give this AWS integration a name"
-                      placeholder="Integration Name"
-                      onChange={e => handleRoleNameChange(e.target.value)}
-                      toolTipContent={iamRoleNameToolTip}
-                      disabled={!!scriptUrl}
-                    />
+                    {!existingIntegrationName && (
+                      <FieldInput
+                        rule={requiredAll(
+                          requiredOidcIntegrationName,
+                          requireUniqueIntegrationName(
+                            fetchIntegrationAttempt.data
+                          )
+                        )}
+                        value={integrationConfig.name}
+                        label="Give this AWS integration a name"
+                        placeholder="Integration Name"
+                        onChange={e => handleNameChange(e.target.value)}
+                        toolTipContent={iamRoleNameToolTip}
+                        disabled={!!scriptUrl}
+                      />
+                    )}
                   </Flex>
-                  {scriptUrl ? (
+                  {!existingIntegrationName && (
                     <ButtonSecondary
                       mb={3}
-                      onClick={() => {
-                        setScriptUrl('');
-                      }}
+                      onClick={() => scriptGenButtonOnclick(validator)}
                     >
-                      Edit
-                    </ButtonSecondary>
-                  ) : (
-                    <ButtonSecondary
-                      mb={3}
-                      onClick={() =>
-                        generateAwsOidcConfigIdpScript(
-                          validator,
-                          AwsOidcPolicyPreset.AwsIdentityCenter
-                        )
-                      }
-                    >
-                      Generate Script that configures AWS
+                      {scriptGenButtonText}
                     </ButtonSecondary>
                   )}
                 </StyledBox>
                 {scriptUrl && (
-                  <StyledBox mb={4}>
-                    <Text bold>
-                      Step 2: Run integration script in AWS Cloud shell.
-                    </Text>
-                    <ShowConfigurationScript
-                      scriptUrl={scriptUrl}
-                      description={copyInstallationScriptText}
-                    />
-                  </StyledBox>
-                )}
-                {scriptUrl && (
-                  <StyledBox mb={5}>
-                    <Text bold>Step 3: Enter Role ARN</Text>
-                    <RoleArnInput
-                      roleName={integrationConfig.name}
-                      roleArn={integrationConfig.roleArn}
-                      setRoleArn={(v: string) =>
-                        setIntegrationConfig({
-                          ...integrationConfig,
-                          roleArn: v,
-                        })
-                      }
-                      disabled={
-                        createIntegrationAttempt.status === 'processing'
-                      }
-                    />
-                  </StyledBox>
+                  <>
+                    <StyledBox mb={4}>
+                      <Text bold>
+                        Step 2: Run integration script in AWS Cloud shell.
+                      </Text>
+                      <ShowConfigurationScript
+                        scriptUrl={scriptUrl}
+                        description={copyInstallationScriptText}
+                      />
+                    </StyledBox>
+                    <StyledBox mb={5}>
+                      <Text bold>Step 3: Enter Role ARN</Text>
+                      <RoleArnInput
+                        roleName={integrationConfig.name}
+                        roleArn={integrationConfig.roleArn}
+                        setRoleArn={(v: string) =>
+                          setIntegrationConfig({
+                            ...integrationConfig,
+                            roleArn: v,
+                          })
+                        }
+                        disabled={
+                          createIntegrationAttempt.status === 'processing'
+                        }
+                      />
+                    </StyledBox>
+                  </>
                 )}
                 {createIntegrationAttempt.status === 'error' && (
                   <Flex>
@@ -231,12 +273,20 @@ export function AwsIcOidcIntegration() {
                 <Flex mt={6} mb={5} gap={3}>
                   <ButtonPrimary
                     onClick={() => handleNext(validator)}
-                    disabled={integrationConfig.roleArn === ''}
+                    disabled={
+                      !existingIntegrationName &&
+                      integrationConfig.roleArn === ''
+                    }
                   >
                     {nextButtonText}
                   </ButtonPrimary>
 
-                  <ButtonSecondary>Back</ButtonSecondary>
+                  <ButtonSecondary
+                    as={Link}
+                    to={ecfg.oss.getIntegrationEnrollRoute()}
+                  >
+                    Back
+                  </ButtonSecondary>
                 </Flex>
               </>
             )}

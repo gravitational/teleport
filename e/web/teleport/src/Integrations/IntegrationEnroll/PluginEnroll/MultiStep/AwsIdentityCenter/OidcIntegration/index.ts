@@ -1,0 +1,1 @@
+export { AwsIcOidcIntegration } from './OidcIntegration';

@@ -158,47 +158,81 @@ export function pluginTypeToIntegrationEnrollKind(
 }
 
 /**
- * PluginConfigAwsIcAccounts defines account fields that
+ * PluginConfigBase defines base configuration field names required to
+ * create plugin. Name format is an exact representation of the form
+ * names defined in the backend.
+ */
+export enum PluginConfigBase {
+  Name = 'name',
+  Type = 'type',
+  CSRFToken = 'csrf_token',
+}
+
+/**
+ * PluginConfigAwsIc defines configuration field names used to
+ * create AWS Identity Center plugin. Name format is an exact
+ * representation of the form names defined in the backend.
+ */
+export enum PluginConfigAwsIc {
+  PluginName = 'aws-identity-center',
+  OidcIntegrationName = 'oidcIntegrationName',
+  InstanceArn = 'arn',
+  InstanceRegion = 'region',
+  AccessListDefaultOwners = 'accessListDefaultOwners',
+  SamlServiceProviderMetadata = 'samlServiceProviderMetadata',
+  SamlServiceProviderName = 'samlServiceProviderName',
+  ScimBaseURL = 'scimBaseURL',
+  ScimAccessToken = 'scimAccessToken',
+  ResourceToValidate = 'resourceToValidate',
+  ValidateSaml = 'validateSAML',
+  ValidateScim = 'validateSCIM',
+}
+
+/**
+ * AwsIcResourceTypes defines names for AWS Identity
+ * Center resource types
+ */
+export enum AwsIcResourceTypes {
+  Accounts = 'accounts',
+  GroupsWithAssignments = 'groupsWithAssignments',
+  PermissionSets = 'permissionSets',
+  PermissionAssignments = 'permissionAssignments',
+}
+
+/**
+ * AwsIcAccounts defines account fields that
  * are shown in the import resources accounts table.
  */
-export type PluginConfigAwsIcAccounts = {
+export type AwsIcAccounts = {
   name: string;
   arn: string;
   id: string;
+  permissionSets: AwsIcPermissionSets[];
 };
 
 /**
- * PluginConfigAwsIcUserGroupsWithAssignment defines
+ * AwsIcGroupsWithAssignment defines
  * AWS identity center user groups with respective account
  * assignments.
  */
-export type PluginConfigAwsIcUserGroupsWithAssignment = {
+export type AwsIcGroupsWithAssignment = {
   groupname: string;
-  assignments: PluginConfigIcAssignments[];
-};
-
-/**
- * PluginConfigAwsIcUserDirectAssignment defines AWS
- * identity center users' direct permission assignment.
- */
-export type PluginConfigAwsIcUserDirectAssignment = {
-  username: string;
-  assignments: PluginConfigIcAssignments[];
+  assignments: AwsIcPermissionAssignments[];
 };
 
 /**
  * Assignments is an AWS identity center account assignment.
  */
-export type PluginConfigIcAssignments = {
-  permission_set_name: string;
-  account_name: string;
+export type AwsIcPermissionAssignments = {
+  permissionSetName: string;
+  accountName: string;
 };
 
 /**
- * PluginConfigAwsIcPermissionSetsTable is an AWS ideneity
+ * AwsIcPermissionSets is an AWS ideneity
  * center permission set.
  */
-export type PluginConfigAwsIcPermissionSetsTable = {
+export type AwsIcPermissionSets = {
   name: string;
   description: string;
   arn: string;

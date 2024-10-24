@@ -15,40 +15,46 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync, Attempt } from 'shared/hooks/useAsync';
 import { StyledBox } from 'teleport/Discover/Shared';
-import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import { Danger } from 'design/Alert';
 import userService, { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
+import { pluginsService } from 'e-teleport/services/plugins';
+import { usePlugin } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/usePlugin';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
+import {
+  PluginConfigAwsIc,
+  AwsIcResourceTypes,
+} from 'e-teleport/services/plugins/types';
 
 import {
   AccountsTable,
   GroupsWithAssigmentTable,
-  DirecthAssigmentTable,
   PermissionSetsTable,
 } from './ResourceTable';
 
 import type {
-  PluginConfigAwsIcAccounts,
-  PluginConfigAwsIcPermissionSetsTable,
-  PluginConfigAwsIcUserDirectAssignment,
-  PluginConfigAwsIcUserGroupsWithAssignment,
+  AwsIcAccounts,
+  AwsIcPermissionSets,
+  AwsIcGroupsWithAssignment,
 } from 'e-teleport/services/plugins/types';
 
-export function AwsIcImportResources({
-  accounts,
-  groupsWithPermissionAssignment,
-  userDirectPermissionAssignment,
-  permissionSets,
-}: {
-  accounts?: PluginConfigAwsIcAccounts[];
-  groupsWithPermissionAssignment?: PluginConfigAwsIcUserGroupsWithAssignment[];
-  userDirectPermissionAssignment?: PluginConfigAwsIcUserDirectAssignment[];
-  permissionSets?: PluginConfigAwsIcPermissionSetsTable[];
-}) {
+export function AwsIcImportResources() {
   const ctx = useTeleport();
   const userAccess = ctx.storeUser.getUserAccess();
   const canReadListUsers = userAccess.list && userAccess.read;
+  const { formData, nextStep, prevStep } = usePlugin();
+  const integrationName = formData
+    .get(PluginConfigAwsIc.OidcIntegrationName)
+    ?.toString();
+  const arn = formData.get(PluginConfigAwsIc.InstanceArn)?.toString();
+  const region = formData.get(PluginConfigAwsIc.InstanceRegion)?.toString();
+  const {
+    fetchAccountsAttempt,
+    fetchGroupsWithPermAssignmentsAttempt,
+    fetchPermissionSetsAttempt,
+    fetchResources,
+  } = useImportResources({ integrationName, arn, region });
 
   const [showTable, setShowTable] = useState<tableType>(defaultTableStates);
   const [selectedOwners, setSelectedOwners] = useState<userOption[]>([]);
@@ -69,6 +75,13 @@ export function AwsIcImportResources({
     if (!v.validate()) {
       return;
     }
+
+    const defaultOwners = selectedOwners.map(o => o.label);
+    formData.append(
+      PluginConfigAwsIc.AccessListDefaultOwners,
+      JSON.stringify(defaultOwners)
+    );
+    nextStep();
   }
 
   return (
@@ -81,52 +94,59 @@ export function AwsIcImportResources({
               <Text> {subheaderText} </Text>
             </Box>
             <Flex mb={1} mt={4} flexDirection="column" gap={4} width="100%">
-              {/* TODO(sshah): swap out loading state with feftchAccountAttempt in all components */}
               <Account
-                accounts={accounts}
+                accounts={fetchAccountsAttempt.data || []}
                 showTable={showTable.accounts}
-                setShowTable={state =>
-                  setShowTable({ ...showTable, accounts: state })
-                }
-                loading={false}
+                setShowTable={state => {
+                  if (!showTable.accounts) {
+                    fetchResources(AwsIcResourceTypes.Accounts);
+                  }
+                  setShowTable({ ...showTable, accounts: state });
+                }}
+                loading={fetchAccountsAttempt.status === 'processing'}
               />
 
               <GroupsWithAssignment
-                groupsWithPermissionAssignment={groupsWithPermissionAssignment}
-                showTable={showTable.groups}
-                setShowTable={state =>
-                  setShowTable({ ...showTable, groups: state })
+                groupsWithPermissionAssignment={
+                  fetchGroupsWithPermAssignmentsAttempt.data || []
                 }
+                showTable={showTable.groups}
+                setShowTable={state => {
+                  if (!showTable.groups) {
+                    fetchResources(AwsIcResourceTypes.GroupsWithAssignments);
+                  }
+                  setShowTable({ ...showTable, groups: state });
+                }}
                 selectedOwners={selectedOwners}
                 setSelectedOwners={setSelectedOwners}
                 fetchUsersAttempt={fetchUsersAttempt}
-                loading={false}
-              />
-
-              <DirectAssignments
-                userDirectPermissionAssignment={userDirectPermissionAssignment}
-                showTable={showTable.directAssignments}
-                setShowTable={state =>
-                  setShowTable({ ...showTable, directAssignments: state })
+                loading={
+                  fetchGroupsWithPermAssignmentsAttempt.status === 'processing'
                 }
-                loading={false}
               />
 
               <PermissionSets
-                permissionSets={permissionSets}
+                permissionSets={fetchPermissionSetsAttempt.data || []}
                 showTable={showTable.permissionSets}
-                setShowTable={state =>
-                  setShowTable({ ...showTable, permissionSets: state })
-                }
+                setShowTable={state => {
+                  if (!showTable.permissionSets) {
+                    fetchResources(AwsIcResourceTypes.PermissionSets);
+                  }
+                  setShowTable({ ...showTable, permissionSets: state });
+                }}
                 loading={false}
               />
             </Flex>
             <Flex mt={5} mb={5} gap={3}>
-              <ButtonPrimary onClick={() => handleNext(validator)}>
+              <ButtonPrimary
+                onClick={() => handleNext(validator)}
+                disabled={selectedOwners.length === 0}
+              >
                 Next
               </ButtonPrimary>
 
-              <ButtonSecondary>Back</ButtonSecondary>
+              {/* TODO(sshah): delete previously created integration on back? */}
+              <ButtonSecondary onClick={prevStep}>Back</ButtonSecondary>
             </Flex>
           </>
         )}
@@ -147,7 +167,7 @@ export const Account = ({
   setShowTable,
   loading = false,
 }: {
-  accounts: PluginConfigAwsIcAccounts[];
+  accounts: AwsIcAccounts[];
   showTable: boolean;
   setShowTable: (boolean) => void;
   loading: boolean;
@@ -222,7 +242,7 @@ export const GroupsWithAssignment = ({
   setSelectedOwners,
   loading,
 }: {
-  groupsWithPermissionAssignment: PluginConfigAwsIcUserGroupsWithAssignment[];
+  groupsWithPermissionAssignment: AwsIcGroupsWithAssignment[];
   showTable: boolean;
   setShowTable: (boolean) => void;
   fetchUsersAttempt: Attempt<Option<User>[]>;
@@ -262,7 +282,7 @@ export const GroupsWithAssignment = ({
       <AccessListDescription />
       {fetchUsersAttempt.status === 'error' && (
         <Box mt={2}>
-          <ErrorMessage message={fetchUsersAttempt.statusText} />
+          <Danger>{fetchUsersAttempt.statusText}</Danger>
         </Box>
       )}
       {fetchUsersAttempt.status === 'processing' ? (
@@ -291,62 +311,6 @@ export const GroupsWithAssignment = ({
   </StyledBox>
 );
 
-const DirectAssignmentDescription = () => (
-  <>
-    <Text bold mb={1}>
-      Direct assignments
-    </Text>
-    <Text mb={2}>
-      Direct assignments to Accounts and Application for individual users will
-      be imported and maintained in Teleport as a role. However, since Teleport
-      will not import users, these roles can only be granted to users with
-      Access Requests.
-    </Text>
-  </>
-);
-
-export const DirectAssignments = ({
-  userDirectPermissionAssignment,
-  showTable,
-  setShowTable,
-  loading,
-}: {
-  userDirectPermissionAssignment: PluginConfigAwsIcUserDirectAssignment[];
-  showTable: boolean;
-  setShowTable: (boolean) => void;
-  loading: boolean;
-}) => (
-  <StyledBox>
-    <Flex justifyContent="space-between" alignItems="center">
-      <Flex
-        flexDirection={'column'}
-        justifyContent="flex-start"
-        alignItems="flext-start"
-        maxWidth={'520px'}
-      >
-        <DirectAssignmentDescription />
-      </Flex>
-
-      <ButtonText inputAlignment onClick={() => setShowTable(!showTable)}>
-        {showTable ? 'Hide ' : 'Show '}
-        Direct Assignments
-        {showTable ? (
-          <Icons.ChevronUp ml={2} size={'small'} />
-        ) : (
-          <Icons.ChevronDown ml={2} size={'small'} />
-        )}
-      </ButtonText>
-    </Flex>
-
-    {showTable && (
-      <DirecthAssigmentTable
-        userGroups={userDirectPermissionAssignment}
-        loading={loading}
-      />
-    )}
-  </StyledBox>
-);
-
 const PermisionSetDescription = () => (
   <>
     <Text bold mb={1}>
@@ -364,7 +328,7 @@ export const PermissionSets = ({
   setShowTable,
   loading,
 }: {
-  permissionSets: PluginConfigAwsIcPermissionSetsTable[];
+  permissionSets: AwsIcPermissionSets[];
   showTable: boolean;
   setShowTable: (boolean) => void;
   loading: boolean;
@@ -411,3 +375,79 @@ export const defaultTableStates = {
   directAssignments: false,
   permissionSets: false,
 };
+
+export function useImportResources({
+  integrationName,
+  arn,
+  region,
+}: {
+  integrationName: string;
+  arn: string;
+  region: string;
+}) {
+  const [fetchAccountsAttempt, runFetchAccounts] = useAsync(
+    async (resourceType: string) => {
+      return await pluginsService.getAwsIcAccounts({
+        integrationName,
+        arn,
+        region,
+        resourceType,
+      });
+    }
+  );
+
+  const [
+    fetchGroupsWithPermAssignmentsAttempt,
+    runFetchGroupsWithPermAssignments,
+  ] = useAsync(async (resourceType: string) => {
+    return await pluginsService.getAwsIcGroupsWithPermissionAssignments({
+      integrationName,
+      arn,
+      region,
+      resourceType,
+    });
+  });
+
+  const [fetchPermissionSetsAttempt, runFetchPermissionSets] = useAsync(
+    async (resourceType: string) => {
+      return await pluginsService.getAwsIcPermissionSets({
+        integrationName,
+        arn,
+        region,
+        resourceType,
+      });
+    }
+  );
+
+  function fetchResources(resourceType: string) {
+    switch (resourceType) {
+      case 'accounts':
+        if (fetchAccountsAttempt.status === '') {
+          runFetchAccounts(resourceType);
+        }
+        break;
+      case 'groupsWithAssignments':
+        if (fetchGroupsWithPermAssignmentsAttempt.status === '') {
+          runFetchGroupsWithPermAssignments(resourceType);
+        }
+        break;
+      case 'permissionSets':
+        if (fetchPermissionSetsAttempt.status === '') {
+          runFetchPermissionSets(resourceType);
+        }
+        break;
+      default:
+        return;
+    }
+  }
+
+  return {
+    fetchAccountsAttempt,
+    runFetchAccounts,
+    fetchGroupsWithPermAssignmentsAttempt,
+    runFetchGroupsWithPermAssignments,
+    fetchPermissionSetsAttempt,
+    runFetchPermissionSets,
+    fetchResources,
+  };
+}
