@@ -89,7 +89,7 @@ func findDefaultCredentialProvider(ctx context.Context, logger *slog.Logger) (cr
 	defaultWorkloadIdentity, err := azidentity.NewWorkloadIdentityCredential(nil)
 	if err != nil {
 		// If no workload identity is found, fall back to regular managed identity.
-		logger.With("error", err).DebugContext(ctx, "Failed to load azure workload identity.")
+		logger.DebugContext(ctx, "Failed to load azure workload identity.", "error", err)
 		logger.InfoContext(ctx, "Using azure managed identity.")
 		return managedIdentityCredentialProvider{}, nil
 	}
