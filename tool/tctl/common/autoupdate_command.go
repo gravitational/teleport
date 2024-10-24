@@ -49,9 +49,9 @@ type AutoUpdateCommand struct {
 	app    *kingpin.Application
 	config *servicecfg.Config
 
-	upsertCmd *kingpin.CmdClause
-	getCmd    *kingpin.CmdClause
-	watchCmd  *kingpin.CmdClause
+	configureCmd *kingpin.CmdClause
+	getCmd       *kingpin.CmdClause
+	watchCmd     *kingpin.CmdClause
 
 	mode               string
 	toolsTargetVersion string
@@ -69,9 +69,9 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 
 	clientToolsCmd := autoUpdateCmd.Command("client-tools", "Client tools auto update commands.")
 
-	c.upsertCmd = clientToolsCmd.Command("update", "Edit client tools auto update configuration.")
-	c.upsertCmd.Flag("set-mode", "Sets the mode to enable or disable tools auto update in cluster.").EnumVar(&c.mode, "enabled", "disabled")
-	c.upsertCmd.Flag("set-target-version", "Defines client tools target version required to be updated.").StringVar(&c.toolsTargetVersion)
+	c.configureCmd = clientToolsCmd.Command("configure", "Edit client tools auto update configuration.")
+	c.configureCmd.Flag("set-mode", "Sets the mode to enable or disable tools auto update in cluster.").EnumVar(&c.mode, "enabled", "disabled", "on", "off")
+	c.configureCmd.Flag("set-target-version", "Defines client tools target version required to be updated.").StringVar(&c.toolsTargetVersion)
 
 	c.getCmd = clientToolsCmd.Command("get", "Receive tools auto update target version.")
 	c.getCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
@@ -87,7 +87,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 // TryRun takes the CLI command as an argument and executes it.
 func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
-	case c.upsertCmd.FullCommand():
+	case c.configureCmd.FullCommand():
 		err = c.Upsert(ctx, client)
 	case c.getCmd.FullCommand():
 		err = c.Get(ctx, client)
@@ -109,6 +109,12 @@ func (c *AutoUpdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 			}
 		} else if err != nil {
 			return trace.Wrap(err)
+		}
+		switch c.mode {
+		case "on":
+			c.mode = autoupdate.ToolsUpdateModeEnabled
+		case "off":
+			c.mode = autoupdate.ToolsUpdateModeDisabled
 		}
 		if config.Spec.Tools == nil {
 			config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{}
