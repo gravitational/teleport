@@ -1551,7 +1551,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	// This ensures we fail open and don't accidentally update agents if something is going wrong.
 	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
 	// than changing this logic.
-	if autoUpdateConfig == nil || autoUpdateConfig.GetSpec().GetTools() == nil {
+	if autoUpdateConfig.GetSpec().GetTools() == nil {
 		response.AutoUpdate.ToolsMode = autoupdate.ToolsUpdateModeDisabled
 	} else {
 		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
@@ -1564,7 +1564,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
 	// This ensures we always advertise a version compatible with the cluster.
-	if autoUpdateVersion == nil || autoUpdateVersion.GetSpec().GetTools() == nil {
+	if autoUpdateVersion.GetSpec().GetTools() == nil {
 		response.AutoUpdate.ToolsVersion = api.Version
 	} else {
 		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
