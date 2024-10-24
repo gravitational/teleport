@@ -66,7 +66,6 @@ export default function useClusterLogin(props: Props) {
   );
 
   const onLoginWithLocal = (username: string, password: string) => {
-    setWebauthnLogin({ prompt: 'tap' });
     login({
       kind: 'local',
       clusterUri,

@@ -19,7 +19,11 @@
 import { FC, PropsWithChildren } from 'react';
 
 import { Box } from 'design';
-import { Attempt, makeErrorAttempt } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  makeErrorAttempt,
+  makeProcessingAttempt,
+} from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
@@ -67,7 +71,18 @@ function makeProps(): ClusterLoginPresentationProps {
   };
 }
 
-export const Err = () => {
+export const LocalOnly = () => {
+  const props = makeProps();
+  props.initAttempt.data.allowPasswordless = false;
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const InitErr = () => {
   const props = makeProps();
   props.initAttempt = makeErrorAttempt(new Error('some error message'));
 
@@ -78,7 +93,7 @@ export const Err = () => {
   );
 };
 
-export const Processing = () => {
+export const InitProcessing = () => {
   const props = makeProps();
   props.initAttempt.status = 'processing';
 
@@ -100,9 +115,14 @@ export const LocalDisabled = () => {
   );
 };
 
-export const LocalOnly = () => {
+// The password field is empty in this story as there's no way to change the value of a controlled
+// input without touching the internals of React.
+// https://stackoverflow.com/questions/23892547/what-is-the-best-way-to-trigger-change-or-input-event-in-react-js
+export const LocalProcessing = () => {
   const props = makeProps();
   props.initAttempt.data.allowPasswordless = false;
+  props.loginAttempt = makeProcessingAttempt();
+  props.loggedInUserName = 'alice';
 
   return (
     <TestContainer>
