@@ -81,16 +81,8 @@ type cliConfig struct {
 	LogFormat string
 	// DataDir for Teleport (usually /var/lib/teleport)
 	DataDir string
-}
-
-func (c *cliConfig) CheckAndSetDefaults() error {
-	if c.DataDir == "" {
-		c.DataDir = libdefaults.DataDir
-	}
-	if c.LogFormat == "" {
-		c.LogFormat = libutils.LogFormatText
-	}
-	return nil
+	// LinkDir for linking binaries and systemd services
+	LinkDir string
 }
 
 func Run(args []string) error {
@@ -105,6 +97,8 @@ func Run(args []string) error {
 		Default(libdefaults.DataDir).StringVar(&ccfg.DataDir)
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
+	app.Flag("link-dir", "Directory to create system symlinks to binaries and services.").
+		Default(filepath.Join("usr", "local")).Hidden().StringVar(&ccfg.LinkDir)
 
 	app.HelpFlag.Short('h')
 
@@ -136,10 +130,6 @@ func Run(args []string) error {
 	// message are formatted correctly.
 	if err := setupLogger(ccfg.Debug, ccfg.LogFormat); err != nil {
 		return trace.Errorf("failed to set up logger")
-	}
-
-	if err := ccfg.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
 	}
 
 	switch command {
@@ -194,6 +184,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	}()
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
+		LinkDir:     ccfg.LinkDir,
 		Log:         plog,
 	})
 	if err != nil {
@@ -225,6 +216,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		VersionsDir: versionsDir,
+		LinkDir:     ccfg.LinkDir,
 		Log:         plog,
 	})
 	if err != nil {

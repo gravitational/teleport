@@ -86,6 +86,8 @@ type UpdateSpec struct {
 type UpdateStatus struct {
 	// ActiveVersion is the currently active Teleport version.
 	ActiveVersion string `yaml:"active_version"`
+	// BackupVersion is the last working version of Teleport.
+	BackupVersion string `yaml:"backup_version"`
 }
 
 // NewLocalUpdater returns a new Updater that auto-updates local
@@ -112,15 +114,23 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
+	if cfg.LinkDir == "" {
+		cfg.LinkDir = "/usr/local"
+	}
+	if cfg.VersionsDir == "" {
+		cfg.VersionsDir = filepath.Join(libdefaults.DataDir, "versions")
+	}
 	return &Updater{
 		Log:                cfg.Log,
 		Pool:               certPool,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		ConfigPath:         filepath.Join(cfg.VersionsDir, updateConfigName),
 		Installer: &LocalInstaller{
-			InstallDir: cfg.VersionsDir,
-			HTTP:       client,
-			Log:        cfg.Log,
+			InstallDir:     cfg.VersionsDir,
+			LinkBinDir:     filepath.Join(cfg.LinkDir, "bin"),
+			LinkServiceDir: filepath.Join(cfg.LinkDir, "lib", "systemd", "system"),
+			HTTP:           client,
+			Log:            cfg.Log,
 
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
@@ -140,6 +150,8 @@ type LocalUpdaterConfig struct {
 	DownloadTimeout time.Duration
 	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions).
 	VersionsDir string
+	// LinkDir for installing Teleport (usually /usr/local).
+	LinkDir string
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
@@ -161,6 +173,11 @@ type Installer interface {
 	// Install the Teleport agent at version from the download template.
 	// This function must be idempotent.
 	Install(ctx context.Context, version, template string, flags InstallFlags) error
+	// Link the Teleport agent at version into the system location.
+	// This function must be idempotent.
+	Link(ctx context.Context, version string) error
+	// List the installed versions of Teleport.
+	List(ctx context.Context) (versions []string, err error)
 	// Remove the Teleport agent at version.
 	// This function must be idempotent.
 	Remove(ctx context.Context, version string) error
@@ -242,6 +259,19 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if desiredVersion == "" {
 		return trace.Errorf("agent version not available from Teleport cluster")
 	}
+	switch cfg.Status.BackupVersion {
+	case "", desiredVersion, cfg.Status.ActiveVersion:
+	default:
+		if desiredVersion == cfg.Status.ActiveVersion {
+			// Keep backup version if we are only verifying active version
+			break
+		}
+		err := u.Installer.Remove(ctx, cfg.Status.BackupVersion)
+		if err != nil {
+			// this could happen if it was already removed due to a failed installation
+			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", "error", err)
+		}
+	}
 	// If the active version and target don't match, kick off upgrade.
 	template := cfg.Spec.URLTemplate
 	if template == "" {
@@ -249,14 +279,30 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	}
 	err = u.Installer.Install(ctx, desiredVersion, template, 0) // TODO(sclevine): add web API for flags
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to install: %w", err)
+	}
+	err = u.Installer.Link(ctx, desiredVersion)
+	if err != nil {
+		return trace.Errorf("failed to link: %w", err)
 	}
 	if cfg.Status.ActiveVersion != desiredVersion {
+		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
+		cfg.Status.ActiveVersion = desiredVersion
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
 	} else {
 		u.Log.InfoContext(ctx, "Target version successfully validated.", "version", desiredVersion)
 	}
-	cfg.Status.ActiveVersion = desiredVersion
+	if v := cfg.Status.BackupVersion; v != "" {
+		u.Log.InfoContext(ctx, "Backup version set.", "version", v)
+	}
+
+	versions, err := u.Installer.List(ctx)
+	if err != nil {
+		return trace.Errorf("failed to list installed versions: %w", err)
+	}
+	if n := len(versions); n > 2 {
+		u.Log.WarnContext(ctx, "More than 2 versions of Teleport installed. Version directory may need cleanup to save space.", "count", n)
+	}
 
 	// Always write the configuration file if enable succeeds.
 	if err := u.writeConfig(u.ConfigPath, cfg); err != nil {

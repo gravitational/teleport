@@ -40,7 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTeleportInstaller_Install(t *testing.T) {
+func TestLocalInstaller_Install(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
 
@@ -136,13 +136,15 @@ func TestTeleportInstaller_Install(t *testing.T) {
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
 
-			teleportVersion, err := os.ReadFile(filepath.Join(dir, version, "teleport"))
-			require.NoError(t, err)
-			require.Equal(t, version, string(teleportVersion))
-
-			tshVersion, err := os.ReadFile(filepath.Join(dir, version, "tsh"))
-			require.NoError(t, err)
-			require.Equal(t, version, string(tshVersion))
+			for _, p := range []string{
+				filepath.Join(dir, version, "etc", "systemd", "teleport.service"),
+				filepath.Join(dir, version, "bin", "teleport"),
+				filepath.Join(dir, version, "bin", "tsh"),
+			} {
+				v, err := os.ReadFile(p)
+				require.NoError(t, err)
+				require.Equal(t, version, string(v))
+			}
 
 			sum, err := os.ReadFile(filepath.Join(dir, version, checksumType))
 			require.NoError(t, err)
@@ -163,8 +165,9 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 	var files = []struct {
 		Name, Body string
 	}{
-		{"teleport", version},
-		{"tsh", version},
+		{"teleport/examples/systemd/teleport.service", version},
+		{"teleport/teleport", version},
+		{"teleport/tsh", version},
 	}
 	for _, file := range files {
 		hdr := &tar.Header{
@@ -186,4 +189,248 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 		t.Fatal(err)
 	}
 	return &buf, hex.EncodeToString(sha.Sum(nil))
+}
+
+func TestLocalInstaller_Link(t *testing.T) {
+	t.Parallel()
+	const version = "new-version"
+
+	tests := []struct {
+		name  string
+		dirs  []string
+		files []string
+
+		links    []string
+		errMatch string
+	}{
+		{
+			name: "present",
+			dirs: []string{
+				"bin",
+				"bin/somedir",
+				"etc",
+				"etc/systemd",
+				"etc/systemd/somedir",
+				"somedir",
+			},
+			files: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
+
+			links: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				"lib/systemd/system/teleport.service",
+			},
+		},
+		{
+			name:  "no links",
+			files: []string{"README"},
+			dirs:  []string{"bin"},
+
+			errMatch: "no binaries",
+		},
+		{
+			name:  "no bin directory",
+			files: []string{"README"},
+
+			errMatch: "binary directory",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			versionsDir := t.TempDir()
+			versionDir := filepath.Join(versionsDir, version)
+			err := os.MkdirAll(versionDir, 0o755)
+			require.NoError(t, err)
+
+			for _, d := range tt.dirs {
+				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
+				require.NoError(t, err)
+			}
+			for _, n := range tt.files {
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
+				require.NoError(t, err)
+			}
+
+			linkDir := t.TempDir()
+
+			installer := &LocalInstaller{
+				InstallDir:     versionsDir,
+				LinkBinDir:     filepath.Join(linkDir, "bin"),
+				LinkServiceDir: filepath.Join(linkDir, "lib/systemd/system"),
+				Log:            slog.Default(),
+			}
+			ctx := context.Background()
+			err = installer.Link(ctx, version)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+
+			for _, link := range tt.links {
+				v, err := os.ReadFile(filepath.Join(linkDir, link))
+				require.NoError(t, err)
+				require.Equal(t, filepath.Base(link), string(v))
+			}
+		})
+	}
+}
+
+func TestLocalInstaller_Remove(t *testing.T) {
+	t.Parallel()
+	const version = "existing-version"
+
+	tests := []struct {
+		name          string
+		dirs          []string
+		files         []string
+		createVersion string
+		linkedVersion string
+		removeVersion string
+
+		errMatch string
+	}{
+		{
+			name:          "present",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: version,
+		},
+		{
+			name:          "present missing checksum",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{"bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: version,
+		},
+		{
+			name:          "not present",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "missing-version",
+		},
+		{
+			name:          "version linked",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			linkedVersion: version,
+			removeVersion: version,
+
+			errMatch: ErrLinked.Error(),
+		},
+		{
+			name:          "version empty",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "",
+
+			errMatch: "outside",
+		},
+		{
+			name:          "version has path",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "one/two",
+
+			errMatch: "outside",
+		},
+		{
+			name:          "version is ..",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: "..",
+
+			errMatch: "outside",
+		},
+		{
+			name:          "version is .",
+			dirs:          []string{"bin", "bin/somedir", "somedir"},
+			files:         []string{checksumType, "bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			createVersion: version,
+			removeVersion: ".",
+
+			errMatch: "outside",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			versionsDir := t.TempDir()
+			versionDir := filepath.Join(versionsDir, tt.createVersion)
+			err := os.MkdirAll(versionDir, 0o755)
+			require.NoError(t, err)
+
+			for _, d := range tt.dirs {
+				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
+				require.NoError(t, err)
+			}
+			for _, n := range tt.files {
+				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
+				require.NoError(t, err)
+			}
+
+			linkDir := t.TempDir()
+
+			installer := &LocalInstaller{
+				InstallDir:     versionsDir,
+				LinkBinDir:     linkDir,
+				LinkServiceDir: linkDir,
+				Log:            slog.Default(),
+			}
+			ctx := context.Background()
+
+			if tt.linkedVersion != "" {
+				err = installer.Link(ctx, tt.linkedVersion)
+				require.NoError(t, err)
+			}
+			err = installer.Remove(ctx, tt.removeVersion)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+			_, err = os.Stat(filepath.Join(versionDir, "bin", tt.removeVersion))
+			require.ErrorIs(t, err, os.ErrNotExist)
+		})
+	}
+}
+
+func TestLocalInstaller_List(t *testing.T) {
+	installDir := t.TempDir()
+	versions := []string{"v1", "v2"}
+
+	for _, d := range versions {
+		err := os.Mkdir(filepath.Join(installDir, d), os.ModePerm)
+		require.NoError(t, err)
+	}
+	for _, n := range []string{"file1", "file2"} {
+		err := os.WriteFile(filepath.Join(installDir, n), []byte(filepath.Base(n)), os.ModePerm)
+		require.NoError(t, err)
+	}
+	installer := &LocalInstaller{
+		InstallDir: installDir,
+		Log:        slog.Default(),
+	}
+	ctx := context.Background()
+	versions, err := installer.List(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []string{"v1", "v2"}, versions)
 }
