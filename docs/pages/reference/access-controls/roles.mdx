@@ -22,7 +22,7 @@ resources:
 - [Custom API clients](../../admin-guides/api/rbac.mdx)
 
 To read more about managing dynamic resources, see the [Dynamic
-Resources](../../admin-guides/infrastructure-as-code.mdx) guide.
+Resources](../../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx) guide.
 
 You can view all roles in your cluster on your local workstation by running the
 following commands:
@@ -71,7 +71,7 @@ user:
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
 | `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `keep`, `insecure-drop`), it will evaluate to the option specified by all of the roles. If some roles specify both `insecure-drop` or `keep` it will evaluate to `keep`|
-| `create_db_user_mode` | Allow [database user auto provisioning](../../enroll-resources/database-access/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
+| `create_db_user_mode` | Allow [database user auto provisioning](../../enroll-resources/database-access/auto-user-provisioning/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
 
 ## Preset roles
 
