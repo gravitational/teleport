@@ -18,6 +18,7 @@
 
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -68,11 +69,33 @@ export function ManageCluster() {
 
   return (
     <FeatureBox>
-      <FeatureHeader>
-        <FeatureHeaderTitle>{clusterId}</FeatureHeaderTitle>
-      </FeatureHeader>
+      <ManageClusterHeader clusterId={clusterId} />
       <ClusterInformation cluster={cluster} attempt={attempt} />
     </FeatureBox>
+  );
+}
+
+export function ManageClusterHeader({ clusterId }: { clusterId: string }) {
+  return (
+    <FeatureHeader>
+      <Flex alignItems="center">
+        <Icons.ArrowBack
+          as={Link}
+          size="large"
+          mr={2}
+          title="Go Back"
+          to={cfg.routes.clusters}
+          style={{ cursor: 'pointer', textDecoration: 'none' }}
+        />
+        <FeatureHeaderTitle>
+          <Flex gap="3">
+            Manage Clusters
+            <Text>/</Text>
+            {clusterId}
+          </Flex>
+        </FeatureHeaderTitle>
+      </Flex>
+    </FeatureHeader>
   );
 }
 
