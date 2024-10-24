@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
 	googleproto "google.golang.org/protobuf/proto"
 
@@ -77,10 +76,11 @@ func (p *Plugin) updateUpgradeWindowStartHourHandle(w http.ResponseWriter, r *ht
 	}
 
 	if err := p.h.GetProxyClient().EmitAuditEvent(r.Context(), event); err != nil {
-		p.Log.WithError(err).WithFields(logrus.Fields{
-			"user":                 event.UserMetadata.User,
-			"upgrade_window_start": event.UpgradeWindowStartMetadata.UpgradeWindowStart,
-		}).Warn("Failed to emit window upgrade start update event.")
+		p.Logger.WarnContext(r.Context(), "Failed to emit window upgrade start update event",
+			"error", err,
+			"user", event.UserMetadata.User,
+			"upgrade_window_start", event.UpgradeWindowStartMetadata.UpgradeWindowStart,
+		)
 	}
 
 	return web.OK(), nil
@@ -122,12 +122,12 @@ func (p *Plugin) readProtoJSON(r *http.Request, val googleproto.Message) error {
 	// Check content type to mitigate CSRF attack.
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
-		p.Log.Warningf("Error parsing media type for reading JSON: %v", err)
+		p.Logger.WarnContext(r.Context(), "Error parsing media type for reading JSON", "error", err)
 		return trace.BadParameter("invalid request")
 	}
 
 	if contentType != "application/json" {
-		p.Log.Warningf("Invalid HTTP request header content-type %q for reading JSON", contentType)
+		p.Logger.WarnContext(r.Context(), "Invalid HTTP request header content-type for reading JSON", "content_type", contentType)
 		return trace.BadParameter("invalid request")
 	}
 

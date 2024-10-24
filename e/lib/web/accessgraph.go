@@ -62,7 +62,7 @@ func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
 		case isIntegration && isGet:
 			h.WithAuth(p.listIntegrations)(w, r, params)
 		case !accessGraphSupportsHTTP:
-			p.Log.Warnf("Teleport Proxy received a request but the access graph service is not reachable. Returning 404.")
+			p.Logger.WarnContext(r.Context(), "Teleport Proxy received a request but the access graph service is not reachable, returning 404")
 			// If the access graph service is not enabled, return 404.
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -188,7 +188,7 @@ func (p *Plugin) getAccessGraphFileFallback(w http.ResponseWriter, r *http.Reque
 			return nil, trace.NotFound("file %q is not found", filePath)
 		}
 
-		p.Log.Errorf("Failed to get file %q: %v", filePath, err)
+		p.Logger.ErrorContext(ctx, "Failed to get file", "file", filePath, "error", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -273,11 +273,11 @@ func (p *Plugin) submitUsageReport(usageReport *usageeventsv1.TAGExecuteQueryEve
 		}
 		authClient, err := webCtx.GetClient()
 		if err != nil {
-			p.Log.WithError(err).Warn("Failed to get auth client")
+			p.Logger.WarnContext(ctx, "Failed to get auth client", "error", err)
 			return
 		}
 		if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
-			p.Log.WithError(err).Warn("Failed to emit TAG usage event")
+			p.Logger.WarnContext(ctx, "Failed to emit TAG usage event", "error", err)
 		}
 	}()
 }

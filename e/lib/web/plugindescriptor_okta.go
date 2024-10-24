@@ -3,11 +3,11 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/lib/modules"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -35,7 +36,7 @@ func (oktaPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, ses
 	args := validateOktaPluginInputsArgs{
 		form:            form,
 		clusterFeatures: &clusterFeatures,
-		log:             p.Log,
+		logger:          p.Logger,
 	}
 	_, err := args.validateOktaConfig(ctx, sessCtx)
 	return trace.Wrap(err)
@@ -48,7 +49,7 @@ func (oktaPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *w
 		validateOktaPluginInputsArgs: validateOktaPluginInputsArgs{
 			form:            r.Form,
 			clusterFeatures: &clusterFeatures,
-			log:             p.Log,
+			logger:          p.Logger,
 		},
 		sessCtx: sessCtx,
 		plugin:  p,
@@ -174,7 +175,7 @@ type validateOktaPluginInputsArgs struct {
 	form            url.Values
 	httpClient      *http.Client
 	clusterFeatures *proto.Features
-	log             *logrus.Entry
+	logger          *slog.Logger
 
 	// bcryptCost is the bcryptCost to be used for hashing the SCIM user token.
 	// Defaults to bcrypt.DefaultCost if unset.
@@ -190,8 +191,8 @@ func (args *validateOktaPluginInputsArgs) CheckAndSetDefaults() error {
 	if args.clusterFeatures == nil {
 		return trace.BadParameter("cluster features must be supplied")
 	}
-	if args.log == nil {
-		args.log = logrus.NewEntry(logrus.StandardLogger())
+	if args.logger == nil {
+		args.logger = slog.Default()
 	}
 	args.bcryptCost = min(args.bcryptCost, bcrypt.MaxCost)
 	if args.bcryptCost < bcrypt.MinCost {
@@ -228,7 +229,7 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 		return nil, trace.Wrap(err)
 	}
 
-	args.log.Trace("Extracting Okta client config")
+	args.logger.Log(ctx, logutils.TraceLevel, "Extracting Okta client config")
 
 	oktaOrgURLText := args.form.Get("orgURL")
 	if oktaOrgURLText == "" {

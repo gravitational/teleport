@@ -387,9 +387,6 @@ func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 }
 
 func installJiraPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
-	p.Log.Info("Entering installJiraPlugin()")
-	defer p.Log.Info("Exiting installJiraPlugin()")
-
 	addr := r.FormValue("addr")
 	if addr == "" {
 		return nil, trace.BadParameter("missing Jira server url")
@@ -747,7 +744,7 @@ func (sd slackDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web
 
 	err = app.MetaRedirect(w, url)
 	if err != nil {
-		p.Log.WithError(err).Warn("Failed to issue a redirect.")
+		p.Logger.WarnContext(ctx, "Failed to issue a redirect", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	return nil, nil

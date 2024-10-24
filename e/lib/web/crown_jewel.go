@@ -149,9 +149,9 @@ func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httpro
 		resource.Metadata.Description = req.Description
 	}
 
-	p.Log.Debug("Creating crown jewel", "id", resourceID)
-
 	ctx := r.Context()
+	p.Logger.DebugContext(ctx, "Creating crown jewel", "id", resourceID)
+
 	resp, err := authClient.CrownJewelServiceClient().CreateCrownJewel(ctx, resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -161,15 +161,15 @@ func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httpro
 }
 
 func (p *Plugin) deleteCrownJewel(_ http.ResponseWriter, r *http.Request, params httprouter.Params, webCtx *web.SessionContext) (any, error) {
+	ctx := r.Context()
 	authClient, err := webCtx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	crownJewelName := params.ByName("name")
-	p.Log.Debug("Deleting crown jewel", "name", crownJewelName)
+	p.Logger.DebugContext(ctx, "Deleting crown jewel", "name", crownJewelName)
 
-	ctx := r.Context()
 	err = authClient.CrownJewelServiceClient().DeleteCrownJewel(ctx, crownJewelName)
 	if err != nil {
 		return nil, trace.Wrap(err)

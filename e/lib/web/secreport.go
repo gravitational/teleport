@@ -67,7 +67,7 @@ func (p *Plugin) getSecurityReportResult(w http.ResponseWriter, r *http.Request,
 		},
 	}
 	if err := clt.SubmitUsageEvent(r.Context(), event); err != nil {
-		p.Log.WithError(err).Warn("Failed to emit usage event")
+		p.Logger.WarnContext(r.Context(), "Failed to emit usage event", "error", err)
 	}
 
 	client := clt.SecReportsClient()

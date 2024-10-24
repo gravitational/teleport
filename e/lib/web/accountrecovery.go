@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -83,7 +82,7 @@ func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Reque
 		RecoverType:  recoverType,
 	})
 	if err != nil {
-		p.Log.WithError(err).Warnf("Start account recovery denied for user %q.", req.Username)
+		p.Logger.WarnContext(r.Context(), "Start account recovery denied for user", "user", req.Username, "error", err)
 		return nil, trace.AccessDenied("invalid username or recovery code")
 	}
 
@@ -94,7 +93,7 @@ func (p *Plugin) startAccountRecoveryHandle(w http.ResponseWriter, r *http.Reque
 		IpAddr:    p.getIPAddress(r),
 		UserAgent: r.UserAgent(),
 	}); err != nil {
-		p.Log.WithError(trail.FromGRPC(err)).Errorf("Failed to email user %v their recovery link(%v).", req.Username, token.GetURL())
+		p.Logger.ErrorContext(r.Context(), "Failed to email user their recovery link", "user", req.Username, "link", token.GetURL(), "error", err)
 		return nil, trace.BadParameter("unable to email account recovery link, please try again with a new recovery code or contact your system administrator")
 	}
 
@@ -214,7 +213,7 @@ func (p *Plugin) completeAccountRecoveryHandle(w http.ResponseWriter, r *http.Re
 		IpAddr:      p.getIPAddress(r),
 		UserAgent:   r.UserAgent(),
 	}); err != nil {
-		p.Log.WithError(trail.FromGRPC(err)).Warnf("Failed to email user %q that their account was successfully recovered", token.GetUser())
+		p.Logger.WarnContext(r.Context(), "Failed to email user that their account was successfully recovered", "user", token.GetUser(), "error", err)
 	}
 
 	return web.OK(), nil
@@ -247,7 +246,7 @@ func (p *Plugin) createAccountRecoveryCodesHandle(w http.ResponseWriter, r *http
 func (p *Plugin) getIPAddress(r *http.Request) string {
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		p.Log.WithError(err).Warnf("Failed to split host from port for remote address %s", r.RemoteAddr)
+		p.Logger.WarnContext(r.Context(), "Failed to split host from port for remote address", "address", r.RemoteAddr, "error", err)
 		return r.RemoteAddr
 	}
 

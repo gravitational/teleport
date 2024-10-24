@@ -309,7 +309,7 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 	_, err = pluginsClt.CreatePlugin(r.Context(), req)
 
 	if err != nil {
-		p.Log.WithError(err).Error("Failed to CreatePlugin() after web flow")
+		p.Logger.ErrorContext(r.Context(), "Failed to create plugin after web flow", "error", err)
 		return nil, trace.Wrap(err)
 	}
 

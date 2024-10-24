@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"net/http/httputil"
@@ -17,7 +18,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/encoding/protojson"
 	googleproto "google.golang.org/protobuf/proto"
@@ -63,7 +63,7 @@ type AccessGraphConfig struct {
 // Config is a configuration of the web plugin
 type Config struct {
 	// Log is the logger
-	Log *logrus.Entry
+	Logger *slog.Logger
 
 	// PluginShimURL is the URL for the Cloud plugin shim,
 	// which is used to forward OAuth callbacks back to individual tenants
@@ -85,8 +85,8 @@ type Config struct {
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, pluginName)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, pluginName)
 	}
 
 	if c.Clock == nil {
@@ -208,9 +208,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		cancel()
 		switch {
 		case trace.IsNotImplemented(err):
-			p.Log.Debugf("Auth server does not implement access graph's GetClusterAccessGraphConfig")
+			p.Logger.DebugContext(ctx, "Auth server does not implement access graph's GetClusterAccessGraphConfig")
 		case err != nil:
-			p.Log.WithError(err).Errorf("Failed to get access graph config from the Auth server")
+			p.Logger.ErrorContext(ctx, "Failed to get access graph config from the Auth server", "error", err)
 			return trace.Wrap(err)
 		default:
 			if rsp.GetEnabled() {
@@ -382,7 +382,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	// Recovery related endpoints.
 	if features.GetRecoveryCodes() {
-		p.Log.Infoln("enabling recovery endpoints")
+		p.Logger.InfoContext(context.Background(), "enabling recovery endpoints")
 		h.POST("/enterprise/cloud/recovery/start", p.withCloud(p.startAccountRecoveryHandle))
 		h.POST("/enterprise/cloud/recovery/verify", p.withCloud(p.verifyAccountRecoveryHandle))
 		h.POST("/enterprise/cloud/recovery/newcredentials", p.withCloud(p.completeAccountRecoveryHandle))
@@ -476,7 +476,7 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 		p.samlIdPMu.RUnlock()
 
 		if samlIdP == nil {
-			p.Log.Debug("SAML IdP not set")
+			p.Logger.DebugContext(r.Context(), "SAML IdP not set")
 			return nil, trace.NotFound("SAML IdP not found")
 		}
 
@@ -557,7 +557,7 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 		if err := csrf.VerifyHTTPHeader(r); err != nil {
-			p.Log.Warnf("unable to validate CSRF token %v", err)
+			p.Logger.WarnContext(r.Context(), "unable to validate CSRF token", "error", err)
 			return nil, trace.AccessDenied("access denied")
 		}
 
@@ -575,7 +575,7 @@ func (p *Plugin) withCloud(fn cloudPublicHandler) httprouter.Handle {
 		if err != nil {
 			// Hide 429 error.
 			if trace.IsLimitExceeded(err) {
-				p.Log.Warn(err)
+				p.Logger.WarnContext(r.Context(), "rate limit exceeded", "error", err)
 				return nil, trace.AccessDenied("unable to process your request")
 			}
 			return nil, trace.Wrap(err)
@@ -654,7 +654,7 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 				Clock:  p.Config.Clock,
 			})
 			if err != nil {
-				p.Log.WithError(err).Debugf("Failed to create retry")
+				p.Logger.DebugContext(context.Background(), "Failed to create retry", "error", err)
 				return
 			}
 
@@ -664,7 +664,7 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 				if p.accessGraphSupportsHTTP() {
 					accessGraphForwarder, err := buildAccessGraphForwarder(tlsConfig)
 					if err != nil {
-						p.Log.Warnf("Failed to build access graph forwarder: %v", err)
+						p.Logger.WarnContext(context.Background(), "Failed to build access graph forwarder", "error", err)
 						continue
 					}
 					p.accessGraphForwarderMu.Lock()
@@ -684,7 +684,7 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 func (p *Plugin) accessGraphSupportsHTTP() bool {
 	client, err := p.getAuthClient()
 	if err != nil {
-		p.Log.WithError(err).Debugf("Failed to get auth client")
+		p.Logger.DebugContext(context.Background(), "Failed to get auth client", "error", err)
 		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -699,7 +699,7 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 		},
 	)
 	if err != nil {
-		p.Log.WithError(err).Debugf("Failed to get access graph features")
+		p.Logger.DebugContext(ctx, "Failed to get access graph features", "error", err)
 		return false
 	}
 
@@ -709,26 +709,26 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 
 	data := &jsonData{}
 	if err := json.Unmarshal(rsp.Data, data); err != nil {
-		p.Log.WithError(err).Debugf("Failed to parse access graph features payload")
+		p.Logger.DebugContext(ctx, "Failed to parse access graph features payload", "error", err)
 		return false
 	}
 	// If the access graph does not support HTTP, return false.
 	if !data.HTTPEnabled {
-		p.Log.Debugf("Access graph does not support HTTP")
+		p.Logger.DebugContext(ctx, "Access graph does not support HTTP")
 		return false
 	}
 
 	// now that we know the access graph supports HTTP, check if it's reachable.
 	tlsConfig, err := getAccessGraphTLSConfig(p.Config.AccessGraph, p.getProxyClientCertificate)
 	if err != nil {
-		p.Log.WithError(err).Debugf("Failed to get access graph TLS config")
+		p.Logger.DebugContext(ctx, "Failed to get access graph TLS config", "error", err)
 		return false
 	}
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
 	}
 	if err := http2.ConfigureTransport(tr); err != nil {
-		p.Log.WithError(err).Debugf("Failed to configure transport")
+		p.Logger.DebugContext(ctx, "Failed to configure transport", "error", err)
 		return false
 	}
 	httpClient := &http.Client{
@@ -746,18 +746,18 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		p.Log.WithError(err).Debugf("Failed to create request")
+		p.Logger.DebugContext(ctx, "Failed to create request", "error", err)
 		return false
 	}
 	httpRsp, err := httpClient.Do(req)
 	if err != nil {
-		p.Log.WithError(err).Warnf("Failed to make request. Please ensure proxy can reach access graph service at %v.", p.Config.AccessGraph.Addr)
+		p.Logger.WarnContext(ctx, "Failed to make request, ensure the proxy can reach the access graph service", "access_graph_addr", p.Config.AccessGraph.Addr, "error", err)
 		return false
 	}
 	defer httpRsp.Body.Close()
 	io.Copy(io.Discard, httpRsp.Body)
 	if httpRsp.StatusCode != http.StatusOK {
-		p.Log.Warnf("Access graph static assets are not reachable. Please ensure proxy can reach access graph service at %v.", p.Config.AccessGraph.Addr)
+		p.Logger.WarnContext(ctx, "Access graph static assets are not reachable, Please ensure the proxy can reach the access graph service", "access_graph_addr", p.Config.AccessGraph.Addr, "error", err)
 	}
 	return httpRsp.StatusCode == http.StatusOK
 }

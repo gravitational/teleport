@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -32,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -79,7 +77,7 @@ func (d testOktaDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *w
 			form:            r.Form,
 			httpClient:      d.httpClient,
 			clusterFeatures: &clusterFeatures,
-			log:             p.Log,
+			logger:          p.Logger,
 			bcryptCost:      bcrypt.MinCost,
 		},
 		sessCtx:        sessCtx,
@@ -102,7 +100,7 @@ func (d testOktaDescriptor) HandleValidateConfigRequest(ctx context.Context, ses
 		form:            form,
 		httpClient:      d.httpClient,
 		clusterFeatures: &clusterFeatures,
-		log:             p.Log,
+		logger:          p.Logger,
 	}
 	_, err := args.validateOktaConfig(ctx, sessCtx)
 	return err
@@ -144,9 +142,6 @@ func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, 
 
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
 func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
-	logrus.SetFormatter(logutils.NewDefaultTextFormatter(true))
-	logrus.SetLevel(logrus.TraceLevel)
-
 	appFilters := []string{"app1", "app2"}
 	groupFilters := []string{"group1", "group2"}
 	defaultOwners := []string{"owner1", "owner2"}

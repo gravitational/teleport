@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	apiaccessrequest "github.com/gravitational/teleport/api/accessrequest"
@@ -209,7 +209,7 @@ func getAccessRequest(ctx context.Context, clt accessRequestGetter, requestID st
 	if err != nil {
 		// This error is unexpected, but we don't want to break the API filling
 		// in optional details
-		logrus.WithError(err).Info("Unexpected error in getAccessRequest while fetching resource details")
+		slog.InfoContext(ctx, "Unexpected error in getAccessRequest while fetching resource details", "error", err)
 		return ui.NewAccessRequest(req)
 	}
 
@@ -257,7 +257,7 @@ func getBulkResourceDetails(ctx context.Context, reqs []*types.AccessRequestV3, 
 		// We have no way to get resource details, but this is not an error.
 		// Some APIs may not need details. A nil map is a valid result
 		// which will return empty details (the default value) for all keys.
-		return nil, nil
+		return map[string]ui.ResourceDetails{}, nil
 	}
 
 	// allIDs aggregates all resource IDs (this step is mostly only useful for deduplication).
@@ -319,7 +319,7 @@ func getBulkResourceDetails(ctx context.Context, reqs []*types.AccessRequestV3, 
 	}
 
 	if err := eg.Wait(); err != nil {
-		return nil, trace.Wrap(err)
+		return map[string]ui.ResourceDetails{}, trace.Wrap(err)
 	}
 
 	return allDetails, nil
@@ -424,14 +424,14 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter,
 
 	details, err := getBulkResourceDetails(ctx, resp.AccessRequests, cfg)
 	if err != nil {
-		logrus.WithError(err).Warn("Failed to load resource details for access requests.")
+		slog.WarnContext(ctx, "Failed to load resource details for access requests", "error", err)
 	}
 
 	uiReqs := make([]ui.AccessRequest, 0, len(resp.AccessRequests))
 	for _, req := range resp.AccessRequests {
 		uiReq, err := ui.NewAccessRequest(req, ui.WithResourceDetails(details))
 		if err != nil {
-			p.Log.Warnf("Failed to process access request: %v", err)
+			p.Logger.WarnContext(ctx, "Failed to process access request", "error", err)
 			continue
 		}
 		uiReqs = append(uiReqs, *uiReq)
@@ -501,7 +501,7 @@ func reviewAccessRequest(ctx context.Context, clt accessReviewSubmitter, review 
 	if err != nil {
 		// This error is unexpected, but we don't want to break the API filling
 		// in optional details
-		logrus.WithError(err).Info("Unexpected error in reviewAccessRequest while fetching resource details")
+		slog.InfoContext(ctx, "Unexpected error in reviewAccessRequest while fetching resource details", "error", err)
 		return ui.NewAccessRequest(updatedRequest)
 	}
 
