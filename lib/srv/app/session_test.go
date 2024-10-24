@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func newSessionChunk(timeout time.Duration) *sessionChunk {
@@ -37,7 +38,8 @@ func newSessionChunk(timeout time.Duration) *sessionChunk {
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: timeout,
-		log:          logrus.NewEntry(logrus.StandardLogger()),
+		legacyLogger: logrus.NewEntry(logrus.StandardLogger()),
+		log:          utils.NewSlogLoggerForTests(),
 		streamCloser: events.NewDiscardRecorder(),
 	}
 }
