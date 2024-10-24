@@ -2,12 +2,12 @@ package accessrequest
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type userDataGetter interface {
@@ -278,7 +279,7 @@ func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules
 	if err := forEachAccessList(ctx, resourceGetter, func(accessList *accesslist.AccessList) error {
 		valid, err := validator.isValidSuggestion(ctx, accessList)
 		if err != nil {
-			log.Tracef("failed to validate access list suggestion: %v", err)
+			slog.Log(ctx, logutils.TraceLevel, "failed to validate access list suggestion", "error", err)
 			return nil
 		}
 
