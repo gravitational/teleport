@@ -225,7 +225,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 
 	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{
-		Logger: cfg.Logger.With(teleport.ComponentKey, appazure.ComponentKey),
+		Log: cfg.Logger.With(teleport.ComponentKey, appazure.ComponentKey),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

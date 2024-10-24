@@ -102,7 +102,7 @@ func TestSSMInstaller(t *testing.T) {
 			name: "ssm run was successful",
 			req: SSMRunRequest{
 				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
+					{InstanceID: "instance-id-1", InstanceName: "my-instance-name"},
 				},
 				DocumentName:    document,
 				Params:          map[string]string{"token": "abcdefg"},
@@ -146,6 +146,7 @@ func TestSSMInstaller(t *testing.T) {
 				},
 				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument",
+				InstanceName:    "my-instance-name",
 			}},
 		},
 		{

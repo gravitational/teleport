@@ -2095,7 +2095,8 @@ message AuthPreferenceSpecV2 {
   HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
 
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
-  // The current default value is "legacy". This field is not yet fully supported.
+  // If unspecified, the current default value is "legacy".
+  // 1 is "legacy", 2 is "balanced-v1", 3 is "fips-v1", 4 is "hsm-v1".
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
 
   // SecondFactors is a list of supported second factor types.
@@ -3247,6 +3248,20 @@ message RoleConditions {
   reserved "SAMLIdPServiceProviderLabels";
   reserved 41; // removed saml_idp_service_provider_labels_expression in favor of using app_labels_expression.
   reserved "SAMLIdPServiceProviderLabelsExpression";
+
+  // AccountAssignments holds the list of account assignments affected by this
+  // condition.
+  repeated IdentityCenterAccountAssignment AccountAssignments = 42 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "account_assignments,omitempty"
+  ];
+}
+
+// IdentityCenterAccountAssignment captures an AWS Identity Center account
+// assignment (acccount + permission set) pair.
+message IdentityCenterAccountAssignment {
+  string PermissionSet = 1 [(gogoproto.jsontag) = "permission_set,omitempty"];
+  string Account = 2 [(gogoproto.jsontag) = "account,omitempty"];
 }
 
 // SPIFFERoleCondition sets out which SPIFFE identities this role is allowed or
