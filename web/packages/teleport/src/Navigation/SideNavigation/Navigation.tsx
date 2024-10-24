@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
-import { Text, Flex, Box } from 'design';
+import { Text, Flex, Box, P2 } from 'design';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
@@ -123,6 +123,8 @@ function getSubsectionsForCategory(
   });
 }
 
+// getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
+// Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
 function getNavSubsectionForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
@@ -150,14 +152,53 @@ function getNavSubsectionForRoute(
   };
 }
 
+/** useDebounce is used to add a slight delay to RightPanel transitions to prevent a section from collapsing if the user overshoots it or inadvertendly
+ * travels over another section, such as while moving their mouse to the RightPanel. For better UX, we skip the debounce delay when opening a new section
+ * from a closed state. */
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  const timeoutRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    // Clear the previous timeout.
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // If the new value is null (closing) or we already have a value (transitioning), apply the debounce. Otherwise, update immediately.
+    // This is to prevent an unnecessary delay when expanding the very first section.
+    if (value === null || debouncedValue !== null) {
+      timeoutRef.current = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+    } else {
+      setDebouncedValue(value);
+    }
+
+    // Cleanup on unmount or when the value changes.
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [value, delay, debouncedValue]);
+
+  return debouncedValue;
+}
+
 export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
-  const [expandedSection, setExpandedSection] =
-    useState<NavigationSection | null>(null);
-  const currentView = getNavSubsectionForRoute(features, history.location);
+  const [targetSection, setTargetSection] = useState<NavigationSection | null>(
+    null
+  );
+  const debouncedSection = useDebounce(targetSection, 120); // 120ms debounce
   const [previousExpandedSection, setPreviousExpandedSection] =
     useState<NavigationSection | null>();
+
+  // currentView is the sidenav subsection that the user is correctly on (based on route).
+  // Note that it is possible for the currentView to be undefined, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
+  const currentView = getNavSubsectionForRoute(features, history.location);
 
   const navSections = getNavigationSections(features).filter(
     section => section.subsections.length
@@ -166,23 +207,24 @@ export function Navigation() {
   const handleSetExpandedSection = useCallback(
     (section: NavigationSection) => {
       if (!section.standalone) {
-        setPreviousExpandedSection(expandedSection);
-        setExpandedSection(section);
+        setPreviousExpandedSection(debouncedSection);
+        setTargetSection(section);
       } else {
         setPreviousExpandedSection(null);
-        setExpandedSection(null);
+        setTargetSection(null);
       }
     },
-    [expandedSection]
+    [debouncedSection]
   );
 
   const resetExpandedSection = useCallback(() => {
     setPreviousExpandedSection(null);
-    setExpandedSection(null);
+    setTargetSection(null);
   }, []);
 
   return (
     <Box
+      as="nav"
       onMouseLeave={() => resetExpandedSection()}
       onKeyUp={e => e.key === 'Escape' && resetExpandedSection()}
       onBlur={(event: React.FocusEvent<HTMLDivElement, Element>) => {
@@ -200,7 +242,7 @@ export function Navigation() {
         <PanelBackground />
         <SearchSection
           navigationSections={navSections}
-          expandedSection={expandedSection}
+          expandedSection={debouncedSection}
           previousExpandedSection={previousExpandedSection}
           handleSetExpandedSection={handleSetExpandedSection}
           currentView={currentView}
@@ -211,27 +253,28 @@ export function Navigation() {
             section={section}
             $active={section.category === currentView?.category}
             setExpandedSection={() => handleSetExpandedSection(section)}
-            aria-controls={`panel-${expandedSection?.category}`}
+            aria-controls={`panel-${debouncedSection?.category}`}
             onClick={() => {
               if (section.standalone) {
                 history.push(section.subsections[0].route);
               }
             }}
             isExpanded={
-              !!expandedSection &&
-              !expandedSection.standalone &&
-              section.category === expandedSection?.category
+              !!debouncedSection &&
+              !debouncedSection.standalone &&
+              section.category === debouncedSection?.category
             }
           >
             <RightPanel
               isVisible={
-                !!expandedSection &&
-                !expandedSection.standalone &&
-                section.category === expandedSection?.category
+                !!debouncedSection &&
+                !debouncedSection.standalone &&
+                section.category === debouncedSection?.category
               }
               skipAnimation={!!previousExpandedSection}
               id={`panel-${section.category}`}
               onFocus={() => handleSetExpandedSection(section)}
+              onMouseEnter={() => handleSetExpandedSection(section)}
             >
               <Flex
                 flexDirection="column"
@@ -240,7 +283,7 @@ export function Navigation() {
               >
                 <Box
                   css={`
-                    overflow-y: scroll;
+                    overflow-y: auto;
                     padding: 3px;
                   `}
                 >
@@ -258,7 +301,7 @@ export function Navigation() {
                         key={section.title}
                       >
                         <section.icon size={16} />
-                        <Text typography="body2">{section.title}</Text>
+                        <P2>{section.title}</P2>
                       </SubsectionItem>
                     ))}
                 </Box>

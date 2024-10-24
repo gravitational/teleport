@@ -67,6 +67,7 @@ const GlobalStyle = createGlobalStyle`
 
   // remove dotted Firefox outline
   button, a {
+    font-family: ${props => props.theme.font};
     outline: 0;
     ::-moz-focus-inner {
       border: 0;

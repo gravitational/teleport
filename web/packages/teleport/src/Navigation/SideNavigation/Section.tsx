@@ -69,8 +69,6 @@ export const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
   position: fixed;
   left: var(--sidenav-width);
   height: 100%;
-  scrollbar-gutter: auto;
-  overflow: visible;
   width: ${rightPanelWidth};
   background: ${p => p.theme.colors.levels.surface};
   z-index: ${zIndexMap.sideNavExpandedPanel};
@@ -114,6 +112,10 @@ export const CategoryButton = styled.button<{
   justify-content: center;
   border-radius: ${props => props.theme.radii[2]}px;
   z-index: ${zIndexMap.sideNavButtons};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${props => props.theme.space[1]}px;
 
   font-size: ${props => props.theme.typography.body4.fontSize};
   font-weight: ${props => props.theme.typography.body4.fontWeight};
@@ -213,6 +215,9 @@ export function getSubsectionStyles(theme: Theme, active: boolean) {
     return css`
       color: ${theme.colors.brand};
       background: ${theme.colors.interactive.tonal.primary[0]};
+      p {
+        font-weight: 500;
+      }
       &:focus-visible {
         outline: 2px solid ${theme.colors.interactive.solid.primary.default};
       }

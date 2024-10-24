@@ -29,14 +29,14 @@ import {
   Laptop,
   ListAddCheck,
   ListThin,
-  Lock,
+  LockKey,
+  PlugsConnected,
   Question,
   Server,
-  ShieldCheck,
   SlidersVertical,
   Terminal,
   UserCircleGear,
-  Users as UsersIcon,
+  User as UserIcon,
 } from 'design/Icon';
 
 import cfg from 'teleport/config';
@@ -221,7 +221,7 @@ export class FeatureUsers implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.Users,
-    icon: UsersIcon,
+    icon: UserIcon,
     exact: true,
     getLink() {
       return cfg.getUsersRoute();
@@ -332,7 +332,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AuthConnectors,
-    icon: ShieldCheck,
+    icon: PlugsConnected,
     exact: false,
     getLink() {
       return cfg.routes.sso;
@@ -359,7 +359,7 @@ export class FeatureLocks implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.SessionAndIdentityLocks,
-    icon: Lock,
+    icon: LockKey,
     exact: false,
     getLink() {
       return cfg.getLocksRoute();
@@ -672,10 +672,10 @@ export function getOSSFeatures(): TeleportFeature[] {
 
     // - Access
     new FeatureUsers(),
-    new FeatureRoles(),
     new FeatureBots(),
     new FeatureAddBots(),
     new FeatureJoinTokens(),
+    new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureIntegrationEnroll(),

@@ -63,7 +63,7 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
-  Roles = 'User Roles',
+  Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',

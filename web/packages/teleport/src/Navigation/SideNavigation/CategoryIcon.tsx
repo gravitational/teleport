@@ -41,7 +41,7 @@ export function CategoryIcon({
       Icon = Icons.Server;
       break;
     case NavigationCategory.Access:
-      Icon = Icons.Lock;
+      Icon = Icons.KeyHole;
       break;
     case NavigationCategory.Identity:
       Icon = Icons.FingerprintSimple;
