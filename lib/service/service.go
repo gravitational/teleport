@@ -4317,8 +4317,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var peerQUICTransport *quic.Transport
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxyPeer != nil {
-			// TODO(espadolini): allow this when the implementation is merged
-			if false && os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+			// QUIC uses TLS 1.3 which is currently not allowed in FIPS builds.
+			//
+			// TODO(espadolini): allow QUIC in Go 1.24 (as TLS 1.3 should be
+			// allowed then)
+			if !modules.IsBoringBinary() && process.Config.Proxy.QUICProxyPeering {
 				// the stateless reset key is important in case there's a crash
 				// so peers can be told to close their side of the connections
 				// instead of having to wait for a timeout; for this reason, we
@@ -4749,7 +4752,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			peerQUICServer, err := peer.NewQUICServer(peer.QUICServerConfig{
 				Log:           process.logger,
 				ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-				CipherSuites:  cfg.CipherSuites,
 				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 					return conn.serverGetCertificate()
 				},
@@ -4767,13 +4769,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			process.RegisterCriticalFunc("proxy.peer.quic", func() error {
 				if _, err := process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady); err != nil {
-					logger.DebugContext(process.ExitContext(), "Process exiting: failed to start QUIC peer proxy service waiting for reverse tunnel server.")
+					logger.DebugContext(process.ExitContext(), "process exiting: failed to start QUIC peer proxy service waiting for reverse tunnel server")
 					return nil
 				}
 
-				logger.InfoContext(process.ExitContext(), "Starting QUIC peer proxy service.", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
+				logger.InfoContext(process.ExitContext(), "starting QUIC peer proxy service", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
 				err := peerQUICServer.Serve(peerQUICTransport)
-				if err != nil {
+				if err != nil && !errors.Is(err, quic.ErrServerClosed) {
 					return trace.Wrap(err)
 				}
 
@@ -4793,8 +4795,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		logger.InfoContext(process.ExitContext(), "Enabling proxy group labels.", "group_id", cfg.Proxy.ProxyGroupID, "generation", cfg.Proxy.ProxyGroupGeneration)
 	}
 	if peerQUICTransport != nil {
-		staticLabels[types.ProxyPeerQUICLabel] = "x"
-		logger.InfoContext(process.ExitContext(), "Advertising proxy peering QUIC support.")
+		staticLabels[types.UnstableProxyPeerQUICLabel] = "yes"
+		logger.InfoContext(process.ExitContext(), "advertising proxy peering QUIC support")
 	}
 
 	sshProxy, err := regular.New(
