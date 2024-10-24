@@ -37,6 +37,43 @@ export function AppLauncher() {
   const queryParams = new URLSearchParams(search);
   const isRedirectFlow = queryParams.get('required-apps');
 
+  function validateResolvedApp(
+    params: UrlLauncherParams,
+    fqdn: string,
+    localClusterName: string,
+    publicAddress: string
+  ) {
+    // Because the ports are stripped from the FQDNs before they are
+    // compared, an attacker can pass a FQDN with a different port than
+    // what the app's public address is configured with and have Teleport
+    // redirect to the public address with an arbitrary port. But because
+    // the attacker can't control what domain is redirected to this has
+    // a low risk factor.
+    if (prepareFqdn(fqdn) == prepareFqdn(params.fqdn)) {
+      return;
+    }
+
+    // The resolved FQDN didn't match what we expect, and the app
+    // belongs to the same cluster that resolved it, this FQDN is not
+    // legitimate.
+    if (params.clusterId == localClusterName) {
+      throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
+    }
+
+    // If the resolved FQDN doesn't match what we expect, check the
+    // expected FQDN against the returned public address only if the
+    // local cluster that resolved the application is different than
+    // the cluster that the application resides in. This won't allow
+    // arbitrary addresses through because the resolved public address
+    // which isn't attacker controlled is matched against. If the app's
+    // cluster differs from the cluster that resolved it the FQDN will be
+    // built with the resolved cluster's name, making this check necessary
+    // to allow access to apps in leaf clusters.
+    if (prepareFqdn(publicAddress) !== prepareFqdn(params.fqdn)) {
+      throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
+    }
+  }
+
   const createAppSession = useCallback(async (params: UrlLauncherParams) => {
     let fqdn = params.fqdn;
     const port = location.port ? `:${location.port}` : '';
@@ -56,15 +93,12 @@ export function AppLauncher() {
         publicAddr: params.publicAddr,
         arn: params.arn,
       });
-      // Because the ports are stripped from the FQDNs before they are
-      // compared, an attacker can pass a FQDN with a different port than
-      // what the app's public address is configured with and have Teleport
-      // redirect to the public address with an arbitrary port. But because
-      // the attacker can't control what domain is redirected to this has
-      // a low risk factor.
-      if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
-        throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
-      }
+      validateResolvedApp(
+        params,
+        resolvedApp.fqdn,
+        resolvedApp.localClusterName,
+        resolvedApp.publicAddress
+      );
 
       let path = '';
       if (queryParams.has('path')) {

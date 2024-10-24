@@ -149,10 +149,17 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 type GetAppDetailsRequest ResolveAppParams
 
 type GetAppDetailsResponse struct {
-	// FQDN is application FQDN.
+	// FQDN is application FQDN. See utils.AssembleAppFQDN for details
+	// on how the FQDN is formed.
 	FQDN string `json:"fqdn"`
 	// RequiredAppFQDNs is a list of required app fqdn
 	RequiredAppFQDNs []string `json:"requiredAppFQDNs"`
+	// LocalClusterName is the name of the cluster that resolved the
+	// application, which may belong to another cluster.
+	LocalClusterName string `json:"localClusterName"`
+	// PublicAddress is the public address of the application, which
+	// may be different than the FQDN in some cases.
+	PublicAddress string `json:"publicAddress"`
 }
 
 // getAppDetails resolves the input params to a known application and returns
@@ -179,7 +186,9 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	resp := &GetAppDetailsResponse{
-		FQDN: result.FQDN,
+		FQDN:             result.FQDN,
+		LocalClusterName: h.auth.clusterName,
+		PublicAddress:    result.App.GetPublicAddr(),
 	}
 
 	requiredAppNames := result.App.GetRequiredAppNames()

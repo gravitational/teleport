@@ -78,6 +78,8 @@ const service = {
     return api.get(cfg.getAppDetailsUrl(params)).then(json => ({
       fqdn: json.fqdn,
       requiredAppFQDNs: json.requiredAppFQDNs,
+      localClusterName: json.localClusterName,
+      publicAddress: json.publicAddress,
     }));
   },
 };
@@ -85,6 +87,8 @@ const service = {
 type AppDetails = {
   fqdn: string;
   requiredAppFQDNs?: string[];
+  localClusterName: string;
+  publicAddress: string;
 };
 
 export default service;

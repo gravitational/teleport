@@ -85,6 +85,8 @@ describe('app launcher path is properly formed', () => {
     jest.spyOn(api, 'post').mockResolvedValue({});
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'grafana.localhost',
+      localClusterName: 'localhost',
+      publicAddress: 'grafana.localhost',
     });
     jest.spyOn(service, 'createAppSession').mockResolvedValue({
       cookieValue: 'cookie-value',
@@ -281,6 +283,8 @@ describe('fqdn is matched', () => {
     }) => {
       jest.spyOn(service, 'getAppDetails').mockResolvedValue({
         fqdn: returnedFqdn,
+        localClusterName: '',
+        publicAddress: '',
       });
       jest.spyOn(service, 'createAppSession');
 
@@ -309,6 +313,8 @@ describe('fqdn is matched', () => {
   test('not matching FQDN throws error', async () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'different.fqdn',
+      localClusterName: 'test.teleport',
+      publicAddress: 'https://test-app.test.teleport',
     });
 
     render(
@@ -332,9 +338,94 @@ describe('fqdn is matched', () => {
     expect(window.location.replace).not.toHaveBeenCalled();
   });
 
+  test('not matching FQDN and random public addr from another cluster throws error', async () => {
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+      fqdn: 'test-app.root.teleport',
+      localClusterName: 'root',
+      publicAddress: 'malicious.teleporto',
+    });
+
+    render(
+      <Router
+        history={createMockHistory(
+          'test-app.leaf.teleport:443/leaf.teleport/test-app.leaf.teleport:443?state=ABC'
+        )}
+      >
+        <Route path={cfg.routes.appLauncher}>
+          <AppLauncher />
+        </Route>
+      </Router>
+    );
+
+    await screen.findByText(/access denied/i);
+    expect(
+      screen.getByText(
+        /failed to match applications with FQDN "test-app.leaf.teleport:443"/i
+      )
+    ).toBeInTheDocument();
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  test('not matching FQDN and public address from another cluster throws error', async () => {
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+      fqdn: 'test-app.root.teleport',
+      localClusterName: 'root.teleport',
+      publicAddress: 'test-app.leaf.teleport',
+    });
+
+    render(
+      <Router
+        history={createMockHistory(
+          'malicious:443/leaf.teleport/test-app.leaf.teleport:443?state=ABC'
+        )}
+      >
+        <Route path={cfg.routes.appLauncher}>
+          <AppLauncher />
+        </Route>
+      </Router>
+    );
+
+    await screen.findByText(/access denied/i);
+    expect(
+      screen.getByText(
+        /failed to match applications with FQDN "malicious:443"/i
+      )
+    ).toBeInTheDocument();
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  test('matching FQDN from another cluster is allowed', async () => {
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+      fqdn: 'test-app.root.teleport',
+      localClusterName: 'root.teleport',
+      publicAddress: 'test-app.leaf.teleport',
+    });
+
+    render(
+      <Router
+        history={createMockHistory(
+          'test-app.leaf.teleport:443/leaf.teleport/test-app.leaf.teleport:443?state=ABC'
+        )}
+      >
+        <Route path={cfg.routes.appLauncher}>
+          <AppLauncher />
+        </Route>
+      </Router>
+    );
+
+    await waitFor(() => {
+      expect(service.createAppSession).toHaveBeenCalled();
+    });
+
+    await waitFor(() => expect(window.location.replace).toHaveBeenCalled());
+    expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
+  });
+
   test('invalid URL when constructing a new URL with a malformed FQDN', async () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'invalid.fqdn:3080:3090',
+      localClusterName: '',
+      publicAddress: '',
     });
 
     render(
