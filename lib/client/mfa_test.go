@@ -116,7 +116,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				test.customizePrompt(cliConfig)
 			}
 
-			_, err := mfa.NewCLIPromptV2(cliConfig).Run(ctx, test.challenge)
+			_, err := mfa.NewCLIPrompt(cliConfig).Run(ctx, test.challenge)
 			if !errors.Is(err, wancli.ErrUsingNonRegisteredDevice) {
 				t.Errorf("PromptMFAChallenge returned err=%q, want %q", err, wancli.ErrUsingNonRegisteredDevice)
 			}
