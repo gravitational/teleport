@@ -3,10 +3,10 @@ package licensefile
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -18,7 +18,7 @@ import (
 // RunLicenseChecker is used for running periodic checks that generate license warning alerts.
 func RunLicenseChecker(ctx context.Context, alertHandler services.StatusInternal, license *LicenseFile) {
 	if err := checkLicense(ctx, alertHandler, license); err != nil {
-		log.WithError(err).Warn("Failed to check the license")
+		slog.WarnContext(ctx, "Failed to check the license", "error", err)
 	}
 
 	licenseTicker := interval.New(interval.Config{
@@ -34,7 +34,7 @@ func RunLicenseChecker(ctx context.Context, alertHandler services.StatusInternal
 			return
 		case <-licenseTicker.Next():
 			if err := checkLicense(ctx, alertHandler, license); err != nil {
-				log.WithError(err).Warn("Failed to check the license.")
+				slog.WarnContext(ctx, "Failed to check the license", "error", err)
 			}
 			// Ensure there is a license check exactly when the license expires
 			// and when the grace period expires so that alerts are emitted in
