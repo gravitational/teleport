@@ -25,12 +25,17 @@ export enum NavigationCategory {
   AddNew = 'Add New',
 }
 
-/* CustomNavigationCategory are pseudo-categories which exist only in the nav menu, eg. Search. */
+/**
+ * CustomNavigationCategory are pseudo-categories which exist only in the nav menu, eg. Search.
+ */
 export enum CustomNavigationCategory {
   Search = 'Search',
 }
 
-/* CustomNavigationSubcategory are subcategories within a navigation category which can be used to create groupings of subsections, eg. Filtered Views. */
+/**
+ * CustomNavigationSubcategory are subcategories within a navigation category which can be used to
+ * create groupings of subsections, eg. Filtered Views.
+ */
 export enum CustomNavigationSubcategory {
   FilteredViews = 'Filtered Views',
 }

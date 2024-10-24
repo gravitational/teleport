@@ -90,16 +90,6 @@ export type ResourceIdKind =
   | 'windows_desktop'
   | 'saml_idp_service_provider';
 
-export enum ResourceIdKinds {
-  Node = 'node',
-  Application = 'app',
-  Database = 'db',
-  Kubernetes = 'kube_cluster',
-  UserGroup = 'user_group',
-  Desktop = 'windows_desktop',
-  SamlIdpServiceProvider = 'saml_idp_service_provider',
-}
-
 export type AccessRequestScope =
   | 'my_requests'
   | 'needs_review'

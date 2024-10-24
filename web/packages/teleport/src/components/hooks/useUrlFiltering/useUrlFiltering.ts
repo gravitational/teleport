@@ -54,7 +54,7 @@ export function useUrlFiltering(
         searchString: params.search || params.query,
         sort: { ...params.sort, ...sort },
         kinds: params.kinds,
-        isAdvancedSearch: true,
+        isAdvancedSearch: !!params.query,
         pinnedOnly: params.pinnedOnly,
       })
     );
@@ -71,7 +71,7 @@ export function useUrlFiltering(
         searchString: newParams.search || newParams.query,
         sort: newParams.sort,
         kinds: newParams.kinds,
-        isAdvancedSearch: true,
+        isAdvancedSearch: !!params.query,
         pinnedOnly: newParams.pinnedOnly,
       })
     );

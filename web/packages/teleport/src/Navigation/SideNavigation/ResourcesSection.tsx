@@ -29,7 +29,8 @@ import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpr
 import cfg from 'teleport/config';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
-import { ResourceIdKinds } from 'teleport/services/agents';
+import { EncodeUrlQueryParamsProps } from 'teleport/components/hooks/useUrlFiltering/encodeUrlQueryParams';
+import { ResourceIdKind } from 'teleport/services/agents';
 import { useUser } from 'teleport/User/UserContext';
 
 import { NavigationSubsection, NavigationSection } from './Navigation';
@@ -41,7 +42,10 @@ import {
 } from './Section';
 import { CustomNavigationSubcategory, NavigationCategory } from './categories';
 
-/** getResourcesSectionForSearch returns a NavigationSection for resources, this is only used for the sake of indexing these subsections in the sidenav search. */
+/**
+ * getResourcesSectionForSearch returns a NavigationSection for resources,
+ * this is only used for the sake of indexing these subsections in the sidenav search.
+ */
 export function getResourcesSectionForSearch(
   subsectionProps: GetSubsectionProps
 ): NavigationSection {
@@ -57,6 +61,14 @@ type GetSubsectionProps = {
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
   searchParams: URLSearchParams;
 };
+
+function encodeUrlQueryParamsWithTypedKinds(
+  params: Omit<EncodeUrlQueryParamsProps, 'kinds'> & {
+    kinds?: ResourceIdKind[];
+  }
+) {
+  return encodeUrlQueryParams(params);
+}
 
 function getResourcesSubsections({
   clusterId,
@@ -98,43 +110,43 @@ function getResourcesSubsections({
     preferences?.unifiedResourcePreferences.defaultTab === DefaultTab.PINNED;
 
   // isKindActive returns true if we are currently filtering for only the provided kind of resource.
-  const isKindActive = (kind: ResourceIdKinds) => {
+  const isKindActive = (kind: ResourceIdKind) => {
     // This subsection for this kind should only be marked active when it is the only kind being filtered for,
     // if there are multiple kinds then the "All Resources" button should be active.
     return currentKinds.length === 1 && currentKinds[0] === kind;
   };
 
-  const allResourcesRoute = encodeUrlQueryParams({
+  const allResourcesRoute = encodeUrlQueryParamsWithTypedKinds({
     pathname: baseRoute,
     pinnedOnly: false,
   });
-  const pinnedOnlyRoute = encodeUrlQueryParams({
+  const pinnedOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
     pathname: baseRoute,
     pinnedOnly: true,
   });
-  const applicationsOnlyRoute = encodeUrlQueryParams({
+  const applicationsOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
     pathname: baseRoute,
-    kinds: [ResourceIdKinds.Application],
+    kinds: ['app'],
     pinnedOnly: false,
   });
-  const databasesOnlyRoute = encodeUrlQueryParams({
+  const databasesOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
     pathname: baseRoute,
-    kinds: [ResourceIdKinds.Database],
+    kinds: ['db'],
     pinnedOnly: false,
   });
-  const desktopsOnlyRoute = encodeUrlQueryParams({
+  const desktopsOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
     pathname: baseRoute,
-    kinds: [ResourceIdKinds.Desktop],
+    kinds: ['windows_desktop'],
     pinnedOnly: false,
   });
-  const kubesOnlyRoute = encodeUrlQueryParams({
+  const kubesOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
     pathname: baseRoute,
-    kinds: [ResourceIdKinds.Kubernetes],
+    kinds: ['kube_cluster'],
     pinnedOnly: false,
   });
-  const nodesOnlyRoute = encodeUrlQueryParams({
+  const nodesOnlyRoute = encodeUrlQueryParamsWithTypedKinds({
     pathname: baseRoute,
-    kinds: [ResourceIdKinds.Node],
+    kinds: ['node'],
     pinnedOnly: false,
   });
 
@@ -172,7 +184,7 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'apps', 'applications'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () => isKindActive(ResourceIdKinds.Application),
+      customRouteMatchFn: () => isKindActive('app'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
@@ -183,7 +195,7 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'dbs', 'databases'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () => isKindActive(ResourceIdKinds.Database),
+      customRouteMatchFn: () => isKindActive('db'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
@@ -194,7 +206,7 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () => isKindActive(ResourceIdKinds.Desktop),
+      customRouteMatchFn: () => isKindActive('windows_desktop'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
@@ -205,7 +217,7 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'k8s', 'kubes', 'kubernetes'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () => isKindActive(ResourceIdKinds.Kubernetes),
+      customRouteMatchFn: () => isKindActive('kube_cluster'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
@@ -216,7 +228,7 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'servers', 'nodes', 'ssh'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () => isKindActive(ResourceIdKinds.Node),
+      customRouteMatchFn: () => isKindActive('node'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },
