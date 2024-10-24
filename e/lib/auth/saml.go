@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -49,7 +50,7 @@ type SAMLAuthService struct {
 	emitter                apievents.Emitter
 	assertionReplayService *local.AssertionReplayService
 	license                License
-	samlProviders          map[string]*samlProvider
+	samlProviders          map[samlProviderKey]*samlProvider
 	lock                   sync.Mutex
 
 	// preservedRoles holds a list of roles that must be preserved during SAML
@@ -102,7 +103,7 @@ func NewSAMLAuthService(cfg *SAMLAuthServiceConfig) (*SAMLAuthService, error) {
 		emitter:                cfg.Emitter,
 		assertionReplayService: cfg.AssertionReplayService,
 		license:                cfg.License,
-		samlProviders:          make(map[string]*samlProvider),
+		samlProviders:          make(map[samlProviderKey]*samlProvider),
 	}
 	svc.preservedRoles.Set(cfg.PreservedRoles)
 
@@ -115,15 +116,33 @@ type samlProvider struct {
 	connector types.SAMLConnector
 }
 
+// samlProviderKey is an internal key for a samlProvider.
+type samlProviderKey struct {
+	name string
+	// The saml client settings for an MFA saml connector differ from the
+	// base saml connector, so we need to differentiate between them.
+	forMFA bool
+}
+
 // ErrSAMLNoRoles results from not mapping any roles from SAML claims.
 var ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 
+// CreateSAMLAuthRequest creates a SAML AuthnRequest.
 func (sas *SAMLAuthService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	return sas.createSAMLAuthRequest(ctx, req, false /*forMFA*/)
+}
+
+// CreateSAMLAuthRequestForMFA creates a SAML AuthnRequest for MFA.
+func (sas *SAMLAuthService) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	return sas.createSAMLAuthRequest(ctx, req, true /*forMFA*/)
+}
+
+func (sas *SAMLAuthService) createSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, forMFA bool) (*types.SAMLAuthRequest, error) {
 	if sas.license.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
 
-	connector, provider, err := sas.getSAMLConnectorAndProvider(ctx, req)
+	connector, provider, err := sas.getSAMLConnectorAndProvider(ctx, req, forMFA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,12 +188,19 @@ func (sas *SAMLAuthService) CreateSAMLAuthRequest(ctx context.Context, req types
 	return &req, nil
 }
 
-func (sas *SAMLAuthService) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+func (sas *SAMLAuthService) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string, forMFA bool) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
 	connector, err := sas.auth.Identity.GetSAMLConnector(ctx, connectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	provider, err := sas.getSAMLProvider(connector)
+
+	if forMFA {
+		if err := connector.WithMFASettings(); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	provider, err := sas.getSAMLProvider(connector, forMFA)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -182,7 +208,7 @@ func (sas *SAMLAuthService) getSAMLConnectorAndProviderByID(ctx context.Context,
 	return connector, provider, nil
 }
 
-func (sas *SAMLAuthService) getSAMLConnectorAndProvider(ctx context.Context, req types.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+func (sas *SAMLAuthService) getSAMLConnectorAndProvider(ctx context.Context, req types.SAMLAuthRequest, forMFA bool) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
 	if req.SSOTestFlow {
 		if req.ConnectorSpec == nil {
 			return nil, nil, trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
@@ -214,25 +240,26 @@ func (sas *SAMLAuthService) getSAMLConnectorAndProvider(ctx context.Context, req
 	}
 
 	// regular execution flow
-	return sas.getSAMLConnectorAndProviderByID(ctx, req.ConnectorID)
+	return sas.getSAMLConnectorAndProviderByID(ctx, req.ConnectorID, forMFA)
 }
 
-func (sas *SAMLAuthService) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
+func (sas *SAMLAuthService) getSAMLProvider(conn types.SAMLConnector, forMFA bool) (*saml2.SAMLServiceProvider, error) {
 	sas.lock.Lock()
 	defer sas.lock.Unlock()
 
-	providerPack, ok := sas.samlProviders[conn.GetName()]
+	providerKey := samlProviderKey{conn.GetName(), forMFA}
+	providerPack, ok := sas.samlProviders[providerKey]
 	if ok && cmp.Equal(providerPack.connector, conn) {
 		return providerPack.provider, nil
 	}
-	delete(sas.samlProviders, conn.GetName())
+	delete(sas.samlProviders, providerKey)
 
 	serviceProvider, err := services.GetSAMLServiceProvider(conn, sas.auth.GetClock())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sas.samlProviders[conn.GetName()] = &samlProvider{connector: conn, provider: serviceProvider}
+	sas.samlProviders[providerKey] = &samlProvider{connector: conn, provider: serviceProvider}
 
 	return serviceProvider, nil
 }
@@ -512,6 +539,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		diagCtx.Info.TestFlow = true
 	}
 
+	var mfaSession *services.SSOMFASessionData
 	switch {
 	case trace.IsNotFound(err):
 		if connectorID == "" {
@@ -519,7 +547,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		}
 
 		idpInitiated = true
-		connector, provider, err = sas.getSAMLConnectorAndProviderByID(ctx, connectorID)
+		connector, provider, err = sas.getSAMLConnectorAndProviderByID(ctx, connectorID, false /*forMFA*/)
 		if err != nil {
 			return nil, "", trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
@@ -532,8 +560,14 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			return nil, "", trace.Wrap(err, "Failed to get SAML Auth Request")
 		}
 
+		// Check if this is an MFA request.
+		mfaSession, err = sas.auth.GetSSOMFASession(ctx, request.ID)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, "", trace.Wrap(err)
+		}
+
 		diagCtx.Info.TestFlow = request.SSOTestFlow
-		connector, provider, err = sas.getSAMLConnectorAndProvider(ctx, *request)
+		connector, provider, err = sas.getSAMLConnectorAndProvider(ctx, *request, mfaSession != nil)
 		if err != nil {
 			return nil, "", trace.Wrap(err, "Failed to get SAML connector and provider")
 		}
@@ -697,6 +731,28 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		}
 	}
 
+	// Update the MFA session with a token. Return it to the user to complete the MFA check.
+	if mfaSession != nil {
+		// validate the mfaSession now that we have the full request details.
+		switch {
+		case mfaSession.ConnectorID != connector.GetName():
+			return nil, loginIP, trace.AccessDenied("invalid SAML MFA session, wrong provider %q", mfaSession.ConnectorID)
+		case mfaSession.ConnectorType != constants.SAML:
+			return nil, loginIP, trace.AccessDenied("invalid SAML MFA session, wrong sso type %q", mfaSession.ConnectorType)
+		case mfaSession.Username != user.GetName():
+			slog.WarnContext(ctx, "User attempted to validate an SSO MFA session belonging to a different user, denied", "user", user.GetName())
+			return nil, loginIP, trace.AccessDenied("invalid SAML MFA session")
+		}
+
+		token, err := sas.auth.UpsertSSOMFASessionWithToken(ctx, mfaSession)
+		if err != nil {
+			return nil, loginIP, trace.Wrap(err)
+		}
+
+		resp.MFAToken = token
+		return resp, loginIP, nil
+	}
+
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
 		session, err := sas.auth.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
@@ -854,6 +910,7 @@ func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWr
 		Cert:     response.Cert,
 		Req:      response.Req,
 		TLSCert:  response.TLSCert,
+		MFAToken: response.MFAToken,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))

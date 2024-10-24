@@ -21,6 +21,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	directory "google.golang.org/api/admin/directory/v1"
@@ -54,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 type OIDCSuite struct {
@@ -191,7 +193,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	oidcClient, err := s.oas.getCachedOIDCClient(ctx, connector, "")
+	oidcClient, err := s.oas.getCachedOIDCClient(ctx, connector, "", false)
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
@@ -526,7 +528,7 @@ func TestPingProvider(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("Test SSOFlow: %v", req.SSOTestFlow), func(t *testing.T) {
-			oidcConnector, oidcClient, err := s.oas.getOIDCConnectorAndClient(ctx, req)
+			oidcConnector, oidcClient, err := s.oas.getOIDCConnectorAndClient(ctx, req, false)
 			require.NoError(t, err)
 
 			oac, err := getOAuthClient(oidcClient, oidcConnector)
@@ -618,17 +620,17 @@ func TestOIDCClientCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create and cache a new oidc client
-	client, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	client, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
 	require.NoError(t, err)
 
 	// The next call should return the same client (compare memory address)
-	cachedClient, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	cachedClient, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
 	require.NoError(t, err)
 	require.Same(t, client, cachedClient)
 
 	// Canceling provider sync on a cached client should cause it to be replaced
 	client.syncCancel()
-	cachedClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+	cachedClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
 	require.NoError(t, err)
 	require.NotSame(t, client, cachedClient)
 
@@ -687,12 +689,12 @@ func TestOIDCClientCache(t *testing.T) {
 			require.NoError(t, err)
 			tc.mutateConnector(newConnector)
 
-			client, err = s.oas.getCachedOIDCClient(ctx, newConnector, "proxy.example.com")
+			client, err = s.oas.getCachedOIDCClient(ctx, newConnector, "proxy.example.com", false)
 			require.NoError(t, err)
 			tc.clientAssertion(t, client, originalClient)
 
 			// reset cached client to the original client for remaining tests
-			originalClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com")
+			originalClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
 			require.NoError(t, err)
 		})
 	}
@@ -1528,6 +1530,144 @@ func TestOIDCLicense(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestServer_ValidateOIDCResponse_MFA(t *testing.T) {
+	ctx := context.Background()
+
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.OIDC: {Enabled: true},
+		}},
+	})
+
+	srv := testserver.MakeTestServer(t)
+	a := srv.GetAuthServer()
+
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	oas := registerOIDCService(t, &OIDCAuthServiceConfig{Auth: a, License: ValidLicense{}, Emitter: mockEmitter})
+
+	idp := NewFakeOIDCIdP(t, false /* tls */)
+	connectorName := "oidc-connector"
+	conn, err := types.NewOIDCConnector(connectorName, types.OIDCConnectorSpecV3{
+		IssuerURL:    idp.S.URL,
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "idp-admin",
+				Roles: []string{"access"},
+			},
+		},
+		MFASettings: &types.OIDCConnectorMFASettings{
+			Enabled:      true,
+			ClientId:     "example-client-id",
+			ClientSecret: "example-client-secret",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = a.CreateOIDCConnector(context.Background(), conn)
+	require.NoError(t, err)
+
+	request, err := oas.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
+		ConnectorID: connectorName,
+		Type:        constants.OIDC,
+		CheckUser:   true,
+	})
+	require.NoError(t, err)
+
+	// override getClaimsFun.
+	username := "superuser@example.com"
+	oas.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
+		return map[string]any{
+			"email_verified": true,
+			"groups":         []string{"idp-admin"},
+			"email":          username,
+			"sub":            "00001234abcd",
+			"exp":            float64(time.Now().Add(time.Hour).Unix()),
+			// required since max_age=0.
+			"auth_time": float64(time.Now().Unix()),
+		}, nil
+	}
+
+	for _, tt := range []struct {
+		name              string
+		mutateSessionData func(sd *services.SSOMFASessionData)
+		checkError        assert.ErrorAssertionFunc
+		checkResponse     func(t *testing.T, resp *authclient.OIDCAuthResponse)
+	}{
+		{
+			name:       "OK valid MFA session",
+			checkError: assert.NoError,
+			checkResponse: func(t *testing.T, resp *authclient.OIDCAuthResponse) {
+				require.NotEmpty(t, resp)
+				assert.NotZero(t, resp.MFAToken)
+
+				// MFA session data token should match the response.
+				sd, err := a.GetSSOMFASessionData(ctx, request.StateToken)
+				assert.NoError(t, err)
+				assert.Equal(t, resp.MFAToken, sd.Token)
+			},
+		},
+		{
+			name: "NOK username mismatch",
+			mutateSessionData: func(sd *services.SSOMFASessionData) {
+				sd.Username = "unknown"
+			},
+			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		},
+		{
+			name: "NOK connectorID mismatch",
+			mutateSessionData: func(sd *services.SSOMFASessionData) {
+				sd.ConnectorID = "unknown"
+			},
+			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		},
+		{
+			name: "NOK connectorType mismatch",
+			mutateSessionData: func(sd *services.SSOMFASessionData) {
+				sd.ConnectorType = "unknown"
+			},
+			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// Add SSO MFA session data for the saml auth request. This should result in an MFA token being created.
+			sd := &services.SSOMFASessionData{
+				RequestID:     request.StateToken,
+				Username:      username,
+				ConnectorID:   connectorName,
+				ConnectorType: constants.OIDC,
+			}
+			if tt.mutateSessionData != nil {
+				tt.mutateSessionData(sd)
+			}
+			err = a.UpsertSSOMFASessionData(ctx, sd)
+			require.NoError(t, err)
+
+			// check ValidateSAMLResponse
+			response, err := oas.ValidateOIDCAuthCallback(context.Background(), url.Values{
+				"code":  []string{"XXX-code"},
+				"state": []string{request.StateToken},
+			})
+			tt.checkError(t, err)
+
+			if tt.checkResponse != nil {
+				tt.checkResponse(t, response)
 			}
 		})
 	}

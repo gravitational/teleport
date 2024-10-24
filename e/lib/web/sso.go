@@ -171,7 +171,7 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 	}
 
 	logger.InfoContext(r.Context(), "Callback redirecting to console login")
-	if len(response.Req.SSHPubKey) == 0 && len(response.Req.TLSPubKey) == 0 {
+	if len(response.Req.SSHPubKey) == 0 && len(response.Req.TLSPubKey) == 0 && response.MFAToken == "" {
 		logger.ErrorContext(r.Context(), "Not a web or console login request")
 		return client.LoginFailedRedirectURL
 	}
@@ -184,6 +184,7 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 		Cert:              response.Cert,
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
+		MFAToken:          response.MFAToken,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error", err)
@@ -354,7 +355,7 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 	}
 
 	logger.DebugContext(r.Context(), "Callback redirecting to console login")
-	if len(response.Req.SSHPubKey) == 0 && len(response.Req.TLSPubKey) == 0 {
+	if len(response.Req.SSHPubKey) == 0 && len(response.Req.TLSPubKey) == 0 && response.MFAToken == "" {
 		logger.ErrorContext(r.Context(), "Not a web or console login request")
 		return client.LoginFailedRedirectURL
 	}
@@ -367,6 +368,7 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 		Cert:              response.Cert,
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
+		MFAToken:          response.MFAToken,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error,", err)

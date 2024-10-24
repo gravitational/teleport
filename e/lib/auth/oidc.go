@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
@@ -44,7 +45,7 @@ type OIDCAuthService struct {
 	auth         *auth.Server
 	emitter      apievents.Emitter
 	license      License
-	clients      map[string]*oidcClient
+	clients      map[oidcClientKey]*oidcClient
 	lock         sync.Mutex
 	getClaimsFun func(ctx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
 }
@@ -77,7 +78,7 @@ func NewOIDCAuthService(cfg *OIDCAuthServiceConfig) (*OIDCAuthService, error) {
 		auth:         cfg.Auth,
 		emitter:      cfg.Emitter,
 		license:      cfg.License,
-		clients:      make(map[string]*oidcClient),
+		clients:      make(map[oidcClientKey]*oidcClient),
 		getClaimsFun: getClaims,
 	}, nil
 }
@@ -93,12 +94,21 @@ type oidcClient struct {
 	firstSync chan struct{}
 }
 
+// oidcClientKey is an internal key for a oidcClient.
+type oidcClientKey struct {
+	name  string
+	proxy string
+	// The oidc client settings for an MFA oidc connector differ from the
+	// base oidc connector, so we need to differentiate between them.
+	forMFA bool
+}
+
 // ErrOIDCNoRoles results from not mapping any roles from OIDC claims.
 var ErrOIDCNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 
 // getOIDCConnectorAndClient returns the associated oidc connector
 // and client for the given oidc auth request.
-func (oas *OIDCAuthService) getOIDCConnectorAndClient(ctx context.Context, request types.OIDCAuthRequest) (types.OIDCConnector, *oidc.Client, error) {
+func (oas *OIDCAuthService) getOIDCConnectorAndClient(ctx context.Context, request types.OIDCAuthRequest, forMFA bool) (types.OIDCConnector, *oidc.Client, error) {
 	// stateless test flow
 	if request.SSOTestFlow {
 		if request.ConnectorSpec == nil {
@@ -143,7 +153,13 @@ func (oas *OIDCAuthService) getOIDCConnectorAndClient(ctx context.Context, reque
 		return nil, nil, trace.Wrap(err)
 	}
 
-	client, err := oas.getCachedOIDCClient(ctx, connector, request.ProxyAddress)
+	if forMFA {
+		if err := connector.WithMFASettings(); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	client, err := oas.getCachedOIDCClient(ctx, connector, request.ProxyAddress, forMFA)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -159,22 +175,19 @@ func (oas *OIDCAuthService) getOIDCConnectorAndClient(ctx context.Context, reque
 
 // getCachedOIDCClient gets a cached oidc client for
 // the given OIDC connector and redirectURL preference.
-func (oas *OIDCAuthService) getCachedOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string) (*oidcClient, error) {
+func (oas *OIDCAuthService) getCachedOIDCClient(ctx context.Context, conn types.OIDCConnector, proxyAddr string, forMFA bool) (*oidcClient, error) {
 	oas.lock.Lock()
 	defer oas.lock.Unlock()
 
-	// Each connector and proxy combination has a distinct client,
-	// so we use a composite key to capture all combinations.
-	clientMapKey := conn.GetName() + "_" + proxyAddr
-
-	cachedClient, ok := oas.clients[clientMapKey]
+	clientKey := oidcClientKey{conn.GetName(), proxyAddr, forMFA}
+	cachedClient, ok := oas.clients[clientKey]
 	if ok {
 		if !cachedClient.needsRefresh(conn) && cachedClient.syncCtx.Err() == nil {
 			return cachedClient, nil
 		}
 		// Cached client needs to be refreshed or is no longer syncing.
 		cachedClient.syncCancel()
-		delete(oas.clients, clientMapKey)
+		delete(oas.clients, clientKey)
 	}
 
 	// Create a new oidc client and add it to the cache.
@@ -183,7 +196,7 @@ func (oas *OIDCAuthService) getCachedOIDCClient(ctx context.Context, conn types.
 		return nil, trace.Wrap(err)
 	}
 
-	oas.clients[clientMapKey] = client
+	oas.clients[clientKey] = client
 	return client, nil
 }
 
@@ -263,7 +276,17 @@ func (c *oidcClient) waitFirstSync(timeout time.Duration) error {
 	return trace.Wrap(c.syncCtx.Err())
 }
 
+// CreateOIDCAuthRequestForMFA creates an OIDC AuthnRequest.
 func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	return oas.createOIDCAuthRequest(ctx, req, false /*forMFA*/)
+}
+
+// CreateOIDCAuthRequestForMFA creates an OIDC AuthnRequest for MFA.
+func (oas *OIDCAuthService) CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	return oas.createOIDCAuthRequest(ctx, req, true /*forMFA*/)
+}
+
+func (oas *OIDCAuthService) createOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, forMFA bool) (*types.OIDCAuthRequest, error) {
 	if oas.license.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
@@ -272,7 +295,7 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	connector, client, err := oas.getOIDCConnectorAndClient(ctx, req)
+	connector, client, err := oas.getOIDCConnectorAndClient(ctx, req, forMFA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -446,6 +469,7 @@ func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.Respon
 		Cert:     response.Cert,
 		TLSCert:  response.TLSCert,
 		Req:      response.Req,
+		MFAToken: response.MFAToken,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
@@ -502,11 +526,17 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	}
 	diagCtx.Info.TestFlow = req.SSOTestFlow
 
+	// Check if this is an MFA request.
+	mfaSession, err := oas.auth.GetSSOMFASession(ctx, stateToken)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, "", trace.Wrap(err)
+	}
+
 	// ensure prompt removal of OIDC client in test flows. does nothing in regular flows.
 	ctxC, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	connector, client, err := oas.getOIDCConnectorAndClient(ctxC, *req)
+	connector, client, err := oas.getOIDCConnectorAndClient(ctxC, *req, mfaSession != nil)
 	if err != nil {
 		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to get OIDC connector and client.")
 	}
@@ -628,6 +658,28 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 
 	if !req.CheckUser {
 		return resp, req.ClientLoginIP, nil
+	}
+
+	// Update the MFA session with a token. Return it to the user to complete the MFA check.
+	if mfaSession != nil {
+		// validate the mfaSession now that we have the full request details.
+		switch {
+		case mfaSession.ConnectorID != req.ConnectorID:
+			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session, wrong provider %q", mfaSession.ConnectorID)
+		case mfaSession.ConnectorType != constants.OIDC:
+			return nil, req.ClientLoginIP, trace.AccessDenied("invalid OIDC MFA session, wrong sso type %q", mfaSession.ConnectorType)
+		case mfaSession.Username != user.GetName():
+			slog.WarnContext(ctx, "User attempted to validate an SSO MFA session belonging to a different user, denied", "user", user.GetName())
+			return nil, req.ClientLoginIP, trace.AccessDenied("invalid SAML MFA session")
+		}
+
+		token, err := oas.auth.UpsertSSOMFASessionWithToken(ctx, mfaSession)
+		if err != nil {
+			return nil, req.ClientLoginIP, trace.Wrap(err)
+		}
+
+		resp.MFAToken = token
+		return resp, req.ClientLoginIP, trace.Wrap(err)
 	}
 
 	// If the request is coming from a browser, create a web session.
