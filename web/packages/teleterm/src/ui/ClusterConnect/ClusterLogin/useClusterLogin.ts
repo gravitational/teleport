@@ -37,9 +37,9 @@ export default function useClusterLogin(props: Props) {
   const [passwordlessLoginState, setPasswordlessLoginState] =
     useState<PasswordlessLoginState>();
 
-  const [initAttempt, init] = useAsync(async () => {
-    return await clustersService.getAuthSettings(clusterUri);
-  });
+  const [initAttempt, init] = useAsync(() =>
+    clustersService.getAuthSettings(clusterUri)
+  );
 
   const [loginAttempt, login, setAttempt] = useAsync(
     (params: types.LoginParams) => {
