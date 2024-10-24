@@ -4067,8 +4067,6 @@ type eventsListGetResponse struct {
 
 // hostCredentials sends a registration token and metadata to the Auth Server
 // and gets back SSH and TLS certificates.
-// TODO(strideynet): DELETE IN V18.0.0
-// Deprecated: Use the RegisterUsingToken RPC instead.
 func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req types.RegisterUsingTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {

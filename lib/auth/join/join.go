@@ -98,10 +98,9 @@ type RegisterParams struct {
 	// CAPath is the path to the CA file.
 	// Ignored if AuthClient is provided.
 	CAPath string
-	// GetHostCredentials is a client that can fetch host credentials.
+	// GetHostCredentials is a client that can be used to register via the
+	// proxy web API.
 	// Ignored if AuthClient is provided.
-	// TODO(strideynet): REMOVE IN V18.0.0
-	// Deprecated: since v17, the API client can be used for this purpose.
 	GetHostCredentials HostCredentials
 	// Clock specifies the time provider. Will be used to override the time anchor
 	// for TLS certificate verification.
@@ -369,6 +368,23 @@ func registerThroughProxy(
 	var certs *proto.Certs
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
+		// IAM and Azure join methods require gRPC client
+		conn, err := proxyinsecureclient.NewConnection(
+			ctx,
+			proxyinsecureclient.ConnectionConfig{
+				ProxyServer:  proxyAddr,
+				CipherSuites: params.CipherSuites,
+				Clock:        params.Clock,
+				Insecure:     params.Insecure,
+				Log:          slog.Default(),
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer conn.Close()
+
+		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
 		switch params.JoinMethod {
 		case types.JoinMethodIAM:
 			certs, err = registerUsingIAMMethod(ctx, joinServiceClient, token, hostKeys, params)
@@ -383,27 +399,15 @@ func registerThroughProxy(
 			return nil, trace.Wrap(err)
 		}
 	default:
-		certs, err = joinServiceClient.RegisterUsingToken(
-			ctx, registerUsingTokenRequestForParams(token, hostKeys, params),
-		)
+		// The rest of the join methods use GetHostCredentials function passed
+		// through params to call proxy HTTP endpoint.
+		var err error
+		certs, err = params.GetHostCredentials(ctx,
+			proxyAddr,
+			params.Insecure,
+			*registerUsingTokenRequestForParams(token, hostKeys, params))
 		if err != nil {
-			// The rest of the join methods use the RegisterUsingToken RPC
-			// TODO(strideynet): in V18.0.0, we can remove the fallback call to
-			// GetHostCredentials.
-			if !trace.IsNotImplemented(err) {
-				return nil, trace.Wrap(err)
-			}
-			slog.WarnContext(
-				ctx,
-				"Registration falling back to deprecated HTTP API. Your agent may be newer than the Auth Server.",
-			)
-			certs, err = params.GetHostCredentials(ctx,
-				proxyAddr,
-				params.Insecure,
-				*registerUsingTokenRequestForParams(token, hostKeys, params))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			return nil, trace.Wrap(err)
 		}
 	}
 
