@@ -260,7 +260,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -797,7 +796,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -1613,7 +1611,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -2150,7 +2147,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
