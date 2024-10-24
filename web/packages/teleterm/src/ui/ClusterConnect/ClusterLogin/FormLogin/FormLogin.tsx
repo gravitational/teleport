@@ -24,13 +24,13 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
-import { PromptWebauthn } from './PromptWebauthn';
+import { PromptPasswordless } from './PromptPasswordless';
 import PromptSsoStatus from './PromptSsoStatus';
 import { FormPasswordless } from './FormPasswordless';
 import { FormSso } from './FormSso';
 import { FormLocal } from './FormLocal';
 
-import type { WebauthnLogin } from '../useClusterLogin';
+import type { PasswordlessLoginState } from '../useClusterLogin';
 import type { PrimaryAuthType } from 'shared/services';
 import type { StepComponentProps } from 'design/StepSlider';
 
@@ -41,11 +41,13 @@ export default function LoginForm(props: Props) {
     authProviders,
     localAuthEnabled = true,
     shouldPromptSsoStatus,
-    webauthnLogin,
+    passwordlessLoginState,
   } = props;
 
-  if (webauthnLogin) {
-    return <PromptWebauthn onCancel={onAbort} {...webauthnLogin} />;
+  if (passwordlessLoginState) {
+    return (
+      <PromptPasswordless onCancel={onAbort} {...passwordlessLoginState} />
+    );
   }
 
   if (shouldPromptSsoStatus) {
@@ -259,7 +261,7 @@ type LoginAttempt = Attempt<void>;
 
 export type Props = types.AuthSettings & {
   shouldPromptSsoStatus: boolean;
-  webauthnLogin: WebauthnLogin;
+  passwordlessLoginState: PasswordlessLoginState;
   loginAttempt: LoginAttempt;
   clearLoginAttempt(): void;
   primaryAuthType: PrimaryAuthType;

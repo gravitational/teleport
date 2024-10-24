@@ -130,7 +130,7 @@ function makeProps(): ClusterLoginPresentationProps {
     onLoginWithPasswordless: () => Promise.resolve<[void, Error]>([null, null]),
     onLoginWithSso: () => null,
     clearLoginAttempt: () => null,
-    webauthnLogin: null,
+    passwordlessLoginState: null,
     reason: undefined,
   };
 }

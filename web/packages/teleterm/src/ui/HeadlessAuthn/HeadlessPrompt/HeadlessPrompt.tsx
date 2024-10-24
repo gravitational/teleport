@@ -38,7 +38,7 @@ import * as Icons from 'design/Icon';
 import { P, P3 } from 'design/Text/Text';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 

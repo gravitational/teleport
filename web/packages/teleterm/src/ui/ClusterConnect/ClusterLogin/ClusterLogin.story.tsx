@@ -66,7 +66,7 @@ function makeProps(): ClusterLoginPresentationProps {
     onLoginWithPasswordless: () => Promise.resolve<[void, Error]>([null, null]),
     onLoginWithSso: () => null,
     clearLoginAttempt: () => null,
-    webauthnLogin: null,
+    passwordlessLoginState: null,
     reason: undefined,
   };
 }
@@ -228,7 +228,7 @@ export const SsoWithNoProvidersConfigured = () => {
 export const HardwareTapPrompt = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
+  props.passwordlessLoginState = {
     prompt: 'tap',
   };
   return (
@@ -241,7 +241,7 @@ export const HardwareTapPrompt = () => {
 export const HardwarePinPrompt = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
+  props.passwordlessLoginState = {
     prompt: 'pin',
   };
   return (
@@ -254,7 +254,7 @@ export const HardwarePinPrompt = () => {
 export const HardwareRetapPrompt = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
+  props.passwordlessLoginState = {
     prompt: 'retap',
   };
   return (
@@ -267,7 +267,7 @@ export const HardwareRetapPrompt = () => {
 export const HardwareCredentialPrompt = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
+  props.passwordlessLoginState = {
     prompt: 'credential',
     loginUsernames: [
       'apple',
@@ -289,7 +289,7 @@ export const HardwareCredentialPrompt = () => {
 export const HardwareCredentialPromptProcessing = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';
-  props.webauthnLogin = {
+  props.passwordlessLoginState = {
     prompt: 'credential',
     loginUsernames: [
       'apple',
@@ -301,7 +301,7 @@ export const HardwareCredentialPromptProcessing = () => {
       'strawberry',
     ],
   };
-  props.webauthnLogin.processing = true;
+  props.passwordlessLoginState.processing = true;
   return (
     <TestContainer>
       <ClusterLoginPresentation {...props} />
