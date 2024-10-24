@@ -1029,11 +1029,9 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
 		promptCfg.WebauthnSupported = true
-		return &libmfa.CLIPrompt{
-			CLIPromptConfig: libmfa.CLIPromptConfig{
-				PromptConfig: *promptCfg,
-			},
-		}
+		return libmfa.NewCLIPromptV2(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	}
 
 	// Login as the admin user.

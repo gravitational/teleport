@@ -37,13 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
-const (
-	// cliMFATypeOTP is the CLI display name for OTP.
-	cliMFATypeOTP = "OTP"
-	// cliMFATypeWebauthn is the CLI display name for Webauthn.
-	cliMFATypeWebauthn = "WEBAUTHN"
-)
-
 // CLIPromptConfig contains CLI prompt config options.
 type CLIPromptConfig struct {
 	PromptConfig
@@ -65,38 +58,53 @@ type CLIPromptConfig struct {
 
 // CLIPrompt is the default CLI mfa prompt implementation.
 type CLIPrompt struct {
-	CLIPromptConfig
+	cfg CLIPromptConfig
 }
 
 // NewCLIPrompt returns a new CLI mfa prompt with the config and writer.
 // TODO(Joerger): Delete once /e is no longer dependent on it.
 func NewCLIPrompt(cfg *PromptConfig, writer io.Writer) *CLIPrompt {
+	// If no config is provided, use defaults (zero value).
+	if cfg == nil {
+		cfg = new(PromptConfig)
+	}
+	return NewCLIPromptV2(&CLIPromptConfig{
+		PromptConfig: *cfg,
+		Writer:       writer,
+	})
+}
+
+// NewCLIPromptV2 returns a new CLI mfa prompt with the given config.
+// TODO(Joerger): this is V2 because /e depends on a different function
+// signature for NewCLIPrompt, so this requires a couple follow up PRs to fix.
+func NewCLIPromptV2(cfg *CLIPromptConfig) *CLIPrompt {
+	// If no config is provided, use defaults (zero value).
+	if cfg == nil {
+		cfg = new(CLIPromptConfig)
+	}
 	return &CLIPrompt{
-		CLIPromptConfig: CLIPromptConfig{
-			PromptConfig: *cfg,
-			Writer:       writer,
-		},
+		cfg: *cfg,
 	}
 }
 
 func (c *CLIPrompt) stdin() prompt.StdinReader {
-	if c.StdinFunc == nil {
+	if c.cfg.StdinFunc == nil {
 		return prompt.Stdin()
 	}
-	return c.StdinFunc()
+	return c.cfg.StdinFunc()
 }
 
 func (c *CLIPrompt) writer() io.Writer {
-	if c.Writer == nil {
+	if c.cfg.Writer == nil {
 		return os.Stderr
 	}
-	return c.Writer
+	return c.cfg.Writer
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	if c.PromptReason != "" {
-		fmt.Fprintln(c.writer(), c.PromptReason)
+	if c.cfg.PromptReason != "" {
+		fmt.Fprintln(c.writer(), c.cfg.PromptReason)
 	}
 
 	promptOTP := chal.TOTP != nil
@@ -108,7 +116,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	// Check off unsupported methods.
-	if promptWebauthn && !c.WebauthnSupported {
+	if promptWebauthn && !c.cfg.WebauthnSupported {
 		promptWebauthn = false
 		slog.DebugContext(ctx, "hardware device MFA not supported by your platform")
 		if !promptOTP {
@@ -117,24 +125,19 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	// Prefer whatever method is requested by the client.
-	switch {
-	case c.PreferOTP && promptOTP:
+	if c.cfg.PreferOTP && promptOTP {
 		promptWebauthn = false
 	}
 
 	// Use stronger auth methods if hijack is not allowed.
-	if !c.AllowStdinHijack && promptWebauthn {
+	if !c.cfg.AllowStdinHijack && promptWebauthn {
 		promptOTP = false
 	}
 
-	// If we have multiple viable options, prefer Webauthn > OTP.
-	switch {
-	case promptWebauthn:
-		// If a specific webauthn attachment was requested, skip OTP.
-		// Otherwise, allow dual prompt with OTP.
-		if c.AuthenticatorAttachment != wancli.AttachmentAuto {
-			promptOTP = false
-		}
+	// If a specific webauthn attachment was requested, skip OTP.
+	// Otherwise, allow dual prompt with OTP.
+	if promptWebauthn && c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto {
+		promptOTP = false
 	}
 
 	switch {
@@ -145,7 +148,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		resp, err := c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
 		return resp, trace.Wrap(err)
 	case promptOTP:
-		resp, err := c.promptOTP(ctx, c.Quiet)
+		resp, err := c.promptOTP(ctx, c.cfg.Quiet)
 		return resp, trace.Wrap(err)
 	default:
 		// We shouldn't reach this case as we would have hit the no-op case above.
@@ -173,20 +176,20 @@ func (c *CLIPrompt) promptOTP(ctx context.Context, quiet bool) (*proto.MFAAuthen
 
 func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context) *wancli.DefaultPrompt {
 	writer := c.writer()
-	if c.Quiet {
+	if c.cfg.Quiet {
 		writer = io.Discard
 	}
 
 	prompt := wancli.NewDefaultPrompt(ctx, writer)
-	prompt.StdinFunc = c.StdinFunc
+	prompt.StdinFunc = c.cfg.StdinFunc
 	prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", c.promptDevicePrefix())
 	prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", c.promptDevicePrefix())
 	return prompt
 }
 
 func (c *CLIPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-	opts := &wancli.LoginOpts{AuthenticatorAttachment: c.AuthenticatorAttachment}
-	resp, _, err := c.WebauthnLoginFunc(ctx, c.GetWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
+	opts := &wancli.LoginOpts{AuthenticatorAttachment: c.cfg.AuthenticatorAttachment}
+	resp, _, err := c.cfg.WebauthnLoginFunc(ctx, c.cfg.GetWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -195,8 +198,8 @@ func (c *CLIPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 }
 
 func (c *CLIPrompt) promptDevicePrefix() string {
-	if c.DeviceType != "" {
-		return fmt.Sprintf("*%s* ", c.DeviceType)
+	if c.cfg.DeviceType != "" {
+		return fmt.Sprintf("*%s* ", c.cfg.DeviceType)
 	}
 	return ""
 }

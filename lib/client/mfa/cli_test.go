@@ -260,13 +260,11 @@ Enter your security key PIN:
 			buffer := make([]byte, 0, 100)
 			out := bytes.NewBuffer(buffer)
 
-			prompt := &mfa.CLIPrompt{
-				CLIPromptConfig: mfa.CLIPromptConfig{
-					PromptConfig:     *cfg,
-					Writer:           out,
-					AllowStdinHijack: true,
-				},
-			}
+			prompt := mfa.NewCLIPromptV2(&mfa.CLIPromptConfig{
+				PromptConfig:     *cfg,
+				Writer:           out,
+				AllowStdinHijack: true,
+			})
 			resp, err := prompt.Run(ctx, tc.challenge)
 
 			if tc.expectErr != nil {

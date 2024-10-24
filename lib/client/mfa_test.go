@@ -72,7 +72,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	tests := []struct {
 		name            string
 		challenge       *proto.MFAAuthenticateChallenge
-		customizePrompt func(p *mfa.CLIPrompt)
+		customizePrompt func(p *mfa.CLIPromptConfig)
 	}{
 		{
 			name:      "webauthn only",
@@ -81,7 +81,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 		{
 			name:      "webauthn and OTP",
 			challenge: challengeWebauthnOTP,
-			customizePrompt: func(p *mfa.CLIPrompt) {
+			customizePrompt: func(p *mfa.CLIPromptConfig) {
 				p.AllowStdinHijack = true // required for OTP+WebAuthn prompt.
 			},
 		},
@@ -108,17 +108,15 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				return nil, "", wancli.ErrUsingNonRegisteredDevice
 			}
 
-			prompt := &mfa.CLIPrompt{
-				CLIPromptConfig: mfa.CLIPromptConfig{
-					PromptConfig: *promptConfig,
-				},
+			cliConfig := &mfa.CLIPromptConfig{
+				PromptConfig: *promptConfig,
 			}
 
 			if test.customizePrompt != nil {
-				test.customizePrompt(prompt)
+				test.customizePrompt(cliConfig)
 			}
 
-			_, err := prompt.Run(ctx, test.challenge)
+			_, err := mfa.NewCLIPromptV2(cliConfig).Run(ctx, test.challenge)
 			if !errors.Is(err, wancli.ErrUsingNonRegisteredDevice) {
 				t.Errorf("PromptMFAChallenge returned err=%q, want %q", err, wancli.ErrUsingNonRegisteredDevice)
 			}
