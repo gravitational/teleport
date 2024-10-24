@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
@@ -74,6 +75,20 @@ func parseReviewFrequency(input string) ReviewFrequency {
 	// We won't return an error here and we'll just let CheckAndSetDefaults handle the rest.
 	return 0
 }
+
+// MaxAllowedDepth is the maximum allowed depth for nested access lists.
+const MaxAllowedDepth = 10
+
+var (
+	// MembershipKindUnspecified is the default membership kind (treated as 'user').
+	MembershipKindUnspecified = accesslistv1.MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED.String()
+
+	// MembershipKindUser is the user membership kind.
+	MembershipKindUser = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
+
+	// MembershipKindList is the list membership kind.
+	MembershipKindList = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
+)
 
 // ReviewDayOfMonth is the day of month the review should be repeated on.
 type ReviewDayOfMonth int
@@ -137,6 +152,12 @@ type Spec struct {
 	// Owners is a list of owners of the access list.
 	Owners []Owner `json:"owners" yaml:"owners"`
 
+	// OwnerOf is a list of Access List UUIDs where this access list is an explicit owner.
+	OwnerOf []string `json:"owner_of" yaml:"owner_of"`
+
+	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
+	MemberOf []string `json:"member_of" yaml:"member_of"`
+
 	// Audit describes the frequency that this access list must be audited.
 	Audit Audit `json:"audit" yaml:"audit"`
 
@@ -167,6 +188,10 @@ type Owner struct {
 
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
+
+	// MembershipKind describes the kind of ownership,
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
+	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // Audit describes the audit configuration for an access list.
@@ -225,6 +250,8 @@ type Grants struct {
 type Status struct {
 	// MemberCount is the number of members in the access list.
 	MemberCount *uint32
+	// MemberListCount is the number of members in the access list that are lists themselves.
+	MemberListCount *uint32
 }
 
 // NewAccessList will create a new access list.
@@ -258,6 +285,14 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("owners are missing")
 	}
 
+	if a.Spec.OwnerOf == nil {
+		a.Spec.OwnerOf = []string{}
+	}
+
+	if a.Spec.MemberOf == nil {
+		a.Spec.MemberOf = []string{}
+	}
+
 	if a.Spec.Audit.Recurrence.Frequency == 0 {
 		a.Spec.Audit.Recurrence.Frequency = SixMonths
 	}
@@ -286,10 +321,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		a.Spec.Audit.Notifications.Start = twoWeeks
 	}
 
-	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
-		return trace.BadParameter("grants must specify at least one role or trait")
-	}
-
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
 	// were created with duplicated owners before the backend checked for duplicate owners. In order to
 	// ensure that these access lists are backwards compatible, we'll deduplicate them here.
@@ -298,6 +329,9 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	for _, owner := range a.Spec.Owners {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
+		}
+		if owner.MembershipKind == "" {
+			owner.MembershipKind = MembershipKindUser
 		}
 
 		if _, ok := ownerMap[owner.Name]; ok {
@@ -317,7 +351,7 @@ func (a *AccessList) GetOwners() []Owner {
 	return a.Spec.Owners
 }
 
-// GetOwners returns the list of owners from the access list.
+// SetOwners sets the owners of the access list.
 func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
 }
@@ -335,6 +369,11 @@ func (a *AccessList) GetOwnershipRequires() Requires {
 // GetGrants returns the grants from the access list.
 func (a *AccessList) GetGrants() Grants {
 	return a.Spec.Grants
+}
+
+// GetOwnerGrants returns the owner grants from the access list.
+func (a *AccessList) GetOwnerGrants() Grants {
+	return a.Spec.OwnerGrants
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,

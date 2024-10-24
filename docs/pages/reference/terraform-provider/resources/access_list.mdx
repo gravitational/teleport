@@ -99,8 +99,10 @@ Required:
 Optional:
 
 - `description` (String) description is an optional plaintext description of the Access List.
+- `member_of` (List of String) member_of describes Access Lists that this Access List is an explicit member of.
 - `membership_requires` (Attributes) membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list. (see [below for nested schema](#nested-schema-for-specmembership_requires))
 - `owner_grants` (Attributes) owner_grants describes the access granted by owners to this Access List. (see [below for nested schema](#nested-schema-for-specowner_grants))
+- `owner_of` (List of String) owner_of describes Access Lists that this Access List is an explicit owner of.
 - `ownership_requires` (Attributes) ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list. (see [below for nested schema](#nested-schema-for-specownership_requires))
 - `title` (String) title is a plaintext short description of the Access List.
 
@@ -155,6 +157,7 @@ Optional:
 Optional:
 
 - `description` (String) description is the plaintext description of the owner and why they are an owner.
+- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 - `name` (String) name is the username of the owner.
 
 
