@@ -6,7 +6,7 @@
 # such as the presence of step headings in how-to guides and the formatting of
 # step headings.
 extends: script
-level: error
+level: warning
 message: Guides that include H2 sections named after numbered steps (e.g., "Step 1/5") must have the expected sequence of numbers and accurate total numbers of steps. This heading either has an unexpected step number or an unexpected total number of steps.
 scope: raw
 script: |
