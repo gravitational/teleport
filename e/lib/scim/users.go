@@ -2,10 +2,10 @@ package scim
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/scim2/filter-parser/v2"
-	"github.com/sirupsen/logrus"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -16,8 +16,8 @@ const (
 )
 
 type userHandler struct {
-	users UsersService
-	log   logrus.FieldLogger
+	users  UsersService
+	logger *slog.Logger
 }
 
 var _ resourceHandler = (*userHandler)(nil)
@@ -135,9 +135,10 @@ func (uh *userHandler) list(ctx context.Context, shim providerShim, filter filte
 			if len(outputResources) < int(requestedPage.Count) {
 				userResource, err := shim.userToResource(ctx, user)
 				if err != nil {
-					uh.log.
-						WithError(err).
-						Errorf("converting user %s to SCIM resource", user.GetName())
+					uh.logger.ErrorContext(ctx, "converting user to SCIM resource",
+						"user", user.GetName(),
+						"error", err,
+					)
 					continue
 				}
 

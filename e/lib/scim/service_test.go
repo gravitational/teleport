@@ -7,7 +7,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -22,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func enableOktaSCIMEntitlement(t *testing.T) {
@@ -346,7 +346,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 	ctx := context.Background()
 	sut, err := NewService(&Config{
 		Authorizer:         &authMock{},
-		Log:                logrus.New(),
+		Logger:             utils.NewSlogLoggerForTests(),
 		UsersService:       &userMock{users: users},
 		RolesService:       &mockRoleService{},
 		PluginsService:     &pluginMock{plugin: plugin},

@@ -359,7 +359,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		CredentialsService: p.pluginCreds,
 		LocksService:       p.authServer.AuthServer.Services,
 		AccessListsService: p.authServer.AuthServer.Services,
-		Log:                log,
+		Logger:             logger,
 	})
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")

@@ -3,11 +3,11 @@ package scim
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
 	"github.com/scim2/filter-parser/v2"
-	"github.com/sirupsen/logrus"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 )
@@ -32,7 +32,7 @@ type resourceTypeHandler struct {
 	endpoint string
 	schema   schema.Schema
 	handler  resourceHandler
-	log      logrus.FieldLogger
+	logger   *slog.Logger
 }
 
 // getResource fetches a single resource from the underlying `resourceHandler`

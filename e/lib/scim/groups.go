@@ -2,13 +2,13 @@ package scim
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
 	"github.com/scim2/filter-parser/v2"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -34,7 +34,7 @@ type groupHandler struct {
 	roles       RolesService
 	users       UsersService
 	clock       clockwork.Clock
-	log         logrus.FieldLogger
+	logger      *slog.Logger
 }
 
 // static assertion that groupHandler implements the resourceHandler interface
@@ -170,7 +170,7 @@ func (gh *groupHandler) createNewAccessList(ctx context.Context, shim providerSh
 	acl.Spec.OwnerGrants.Roles = []string{reviewerRole.GetName()}
 	acl.Spec.Grants.Roles = []string{accessRole.GetName()}
 
-	gh.log.Debugf("Upserting access list %q", acl.GetName())
+	gh.logger.DebugContext(ctx, "Upserting access list", "access_list", acl.GetName())
 	upsertedACL, err := gh.accessLists.UpsertAccessList(ctx, acl)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating accesslist")
@@ -213,12 +213,12 @@ func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, a
 	labelsCpy[eteleport.OktaACLReviewerRoleLabel] = "true"
 	reviewerRole.SetStaticLabels(labelsCpy)
 
-	gh.log.Debugf("Creating access role %q", accessRole.GetName())
+	gh.logger.DebugContext(ctx, "Creating access role", "role", accessRole.GetName())
 	if _, err := gh.roles.CreateRole(ctx, accessRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating access role %q", accessRole.GetName())
 	}
 
-	gh.log.Debugf("Creating reviewer role %q", reviewerRole.GetName())
+	gh.logger.DebugContext(ctx, "Creating reviewer role", "role", reviewerRole.GetName())
 	if _, err := gh.roles.CreateRole(ctx, reviewerRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating reviewer role %q", reviewerRole.GetName())
 	}
@@ -227,28 +227,28 @@ func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, a
 }
 
 func (gh *groupHandler) validateMemberList(ctx context.Context, shim providerShim, acl *accesslist.AccessList, members []*accesslist.AccessListMember) ([]*accesslist.AccessListMember, error) {
-	log := gh.log.WithField(logFieldGroupId, acl.GetName())
+	log := gh.logger.With(logFieldGroupId, acl.GetName())
 
 	validatedUsers := make([]*accesslist.AccessListMember, 0, len(members))
 	for _, m := range members {
-		memberLog := log.WithField("member", m.Spec.Name)
+		memberLogger := log.With("member", m.Spec.Name)
 
-		memberLog.Debug("Processing Group Member")
+		memberLogger.DebugContext(ctx, "Processing Group Member")
 
 		user, err := gh.users.GetUser(ctx, m.Spec.Name, false)
 		if err != nil {
-			memberLog.Errorf("Failed fetching user: %s", err)
+			memberLogger.ErrorContext(ctx, "Failed fetching user", "error", err)
 			continue
 		}
 
 		if !shim.userPredicate(ctx, user) {
-			memberLog.Debug("User does not belong to IdP")
+			memberLogger.DebugContext(ctx, "User does not belong to IdP")
 			continue
 		}
 
 		// Give the IdP an opportunity to customize the AccessListMember record
 		if err := shim.onCreatingAccessListMember(ctx, m); err != nil {
-			memberLog.Errorf("Failed customizing member record: %s. Omitting.", err)
+			memberLogger.ErrorContext(ctx, "Omitting member after failing to customize member record", "error", err)
 			continue
 		}
 
@@ -256,7 +256,7 @@ func (gh *groupHandler) validateMemberList(ctx context.Context, shim providerShi
 		// AccessListMember by this point, so we should assert that this is the
 		// case.
 		if err := m.CheckAndSetDefaults(); err != nil {
-			memberLog.Errorf("Failed validating member record: %s. Omitting.", err)
+			memberLogger.ErrorContext(ctx, "Omitting member after failing to validate record", "error", err)
 			continue
 		}
 
@@ -300,9 +300,10 @@ func (gh *groupHandler) list(ctx context.Context, shim providerShim, filter filt
 			if len(outputResources) < int(requestedPage.Count) {
 				groupResource, err := accessListToResource(accessList, nil)
 				if err != nil {
-					gh.log.
-						WithField(logFieldGroupId, accessList.GetName()).
-						Errorf("converting access list to SCIM group resource: %s", err)
+					gh.logger.ErrorContext(ctx, "converting access list to SCIM group resource",
+						"error", err,
+						logFieldGroupId, accessList.GetName(),
+					)
 					continue
 				}
 
@@ -353,7 +354,7 @@ func (gh *groupHandler) getOrCreateAccessList(ctx context.Context, shim provider
 }
 
 func (gh *groupHandler) findAccessListByDisplayName(ctx context.Context, shim providerShim, displayName string) (*accesslist.AccessList, error) {
-	gh.log.Debugf("Looking for ACL with display name %q", displayName)
+	gh.logger.DebugContext(ctx, "Looking for ACL with display name", "display_name", displayName)
 
 	var candidate *accesslist.AccessList
 	var nextToken string
@@ -367,15 +368,19 @@ func (gh *groupHandler) findAccessListByDisplayName(ctx context.Context, shim pr
 		}
 
 		for _, acl := range page {
-			gh.log.Debugf("Examining ACL %s %q...", acl.GetName(), acl.Spec.Title)
+			gh.logger.DebugContext(ctx, "Examining ACL",
+				slog.Group("acl",
+					"name", acl.GetName(),
+					"title", acl.Spec.Title),
+			)
 
 			if acl.Spec.Title != displayName {
-				gh.log.Debugf("Title mismatch: %q != %q", acl.Spec.Title, displayName)
+				gh.logger.DebugContext(ctx, "Title mismatch", "existing_title", acl.Spec.Title, "requested_title", displayName)
 				continue
 			}
 
 			if !shim.accessListPredicate(ctx, acl) {
-				gh.log.Debugf("Fails access list predicate. Labels: %#v", acl.GetMetadata().Labels)
+				gh.logger.DebugContext(ctx, "Failed access list predicate", "labels", acl.GetMetadata().Labels)
 				continue
 			}
 
@@ -500,16 +505,16 @@ func (gh *groupHandler) update(ctx context.Context, shim providerShim, r *scimpb
 
 // delete handles a request to delete a group resource
 func (gh *groupHandler) delete(ctx context.Context, shim providerShim, id string) error {
-	log := gh.log.WithField(logFieldGroupId, id)
+	logger := gh.logger.With(logFieldGroupId, id)
 
 	// Check that the target Access List exists and belongs to this provider
-	log.Debug("Checking Access List existence and provenance")
+	logger.DebugContext(ctx, "Checking Access List existence and provenance")
 	acl, err := gh.loadAccessList(ctx, shim, id)
 	if err != nil {
 		return trace.Wrap(err, "loading existing access list")
 	}
 
-	log.Debug("Deleting AccessList")
+	logger.DebugContext(ctx, "Deleting AccessList")
 	if err := gh.accessLists.DeleteAccessList(ctx, id); err != nil {
 		return trace.Wrap(err)
 	}
@@ -528,10 +533,10 @@ func (gh *groupHandler) delete(ctx context.Context, shim providerShim, id string
 		// make a best-effort attempt to delete the associated roles. Okta sync
 		// will clean up any leftovers on its next synchronization pass
 		if err := gh.roles.DeleteRole(ctx, roleName); err != nil {
-			log.WithFields(logrus.Fields{
-				"role_name": roleName,
-				"error":     err.Error(),
-			}).Error("Access List Role deletion failed")
+			logger.ErrorContext(ctx, "Access List Role deletion failed",
+				"role_name", roleName,
+				"error", err,
+			)
 		}
 	}
 

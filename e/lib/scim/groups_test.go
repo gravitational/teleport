@@ -9,7 +9,6 @@ import (
 	"github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -677,7 +676,6 @@ func TestGroupUpdate(t *testing.T) {
 }
 
 func TestGroupDelete(t *testing.T) {
-	logrus.StandardLogger().SetLevel(logrus.DebugLevel)
 	enableOktaSCIMEntitlement(t)
 
 	clock := clockwork.NewFakeClock()
@@ -1032,8 +1030,6 @@ func mkTestAccessList(t *testing.T, id int, isSCIM bool) *accesslist.AccessList 
 }
 
 func mkTestAccessListWithName(t *testing.T, name, title string, isSCIM bool) *accesslist.AccessList {
-	logrus.StandardLogger().SetLevel(logrus.DebugLevel)
-
 	labels := map[string]string{
 		testUserLabel: "banana",
 	}

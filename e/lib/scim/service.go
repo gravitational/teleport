@@ -2,11 +2,11 @@ package scim
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -41,7 +41,7 @@ type Service struct {
 	accessLists   AccessListsService
 	shimFactories map[types.PluginType]shimFactory
 	resourceTypes map[string]resourceTypeHandler
-	log           logrus.FieldLogger
+	logger        *slog.Logger
 	clock         clockwork.Clock
 	identity      IdentityService
 }
@@ -55,7 +55,7 @@ var defaultShimFactoryMap = map[types.PluginType]shimFactory{
 // Config is the externally-supplied configuration data for the SCIM service.
 type Config struct {
 	Authorizer         authz.Authorizer
-	Log                logrus.FieldLogger
+	Logger             *slog.Logger
 	UsersService       UsersService
 	RolesService       RolesService
 	PluginsService     PluginsService
@@ -104,8 +104,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing plugin credentials service")
 	}
 
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 
 	if cfg.Clock == nil {
@@ -121,9 +121,9 @@ func NewService(cfg *Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	log := cfg.Log.WithField(teleport.ComponentKey, ComponentName)
-	usersLog := log.WithField("ResourceType", "Users")
-	groupsLog := log.WithField("ResourceType", "Groups")
+	logger := cfg.Logger.With(teleport.ComponentKey, ComponentName)
+	usersLogger := logger.With("resource_type", "users")
+	groupsLogger := logger.With("resource_type", "groups")
 
 	return &Service{
 		authorizer:    cfg.Authorizer,
@@ -135,7 +135,7 @@ func NewService(cfg *Config) (*Service, error) {
 		accessLists:   cfg.AccessListsService,
 		shimFactories: cfg.ShimFactories,
 		creds:         cfg.CredentialsService,
-		log:           log,
+		logger:        logger,
 		clock:         cfg.Clock,
 
 		resourceTypes: map[string]resourceTypeHandler{
@@ -143,20 +143,23 @@ func NewService(cfg *Config) (*Service, error) {
 				name:     "User",
 				endpoint: "/Users",
 				schema:   schema.CoreUserSchema(),
-				handler:  &userHandler{users: cfg.UsersService, log: usersLog},
-				log:      usersLog,
+				handler: &userHandler{
+					users:  cfg.UsersService,
+					logger: usersLogger,
+				},
+				logger: usersLogger,
 			},
 			"Groups": {
 				name:     "Group",
 				endpoint: "/Groups",
 				schema:   schema.CoreGroupSchema(),
-				log:      groupsLog,
+				logger:   groupsLogger,
 				handler: &groupHandler{
 					accessLists: cfg.AccessListsService,
 					roles:       cfg.RolesService,
 					users:       cfg.UsersService,
 					clock:       cfg.Clock,
-					log:         groupsLog,
+					logger:      groupsLogger,
 				},
 			},
 		},
