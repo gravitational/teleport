@@ -19,12 +19,14 @@
 package cli
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -73,4 +75,36 @@ func TestSharedStartArgs(t *testing.T) {
 	dir, ok := cfg.Storage.Destination.(*config.DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, "/foo/bar", dir.Path)
+}
+
+func TestSharedDestinationArgs(t *testing.T) {
+	dir := t.TempDir()
+
+	app, subcommand := buildMinimalKingpinApp("test")
+	args := newSharedDestinationArgs(subcommand)
+	_, err := app.Parse([]string{
+		"test",
+		fmt.Sprintf("--destination=file://%s", dir),
+		"--reader-user=123",
+		"--reader-user=456",
+		"--reader-group=789",
+		"--reader-group=101112",
+	})
+	require.NoError(t, err)
+
+	require.ElementsMatch(t, args.ReaderUsers, []string{"123", "456"})
+	require.ElementsMatch(t, args.ReaderGroups, []string{"789", "101112"})
+
+	dest, err := args.BuildDestination()
+	require.NoError(t, err)
+
+	dd, ok := dest.(*config.DestinationDirectory)
+	require.True(t, ok)
+
+	require.ElementsMatch(t, dd.Readers, []*botfs.ACLSelector{
+		{User: "123"},
+		{User: "456"},
+		{Group: "789"},
+		{Group: "101112"},
+	})
 }

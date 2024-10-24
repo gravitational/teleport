@@ -35,6 +35,17 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -561,6 +572,17 @@ spec:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1366,6 +1388,17 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1892,6 +1925,17 @@ spec:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
