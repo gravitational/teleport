@@ -190,7 +190,11 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd.ChallengeExtensions = challengeExtensions
+	sd.ChallengeExtensions = &wantypes.ChallengeExtensions{
+		Scope:                       challengeExtensions.Scope,
+		AllowReuse:                  challengeExtensions.AllowReuse,
+		UserVerificationRequirement: challengeExtensions.UserVerificationRequirement,
+	}
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)

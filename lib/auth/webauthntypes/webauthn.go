@@ -405,7 +405,14 @@ type SessionData struct {
 	// An empty value is treated equivalently to "discouraged".
 	UserVerification string `json:"userVerification,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
-	ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
+	ChallengeExtensions *ChallengeExtensions `json:"challenge_extensions,omitempty"`
+}
+
+// ChallengeExtensions is a json struct for [mfav1.ChallengeExtensions].
+type ChallengeExtensions struct {
+	Scope                       mfav1.ChallengeScope      `json:"scope,omitempty"`
+	AllowReuse                  mfav1.ChallengeAllowReuse `json:"allow_reuse,omitempty"`
+	UserVerificationRequirement string                    `json:"user_verification_requirement,omitempty"`
 }
 
 // SessionDataFromProtocol converts a [webauthn.SessionData] struct to an
