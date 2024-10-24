@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	dsig "github.com/russellhaering/goxmldsig"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // tEnv is a TEnv for samlidpv1
@@ -44,7 +44,7 @@ func newTEnv(t *testing.T, clock clockwork.Clock) *tEnv {
 		KeyStore:         env.KeyStore,
 		Authorizer:       env.Authorizer,
 		MFAAuthenticator: &fakeMFAAuthenticator{},
-		Log:              logrus.NewEntry(logrus.New()),
+		Logger:           utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 

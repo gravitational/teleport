@@ -3,12 +3,13 @@ package samlidpv1
 import (
 	"context"
 	"encoding/xml"
+	stdlog "log"
+	"log/slog"
 	"net/url"
 
 	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
@@ -47,8 +48,8 @@ type SAMLIdPServiceConfig struct {
 	// MFAAuthenticator is for authenticating user MFA challenge responses.
 	MFAAuthenticator authz.MFAAuthenticator
 
-	// Log is the logrus logging entry.
-	Log *logrus.Entry
+	// Logger emits log messages.
+	Logger *slog.Logger
 }
 
 func (s *SAMLIdPServiceConfig) CheckAndSetDefaults() error {
@@ -64,8 +65,8 @@ func (s *SAMLIdPServiceConfig) CheckAndSetDefaults() error {
 	if s.MFAAuthenticator == nil {
 		return trace.BadParameter("mfa authenticator is missing")
 	}
-	if s.Log == nil {
-		return trace.BadParameter("logger is missing")
+	if s.Logger == nil {
+		s.Logger = slog.Default()
 	}
 
 	return nil
@@ -82,7 +83,7 @@ func NewSAMLIdPService(cfg SAMLIdPServiceConfig) (*SAMLIdPService, error) {
 		keyStore:         cfg.KeyStore,
 		authorizer:       cfg.Authorizer,
 		mfaAuthenticator: cfg.MFAAuthenticator,
-		log:              cfg.Log,
+		logger:           cfg.Logger,
 	}, nil
 }
 
@@ -95,7 +96,7 @@ type SAMLIdPService struct {
 	keyStore         *keystore.Manager
 	authorizer       authz.Authorizer
 	mfaAuthenticator authz.MFAAuthenticator
-	log              *logrus.Entry
+	logger           *slog.Logger
 }
 
 // ProcessSAMLIdPRequest makes a signed SAML response to a SAML auth request.
@@ -196,6 +197,7 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 		Signer:          signer,
 		SignatureMethod: req.GetSignatureMethod(),
 		MetadataURL:     *metadataURL,
+		Logger:          stdlog.Default(),
 	}
 
 	// Create an authn request that has our various bits and pieces packed into it.

@@ -17,7 +17,7 @@ import (
 func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
 	sess, err := s.getSession(r.Context(), req)
 	if err != nil {
-		s.log.WithError(err).Error("Failed to get session.")
+		s.logger.ErrorContext(r.Context(), "Failed to get session", "error", err)
 		s.writeError(w, trace.ErrorToCode(err))
 	}
 	return sess
@@ -28,7 +28,7 @@ func (s *Service) getSession(ctx context.Context, req *saml.IdpAuthnRequest) (*s
 
 	identity, err := getIdentityFromCtx(ctx)
 	if err != nil {
-		s.log.Debugf("error getting identity from context: %v", err)
+		s.logger.DebugContext(ctx, "error getting identity from context", "error", err)
 		s.emitAuthAttemptEvent(ctx, "", entityID, "", err)
 		return nil, trace.Wrap(err)
 	}
@@ -54,7 +54,7 @@ func (s *Service) getSPEntityID(ctx context.Context, req *saml.IdpAuthnRequest) 
 		return entityID
 	}
 
-	s.log.Debug("Failed to get service provider entity ID, continuing.")
+	s.logger.DebugContext(ctx, "Failed to get service provider entity ID, continuing")
 	return ""
 }
 
@@ -140,7 +140,7 @@ func (s *Service) GetServiceProvider(r *http.Request, serviceProviderID string) 
 	// Getting metadata for the audit event.
 	user, err := getUsernameFromCtx(r.Context())
 	if err != nil {
-		s.log.Warnf("error getting username from context: %v", err)
+		s.logger.WarnContext(r.Context(), "error getting username from context", "error", err)
 	}
 
 	err = trace.NotFound("could not find service provider")

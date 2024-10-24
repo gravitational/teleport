@@ -282,7 +282,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	s.webServerURL = serverURL
 
 	samlIdP, err := saml.New(s.ctx, saml.Config{
-		Log:         utils.NewLoggerForTests().WithFields(nil),
+		Logger:      utils.NewSlogLoggerForTests(),
 		Clock:       s.webPlugin.Clock,
 		Client:      s.webPlugin.GetProxyClient(),
 		AccessPoint: s.webPlugin.GetAccessPoint(),

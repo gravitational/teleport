@@ -265,7 +265,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		KeyStore:         p.authServer.AuthServer.GetKeyStore(),
 		Authorizer:       p.authServer.Authorizer,
 		MFAAuthenticator: p.authServer.AuthServer,
-		Log:              log,
+		Logger:           logger,
 	})
 	if err != nil {
 		return trace.Wrap(err)

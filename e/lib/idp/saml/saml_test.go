@@ -10,7 +10,6 @@ import (
 	"github.com/crewjam/saml"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // tEnvWithSAMLService is a combined testenv.TEnv (sets auth service dependencies)
@@ -65,7 +65,7 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 		KeyStore:         svcs.KeyStore,
 		Authorizer:       svcs.Authorizer,
 		MFAAuthenticator: &fakeMFAAuthenticator{},
-		Log:              logrus.NewEntry(logrus.New()),
+		Logger:           utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
@@ -81,7 +81,7 @@ func newTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	}
 
 	samlIdPService, err := New(ctx, Config{
-		Log:         logrus.NewEntry(logrus.New()),
+		Logger:      utils.NewSlogLoggerForTests(),
 		Clock:       clock,
 		Client:      ntclient,
 		AccessPoint: ntclient,

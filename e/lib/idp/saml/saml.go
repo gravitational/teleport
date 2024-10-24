@@ -2,6 +2,8 @@ package saml
 
 import (
 	"context"
+	stdlog "log"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	dsig "github.com/russellhaering/goxmldsig"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
@@ -26,8 +27,8 @@ import (
 )
 
 type Config struct {
-	// Log is the logger
-	Log *logrus.Entry
+	// Logger emits log messages
+	Logger *slog.Logger
 	// Clock is a clock for time-related operations
 	Clock clockwork.Clock
 	// Client is the non-cached client to use for the SAML IdP
@@ -47,8 +48,8 @@ type Config struct {
 
 // Check makes sure the SAML identity provider service configuration is valid.
 func (c *Config) Check() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentSAMLIdP)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentSAMLIdP)
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -115,7 +116,7 @@ type IdPAccessPoint interface {
 
 // Service is the SAML identity provider service.
 type Service struct {
-	log         *logrus.Entry
+	logger      *slog.Logger
 	clock       clockwork.Clock
 	authorizer  authz.Authorizer
 	idpHandler  http.Handler
@@ -157,7 +158,7 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	parsedURL.Path = IdPRoute
 
 	service := &Service{
-		log:             cfg.Log,
+		logger:          cfg.Logger,
 		clock:           cfg.Clock,
 		authorizer:      cfg.Authorizer,
 		client:          cfg.Client,
@@ -205,7 +206,7 @@ func (s *Service) createIdP(ctx context.Context) (saml.IdentityProvider, error) 
 	}
 
 	return saml.IdentityProvider{
-		Logger:                  s.log,
+		Logger:                  stdlog.Default(),
 		Certificate:             cert,
 		SignatureMethod:         s.signatureMethod,
 		SessionProvider:         s,
@@ -245,7 +246,7 @@ func (s *Service) emitAuthAttemptEvent(ctx context.Context, user, entityID, shor
 	}
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-		s.log.WithError(emitErr).Warnf("Failed to emit SAML IdP auth attempt event: %v", event)
+		s.logger.WarnContext(ctx, "Failed to emit SAML IdP auth attempt event", "event", event.Type, "error", emitErr)
 	}
 }
 

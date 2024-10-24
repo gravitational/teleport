@@ -18,7 +18,7 @@ import (
 //
 //nolint:revive // Because we want this to be IdP.
 func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin) error {
-	log := cfg.Log.WithField(teleport.ComponentKey, eteleport.ComponentSAMLIdP)
+	log := cfg.Logger.With(teleport.ComponentKey, eteleport.ComponentSAMLIdP)
 	authClient := plugin.GetProxyClient()
 	accessPoint := plugin.GetAccessPoint()
 
@@ -30,7 +30,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: eteleport.ComponentSAMLIdP,
-			Logger:    cfg.Logger.With(teleport.ComponentKey, eteleport.ComponentSAMLIdP),
+			Logger:    log,
 			Client:    authClient,
 		},
 	})
@@ -55,7 +55,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 
 	// Initialize the SAML IdP.
 	samlIdP, err := saml.New(ctx, saml.Config{
-		Log:         log,
+		Logger:      log,
 		Clock:       cfg.Clock,
 		Client:      authClient,
 		AccessPoint: accessPoint,

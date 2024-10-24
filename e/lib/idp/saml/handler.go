@@ -84,7 +84,7 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 			}
 
 			if !trace.IsAccessDenied(err) { // access denied are expected
-				s.log.Errorf("error authorizing user for SAML IdP: %s", err.Error())
+				s.logger.ErrorContext(r.Context(), "error authorizing user for SAML IdP", "error", err)
 			}
 
 			var user string
@@ -146,7 +146,7 @@ func (s *Service) authorize(r *http.Request) (*tlsca.Identity, error) {
 func (s *Service) handleMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
-		s.log.Errorf("Error creating IdP: %v", err)
+		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, http.StatusInternalServerError)
 	}
 	idp.ServeMetadata(w, r) // The saml.IdentityProvider does the response handling here.
@@ -164,7 +164,7 @@ type idpMetadataValues struct {
 func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
-		s.log.Errorf("Error creating IdP: %v", err)
+		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, http.StatusInternalServerError)
 	}
 	ed := idp.Metadata()
@@ -186,7 +186,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 				b64EncodedCert := keys.KeyInfo.X509Data.X509Certificates[0].Data
 				rawCert, err := base64.StdEncoding.DecodeString(b64EncodedCert)
 				if err != nil {
-					s.log.Errorf("Error decoding IdP certificate: %v", err)
+					s.logger.ErrorContext(r.Context(), "Error decoding IdP certificate", "error", err)
 					s.writeError(w, http.StatusInternalServerError)
 				}
 				certPEM := pem.EncodeToMemory(&pem.Block{
@@ -211,7 +211,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 func (s *Service) handleSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
-		s.log.Errorf("Error creating IdP: %v", err)
+		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, http.StatusInternalServerError)
 	}
 	idp.ServeSSO(w, r) // The saml.IdentityProvider does the response handling here.
@@ -223,7 +223,7 @@ func (s *Service) handleSSO(w http.ResponseWriter, r *http.Request, p httprouter
 func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, err := getUsernameFromCtx(r.Context())
 	if err != nil {
-		s.log.Warnf("Error getting username from context: %v", err)
+		s.logger.WarnContext(r.Context(), "Error getting username from context", "error", err)
 	}
 	shortcutName := p.ByName("shortcut")
 
@@ -256,7 +256,7 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 	// The saml.IdentityProvider does the response handling here.
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
-		s.log.Errorf("Error creating IdP: %v", err)
+		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
 		s.writeError(w, http.StatusInternalServerError)
 	}
 	idp.ServeIDPInitiated(w, r, sp.GetEntityID(), sp.GetRelayState())
