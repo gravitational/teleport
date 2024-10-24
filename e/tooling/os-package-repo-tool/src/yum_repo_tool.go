@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,9 +13,7 @@ import (
 
 	// The golang docs are wrong/out of date for this package. Check github instead.
 	"github.com/cavaliergopher/rpm"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type YumRepoTool struct {
@@ -54,8 +54,8 @@ func NewYumRepoTool(config *YumConfig, supportedOSs map[string][]string) (*YumRe
 
 func (yrt *YumRepoTool) Run() error {
 	start := time.Now()
-	logrus.Infoln("Starting YUM repo build process...")
-	logrus.Debugf("Using config: %+v", spew.Sdump(yrt.config))
+	slog.InfoContext(context.Background(), "Starting YUM repo build process")
+	slog.DebugContext(context.Background(), "Using providing configuration", "config", yrt.config)
 
 	isFirstRun, err := yrt.isFirstRun()
 	if err != nil {
@@ -63,7 +63,7 @@ func (yrt *YumRepoTool) Run() error {
 	}
 
 	if isFirstRun {
-		logrus.Warningln("First run or disaster recovery detected, attempting to rebuild existing repos from YUM repository...")
+		slog.WarnContext(context.Background(), "First run or disaster recovery detected, attempting to rebuild existing repos from YUM repository")
 
 		err = yrt.s3Manager.DownloadExistingRepo()
 		if err != nil {
@@ -72,7 +72,7 @@ func (yrt *YumRepoTool) Run() error {
 
 		// Additional first time setup can be done here, but shouldn't be needed
 	} else {
-		logrus.Debugf("Not first run of tool, skipping S3 resync")
+		slog.DebugContext(context.Background(), "Not first run of tool, skipping S3 resync")
 	}
 
 	// Both Hashicorp and Docker publish their key to this path
@@ -111,37 +111,33 @@ func (yrt *YumRepoTool) Run() error {
 		return trace.Wrap(err, "failed to redirect index page to Teleport docs")
 	}
 
-	logrus.Infof("YUM repo build process completed in %s", time.Since(start).Round(time.Millisecond))
+	slog.InfoContext(context.Background(), "YUM repo build process completed", "build_duration", time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
 func (yrt *YumRepoTool) isFirstRun() (bool, error) {
 	yumSyncPath := yrt.config.localBucketPath
-	logrus.Debugf("Checking if %q exists...", yumSyncPath)
+	slog.DebugContext(context.Background(), "Checking if bucket exists", "bucket", yumSyncPath)
 
 	files, err := os.ReadDir(yumSyncPath)
 	if err != nil {
 		return false, trace.Wrap(err, "failed to list files in %q", yumSyncPath)
 	}
 
-	logrus.Debugf("Found %d files in %q:", len(files), yumSyncPath)
-	for _, file := range files {
-		logrus.Debug(file.Name())
-	}
-
+	slog.DebugContext(context.Background(), "Found files in bucket", "matching_count", len(files), "bucket", yumSyncPath)
 	return len(files) == 0, nil
 }
 
 func (yrt *YumRepoTool) getSourceArtifactPaths() ([]string, error) {
 	artifactPath := yrt.config.artifactPath
-	logrus.Infof("Looking for artifacts in %q...", artifactPath)
+	slog.InfoContext(context.Background(), "Looking for source artifacts", "path", artifactPath)
 
 	fileDirEntries, err := os.ReadDir(artifactPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to list files in %q", artifactPath)
 	}
 
-	logrus.Infof("Found %d possible artifacts in %q", len(fileDirEntries), artifactPath)
+	slog.InfoContext(context.Background(), "Found possible artifacts", "found_count", len(fileDirEntries), "path", artifactPath)
 
 	// This allocates a capacity of the maximum that is possibly needed, but it is probably
 	// better than reallocating the underlying array by appending each time
@@ -149,28 +145,27 @@ func (yrt *YumRepoTool) getSourceArtifactPaths() ([]string, error) {
 	for _, fileDirEntry := range fileDirEntries {
 		fileName := fileDirEntry.Name()
 		if filepath.Ext(fileName) != ArtifactExtension {
-			logrus.Debugf("The file %q does not have a %q extension, skipping...", fileName, ArtifactExtension)
+			slog.DebugContext(context.Background(), "Skipping file with invalid extension", "file", fileName, "expected", ArtifactExtension, "actual", filepath.Ext(fileName))
 			continue
 		}
 
 		filePath := filepath.Join(artifactPath, fileName)
 		validArtifactPaths = append(validArtifactPaths, filePath)
-		logrus.Debugf("Found artifact %q", filePath)
+		slog.DebugContext(context.Background(), "Found artifact", "path", filePath)
 	}
 
-	logrus.Infof("Found %d artifacts", len(validArtifactPaths))
-	logrus.Debugf("Source artifact paths: %v", validArtifactPaths)
+	slog.InfoContext(context.Background(), "Found artifacts", "artifact_count", len(validArtifactPaths), "path", validArtifactPaths)
 	return validArtifactPaths, nil
 }
 
 func sortArtifactsByArch(artifactPaths []string) (map[string][]string, error) {
-	logrus.Info("Determining ISA of targeted artifacts...")
+	slog.InfoContext(context.Background(), "Determining ISA of targeted artifacts")
 
 	// Four is probably a decent guess for the number of ISAs we build for. This would cover:
 	// i386, x86_64, arm, arm64
 	archPackageMap := make(map[string][]string, 4)
 	for _, artifactPath := range artifactPaths {
-		logrus.Debugf("Attempting to open RPM %q...", artifactPath)
+		slog.DebugContext(context.Background(), "Attempting to open RPM", "path", artifactPath)
 		rpmPackage, err := rpm.Open(artifactPath)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to read package %q", artifactPath)
@@ -182,7 +177,7 @@ func sortArtifactsByArch(artifactPaths []string) (map[string][]string, error) {
 			return nil, trace.Wrap(err, "failed to determine base architecture for artifact %q", artifactPath)
 		}
 
-		logrus.Debugf("Found %q with ISA %q and base ISA %q", artifactPath, arch, baseArch)
+		slog.DebugContext(context.Background(), "Found matching artifact", "path", artifactPath, "isa", arch, "base_isa", baseArch)
 		if rpmPackagePaths, ok := archPackageMap[baseArch]; ok {
 			archPackageMap[baseArch] = append(rpmPackagePaths, artifactPath)
 		} else {
@@ -190,7 +185,7 @@ func sortArtifactsByArch(artifactPaths []string) (map[string][]string, error) {
 		}
 	}
 
-	logrus.Infof("Found %d ISAs: %v", len(archPackageMap), archPackageMap)
+	slog.InfoContext(context.Background(), "Found ISAs", "isa_count", len(archPackageMap), "isas", archPackageMap)
 
 	return archPackageMap, nil
 }
@@ -239,7 +234,7 @@ func getBaseArchForArch(arch string) (string, error) {
 }
 
 func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPublicKeyPath string) error {
-	logrus.Info("Adding artifacts to repos...")
+	slog.InfoContext(context.Background(), "Adding artifacts to repos")
 
 	archs, err := sortArtifactsByArch(bucketArtifactPaths)
 	if err != nil {
@@ -275,7 +270,7 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 		}
 	}
 
-	logrus.Infof("Updated %d repos with %d artifacts", repoCount, len(bucketArtifactPaths))
+	slog.InfoContext(context.Background(), "Updated repos with artifacts", "repo_count", repoCount, "artifact_count", len(bucketArtifactPaths))
 	return nil
 }
 
@@ -305,7 +300,7 @@ func (yrt *YumRepoTool) createRepoFiles(repoPath, os, osVersion, arch, relativeG
 }
 
 func (yrt *YumRepoTool) updateRepoWithArtifacts(packagePaths []string, repoPath string) error {
-	logrus.Infof("Updating repo at %q with packages %v", repoPath, packagePaths)
+	slog.InfoContext(context.Background(), "Updating repo at with packages", "repo", repoPath, "packages", packagePaths)
 
 	// A soft copy here will have a significant performance impact, and S3 sync will follow links
 	err := yrt.copyArtifactsToRepo(packagePaths, repoPath)
@@ -323,7 +318,7 @@ func (yrt *YumRepoTool) updateRepoWithArtifacts(packagePaths []string, repoPath 
 		return trace.Wrap(err, "failed to sign repo %q metadata", repoPath)
 	}
 
-	logrus.Infof("Finished updating repo %q", repoPath)
+	slog.InfoContext(context.Background(), "Finished updating repo", "repo", repoPath)
 	return nil
 }
 
@@ -359,7 +354,7 @@ func copyArtifacts(artifactPaths []string, destinationDirectory string, shouldHa
 	if shouldHardCopy {
 		copyType = "hard"
 	}
-	logrus.Debugf("Copying %d artifacts to %q via a %s copy...", len(artifactPaths), destinationDirectory, copyType)
+	slog.DebugContext(context.Background(), "Copying artifacts", "artifact_count", len(artifactPaths), "destination", destinationDirectory, "copy_type", copyType)
 
 	err := os.MkdirAll(destinationDirectory, 0770)
 	if err != nil {
@@ -377,7 +372,7 @@ func copyArtifacts(artifactPaths []string, destinationDirectory string, shouldHa
 		destinationArtifactPaths[i] = artifactDestinationPath
 	}
 
-	logrus.Debugf("Successfully copied %d artifact(s) to %q", len(destinationArtifactPaths), destinationDirectory)
+	slog.DebugContext(context.Background(), "Successfully copied artifact(s)", "artifact_count", len(destinationArtifactPaths), "destination", destinationDirectory)
 	return destinationArtifactPaths, nil
 }
 
@@ -455,8 +450,7 @@ func (yrt *YumRepoTool) createRepoFile(filePath, domainName, osName, osVersion, 
 		return trace.Wrap(err, "failed to create repo file at %q", filePath)
 	}
 
-	logrus.Infof("Created repo file at %q", filePath)
-	logrus.Debugf("Repo file contents:\n%s", repoFileContent)
+	slog.InfoContext(context.Background(), "Created repo file", "path", filePath)
 
 	return nil
 }
@@ -467,7 +461,7 @@ func hardCopyFile(src, dest string) error {
 	// Implementation is a modified version of method 1 from
 	// https://opensource.com/article/18/6/copying-files-go
 	start := time.Now()
-	logrus.Debugf("Beginning hard file copy from %q to %q...", src, dest)
+	slog.DebugContext(context.Background(), "Beginning hard file copy", "source", src, "destination", dest)
 
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {
@@ -495,7 +489,7 @@ func hardCopyFile(src, dest string) error {
 		return trace.Wrap(err, "failed to copy source file %q to destination file %q", src, dest)
 	}
 
-	logrus.Debugf("File transfer from %q to %q completed in %s", src, dest, time.Since(start).Round(time.Millisecond))
+	slog.DebugContext(context.Background(), "File transfer completed", "source", src, "destination", dest, "copy_duration", time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -505,13 +499,13 @@ func softCopyFile(src, dest string) error {
 	// Profiling has shown that disk reads/writes are a significant bottleneck with the
 	// APT side of the tool. This will reduce roughly 25GB of read/writes to nearly 0.
 	start := time.Now()
-	logrus.Debugf("Beginning soft file copy from %q to %q...", src, dest)
+	slog.DebugContext(context.Background(), "Beginning soft file copy", "source", src, "destination", dest)
 
 	err := os.Symlink(src, dest)
 	if err != nil {
 		return trace.Wrap(err, "failed to link %q to %q", src, dest)
 	}
 
-	logrus.Debugf("File transfer from %q to %q completed in %s", src, dest, time.Since(start).Round(time.Nanosecond))
+	slog.DebugContext(context.Background(), "File transfer completed", "source", src, "destination", dest, "copy_duration", time.Since(start).Round(time.Nanosecond))
 	return nil
 }

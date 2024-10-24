@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -20,7 +21,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/inhies/go-bytesize"
 	"github.com/seqsense/s3sync"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -65,8 +65,6 @@ func NewS3Manager(config *S3Config) (*S3manager, error) {
 	}
 	s.ChangeLocalBucketPath(config.localBucketPath)
 
-	s3sync.SetLogger(&s3logger{})
-
 	return s, nil
 }
 
@@ -82,7 +80,7 @@ func (s *S3manager) ChangeLocalBucketPath(newBucketPath string) error {
 		return trace.Wrap(err, "failed to determine if directory %q exists", s.bucketLocalPath)
 	}
 
-	logrus.Infof("Creating local bucket directory at %q", s.bucketLocalPath)
+	slog.InfoContext(context.Background(), "Creating local bucket directory", "bucket_path", s.bucketLocalPath)
 	err = os.MkdirAll(s.bucketLocalPath, 0770)
 	if err != nil {
 		return trace.Wrap(err, "failed to create locak bucket directory %q", s.bucketLocalPath)
@@ -125,7 +123,7 @@ func (s *S3manager) DownloadExistingRepo() error {
 
 	// Even if an error has occurred we should wait to exit until all running syncs have
 	// completed, even if not successful
-	logrus.Info("Waiting for download to complete...")
+	slog.InfoContext(context.Background(), "Waiting for download to complete")
 	err = downloadGroup.Wait()
 	if err != nil {
 		return trace.Wrap(err, "failed to perform S3 sync from remote bucket %q to local bucket %q", s.bucketName, s.bucketLocalPath)
@@ -141,7 +139,7 @@ func (s *S3manager) DownloadExistingRepo() error {
 	}
 
 	s.downloadedByteMutex.RLock()
-	logrus.Infof("Downloaded %s bytes", bytesize.New(float64(s.downloadedBytes)))
+	slog.InfoContext(context.Background(), "S3 sync completed", "total_bytes_synced", bytesize.New(float64(s.downloadedBytes)))
 	s.downloadedByteMutex.RUnlock()
 	return nil
 }
@@ -175,7 +173,7 @@ func (s *S3manager) processS3ObjectDownload(s3object *s3.Object, downloadGroup *
 
 func createLinks(linkMap map[string]string) error {
 	for file, target := range linkMap {
-		logrus.Infof("Creating a symlink from %q to %q", file, target)
+		slog.InfoContext(context.Background(), "Creating a symlink", "file", file, "target", target)
 		err := os.MkdirAll(filepath.Dir(file), 0770)
 		if err != nil {
 			return trace.Wrap(err, "failed to create directory structure for %q", file)
@@ -196,17 +194,6 @@ func deleteAllFilesInDirectory(dir string) error {
 	// Note that os.ReadDir does not follow/eval links which is important here
 	dirEntries, err := os.ReadDir(dir)
 	if err != nil {
-		// TODO Remove
-		user, _ := user.Current()
-		logrus.Errorf("user stuff: %s (%s) %s:%s @ %s", user.Name, user.Username, user.Uid, user.Gid, user.HomeDir)
-		parent := filepath.Dir(filepath.Dir(dir))
-		logrus.Errorf("ls of parent parent dir: %s", parent)
-		logrus.Error(BuildAndRunCommand("ls", "-laht", parent))
-		parent = filepath.Dir(dir)
-		logrus.Errorf("ls of parent dir: %s", parent)
-		logrus.Error(BuildAndRunCommand("ls", "-laht", parent))
-		logrus.Errorf("ls of dir: %s", dir)
-		logrus.Error(BuildAndRunCommand("ls", "-laht", dir))
 		return trace.Wrap(err, "failed to list directory entries for directory %q", dir)
 	}
 
@@ -239,7 +226,7 @@ func (s *S3manager) getObjectLink(s3object *s3.Object) (*string, error) {
 
 // s3sync has a bug when downloading a single file so this call reimplements s3sync's download
 func (s *S3manager) downloadFile(s3object *s3.Object, mkdirMutex *sync.Mutex) error {
-	logrus.Infof("Downloading %q...", *s3object.Key)
+	slog.InfoContext(context.Background(), "Downloading file from s3", "file", *s3object.Key)
 	localObjectPath := filepath.Join(s.bucketLocalPath, *s3object.Key)
 
 	// If one channel attempts to create a directory that already exists (this can actually happen)
@@ -274,7 +261,7 @@ func (s *S3manager) downloadFile(s3object *s3.Object, mkdirMutex *sync.Mutex) er
 		return trace.Wrap(err, "failed to update the access and modification time on file %q to %v", localObjectPath, *s3object.LastModified)
 	}
 
-	logrus.Infof("Download of %q complete", *s3object.Key)
+	slog.InfoContext(context.Background(), "Download from s3 complete", "file", *s3object.Key, "size_bytes", fileDownloadByteCount)
 	return nil
 }
 
@@ -292,7 +279,7 @@ func (s *S3manager) UploadBuiltRepoWithRedirects(extensionToMatch, relativeRedir
 	uploadGroup.SetLimit(s.maxConcurrentSyncs)
 
 	walkErr := filepath.WalkDir(s.bucketLocalPath, func(absPath string, info fs.DirEntry, err error) error {
-		logrus.Debugf("Starting on %q...", absPath)
+		slog.DebugContext(context.Background(), "Starting to walk directory tree", "path", absPath)
 
 		if err != nil {
 			return trace.Wrap(err, "failed to walk over directory %q on path %q", s.bucketLocalPath)
@@ -304,17 +291,17 @@ func (s *S3manager) UploadBuiltRepoWithRedirects(extensionToMatch, relativeRedir
 		}
 
 		uploadGroup.Go(syncFunc)
-		logrus.Debugf("Upload for %q queued", absPath)
+		slog.DebugContext(context.Background(), "Upload of file queued", "file", absPath)
 		return nil
 	})
 
 	// Even if an error has occurred we should wait to exit until all running syncs have
 	// completed, even if not successful
-	logrus.Info("Waiting for sync to complete...")
+	slog.InfoContext(context.Background(), "Waiting for sync to complete")
 	syncErr := uploadGroup.Wait()
 	// Future work: add upload logging information once
 	// https://github.com/seqsense/s3sync/commit/29b3fcb259293d80634cb3916e0f28467d017087 has been released
-	logrus.Info("Sync has completed")
+	slog.InfoContext(context.Background(), "Sync has completed")
 
 	errs := make([]error, 0, 2)
 	if walkErr != nil {
@@ -368,7 +355,7 @@ func (s *S3manager) buildSyncDirFunc(absPath string) (func() error, error) {
 	}
 
 	if !isDirEmpty {
-		logrus.Debug("Skipping non-empty directory")
+		slog.DebugContext(context.Background(), "Skipping non-empty directory")
 		return func() error { return nil }, nil
 	}
 
@@ -460,7 +447,7 @@ func (s *S3manager) UploadRedirectFile(localAbsSrcPath, localAbsRemoteTargetPath
 		return trace.Wrap(err, "failed to get %q relative to %q", localAbsRemoteTargetPath, s.bucketLocalPath)
 	}
 
-	logrus.Infof("Creating a redirect file from %q to %q", relSrcPath, relTargetPath)
+	slog.InfoContext(context.Background(), "Creating a redirect file", "redirect_from", relSrcPath, "redirect_to", relTargetPath)
 	// S3 requires a prepended "/" to inform the redirect metadata that the target is another S3 object
 	// in the same bucket
 	s3TargetPath := filepath.Join("/", relTargetPath)
@@ -479,7 +466,7 @@ func (s *S3manager) UploadRedirectFile(localAbsSrcPath, localAbsRemoteTargetPath
 }
 
 func (s *S3manager) UploadRedirectURL(remoteAbsSourcePath, targetURL string) error {
-	logrus.Infof("Creating redirect from %q to %q", remoteAbsSourcePath, targetURL)
+	slog.InfoContext(context.Background(), "Creating redirect", "redirect_from", remoteAbsSourcePath, "redirect_to", targetURL)
 
 	_, err := s.uploader.Upload(&s3manager.UploadInput{
 		Bucket:                  &s.bucketName,
@@ -525,12 +512,12 @@ func (s *S3manager) sync(download bool) error {
 		dest = s.bucketURL.String()
 	}
 
-	logrus.Infof("Performing S3 sync from %q to %q...", src, dest)
+	slog.InfoContext(context.Background(), "Performing S3 sync", "source", src, "destination", dest)
 	err := s.syncManager.Sync(src, dest)
 	if err != nil {
 		return trace.Wrap(err, "failed to sync %q to %q", src, dest)
 	}
-	logrus.Infoln("S3 sync complete")
+	slog.InfoContext(context.Background(), "S3 sync complete")
 
 	return nil
 }

@@ -1,18 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
 	err := run()
 	if err != nil {
-		logrus.Fatal(err.Error())
+		slog.ErrorContext(context.Background(), "error running command", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -92,12 +94,33 @@ func logHelp(subcommands []Runner) {
 }
 
 func setupLogger(config *LoggerConfig) {
-	if config.logJSON {
-		logrus.SetFormatter(&logrus.JSONFormatter{})
-	} else {
-		logrus.SetFormatter(&logrus.TextFormatter{})
+	var level slog.LevelVar
+	level.Set(slog.LevelInfo)
+
+	switch config.logLevel {
+	case PanicLevel, FatalLevel:
+		// The value here isn't particularly important, it just needs
+		// to be higher than error level to preserve compatibility.
+		level.Set(slog.LevelError + 1)
+	case ErrorLevel:
+		level.Set(slog.LevelError)
+	case WarnLevel:
+		level.Set(slog.LevelWarn)
+	case InfoLevel:
+		level.Set(slog.LevelInfo)
+	case DebugLevel:
+		level.Set(slog.LevelDebug)
+	case TraceLevel:
+		// The value here isn't particularly important, it just needs
+		// to be lower than debug level to preserve compatibility.
+		level.Set(slog.LevelDebug - 1)
 	}
-	logrus.SetOutput(os.Stdout)
-	logrus.SetLevel(logrus.Level(config.logLevel))
-	logrus.Debugf("Setup logger with config: %+v", config)
+
+	if config.logJSON {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: &level})))
+	} else {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &level})))
+	}
+
+	slog.DebugContext(context.Background(), "Setup logger with config", "config", config)
 }

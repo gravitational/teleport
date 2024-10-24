@@ -1,11 +1,12 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type GPG struct{}
@@ -61,7 +62,7 @@ func (*GPG) SignFile(filePath string) error {
 	// using a less reputable Go module I've decided to just call `gpg` via shell instead.
 	// Additionally this works and is just _so easy_ that it's probably not worth the effort to
 	// use another library that reinvents the wheel.
-	logrus.Debugf("Signing repo metadata at %q", filePath)
+	slog.DebugContext(context.Background(), "Signing repo metadata", "file", filePath)
 
 	// gpg --batch --yes --detach-sign --armor <filePath>
 	_, err := BuildAndRunCommand("gpg", "--batch", "--yes", "--detach-sign", "--armor", filePath)
@@ -76,7 +77,7 @@ func (*GPG) SignFile(filePath string) error {
 func (*GPG) GetPublicKey() (string, error) {
 	// For reference here is how another company formats their key:
 	// https://download.docker.com/linux/rhel/gpg
-	logrus.Debug("Attempting to get the default public GPG key")
+	slog.DebugContext(context.Background(), "Attempting to get the default public GPG key")
 
 	key, err := BuildAndRunCommand("gpg", "--export", "--armor", "--no-version")
 	if err != nil {
@@ -87,7 +88,7 @@ func (*GPG) GetPublicKey() (string, error) {
 }
 
 func (g *GPG) WritePublicKeyToFile(filePath string) error {
-	logrus.Debugf("Writing the default armored public GPG key to %q", filePath)
+	slog.DebugContext(context.Background(), "Writing the default armored public GPG key", "file", filePath)
 
 	key, err := g.GetPublicKey()
 	if err != nil {

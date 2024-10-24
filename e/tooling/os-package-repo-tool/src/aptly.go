@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // This provides wrapper functions for the Aptly command. Aptly is written in Go but it doesn't appear
@@ -64,16 +65,14 @@ func (a *Aptly) updateConfiguration() error {
 	// Additional config can be handled here if needed in the future
 	aptlyConfigMap["rootDir"] = a.rootDir
 
-	logrus.Debugf("Built Aptly config: %v", aptlyConfigMap)
+	slog.DebugContext(context.Background(), "Built Aptly config", "config", aptlyConfigMap)
 	saveAptlyConfigMap(aptlyConfigMap)
 
 	configOutput, err := BuildAndRunCommand("aptly", "config", "show")
 	if err != nil {
 		return trace.Wrap(err, "failed to check Aptly config")
 	}
-	logrus.Debugln("Aptly config on disk:")
-	logrus.Debugf("%v", configOutput)
-
+	slog.DebugContext(context.Background(), "Aptly config stored to disk", "config", configOutput)
 	return nil
 }
 
@@ -160,14 +159,14 @@ func (a *Aptly) IsFirstRun() (bool, error) {
 
 // Creates the provided repo `r` via Aptly. Returns true if the repo was created, false otherewise.
 func (a *Aptly) CreateRepoIfNotExists(r *Repo) (bool, error) {
-	logrus.Debugf("Creating repo %q if it doesn't already exist..", r.Name())
+	slog.DebugContext(context.Background(), "Creating repo if it doesn't already exist", "repo", r.Name())
 	doesRepoExist, err := a.DoesRepoExist(r)
 	if err != nil {
 		return false, trace.Wrap(err, "failed to check whether or not the repo %q already exists", r.Name())
 	}
 
 	if doesRepoExist {
-		logrus.Debugf("Repo %q already exists, skipping creation", r.Name())
+		slog.DebugContext(context.Background(), "Repo already exists, skipping creation", "repo", r.Name())
 		return false, nil
 	}
 
@@ -178,13 +177,13 @@ func (a *Aptly) CreateRepoIfNotExists(r *Repo) (bool, error) {
 		return false, trace.Wrap(err, "failed to create repo %q", r.Name())
 	}
 
-	logrus.Debugf("Created repo %q", r.Name())
+	slog.DebugContext(context.Background(), "Created repo", "repo", r.Name())
 	return true, nil
 }
 
 // Checks to see if the Aptly described by repo `r` exists. Returns true if it exists, false otherwise.
 func (a *Aptly) DoesRepoExist(r *Repo) (bool, error) {
-	logrus.Debugf("Checking if repo %q exists...", r.Name())
+	slog.DebugContext(context.Background(), "Checking if repo exists", "repo", r.Name())
 
 	existingRepoNames, err := a.GetExistingRepoNames()
 	if err != nil {
@@ -196,7 +195,7 @@ func (a *Aptly) DoesRepoExist(r *Repo) (bool, error) {
 
 // Gets a list of the name of Aptly repos that already exists.
 func (a *Aptly) GetExistingRepoNames() ([]string, error) {
-	logrus.Debugln("Getting a list of pre-existing repos...")
+	slog.DebugContext(context.Background(), "Getting a list of pre-existing repos")
 	// The output of the command will be simiar to:
 	// ```
 	// <repo name 1>
@@ -219,7 +218,7 @@ func (a *Aptly) GetExistingRepoNames() ([]string, error) {
 		}
 	}
 
-	logrus.Debugf("Found %d repos: %q", len(validRepoNames), strings.Join(validRepoNames, "\", \""))
+	slog.DebugContext(context.Background(), "Found existing repos", "repo_count", len(validRepoNames), "repos", validRepoNames)
 	return validRepoNames, nil
 }
 
@@ -227,7 +226,7 @@ func (a *Aptly) GetExistingRepoNames() ([]string, error) {
 // If `debPath` is a folder, the folder will be searched recursively for *.deb files
 // which are then imported into the repo.
 func (a *Aptly) ImportDeb(repoName string, debPath string) error {
-	logrus.Infof("Importing deb(s) from %q into repo %q...", debPath, repoName)
+	slog.InfoContext(context.Background(), "Importing deb(s) from into repo", "dep_path", debPath, "repo", repoName)
 
 	_, err := BuildAndRunCommand("aptly", "repo", "add", repoName, debPath)
 	if err != nil {
@@ -239,13 +238,13 @@ func (a *Aptly) ImportDeb(repoName string, debPath string) error {
 
 // This function imports deb files from a preexisting published repo, typically created from a previous run of this tool.
 func (a *Aptly) ImportDebsFromExistingRepo(repo *Repo) error {
-	logrus.Infof("Importing pre-existing debs from repo %q...", repo.Name())
+	slog.InfoContext(context.Background(), "Importing pre-existing debs from repo", "repo", repo.Name())
 	publishedRepoAbsolutePath, err := repo.PublishedRepoAbsolutePath()
 	if err != nil {
 		return trace.Wrap(err, "failed to get the absolute path of the published repo %q", repo.Name())
 	}
 
-	logrus.Debugf("Looking in %q for Packages files...", publishedRepoAbsolutePath)
+	slog.DebugContext(context.Background(), "Looking for Packages files", "path", publishedRepoAbsolutePath)
 	err = filepath.WalkDir(publishedRepoAbsolutePath,
 		func(packagesPath string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -260,7 +259,7 @@ func (a *Aptly) ImportDebsFromExistingRepo(repo *Repo) error {
 				return nil
 			}
 
-			logrus.Debugf("Matched %q as a Packages file, attempting to import listed debs into %q...", packagesPath, repo.Name())
+			slog.DebugContext(context.Background(), "Matched Packages file, attempting to import listed debs", "package_file", packagesPath, "repo", repo.Name())
 			err = a.importDebsFromPackagesFile(repo, packagesPath)
 			if err != nil {
 				return trace.Wrap(err, "failed to import debs into repo %q from packages file %q", repo.Name(), packagesPath)
@@ -278,16 +277,16 @@ func (a *Aptly) ImportDebsFromExistingRepo(repo *Repo) error {
 }
 
 func (a *Aptly) importDebsFromPackagesFile(repo *Repo, packagesPath string) error {
-	logrus.Debugf("Importing debs from %q into %q", packagesPath, repo.Name())
+	slog.DebugContext(context.Background(), "Importing debs into repo from package", "package", packagesPath, "repo", repo.Name())
 	debRelativeFilePaths, err := parsePackagesFile(packagesPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to parse packages file %q for deb file paths", packagesPath)
 	}
 
-	logrus.Debugf("Found %d debs listed in %q: %q", len(debRelativeFilePaths), packagesPath, strings.Join(debRelativeFilePaths, "\", \""))
+	slog.DebugContext(context.Background(), "Found debs listed in packages file", "debs_count", len(debRelativeFilePaths), "path", packagesPath, "found", strings.Join(debRelativeFilePaths, "\", \""))
 	for _, debRelativeFilePath := range debRelativeFilePaths {
 		debPath := filepath.Join(repo.publishedSourcePath, repo.os, debRelativeFilePath)
-		logrus.Debugf("Constructed deb absolute path %q", debPath)
+		slog.DebugContext(context.Background(), "Constructed deb absolute path", "path", debPath)
 		err = a.ImportDeb(repo.Name(), debPath)
 		if err != nil {
 			return trace.Wrap(err, "failed to import deb into repo %q from %q", repo.Name(), debPath)
@@ -298,10 +297,11 @@ func (a *Aptly) importDebsFromPackagesFile(repo *Repo, packagesPath string) erro
 }
 
 func parsePackagesFile(packagesPath string) ([]string, error) {
-	logrus.Debugf("Parsing packages file %q", packagesPath)
+	slog.DebugContext(context.Background(), "Parsing packages file", "file", packagesPath)
 	file, err := os.Open(packagesPath)
 	if err != nil {
-		logrus.Fatal(err)
+		slog.ErrorContext(context.Background(), "Failed opening packages file", "error", err)
+		return nil, trace.Wrap(err, "opening packages file")
 	}
 	defer file.Close()
 
@@ -327,7 +327,7 @@ func parsePackagesFile(packagesPath string) ([]string, error) {
 			return nil, trace.Errorf("packages file filename line %q contains an empty value", line)
 		}
 
-		logrus.Debugf("Found deb file listed at relative path %q", value)
+		slog.DebugContext(context.Background(), "Found deb file listed at relative path", "path", value)
 		debRelativeFilePaths = append(debRelativeFilePaths, value)
 	}
 
@@ -363,7 +363,7 @@ func parsePackagesFileLine(line string) (string, string, error) {
 // Publishes the Aptly repos defined in the `repos` slice to the `repoOS` subpath.
 func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string) error {
 	repoNames := RepoNames(repos)
-	logrus.Infof("Publishing repos for OS %q: %q...", repoOS, strings.Join(repoNames, "\", \""))
+	slog.InfoContext(context.Background(), "Publishing repos for OS", "os", repoOS, "repos", repoNames)
 
 	// Trying to publish to an already published OS/OS version will fail, and dropping a published
 	// OS/OS version when no new components (release channel/major version) are added is
@@ -373,10 +373,7 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 		return trace.Wrap(err, "failed to determine if repos for  have been published or not")
 	}
 
-	logrus.Debugln("Repo OS/OS version combo publish state:")
-	logrus.Debugf("Are some unpublished: %v", areSomeUnpublished)
-	logrus.Debugf("Are some published: %v", areSomePublished)
-	logrus.Debugf("Repos: %v", RepoNames(repos))
+	slog.DebugContext(context.Background(), "Repo OS/OS version combo publish state", "any_unpublished", areSomeUnpublished, "any_published", areSomePublished, "repos", RepoNames(repos))
 
 	// If all repos have been published
 	if areSomePublished && !areSomeUnpublished {
@@ -452,7 +449,7 @@ func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
 	for _, repo := range repos {
 		repoName := repo.Name()
 		hasRepoBeenPublished := slices.Contains(publishedRepoNames, repoName)
-		logrus.Debugf("Repo %q has been published: %v", repoName, hasRepoBeenPublished)
+		slog.DebugContext(context.Background(), "Repo has been published", "repo", repoName, "published", hasRepoBeenPublished)
 		containsUnpublishedRepo = containsUnpublishedRepo || !hasRepoBeenPublished
 		containsPublishedRepo = containsPublishedRepo || hasRepoBeenPublished
 
@@ -471,7 +468,7 @@ func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
 }
 
 func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
-	logrus.Debugln("Getting a list of published repos...")
+	slog.DebugContext(context.Background(), "Getting a list of published repos")
 	// The output of the command will be simiar to:
 	// ```
 	// Published repositories:
@@ -523,7 +520,7 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 		}
 	}
 
-	logrus.Debugf("Found %d published repos: %q", len(publishedRepoNames), publishedRepoNames)
+	slog.DebugContext(context.Background(), "Found published repos", "published_count", len(publishedRepoNames), "published", publishedRepoNames)
 	return publishedRepoNames, nil
 }
 
@@ -532,7 +529,7 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo, error) {
 	// The file tree that we care about here will be of the following structure:
 	// `/<bucketPath>/<os>/dists/<os version>/<release channel>/<major version>/...`
-	logrus.Infof("Recreating previously published repos from %q...", localPublishedPath)
+	slog.InfoContext(context.Background(), "Recreating previously published repos from", "path", localPublishedPath)
 
 	createdRepos := []*Repo{}
 
@@ -584,7 +581,7 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 		}
 	}
 
-	logrus.Infof("Recreated %d repos", len(createdRepos))
+	slog.InfoContext(context.Background(), "Recreated repos", "created_count", len(createdRepos))
 	return createdRepos, nil
 }
 
@@ -596,10 +593,12 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 // supported OS version codenames.
 func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][]string,
 	releaseChannel string, versionChannel string) ([]*Repo, error) {
-	logrus.Infoln("Creating new repos from artifact requirements:")
-	logrus.Infof("Supported OSs: %+v", supportedOSInfo)
-	logrus.Infof("Release channel: %q", releaseChannel)
-	logrus.Infof("Version channel: %q", versionChannel)
+
+	slog.InfoContext(context.Background(), "Creating new repos from artifact requirements",
+		"supported_oses", supportedOSInfo,
+		"release_channel", releaseChannel,
+		"version_channel", versionChannel,
+	)
 
 	artifactRequirementRepos := []*Repo{}
 	for os, osVersions := range supportedOSInfo {
@@ -644,7 +643,7 @@ func (a *Aptly) GetAllRepos() ([]*Repo, error) {
 }
 
 func getSubdirectories(basePath string) ([]string, error) {
-	logrus.Debugf("Getting subdirectories of %q...", basePath)
+	slog.DebugContext(context.Background(), "Getting subdirectories", "path", basePath)
 	files, err := os.ReadDir(basePath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to read directory %q", basePath)
@@ -657,7 +656,7 @@ func getSubdirectories(basePath string) ([]string, error) {
 		}
 
 		subdirectory := file.Name()
-		logrus.Debugf("Found subdirectory %q", subdirectory)
+		slog.DebugContext(context.Background(), "Found subdirectory", "directory", subdirectory)
 		subdirectories = append(subdirectories, subdirectory)
 	}
 

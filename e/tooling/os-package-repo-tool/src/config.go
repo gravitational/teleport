@@ -2,12 +2,34 @@ package main
 
 import (
 	"flag"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
+)
+
+// Log levels copied from logrus to maintain backward compatibility.
+const (
+	// PanicLevel level, highest level of severity. Logs and then calls panic with the
+	// message passed to Debug, Info, ...
+	PanicLevel uint = iota
+	// FatalLevel level. Logs and then calls `logger.Exit(1)`. It will exit even if the
+	// logging level is set to Panic.
+	FatalLevel
+	// ErrorLevel level. Logs. Used for errors that should definitely be noted.
+	// Commonly used for hooks to send errors to an error tracking service.
+	ErrorLevel
+	// WarnLevel level. Non-critical entries that deserve eyes.
+	WarnLevel
+	// InfoLevel level. General operational entries about what's going on inside the
+	// application.
+	InfoLevel
+	// DebugLevel level. Usually only enabled when debugging. Very verbose logging.
+	DebugLevel
+	// TraceLevel level. Designates finer-grained informational events than the Debug.
+	TraceLevel
 )
 
 const StableChannelFlagValue string = "stable"
@@ -19,7 +41,7 @@ type LoggerConfig struct {
 
 func NewLoggerConfigWithFlagset(fs *flag.FlagSet) *LoggerConfig {
 	lc := &LoggerConfig{}
-	fs.UintVar(&lc.logLevel, "log-level", uint(logrus.InfoLevel), "Log level from 0 to 6, 6 being the most verbose")
+	fs.UintVar(&lc.logLevel, "log-level", InfoLevel, "Log level from 0 to 6, 6 being the most verbose")
 	fs.BoolVar(&lc.logJSON, "log-json", false, "True if the log entries should use JSON format, false for text logging")
 
 	return lc
@@ -39,6 +61,13 @@ func (lc *LoggerConfig) validateLogLevel() error {
 	}
 
 	return nil
+}
+
+func (lc *LoggerConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Uint64("log_level", uint64(lc.logLevel)),
+		slog.Bool("log_json", lc.logJSON),
+	)
 }
 
 type S3Config struct {
@@ -96,6 +125,14 @@ func (s3c *S3Config) validateMaxConcurrentSyncs() error {
 	}
 
 	return nil
+}
+
+func (s3c *S3Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("bucket_name", s3c.bucketName),
+		slog.String("local_bucket_path", s3c.localBucketPath),
+		slog.Int("max_concurrent_syncs", s3c.maxConcurrentSyncs),
+	)
 }
 
 // This type is common to all other config types
@@ -202,6 +239,17 @@ func (c *Config) validateReleaseChannel() error {
 		c.releaseChannel, strings.Join(validReleaseChannels, ","))
 }
 
+func (c *Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("artifact_path", c.artifactPath),
+		slog.Bool("print_help", c.printHelp),
+		slog.String("release_channel", c.releaseChannel),
+		slog.String("version_channel", c.versionChannel),
+		slog.Any("s3_config", c.S3Config),
+		slog.Any("logger_config", c.LoggerConfig),
+	)
+}
+
 // APT-specific config
 type AptConfig struct {
 	*Config
@@ -242,6 +290,13 @@ func (ac *AptConfig) Check() error {
 	return nil
 }
 
+func (ac *AptConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("tool_config", ac.Config),
+		slog.String("aptly_path", ac.aptlyPath),
+	)
+}
+
 // YUM-specific config
 type YumConfig struct {
 	*Config
@@ -275,6 +330,14 @@ func (yc *YumConfig) validateDomainName() error {
 	// TODO possibly validate if this is actually a domain name
 
 	return nil
+}
+
+func (yc *YumConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("tool_config", yc.Config),
+		slog.String("cache_dir", yc.cacheDir),
+		slog.String("domain_name", yc.domainName),
+	)
 }
 
 func (yc *YumConfig) Check() error {

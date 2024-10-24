@@ -1,11 +1,12 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"os/exec"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type CreateRepo struct {
@@ -49,7 +50,7 @@ func (cr *CreateRepo) ensureBinaryExists() error {
 
 func (cr *CreateRepo) CreateOrUpdateRepo(repoPath string) error {
 	// <cr.binaryName> --cachedir <cr.cacheDir> --update <repoPath>
-	logrus.Debugf("Updating repo metadata for repo at %q", repoPath)
+	slog.DebugContext(context.Background(), "Updating repo metadata for repo", "path", repoPath)
 
 	args := []string{
 		"--cachedir",

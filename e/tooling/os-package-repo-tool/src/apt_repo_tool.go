@@ -1,14 +1,13 @@
 package main
 
 import (
+	"context"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type AptRepoTool struct {
@@ -48,8 +47,8 @@ func NewAptRepoTool(config *AptConfig, supportedOSs map[string][]string) (*AptRe
 // Runs the tool, creating and updating APT repos based upon the current configuration.
 func (art *AptRepoTool) Run() error {
 	start := time.Now()
-	logrus.Infoln("Starting APT repo build process...")
-	logrus.Debugf("Using config: %+v", spew.Sdump(art.config))
+	slog.InfoContext(context.Background(), "Starting APT repo build process")
+	slog.DebugContext(context.Background(), "Using providing configuration", "config", art.config)
 
 	isFirstRun, err := art.aptly.IsFirstRun()
 	if err != nil {
@@ -57,7 +56,7 @@ func (art *AptRepoTool) Run() error {
 	}
 
 	if isFirstRun {
-		logrus.Warningln("First run or disaster recovery detected, attempting to rebuild existing repos from APT repository...")
+		slog.WarnContext(context.Background(), "First run or disaster recovery detected, attempting to rebuild existing repos from APT repository")
 
 		err = art.s3Manager.DownloadExistingRepo()
 		if err != nil {
@@ -69,7 +68,7 @@ func (art *AptRepoTool) Run() error {
 			return trace.Wrap(err, "failed to recreate existing repos")
 		}
 	} else {
-		logrus.Debugf("Not first run of tool, skipping Aptly repository rebuild process")
+		slog.DebugContext(context.Background(), "Not first run of tool, skipping Aptly repository rebuild process")
 	}
 
 	// Note: this logic will only push the artifact into the `art.supportedOSs` repos.
@@ -108,7 +107,7 @@ func (art *AptRepoTool) Run() error {
 		return trace.Wrap(err, "failed to redirect index page to Teleport docs")
 	}
 
-	logrus.Infof("APT repo build process completed in %s", time.Since(start).Round(time.Millisecond))
+	slog.InfoContext(context.Background(), "APT repo build process completed", "build_duration", time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -121,7 +120,7 @@ func (art *AptRepoTool) publishRepos() error {
 
 	// Build a map keyed by os info with value of all repos that support the os in the key
 	// This will be used to structure the publish command
-	logrus.Debugf("Categorizing repos according to OS info: %v", RepoNames(repos))
+	slog.DebugContext(context.Background(), "Categorizing repos according to OS info", "repos", RepoNames(repos))
 	categorizedRepos := make(map[string][]*Repo)
 	for _, r := range repos {
 		if osRepos, ok := categorizedRepos[r.OSInfo()]; ok {
@@ -130,7 +129,7 @@ func (art *AptRepoTool) publishRepos() error {
 			categorizedRepos[r.OSInfo()] = []*Repo{r}
 		}
 	}
-	logrus.Debugf("Categorized repos: %v", categorizedRepos)
+	slog.DebugContext(context.Background(), "Categorized repos", "repos", categorizedRepos)
 
 	for osInfo, osRepoList := range categorizedRepos {
 		if len(osRepoList) < 1 {
@@ -147,7 +146,7 @@ func (art *AptRepoTool) publishRepos() error {
 }
 
 func (art *AptRepoTool) recreateExistingRepos(localPublishedPath string) ([]*Repo, error) {
-	logrus.Infoln("Recreating previously published repos...")
+	slog.InfoContext(context.Background(), "Recreating previously published repos")
 	createdRepos, err := art.aptly.CreateReposFromPublishedPath(localPublishedPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to recreate existing repos")
@@ -160,12 +159,12 @@ func (art *AptRepoTool) recreateExistingRepos(localPublishedPath string) ([]*Rep
 		}
 	}
 
-	logrus.Infof("Recreated and imported pre-existing artifacts for %d repos", len(createdRepos))
+	slog.InfoContext(context.Background(), "Recreated and imported pre-existing artifacts for repos", "repo_count", len(createdRepos))
 	return createdRepos, nil
 }
 
 func (art *AptRepoTool) getArtifactRepos() ([]*Repo, error) {
-	logrus.Infoln("Creating or getting Aptly repos for artifact requirements...")
+	slog.InfoContext(context.Background(), "Creating or getting Aptly repos for artifact requirements")
 
 	artifactRepos, err := art.aptly.CreateReposFromArtifactRequirements(art.supportedOSs,
 		art.config.releaseChannel, art.config.versionChannel)
@@ -173,12 +172,12 @@ func (art *AptRepoTool) getArtifactRepos() ([]*Repo, error) {
 		return nil, trace.Wrap(err, "failed to create or get repos from artifact requirements")
 	}
 
-	logrus.Infof("Created or got %d artifact Aptly repos", len(artifactRepos))
+	slog.InfoContext(context.Background(), "Created or got artifact Aptly repos", "artifact_count", len(artifactRepos))
 	return artifactRepos, nil
 }
 
 func (art *AptRepoTool) importNewDebs(repos []*Repo) error {
-	logrus.Debugf("Importing new debs into %d repos: %q", len(repos), strings.Join(RepoNames(repos), "\", \""))
+	slog.DebugContext(context.Background(), "Importing new debs into repos", "repo_count", len(repos), "repos", RepoNames(repos))
 	err := filepath.WalkDir(art.config.artifactPath,
 		func(debPath string, d fs.DirEntry, err error) error {
 			return art.importNewDebsWalker(debPath, d, err, repos)
