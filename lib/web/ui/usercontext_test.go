@@ -70,6 +70,103 @@ func TestNewUserContext(t *testing.T) {
 	require.Equal(t, authSSO, userContext.AuthType)
 }
 
+func TestNewUserContext_AccessStrategy(t *testing.T) {
+	t.Parallel()
+
+	newTestRole := func(accessStrategy types.RequestStrategy) *types.RoleV6 {
+		r := &types.RoleV6{}
+		r.Spec.Options.RequestAccess = accessStrategy
+		return r
+	}
+
+	type testCase struct {
+		name                       string
+		userRoles                  []types.Role
+		expectedAccessStrategyType types.RequestStrategy
+	}
+
+	runTest := func(tc testCase) {
+		t.Run(tc.name, func(t *testing.T) {
+			user := &types.UserV2{}
+			user.Metadata.Name = "root"
+
+			userContext, err := NewUserContext(user, tc.userRoles, proto.Features{}, true, false)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectedAccessStrategyType, userContext.AccessStrategy.Type)
+		})
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:                       "optional by default",
+			userRoles:                  nil,
+			expectedAccessStrategyType: types.RequestStrategyOptional,
+		},
+		{
+			name: "reason",
+			userRoles: []types.Role{
+				newTestRole(types.RequestStrategyReason),
+			},
+			expectedAccessStrategyType: types.RequestStrategyReason,
+		},
+		{
+			name: "always",
+			userRoles: []types.Role{
+				newTestRole(types.RequestStrategyAlways),
+			},
+			expectedAccessStrategyType: types.RequestStrategyAlways,
+		},
+		{
+			name: "reason-required",
+			userRoles: []types.Role{
+				newTestRole(types.RequestStrategyReasonRequired),
+			},
+			expectedAccessStrategyType: types.RequestStrategyReasonRequired,
+		},
+		{
+			name: "reason is higher priority than always",
+			userRoles: []types.Role{
+				newTestRole(types.RequestStrategyAlways),
+				newTestRole(types.RequestStrategyReason),
+				newTestRole(types.RequestStrategyAlways),
+			},
+			expectedAccessStrategyType: types.RequestStrategyReason,
+		},
+		{
+			name: "reason is higher priority than reason-required",
+			userRoles: []types.Role{
+				newTestRole(types.RequestStrategyReasonRequired),
+				newTestRole(types.RequestStrategyReason),
+				newTestRole(types.RequestStrategyReasonRequired),
+			},
+			expectedAccessStrategyType: types.RequestStrategyReason,
+		},
+		{
+			name: "always is higher priority than reason-required",
+			userRoles: []types.Role{
+				newTestRole(types.RequestStrategyReasonRequired),
+				newTestRole(types.RequestStrategyAlways),
+				newTestRole(types.RequestStrategyReasonRequired),
+			},
+			expectedAccessStrategyType: types.RequestStrategyAlways,
+		},
+		{
+			name: "reason is the highest priority",
+			userRoles: []types.Role{
+				newTestRole(types.RequestStrategyReasonRequired),
+				newTestRole(types.RequestStrategyAlways),
+				newTestRole(types.RequestStrategyReason),
+				newTestRole(types.RequestStrategyAlways),
+				newTestRole(types.RequestStrategyReasonRequired),
+			},
+			expectedAccessStrategyType: types.RequestStrategyReason,
+		},
+	} {
+		runTest(tc)
+	}
+}
+
 func TestNewUserContextCloud(t *testing.T) {
 	t.Parallel()
 

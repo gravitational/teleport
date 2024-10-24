@@ -1893,7 +1893,7 @@ func UnmarshalAccessRequestAllowedPromotion(data []byte) (*types.AccessRequestAl
 // pruneResourceRequestRoles takes an access request and does one of two things:
 //  1. If it is a role request, returns it unchanged.
 //  2. If it is a resource request, all available `search_as_roles` for the user
-//     should have been populated on the request by `ValidateAccessReqeustForUser`.
+//     should have been populated on the request by `ValidateAccessRequestForUser`.
 //     This function will attempt to prune these roles to a minimal necessary set
 //     based on the following rules:
 //     - If a role does not grant access to any resources in the set, it is pruned.
@@ -2033,7 +2033,7 @@ func countAllowedLogins(role types.Role) int {
 }
 
 func (m *RequestValidator) roleAllowsResource(
-	ctx context.Context,
+	_ context.Context,
 	role types.Role,
 	resource types.ResourceWithLabels,
 	loginHint string,
