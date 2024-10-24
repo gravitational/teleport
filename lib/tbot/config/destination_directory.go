@@ -80,6 +80,12 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 		return trace.BadParameter("destination path must not be empty")
 	}
 
+	for i, reader := range dd.Readers {
+		if err := reader.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "reader entry %d is invalid", i)
+		}
+	}
+
 	switch dd.Symlinks {
 	case "":
 		// We default to SymlinksTrySecure. It's become apparent that the
