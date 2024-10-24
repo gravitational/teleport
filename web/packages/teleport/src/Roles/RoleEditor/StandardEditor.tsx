@@ -45,6 +45,8 @@ import { Role, RoleWithYaml } from 'teleport/services/resources';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
+import { FieldMultiInput } from '../../../../shared/components/FieldMultiInput/FieldMultiInput';
+
 import {
   roleEditorModelToRole,
   hasModifiedFields,
@@ -64,7 +66,6 @@ import {
 } from './standardmodel';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
-import { FieldMultiInput } from '../../../../shared/components/FieldMultiInput/FieldMultiInput';
 
 export type StandardEditorProps = {
   originalRole: RoleWithYaml;
