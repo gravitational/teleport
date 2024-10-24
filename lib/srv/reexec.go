@@ -610,6 +610,8 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	return nil
 }
 
+const rootDirectory = "/"
+
 // RunForward reads in the command to run from the parent process (over a
 // pipe) then port forwards.
 func RunForward() (errw io.Writer, code int, err error) {
@@ -713,16 +715,21 @@ func RunForward() (errw io.Writer, code int, err error) {
 	}
 }
 
-// runCheckHomeDir check's if the active user's $HOME dir exists.
+// runCheckHomeDir checks if the active user's $HOME dir exists and is accessible.
 func runCheckHomeDir() (errw io.Writer, code int, err error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return io.Discard, teleport.HomeDirNotFound, nil
+	code = teleport.RemoteCommandSuccess
+	if err := hasAccessibleHomeDir(); err != nil {
+		switch {
+		case trace.IsNotFound(err), trace.IsBadParameter(err):
+			code = teleport.HomeDirNotFound
+		case trace.IsAccessDenied(err):
+			code = teleport.HomeDirNotAccessible
+		default:
+			code = teleport.RemoteCommandFailure
+		}
 	}
-	if !utils.IsDir(home) {
-		return io.Discard, teleport.HomeDirNotFound, nil
-	}
-	return io.Discard, teleport.RemoteCommandSuccess, nil
+
+	return io.Discard, code, nil
 }
 
 // runPark does nothing, forever.
@@ -896,18 +903,20 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	exists, err := CheckHomeDir(localUser)
+	hasAccess, err := CheckHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	} else if exists {
+	}
+
+	if hasAccess {
 		cmd.Dir = localUser.HomeDir
-	} else if !exists {
+	} else {
 		// Write failure to find home dir to stdout, same as OpenSSH.
-		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, string(os.PathSeparator))
+		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, rootDirectory)
 		if _, err := cmd.Stdout.Write([]byte(msg)); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cmd.Dir = string(os.PathSeparator)
+		cmd.Dir = rootDirectory
 	}
 
 	// Only set process credentials if the UID/GID of the requesting user are
@@ -1041,16 +1050,73 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	}
 }
 
-// CheckHomeDir checks if the user's home dir exists
-func CheckHomeDir(localUser *user.User) (bool, error) {
-	if fi, err := os.Stat(localUser.HomeDir); err == nil {
-		return fi.IsDir(), nil
+func coerceHomeDirError(usr *user.User, err error) error {
+	if os.IsNotExist(err) {
+		return trace.NotFound("home directory %q not found for user %q", usr.HomeDir, usr.Name)
 	}
 
-	// In some environments, the user's home directory exists but isn't visible to
-	// root, e.g. /home is mounted to an nfs export with root_squash enabled.
-	// In case we are in that scenario, re-exec teleport as the user to check
-	// if the home dir actually does exist.
+	if os.IsPermission(err) {
+		return trace.AccessDenied("%q does not have permission to access %q", usr.Name, usr.HomeDir)
+	}
+
+	return err
+}
+
+// hasAccessibleHomeDir checks if the current user has access to an existing home directory.
+func hasAccessibleHomeDir() error {
+	// this should usually be fetching a cached value
+	currentUser, err := user.Current()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fi, err := os.Stat(currentUser.HomeDir)
+	if err != nil {
+		return trace.Wrap(coerceHomeDirError(currentUser, err))
+	}
+
+	if !fi.IsDir() {
+		return trace.BadParameter("%q is not a directory", currentUser.HomeDir)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// make sure we return to the original working directory
+	defer os.Chdir(cwd)
+
+	// attemping to cd into the target directory is the easiest, cross-platform way to test
+	// whether or not the current user has access
+	if err := os.Chdir(currentUser.HomeDir); err != nil {
+		return trace.Wrap(coerceHomeDirError(currentUser, err))
+	}
+
+	return nil
+}
+
+// CheckHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
+// errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
+// in a return of (false, nil)
+func CheckHomeDir(localUser *user.User) (bool, error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// don't spawn a subcommand if already running as the user in question
+	if currentUser.Uid == localUser.Uid {
+		if err := hasAccessibleHomeDir(); err != nil {
+			if trace.IsNotFound(err) || trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
+				return false, nil
+			}
+
+			return false, trace.Wrap(err)
+		}
+
+		return true, nil
+	}
+
 	executable, err := os.Executable()
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1066,6 +1132,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		Path: executable,
 		Args: []string{executable, teleport.CheckHomeDirSubCommand},
 		Env:  []string{"HOME=" + localUser.HomeDir},
+		Dir:  rootDirectory,
 		SysProcAttr: &syscall.SysProcAttr{
 			Setsid:     true,
 			Credential: credential,
@@ -1076,11 +1143,13 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 	reexecCommandOSTweaks(cmd)
 
 	if err := cmd.Run(); err != nil {
-		if cmd.ProcessState.ExitCode() == teleport.HomeDirNotFound {
-			return false, nil
+		if cmd.ProcessState.ExitCode() == teleport.RemoteCommandFailure {
+			return false, trace.Wrap(err)
 		}
-		return false, trace.Wrap(err)
+
+		return false, nil
 	}
+
 	return true, nil
 }
 
