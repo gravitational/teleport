@@ -38,6 +38,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -316,6 +317,45 @@ type ssmClient interface {
 	CreateDocument(ctx context.Context, params *ssm.CreateDocumentInput, optFns ...func(*ssm.Options)) (*ssm.CreateDocumentOutput, error)
 }
 
+type localRegionGetter interface {
+	GetRegion(context.Context) (string, error)
+}
+
+func getFallbackRegion(ctx context.Context, fips bool, localRegionGetter localRegionGetter) (string, error) {
+	if localRegionGetter == nil {
+		imdsClient, err := awsimds.NewInstanceMetadataClient(ctx)
+		if err == nil && imdsClient != nil {
+			localRegionGetter = imdsClient
+		}
+	}
+
+	if localRegionGetter != nil {
+		localRegion, err := localRegionGetter.GetRegion(ctx)
+		if err == nil && localRegion != "" {
+			fmt.Printf("Using region %q from instance metadata.\n", localRegion)
+			return localRegion, nil
+		}
+	}
+
+	// Fips STS endpoints are regional.
+	if fips {
+		return "", trace.Errorf("no region found from the default AWS config or instance metadata. Please provide a region in your AWS config or through AWS_REGION environment variable.")
+	}
+
+	// Fallback to aws-global which works for both STS and IAM services. Print
+	// a warning since global STS endpoint is legacy and it won't work in
+	// non-standard partitions like us-gov-, cn- regions.
+	//
+	// Reference:
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
+	fmt.Print(`
+Warning. No region found from the default AWS config or instance metadata. Defaulting to 'aws-global'
+To avoid seeing this warning, please provide a region in your AWS config or through AWS_REGION environment variable.
+
+`)
+	return "aws-global", nil
+}
+
 // CheckAndSetDefaults checks and set configuration default values.
 func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 	ctx := context.Background()
@@ -341,6 +381,14 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			)
 			if err != nil {
 				return trace.Wrap(err)
+			}
+
+			if cfg.Region == "" {
+				if region, err := getFallbackRegion(ctx, modules.GetModules().IsBoringBinary(), nil); err != nil {
+					return trace.Wrap(err)
+				} else {
+					cfg.Region = region
+				}
 			}
 			c.awsCfg = &cfg
 		}
