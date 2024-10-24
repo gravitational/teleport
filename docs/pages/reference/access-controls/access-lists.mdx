@@ -168,6 +168,14 @@ spec:
       - required_value1
 ```
 
+## Access Lists and Deny Rules
+
+Teleport strives to be resilient to misconfiguration in Access Lists.
+If a user's membership or ownership in an Access List cannot be resolved at login,
+the user will not receive its grants. Therefore, granting roles with
+[`deny` rules](../../reference/roles.mdx) in Access Lists is discouraged.
+Prefer directly assigning roles containing `deny` rules to users.
+
 ## Managing Access Lists from the CLI
 
 In addition to using the web UI, Access Lists can be created and managed from the CLI
