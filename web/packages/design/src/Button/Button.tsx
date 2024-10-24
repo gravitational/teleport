@@ -118,6 +118,7 @@ export type ThemedButtonProps<E extends React.ElementType> = ButtonProps<E> & {
   theme: Theme;
   fill: ButtonFill;
   intent: ButtonIntent;
+  size: ButtonSize;
 };
 
 const themedStyles = <E extends React.ElementType>(
@@ -364,7 +365,7 @@ const horizontalPadding = <E extends React.ElementType>(
   return 32;
 };
 
-const size = <E extends React.ElementType>(props: ButtonProps<E>) => {
+const size = <E extends React.ElementType>(props: ThemedButtonProps<E>) => {
   const borderWidth = 1.5;
   const hp = horizontalPadding(props);
   const commonStyles = {
