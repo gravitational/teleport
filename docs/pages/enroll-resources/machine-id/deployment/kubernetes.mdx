@@ -124,6 +124,11 @@ $ kubectl apply -f ./k8s-rbac.yaml
 
 ## Step 3/5. Create a join token
 
+<Admonition type="note">
+If you are using AWS EKS clusters with IAM OIDC enabled, you will need to use the [IAM join method](../../../enroll-resources/agents/join-services-to-your-cluster/aws-iam.mdx) 
+instead of `static_jwks`. This is because the Kubernetes API server does not use its own JWKS for signing Service Account JWTs; instead, AWS IAM credentials are used.
+</Admonition>
+
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster. As the `kubernetes` join method will be used, the public key of the
 Kubernetes cluster must first be determined. The public key used to sign JWTs
