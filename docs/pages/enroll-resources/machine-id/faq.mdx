@@ -68,6 +68,10 @@ We do not currently support Machine ID and Device Trust. Requiring Device
 Trust cluster-wide or for roles impersonated by Machine ID will prevent
 credentials produced by Machine ID from being used to connect to resources.
 
+Machine ID supports confirming the [Trusted Protected Module (TPM) on a Linux machine
+as a method to allow a bot to join from Linux](./deployment/linux-tpm.mdx). That is the same process used for
+Device Trust with Linux.
+
 As a work-around, configure Device Trust enforcement on a role-by-role basis
 and ensure that it is not required for roles that you will impersonate using
 Machine ID.
