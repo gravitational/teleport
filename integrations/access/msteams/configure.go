@@ -102,7 +102,7 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 
 	WriteAppZipTo(appZipFile, p)
 
-	printStep(&step, "Created %v", filepath.Join(targetDir, "app.zip"))
+	printStep(&step, "Created %v", appZipFile.Name())
 	fmt.Println()
 	fmt.Printf("TeamsAppID: %v\n", p.TeamsAppID)
 	fmt.Println()

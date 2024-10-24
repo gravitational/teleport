@@ -6548,7 +6548,7 @@ message AWSICProvisioningSpec {
 // PluginMSTeamsSettings defines the settings for a Microsoft Teams integration plugin
 message PluginMSTeamsSettings {
   option (gogoproto.equal) = true;
-  // AppId is the Microsoft application ID (uuid, for bots must be underlying app id, not bot's id).
+  // AppId is the Microsoft application ID (uuid, for Azure bots must be underlying app id, not bot's id).
   string app_id = 1;
   // TenantId is the Microsoft tenant ID.
   string tenant_id = 2;

@@ -16797,7 +16797,7 @@ var xxx_messageInfo_AWSICProvisioningSpec proto.InternalMessageInfo
 
 // PluginMSTeamsSettings defines the settings for a Microsoft Teams integration plugin
 type PluginMSTeamsSettings struct {
-	// AppId is the Microsoft application ID (uuid, for bots must be underlying app id, not bot's id).
+	// AppId is the Microsoft application ID (uuid, for Azure bots must be underlying app id, not bot's id).
 	AppId string `protobuf:"bytes,1,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
 	// TenantId is the Microsoft tenant ID.
 	TenantId string `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
