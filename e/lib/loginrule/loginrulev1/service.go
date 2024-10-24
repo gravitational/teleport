@@ -2,9 +2,9 @@ package loginrulev1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -30,8 +30,7 @@ type ServiceConfig struct {
 type Service struct {
 	loginrulepb.UnimplementedLoginRuleServiceServer
 
-	logger *logrus.Entry
-
+	logger     *slog.Logger
 	storage    *storage.S
 	authorizer authz.Authorizer
 	emitter    apievents.Emitter
@@ -48,7 +47,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("emitter is required")
 	}
 	return &Service{
-		logger:     logrus.WithField(teleport.ComponentKey, "loginrule.service"),
+		logger:     slog.With(teleport.ComponentKey, teleport.Component("loginrule", "service")),
 		storage:    cfg.Storage,
 		authorizer: cfg.Authorizer,
 		emitter:    cfg.Emitter,
@@ -260,12 +259,13 @@ func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) er
 	err := s.emitter.EmitAuditEvent(ctx, e)
 	if err != nil {
 		userMeta := authz.ClientUserMetadata(ctx)
-		s.logger.WithError(err).WithFields(logrus.Fields{
-			"type":         e.GetType(),
-			"code":         e.GetCode(),
-			"user":         userMeta.User,
-			"impersonator": userMeta.Impersonator,
-		}).Warn("Failed to emit audit event")
+		s.logger.WarnContext(ctx, "Failed to emit audit event",
+			"type", e.GetType(),
+			"code", e.GetCode(),
+			"user", userMeta.User,
+			"impersonator", userMeta.Impersonator,
+			"error", err,
+		)
 	}
 	return trace.Wrap(err)
 }
