@@ -98,7 +98,8 @@ type RegisterParams struct {
 	// CAPath is the path to the CA file.
 	// Ignored if AuthClient is provided.
 	CAPath string
-	// GetHostCredentials is a client that can fetch host credentials.
+	// GetHostCredentials is a client that can be used to register via the
+	// proxy web API.
 	// Ignored if AuthClient is provided.
 	GetHostCredentials HostCredentials
 	// Clock specifies the time provider. Will be used to override the time anchor
@@ -382,8 +383,8 @@ func registerThroughProxy(
 			return nil, trace.Wrap(err)
 		}
 	default:
-		// The rest of the join methods use GetHostCredentials function passed through
-		// params to call proxy HTTP endpoint
+		// The rest of the join methods use GetHostCredentials function passed
+		// through params to call proxy HTTP endpoint.
 		var err error
 		certs, err = params.GetHostCredentials(ctx,
 			proxyAddr,
@@ -393,6 +394,7 @@ func registerThroughProxy(
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return &RegisterResult{
 		Certs:      certs,
 		PrivateKey: hostKeys.privateKey,
