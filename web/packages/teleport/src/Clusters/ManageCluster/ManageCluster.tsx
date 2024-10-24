@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,7 +19,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import Flex from 'design/Flex';
@@ -33,6 +33,7 @@ import { useParams } from 'react-router';
 import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
 
 import { ShimmerBox } from 'design/ShimmerBox';
+import { Alert } from 'design/Alert';
 
 import {
   FeatureBox,
@@ -45,13 +46,13 @@ import { useNoMinWidth } from 'teleport/Main';
 import { Cluster } from 'teleport/services/clusters';
 
 export function ManageCluster() {
+  const [cluster, setCluster] = useState<Cluster>(null);
+  const { attempt, run } = useAttempt();
+  const ctx = useTeleport();
+
   const { clusterId } = useParams<{
     clusterId: string;
   }>();
-  const ctx = useTeleport();
-
-  const [cluster, setCluster] = useState<Cluster>(null);
-  const { attempt, run } = useAttempt();
 
   useEffect(() => {
     function init() {
@@ -65,32 +66,28 @@ export function ManageCluster() {
 
   useNoMinWidth();
 
-  const isLoading = attempt.status === 'processing';
-
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>{clusterId}</FeatureHeaderTitle>
       </FeatureHeader>
-      {attempt.status === 'failed' && attempt.statusText}
-      {attempt.status !== 'failed' && (
-        <ClusterInformation cluster={cluster} isLoading={isLoading} />
-      )}
+      <ClusterInformation cluster={cluster} attempt={attempt} />
     </FeatureBox>
   );
 }
 
 type ClusterInformationProps = {
   cluster?: Cluster;
-  isLoading: boolean;
   style?: React.CSSProperties;
+  attempt: Attempt;
 } & BoxProps;
 export function ClusterInformation({
   cluster,
-  isLoading,
   style,
+  attempt,
   ...rest
 }: ClusterInformationProps) {
+  const isLoading = attempt.status === 'processing';
   return (
     <MultiRowBox mb={3} minWidth="180px" style={style} {...rest}>
       <Row>
@@ -102,37 +99,42 @@ export function ClusterInformation({
         </Flex>
       </Row>
       <Row>
-        <DataItem
-          title="Cluster Name"
-          data={cluster?.clusterId}
-          isLoading={isLoading}
-        />
-        <DataItem
-          title="Teleport Version"
-          data={cluster?.authVersion}
-          isLoading={isLoading}
-        />
-        <DataItem
-          title="Public Address"
-          data={cluster?.publicURL}
-          isLoading={isLoading}
-        />
-        {cfg.tunnelPublicAddress && (
-          <DataItem
-            title="Public SSH Tunnel"
-            data={cfg.tunnelPublicAddress}
-            isLoading={isLoading}
-          />
-        )}
-        {cfg.edition === 'ent' &&
-          !cfg.isCloud &&
-          cluster?.licenseExpiryDateText && (
+        {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
+        {attempt.status !== 'failed' && (
+          <>
             <DataItem
-              title="License Expiry"
-              data={cluster?.licenseExpiryDateText}
+              title="Cluster Name"
+              data={cluster?.clusterId}
               isLoading={isLoading}
             />
-          )}
+            <DataItem
+              title="Teleport Version"
+              data={cluster?.authVersion}
+              isLoading={isLoading}
+            />
+            <DataItem
+              title="Public Address"
+              data={cluster?.publicURL}
+              isLoading={isLoading}
+            />
+            {cfg.tunnelPublicAddress && (
+              <DataItem
+                title="Public SSH Tunnel"
+                data={cfg.tunnelPublicAddress}
+                isLoading={isLoading}
+              />
+            )}
+            {cfg.edition === 'ent' &&
+              !cfg.isCloud &&
+              cluster?.licenseExpiryDateText && (
+                <DataItem
+                  title="License Expiry"
+                  data={cluster?.licenseExpiryDateText}
+                  isLoading={isLoading}
+                />
+              )}
+          </>
+        )}
       </Row>
     </MultiRowBox>
   );
