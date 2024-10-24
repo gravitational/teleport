@@ -100,6 +100,10 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 				asmt := r.(services.IdentityCenterAccountAssignment)
 				return svc.UpdateAccountAssignment(subtestCtx, asmt)
 			},
+			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
+				asmt := r.(services.IdentityCenterAccountAssignment)
+				return svc.UpsertAccountAssignment(subtestCtx, asmt)
+			},
 		},
 		{
 			name: "PrincipalAssignment",

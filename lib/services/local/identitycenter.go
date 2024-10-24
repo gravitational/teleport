@@ -388,6 +388,16 @@ func (svc *IdentityCenterService) UpdateAccountAssignment(ctx context.Context, a
 	return services.IdentityCenterAccountAssignment{AccountAssignment: updated}, nil
 }
 
+// UpsertAccountAssignment performs an unconditional upsert on the supplied
+// Account Assignment, returning the updated record on success.
+func (svc *IdentityCenterService) UpsertAccountAssignment(ctx context.Context, asmt services.IdentityCenterAccountAssignment) (services.IdentityCenterAccountAssignment, error) {
+	updated, err := svc.accountAssignments.UpsertResource(ctx, asmt.AccountAssignment)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err, "upserting principal assignment record")
+	}
+	return services.IdentityCenterAccountAssignment{AccountAssignment: updated}, nil
+}
+
 // DeleteAccountAssignment deletes a specific account assignment
 func (svc *IdentityCenterService) DeleteAccountAssignment(ctx context.Context, name services.IdentityCenterAccountAssignmentID) error {
 	return trace.Wrap(svc.accountAssignments.DeleteResource(ctx, string(name)))

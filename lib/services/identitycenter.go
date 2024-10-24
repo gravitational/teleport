@@ -204,6 +204,10 @@ type IdentityCenterAccountAssignments interface {
 	// Account Assignment, returning the updated record on success.
 	UpdateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
 
+	// UpsertAccountAssignment performs an unconditional update on the supplied
+	// Account Assignment, returning the updated record on success.
+	UpsertAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
+
 	// DeleteAccountAssignment deletes a specific account assignment
 	DeleteAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
 

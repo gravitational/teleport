@@ -240,6 +240,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newStaticHostUserParser()
 		case types.KindProvisioningPrincipalState:
 			parser = newProvisioningStateParser()
+		case types.KindIdentityCenterAccount:
+			parser = newIdentityCenterAccountParser()
+		case types.KindIdentityCenterPrincipalAssignment:
+			parser = newIdentityCenterPrincipalAssignmentParser()
+		case types.KindIdentityCenterAccountAssignment:
+			parser = newIdentityCenterAccountAssignmentParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
