@@ -8,7 +8,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -96,7 +95,6 @@ func createSuite(t *testing.T) *suite {
 			pluginService:                  pluginService,
 			pluginStaticCredentialsService: pluginStaticCredentialsService,
 			pluginAuthorizers:              pluginAuthorizers,
-			log:                            logrus.NewEntry(logrus.StandardLogger()),
 			logger:                         slog.Default(),
 		},
 	}

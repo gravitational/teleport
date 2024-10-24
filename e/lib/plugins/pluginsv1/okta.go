@@ -70,13 +70,13 @@ func (s *Service) cleanupOkta(ctx context.Context) error {
 		return trace.CompareFailed("an Okta plugin is configured, can't cleanup")
 	}
 
-	s.log.Info("Cleaning up Okta plugin resources.")
+	s.logger.InfoContext(ctx, "Cleaning up Okta plugin resources")
 	oktaAssignmentNames, err := s.getOktaAssignmentNames(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, oktaAssignmentName := range oktaAssignmentNames {
-		s.log.Infof("Deleting Okta assignment %s", oktaAssignmentName)
+		s.logger.InfoContext(ctx, "Deleting Okta assignment", "assignment_name", oktaAssignmentName)
 		if err := s.authServer.DeleteOktaAssignment(ctx, oktaAssignmentName); err != nil {
 			return trace.Wrap(err)
 		}
@@ -87,7 +87,7 @@ func (s *Service) cleanupOkta(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, accessListName := range oktaAccessListNames {
-		s.log.Infof("Deleting Okta access list %s", accessListName)
+		s.logger.InfoContext(ctx, "Deleting Okta access list", "access_list_name", accessListName)
 		if err := s.authServer.DeleteAccessList(ctx, accessListName); err != nil {
 			return trace.Wrap(err)
 		}
@@ -98,7 +98,7 @@ func (s *Service) cleanupOkta(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, roleName := range oktaRoleNames {
-		s.log.Infof("Deleting Okta role %s", roleName)
+		s.logger.InfoContext(ctx, "Deleting Okta role", "role_name", roleName)
 		if err := s.authServer.DeleteRole(ctx, roleName); err != nil {
 			return trace.Wrap(err)
 		}

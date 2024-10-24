@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -141,7 +141,7 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
-	testLog := logrus.WithField("test", t.Name())
+	testLog := slog.With("test", t.Name())
 
 	authorizers := NewAuthorizerSet()
 	authorizers.Add(types.PluginTypeSlack, &Authorizer{
@@ -191,7 +191,7 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 				return makeInstanceDelegate(deps), nil
 			},
 		},
-		Log: testLog,
+		Logger: testLog,
 
 		// the following are not used in the test
 		TeleportClient: &auth.Server{},
@@ -208,7 +208,7 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 		return events.numWatchers() == 1
 	}, time.Second, time.Second/100)
 
-	testLog.Info("Sending plugin start event")
+	testLog.InfoContext(context.Background(), "Sending plugin start event")
 	// 1) Create plugin: start
 	events.send(types.Event{
 		Type:     types.OpPut,
@@ -397,7 +397,7 @@ func TestInstanceFactory(t *testing.T) {
 				// Run plugin
 				factoryFunc, err = oktaInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
 					lifetime:      pluginLifetime,
-					log:           logrus.NewEntry(logrus.New()),
+					logger:        slog.Default(),
 					parentProcess: process,
 					staticCredentials: []types.PluginStaticCredentials{
 						&types.PluginStaticCredentialsV1{
@@ -420,7 +420,7 @@ func TestInstanceFactory(t *testing.T) {
 				// Run plugin
 				factoryFunc, err = jamfInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
 					lifetime:      pluginLifetime,
-					log:           logrus.NewEntry(logrus.New()),
+					logger:        slog.Default(),
 					HTTPClient:    jamfEnv.HTTPClient,
 					parentProcess: process,
 					staticCredentials: []types.PluginStaticCredentials{

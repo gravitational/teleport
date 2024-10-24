@@ -2,9 +2,8 @@ package plugins
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -23,9 +22,7 @@ type instanceDependencies struct {
 	statusSink        common.StatusSink
 	parentProcess     *service.TeleportProcess
 	staticCredentials []types.PluginStaticCredentials
-
-	log *logrus.Entry
-
+	logger            *slog.Logger
 	// HTTP client to be used by Plugin.
 	// Leave as `nil` for the plugins to use their own defaults.
 	HTTPClient *http.Client

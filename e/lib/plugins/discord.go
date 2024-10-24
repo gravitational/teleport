@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -42,7 +43,8 @@ func discordInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 	}
 
 	app := discord.NewApp(cfg)
-	appCtx := logger.WithLogger(deps.lifetime, deps.log)
+	// TODO(tross): convert logger library to use slog
+	appCtx := logger.WithLogger(deps.lifetime, logrus.New())
 	return func() error {
 		err := app.Run(appCtx)
 		return trace.Wrap(err)

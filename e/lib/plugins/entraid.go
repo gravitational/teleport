@@ -43,11 +43,11 @@ func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 
 		_, err = deps.parentProcess.WaitForEvent(eventCtx, closeEvent)
 		if err != nil {
-			deps.log.Debugf("Error waiting for %s event: %v", closeEvent, err)
+			deps.logger.DebugContext(ctx, "Error waiting for event", "event", closeEvent, "error", err)
 			return trace.Wrap(err)
 		}
 
-		deps.log.Info("Entra ID plugin has stopped")
+		deps.logger.InfoContext(ctx, "Entra ID plugin has stopped")
 		return nil
 	}, nil
 }

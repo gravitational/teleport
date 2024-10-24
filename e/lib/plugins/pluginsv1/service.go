@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -57,7 +56,6 @@ type ServiceConfig struct {
 	PluginAuthorizers              *plugins.AuthorizerSet
 	PluginService                  services.Plugins
 	PluginStaticCredentialsService services.PluginStaticCredentials
-	Log                            *logrus.Entry
 	Logger                         *slog.Logger
 }
 
@@ -78,9 +76,6 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.PluginStaticCredentialsService == nil {
 		return trace.BadParameter("pluginStaticCredentialService must be set")
 	}
-	if cfg.Log == nil {
-		cfg.Log = logrus.NewEntry(logrus.StandardLogger())
-	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -97,7 +92,6 @@ type Service struct {
 	pluginAuthorizers              *plugins.AuthorizerSet
 	pluginService                  services.Plugins
 	pluginStaticCredentialsService services.PluginStaticCredentials
-	log                            *logrus.Entry
 	logger                         *slog.Logger
 	httpClient                     *http.Client
 }
@@ -114,7 +108,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		pluginAuthorizers:              cfg.PluginAuthorizers,
 		pluginService:                  cfg.PluginService,
 		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
-		log:                            cfg.Log,
 		logger:                         cfg.Logger,
 		httpClient: &http.Client{
 			Timeout: 1 * time.Minute,
@@ -217,10 +210,19 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit plugin create event.", "error", err)
+		s.logger.WarnContext(ctx, "Failed to emit plugin create event", "error", err)
 	}
 
-	s.logger.InfoContext(ctx, "Plugin created.", logPluginAttr(req.Plugin)...)
+	if s.logger.Enabled(ctx, slog.LevelInfo) {
+		spec := utils.CloneProtoMsg(&(plugin.Spec))
+		s.logger.InfoContext(ctx, "Plugin created",
+			slog.Group("plugin",
+				"type", string(plugin.GetType()),
+				"name", plugin.GetName(),
+				"spec", spec,
+			),
+		)
+	}
 
 	return &emptypb.Empty{}, nil
 }
@@ -228,13 +230,13 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 func (s *Service) pluginToProtobufStruct(ctx context.Context, plugin types.Plugin) *apievents.Struct {
 	out, err := services.MarshalPlugin(plugin)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to marshal plugin.", "error", err)
+		s.logger.WarnContext(ctx, "Failed to marshal plugin", "error", err)
 		return nil
 	}
 
 	var str apievents.Struct
 	if err := str.UnmarshalJSON(out); err != nil {
-		s.logger.WarnContext(ctx, "Failed to unmarshal plugin.", "error", err)
+		s.logger.WarnContext(ctx, "Failed to unmarshal plugin", "error", err)
 		return nil
 	}
 	return &str
@@ -277,8 +279,17 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		return nil, trace.Wrap(err)
 	}
 
-	s.logger.InfoContext(ctx, "Plugin updated.",
-		append(logPluginAttr(req.Plugin), slog.Bool("using_existing_credentials", inPlugin.Credentials == nil))...)
+	if s.logger.Enabled(ctx, slog.LevelInfo) {
+		spec := utils.CloneProtoMsg(&(req.Plugin.Spec))
+		s.logger.InfoContext(ctx, "Plugin updated",
+			slog.Group("plugin",
+				"type", string(req.Plugin.GetType()),
+				"name", req.Plugin.GetName(),
+				"spec", spec,
+			),
+			slog.Bool("using_existing_credentials", inPlugin.Credentials == nil),
+		)
+	}
 
 	resource := updatedPlugin.WithoutSecrets()
 	out, ok := resource.(*types.PluginV1)
@@ -303,7 +314,7 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit plugin update event.", "error", err)
+		s.logger.WarnContext(ctx, "Failed to emit plugin update event", "error", err)
 	}
 
 	return out, nil
@@ -452,7 +463,7 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 			// Generate a fake auth error equivalent to a real one
 			// using a dummy context which does not have user info, so will never have permissions
 			fakeAuthError := authCtx.CheckAccessToKind(types.KindPlugin, readVerb)
-			s.log.Error(err)
+			s.logger.ErrorContext(ctx, "user does not have access to retrieve plugin", "error", err)
 			return nil, fakeAuthError
 		}
 
@@ -557,7 +568,7 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit plugin delete event.", "error", err)
+		s.logger.WarnContext(ctx, "Failed to emit plugin delete event", "error", err)
 	}
 
 	s.logger.InfoContext(ctx, "Plugin deleted", "name", req.Name)
@@ -661,7 +672,7 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 		}, nil
 	}
 
-	s.log.Warnf("Plugin static credential retrieval for labels %v denied for user %q", req.Labels, authCtx.Identity.GetIdentity().Username)
+	s.logger.WarnContext(ctx, "Plugin static credential retrieval denied", "labels", req.Labels, "user", authCtx.Identity.GetIdentity().Username)
 
 	// This has some other role, so deny access.
 	return nil, trace.AccessDenied("access denied")
@@ -769,13 +780,4 @@ func (s *Service) isPluginOfTypeActive(ctx context.Context, pluginType types.Plu
 	}
 
 	return false, nil
-}
-
-func logPluginAttr(plugin *types.PluginV1) (attrs []any) {
-	attrs = append(attrs, slog.String("plugin_type", string(plugin.GetType())))
-	attrs = append(attrs, slog.String("plugin_name", plugin.GetName()))
-
-	spec := utils.CloneProtoMsg(&(plugin.Spec))
-	attrs = append(attrs, slog.Any("spec", spec))
-	return attrs
 }

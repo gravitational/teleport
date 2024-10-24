@@ -38,7 +38,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
 					Code: types.PluginStatusCode_RUNNING,
 				}); err != nil {
-					deps.log.WithError(err).Error("Failed to emit status")
+					deps.logger.ErrorContext(ctx, "Failed to emit status", "error", err)
 				}
 				<-deps.lifetime.Done()
 				return nil
@@ -82,10 +82,10 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		_, err := deps.parentProcess.WaitForEvent(eventCtx, closeEvent)
 
 		if err != nil {
-			deps.log.Debugf("Error waiting for OktaStopped event: %v", err)
+			deps.logger.DebugContext(ctx, "Error waiting for OktaStopped event", "error", err)
 			return trace.Wrap(err)
 		}
-		deps.log.Info("Okta plugin has stopped")
+		deps.logger.InfoContext(ctx, "Okta plugin has stopped")
 		return nil
 	}, nil
 }
@@ -99,7 +99,7 @@ func isOktaSCIMEnabled(deps instanceDependencies) (bool, error) {
 		if !trace.IsNotFound(err) {
 			return false, trace.Wrap(err, "querying for SCIM credentials")
 		}
-		deps.log.Info("No SCIM credential supplied. SCIM disabled.")
+		deps.logger.InfoContext(context.Background(), "No SCIM credential supplied - SCIM disabled")
 		enabled = false
 	}
 	return enabled, nil

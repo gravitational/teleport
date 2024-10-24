@@ -3,11 +3,11 @@ package plugins
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -37,9 +37,8 @@ type ManagerConfig struct {
 	// ParentProcess is the process that is running this plugin manager. This is needed
 	// for plugins that do things like start services.
 	ParentProcess *service.TeleportProcess
-
-	Clock clockwork.Clock
-	Log   *logrus.Entry
+	Clock         clockwork.Clock
+	Logger        *slog.Logger
 }
 
 // checkAndSetDefaults validates the configuration and sets default values
@@ -92,8 +91,8 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			Clock:     cfg.Clock,
 		}
 	}
-	if cfg.Log == nil {
-		cfg.Log = logrus.NewEntry(logrus.StandardLogger())
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 
 	return nil
@@ -115,8 +114,7 @@ type Manager struct {
 	watcher                 types.Watcher
 	retryConfig             retryutils.RetryV2Config
 	parentProcess           *service.TeleportProcess
-
-	log *logrus.Entry
+	log                     *slog.Logger
 }
 
 // NewManager constructs a new Manager from the given config
@@ -137,8 +135,7 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		teleportClient:          cfg.TeleportClient,
 		retryConfig:             *cfg.RetryConfig,
 		parentProcess:           cfg.ParentProcess,
-
-		log: cfg.Log,
+		log:                     cfg.Logger,
 	}
 	return m, nil
 }
@@ -154,14 +151,14 @@ func (m *Manager) Run(ctx context.Context) error {
 	for {
 		err := m.runInner(ctx)
 		if err == nil {
-			m.log.Error("runInner should always return a non-nil error, but nil was returned")
+			m.log.ErrorContext(ctx, "runInner should always return a non-nil error, but nil was returned")
 		} else if errors.Is(err, context.Canceled) {
-			m.log.Info("Plugin manager is shutting down per request")
+			m.log.InfoContext(ctx, "Plugin manager is shutting down per request")
 			return err
 		}
 
 		retry.Inc()
-		m.log.WithError(err).Errorf("Error in the event loop, will retry in %v", retry.Duration())
+		m.log.ErrorContext(ctx, "Error in the event loop, backing off", "backoff_duration", retry.Duration(), "error", err)
 		<-retry.After()
 	}
 }
@@ -175,7 +172,7 @@ func (m *Manager) runInner(ctx context.Context) error {
 		}
 	}()
 
-	m.log.Info("Starting event loop")
+	m.log.InfoContext(ctx, "Starting event loop")
 
 	var err error
 	m.watcher, err = m.events.NewWatcher(ctx, types.Watch{
@@ -198,7 +195,7 @@ func (m *Manager) runInner(ctx context.Context) error {
 			Resource: resource,
 		}
 		if err := m.dispatchEvent(ctx, event); err != nil {
-			m.log.WithError(err).Errorf("failed to dispatch %v", event)
+			m.log.ErrorContext(ctx, "failed to dispatch event", "event", event, "error", err)
 		}
 	}
 
@@ -206,14 +203,14 @@ func (m *Manager) runInner(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			err := ctx.Err()
-			m.log.Infof("Event loop stopping: %v", err)
+			m.log.InfoContext(ctx, "Event loop stopping", "error", err)
 			return trace.Wrap(err)
 		case <-m.watcher.Done():
 			return trace.Wrap(m.watcher.Error())
 		case event := <-m.watcher.Events():
 
 			if err := m.dispatchEvent(ctx, event); err != nil {
-				m.log.WithError(err).Errorf("failed to dispatch %v", event)
+				m.log.ErrorContext(ctx, "failed to dispatch event", "event", event, "error", err)
 			}
 		}
 	}
@@ -242,7 +239,7 @@ func (m *Manager) dispatchEvent(ctx context.Context, e types.Event) error {
 		if e.Resource.GetMetadata().Labels[HostedPluginLabel] != "true" {
 			// Shut down instance in case it was previously hosted
 			m.shutdownInstance(name)
-			m.log.Infof("Plugin %q not marked as hosted, skipping", name)
+			m.log.InfoContext(ctx, "Plugin not marked as hosted, skipping", "plugin_name", name)
 			return nil
 		}
 
@@ -269,7 +266,7 @@ func (m *Manager) shutdownInstance(name string) {
 		return
 	}
 
-	m.log.Infof("Stopping plugin %s", name)
+	m.log.InfoContext(context.Background(), "Stopping plugin", "plugin_name", name)
 	instance.cancel()
 	delete(m.instances, name)
 }
@@ -277,7 +274,12 @@ func (m *Manager) shutdownInstance(name string) {
 // startInstance configures a plugin instance per the given spec,
 // and starts it as a separate goroutine
 func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) error {
-	m.log.Infof("Starting plugin %s", plugin.GetName())
+	log := m.log.With(teleport.ComponentKey, plugin.GetName(),
+		"plugin_name", plugin.GetName(),
+		"plugin_type", plugin.GetType(),
+	)
+
+	log.InfoContext(ctx, "Starting plugin")
 
 	factory, ok := m.factories[plugin.GetType()]
 	if !ok {
@@ -299,12 +301,6 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	store := newPluginStore(m.plugins, plugin.GetName())
 	statusSink := newStatusSink(m.plugins, plugin.GetName(), string(plugin.GetType()))
 
-	log := m.log.WithFields(logrus.Fields{
-		teleport.ComponentKey: plugin.GetName(),
-		"plugin_name":         plugin.GetName(),
-		"plugin_type":         plugin.GetType(),
-	})
-
 	staticCreds, err := m.getStaticCredentials(ctx, plugin)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
@@ -322,7 +318,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		statusSink:        statusSink,
 		parentProcess:     m.parentProcess,
 		staticCredentials: staticCreds,
-		log:               log,
+		logger:            log,
 	}
 
 	// Note that we give a copy of the plugin resource to the plugin factory. If
@@ -352,14 +348,14 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 			case errors.As(err, &accessDenied):
 				// Authentication failed for some reason. Let's at least hint to
 				// the user what the problem might be.
-				log.Error("Plugin instance delegate failed due to authentication error.")
+				log.ErrorContext(ctx, "Plugin instance delegate failed due to authentication error")
 				statusSink.Emit(ctx, &types.PluginStatusV1{
 					Code:         types.PluginStatusCode_UNAUTHORIZED,
 					ErrorMessage: err.Error(),
 				})
 
 			default:
-				log.WithError(err).Error("Plugin instance delegate failed.")
+				log.ErrorContext(ctx, "Plugin instance delegate failed", "error", err)
 				statusSink.Emit(pluginCtx, &types.PluginStatusV1{
 					Code:         types.PluginStatusCode_OTHER_ERROR,
 					ErrorMessage: err.Error(),

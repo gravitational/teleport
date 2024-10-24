@@ -58,11 +58,11 @@ func jamfInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 
 		_, err = deps.parentProcess.WaitForEvent(eventCtx, closeEvent)
 		if err != nil {
-			deps.log.Debugf("Error waiting for JamfStopped event: %v", err)
+			deps.logger.DebugContext(ctx, "Error waiting for JamfStopped event", "error", err)
 			return trace.Wrap(err)
 		}
 
-		deps.log.Info("Jamf plugin has stopped")
+		deps.logger.InfoContext(ctx, "Jamf plugin has stopped")
 		return nil
 	}, nil
 }

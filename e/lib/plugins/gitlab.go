@@ -48,11 +48,11 @@ func gitlabInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps ins
 
 		_, err = deps.parentProcess.WaitForEvent(eventCtx, closeEvent)
 		if err != nil {
-			deps.log.Debugf("Error waiting for GitlabStopped event: %v", err)
+			deps.logger.DebugContext(ctx, "Error waiting for GitlabStopped event", "error", err)
 			return trace.Wrap(err)
 		}
 
-		deps.log.Info("Gitlab plugin has stopped")
+		deps.logger.InfoContext(ctx, "Gitlab plugin has stopped")
 		return nil
 	}, nil
 }

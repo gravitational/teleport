@@ -1,8 +1,9 @@
 package plugins
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -27,10 +28,7 @@ func RegisterPluginManager(oauthProviders servicecfg.PluginOAuthProviders, proce
 		Events:                  process.GetAuthServer().Services,
 		TeleportClient:          process.GetAuthServer(),
 		ParentProcess:           process,
-
-		Log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: eteleport.ComponentPluginManager,
-		}),
+		Logger:                  slog.With(teleport.ComponentKey, eteleport.ComponentPluginManager),
 	})
 	if err != nil {
 		return trace.Wrap(err)
