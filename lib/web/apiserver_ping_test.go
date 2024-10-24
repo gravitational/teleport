@@ -281,7 +281,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			cleanup: true,
 		},
 		{
-			name:    "empty config and version",
+			name:    "no autoupdate tool config nor version",
 			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
 			expected: webclient.AutoUpdateSettings{
@@ -291,7 +291,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			cleanup: true,
 		},
 		{
-			name: "set tools auto update version",
+			name: "set auto update version",
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
 				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3",
