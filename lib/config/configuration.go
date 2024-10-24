@@ -297,6 +297,9 @@ type IntegrationConfAzureOIDC struct {
 	// When this is true, the integration script will produce
 	// a cache file necessary for TAG synchronization.
 	AccessGraphEnabled bool
+
+	// SkipOIDCConfiguration is a flag indicating that OIDC configuration should be skipped.
+	SkipOIDCConfiguration bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
