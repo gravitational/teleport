@@ -31,7 +31,6 @@ const StyledButtonLink = styled.a.attrs({
   rel: 'noreferrer',
 })`
   color: ${({ theme }) => theme.colors.buttons.link.default};
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;

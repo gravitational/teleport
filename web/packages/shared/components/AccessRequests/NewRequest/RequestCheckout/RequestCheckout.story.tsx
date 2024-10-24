@@ -152,6 +152,20 @@ export const FailedResourceRequest = () => (
   </MemoryRouter>
 );
 
+export const FailedUnsupportedKubeResourceKind = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText:
+          'Your Teleport roles request_mode field restricts you from requesting kinds [kube_cluster] for Kubernetes cluster "pumpkin-kube-cluster". Allowed kinds: [pod secret]',
+      }}
+    />
+  </MemoryRouter>
+);
+
 export const Success = () => (
   <MemoryRouter initialEntries={['']}>
     <RequestCheckoutWithSlider
@@ -164,6 +178,13 @@ export const Success = () => (
 );
 
 const baseProps: RequestCheckoutWithSliderProps = {
+  fetchKubeNamespaces: async () => [
+    'namespace1',
+    'namespace2',
+    'namespace3',
+    'namespace4',
+  ],
+  bulkToggleKubeResources: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
