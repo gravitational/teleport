@@ -360,6 +360,8 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 
 // verifyAndCorrectACL performs validation and attempts correction on new-style
 // ACLs when configured.
+//
+//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 func (dd *DestinationDirectory) verifyAndCorrectACL(ctx context.Context, subpath string) error {
 	p := filepath.Join(dd.Path, subpath)
 
@@ -380,8 +382,6 @@ func (dd *DestinationDirectory) verifyAndCorrectACL(ctx context.Context, subpath
 	// as hard failures.
 	if len(issues) > 0 {
 		if err := botfs.ConfigureACL(p, dd.Readers); err != nil {
-			// TODO: should this always be a hard fail? Would we want to just
-			// warn on `acls: try`?
 			return trace.Wrap(err, "unable to fix misconfigured ACL at path %s with issues %v", p, issues)
 		}
 
