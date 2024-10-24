@@ -36,7 +36,7 @@ import (
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/entraid"
+	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
@@ -211,7 +211,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 			},
 		},
 		Display:             "Entra ID",
-		EntityDescriptorURL: entraid.FederationMetadataURL(settings.tenantID, settings.clientID),
+		EntityDescriptorURL: entraapiutils.FederationMetadataURL(settings.tenantID, settings.clientID),
 	})
 	if err != nil {
 		return trace.Wrap(err, "failed to create SAML connector")
