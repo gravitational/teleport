@@ -28,6 +28,7 @@ use std::{
         fd::AsRawFd,
         unix::{ffi::OsStrExt, net::UnixStream},
     },
+    path::Path,
     process,
 };
 
@@ -75,6 +76,22 @@ fn main() -> Result<()> {
         fl.set(OFlag::O_NONBLOCK, false);
         fcntl::fcntl(libc::STDOUT_FILENO, fcntl::F_SETFL(fl))
             .wrap_err("could not set stdout to blocking mode")?;
+    }
+
+    let mut mux_path: &Path = mux_path.as_ref();
+    // unix socket paths have a length limit that's much shorter than the path
+    // size limit, so to put ourselves in the best possible situation we chdir
+    // into the socket's directory and then connect to the socket's file name if
+    // possible, which makes the length restriction only apply to the final
+    // component of the path
+    if let Some((dir_path, file_path)) = mux_path.parent().zip(mux_path.file_name()) {
+        // I'm not sure if it's ever possible to successfully connect to a unix
+        // socket without having permission to chdir into its parent directory,
+        // but since it's clearer to get a permission error at connection time
+        // anyway, we just ignore the error and proceed with the original path
+        if env::set_current_dir(dir_path).is_ok() {
+            mux_path = file_path.as_ref();
+        }
     }
 
     let mut mux_conn = UnixStream::connect(mux_path).wrap_err("could not connect to mux")?;
