@@ -21,6 +21,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"io"
 	"regexp"
 	"sort"
 	"testing"
@@ -1917,4 +1918,58 @@ func (m *iamMock) GetRole(ctx context.Context, input *iam.GetRoleInput, optFns .
 	}
 	arn := fmt.Sprintf("arn:%s:iam::%s:role%s%s", m.partition, m.account, path, roleName)
 	return &iam.GetRoleOutput{Role: &iamtypes.Role{Arn: &arn}}, nil
+}
+
+type mockLocalRegionGetter struct {
+	region string
+	err    error
+}
+
+func (m mockLocalRegionGetter) GetRegion(context.Context) (string, error) {
+	return m.region, m.err
+}
+
+func Test_getFallbackRegion(t *testing.T) {
+	tests := []struct {
+		name              string
+		fips              bool
+		localRegionGetter localRegionGetter
+		wantError         bool
+		wantRegion        string
+	}{
+		{
+			name: "fallback to retrieved local region",
+			localRegionGetter: mockLocalRegionGetter{
+				region: "my-local-region",
+			},
+			wantRegion: "my-local-region",
+		},
+		{
+			name: "fails to fallback (fips)",
+			localRegionGetter: mockLocalRegionGetter{
+				err: fmt.Errorf("failed to get local region"),
+			},
+			fips:      true,
+			wantError: true,
+		},
+		{
+			name: "fallback to aws-global",
+			localRegionGetter: mockLocalRegionGetter{
+				err: fmt.Errorf("failed to get local region"),
+			},
+			wantRegion: "aws-global",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			region, err := getFallbackRegion(context.Background(), io.Discard, test.fips, test.localRegionGetter)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantRegion, region)
+			}
+		})
+	}
 }
