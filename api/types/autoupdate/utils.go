@@ -51,8 +51,10 @@ func checkToolsMode(mode string) error {
 
 func checkScheduleName(schedule string) error {
 	switch schedule {
-	case AgentsScheduleRegular, AgentsScheduleImmediate:
+	case AgentsScheduleImmediate:
 		return nil
+	case AgentsScheduleRegular:
+		return trace.BadParameter("regular schedule is not implemented yet")
 	default:
 		return trace.BadParameter("unsupported schedule type: %q", schedule)
 	}

@@ -94,7 +94,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 				Agents: &autoupdate.AutoUpdateVersionSpecAgents{
 					StartVersion:  "1.2.3-dev.1",
 					TargetVersion: "1.2.3-dev.2",
-					Schedule:      AgentsScheduleRegular,
+					Schedule:      AgentsScheduleImmediate,
 					Mode:          AgentsUpdateModeEnabled,
 				},
 			},
@@ -111,7 +111,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					Agents: &autoupdate.AutoUpdateVersionSpecAgents{
 						StartVersion:  "1.2.3-dev.1",
 						TargetVersion: "1.2.3-dev.2",
-						Schedule:      AgentsScheduleRegular,
+						Schedule:      AgentsScheduleImmediate,
 						Mode:          AgentsUpdateModeEnabled,
 					},
 				},
@@ -124,7 +124,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					StartVersion:  "",
 					TargetVersion: "1.2.3",
 					Mode:          AgentsUpdateModeEnabled,
-					Schedule:      AgentsScheduleRegular,
+					Schedule:      AgentsScheduleImmediate,
 				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
@@ -138,7 +138,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					StartVersion:  "1.2.3-dev",
 					TargetVersion: "",
 					Mode:          AgentsUpdateModeEnabled,
-					Schedule:      AgentsScheduleRegular,
+					Schedule:      AgentsScheduleImmediate,
 				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
@@ -152,7 +152,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					StartVersion:  "17-0-0",
 					TargetVersion: "1.2.3",
 					Mode:          AgentsUpdateModeEnabled,
-					Schedule:      AgentsScheduleRegular,
+					Schedule:      AgentsScheduleImmediate,
 				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
@@ -166,7 +166,7 @@ func TestNewAutoUpdateVersion(t *testing.T) {
 					StartVersion:  "1.2.3",
 					TargetVersion: "17-0-0",
 					Mode:          AgentsUpdateModeEnabled,
-					Schedule:      AgentsScheduleRegular,
+					Schedule:      AgentsScheduleImmediate,
 				},
 			},
 			assertErr: func(t *testing.T, err error, a ...any) {
