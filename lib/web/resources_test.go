@@ -245,7 +245,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v8
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{
