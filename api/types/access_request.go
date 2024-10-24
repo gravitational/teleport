@@ -656,6 +656,10 @@ const (
 	// users should be prompted for a reason.
 	RequestStrategyReason RequestStrategy = "reason"
 
+	// RequestStrategyReasonRequired is the same as "optional" but with the
+	// users required to provide a reason when making a request.
+	RequestStrategyReasonRequired RequestStrategy = "reason-required"
+
 	// RequestStrategyAlways indicates that client implementations
 	// should automatically generate wildcard requests on login, but
 	// that reasons are not required.
@@ -678,7 +682,12 @@ func (s RequestStrategy) ShouldAutoRequest() bool {
 // is one that requires users to always supply
 // reasons with their requests.
 func (s RequestStrategy) RequireReason() bool {
-	return s == RequestStrategyReason
+	switch s {
+	case RequestStrategyReason, RequestStrategyReasonRequired:
+		return true
+	default:
+		return false
+	}
 }
 
 // stateVariants allows iteration of the expected variants

@@ -84,8 +84,16 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 			break
 		}
 
+		if strategy == types.RequestStrategyAlways {
+			continue
+		}
+
 		if options.RequestAccess == types.RequestStrategyAlways {
 			strategy = types.RequestStrategyAlways
+		}
+
+		if options.RequestAccess == types.RequestStrategyReasonRequired {
+			strategy = types.RequestStrategyReasonRequired
 		}
 	}
 

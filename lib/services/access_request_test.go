@@ -2059,6 +2059,13 @@ func TestAutoRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	reasonRequiredRole, err := types.NewRole("reason-required", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyReasonRequired,
+		},
+	})
+	require.NoError(t, err)
+
 	alwaysRole, err := types.NewRole("always", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			RequestAccess: types.RequestStrategyAlways,
@@ -2113,6 +2120,24 @@ func TestAutoRequest(t *testing.T) {
 				require.True(t, validator.requireReason)
 				require.True(t, validator.autoRequest)
 				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with reason-required",
+			roles: []types.Role{reasonRequiredRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.True(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with reason-required and prompt",
+			roles: []types.Role{reasonRequiredRole, promptRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.True(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Equal(t, "test prompt", validator.prompt)
 			},
 		},
 	}
