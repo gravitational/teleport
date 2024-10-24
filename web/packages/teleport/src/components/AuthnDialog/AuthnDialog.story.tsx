@@ -41,6 +41,9 @@ export const Loaded = () => {
           displayName: 'Okta',
         },
       },
+      webauthnPublicKey: {
+        challenge: new ArrayBuffer(1),
+      },
     },
   };
   return <AuthnDialog {...props} />;

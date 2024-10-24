@@ -50,12 +50,7 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
       </DialogContent>
       <Flex textAlign="center" width="100%" flexDirection="column" gap={3}>
         {mfa.ssoChallenge && (
-          <ButtonSecondary
-            onClick={mfa.onSsoAuthenticate}
-            autoFocus
-            gap={2}
-            block
-          >
+          <ButtonSecondary onClick={mfa.onSsoAuthenticate} gap={2} block>
             <SSOIcon
               type={guessProviderType(
                 mfa.ssoChallenge.device.displayName,
@@ -66,7 +61,7 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
           </ButtonSecondary>
         )}
         {mfa.webauthnPublicKey && (
-          <ButtonSecondary onClick={mfa.onWebauthnAuthenticate} autoFocus block>
+          <ButtonSecondary onClick={mfa.onWebauthnAuthenticate} block>
             Passkey/Hardware Key
           </ButtonSecondary>
         )}
