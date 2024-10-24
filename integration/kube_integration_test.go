@@ -791,7 +791,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 loop:
 	for {
 		select {
-		case event := <-main.UploadEventsC:
+		case event := <-aux.UploadEventsC:
 			sessionID = event.SessionID
 			break loop
 		case <-timeoutC:
@@ -800,7 +800,7 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	capturedStream, _ := streamSession(ctx, t, aux.Process.GetAuthServer(), sessionID)
 	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
@@ -1614,7 +1614,6 @@ func waitForContainer(ctx context.Context, podClient corev1client.PodInterface, 
 		}
 
 		s := getContainerStatusByName(p, containerName)
-		fmt.Println("test", s)
 		if s == nil {
 			return false, nil
 		}

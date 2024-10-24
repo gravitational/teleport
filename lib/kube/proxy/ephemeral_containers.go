@@ -104,7 +104,7 @@ func (f *Forwarder) ephemeralContainers(authCtx *authContext, w http.ResponseWri
 		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-	if !f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
+	if !sess.isLocalKubernetesCluster {
 		sess.forwarder.ServeHTTP(w, req)
 		return nil, nil
 	}
