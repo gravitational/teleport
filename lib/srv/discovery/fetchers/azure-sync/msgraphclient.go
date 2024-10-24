@@ -115,14 +115,6 @@ func (c *GraphClient) ListUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 
-	if len(users) == 0 {
-		return nil, err
-	}
-
-	if len(users) > 1 {
-		return nil, err
-	}
-
 	return users, nil
 }
 
