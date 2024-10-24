@@ -102,6 +102,7 @@ Optional:
 
 Optional:
 
+- `account_assignments` (Attributes List) AccountAssignments holds the list of account assignments affected by this condition. (see [below for nested schema](#nested-schema-for-specallowaccount_assignments))
 - `app_labels` (Map of List of String) AppLabels is a map of labels used as part of the RBAC system.
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
@@ -141,6 +142,14 @@ Optional:
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
 
+### Nested Schema for `spec.allow.account_assignments`
+
+Optional:
+
+- `account` (String)
+- `permission_set` (String)
+
+
 ### Nested Schema for `spec.allow.db_permissions`
 
 Optional:
@@ -172,7 +181,7 @@ Optional:
 
 Optional:
 
-- `kind` (String) Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.
+- `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
@@ -265,6 +274,7 @@ Optional:
 
 Optional:
 
+- `account_assignments` (Attributes List) AccountAssignments holds the list of account assignments affected by this condition. (see [below for nested schema](#nested-schema-for-specdenyaccount_assignments))
 - `app_labels` (Map of List of String) AppLabels is a map of labels used as part of the RBAC system.
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
@@ -304,6 +314,14 @@ Optional:
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
 
+### Nested Schema for `spec.deny.account_assignments`
+
+Optional:
+
+- `account` (String)
+- `permission_set` (String)
+
+
 ### Nested Schema for `spec.deny.db_permissions`
 
 Optional:
@@ -335,7 +353,7 @@ Optional:
 
 Optional:
 
-- `kind` (String) Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.
+- `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
