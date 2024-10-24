@@ -43,9 +43,9 @@ export default function UserList({
           key: 'roles',
           headerText: 'Roles',
           isSortable: true,
-          onSort: (a: string[], b: string[]) => {
-            const aStr = a.toString();
-            const bStr = b.toString();
+          onSort: (a, b) => {
+            const aStr = a.roles.toString();
+            const bStr = b.roles.toString();
 
             if (aStr < bStr) {
               return -1;

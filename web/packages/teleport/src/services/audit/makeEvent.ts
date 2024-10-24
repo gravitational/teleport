@@ -1987,17 +1987,15 @@ const unknownFormatter = {
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code] || unknownFormatter;
-  const event = {
+  return {
     codeDesc: formatter.desc,
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,
     user: json.user,
-    time: json.time,
+    time: new Date(json.time),
     raw: json,
   };
-
-  return event;
 }
 
 // older events might not have an uid field.

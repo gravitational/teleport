@@ -25,7 +25,7 @@ import { Button, ButtonPrimary, ButtonSecondary, ButtonWarning } from './index';
 describe('design/Button', () => {
   it('renders a <button> and respects default "kind" prop == primary', () => {
     const { container } = render(<Button />);
-    expect(container.firstChild.nodeName).toBe('BUTTON');
+    expect(container.firstChild?.nodeName).toBe('BUTTON');
     expect(container.firstChild).toHaveStyle({
       background: theme.colors.brand,
     });

@@ -50,7 +50,7 @@ export function SlideTabs({
               onClick={onClick}
               itemCount={tabs.length}
               key={`${tabName}-${tabIndex}`}
-              className={selected && 'selected'}
+              className={selected ? 'selected' : undefined}
               processing={isProcessing}
               disabled={disabled}
               aria-selected={selected}

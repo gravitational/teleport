@@ -17,19 +17,37 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 
-import { render } from 'design/utils/testing';
+import { Button, ButtonProps } from 'design/Button';
 
-import ButtonLink from './index';
+function ButtonLink({ ...props }: ButtonProps<'a'>) {
+  return <Button as={StyledButtonLink} {...props} />;
+}
 
-describe('design/ButtonLink', () => {
-  it('respects the "as" prop', () => {
-    const { container } = render(<ButtonLink />);
-    expect(container.firstChild.nodeName).toBe('A');
-  });
+const StyledButtonLink = styled.a`
+  color: ${({ theme }) => theme.colors.buttons.link.default};
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  padding: 0 8px;
 
-  it('respects the button size prop', () => {
-    const { container } = render(<ButtonLink size="large" />);
-    expect(container.firstChild).toHaveStyle('min-height: 40px');
-  });
-});
+  &:hover,
+  &:focus {
+    color: ${({ theme }) => theme.colors.buttons.link.hover};
+    box-shadow: none;
+  }
+
+  &:active {
+    color: ${({ theme }) => theme.colors.buttons.link.active};
+  }
+
+  &:hover,
+  &:focus,
+  &:active {
+    background: ${({ theme }) => theme.colors.levels.surface};
+  }
+`;
+
+export default ButtonLink;

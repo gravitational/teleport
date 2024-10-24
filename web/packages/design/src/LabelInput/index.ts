@@ -1,4 +1,4 @@
-/**
+/*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
@@ -16,18 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { LabelInput } from './LabelInput';
+export { LabelInput };
+
 /**
- * selectElementContent selects the entire text contained in the HTML
- * element that is passed in as args
- *
- * @param element the element that contains the text to select
+ * @deprecated Use a named import: `import { LabelInput } from 'design/LabelInput'`.
  */
-export default function selectElementContent(element: HTMLElement) {
-  const selection = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  if (selection) {
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-}
+export default LabelInput;

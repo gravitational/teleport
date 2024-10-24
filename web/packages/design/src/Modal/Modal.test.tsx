@@ -22,9 +22,9 @@ import userEvent from '@testing-library/user-event';
 
 import { render, fireEvent } from 'design/utils/testing';
 
-import Modal from './Modal';
+import Modal, { ModalProps } from './Modal';
 
-const renderModal = props => {
+const renderModal = (props: Omit<ModalProps, 'open'>) => {
   return render(
     <Modal open={true} {...props}>
       <div>Hello</div>

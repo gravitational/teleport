@@ -20,7 +20,7 @@ import React, { createRef, cloneElement } from 'react';
 import styled, { StyleFunction } from 'styled-components';
 import { createPortal } from 'react-dom';
 
-export type Props = {
+export type ModalProps = {
   /**
    * If `true`, the modal is open.
    */
@@ -89,7 +89,7 @@ export type Props = {
   onEscapeKeyDown?: (event: KeyboardEvent) => void;
 };
 
-export default class Modal extends React.Component<Props> {
+export default class Modal extends React.Component<ModalProps> {
   lastFocus: HTMLElement | undefined;
   modalRef = createRef<HTMLElement>();
   mounted = false;
@@ -101,7 +101,7 @@ export default class Modal extends React.Component<Props> {
     }
   }
 
-  componentDidUpdate(prevProps: Props) {
+  componentDidUpdate(prevProps: ModalProps) {
     if (prevProps.open && !this.props.open) {
       this.handleClose();
     } else if (!prevProps.open && this.props.open) {
@@ -117,7 +117,7 @@ export default class Modal extends React.Component<Props> {
     }
   }
 
-  dialogEl = (): Element => {
+  dialogEl = (): Element | undefined => {
     const modalEl = this.modalRef.current;
     if (!modalEl) {
       return;
@@ -129,7 +129,7 @@ export default class Modal extends React.Component<Props> {
       return modalEl.children[1];
     }
 
-    return modalEl.firstElementChild;
+    return modalEl.firstElementChild || undefined;
   };
 
   handleOpen = () => {
@@ -142,7 +142,9 @@ export default class Modal extends React.Component<Props> {
 
   handleOpened = () => {
     // Fix a bug on Chrome where the scroll isn't initially 0.
-    this.modalRef.current.scrollTop = 0;
+    if (this.modalRef.current) {
+      this.modalRef.current.scrollTop = 0;
+    }
   };
 
   handleClose = () => {
@@ -194,7 +196,7 @@ export default class Modal extends React.Component<Props> {
       this.lastFocus.focus();
     }
 
-    this.lastFocus = null;
+    this.lastFocus = undefined;
   }
 
   render() {
@@ -216,7 +218,7 @@ export default class Modal extends React.Component<Props> {
         {!hideBackdrop && (
           <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
         )}
-        {cloneElement(children, {})}
+        {children && cloneElement(children, {})}
       </StyledModal>,
       document.body
     );
@@ -227,7 +229,7 @@ export type BackdropProps = {
   /**
    * Allows backdrop to keep bg color of parent eg: popup menu
    */
-  invisible: boolean;
+  invisible?: boolean;
   [prop: string]: any;
 };
 
@@ -257,7 +259,7 @@ const StyledBackdrop = styled.div<BackdropProps>`
 `;
 
 const StyledModal = styled.div<{
-  modalCss: StyleFunction<any>;
+  modalCss?: StyleFunction<any>;
   ref: React.RefObject<HTMLElement>;
 }>`
   position: fixed;

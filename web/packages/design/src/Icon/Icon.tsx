@@ -36,7 +36,7 @@ export function Icon({
   if (size === 'large') {
     iconSize = 24;
   }
-  if (size === 'extraLarge') {
+  if (size === 'extra-large') {
     iconSize = 32;
   }
   return (
@@ -63,7 +63,7 @@ const StyledIcon = styled.span`
   ${borderRadius};
 `;
 
-export type IconSize = 'small' | 'medium' | 'large' | 'extraLarge' | number;
+export type IconSize = 'small' | 'medium' | 'large' | 'extra-large' | number;
 
 export type IconProps = SpaceProps & {
   size?: IconSize;

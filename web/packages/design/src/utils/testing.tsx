@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ReactNode } from 'react';
 import {
   render as testingRender,
   act,
@@ -35,7 +35,7 @@ import { darkTheme } from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
-function Providers({ children }: { children: React.ReactElement }) {
+function Providers({ children }: { children: ReactNode }) {
   return (
     <ConfiguredThemeProvider theme={darkTheme}>
       {children}
@@ -44,7 +44,7 @@ function Providers({ children }: { children: React.ReactElement }) {
 }
 
 function render(
-  ui: React.ReactElement<any>,
+  ui: ReactNode,
   options?: RenderOptions
 ): ReturnType<typeof testingRender> {
   return testingRender(ui, { wrapper: Providers, ...options });
