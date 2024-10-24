@@ -67,8 +67,8 @@ type ReporterConfig struct {
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
-	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
-	AnonymizationKey string
+	// Anonymizer is used to anonymize data user or resource names. Required.
+	Anonymizer utils.Anonymizer
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -87,8 +87,8 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if cfg.AnonymizationKey == "" {
-		return trace.BadParameter("missing AnonymizationKey")
+	if cfg.Anonymizer == nil {
+		return trace.BadParameter("missing Anonymizer")
 	}
 
 	if cfg.Logger == nil {
@@ -105,15 +105,10 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	baseCtx, baseCancel := context.WithCancel(ctx)
 
 	r := &Reporter{
-		anonymizer: anonymizer,
+		anonymizer: cfg.Anonymizer,
 		svc:        reportService{cfg.Backend},
 		logger:     cfg.Logger,
 		clock:      cfg.Clock,
@@ -122,8 +117,8 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		closing: make(chan struct{}),
 		done:    make(chan struct{}),
 
-		clusterName: anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
-		hostID:      anonymizer.AnonymizeNonEmpty(cfg.HostID),
+		clusterName: cfg.ClusterName.GetClusterName(),
+		hostID:      cfg.HostID,
 
 		baseCancel: baseCancel,
 	}
@@ -150,10 +145,10 @@ type Reporter struct {
 	// done is closed at the end of the background goroutine.
 	done chan struct{}
 
-	// clusterName is the anonymized cluster name.
-	clusterName []byte
-	// hostID is the anonymized host ID of the reporter (this instance).
-	hostID []byte
+	// clusterName is the un-anonymized cluster name.
+	clusterName string
+	// hostID is the un-anonymized host ID of the reporter (this instance).
+	hostID string
 
 	// baseCancel cancels the context used by the background goroutine.
 	baseCancel context.CancelFunc
@@ -305,7 +300,6 @@ Ingest:
 		select {
 		case <-ticker.Chan():
 		case ae = <-r.ingest:
-
 		case <-ctx.Done():
 			r.closingOnce.Do(func() { close(r.closing) })
 			break Ingest
@@ -412,7 +406,10 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 		records = append(records, record)
 	}
 
-	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareUserActivityReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
 		r.logger.ErrorContext(ctx, "Failed to prepare user activity report, dropping data.",
 			"start_time", startTime,
@@ -456,7 +453,10 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		records = append(records, record)
 	}
 
-	reports, err := prepareResourcePresenceReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareResourcePresenceReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
 		r.logger.ErrorContext(ctx, "Failed to prepare resource presence report, dropping data.", "start_time", startTime, "error", err)
 		return
