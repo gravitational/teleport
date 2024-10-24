@@ -349,22 +349,6 @@ func registerThroughProxy(
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := proxyinsecureclient.NewConnection(
-		ctx,
-		proxyinsecureclient.ConnectionConfig{
-			ProxyServer:  proxyAddr,
-			CipherSuites: params.CipherSuites,
-			Clock:        params.Clock,
-			Insecure:     params.Insecure,
-			Log:          slog.Default(),
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-	joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
-
 	var certs *proto.Certs
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
