@@ -24,6 +24,8 @@ import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+
 import type { Props } from '../FormLogin';
 
 export const FormLocal = ({
@@ -83,6 +85,7 @@ export const FormLocal = ({
             width="100%"
             disabled={isProcessing}
           />
+          <LinearProgress absolute={false} hidden={!isProcessing} />
           <ButtonPrimary
             width="100%"
             mt={2}

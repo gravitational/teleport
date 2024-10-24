@@ -28,7 +28,7 @@ import { IconProps } from 'design/Icon/Icon';
 import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
 
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import { AddWindowEventListener } from '../SearchContext';
 

@@ -53,7 +53,7 @@ export function ClusterLoginPresentation({
   onAbort,
   loggedInUserName,
   shouldPromptSsoStatus,
-  webauthnLogin,
+  passwordlessLoginState,
   reason,
 }: ClusterLoginPresentationProps) {
   return (
@@ -94,7 +94,7 @@ export function ClusterLoginPresentation({
             loginAttempt={loginAttempt}
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
-            webauthnLogin={webauthnLogin}
+            passwordlessLoginState={passwordlessLoginState}
           />
         )}
       </DialogContent>
