@@ -46,6 +46,9 @@ const (
 )
 
 var (
+	// tgzExtractPaths describes how to extract the Teleport tgz.
+	// See utils.Extract for more details on how this list is parsed.
+	// Paths must use tarball-style / separators (not filepath).
 	tgzExtractPaths = []utils.ExtractPath{
 		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service"},
 		{Src: "teleport/examples", Skip: true},
@@ -54,6 +57,9 @@ var (
 		{Src: "teleport/VERSION", Dst: "share/VERSION"},
 		{Src: "teleport", Dst: "bin"},
 	}
+
+	// servicePath contains the path to the Teleport SystemD service within the version directory.
+	servicePath = filepath.Join("etc", "systemd", "teleport.service")
 )
 
 // LocalInstaller manages the creation and removal of installations
@@ -61,8 +67,10 @@ var (
 type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
-	// LinkDir contains symlinks to the most recently linked installation.
-	LinkDir string
+	// LinkBinDir contains symlinks to the linked installation's binaries.
+	LinkBinDir string
+	// LinkServiceDir contains a symlink to the linked installation's systemd service.
+	LinkServiceDir string
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
 	// Log contains a logger.
@@ -88,7 +96,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 		return trace.Wrap(err)
 	}
 
-	linked, err := li.isLinked(filepath.Join(versionDir, "bin"))
+	linked, err := li.isLinked(versionDir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Errorf("failed to determine if linked: %w", err)
 	}
@@ -365,7 +373,7 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 	return versions, nil
 }
 
-// Link the specified version into the system LinkDir.
+// Link the specified version into the system LinkBinDir.
 func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 	versionDir, err := li.versionDir(version)
 	if err != nil {
@@ -376,12 +384,16 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 	if err != nil {
 		return trace.Errorf("failed to find Teleport binary directory: %w", err)
 	}
+	err = os.MkdirAll(li.LinkBinDir, 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var linked int
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-		err := renameio.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(li.LinkDir, entry.Name()))
+		err := renameio.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(li.LinkBinDir, entry.Name()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -389,6 +401,15 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 	}
 	if linked == 0 {
 		return trace.Errorf("no binaries available to link")
+	}
+	service := filepath.Join(versionDir, servicePath)
+	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = renameio.Symlink(service, filepath.Join(li.LinkServiceDir, filepath.Base(servicePath)))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -404,9 +425,10 @@ func (li *LocalInstaller) versionDir(version string) (string, error) {
 	return versionDir, nil
 }
 
-// isLinked returns true if any binaries in binDir are linked.
-// Returns os.ErrNotExist error if the version does not exist.
-func (li *LocalInstaller) isLinked(binDir string) (bool, error) {
+// isLinked returns true if any binaries or services in versionDir are linked.
+// Returns os.ErrNotExist error if the versionDir does not exist.
+func (li *LocalInstaller) isLinked(versionDir string) (bool, error) {
+	binDir := filepath.Join(versionDir, "bin")
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -415,13 +437,18 @@ func (li *LocalInstaller) isLinked(binDir string) (bool, error) {
 		if entry.IsDir() {
 			continue
 		}
-		v, err := os.Readlink(filepath.Join(li.LinkDir, entry.Name()))
+		v, err := os.Readlink(filepath.Join(li.LinkBinDir, entry.Name()))
 		if err != nil {
 			continue
 		}
-		if v == filepath.Join(binDir, entry.Name()) {
+		if filepath.Clean(v) == filepath.Join(binDir, entry.Name()) {
 			return true, nil
 		}
 	}
-	return false, nil
+	v, err := os.Readlink(filepath.Join(li.LinkServiceDir, filepath.Base(servicePath)))
+	if err != nil {
+		return false, nil
+	}
+	return filepath.Clean(v) ==
+		filepath.Join(versionDir, servicePath), nil
 }

@@ -115,7 +115,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		cfg.Log = slog.Default()
 	}
 	if cfg.LinkDir == "" {
-		cfg.LinkDir = "/usr/local/bin"
+		cfg.LinkDir = "/usr/local"
 	}
 	if cfg.VersionsDir == "" {
 		cfg.VersionsDir = filepath.Join(libdefaults.DataDir, "versions")
@@ -126,10 +126,11 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		ConfigPath:         filepath.Join(cfg.VersionsDir, updateConfigName),
 		Installer: &LocalInstaller{
-			InstallDir: cfg.VersionsDir,
-			LinkDir:    cfg.LinkDir,
-			HTTP:       client,
-			Log:        cfg.Log,
+			InstallDir:     cfg.VersionsDir,
+			LinkBinDir:     filepath.Join(cfg.LinkDir, "bin"),
+			LinkServiceDir: filepath.Join(cfg.LinkDir, "lib", "systemd", "system"),
+			HTTP:           client,
+			Log:            cfg.Log,
 
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
@@ -149,7 +150,7 @@ type LocalUpdaterConfig struct {
 	DownloadTimeout time.Duration
 	// VersionsDir for installing Teleport (usually /var/lib/teleport/versions).
 	VersionsDir string
-	// LinkDir for installing Teleport (usually /usr/local/bin).
+	// LinkDir for installing Teleport (usually /usr/local).
 	LinkDir string
 }
 

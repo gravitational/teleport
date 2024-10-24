@@ -204,11 +204,29 @@ func TestLocalInstaller_Link(t *testing.T) {
 		errMatch string
 	}{
 		{
-			name:  "present",
-			dirs:  []string{"bin", "bin/somedir", "somedir"},
-			files: []string{"bin/teleport", "bin/tsh", "bin/tbot", "README"},
+			name: "present",
+			dirs: []string{
+				"bin",
+				"bin/somedir",
+				"etc",
+				"etc/systemd",
+				"etc/systemd/somedir",
+				"somedir",
+			},
+			files: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
 
-			links: []string{"teleport", "tsh", "tbot"},
+			links: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				"lib/systemd/system/teleport.service",
+			},
 		},
 		{
 			name:  "no links",
@@ -245,9 +263,10 @@ func TestLocalInstaller_Link(t *testing.T) {
 			linkDir := t.TempDir()
 
 			installer := &LocalInstaller{
-				InstallDir: versionsDir,
-				LinkDir:    linkDir,
-				Log:        slog.Default(),
+				InstallDir:     versionsDir,
+				LinkBinDir:     filepath.Join(linkDir, "bin"),
+				LinkServiceDir: filepath.Join(linkDir, "lib/systemd/system"),
+				Log:            slog.Default(),
 			}
 			ctx := context.Background()
 			err = installer.Link(ctx, version)
@@ -261,7 +280,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			for _, link := range tt.links {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
-				require.Equal(t, link, string(v))
+				require.Equal(t, filepath.Base(link), string(v))
 			}
 		})
 	}
@@ -370,9 +389,10 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			linkDir := t.TempDir()
 
 			installer := &LocalInstaller{
-				InstallDir: versionsDir,
-				LinkDir:    linkDir,
-				Log:        slog.Default(),
+				InstallDir:     versionsDir,
+				LinkBinDir:     linkDir,
+				LinkServiceDir: linkDir,
+				Log:            slog.Default(),
 			}
 			ctx := context.Background()
 
