@@ -87,6 +87,10 @@ type AccessChecker interface {
 	//nolint:revive // Because we want this to be IdP.
 	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
 
+	// CheckRoleSupportsSAMLIdPAppLabelMatcher checks if role supports
+	// app_labels matcher for saml_idp_service_provider kind.
+	CheckRoleSupportsSAMLIdPAppLabelMatcher() bool
+
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
