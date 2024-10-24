@@ -26,11 +26,41 @@ export default {
   title: 'Teleport/AuthnDialog',
 };
 
-export const Loaded = () => <AuthnDialog {...props} />;
+export const Loaded = () => {
+  const props: Props = {
+    ...defaultProps,
+    mfa: {
+      ...defaultProps.mfa,
+      ssoChallenge: {
+        redirectUrl: 'hi',
+        requestId: '123',
+        channelId: '123',
+        device: {
+          connectorId: '123',
+          connectorType: 'saml',
+          displayName: 'Okta',
+        },
+      },
+      webauthnPublicKey: {
+        challenge: new ArrayBuffer(1),
+      },
+    },
+  };
+  return <AuthnDialog {...props} />;
+};
 
-export const Error = () => <AuthnDialog {...props} />;
+export const Error = () => {
+  const props: Props = {
+    ...defaultProps,
+    mfa: {
+      ...defaultProps.mfa,
+      errorText: 'Something went wrong',
+    },
+  };
+  return <AuthnDialog {...props} />;
+};
 
-const props: Props = {
+const defaultProps: Props = {
   mfa: makeDefaultMfaState(),
   onCancel: () => null,
 };

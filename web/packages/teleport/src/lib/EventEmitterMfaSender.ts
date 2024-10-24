@@ -18,13 +18,25 @@
 
 import { EventEmitter } from 'events';
 
-import { WebauthnAssertionResponse } from 'teleport/services/auth';
+import {
+  MfaChallengeResponse,
+  WebauthnAssertionResponse,
+} from 'teleport/services/auth';
 
 class EventEmitterMfaSender extends EventEmitter {
   constructor() {
     super();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  sendChallengeResponse(data: MfaChallengeResponse) {
+    throw new Error('Not implemented');
+  }
+
+  // TODO (avatus) DELETE IN 19
+  /**
+   * @deprecated Use sendChallengeResponse instead.
+   */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   sendWebAuthn(data: WebauthnAssertionResponse) {
     throw new Error('Not implemented');
