@@ -54,14 +54,16 @@ describe('AuthnDialog', () => {
     const mfa = makeMockState({ ssoChallenge: mockSsoChallenge });
     render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
 
-    expect(screen.getByText('Multi-factor authentication')).toBeInTheDocument();
+    expect(
+      screen.getByText('Re-authenticate in the Browser')
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Re-enter your multi-factor authentication in the browser to continue.'
+        'To continue, you must verify your identity by re-authenticating:'
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Okta')).toBeInTheDocument();
-    expect(screen.getByText('Cancel')).toBeInTheDocument();
+    expect(screen.getByTestId('close-dialog')).toBeInTheDocument();
   });
 
   test('displays error text when provided', () => {
@@ -90,7 +92,7 @@ describe('AuthnDialog', () => {
       onWebauthnAuthenticate: jest.fn(),
     });
     render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
-    const webauthn = screen.getByText('Passkey/Hardware Key');
+    const webauthn = screen.getByText('Passkey or MFA Device');
     fireEvent.click(webauthn);
     expect(mfa.onWebauthnAuthenticate).toHaveBeenCalledTimes(1);
   });

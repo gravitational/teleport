@@ -17,13 +17,11 @@
  */
 
 import React from 'react';
-import Dialog, {
-  DialogHeader,
-  DialogTitle,
-  DialogContent,
-} from 'design/Dialog';
+import Dialog, { DialogContent } from 'design/Dialog';
 import { Danger } from 'design/Alert';
-import { Text, ButtonSecondary, Flex, ButtonLink } from 'design';
+import { FingerprintSimple, Cross } from 'design/Icon';
+
+import { Text, ButtonSecondary, Flex, ButtonIcon, H2 } from 'design';
 
 import { guessProviderType } from 'shared/components/ButtonSso';
 import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
@@ -33,24 +31,30 @@ import { MfaState } from 'teleport/lib/useMfa';
 export default function AuthnDialog({ mfa, onCancel }: Props) {
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
-      <DialogHeader style={{ flexDirection: 'column' }}>
-        <DialogTitle textAlign="center">
-          Multi-factor authentication
-        </DialogTitle>
-      </DialogHeader>
-      <DialogContent mb={6}>
+      <Flex justifyContent="space-between" alignItems="center" mb={4}>
+        <H2>Re-authenticate in the Browser</H2>
+        <ButtonIcon data-testid="close-dialog" onClick={onCancel}>
+          <Cross color="text.slightlyMuted" />
+        </ButtonIcon>
+      </Flex>
+      <DialogContent mb={5}>
         {mfa.errorText && (
           <Danger data-testid="danger-alert" mt={2} width="100%">
             {mfa.errorText}
           </Danger>
         )}
-        <Text textAlign="center">
-          Re-enter your multi-factor authentication in the browser to continue.
+        <Text textAlign="center" color="text.slightlyMuted">
+          To continue, you must verify your identity by re-authenticating:
         </Text>
       </DialogContent>
-      <Flex textAlign="center" width="100%" flexDirection="column" gap={3}>
+      <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
         {mfa.ssoChallenge && (
-          <ButtonSecondary onClick={mfa.onSsoAuthenticate} gap={2} block>
+          <ButtonSecondary
+            size="extra-large"
+            onClick={mfa.onSsoAuthenticate}
+            gap={2}
+            block
+          >
             <SSOIcon
               type={guessProviderType(
                 mfa.ssoChallenge.device.displayName,
@@ -61,13 +65,16 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
           </ButtonSecondary>
         )}
         {mfa.webauthnPublicKey && (
-          <ButtonSecondary onClick={mfa.onWebauthnAuthenticate} block>
-            Passkey/Hardware Key
+          <ButtonSecondary
+            size="extra-large"
+            onClick={mfa.onWebauthnAuthenticate}
+            gap={2}
+            block
+          >
+            <FingerprintSimple />
+            Passkey or MFA Device
           </ButtonSecondary>
         )}
-        <ButtonLink block onClick={onCancel}>
-          Cancel
-        </ButtonLink>
       </Flex>
     </Dialog>
   );
