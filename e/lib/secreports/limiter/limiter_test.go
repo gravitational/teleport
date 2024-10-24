@@ -8,12 +8,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestLimiter(t *testing.T) {
@@ -37,7 +37,7 @@ func TestLimiter(t *testing.T) {
 		Store:              store,
 		Semaphore:          &mockSemaphore{},
 		Name:               name,
-		Log:                logrus.New(),
+		Logger:             utils.NewSlogLoggerForTests(),
 		Clock:              clock,
 		TotalLimit:         totalLimit,
 		PreAllocationValue: preAllocationValue,

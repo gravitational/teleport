@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -62,6 +63,7 @@ const (
 )
 
 var log = logrus.WithField(teleport.ComponentKey, pluginName)
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, pluginName)
 
 type getCertFunc = func() (*tls.Certificate, error)
 
@@ -491,7 +493,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	limiter, err := limiter.NewLimiter(limiter.Config{
 		Store:      storage,
 		Semaphore:  p.authServer.AuthServer,
-		Log:        log,
+		Logger:     logger,
 		Clock:      p.authServer.AuthServer.GetClock(),
 		TotalLimit: p.AccessMonitoring.DataLimit,
 	})
@@ -509,7 +511,7 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 		Clock:            p.authServer.AuthServer.GetClock(),
 		Emitter:          p.authServer.Emitter,
 		LimiterStorage:   storage,
-		Logger:           log.WithField(teleport.ComponentKey, "mon"),
+		Logger:           logger.With(teleport.ComponentKey, "mon"),
 		ProcessContext:   ctx,
 		Region:           auditConf.Region(),
 		Semaphore:        p.authServer.AuthServer,

@@ -2,12 +2,12 @@ package secreports
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
@@ -53,7 +53,7 @@ type ServiceConfig struct {
 	// AthenaURL is audit events the Athena URL.
 	AthenaURL string
 	// Logger is the logger to use.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
 	// Clock is the clock.
@@ -94,7 +94,7 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer param is missing")
 	}
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(teleport.ComponentKey, "secreports")
+		c.Logger = slog.With(teleport.ComponentKey, "secreports")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -208,7 +208,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // Service implements gRPC SecReportsServiceServer Methods.
 type Service struct {
-	log                logrus.FieldLogger
+	log                *slog.Logger
 	authorizer         authz.Authorizer
 	semaphore          types.Semaphores
 	clock              clockwork.Clock
@@ -284,7 +284,7 @@ func (s *Service) maybeUpdateSecurityReports(ctx context.Context, threshold time
 	for _, report := range reports {
 		for _, days := range getReportExecutionDaysRange() {
 			if err := s.runReport(ctx, report, days, withReportReadyRerunThreshold(threshold)); err != nil {
-				s.log.WithError(err).Errorf("Failed to run report [name: %v, days: %v]", report.GetName(), days)
+				s.log.ErrorContext(ctx, "Failed to run report", "name", report.GetName(), "days", days, "error", err)
 			}
 		}
 	}
@@ -311,7 +311,7 @@ func (s *Service) maybeUpdateReport(ctx context.Context, report *reports.AuditRe
 	if err := s.storage.UpsertSecurityReport(ctx, rep); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("Report %q updated to version %q.", report.Name, report.Version)
+	s.log.InfoContext(ctx, "Report version updated", slog.Group("report", "name", report.Name, "version", report.Version))
 	return nil
 }
 
@@ -341,7 +341,7 @@ func (s *Service) updateReportState(ctx context.Context, reportName string, stat
 	if err = s.storage.UpsertSecurityReportsState(ctx, state); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Report %v execution state updated to %v.", reportName, status)
+	s.log.DebugContext(ctx, "Report execution state updated", "report_name", reportName, "state", status)
 	return nil
 }
 
@@ -369,7 +369,7 @@ func (s *Service) acquireRunningPhase(ctx context.Context, executionName string,
 	defer func() {
 		err := s.semaphore.CancelSemaphoreLease(ctx, *lease)
 		if err != nil {
-			s.log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
+			s.log.ErrorContext(ctx, "Failed to cancel lease", slog.Group("lease", "name", lease.SemaphoreName, "id", lease.LeaseID), slog.Any("error", err))
 		}
 	}()
 
@@ -439,7 +439,7 @@ func (s *Service) runPredictablyOnSingleAuth(ctx context.Context, call func(cont
 		case <-ctx.Done():
 			return
 		default:
-			s.log.Debug("Acquiring auth lock for reports scheduler.")
+			s.log.DebugContext(ctx, "Acquiring auth lock for reports scheduler")
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
 					Backend:            s.backend,
@@ -457,7 +457,7 @@ func (s *Service) runPredictablyOnSingleAuth(ctx context.Context, call func(cont
 				if ctx.Err() != nil {
 					return
 				}
-				s.log.WithError(err).Warn("Could not get lock.")
+				s.log.WarnContext(ctx, "Could not get lock", "error", err)
 			}
 		}
 		select {
@@ -479,7 +479,7 @@ func (s *Service) schedulesReportsUpdate(ctx context.Context) error {
 		// Check if report state is stale depending on def defaultReportReadyRerunSchedulerThreshold.
 		// If report was executed by a user and is still running the function will not re-run it.
 		if err := s.maybeUpdateSecurityReports(ctx, defaultReportUpdateThreshold); err != nil {
-			s.log.WithError(err).Error("Failed to update security reports.")
+			s.log.ErrorContext(ctx, "Failed to update security reports", "error", err)
 		}
 	}
 	return nil

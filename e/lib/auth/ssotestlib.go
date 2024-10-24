@@ -5,6 +5,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	stdlog "log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,7 +15,6 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/crewjam/saml"
-	"github.com/crewjam/saml/logger"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	dsig "github.com/russellhaering/goxmldsig"
@@ -135,7 +135,7 @@ func NewFakeSAMLIdP(t *testing.T, clock clockwork.Clock) *FakeSAMLIdP {
 		ServiceProviderProvider: f,
 		SessionProvider:         f,
 		ResponseWriter:          f,
-		Logger:                  logger.DefaultLogger,
+		Logger:                  stdlog.Default(),
 	}
 
 	return f

@@ -9,7 +9,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestService(t *testing.T) {
@@ -64,7 +64,7 @@ func TestService(t *testing.T) {
 	}
 	svc := Service{
 		backend: m,
-		log:     logrus.New(),
+		log:     utils.NewSlogLoggerForTests(),
 		authorizer: &mockAuthorizer{
 			checker: &mockChecker{
 				rules: []types.Rule{
@@ -337,7 +337,7 @@ func TestUpsertSecurityReport(t *testing.T) {
 	require.NoError(t, err)
 	svc := Service{
 		backend:   m,
-		log:       logrus.New(),
+		log:       utils.NewSlogLoggerForTests(),
 		semaphore: &mockSemaphore{},
 		storage:   store,
 		clock:     clockwork.NewFakeClock(),
@@ -651,7 +651,7 @@ func newSuite(t *testing.T) *suite {
 	svc := Service{
 		backend:   m,
 		Scheduler: sched,
-		log:       logrus.New(),
+		log:       utils.NewSlogLoggerForTests(),
 		authorizer: &mockAuthorizer{
 			checker: &mockChecker{
 				rules: []types.Rule{{Resources: []string{"security_report"}, Verbs: []string{"read", "list", "use"}}},

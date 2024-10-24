@@ -2,12 +2,12 @@ package limiter
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
@@ -34,8 +34,8 @@ type Config struct {
 	Store services.CostLimiter
 	// Semaphore is the semaphore service.
 	Semaphore types.Semaphores
-	// Log is the logger.
-	Log logrus.FieldLogger
+	// Logger is used to emit log messages.
+	Logger *slog.Logger
 	// Clock is the clock.
 	Clock clockwork.Clock
 	// Name is the limiter name.
@@ -64,8 +64,8 @@ func (l *Config) CheckAndSetDefaults() error {
 	if l.Store == nil {
 		return trace.BadParameter("missing Store")
 	}
-	if l.Log == nil {
-		l.Log = logrus.New()
+	if l.Logger == nil {
+		l.Logger = slog.Default()
 	}
 	if l.RefillAfter == 0 {
 		l.RefillAfter = defaultRefillAfter
@@ -125,7 +125,7 @@ func (l *Limiter) withLock(ctx context.Context, call func() error) error {
 	defer func() {
 		err := l.Semaphore.CancelSemaphoreLease(ctx, *lease)
 		if err != nil {
-			l.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
+			l.Logger.ErrorContext(ctx, "Failed to cancel lease", slog.Group("lease", "name", lease.SemaphoreName, "id", lease.LeaseID), slog.Any("error", err))
 		}
 	}()
 	if err := call(); err != nil {
@@ -217,7 +217,7 @@ func (l *Limiter) maybeUpdateLimit(item *secreports.CostLimiter) bool {
 	if !item.Spec.RefillAt.Before(l.Clock.Now()) {
 		return false
 	}
-	l.Log.Debug("Resetting limiter.")
+	l.Logger.DebugContext(context.Background(), "Resetting limiter")
 	item.Reset(l.Clock.Now().Add(l.RefillAfter))
 	item.Spec.RefillAfter = l.RefillAfter
 	return true
@@ -284,11 +284,11 @@ func (l *Limiter) UpdateLimiterBasedOnCloudProduct(ctx context.Context, clientGe
 			}
 			resp, err := client.GetBillingInformation(ctx, &cloudapi.EmptyRequest{})
 			if err != nil {
-				l.Log.Debug("Failed to get billing information: %v.", err)
+				l.Logger.DebugContext(ctx, "Failed to get billing information", "error", err)
 				continue
 			}
 			l.updateLimit(cloudLimits(resp))
-			l.Log.Info("Access Monitoring Limiter.TotalLimits updated")
+			l.Logger.InfoContext(ctx, "Access Monitoring Limiter.TotalLimits updated")
 			return
 		}
 	}

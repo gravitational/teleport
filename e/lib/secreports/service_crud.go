@@ -26,7 +26,7 @@ func (s *Service) UpsertAuditQuery(ctx context.Context, req *pb.UpsertAuditQuery
 	}
 
 	if err := s.upsertAuditQuery(ctx, req); err != nil {
-		s.log.WithError(err).Warn("Failed to upsert audit query.")
+		s.log.WarnContext(ctx, "Failed to upsert audit query", "error", err)
 		switch {
 		case trace.IsBadParameter(err):
 			return nil, trace.Wrap(err)
@@ -61,7 +61,7 @@ func (s *Service) GetAuditQuery(ctx context.Context, req *pb.GetAuditQueryReques
 
 	item, err := s.storage.GetSecurityAuditQuery(ctx, req.GetName())
 	if err != nil {
-		s.log.WithError(err).Debug("Failed to get audit query.")
+		s.log.DebugContext(ctx, "Failed to get audit query", "error", err)
 		switch {
 		case trace.IsNotFound(err):
 			return nil, trace.NotFound("audit query %s not found", req.GetName())
@@ -107,7 +107,7 @@ func (s *Service) GetSchema(ctx context.Context, _ *pb.GetSchemaRequest) (*pb.Ge
 
 	eventSchema, err := eventschema.GetViewsDetails()
 	if err != nil {
-		s.log.WithError(err).Error("Failed to get schema.")
+		s.log.ErrorContext(ctx, "Failed to get schema", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	return &pb.GetSchemaResponse{
@@ -130,7 +130,7 @@ func (s *Service) DeleteAuditQuery(ctx context.Context, req *pb.DeleteAuditQuery
 	}
 
 	if err := s.storage.DeleteSecurityAuditQuery(ctx, req.GetName()); err != nil {
-		s.log.WithError(err).Warn("Failed to delete audit query.")
+		s.log.WarnContext(ctx, "Failed to delete audit query", "error", err)
 		switch {
 		case trace.IsBadParameter(err):
 			return nil, trace.Wrap(err)
@@ -157,7 +157,7 @@ func (s *Service) UpsertReport(ctx context.Context, req *pb.UpsertReportRequest)
 	}
 
 	if err := s.upsertSecurityReport(ctx, req); err != nil {
-		s.log.WithError(err).Warn("Failed to upsert security report.")
+		s.log.WarnContext(ctx, "Failed to upsert security report", "error", err)
 		switch {
 		case trace.IsBadParameter(err):
 			return nil, trace.Wrap(err)
@@ -195,7 +195,7 @@ func (s *Service) GetReport(ctx context.Context, req *pb.GetReportRequest) (*pb.
 
 	item, err := s.storage.GetSecurityReport(ctx, req.GetName())
 	if err != nil {
-		s.log.WithError(err).Warn("Failed to get security report.")
+		s.log.WarnContext(ctx, "Failed to get security report", "error", err)
 		switch {
 		case trace.IsNotFound(err):
 			return nil, trace.NotFound("security report %s not found", req.GetName())
@@ -219,7 +219,7 @@ func (s *Service) ListReports(ctx context.Context, req *pb.ListReportsRequest) (
 
 	resp, err := s.listSecurityReports(ctx, req)
 	if err != nil {
-		s.log.WithError(err).Warn("Failed to list ListReports.")
+		s.log.WarnContext(ctx, "Failed to list ListReports", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
@@ -256,7 +256,7 @@ func (s *Service) DeleteReport(ctx context.Context, req *pb.DeleteReportRequest)
 	}
 
 	if err := s.deleteSecurityReport(ctx, req); err != nil {
-		s.log.WithError(err).Warn("Failed to delete security report.")
+		s.log.WarnContext(ctx, "Failed to delete security report", "error", err)
 		switch {
 		case trace.IsNotFound(err):
 			return nil, trace.NotFound("report %s not found", req.GetName())

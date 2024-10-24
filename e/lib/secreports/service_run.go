@@ -41,7 +41,7 @@ func (s *Service) RunAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 
 	resp, err := s.runAuditQuery(ctx, req)
 	if err != nil {
-		s.log.WithError(err).Warn("Failed to run audit query.")
+		s.log.WarnContext(ctx, "Failed to run audit query", "error", err)
 		switch {
 		case trace.IsBadParameter(err):
 			return nil, trace.Wrap(err)
@@ -68,7 +68,7 @@ func (s *Service) runAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 	}
 	defer func() {
 		if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
-			s.log.WithError(err).Warn("Failed to emit audit event.")
+			s.log.WarnContext(ctx, "Failed to emit audit event", "error", err)
 		}
 	}()
 	result, err := s.athena.RunQuery(ctx, req.GetQuery(), int(req.Days))
@@ -105,7 +105,7 @@ func (s *Service) GetAuditQueryResult(ctx context.Context, req *pb.GetAuditQuery
 
 	result, err := s.athena.GetQueryResult(ctx, req.ResultId, req.NextToken, req.GetMaxResults())
 	if err != nil {
-		s.log.WithError(err).Warn("Failed to get audit query result.")
+		s.log.WarnContext(ctx, "Failed to get audit query result", "error", err)
 		switch {
 		case trace.IsNotFound(err):
 			return nil, trace.NotFound("audit query result %q not found", req.ResultId)
@@ -138,7 +138,7 @@ func (s *Service) GetReportResult(ctx context.Context, req *pb.GetReportResultRe
 	executionName := secreports.ReportExecutionName(req.GetName(), int32(req.GetDays()))
 	result, err := s.reportStore.LoadReportResult(ctx, executionName)
 	if err != nil {
-		s.log.WithError(err).Warn("Failed to get report result.")
+		s.log.WarnContext(ctx, "Failed to get report result", "error", err)
 		switch {
 		case trace.IsNotFound(err):
 			return nil, trace.NotFound("report details %q not found", req.GetName())
@@ -169,7 +169,7 @@ func (s *Service) GetReportState(ctx context.Context, req *pb.GetReportStateRequ
 	executionName := secreports.ReportExecutionName(req.GetName(), int32(req.GetDays()))
 	state, err := s.storage.GetSecurityReportState(ctx, executionName)
 	if err != nil {
-		s.log.WithError(err).Warn("Failed to get report state.")
+		s.log.WarnContext(ctx, "Failed to get report state", "error", err)
 		switch {
 		case trace.IsNotFound(err):
 			return nil, trace.NotFound("report state %q not found", executionName)
@@ -204,7 +204,7 @@ func (s *Service) RunReport(ctx context.Context, req *pb.RunReportRequest) (*emp
 		// Run report Asynchronously.
 		// The result is saved as report state and can be retrieved later.
 		if err := s.runReport(s.ParentCtx, report, int32(req.GetDays())); err != nil {
-			s.log.WithError(err).Warn("Failed to run security report.")
+			s.log.WarnContext(ctx, "Failed to run security report", "error", err)
 		}
 	}()
 	return &emptypb.Empty{}, nil
@@ -216,7 +216,7 @@ func (s *Service) runReportAndUpdateState(ctx context.Context, report *secreport
 	status := secreports.Failed
 	defer func() {
 		if err := s.updateReportState(ctx, executionName, status); err != nil {
-			s.log.Errorf("Failed to update report state: %v.", err)
+			s.log.ErrorContext(ctx, "Failed to update report state", "error", err)
 		}
 	}()
 
@@ -233,7 +233,7 @@ func (s *Service) runReportAndUpdateState(ctx context.Context, report *secreport
 	}
 	defer func() {
 		if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
-			s.log.WithError(err).Errorf("Failed to emit audit event.")
+			s.log.ErrorContext(ctx, "Failed to emit audit event", "error", err)
 		}
 	}()
 
@@ -242,9 +242,12 @@ func (s *Service) runReportAndUpdateState(ctx context.Context, report *secreport
 		event.Status.Success = false
 		return nil, trace.Wrap(err)
 	}
-	s.log.Debugf(
-		"Report %s was successfully executed [TotalDataScannedInBytes: %v, TotalExecutionTimeInMillis %v, Duration: %v]",
-		executionName, runResult.TotalDataScannedInBytes, runResult.TotalExecutionTimeInMillis, s.clock.Since(now),
+	s.log.DebugContext(ctx,
+		"Report was successfully executed",
+		"report_name", executionName,
+		"total_data_scanned", runResult.TotalDataScannedInBytes,
+		"total_execution_time", runResult.TotalExecutionTimeInMillis,
+		"duration", s.clock.Since(now),
 	)
 	event.TotalExecutionTimeInMillis = runResult.TotalExecutionTimeInMillis
 	event.TotalDataScannedInBytes = runResult.TotalDataScannedInBytes
@@ -263,7 +266,7 @@ func (s *Service) shouldRunReport(ctx context.Context, executionName string, tri
 		if trace.IsNotFound(err) {
 			// Reports was not found which means it was never executed
 			// or backend item expired. In that case report should be executed.
-			s.log.Debugf("Report state %s was not found.", executionName)
+			s.log.DebugContext(ctx, "Report state was not found", "report", executionName)
 			return true, nil
 		}
 		return false, trace.Wrap(err)
@@ -278,10 +281,10 @@ func (s *Service) shouldRunReport(ctx context.Context, executionName string, tri
 		if now.After(updatedAt.Add(time.Hour)) {
 			// If for some reason auth service was not graceful shutdown during Running report phase
 			// the Running status can be stale. In that case report should be re-executed.
-			s.log.Warnf("Report %s is running for more than 1 hour. It will be re-executed.", executionName)
+			s.log.WarnContext(ctx, "Re-executing report that has been running for more than an hour", "report", executionName)
 			return true, nil
 		}
-		s.log.Debugf("Report %s in running state. Execution will skipped.", executionName)
+		s.log.DebugContext(ctx, "Skipping execution of report in running state", "report", executionName)
 		return false, nil
 	default:
 		return true, nil
