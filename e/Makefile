@@ -236,9 +236,8 @@ all: version
 # If you are considering changing this behavior, please consult with dev team first
 
 .PHONY: $(BUILDDIR)/tctl
-$(BUILDDIR)/tctl: BUILDDIR := $(shell realpath $(BUILDDIR))
 $(BUILDDIR)/tctl:
-	$(MAKE) -C .. $(BUILDDIR)/tctl
+	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpclient
@@ -247,9 +246,8 @@ $(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpc
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh: KUBECTL_VERSION ?= $(shell go run ../build.assets/kubectl-version/main.go)
 $(BUILDDIR)/tsh: KUBECTL_SETVERSION=-X k8s.io/component-base/version.gitVersion=$(KUBECTL_VERSION)
-$(BUILDDIR)/tsh: BUILDDIR := $(shell realpath $(BUILDDIR))
 $(BUILDDIR)/tsh:
-	$(MAKE) -C .. $(BUILDDIR)/tsh
+	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
 
 TBOT_DYNAMIC :=
 ifneq ("$(FIPS)","")
