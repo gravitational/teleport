@@ -266,6 +266,7 @@ type cacheCollections struct {
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
 	autoUpdateConfigs        collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions       collectionReader[autoUpdateVersionGetter]
+	autoUpdateAgentRollouts  collectionReader[autoUpdateAgentRolloutGetter]
 	workloadIdentity         collectionReader[WorkloadIdentityReader]
 }
 
@@ -813,6 +814,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.autoUpdateVersions
+		case types.KindAutoUpdateAgentRollout:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateAgentRollouts = &genericCollection[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter, autoUpdateAgentRolloutExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateAgentRollouts
+
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1389,6 +1400,41 @@ type autoUpdateVersionGetter interface {
 }
 
 var _ executor[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter] = autoUpdateVersionExecutor{}
+
+type autoUpdateAgentRolloutExecutor struct{}
+
+func (autoUpdateAgentRolloutExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateAgentRollout, error) {
+	plan, err := cache.AutoUpdateService.GetAutoUpdateAgentRollout(ctx)
+	return []*autoupdate.AutoUpdateAgentRollout{plan}, trace.Wrap(err)
+}
+
+func (autoUpdateAgentRolloutExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateAgentRollout) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateAgentRollout(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateAgentRolloutExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentRollout(ctx)
+}
+
+func (autoUpdateAgentRolloutExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentRollout(ctx)
+}
+
+func (autoUpdateAgentRolloutExecutor) isSingleton() bool { return true }
+
+func (autoUpdateAgentRolloutExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateAgentRolloutGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateAgentRolloutGetter interface {
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter] = autoUpdateAgentRolloutExecutor{}
 
 type userExecutor struct{}
 

@@ -31,6 +31,9 @@ type AutoUpdateServiceGetter interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion singleton resource.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout singleton resource.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 }
 
 // AutoUpdateService stores the autoupdate service.
@@ -60,4 +63,16 @@ type AutoUpdateService interface {
 
 	// DeleteAutoUpdateVersion deletes the AutoUpdateVersion singleton resource.
 	DeleteAutoUpdateVersion(ctx context.Context) error
+
+	// CreateAutoUpdateAgentRollout creates the AutoUpdateAgentRollout singleton resource.
+	CreateAutoUpdateAgentRollout(ctx context.Context, plan *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
+
+	// UpdateAutoUpdateAgentRollout updates the AutoUpdateAgentRollout singleton resource.
+	UpdateAutoUpdateAgentRollout(ctx context.Context, plan *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
+
+	// UpsertAutoUpdateAgentRollout sets the AutoUpdateAgentRollout singleton resource.
+	UpsertAutoUpdateAgentRollout(ctx context.Context, plan *autoupdate.AutoUpdateAgentRollout) (*autoupdate.AutoUpdateAgentRollout, error)
+
+	// DeleteAutoUpdateAgentRollout deletes the AutoUpdateAgentRollout singleton resource.
+	DeleteAutoUpdateAgentRollout(ctx context.Context) error
 }
