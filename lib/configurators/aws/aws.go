@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"slices"
 	"strings"
 
@@ -321,7 +323,7 @@ type localRegionGetter interface {
 	GetRegion(context.Context) (string, error)
 }
 
-func getFallbackRegion(ctx context.Context, fips bool, localRegionGetter localRegionGetter) (string, error) {
+func getFallbackRegion(ctx context.Context, w io.Writer, fips bool, localRegionGetter localRegionGetter) (string, error) {
 	if localRegionGetter == nil {
 		imdsClient, err := awsimds.NewInstanceMetadataClient(ctx)
 		if err == nil && imdsClient != nil {
@@ -332,7 +334,7 @@ func getFallbackRegion(ctx context.Context, fips bool, localRegionGetter localRe
 	if localRegionGetter != nil {
 		localRegion, err := localRegionGetter.GetRegion(ctx)
 		if err == nil && localRegion != "" {
-			fmt.Printf("Using region %q from instance metadata.\n", localRegion)
+			fmt.Fprintf(w, "Using region %q from instance metadata.\n", localRegion)
 			return localRegion, nil
 		}
 	}
@@ -348,7 +350,7 @@ func getFallbackRegion(ctx context.Context, fips bool, localRegionGetter localRe
 	//
 	// Reference:
 	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
-	fmt.Print(`
+	fmt.Fprint(w, `
 Warning. No region found from the default AWS config or instance metadata. Defaulting to 'aws-global'
 To avoid seeing this warning, please provide a region in your AWS config or through AWS_REGION environment variable.
 
@@ -384,7 +386,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			}
 
 			if cfg.Region == "" {
-				if region, err := getFallbackRegion(ctx, modules.GetModules().IsBoringBinary(), nil); err != nil {
+				if region, err := getFallbackRegion(ctx, os.Stdout, modules.GetModules().IsBoringBinary(), nil); err != nil {
 					return trace.Wrap(err)
 				} else {
 					cfg.Region = region
