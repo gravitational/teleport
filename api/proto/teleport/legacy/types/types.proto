@@ -2677,6 +2677,24 @@ message AccessCapabilitiesRequest {
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
+// RequestModeKubernetesResources is the Kubernetes resource identifier used
+// in access request mode settings.
+// Modeled after existing message KubernetesResource.
+message RequestModeKubernetesResource {
+  // kind specifies the Kubernetes Resource type.
+  string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
+}
+
+// AccessRequestMode describes request mode settings for applicable resources.
+message AccessRequestMode {
+  // kubernetes_resources defines which Kubernetes subresources a user can
+  // request during request creation.
+  repeated RequestModeKubernetesResource kubernetes_resources = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
+  ];
+}
+
 // ResourceID is a unique identifier for a teleport resource.
 message ResourceID {
   // ClusterName is the name of the cluster the resource is in.
@@ -3320,7 +3338,6 @@ message DatabasePermission {
 // KubernetesResource is the Kubernetes resource identifier.
 message KubernetesResource {
   // Kind specifies the Kubernetes Resource type.
-  // At the moment only "pod" is supported.
   string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // Namespace is the resource namespace.
   // It supports wildcards.
@@ -3419,6 +3436,13 @@ message AccessRequestConditions {
     (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // mode optionally allows admins to define a create request mode for applicable resources.
+  // It can enforce a requester to request only certain kinds of resources.
+  // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
+  // subresources like "namespaces". The mode can be defined such that it prevents a user
+  // from requesting "kube_cluster" and enforce requesting any of its subresources.
+  AccessRequestMode mode = 8 [(gogoproto.jsontag) = "mode,omitempty"];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

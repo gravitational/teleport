@@ -3275,8 +3275,11 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
 }
 
+// SearchAsRolesOption is a functional option for filtering SearchAsRoles.
+type SearchAsRolesOption func(types.Role) bool
+
 // GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
-func (set RoleSet) GetAllowedSearchAsRoles() []string {
+func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string {
 	denied := make(map[string]struct{})
 	var allowed []string
 	for _, role := range set {
@@ -3286,12 +3289,54 @@ func (set RoleSet) GetAllowedSearchAsRoles() []string {
 	}
 	for _, role := range set {
 		for _, a := range role.GetSearchAsRoles(types.Allow) {
-			if _, ok := denied[a]; !ok {
+			filterResult := true
+			if len(allowFilters) > 0 {
+				for _, filter := range allowFilters {
+					if !filter(role) {
+						filterResult = false
+						break
+					}
+				}
+			}
+			if _, ok := denied[a]; !ok && filterResult {
 				allowed = append(allowed, a)
 			}
 		}
 	}
 	return apiutils.Deduplicate(allowed)
+}
+
+// WithKubernetesRequestModeFilter returns a SearchAsRolesOption that filters
+// roles based on the Kubernetes request mode if the role has one.
+func WithKubernetesRequestModeFilter(kind string) SearchAsRolesOption {
+	return func(role types.Role) bool {
+		var allowedKinds []string
+		var deniedKinds []string
+		allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
+		if allow.Mode != nil {
+			allowedKinds = getKubeResourceKinds(allow.Mode.KubernetesResources)
+		}
+		if deny.Mode != nil {
+			deniedKinds = getKubeResourceKinds(deny.Mode.KubernetesResources)
+		}
+
+		// No request modes found == allow any kube resource.
+		if len(deniedKinds) == 0 && len(allowedKinds) == 0 {
+			return true
+		}
+
+		if len(allowedKinds) == 0 {
+			return !slices.Contains(deniedKinds, kind)
+		}
+
+		for _, allowedKind := range allowedKinds {
+			if allowedKind == kind && !slices.Contains(deniedKinds, kind) {
+				return true
+			}
+		}
+
+		return false
+	}
 }
 
 // GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.

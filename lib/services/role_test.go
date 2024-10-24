@@ -190,6 +190,44 @@ func TestRoleParse(t *testing.T) {
 			matchMessage: "KubernetesResource must include Namespace",
 		},
 		{
+			name: "validation error, invalid request mode kube resource kind",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+						  "request": {
+							  "mode": {
+							    "kubernetes_resources": [{"kind":"abcd"}]
+							  }
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "invalid or unsupported",
+		},
+		{
+			name: "validation error, request mode namespace not supported in v6",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+						  "request": {
+							  "mode": {
+							    "kubernetes_resources": [{"kind":"namespace"}]
+							  }
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "not supported in role version \"v6\"",
+		},
+		{
 			name: "validation error, missing podname in pod names",
 			in: `{
 					"kind": "role",
@@ -318,46 +356,56 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "full valid role v6",
 			in: `{
-					"kind": "role",
-					"version": "v6",
-					"metadata": {"name": "name1", "labels": {"a-b": "c"}},
-					"spec": {
-						"options": {
-							"cert_format": "standard",
-							"max_session_ttl": "20h",
-							"port_forwarding": true,
-							"client_idle_timeout": "17m",
-							"disconnect_expired_cert": "yes",
-							"enhanced_recording": ["command", "network"],
-							"desktop_clipboard": true,
-							"desktop_directory_sharing": true,
-							"ssh_file_copy" : false
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "name1", "labels": {"a-b": "c"}},
+				"spec": {
+					"options": {
+						"cert_format": "standard",
+						"max_session_ttl": "20h",
+						"port_forwarding": true,
+						"client_idle_timeout": "17m",
+						"disconnect_expired_cert": "yes",
+						"enhanced_recording": ["command", "network"],
+						"desktop_clipboard": true,
+						"desktop_directory_sharing": true,
+						"ssh_file_copy" : false
+					},
+					"allow": {
+					  "request": {
+							"mode": {
+							  "kubernetes_resources": [{"kind":"pod"}]
+							}
 						},
-						"allow": {
-							"node_labels": {"a": "b", "c-d": "e"},
-							"app_labels": {"a": "b", "c-d": "e"},
-							"group_labels": {"a": "b", "c-d": "e"},
-							"kubernetes_labels": {"a": "b", "c-d": "e"},
-							"db_labels": {"a": "b", "c-d": "e"},
-							"db_names": ["postgres"],
-							"db_users": ["postgres"],
-							"namespaces": ["default"],
-							"rules": [
-								{
-									"resources": ["role"],
-									"verbs": ["read", "list"],
-									"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-									"actions": [
-										"log(\"info\", \"log entry\")"
-									]
-								}
-							]
+						"node_labels": {"a": "b", "c-d": "e"},
+						"app_labels": {"a": "b", "c-d": "e"},
+						"group_labels": {"a": "b", "c-d": "e"},
+						"kubernetes_labels": {"a": "b", "c-d": "e"},
+						"db_labels": {"a": "b", "c-d": "e"},
+						"db_names": ["postgres"],
+						"db_users": ["postgres"],
+						"namespaces": ["default"],
+						"rules": [
+							{
+								"resources": ["role"],
+								"verbs": ["read", "list"],
+								"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+								"actions": [
+									"log(\"info\", \"log entry\")"
+								]
+							}
+						]
+					},
+					"deny": {
+					  "request": {
+							"mode": {
+							  "kubernetes_resources": [{"kind":"pod"}]
+							}
 						},
-						"deny": {
-							"logins": ["c"]
-						}
+						"logins": ["c"]
 					}
-				}`,
+				}
+			}`,
 			role: types.RoleV6{
 				Kind:    types.KindRole,
 				Version: types.V6,
@@ -409,10 +457,24 @@ func TestRoleParse(t *testing.T) {
 								},
 							},
 						},
+						Request: &types.AccessRequestConditions{
+							Mode: &types.AccessRequestMode{
+								KubernetesResources: []types.RequestModeKubernetesResource{
+									{Kind: types.KindKubePod},
+								},
+							},
+						},
 					},
 					Deny: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
+						Request: &types.AccessRequestConditions{
+							Mode: &types.AccessRequestMode{
+								KubernetesResources: []types.RequestModeKubernetesResource{
+									{Kind: types.KindKubePod},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -4682,6 +4744,156 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 			require.ElementsMatch(t, tc.expectedLogins, serverLogins)
 			require.ElementsMatch(t, tc.expectedLogins, desktopLogins)
 			require.ElementsMatch(t, tc.expectedLogins, awsARNLogins)
+		})
+	}
+}
+
+func TestGetAllowedSearchAsRolesMeetingKubeRequestModes(t *testing.T) {
+	newRole := func(
+		allowRoles []string,
+		denyRoles []string,
+		allowRequestModes []types.RequestModeKubernetesResource,
+		denyRequestModes []types.RequestModeKubernetesResource,
+	) *types.RoleV6 {
+		return &types.RoleV6{
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: allowRoles,
+						Mode: &types.AccessRequestMode{
+							KubernetesResources: allowRequestModes,
+						},
+					},
+				},
+				Deny: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: denyRoles,
+						Mode: &types.AccessRequestMode{
+							KubernetesResources: denyRequestModes,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	withoutRequestModes := newRole([]string{"role1", "role2"}, []string{"role3"}, []types.RequestModeKubernetesResource{}, nil)
+	withRequestModesNamespaceAndPod := newRole([]string{"role2", "role3", "role10"}, []string{"role3"}, []types.RequestModeKubernetesResource{
+		{Kind: types.KindNamespace},
+		{Kind: types.KindKubePod},
+	}, nil)
+	withRequestModeWildcard := newRole([]string{"role4", "role5"}, []string{"role3"}, []types.RequestModeKubernetesResource{
+		{Kind: types.KindNamespace},
+		{Kind: types.KindKubePod},
+		{Kind: types.Wildcard},
+	}, nil)
+	withRequestModeSecret := newRole([]string{"role5", "role6"}, []string{"role3"}, []types.RequestModeKubernetesResource{
+		{Kind: types.KindKubeSecret},
+	}, nil)
+
+	withoutAllowRequestModesDenySecret := newRole([]string{"role1", "role2"}, []string{"role3"}, []types.RequestModeKubernetesResource{},
+		[]types.RequestModeKubernetesResource{{Kind: types.KindKubeSecret}})
+	withDenyWildcard := newRole([]string{"role7", "role8"}, nil, []types.RequestModeKubernetesResource{
+		{Kind: types.KindNamespace},
+		{Kind: types.KindKubePod},
+		{Kind: types.Wildcard},
+	}, []types.RequestModeKubernetesResource{{Kind: types.Wildcard}})
+	withDenySecret := newRole([]string{"role9", "role10"}, nil, []types.RequestModeKubernetesResource{
+		{Kind: types.Wildcard},
+	}, []types.RequestModeKubernetesResource{{Kind: types.KindKubeSecret}})
+
+	tt := []struct {
+		name                 string
+		labels               map[string]string
+		roleSet              RoleSet
+		requestType          string
+		expectedAllowedRoles []string
+	}{
+		{
+			name:                 "without any request mode returns all roles",
+			roleSet:              NewRoleSet(withoutRequestModes),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{"role1", "role2"},
+		},
+		{
+			name:        "return all allowed roles that doesn't have request mode defined since type doesn't match",
+			roleSet:     NewRoleSet(withRequestModeSecret, withoutRequestModes),
+			requestType: types.KindNamespace,
+			// only roles from "withoutRequestModes"
+			expectedAllowedRoles: []string{"role1", "role2"},
+		},
+		{
+			name:        "return all allowed roles with wildcard",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModeWildcard),
+			requestType: types.KindKubeNamespace,
+			// only roles from "withRequestModeWildcard"
+			expectedAllowedRoles: []string{"role4", "role5"},
+		},
+		{
+			name:        "return all allowed roles with matching type and wildcard",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModeWildcard),
+			requestType: types.KindKubeSecret,
+			// roles from both "withRequestModeWildcard" & "withRequestModeSecret"
+			expectedAllowedRoles: []string{"role4", "role5", "role6"},
+		},
+		{
+			name:        "return empty if there were no matching types",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModesNamespaceAndPod),
+			requestType: types.KindKubeDeployment,
+		},
+		{
+			name:        "return all allowed roles only matching types",
+			roleSet:     NewRoleSet(withRequestModeSecret, withRequestModesNamespaceAndPod),
+			requestType: types.KindKubePod,
+			// roles from "withRequestModesNamespaceAndPod"
+			expectedAllowedRoles: []string{"role2", "role10"},
+		},
+		{
+			name:                 "return all allowed roles with multiple rolesets",
+			roleSet:              NewRoleSet(withoutRequestModes, withRequestModesNamespaceAndPod, withRequestModeWildcard, withRequestModeSecret),
+			requestType:          types.KindKubeSecret,
+			expectedAllowedRoles: []string{"role1", "role2", "role4", "role5", "role6"},
+		},
+		{
+			name:        "return nothing if denied wildcard",
+			roleSet:     NewRoleSet(withDenyWildcard),
+			requestType: types.KindKubePod,
+		},
+		{
+			name:        "return nothing if denied kind == request type",
+			roleSet:     NewRoleSet(withDenySecret),
+			requestType: types.KindKubeSecret,
+		},
+		{
+			name:                 "return roles if denied kind !== request type",
+			roleSet:              NewRoleSet(withDenySecret),
+			requestType:          types.KindKubeNamespace,
+			expectedAllowedRoles: []string{"role9", "role10"},
+		},
+		{
+			name:                 "return only roles not in the denied list",
+			roleSet:              NewRoleSet(withDenySecret, withRequestModeWildcard),
+			requestType:          types.KindKubeSecret,
+			expectedAllowedRoles: []string{"role4", "role5"},
+		},
+		{
+			name:                 "return roles if denied kind !== request type, without any allow request mode defined",
+			roleSet:              NewRoleSet(withoutAllowRequestModesDenySecret),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{"role1", "role2"},
+		},
+		{
+			name:        "return nothing if denied kind == request type, without any allow request mode defined",
+			roleSet:     NewRoleSet(withoutAllowRequestModesDenySecret),
+			requestType: types.KindKubeSecret,
+		},
+	}
+	for _, tc := range tt {
+		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
+		t.Run(tc.name, func(t *testing.T) {
+
+			allowedRoles := accessChecker.GetAllowedSearchAsRoles(WithKubernetesRequestModeFilter(tc.requestType))
+			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
 		})
 	}
 }

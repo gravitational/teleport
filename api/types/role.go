@@ -142,6 +142,9 @@ type Role interface {
 	// SetKubeResources configures the Kubernetes Resources for the RoleConditionType.
 	SetKubeResources(rct RoleConditionType, pods []KubernetesResource)
 
+	// SetRequestMode sets the access request mode.
+	SetRequestMode(requestMode *AccessRequestMode)
+
 	// GetAccessRequestConditions gets allow/deny conditions for access requests.
 	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
@@ -490,6 +493,15 @@ func (r *RoleV6) SetKubeResources(rct RoleConditionType, pods []KubernetesResour
 	} else {
 		r.Spec.Deny.KubernetesResources = pods
 	}
+}
+
+// SetRequestMode sets the access request mode.
+func (r *RoleV6) SetRequestMode(requestMode *AccessRequestMode) {
+	if r.Spec.Allow.Request != nil {
+		r.Spec.Allow.Request.Mode = requestMode
+		return
+	}
+	r.Spec.Allow.Request = &AccessRequestConditions{Mode: requestMode}
 }
 
 // GetKubeUsers returns kubernetes users
@@ -1133,6 +1145,18 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
+	}
+
+	// Validate request_mode kubernetes_resources fields are all valid.
+	if r.Spec.Allow.Request != nil && r.Spec.Allow.Request.Mode != nil {
+		if err := validateKubeResourcesForAccessRequestMode(r.Version, r.Spec.Allow.Request.Mode.KubernetesResources); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if r.Spec.Deny.Request != nil && r.Spec.Deny.Request.Mode != nil {
+		if err := validateKubeResourcesForAccessRequestMode(r.Version, r.Spec.Deny.Request.Mode.KubernetesResources); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Validate that enhanced recording options are all valid.
@@ -1786,6 +1810,31 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		}
 		if len(kubeResource.Name) == 0 {
 			return trace.BadParameter("KubernetesResource must include Name")
+		}
+	}
+	return nil
+}
+
+// validateKubeResourcesForAccessRequestMode validates each kubeResources entry for `options.request_mode.kubernetes_resources` field.
+// Currently the only supported field for this particular field is:
+//   - Kind (belonging to KubernetesResourcesKinds)
+//
+// Mimics types.KubernetesResource data model, but opted to create own type as we don't support other fields yet.
+func validateKubeResourcesForAccessRequestMode(roleVersion string, kubeResources []RequestModeKubernetesResource) error {
+	for _, kubeResource := range kubeResources {
+		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
+			return trace.BadParameter("request_mode.kubernetes_resource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
+		}
+
+		// Only Pod resources are supported in role version <=V6.
+		// This is mandatory because we must append the other resources to the
+		// kubernetes resources.
+		switch roleVersion {
+		// Teleport does not support role versions < v3.
+		case V6, V5, V4, V3:
+			if kubeResource.Kind != KindKubePod {
+				return trace.BadParameter("request_mode.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
+			}
 		}
 	}
 	return nil
