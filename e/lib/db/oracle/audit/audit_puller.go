@@ -3,12 +3,12 @@ package audit
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 )
@@ -35,8 +35,8 @@ func (a *PullerConfig) CheckAndSetDefaults() error {
 	if a.TLSConfig == nil {
 		return trace.BadParameter("missing tlsConf")
 	}
-	if a.Log == nil {
-		a.Log = logrus.WithField(teleport.ComponentKey, "DB:ORC:AU")
+	if a.Logger == nil {
+		a.Logger = slog.With(teleport.ComponentKey, "DB:ORC:AU")
 	}
 	if a.Interval <= 0 {
 		a.Interval = time.Second * 20
@@ -71,8 +71,8 @@ type PullerConfig struct {
 	TLSConfig *tls.Config
 	// OnQuery is the callback function called on each audit entry record.
 	OnQuery func(QueryEntry)
-	// Log is used for logging.
-	Log *logrus.Entry
+	// Logger is used for logging.
+	Logger *slog.Logger
 	// Interval is a pull interval for audit fetcher.
 	Interval time.Duration
 
@@ -88,7 +88,7 @@ func (a *Puller) Init(serviceName string, sessionID string) error {
 		return trace.Wrap(err)
 	}
 	a.audSID = audSID
-	a.cfg.Log.Debugf("Initialize Active Audit Fetcher [audID: %v sessID: %v]", audSID, sessionID)
+	a.cfg.Logger.DebugContext(context.Background(), "Initialize Active Audit Fetcher", "audit_session_id", audSID, "session_id", sessionID)
 	return nil
 }
 
@@ -104,10 +104,10 @@ func (a *Puller) Run(ctx context.Context) error {
 	// runLoop exits where client or server connection is closed.
 	// fetch audit logs one more time to ensure that all the client entries
 	// were fetched.
-	if err := a.fetchAndProcessAuditLogs(); err != nil {
+	if err := a.fetchAndProcessAuditLogs(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	a.cfg.Log.Debugf("Oracle Audit log Puller closing for [auditSID: %v]", a.audSID)
+	a.cfg.Logger.DebugContext(ctx, "Oracle Audit log Puller closing", "audit_session_id", a.audSID)
 	return nil
 }
 
@@ -131,14 +131,14 @@ func (a *Puller) runLoop(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-tc.Chan():
-			if err := a.fetchAndProcessAuditLogs(); err != nil {
+			if err := a.fetchAndProcessAuditLogs(ctx); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	}
 }
 
-func (a *Puller) fetchAndProcessAuditLogs() error {
+func (a *Puller) fetchAndProcessAuditLogs(ctx context.Context) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -148,7 +148,7 @@ func (a *Puller) fetchAndProcessAuditLogs() error {
 	}
 
 	if len(queryEntries) > 0 {
-		a.cfg.Log.Debugf("Processing [auditSID: %s len: %v lastEntryID: %v] audit entries.", a.audSID, len(queryEntries), a.lastEntryID)
+		a.cfg.Logger.DebugContext(ctx, "Processing audit entries", "audit_session_id", a.audSID, "entry_count", len(queryEntries), "last_entry_id", a.lastEntryID)
 	}
 	for _, q := range queryEntries {
 		a.lastEntryID = q.EntryID

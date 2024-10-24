@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func TestPuller(t *testing.T) {
 	p := &Puller{
 		cfg: PullerConfig{
 			Interval: time.Second * 5,
-			Log:      log.NewEntry(&log.Logger{Out: io.Discard}),
+			Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 			oracleDB: mockConn,
 			OnQuery: func(entry QueryEntry) {
 				entryC <- entry

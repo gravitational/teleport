@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -40,6 +39,7 @@ func TestOracleEngine(t *testing.T) {
 		closeC:   make(chan struct{}),
 		receiveC: make(chan protocol.Packet, 100),
 		sendC:    make(chan protocol.Packet, 100),
+		logger:   t.Logf,
 	}
 	defer server.close()
 	go server.start()
@@ -194,6 +194,7 @@ type mockOracleServer struct {
 	receiveC  chan protocol.Packet
 	sendC     chan protocol.Packet
 	closeC    chan struct{}
+	logger    func(format string, args ...any)
 }
 
 func (m *mockOracleServer) start() error {
@@ -204,7 +205,7 @@ func (m *mockOracleServer) start() error {
 		}
 		go func() {
 			if err := m.handleConn(conn); err != nil {
-				logrus.Warnf("Failed to handle client connection: %v", err)
+				m.logger("Failed to handle client connection: %v", err)
 			}
 		}()
 	}
