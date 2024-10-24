@@ -326,7 +326,7 @@ type localRegionGetter interface {
 func getFallbackRegion(ctx context.Context, w io.Writer, fips bool, localRegionGetter localRegionGetter) (string, error) {
 	if localRegionGetter == nil {
 		imdsClient, err := awsimds.NewInstanceMetadataClient(ctx)
-		if err == nil && imdsClient != nil {
+		if err == nil && imdsClient != nil && imdsClient.IsAvailable(ctx) {
 			localRegionGetter = imdsClient
 		}
 	}
