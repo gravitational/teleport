@@ -108,7 +108,7 @@ func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azu
 	if err != nil {
 		return nil, err
 	}
-	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyAddr, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

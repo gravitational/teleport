@@ -1455,6 +1455,63 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 	}
 }
 
+func TestCheckLocalProxyListenAddr(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		input      *CLIConf
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			name:       "no listen address",
+			input:      &CLIConf{LocalProxyPort: "8080"},
+			checkError: require.NoError,
+		},
+		{
+			name:       "loopback address",
+			input:      &CLIConf{LocalProxyAddr: "127.0.0.1:8080"},
+			checkError: require.NoError,
+		},
+		{
+			name:       "non-loopback address",
+			input:      &CLIConf{LocalProxyAddr: "192.168.1.10:8080"},
+			checkError: require.Error,
+		},
+		{
+			name:       "all interfaces",
+			input:      &CLIConf{LocalProxyAddr: ":8080"},
+			checkError: require.Error,
+		},
+		{
+			name:       "non-loopback address with insecure-listen-anywhere",
+			input:      &CLIConf{LocalProxyAddr: "0.0.0.0:8080", InsecureListenAnywhere: true},
+			checkError: require.NoError,
+		},
+		{
+			name:       "missing port",
+			input:      &CLIConf{LocalProxyAddr: "127.0.0.1"},
+			checkError: require.Error,
+		},
+		{
+			name:       "address and port",
+			input:      &CLIConf{LocalProxyAddr: "127.0.0.1:8080", LocalProxyPort: "8080"},
+			checkError: require.Error,
+		},
+		{
+			name:       "address and port mapping",
+			input:      &CLIConf{LocalProxyAddr: "127.0.0.1:8080", LocalProxyPortMapping: "8080:9090"},
+			checkError: require.Error,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.checkError(t, checkLocalProxyListenAddr(test.input))
+		})
+	}
+}
+
 // TestProxyAppWithIdentity ensures `tsh -i <identity> proxy app` works
 // correctly given a Machine ID-style identity with a valid RouteToApp.
 func TestProxyAppWithIdentity(t *testing.T) {

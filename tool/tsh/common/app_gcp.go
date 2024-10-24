@@ -116,7 +116,7 @@ func newGCPApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*gcpAp
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(secret))
 	prefix := fmt.Sprintf("%x", h.Sum32())
-	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyAddr, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
