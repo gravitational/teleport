@@ -2,11 +2,11 @@ package feature
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/api/cloud"
@@ -20,8 +20,8 @@ type Config struct {
 	Backend backend.Backend
 	// CloudClient is a client of the cloud API server
 	CloudClient cloud.Client
-	// Log is the logger
-	Log *logrus.Entry
+	// Logger emits log messages
+	Logger *slog.Logger
 	// Interval is the interval Cloud should be queried for features updates
 	Interval time.Duration
 	// Clock is a clock for time-related operations
@@ -44,8 +44,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("RequestTimeout value should be greater than 0")
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "cloud.feature")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "cloud.feature")
 	}
 
 	if c.Clock == nil {
@@ -60,7 +60,7 @@ func (c *Config) CheckAndSetDefaults() error {
 type Service struct {
 	backend        backend.Backend
 	cloudClient    cloud.Client
-	log            *logrus.Entry
+	logger         *slog.Logger
 	interval       time.Duration
 	requestTimeout time.Duration
 	clock          clockwork.Clock
@@ -76,7 +76,7 @@ func NewService(cfg Config) (*Service, error) {
 	return &Service{
 		backend:        cfg.Backend,
 		cloudClient:    cfg.CloudClient,
-		log:            cfg.Log,
+		logger:         cfg.Logger,
 		interval:       cfg.Interval,
 		requestTimeout: cfg.RequestTimeout,
 		clock:          cfg.Clock,
@@ -86,7 +86,7 @@ func NewService(cfg Config) (*Service, error) {
 // Run periodically fetches features from Cloud and reloads the cluster features
 // when they change. Blocks the thread.
 func (s *Service) Run(ctx context.Context) error {
-	s.log.WithField("interval", s.interval).Info("Feature service has started")
+	s.logger.InfoContext(ctx, "Feature service has started", "update_interval", s.interval)
 	ticker := s.clock.NewTicker(s.interval)
 
 	defer ticker.Stop()
@@ -94,10 +94,10 @@ func (s *Service) Run(ctx context.Context) error {
 		select {
 		case <-ticker.Chan():
 			// fetch
-			s.log.Info("Fetching Cloud features")
+			s.logger.InfoContext(ctx, "Fetching Cloud features")
 			f, err := s.getFeatures(ctx)
 			if err != nil {
-				s.log.Errorf("Failed fetching cloud features: %+v", err)
+				s.logger.ErrorContext(ctx, "Failed fetching cloud features", "error", err)
 				continue
 			}
 
@@ -107,12 +107,12 @@ func (s *Service) Run(ctx context.Context) error {
 			// store in the backend
 			_, err = Store(ctx, *f, s.backend)
 			if err != nil {
-				s.log.Errorf("Failed storing features in the backend: %+v", err)
+				s.logger.ErrorContext(ctx, "Failed storing features in the backend", "error", err)
 				continue
 			}
-			s.log.Infof("Done updating cluster features: %+v", f)
+			s.logger.InfoContext(ctx, "Done updating cluster features", "features", f)
 		case <-ctx.Done():
-			s.log.Info("Feature service has stopped")
+			s.logger.InfoContext(ctx, "Feature service has stopped")
 			return nil
 		}
 	}

@@ -34,7 +34,7 @@ func New(config Config) (*UsageReporter, error) {
 
 // Run starts the usage reporting loop
 func (r *UsageReporter) Run(ctx context.Context) {
-	r.Log.Infof("Usage Reporter has started and will report at %v interval.", r.Interval)
+	r.Logger.InfoContext(ctx, "Usage Reporter has started", "reporting_interval", r.Interval)
 	ticker := r.Clock.NewTicker(r.Interval)
 	defer ticker.Stop()
 	for {
@@ -42,7 +42,7 @@ func (r *UsageReporter) Run(ctx context.Context) {
 		case <-ticker.Chan():
 			r.reportUsage(ctx)
 		case <-ctx.Done():
-			r.Log.Info("Usage Reporter has stopped.")
+			r.Logger.InfoContext(ctx, "Usage Reporter has stopped")
 			return
 		}
 	}
@@ -51,46 +51,46 @@ func (r *UsageReporter) Run(ctx context.Context) {
 func (r *UsageReporter) reportUsage(ctx context.Context) {
 	if err := r.acquireReportingLock(ctx, r.Interval-r.Interval/2); err != nil {
 		if !trace.IsAlreadyExists(err) {
-			r.Log.WithError(err).Error("Failed to set recording lock.")
+			r.Logger.ErrorContext(ctx, "Failed to set recording lock", "error", err)
 		} else {
-			r.Log.Info("Encountered active usage recording lock.")
+			r.Logger.InfoContext(ctx, "Encountered active usage recording lock")
 		}
 		return
 	}
 
 	nodes, err := r.ResourceGetter.GetNodes(ctx, defaults.Namespace)
 	if err != nil {
-		r.Log.WithError(err).Error("Failed to report number of nodes.")
+		r.Logger.ErrorContext(ctx, "Failed to report number of nodes", "error", err)
 	}
 
 	databases, err := r.ResourceGetter.GetDatabaseServers(ctx, defaults.Namespace)
 	if err != nil {
-		r.Log.WithError(err).Error("Failed to report number of databases.")
+		r.Logger.ErrorContext(ctx, "Failed to report number of databases", "error", err)
 	}
 
 	users, err := r.ResourceGetter.GetUsers(ctx, false)
 	if err != nil {
-		r.Log.WithError(err).Error("Failed to report number of users.")
+		r.Logger.ErrorContext(ctx, "Failed to report number of users", "error", err)
 	}
 
 	apps, err := r.ResourceGetter.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
-		r.Log.WithError(err).Error("Failed to report number of applications.")
+		r.Logger.ErrorContext(ctx, "Failed to report number of applications", "error", err)
 	}
 
 	kubeServers, err := r.ResourceGetter.GetKubernetesServers(ctx)
 	if err != nil {
-		r.Log.WithError(err).Error("Failed to report number of kube clusters.")
+		r.Logger.ErrorContext(ctx, "Failed to report number of kube clusters", "error", err)
 	}
 
 	roles, err := r.ResourceGetter.GetRoles(ctx)
 	if err != nil {
-		r.Log.WithError(err).Error("Failed to report number of roles.")
+		r.Logger.ErrorContext(ctx, "Failed to report number of roles", "error", err)
 	}
 
 	authConnectorCount, err := r.getAuthConnectorCount(ctx)
 	if err != nil {
-		r.Log.WithError(err).Error("Failed to report number of auth connectors.")
+		r.Logger.ErrorContext(ctx, "Failed to report number of auth connectors", "error", err)
 	}
 
 	reportingTime := r.Clock.Now().UTC()
@@ -124,16 +124,16 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 	}
 
 	if _, err = r.CloudClient.SubmitUsageReports(ctx, req); err != nil {
-		r.Log.WithError(err).Error("Unable submit usage report.")
+		r.Logger.ErrorContext(ctx, "Unable submit usage report", "error", err)
 	} else {
-		r.Log.Infof("Reported: nodes=%v, users=%v, databases=%v, k8s=%v, apps=%v, roles=%v, auth_connectors=%v",
-			len(nodes),
-			len(users),
-			len(databases),
-			len(kubeServers),
-			len(apps),
-			len(roles),
-			authConnectorCount,
+		r.Logger.InfoContext(ctx, "Successfully submitted usage report",
+			"nodes", len(nodes),
+			"users", len(users),
+			"databases", len(databases),
+			"k8s", len(kubeServers),
+			"apps", len(apps),
+			"roles", len(roles),
+			"auth_connectors", authConnectorCount,
 		)
 	}
 
@@ -141,7 +141,7 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 	if userCreatedResource {
 		err := r.checkClusterAlert(ctx)
 		if err != nil {
-			r.Log.WithError(err).Error("Failed to check cluster alert.")
+			r.Logger.ErrorContext(ctx, "Failed to check cluster alert", "error", err)
 		}
 	}
 }
@@ -166,13 +166,13 @@ func (r *UsageReporter) checkClusterAlert(ctx context.Context) error {
 
 	if b.Trial && b.UpsellAlert && len(alerts) == 0 {
 		if err := r.tryCreateBuyTeleportAlert(ctx); err != nil {
-			r.Log.WithError(err).Error("Failed to try/create cluster alert for trial.")
+			r.Logger.ErrorContext(ctx, "Failed to try/create cluster alert for trial", "error", err)
 		}
 	}
 
 	if (!b.Trial || !b.UpsellAlert) && len(alerts) != 0 {
 		if err := r.tryRemoveBuyTeleportAlert(ctx); err != nil {
-			r.Log.WithError(err).Error("Failed to try/remove cluster alert for trial.")
+			r.Logger.ErrorContext(ctx, "Failed to try/remove cluster alert for trial", "error", err)
 		}
 	}
 

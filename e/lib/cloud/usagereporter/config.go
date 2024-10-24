@@ -2,11 +2,11 @@ package usagereporter
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -26,8 +26,8 @@ type Config struct {
 	BackendGetter BackendAPIGetter
 	// APIGetters
 	ResourceGetter ResourceAPIGetter
-	// Log is the logger
-	Log *logrus.Entry
+	// Logger emits log messages
+	Logger *slog.Logger
 	// Interval is an internal of usage reports
 	Interval time.Duration
 }
@@ -46,8 +46,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing BackendGetter")
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger())
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 
 	if c.Clock == nil {

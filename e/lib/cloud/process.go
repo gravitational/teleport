@@ -1,12 +1,12 @@
 package cloud
 
 import (
+	"log/slog"
 	"os"
 	"time"
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/api/cloud"
@@ -46,8 +46,8 @@ type Config struct {
 	LicenseFile *licensefile.LicenseFile
 	// ReportingInterval is how often Teleport Cloud reports usage
 	ReportingInterval time.Duration
-	// Log is the logger
-	Log *logrus.Entry
+	// Logger emits log messages
+	Logger *slog.Logger
 }
 
 // Process augments struct from open-source version
@@ -106,7 +106,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		AuditLogSessionStreamer: process.GetAuditLog(),
 	}
 	usageReporter, err := usagereporter.New(usagereporter.Config{
-		Log:            cfg.Log,
+		Logger:         cfg.Logger,
 		Interval:       cfg.ReportingInterval,
 		Clock:          process.Clock,
 		BackendGetter:  process.GetBackend(),
@@ -173,8 +173,8 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() (err error) {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, cloudComponent)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, cloudComponent)
 	}
 
 	if c.AuthPlugin == nil {
