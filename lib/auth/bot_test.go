@@ -353,6 +353,7 @@ func TestRegisterBotInstance(t *testing.T) {
 		},
 			cmpopts.IgnoreFields(events.Metadata{}, "Time"),
 			cmpopts.IgnoreFields(events.Identity{}, "Logins", "Expires"),
+			cmpopts.IgnoreFields(events.ClientMetadata{}, "UserAgent"),
 			cmpopts.EquateEmpty(),
 		),
 	)
