@@ -221,11 +221,6 @@ type HostUserManagement struct {
 	userGrace time.Duration
 }
 
-// GetBackend returns the unexported HostUsersBackend powering HostUsersManagement.
-func (u *HostUserManagement) GetBackend() HostUsersBackend {
-	return u.backend
-}
-
 type HostSudoersManagement struct {
 	log *slog.Logger
 
