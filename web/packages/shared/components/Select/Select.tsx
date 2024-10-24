@@ -22,6 +22,7 @@ import ReactSelect, {
   DropdownIndicatorProps,
   GroupBase,
   MultiValueRemoveProps,
+  components,
 } from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import CreatableSelect from 'react-select/creatable';
@@ -165,39 +166,27 @@ export function SelectCreatableAsync<
   );
 }
 
-function DropdownIndicator({ selectProps }: DropdownIndicatorProps) {
-  const { size = 'medium' } = selectProps.customProps;
-  const { indicatorPadding } = selectGeometry[size];
+function DropdownIndicator(props: DropdownIndicatorProps) {
   return (
-    <ChevronDown
-      className="react-select__indicator react-select__dropdown-indicator"
-      size={18}
-      p={`${indicatorPadding}px`}
-    />
+    <components.DropdownIndicator {...props}>
+      <ChevronDown size={18} />
+    </components.DropdownIndicator>
   );
 }
 
-function ClearIndicator({ selectProps, clearValue }: ClearIndicatorProps) {
-  const { size = 'medium' } = selectProps.customProps;
-  const { indicatorPadding } = selectGeometry[size];
+function ClearIndicator(props: ClearIndicatorProps) {
   return (
-    <Cross
-      className="react-select__indicator react-select__clear-indicator"
-      size={18}
-      p={`${indicatorPadding}px`}
-      onClick={clearValue}
-    />
+    <components.ClearIndicator {...props}>
+      <Cross size={18} />
+    </components.ClearIndicator>
   );
 }
 
 function MultiValueRemove(props: MultiValueRemoveProps) {
   return (
-    <Cross
-      className="react-select__multi-value__remove"
-      padding="0 12px 0 6px"
-      size={14}
-      onClick={props.innerProps.onClick}
-    />
+    <components.MultiValueRemove {...props}>
+      <Cross padding="0 8px 0 2px" size={14} />
+    </components.MultiValueRemove>
   );
 }
 
@@ -287,6 +276,7 @@ const StyledSelect = styled.div<{
     ${error}
 
     .react-select__dropdown-indicator {
+      padding: ${props => selectGeometry[props.selectSize].indicatorPadding}px;
       color: ${props =>
         props.isDisabled
           ? props.theme.colors.text.disabled
@@ -331,6 +321,15 @@ const StyledSelect = styled.div<{
     border-radius: 1000px;
     padding: 0 0 0 12px;
     overflow: hidden;
+
+    /* 
+     * These margins keep the height of item rows consistent when the select
+     * goes multiline. They do so by keeping flex line height consistent between
+     * the lines containing only value pills and those with the input container.
+     */
+    margin-top: 6px;
+    margin-bottom: 6px;
+
     .react-select__multi-value__label {
       color: ${props => props.theme.colors.text.main};
       padding: 0 2px 0 0;
@@ -387,6 +386,7 @@ const StyledSelect = styled.div<{
 
   .react-select__clear-indicator {
     color: ${props => props.theme.colors.text.slightlyMuted};
+    padding: ${props => selectGeometry[props.selectSize].indicatorPadding}px;
     &:hover,
     &:focus {
       background-color: ${props =>
