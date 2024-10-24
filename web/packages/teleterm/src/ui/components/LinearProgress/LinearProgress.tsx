@@ -18,35 +18,40 @@
 
 import styled from 'styled-components';
 
-interface LinearProgressProps {
-  transparentBackground?: boolean;
-}
-
-export const LinearProgress = (props: LinearProgressProps) => {
+export const LinearProgress = ({
+  transparentBackground = false,
+  absolute = true,
+  hidden = false,
+}) => {
   return (
-    <div
-      style={{
-        position: 'absolute',
-        left: '0',
-        right: '0',
-        bottom: '0',
-      }}
-    >
-      <StyledProgress transparentBackground={props.transparentBackground}>
+    <Wrapper $absolute={absolute} $hidden={hidden}>
+      <StyledProgress $transparentBackground={transparentBackground}>
         <div className="parent-bar-2" />
       </StyledProgress>
-    </div>
+    </Wrapper>
   );
 };
 
-const StyledProgress = styled.div<{ transparentBackground?: boolean }>`
+const Wrapper = styled.div<{ $absolute: boolean; $hidden: boolean }>`
+  ${props =>
+    props.$absolute &&
+    `
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    `}
+  ${props => props.$hidden && `visibility: hidden;`}
+`;
+
+const StyledProgress = styled.div<{ $transparentBackground: boolean }>`
   position: relative;
   overflow: hidden;
   display: block;
   height: 1px;
   z-index: 0;
   background-color: ${props =>
-    props.transparentBackground
+    props.$transparentBackground
       ? 'transparent'
       : props.theme.colors.levels.surface};
 
