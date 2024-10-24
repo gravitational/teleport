@@ -89,7 +89,7 @@ func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azu
 	}
 
 	return &azureApp{
-		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyInterface, cf.LocalProxyPort, cf.InsecureSkipVerify),
 		cf:            cf,
 		signer:        keyRing.TLSPrivateKey,
 		msiSecret:     msiSecret,
