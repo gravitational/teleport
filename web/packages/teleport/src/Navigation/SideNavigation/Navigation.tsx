@@ -36,11 +36,13 @@ import {
 import { zIndexMap } from './zIndexMap';
 
 import {
+  CustomNavigationSubcategory,
   NAVIGATION_CATEGORIES,
   STANDALONE_CATEGORIES,
   SidenavCategory,
 } from './categories';
 import { SearchSection } from './Search';
+import { ResourcesSection } from './ResourcesSection';
 
 import type * as history from 'history';
 import type { TeleportFeature } from 'teleport/types';
@@ -86,6 +88,20 @@ export type NavigationSubsection = {
   icon: (props) => JSX.Element;
   parent?: TeleportFeature;
   searchableTags?: string[];
+  /**
+   * customRouteMatchFn is a custom function for determining whether this subsection is currently active,
+   * this is useful in cases where a simple base route match isn't sufficient.
+   */
+  customRouteMatchFn?: (currentViewRoute: string) => boolean;
+  /**
+   * subCategory is the subcategory (ie. subsection grouping) this subsection should be under, if applicable.
+   * */
+  subCategory?: CustomNavigationSubcategory;
+  /**
+   * onClick is custom code that can be run when clicking on the subsection.
+   * Note that this is merely extra logic, and does not replace the default routing behaviour of a subsection which will navigate the user to the route.
+   */
+  onClick?: () => void;
 };
 
 function getNavigationSections(
@@ -205,6 +221,12 @@ export function Navigation() {
           handleSetExpandedSection={handleSetExpandedSection}
           currentView={currentView}
         />
+        <ResourcesSection
+          expandedSection={expandedSection}
+          previousExpandedSection={previousExpandedSection}
+          handleSetExpandedSection={handleSetExpandedSection}
+          currentView={currentView}
+        />
         {navSections.map(section => (
           <Section
             key={section.category}
@@ -256,6 +278,7 @@ export function Navigation() {
                         to={section.route}
                         exact={section.exact}
                         key={section.title}
+                        onClick={section?.onClick}
                       >
                         <section.icon size={16} />
                         <Text typography="body2">{section.title}</Text>

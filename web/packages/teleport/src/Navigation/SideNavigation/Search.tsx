@@ -23,6 +23,9 @@ import styled from 'styled-components';
 import { Box, Flex, Text } from 'design';
 import { height, space, color } from 'design/system';
 
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import { useUser } from 'teleport/User/UserContext';
+
 import { NavigationSection, NavigationSubsection } from './Navigation';
 import {
   Section,
@@ -32,6 +35,7 @@ import {
 } from './Section';
 import { CategoryIcon } from './CategoryIcon';
 import { CustomNavigationCategory } from './categories';
+import { getResourcesSectionForSearch } from './ResourcesSection';
 
 export function SearchSection({
   navigationSections,
@@ -50,6 +54,20 @@ export function SearchSection({
     category: CustomNavigationCategory.Search,
     subsections: [],
   };
+  const { clusterId } = useStickyClusterId();
+  const { preferences, updatePreferences } = useUser();
+
+  const searchParams = new URLSearchParams(location.search);
+
+  const searchableNavSections: NavigationSection[] = [
+    ...navigationSections,
+    getResourcesSectionForSearch({
+      clusterId,
+      preferences,
+      updatePreferences,
+      searchParams,
+    }),
+  ];
 
   const isExpanded =
     expandedSection?.category === CustomNavigationCategory.Search;
@@ -70,7 +88,7 @@ export function SearchSection({
         onFocus={() => handleSetExpandedSection(section)}
       >
         <SearchContent
-          navigationSections={navigationSections}
+          navigationSections={searchableNavSections}
           currentView={currentView}
         />
       </RightPanel>
@@ -123,7 +141,11 @@ function SearchContent({
               <SearchResult
                 key={index}
                 subsection={subsection}
-                $active={currentView?.route === subsection.route}
+                $active={
+                  subsection?.customRouteMatchFn
+                    ? subsection.customRouteMatchFn(currentView?.route)
+                    : currentView?.route === subsection.route
+                }
               />
             ))}
           </Flex>
@@ -141,7 +163,12 @@ function SearchResult({
   $active: boolean;
 }) {
   return (
-    <SearchResultWrapper as={NavLink} to={subsection.route} $active={$active}>
+    <SearchResultWrapper
+      as={NavLink}
+      to={subsection.route}
+      $active={$active}
+      onClick={subsection.onClick}
+    >
       <Flex width="100%" gap={2} alignItems="start">
         <Box pt={1}>
           <CategoryIcon

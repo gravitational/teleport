@@ -407,7 +407,7 @@ export class FeatureDiscover implements TeleportFeature {
     getLink() {
       return cfg.routes.discover;
     },
-    searchableTags: ['new resource', 'add'],
+    searchableTags: ['new', 'add', 'enroll'],
   };
 
   hasAccess(flags: FeatureFlags) {

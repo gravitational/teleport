@@ -176,20 +176,28 @@ export function SubsectionItem({
   to,
   exact,
   children,
+  onClick,
 }: {
   $active: boolean;
   to: string;
   exact: boolean;
   children: React.ReactNode;
+  onClick?: () => void;
 }) {
   return (
-    <StyledSubsectionItem $active={$active} to={to} exact={exact} tabIndex={0}>
+    <StyledSubsectionItem
+      $active={$active}
+      to={to}
+      exact={exact}
+      onClick={onClick}
+      tabIndex={0}
+    >
       {children}
     </StyledSubsectionItem>
   );
 }
 
-const StyledSubsectionItem = styled(NavLink)<{
+export const StyledSubsectionItem = styled(NavLink)<{
   $active: boolean;
 }>`
   display: flex;
