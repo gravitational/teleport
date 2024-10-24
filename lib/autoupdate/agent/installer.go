@@ -52,6 +52,7 @@ var (
 	tgzExtractPaths = []utils.ExtractPath{
 		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service"},
 		{Src: "teleport/examples", Skip: true},
+		{Src: "teleport/install", Skip: true},
 		{Src: "teleport/README.md", Dst: "share/README.md"},
 		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md"},
 		{Src: "teleport/VERSION", Dst: "share/VERSION"},
@@ -380,13 +381,20 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 		return trace.Wrap(err)
 	}
 	binDir := filepath.Join(versionDir, "bin")
-	entries, err := os.ReadDir(binDir)
-	if err != nil {
-		return trace.Errorf("failed to find Teleport binary directory: %w", err)
-	}
+	// ensure target directories exist before trying to create links
 	err = os.MkdirAll(li.LinkBinDir, 0755)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// create binary links
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return trace.Errorf("failed to find Teleport binary directory: %w", err)
 	}
 	var linked int
 	for _, entry := range entries {
@@ -402,11 +410,9 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 	if linked == 0 {
 		return trace.Errorf("no binaries available to link")
 	}
+
+	// create systemd service link
 	service := filepath.Join(versionDir, servicePath)
-	err = os.MkdirAll(li.LinkServiceDir, 0755)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	err = renameio.Symlink(service, filepath.Join(li.LinkServiceDir, filepath.Base(servicePath)))
 	if err != nil {
 		return trace.Wrap(err)
@@ -418,8 +424,12 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) error {
 // versionDir will fail if the version cannot be used to construct the directory name.
 // For example, it ensures that ".." cannot be provided to return a system directory.
 func (li *LocalInstaller) versionDir(version string) (string, error) {
-	versionDir := filepath.Join(li.InstallDir, version)
-	if filepath.Dir(versionDir) != filepath.Clean(li.InstallDir) {
+	installDir, err := filepath.Abs(li.InstallDir)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	versionDir := filepath.Join(installDir, version)
+	if filepath.Dir(versionDir) != filepath.Clean(installDir) {
 		return "", trace.Errorf("refusing to directory outside of version directory")
 	}
 	return versionDir, nil

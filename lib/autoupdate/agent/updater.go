@@ -292,6 +292,9 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	} else {
 		u.Log.InfoContext(ctx, "Target version successfully validated.", "version", desiredVersion)
 	}
+	if v := cfg.Status.BackupVersion; v != "" {
+		u.Log.InfoContext(ctx, "Backup version set.", "version", v)
+	}
 
 	versions, err := u.Installer.List(ctx)
 	if err != nil {
