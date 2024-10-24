@@ -50,31 +50,6 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
     }));
   }
 
-  // open a broadcast channel if sso challenge exists so it can listen
-  // for a confirmation response token
-  useEffect(() => {
-    if (!state.ssoChallenge) {
-      return;
-    }
-    const channel = new BroadcastChannel(state.ssoChallenge.channelId);
-
-    function handleMessage(e: MessageEvent<{ mfaToken: string }>) {
-      emitterSender.sendChallengeResponse({
-        sso_response: {
-          requestId: state.ssoChallenge?.requestId,
-          token: e.data.mfaToken,
-        },
-      });
-      clearChallenges();
-    }
-    channel.addEventListener('message', handleMessage);
-
-    return () => {
-      channel.removeEventListener('message', handleMessage);
-      channel.close();
-    };
-  }, [state.ssoChallenge, emitterSender]);
-
   function onSsoAuthenticate() {
     if (!state.ssoChallenge) {
       setState(prevState => ({
@@ -124,28 +99,67 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
       });
   }
 
-  const onChallenge = useCallback(challengeJson => {
-    const { webauthnPublicKey, ssoChallenge, totpChallenge } =
-      makeMfaAuthenticateChallenge(challengeJson);
+  const waitForSsoChallengeResponse = useCallback(
+    async (
+      ssoChallenge: SSOChallenge,
+      abortSignal: AbortSignal
+    ): Promise<void> => {
+      const channel = new BroadcastChannel(ssoChallenge.channelId);
 
-    setState(prevState => ({
-      ...prevState,
-      addMfaToScpUrls: true,
-      ssoChallenge,
-      webauthnPublicKey,
-      totpChallenge,
-    }));
-  }, []);
+      try {
+        const event = await waitForMessage(channel, abortSignal);
+        emitterSender.sendChallengeResponse({
+          sso_response: {
+            requestId: ssoChallenge.requestId,
+            token: event.data.mfaToken,
+          },
+        });
+        clearChallenges();
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          throw error;
+        }
+      } finally {
+        channel.close();
+      }
+    },
+    [emitterSender]
+  );
 
   useEffect(() => {
-    if (emitterSender) {
-      emitterSender.on(TermEvent.WEBAUTHN_CHALLENGE, onChallenge);
+    let ssoChallengeAbortController: AbortController | undefined;
+    const chanllengeHandler = (challengeJson: string) => {
+      const { webauthnPublicKey, ssoChallenge, totpChallenge } =
+        makeMfaAuthenticateChallenge(challengeJson);
 
-      return () => {
-        emitterSender.removeListener(TermEvent.WEBAUTHN_CHALLENGE, onChallenge);
-      };
-    }
-  }, [emitterSender, onChallenge]);
+      setState(prevState => ({
+        ...prevState,
+        addMfaToScpUrls: true,
+        ssoChallenge,
+        webauthnPublicKey,
+        totpChallenge,
+      }));
+
+      if (ssoChallenge) {
+        ssoChallengeAbortController?.abort();
+        ssoChallengeAbortController = new AbortController();
+        void waitForSsoChallengeResponse(
+          ssoChallenge,
+          ssoChallengeAbortController.signal
+        );
+      }
+    };
+
+    emitterSender?.on(TermEvent.WEBAUTHN_CHALLENGE, chanllengeHandler);
+
+    return () => {
+      ssoChallengeAbortController?.abort();
+      emitterSender?.removeListener(
+        TermEvent.WEBAUTHN_CHALLENGE,
+        chanllengeHandler
+      );
+    };
+  }, [emitterSender, waitForSsoChallengeResponse]);
 
   function setErrorText(newErrorText: string) {
     setState(prevState => ({ ...prevState, errorText: newErrorText }));
@@ -193,4 +207,26 @@ export function makeDefaultMfaState(): MfaState {
     webauthnPublicKey: null,
     ssoChallenge: null,
   };
+}
+
+function waitForMessage(
+  channel: BroadcastChannel,
+  abortSignal: AbortSignal
+): Promise<MessageEvent> {
+  return new Promise((resolve, reject) => {
+    // Create the event listener
+    function eventHandler(e: MessageEvent) {
+      // Remove the event listener after it triggers
+      channel.removeEventListener('message', eventHandler);
+      // Resolve the promise with the event object
+      resolve(e);
+    }
+
+    // Add the event listener
+    channel.addEventListener('message', eventHandler);
+    abortSignal.onabort = e => {
+      channel.removeEventListener('message', eventHandler);
+      reject(e);
+    };
+  });
 }
