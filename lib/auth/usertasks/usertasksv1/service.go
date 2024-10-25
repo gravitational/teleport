@@ -438,8 +438,7 @@ func (s *Service) notifyUserAboutPendingTask(ctx context.Context, ut *usertasksv
 		return trace.Wrap(err)
 	}
 	integrationStatus := integration.GetStatus()
-	existingNotification := integrationStatus.PendingUserTasksNotificationID
-	if existingNotification != "" {
+	if integrationStatus.PendingUserTasksNotificationID != "" {
 		if err := s.backend.DeleteGlobalNotification(ctx, integrationStatus.PendingUserTasksNotificationID); err != nil {
 			// NotFound might be returned when the GlobalNotification already expired or was deleted.
 			if !trace.IsNotFound(err) {

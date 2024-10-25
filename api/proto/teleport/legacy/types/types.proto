@@ -7556,7 +7556,7 @@ message IntegrationV1 {
 message IntegrationStatusV1 {
   // PendingUserTasksNotificationID contains the notification ID that indicates that this integration has unresolved user tasks.
   string PendingUserTasksNotificationID = 1 [(gogoproto.jsontag) = "pending_user_tasks_notification_id,omitempty"];
-  // NeedsAttentionNotificationExpires contains the expiration date for the notification.
+  // PendingUserTasksNotificationExpires contains the expiration date for the notification.
   // Used to ensure new notifications' expiration is the greater between the current notification and the new one.
   google.protobuf.Timestamp PendingUserTasksNotificationExpires = 2 [
     (gogoproto.stdtime) = true,

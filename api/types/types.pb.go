@@ -20172,7 +20172,7 @@ var xxx_messageInfo_IntegrationV1 proto.InternalMessageInfo
 type IntegrationStatusV1 struct {
 	// PendingUserTasksNotificationID contains the notification ID that indicates that this integration has unresolved user tasks.
 	PendingUserTasksNotificationID string `protobuf:"bytes,1,opt,name=PendingUserTasksNotificationID,proto3" json:"pending_user_tasks_notification_id,omitempty"`
-	// NeedsAttentionNotificationExpires contains the expiration date for the notification.
+	// PendingUserTasksNotificationExpires contains the expiration date for the notification.
 	// Used to ensure new notifications' expiration is the greater between the current notification and the new one.
 	PendingUserTasksNotificationExpires *time.Time `protobuf:"bytes,2,opt,name=PendingUserTasksNotificationExpires,proto3,stdtime" json:"pending_user_tasks_notification_expires,omitempty"`
 	XXX_NoUnkeyedLiteral                struct{}   `json:"-"`
