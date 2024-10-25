@@ -162,9 +162,7 @@ const getDefaultProps = (): TableProps<DummyDataType> => ({
       headerText: 'Labels',
       render: row => <LabelCell data={row.tags} />,
       isSortable: true,
-      onSort: function sortTagsByLength(a, b) {
-        return a.tags.length - b.tags.length;
-      },
+      onSort: (a, b) => a.tags.length - b.tags.length,
     },
     { key: 'bool', headerText: 'Boolean', isSortable: true },
   ],
@@ -192,9 +190,7 @@ const getDefaultIsoProps = (): TableProps<DummyDataISOStringType> => ({
       headerText: 'Labels',
       render: row => <LabelCell data={row.tags} />,
       isSortable: true,
-      onSort: function sortTagsByLength(a, b) {
-        return a.tags.length - b.tags.length;
-      },
+      onSort: (a, b) => a.tags.length - b.tags.length,
     },
     { key: 'bool', headerText: 'Boolean', isSortable: true },
   ],

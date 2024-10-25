@@ -57,6 +57,6 @@ export function ServerSidePager({ nextPage, prevPage, isLoading }: Props) {
 
 export type Props = {
   isLoading: boolean;
-  nextPage?: () => void;
-  prevPage?: () => void;
+  nextPage: (() => void) | undefined;
+  prevPage: (() => void) | undefined;
 };

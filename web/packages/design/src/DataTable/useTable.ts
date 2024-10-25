@@ -45,8 +45,8 @@ export default function useTable<T>({
   const [state, setState] = useState<{
     data: T[];
     searchValue: string;
-    sort?: AppliedSort<T>;
-    pagination?: AppliedPagination<T>;
+    sort?: Sort<T>;
+    pagination?: Pagination<T>;
   }>(() => {
     // Finds the first sortable column to use for the initial sorting
     let col: TableColumn<T> | undefined;
@@ -100,7 +100,7 @@ export default function useTable<T>({
   }
 
   const updateData = (
-    sort: AppliedSort<T> | undefined,
+    sort: Sort<T> | undefined,
     searchValue: string,
     resetCurrentPage = false
   ) => {
@@ -241,7 +241,7 @@ export default function useTable<T>({
 function sortAndFilter<T>(
   data: T[] = [],
   searchValue = '',
-  sort: AppliedSort<T> | undefined,
+  sort: Sort<T> | undefined,
   searchableProps: (keyof T & string)[],
   searchAndFilterCb: MatchCallback<T>,
   showFirst?: TableProps<T>['showFirst']
@@ -301,16 +301,16 @@ function isISODate(value: unknown): value is Date {
   return !isNaN(date.getTime());
 }
 
-export type AppliedSort<T> = {
+export interface Sort<T> {
   key: keyof T;
   onSort?(a: T, b: T): number;
   dir: 'ASC' | 'DESC';
-};
+}
 
-export type AppliedPagination<T> = {
+export interface Pagination<T> {
   paginatedData: T[][];
   currentPage: number;
   pagerPosition?: PagerPosition;
   pageSize?: number;
   CustomTable?: (p: PagedTableProps<T>) => JSX.Element;
-};
+}

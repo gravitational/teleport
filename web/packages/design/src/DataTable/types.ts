@@ -18,7 +18,7 @@
 
 import { MatchCallback } from 'design/utils/match';
 
-import { AppliedPagination } from './useTable';
+import { Pagination } from './useTable';
 
 export type TableProps<T> = {
   data: T[];
@@ -208,14 +208,14 @@ export type SearchableBasicTableProps<T> = BasicTableProps<T> & {
 export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   nextPage: () => void;
   prevPage: () => void;
-  pagination: AppliedPagination<T>;
+  pagination: Pagination<T>;
   fetching?: FetchingConfig;
 };
 
 export type ServersideTableProps<T> = BasicTableProps<T> & {
   nextPage?: () => void;
   prevPage?: () => void;
-  pagination?: AppliedPagination<T>;
+  pagination?: Pagination<T>;
   serversideProps: ServersideProps;
   fetchStatus?: FetchStatus;
 };
