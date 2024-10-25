@@ -16,5 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import LabelInput from './LabelInput';
-export default LabelInput;
+import { Indicator } from './Indicator';
+
+export default {
+  title: 'Design/Indicator',
+};
+
+export const Loader = () => <Indicator />;

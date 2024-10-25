@@ -24,7 +24,10 @@
 export class Logger {
   constructor(private name = 'default') {}
 
-  log(level = 'log', ...args: any[]): void {
+  log(
+    level: 'log' | 'trace' | 'warn' | 'info' | 'debug' | 'error' = 'log',
+    ...args: any[]
+  ): void {
     window.console[level](`%c[${this.name}]`, `color: blue;`, ...args);
   }
 

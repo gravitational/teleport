@@ -18,10 +18,18 @@
 
 import React from 'react';
 
-import Indicator from '.';
+import { render } from 'design/utils/testing';
 
-export default {
-  title: 'Design/Indicator',
-};
+import ButtonLink from './index';
 
-export const Loader = () => <Indicator />;
+describe('design/ButtonLink', () => {
+  it('respects the "as" prop', () => {
+    const { container } = render(<ButtonLink />);
+    expect(container.firstChild?.nodeName).toBe('A');
+  });
+
+  it('respects the button size prop', () => {
+    const { container } = render(<ButtonLink size="large" />);
+    expect(container.firstChild).toHaveStyle('min-height: 40px');
+  });
+});
