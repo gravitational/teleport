@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -131,7 +132,7 @@ func (s *EventHandlerSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
-	app, err := NewApp(&s.appConfig)
+	app, err := NewApp(&s.appConfig, slog.Default())
 	require.NoError(t, err)
 
 	integration.RunAndWaitReady(s.T(), app)

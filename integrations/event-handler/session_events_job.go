@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -76,8 +77,6 @@ func NewSessionEventsJob(app *App) *SessionEventsJob {
 
 // run runs session consuming process
 func (j *SessionEventsJob) run(ctx context.Context) error {
-	log := logger.Get(ctx)
-
 	// Create cancellable context which handles app termination
 	process := lib.MustGetProcess(ctx)
 	ctx, cancel := context.WithCancel(ctx)
@@ -94,7 +93,10 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 		for {
 			select {
 			case <-logTicker.C:
-				log.WithField("sessions_per_minute", j.sessionsProcessed.Swap(0)).Info("session processing")
+				j.app.log.InfoContext(
+					ctx, "Session processing",
+					"sessions_per_minute", j.sessionsProcessed.Swap(0),
+				)
 			case <-ctx.Done():
 				return
 			}
@@ -102,7 +104,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	}()
 
 	if err := j.restartPausedSessions(); err != nil {
-		log.WithError(err).Error("Restarting paused sessions")
+		j.app.log.ErrorContext(ctx, "Restarting paused sessions", "error", err)
 	}
 
 	j.SetReady(true)
@@ -110,30 +112,33 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	for {
 		select {
 		case s := <-j.sessions:
-			logger := log.WithField("id", s.ID).WithField("index", s.Index)
+			log := j.app.log.With(
+				"id", s.ID,
+				"index", s.Index,
+			)
 
 			if j.logLimiter.Allow() {
-				logger.Debug("Starting session ingest")
+				log.DebugContext(ctx, "Starting session ingest")
 			}
 
 			select {
 			case j.semaphore <- struct{}{}:
 			case <-ctx.Done():
-				logger.WithError(ctx.Err()).Error("Failed to acquire semaphore")
+				log.ErrorContext(ctx, "Failed to acquire semaphore", "error", ctx.Err())
 				return nil
 			}
 
-			func(s session, log logrus.FieldLogger) {
+			func(s session, log *slog.Logger) {
 				j.app.SpawnCritical(func(ctx context.Context) error {
 					defer func() { <-j.semaphore }()
 
-					if err := j.processSession(ctx, s, 0); err != nil {
+					if err := j.processSession(ctx, log, s, 0); err != nil {
 						return trace.Wrap(err)
 					}
 
 					return nil
 				})
-			}(s, logger)
+			}(s, log)
 		case <-ctx.Done():
 			if lib.IsCanceled(ctx.Err()) {
 				return nil
@@ -143,7 +148,7 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 	}
 }
 
-func (j *SessionEventsJob) processSession(ctx context.Context, s session, processingAttempt int) error {
+func (j *SessionEventsJob) processSession(ctx context.Context, log *slog.Logger, s session, processingAttempt int) error {
 	const (
 		// maxNumberOfProcessingAttempts is the number of times a non-existent
 		// session recording will be processed before assuming the recording
@@ -160,7 +165,6 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 		sessionBackoffNumTries = 3
 	)
 
-	log := logger.Get(ctx).WithField("id", s.ID).WithField("index", s.Index)
 	backoff := backoff.NewDecorr(sessionBackoffBase, sessionBackoffMax, clockwork.NewRealClock())
 	attempt := sessionBackoffNumTries
 
@@ -187,11 +191,18 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 			// abort processing the session any further.
 			attempt--
 			if attempt <= 0 {
-				log.WithField("limit", sessionBackoffNumTries).Error("Session ingestion exceeded attempt limit, aborting")
+				log.ErrorContext(
+					ctx, "Session ingestion exceeded attempt limit, aborting",
+					"limit", sessionBackoffNumTries,
+				)
 				return trace.LimitExceeded("Session ingestion exceeded attempt limit")
 			}
 
-			log.WithError(err).WithField("n", attempt).Error("Session ingestion error, retrying")
+			log.ErrorContext(
+				ctx, "Session ingestion error, retrying",
+				"error", err,
+				"attempt", attempt,
+			)
 
 			// Perform backoff before retrying the session again.
 			if err := backoff.Do(ctx); err != nil {
@@ -200,7 +211,7 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 		case err != nil:
 			// Abort on any errors that don't require a retry.
 			if !lib.IsCanceled(err) {
-				log.WithField("err", err).Error("Session ingestion failed")
+				log.ErrorContext(ctx, "Session ingestion failed", "error", err)
 			}
 			return trace.Wrap(err)
 		default:
