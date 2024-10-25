@@ -42,6 +42,7 @@ const cfg = {
     samlIdPHandler: '/enterprise/saml-idp/*',
 
     samlIdPLogin: '/web/saml-idp/login',
+    ssoConfirm: '/web/sso_confirm',
 
     // device trust
     deviceTrust: `/web/devices`,

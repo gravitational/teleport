@@ -36,6 +36,7 @@ import { DeviceTrust } from 'e-teleport/DeviceTrust';
 import UsageSummary from 'e-teleport/UsageSummary';
 import { Discover as DiscoverE } from 'e-teleport/Discover';
 import { AccessListManagement as AccessListManagement } from 'e-teleport/AccessListManagement';
+import { SSOConfirm } from 'e-teleport/SSOConfirm/SSOConfirm';
 import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
 import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
@@ -394,6 +395,19 @@ export class FeatureDeviceTrustWeb implements TeleportFeature {
   logoOnlyTopbar = true;
 }
 
+export class FeatureSSOConfirm implements TeleportFeature {
+  route = {
+    title: 'SSO Confirm',
+    path: cfg.routes.ssoConfirm,
+    component: SSOConfirm,
+  };
+  hasAccess() {
+    return true;
+  }
+  hideNavigation = true;
+  logoOnlyTopbar = true;
+}
+
 class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
   route = {
     title: 'Help & Support',
@@ -487,5 +501,6 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureHelpAndSupport(),
     new FeatureUsageSummary(),
     new FeatureDeviceTrustWeb(),
+    new FeatureSSOConfirm(),
   ];
 }
