@@ -318,6 +318,76 @@ describe('roleToRoleEditorModel', () => {
       ],
     } as RoleEditorModel);
   });
+
+  it('creates an app access spec', () => {
+    const minRole = minimalRole();
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            app_labels: { foo: 'bar' },
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'app',
+          labels: [{ name: 'foo', value: 'bar' }],
+          awsRoleARNs: [],
+          azureIdentities: [],
+          gcpServiceAccounts: [],
+        },
+      ],
+    } as RoleEditorModel);
+
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            app_labels: { foo: 'bar' },
+            aws_role_arns: [
+              'arn:aws:iam::123456789012:role/role1',
+              'arn:aws:iam::123456789012:role/role2',
+            ],
+            azure_identities: [
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+            ],
+            gcp_service_accounts: [
+              'account1@some-project.iam.gserviceaccount.com',
+              'account2@some-project.iam.gserviceaccount.com',
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'app',
+          labels: [{ name: 'foo', value: 'bar' }],
+          awsRoleARNs: [
+            'arn:aws:iam::123456789012:role/role1',
+            'arn:aws:iam::123456789012:role/role2',
+          ],
+          azureIdentities: [
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+          ],
+          gcpServiceAccounts: [
+            'account1@some-project.iam.gserviceaccount.com',
+            'account2@some-project.iam.gserviceaccount.com',
+          ],
+        },
+      ],
+    } as RoleEditorModel);
+  });
 });
 
 test('labelsToModel', () => {
@@ -433,6 +503,53 @@ describe('roleEditorModelToRole', () => {
               namespace: '',
               verbs: [],
             },
+          ],
+        },
+      },
+    } as Role);
+  });
+
+  it('converts an app access spec', () => {
+    const minRole = minimalRole();
+    expect(
+      roleEditorModelToRole({
+        ...minimalRoleModel(),
+        accessSpecs: [
+          {
+            kind: 'app',
+            labels: [{ name: 'foo', value: 'bar' }],
+            awsRoleARNs: [
+              'arn:aws:iam::123456789012:role/role1',
+              'arn:aws:iam::123456789012:role/role2',
+            ],
+            azureIdentities: [
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+            ],
+            gcpServiceAccounts: [
+              'account1@some-project.iam.gserviceaccount.com',
+              'account2@some-project.iam.gserviceaccount.com',
+            ],
+          },
+        ],
+      })
+    ).toEqual({
+      ...minRole,
+      spec: {
+        ...minRole.spec,
+        allow: {
+          app_labels: { foo: 'bar' },
+          aws_role_arns: [
+            'arn:aws:iam::123456789012:role/role1',
+            'arn:aws:iam::123456789012:role/role2',
+          ],
+          azure_identities: [
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+          ],
+          gcp_service_accounts: [
+            'account1@some-project.iam.gserviceaccount.com',
+            'account2@some-project.iam.gserviceaccount.com',
           ],
         },
       },
