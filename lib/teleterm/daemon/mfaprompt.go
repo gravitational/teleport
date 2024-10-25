@@ -73,13 +73,11 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	runOpts, err := p.cfg.GetRunOptions(ctx, chal)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	promptOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
 
 	// No prompt to run, no-op.
-	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+	if !promptOTP && !promptWebauthn {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
@@ -92,7 +90,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		go func() {
 			defer wg.Done()
 
-			resp, err := p.promptMFA(ctx, runOpts)
+			resp, err := p.promptMFA(ctx, promptOTP, promptWebauthn)
 			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
 
 			// If the user closes the modal in the Electron app, we need to be able to cancel the other
@@ -103,7 +101,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		}()
 
 		// Fire Webauthn goroutine.
-		if runOpts.PromptWebauthn {
+		if promptWebauthn {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -128,12 +126,12 @@ func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthentic
 	return resp, nil
 }
 
-func (p *mfaPrompt) promptMFA(ctx context.Context, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
+func (p *mfaPrompt) promptMFA(ctx context.Context, promptOTP, promptWebauthn bool) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
 		ClusterUri: p.resourceURI.GetClusterURI().String(),
 		Reason:     p.cfg.PromptReason,
-		Totp:       runOpts.PromptTOTP,
-		Webauthn:   runOpts.PromptWebauthn,
+		Totp:       promptOTP,
+		Webauthn:   promptWebauthn,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
