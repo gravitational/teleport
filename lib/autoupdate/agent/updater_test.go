@@ -132,11 +132,16 @@ func TestUpdater_Enable(t *testing.T) {
 		userCfg    OverrideConfig
 		installErr error
 		flags      InstallFlags
+		syncErr    error
+		reloadErr  error
 
 		removedVersion    string
 		installedVersion  string
 		installedTemplate string
 		requestGroup      string
+		syncCalls         int
+		reloadCalls       int
+		revertCalls       int
 		errMatch          string
 	}{
 		{
@@ -152,9 +157,12 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "old-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
 			requestGroup:      "group",
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "config from user",
@@ -174,8 +182,11 @@ func TestUpdater_Enable(t *testing.T) {
 				URLTemplate:  "https://example.com/new",
 				ForceVersion: "new-version",
 			},
+
 			installedVersion:  "new-version",
 			installedTemplate: "https://example.com/new",
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "already enabled",
@@ -189,8 +200,11 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "old-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "insecure URL",
@@ -201,6 +215,7 @@ func TestUpdater_Enable(t *testing.T) {
 					URLTemplate: "http://example.com",
 				},
 			},
+
 			errMatch: "URL must use TLS",
 		},
 		{
@@ -213,7 +228,8 @@ func TestUpdater_Enable(t *testing.T) {
 				},
 			},
 			installErr: errors.New("install error"),
-			errMatch:   "install error",
+
+			errMatch: "install error",
 		},
 		{
 			name: "version already installed",
@@ -224,8 +240,11 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "16.3.0",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       0,
 		},
 		{
 			name: "backup version removed on install",
@@ -237,9 +256,12 @@ func TestUpdater_Enable(t *testing.T) {
 					BackupVersion: "backup-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			removedVersion:    "backup-version",
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "backup version kept for validation",
@@ -251,25 +273,55 @@ func TestUpdater_Enable(t *testing.T) {
 					BackupVersion: "backup-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			removedVersion:    "",
+			syncCalls:         1,
+			reloadCalls:       0,
 		},
 		{
-			name:              "config does not exist",
+			name: "config does not exist",
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name:              "FIPS and Enterprise flags",
 			flags:             FlagEnterprise | FlagFIPS,
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name:     "invalid metadata",
 			cfg:      &UpdateConfig{},
 			errMatch: "invalid",
+		},
+		{
+			name:    "sync fails",
+			syncErr: errors.New("sync error"),
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			syncCalls:         2,
+			reloadCalls:       0,
+			revertCalls:       1,
+			errMatch:          "sync error",
+		},
+		{
+			name:      "reload fails",
+			reloadErr: errors.New("reload error"),
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			syncCalls:         2,
+			reloadCalls:       2,
+			revertCalls:       1,
+			errMatch:          "reload error",
 		},
 	}
 
@@ -320,6 +372,7 @@ func TestUpdater_Enable(t *testing.T) {
 				linkedVersion     string
 				removedVersion    string
 				installedFlags    InstallFlags
+				revertCalls       int
 			)
 			updater.Installer = &testInstaller{
 				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
@@ -331,6 +384,7 @@ func TestUpdater_Enable(t *testing.T) {
 				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
 					linkedVersion = version
 					return func(_ context.Context) bool {
+						revertCalls++
 						return true
 					}, nil
 				},
@@ -342,12 +396,18 @@ func TestUpdater_Enable(t *testing.T) {
 					return nil
 				},
 			}
+			var (
+				syncCalls   int
+				reloadCalls int
+			)
 			updater.Process = &testProcess{
-				FuncReload: func(_ context.Context) error {
-					return nil
-				},
 				FuncSync: func(_ context.Context) error {
-					return nil
+					syncCalls++
+					return tt.syncErr
+				},
+				FuncReload: func(_ context.Context) error {
+					reloadCalls++
+					return tt.reloadErr
 				},
 			}
 
@@ -365,6 +425,9 @@ func TestUpdater_Enable(t *testing.T) {
 			require.Equal(t, tt.removedVersion, removedVersion)
 			require.Equal(t, tt.flags, installedFlags)
 			require.Equal(t, tt.requestGroup, requestedGroup)
+			require.Equal(t, tt.syncCalls, syncCalls)
+			require.Equal(t, tt.reloadCalls, reloadCalls)
+			require.Equal(t, tt.revertCalls, revertCalls)
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
