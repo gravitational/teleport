@@ -43,7 +43,7 @@ import {
   StyledBox,
   useConnectionDiagnostic,
 } from '../../Shared';
-import { DatabaseEngine } from '../../SelectResource';
+import { DatabaseEngine, getDatabaseProtocol } from '../../SelectResource';
 
 export function TestConnection() {
   const { resourceSpec, agentMeta } = useDiscover();
@@ -186,7 +186,7 @@ export function TestConnection() {
                   attempt.status === 'processing' || nameOpts.length === 0
                 }
                 // Database name is required for Postgres.
-                isClearable={dbEngine !== DatabaseEngine.Postgres}
+                isClearable={!isDbNameRequired(dbEngine)}
               />
               <CustomInputFieldForAsterisks
                 selectedOption={selectedDbName}
@@ -237,4 +237,14 @@ function getInputValue(input: string, inputKind: 'name' | 'user') {
     return inputKind === 'name' ? '<name>' : '<user>';
   }
   return input;
+}
+
+function isDbNameRequired(engine: DatabaseEngine) {
+  const protocol = getDatabaseProtocol(engine);
+  switch (protocol) {
+    case 'postgres':
+      return true;
+    default:
+      return false;
+  }
 }
