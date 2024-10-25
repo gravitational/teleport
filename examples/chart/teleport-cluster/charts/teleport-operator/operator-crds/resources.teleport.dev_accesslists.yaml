@@ -97,6 +97,13 @@ spec:
                       are members of the Access List.
                     type: object
                 type: object
+              member_of:
+                description: member_of describes Access Lists that this Access List
+                  is an explicit member of.
+                items:
+                  type: string
+                nullable: true
+                type: array
               membership_requires:
                 description: membership_requires describes the requirements for a
                   user to be a member of the Access List. For a membership to an Access
@@ -141,6 +148,13 @@ spec:
                       are members of the Access List.
                     type: object
                 type: object
+              owner_of:
+                description: owner_of describes Access Lists that this Access List
+                  is an explicit owner of.
+                items:
+                  type: string
+                nullable: true
+                type: array
               owners:
                 description: owners is a list of owners of the Access List.
                 items:
@@ -152,6 +166,10 @@ spec:
                     ineligible_status:
                       description: ineligible_status describes if this owner is eligible
                         or not and if not, describes how they're lacking eligibility.
+                      x-kubernetes-int-or-string: true
+                    membership_kind:
+                      description: membership_kind describes the type of membership,
+                        either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
                       x-kubernetes-int-or-string: true
                     name:
                       description: name is the username of the owner.
