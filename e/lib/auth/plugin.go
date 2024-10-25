@@ -11,7 +11,6 @@ import (
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -62,7 +61,6 @@ const (
 	pluginName = "auth.enterprise"
 )
 
-var log = logrus.WithField(teleport.ComponentKey, pluginName)
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, pluginName)
 
 type getCertFunc = func() (*tls.Certificate, error)
@@ -340,8 +338,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		return trace.Wrap(err)
 	}
 
-	userMonitor, err := NewUserMonitor(ctx, UserMonitorConfig{
-		Log:        log,
+	userMonitor, err := NewUserMonitor(UserMonitorConfig{
+		Logger:     logger,
 		AuthServer: p.authServer.AuthServer,
 		Events:     p.authServer.AuthServer.Cache,
 	})
@@ -383,24 +381,24 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 }
 
 func (p *Plugin) registerSCIMService(ctx context.Context, registrar grpc.ServiceRegistrar, cfg *scim.Config) error {
-	log.Info("Registering SCIM service")
+	logger.InfoContext(ctx, "Registering SCIM service")
 
 	if !p.Config.HostedPlugins.Enabled {
 		// TODO(tcsc): handle dynamic updates to config/license features
-		log.Info("Hosted plugins disabled. Not registering SCIM service")
+		logger.InfoContext(ctx, "Hosted plugins disabled, not registering SCIM service")
 		return nil
 	}
 
-	log.Debug("Creating SCIM service")
+	logger.DebugContext(ctx, "Creating SCIM service")
 	scimService, err := scim.NewService(cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.Debug("Registering SCIM service with GRPC server")
+	logger.DebugContext(ctx, "Registering SCIM service with GRPC server")
 	scimpb.RegisterSCIMServiceServer(registrar, scimService)
 
-	log.Debug("Overriding default SCIM implementation")
+	logger.DebugContext(ctx, "Overriding default SCIM implementation")
 	p.authServer.AuthServer.SetSCIMService(scimService)
 
 	return nil
@@ -414,7 +412,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 		return nil
 	}
 
-	log.Info("Access Graph Enabled.")
+	logger.InfoContext(ctx, "Access Graph Enabled")
 
 	// TODO(justinas): remove Access Graph relay gRPC service from auth altogether,
 	// see https://github.com/gravitational/access-graph/issues/362
@@ -467,20 +465,20 @@ func (p *Plugin) initAndRegisterSecurityReport(ctx context.Context, serviceGRPC 
 	if p.AccessMonitoring == nil || !p.AccessMonitoring.Enabled {
 		return nil
 	}
-	log.Infof("Access Monitoring Enabled.")
+	logger.InfoContext(ctx, "Access Monitoring Enabled")
 	auditConf, err := p.authServer.AuthServer.GetClusterAuditConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	athenaURI, ok := athena.GetAthenaURI(auditConf.AuditEventsURIs())
 	if !ok {
-		log.Warn("Access Monitoring Enabled but Athena backend is not configured.")
+		logger.WarnContext(ctx, "Access Monitoring Enabled but Athena backend is not configured")
 		return nil
 	}
 
 	features := modules.GetModules().Features()
 	if !features.GetEntitlement(entitlements.AccessMonitoring).Enabled {
-		log.Warn(ctx, "Access Monitoring specified in config, but the subscription does not include Access Monitoring. Access Monitoring will not be enabled.")
+		logger.WarnContext(ctx, "Access Monitoring specified in config, but the subscription does not include Access Monitoring, Access Monitoring will not be enabled")
 		return nil
 	}
 

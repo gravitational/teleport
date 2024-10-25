@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -30,8 +30,8 @@ const (
 
 // UserMonitorConfig is the configuration for the user monitor.
 type UserMonitorConfig struct {
-	// Log is the logger for the user monitor.
-	Log *logrus.Entry
+	// Logger is the logger for the user monitor.
+	Logger *slog.Logger
 
 	// Clock is the click used for the user monitor.
 	Clock clockwork.Clock
@@ -45,8 +45,8 @@ type UserMonitorConfig struct {
 }
 
 func (u *UserMonitorConfig) CheckAndSetDefaults() error {
-	if u.Log == nil {
-		u.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentUserMonitor)
+	if u.Logger == nil {
+		u.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentUserMonitor)
 	}
 
 	if u.Clock == nil {
@@ -75,7 +75,7 @@ func (u *UserMonitorConfig) CheckAndSetDefaults() error {
 // for dynamic changing of things like Okta assignments. This monitor must be run on
 // the auth server.
 type UserMonitor struct {
-	log        *logrus.Entry
+	logger     *slog.Logger
 	clock      clockwork.Clock
 	authServer *auth.Server
 	events     types.Events
@@ -87,13 +87,13 @@ type UserMonitor struct {
 	lockToTarget   map[string]types.LockTarget
 }
 
-func NewUserMonitor(ctx context.Context, cfg UserMonitorConfig) (*UserMonitor, error) {
+func NewUserMonitor(cfg UserMonitorConfig) (*UserMonitor, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	u := &UserMonitor{
-		log:          cfg.Log,
+		logger:       cfg.Logger,
 		clock:        cfg.Clock,
 		authServer:   cfg.AuthServer,
 		events:       cfg.Events,
@@ -120,10 +120,10 @@ func (u *UserMonitor) reconciler(ctx context.Context) {
 	defer interval.Stop()
 
 	for {
-		u.log.Info("Reconciling users.")
+		u.logger.InfoContext(ctx, "Reconciling users")
 
 		if err := u.reconcile(ctx); err != nil {
-			u.log.Debugf("Error during reconciliation: %s", err.Error())
+			u.logger.DebugContext(ctx, "Error during reconciliation", "error", err)
 		}
 
 		select {
@@ -184,7 +184,7 @@ func (u *UserMonitor) reconcile(ctx context.Context) error {
 
 		rebuilt, err := rebuildUserFromUserLoginState(uls)
 		if err != nil {
-			u.log.Debugf("Unable to rebuild user %s: %s", uls.GetName(), err.Error())
+			u.logger.DebugContext(ctx, "Unable to rebuild user", "user", uls.GetName(), "error", err)
 			continue
 		}
 		usersToProcess[uls.GetName()] = rebuilt
@@ -208,7 +208,7 @@ func (u *UserMonitor) runWatcher(ctx context.Context) {
 			return
 		}
 
-		log.Warnf("Watcher closed: %v (retry in %s)", err, userMonitorRetryPeriod)
+		logger.WarnContext(ctx, "Watcher closed, backing off before creating another watcher", "error", err, "backoff_interval", userMonitorRetryPeriod)
 
 		select {
 		case <-u.clock.After(userMonitorRetryPeriod):
@@ -253,7 +253,7 @@ func (u *UserMonitor) watchEvents(ctx context.Context) error {
 		select {
 		case event := <-watcher.Events():
 			if err := u.processResource(ctx, event.Resource, event.Type); err != nil {
-				u.log.Debugf("Error while processing events: %s", err.Error())
+				u.logger.DebugContext(ctx, "Error while processing events", "error", err)
 			}
 		case <-watcher.Done():
 			return watcher.Error()

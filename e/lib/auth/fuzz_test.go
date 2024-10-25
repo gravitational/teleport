@@ -4,14 +4,10 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 func FuzzParseSAMLInResponseTo(f *testing.F) {
-	// Disable Go App Engine logging
-	logrus.SetLevel(logrus.PanicLevel)
-
 	f.Add([]byte(respOkta))
 	largeCompressedBytes, err := base64.StdEncoding.DecodeString(largeCompressedBody)
 	require.NoError(f, err)

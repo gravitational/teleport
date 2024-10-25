@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"sync"
 	"time"
 
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -43,7 +43,7 @@ func init() {
 // SetModules installs modules that provide custom behavior for the
 // enterprise compared to the open-source version
 func SetModules(licenseFile *licensefile.LicenseFile) error {
-	p := enterpriseModules{log: logrus.WithField(teleport.ComponentKey, eModuleComponent)}
+	p := enterpriseModules{logger: slog.With(teleport.ComponentKey, eModuleComponent)}
 	if licenseFile == nil || licenseFile.License == nil {
 		modules.SetModules(&p)
 		return nil
@@ -58,7 +58,7 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 	//   - Enterprise Usage Based Cloud
 	//   - Legacy Enterprise Teleport Cloud (non-usage based but hosted by Teleport)
 	if licenseFile.License.GetCloud() {
-		p.log.Debug("fetching features from Cloud")
+		p.logger.DebugContext(context.Background(), "fetching features from Cloud")
 		tlsConfig, err := liblicense.MakeTLSConfig(*licenseFile.KeyPair)
 		if err != nil {
 			return trace.Wrap(err)
@@ -66,7 +66,7 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 
 		client, err := cloud.NewClientFromTLSConfig(tlsConfig)
 		if err != nil {
-			p.log.Errorf("failed creating cloud client to fetch features: %+v", err)
+			p.logger.ErrorContext(context.Background(), "failed creating cloud client to fetch features", "error", err)
 			return trace.Wrap(err)
 		}
 
@@ -75,10 +75,10 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 
 		f, err := feature.GetCloudFeatures(ctx, client)
 		if err != nil {
-			p.log.Errorf("failed fetching features from Cloud: %+v", err)
+			p.logger.ErrorContext(ctx, "failed fetching features from Cloud", "error", err)
 			return trace.Wrap(err)
 		}
-		p.log.Debugf("successfully fetched features from Cloud: %+v", f)
+		p.logger.DebugContext(ctx, "successfully fetched features from Cloud", "features", f.ToProto())
 		f.RecoveryCodes = true
 		features = *f
 	}
@@ -98,7 +98,7 @@ type enterpriseModules struct {
 	mu sync.RWMutex
 	// features is the feature set of the cluster
 	features          modules.Features
-	log               *logrus.Entry
+	logger            *slog.Logger
 	licenseExpiry     time.Time
 	automaticUpgrades bool
 	loadDynamicValues sync.Once

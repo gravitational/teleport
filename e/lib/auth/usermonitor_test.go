@@ -587,8 +587,7 @@ func newUserMonitorService(t *testing.T) *UserMonitor {
 	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	svc, err := NewUserMonitor(ctx, UserMonitorConfig{
+	svc, err := NewUserMonitor(UserMonitorConfig{
 		AuthServer: as.AuthServer,
 		Events:     as.AuthServer,
 	})

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -28,7 +27,6 @@ func TestProxyWithoutLicense(t *testing.T) {
 			Enabled:    false,
 			Preference: authPreference,
 		},
-		Log:    utils.WrapLogger(logrus.WithField("test", t.Name())),
 		Logger: utils.NewSlogLoggerForTests().With("test", t.Name()),
 	}
 
@@ -66,7 +64,6 @@ func TestModulesSetBeforeAuth(t *testing.T) {
 			LicenseFile:  "testdata/license-all-features.pem",
 		},
 		Hostname: "localhost",
-		Log:      utils.WrapLogger(logrus.WithField("test", t.Name())),
 		Logger:   utils.NewSlogLoggerForTests().With("test", t.Name()),
 	}
 
@@ -100,7 +97,6 @@ func TestMissingLicenseError(t *testing.T) {
 			ListenAddr:   *utils.MustParseAddr("tcp://127.0.0.1:0"),
 		},
 		Hostname: "localhost",
-		Log:      utils.WrapLogger(logrus.WithField("test", t.Name())),
 		Logger:   utils.NewSlogLoggerForTests().With("test", t.Name()),
 	}
 

@@ -61,7 +61,7 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 		}
 
 		if credentials != nil {
-			log.Debugf("fetching transitive Google groups for %v", email)
+			logger.DebugContext(ctx, "fetching transitive Google groups email", "email", email)
 			googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, option.WithTokenSource(credentials))
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -77,7 +77,7 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 					cloudidentity.CloudIdentityGroupsReadonlyScope, directory.AdminDirectoryGroupReadonlyScope)
 			}
 
-			log.Debugf("fetching direct Google groups with no domain filtering for %v", email)
+			logger.DebugContext(ctx, "fetching direct Google groups with no domain filtering for email", "email", email)
 			googleGroups, err = groupsFromGoogleDirectory(ctx, email, "", option.WithTokenSource(credentials))
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -101,7 +101,10 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 			return nil, trace.BadParameter("invalid Google Workspace credentials for scope %v", directory.AdminDirectoryGroupReadonlyScope)
 		}
 
-		log.Debugf("fetching direct Google groups for %v, filtering by domain %v", email, hostedDomain)
+		logger.DebugContext(ctx, "fetching direct Google groups for email, filtering by domain",
+			"email", email,
+			"domain", hostedDomain,
+		)
 		googleGroups, err = groupsFromGoogleDirectory(ctx, email, hostedDomain, option.WithTokenSource(credentials))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -112,13 +115,13 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 
 	if len(googleGroups) > 0 {
 		googleClaims := jose.Claims{googleGroupsClaim: googleGroups}
-		log.Debugf("Claims from Google Workspace: %v.", googleClaims)
+		logger.DebugContext(ctx, "Retrieved claims from Google Workspace", "claims", googleClaims)
 		claims, err = mergeClaims(claims, googleClaims)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		log.Debugf("No Google Workspace claims.")
+		logger.DebugContext(ctx, "No Google Workspace claims")
 	}
 
 	return claims, nil
@@ -162,7 +165,10 @@ func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConn
 	tokenSource := jwtConfig.TokenSource(ctx)
 	token, err := tokenSource.Token()
 	if err != nil || !token.Valid() {
-		log.WithError(err).Debugf("failed to obtain valid Google Workspace credentials for scopes %v", scopes)
+		logger.DebugContext(ctx, "failed to obtain valid Google Workspace credentials for scopes",
+			"scopes", scopes,
+			"error", err,
+		)
 		return nil, nil
 	}
 

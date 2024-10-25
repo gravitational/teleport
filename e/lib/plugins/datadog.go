@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -51,7 +50,7 @@ func datadogInstanceFactory(_ context.Context, plugin *types.PluginV1, deps inst
 
 	app := datadog.NewDatadogApp(cfg)
 	// TODO(tross): convert logger library to use slog
-	appCtx := logger.WithLogger(deps.lifetime, logrus.New())
+	appCtx := logger.WithLogger(deps.lifetime, nil)
 	return func() error {
 		err := app.Run(appCtx)
 		return trace.Wrap(err)
