@@ -5,12 +5,12 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -335,7 +335,11 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 		groups, nextKey, err = u.accessPoint.ListUserGroups(ctx, u.groupPageSize, nextKey)
 	}
 
-	return maps.Keys(targets), nil
+	var out []string
+	for k := range maps.Keys(targets) {
+		out = append(out, k)
+	}
+	return out, nil
 }
 
 // groupTargets returns the names of all Okta app IDs that the user has access to.
@@ -385,7 +389,11 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 		})
 	}
 
-	return maps.Keys(targets), nil
+	var out []string
+	for k := range maps.Keys(targets) {
+		out = append(out, k)
+	}
+	return out, nil
 }
 
 // newOktaAssignment will create an Okta assignment resource corresponding to the groups and apps given. The groups and apps

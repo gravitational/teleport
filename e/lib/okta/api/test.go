@@ -3,12 +3,12 @@ package api
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/url"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	"github.com/gravitational/teleport/lib/utils"
@@ -388,7 +388,10 @@ func (t *TestOktaClient) GetTestGroupAssignments(groupID OktaGroupID) ([]OktaUse
 			return
 		}
 
-		users = maps.Keys(members)
+		for k := range maps.Keys(members) {
+			users = append(users, k)
+		}
+
 	})
 
 	return users, err

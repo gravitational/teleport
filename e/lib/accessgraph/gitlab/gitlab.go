@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	gitlab "github.com/xanzy/go-gitlab"
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -305,7 +305,11 @@ func uniqueUsernames(projectMembers []*accessgraphv1alpha.GitlabProjectMember, g
 	for _, member := range groupMembers {
 		seen[member.Username] = struct{}{}
 	}
-	return maps.Keys(seen)
+	var keys []string
+	for k := range maps.Keys(seen) {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // GitlabInstanceConnectionTest tests the connection to a Gitlab instance.
