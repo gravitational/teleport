@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -74,7 +75,7 @@ func main() {
 		if err != nil {
 			lib.Bail(err)
 		} else {
-			logger.Standard().Info("Successfully shut down")
+			slog.InfoContext(context.TODO(), "Successfully shut down")
 		}
 	}
 }

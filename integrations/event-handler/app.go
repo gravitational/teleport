@@ -163,12 +163,12 @@ func (a *App) init(ctx context.Context) error {
 	a.Config.Dump(ctx)
 
 	var err error
-	a.client, err = newClient(ctx, a.Config)
+	a.client, err = newClient(ctx, a.log, a.Config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	a.State, err = NewState(a.Config)
+	a.State, err = NewState(a.Config, a.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,7 +178,7 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	a.Fluentd, err = NewFluentdClient(&a.Config.FluentdConfig)
+	a.Fluentd, err = NewFluentdClient(&a.Config.FluentdConfig, a.log)
 	if err != nil {
 		return trace.Wrap(err)
 	}
