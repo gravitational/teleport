@@ -142,10 +142,9 @@ func (w *lineLogger) Write(p []byte) (n int, err error) {
 	if len(lines) == 0 || err != nil {
 		return n, trace.Wrap(err)
 	}
-	w.log.Log(w.ctx, w.level, w.last.String())
-	w.last.Reset()
+	w.Flush()
 	for _, line := range lines[:len(lines)-1] {
-		w.log.Log(w.ctx, w.level, string(line))
+		w.log.Log(w.ctx, w.level, string(line)) //nolint:sloglint
 		n += len(line)
 	}
 	n2, err := w.last.Write(lines[0])
@@ -154,6 +153,6 @@ func (w *lineLogger) Write(p []byte) (n int, err error) {
 }
 
 func (w *lineLogger) Flush() {
-	w.log.Log(w.ctx, w.level, w.last.String())
+	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint
 	w.last.Reset()
 }
