@@ -56,7 +56,7 @@ export function makeMfaRegistrationChallenge(json): MfaRegistrationChallenge {
 // - allowCredentials[i].id
 export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   const challenge = typeof json === 'string' ? JSON.parse(json) : json;
-  const { sso_challenge, webauthn_challenge } = challenge;
+  const { sso_challenge, webauthn_challenge, totp_challenge } = challenge;
 
   const webauthnPublicKey = webauthn_challenge?.publicKey;
   if (webauthnPublicKey) {
@@ -73,13 +73,8 @@ export function makeMfaAuthenticateChallenge(json): MfaAuthenticateChallenge {
   }
 
   return {
-    ssoChallenge: sso_challenge
-      ? {
-          redirectUrl: sso_challenge.redirect_url,
-          requestId: sso_challenge.request_id,
-        }
-      : null,
-    totpChallenge: json.totp_challenge,
+    ssoChallenge: sso_challenge,
+    totpChallenge: totp_challenge,
     webauthnPublicKey: webauthnPublicKey,
   };
 }
@@ -146,6 +141,11 @@ export function makeWebauthnAssertionResponse(res): WebauthnAssertionResponse {
   };
 }
 
+export type SsoChallengeResponse = {
+  requestId: string;
+  token: string;
+};
+
 export type WebauthnAssertionResponse = {
   id: string;
   type: string;
@@ -159,4 +159,9 @@ export type WebauthnAssertionResponse = {
     signature: string;
     userHandle: string;
   };
+};
+
+export type MfaChallengeResponse = {
+  webauthn_response?: WebauthnAssertionResponse;
+  sso_response?: SsoChallengeResponse;
 };
