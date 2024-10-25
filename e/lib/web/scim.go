@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/e/lib/scim"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -112,7 +113,7 @@ func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, htt
 
 		detail := err.Error()
 
-		body, err := scim.FormatErrorResponse(statusCode, detail)
+		body, err := scimsdk.FormatErrorResponse(statusCode, detail)
 		if err != nil {
 			p.Logger.ErrorContext(r.Context(), "failed formatting SCIM error response")
 		}
@@ -164,7 +165,7 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 		return trace.Wrap(err)
 	}
 
-	body, err := scim.MarshalResourceList(resources)
+	body, err := scimsdk.MarshalResourceList(resources)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -203,7 +204,7 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 		return trace.Wrap(err)
 	}
 
-	body, err := scim.MarshalResource(resource)
+	body, err := scimsdk.MarshalResource(resource)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -224,7 +225,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.LimitExceeded("content length")
 	}
 
-	res, err := scim.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	res, err := scimsdk.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,7 +246,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.Wrap(err)
 	}
 
-	body, err := scim.MarshalResource(updated)
+	body, err := scimsdk.MarshalResource(updated)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -272,7 +273,7 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.LimitExceeded("content length")
 	}
 
-	res, err := scim.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	res, err := scimsdk.UnmarshalResource(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -295,7 +296,7 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 		return trace.Wrap(err)
 	}
 
-	body, err := scim.MarshalResource(updated)
+	body, err := scimsdk.MarshalResource(updated)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -374,7 +375,7 @@ func (p *Plugin) scimLogRequest(w http.ResponseWriter, r *http.Request, params h
 
 func writeSCIMResponse(w http.ResponseWriter, statusCode int, body []byte) {
 	if len(body) > 0 {
-		w.Header().Set(scim.ContentTypeHeader, scim.ContentType)
+		w.Header().Set(scimsdk.ContentTypeHeader, scimsdk.ContentType)
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	}
 	w.WriteHeader(statusCode)

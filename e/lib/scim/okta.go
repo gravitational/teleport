@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/okta/common"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
@@ -141,7 +142,7 @@ func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.R
 		},
 	}
 
-	attribs := attributeSet{usernameAttribute: user.GetName()}
+	attribs := scimsdk.AttributeSet{usernameAttribute: user.GetName()}
 	for k, v := range user.GetTraits() {
 		if !strings.HasPrefix(k, eteleport.OktaTraitPrefix) {
 			continue

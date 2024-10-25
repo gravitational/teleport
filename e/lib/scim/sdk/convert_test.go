@@ -1,4 +1,4 @@
-package scim
+package scimsdk
 
 import (
 	"bytes"
@@ -92,14 +92,14 @@ func TestMarshalResource(t *testing.T) {
 	body, err := MarshalResource(res)
 	require.NoError(t, err)
 
-	var dst attributeSet
+	var dst AttributeSet
 	err = json.Unmarshal(body, &dst)
 	require.NoError(t, err, "%#v", err)
-	require.Equal(t, "vito@corleone-foundation.org", dst[attributeID])
-	require.Equal(t, "00ub1q9yfsRSfO91a5d7", dst[attributeExternalID])
-	require.Contains(t, dst[attributeSchemas], "urn:ietf:params:scim:schemas:core:2.0:User")
+	require.Equal(t, "vito@corleone-foundation.org", dst[AttributeID])
+	require.Equal(t, "00ub1q9yfsRSfO91a5d7", dst[AttributeExternalID])
+	require.Contains(t, dst[AttributeSchemas], "urn:ietf:params:scim:schemas:core:2.0:User")
 
-	meta := dst[attributeMeta].(map[string]any)
+	meta := dst[AttributeMeta].(map[string]any)
 	require.Equal(t, "User", meta["resourceType"])
 	require.Equal(t, "2a30170a-b609-473c-bbbb-2abcef8bcf41", meta["version"])
 	require.Equal(t, "2024-01-07T22:57:09Z", meta["created"])
