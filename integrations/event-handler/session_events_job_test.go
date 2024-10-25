@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/peterbourgon/diskv/v3"
@@ -37,6 +38,7 @@ func TestConsumeSessionNoEventsFound(t *testing.T) {
 			}),
 		},
 		client: &mockClient{},
+		log:    slog.Default(),
 	})
 	_, err := j.consumeSession(context.Background(), session{ID: sessionID})
 	require.NoError(t, err)
