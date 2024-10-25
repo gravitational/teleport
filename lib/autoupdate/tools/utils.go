@@ -63,7 +63,8 @@ func DefaultClientTools() []string {
 	}
 }
 
-// CheckToolVersion returns current installed client tools version
+// CheckToolVersion returns current installed client tools version, must return NotFoundError if
+// the client tools is not found in tools directory.
 func CheckToolVersion(toolsDir string) (string, error) {
 	// Find the path to the current executable.
 	path, err := toolName(toolsDir)
@@ -71,7 +72,7 @@ func CheckToolVersion(toolsDir string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return "", nil
+		return "", trace.NotFound("autoupdate tool not found in %q", toolsDir)
 	} else if err != nil {
 		return "", trace.Wrap(err)
 	}

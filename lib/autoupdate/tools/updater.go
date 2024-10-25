@@ -137,6 +137,9 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
 	toolsVersion, err := CheckToolVersion(u.toolsDir)
+	if trace.IsNotFound(err) {
+		return u.localVersion, false, nil
+	}
 	if err != nil {
 		return "", false, trace.Wrap(err)
 	}
@@ -185,6 +188,9 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
 	toolsVersion, err := CheckToolVersion(u.toolsDir)
+	if trace.IsNotFound(err) {
+		return u.localVersion, false, nil
+	}
 	if err != nil {
 		return "", false, trace.Wrap(err)
 	}
@@ -203,7 +209,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 
 // UpdateWithLock acquires filesystem lock, downloads requested version package,
 // unarchive and replace existing one.
-func (u *Updater) UpdateWithLock(ctx context.Context, toolsVersion string) (err error) {
+func (u *Updater) UpdateWithLock(ctx context.Context, updateToolsVersion string) (err error) {
 	// Create tools directory if it does not exist.
 	if err := os.MkdirAll(u.toolsDir, 0o755); err != nil {
 		return trace.Wrap(err)
@@ -220,21 +226,20 @@ func (u *Updater) UpdateWithLock(ctx context.Context, toolsVersion string) (err 
 	// If the version of the running binary or the version downloaded to
 	// tools directory is the same as the requested version of client tools,
 	// nothing to be done, exit early.
-	teleportVersion, err := CheckToolVersion(u.toolsDir)
+	toolsVersion, err := CheckToolVersion(u.toolsDir)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
-
 	}
-	if toolsVersion == teleportVersion {
+	if updateToolsVersion == toolsVersion {
 		return nil
 	}
 
 	// Download and update client tools in tools directory.
-	if err := u.Update(ctx, toolsVersion); err != nil {
+	if err := u.Update(ctx, updateToolsVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return
+	return nil
 }
 
 // Update downloads requested version and replace it with existing one and cleanups the previous downloads
