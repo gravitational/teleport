@@ -180,8 +180,9 @@ type Installer interface {
 	// Install must be idempotent.
 	Install(ctx context.Context, version, template string, flags InstallFlags) error
 	// Link the Teleport agent at the specified version into the system location.
-	// The revert function must restore the previous linking, returning false on failure.
+	// The revert function must restore the previous linking, returning false on any failure.
 	// Link must be idempotent.
+	// Link's revert function must be idempotent.
 	Link(ctx context.Context, version string) (revert func(context.Context) bool, err error)
 	// List the installed versions of Teleport.
 	List(ctx context.Context) (versions []string, err error)

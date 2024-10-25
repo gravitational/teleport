@@ -374,53 +374,54 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 
 // Link the specified version into the system LinkBinDir.
 func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
-	versionDir, err := li.versionDir(version)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// ensure target directories exist before trying to create links
-	err = os.MkdirAll(li.LinkBinDir, 0755)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = os.MkdirAll(li.LinkServiceDir, 0755)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// create binary links
-	binDir := filepath.Join(versionDir, "bin")
-	entries, err := os.ReadDir(binDir)
-	if err != nil {
-		return nil, trace.Errorf("failed to find Teleport binary directory: %w", err)
-	}
-
 	// setup revert function
 	type symlink struct {
 		old, new string
 	}
 	var revertLinks []symlink
-	revertFunc := func(ctx context.Context) bool {
-		ok := true
+	revert = func(ctx context.Context) bool {
+		// This function is safe to call repeatedly.
+		// Returns true only when all symlinks are successfully reverted.
+		var keep []symlink
 		for _, l := range revertLinks {
 			err := renameio.Symlink(l.old, l.new)
 			if err != nil {
-				ok = false
+				keep = append(keep, l)
 				li.Log.ErrorContext(ctx, "Failed to revert symlink", "old", l.old, "new", l.new, "err", err)
 			}
 		}
-		return ok
+		revertLinks = keep
+		return len(revertLinks) == 0
 	}
-	// revert on error
+	// revert immediately on error, so caller can ignore revert arg
 	defer func() {
 		if err != nil {
-			revertFunc(ctx)
+			revert(ctx)
 		}
 	}()
 
-	// create binary symlinks
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return revert, trace.Wrap(err)
+	}
 
+	// ensure target directories exist before trying to create links
+	err = os.MkdirAll(li.LinkBinDir, 0755)
+	if err != nil {
+		return revert, trace.Wrap(err)
+	}
+	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	if err != nil {
+		return revert, trace.Wrap(err)
+	}
+
+	// create binary links
+
+	binDir := filepath.Join(versionDir, "bin")
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return revert, trace.Errorf("failed to find Teleport binary directory: %w", err)
+	}
 	var linked int
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -430,7 +431,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
 		orig, err := tryLink(oldname, newname)
 		if err != nil {
-			return nil, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
+			return revert, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
 		}
 		if orig != "" {
 			revertLinks = append(revertLinks, symlink{
@@ -441,7 +442,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		linked++
 	}
 	if linked == 0 {
-		return nil, trace.Errorf("no binaries available to link")
+		return revert, trace.Errorf("no binaries available to link")
 	}
 
 	// create systemd service link
@@ -450,7 +451,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
 	orig, err := tryLink(oldname, newname)
 	if err != nil {
-		return nil, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
+		return revert, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
 	}
 	if orig != "" {
 		revertLinks = append(revertLinks, symlink{
@@ -458,7 +459,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 			new: newname,
 		})
 	}
-	return revertFunc, nil
+	return revert, nil
 }
 
 // tryLink attempts to create a symlink, atomically replacing an existing link if already present.
