@@ -20,7 +20,7 @@ func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsR
 		var groups []*oktaResourceItem
 		err := oktaClient.IterateGroups(ctx, func(g *okta.Group) error {
 			if g.Profile == nil {
-				s.log.WithField("group_id", g.Id).Debugf("Found a nil profile, skipping")
+				s.logger.DebugContext(ctx, "Skipping missing profile for group", "group_id", g.Id)
 				return nil
 			}
 			groups = append(groups, &oktaResourceItem{
@@ -53,7 +53,7 @@ func (s *Service) fetchAllOktaApps(ctx context.Context, req *oktapb.GetAppsReque
 			var oktaApplication *okta.Application
 			var ok bool
 			if oktaApplication, ok = a.(*okta.Application); !ok {
-				s.log.Debugf("Unable to process Okta application of unknown type %T", a)
+				s.logger.DebugContext(ctx, "Unable to process Okta application of unknown type")
 				return nil
 			}
 			apps = append(apps, &oktaResourceItem{

@@ -21,12 +21,12 @@ package oktaservice
 import (
 	"context"
 	"crypto"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -49,7 +49,7 @@ type ServiceConfig struct {
 	Backend backend.Backend
 
 	// Logger is the logger to use.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
@@ -92,7 +92,7 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(teleport.ComponentKey, "okta_crud_service")
+		c.Logger = slog.With(teleport.ComponentKey, "okta_crud_service")
 	}
 
 	if c.Authorizer == nil {
@@ -161,7 +161,7 @@ type authServer interface {
 type Service struct {
 	oktapb.UnimplementedOktaServiceServer
 
-	log                 logrus.FieldLogger
+	logger              *slog.Logger
 	authorizer          authz.Authorizer
 	oktaImportRules     services.OktaImportRules
 	oktaAssignments     services.OktaAssignments
@@ -194,7 +194,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:                 cfg.Logger,
+		logger:              cfg.Logger,
 		authorizer:          cfg.Authorizer,
 		oktaImportRules:     cfg.OktaImportRules,
 		oktaAssignments:     cfg.OktaAssignments,

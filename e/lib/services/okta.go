@@ -221,7 +221,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	oktaService, err := okta.New(ctx, okta.Config{
 		Leader:                     oktaLeader,
 		ConnectorService:           conn.Client,
-		Log:                        process.Config.Log.WithField(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
+		Logger:                     process.Config.Logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentOkta, logComponent)),
 		Clock:                      process.Clock,
 		TLSConfig:                  tlsConfig,
 		Authorizer:                 authorizer,

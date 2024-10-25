@@ -2,10 +2,9 @@ package okta
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -22,7 +21,7 @@ type serviceStatus struct {
 	lock    sync.Mutex
 	sink    common.StatusSink
 	code    types.PluginStatusCode
-	log     *logrus.Entry
+	logger  *slog.Logger
 	details *types.PluginOktaStatusV1
 }
 
@@ -32,7 +31,7 @@ func (s *serviceStatus) SetCode(ctx context.Context, code types.PluginStatusCode
 
 	if s.code != code {
 		s.code = code
-		reportPluginStatus(ctx, s.log, s.sink, s.code, s.details)
+		reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 	}
 }
 
@@ -51,7 +50,7 @@ func (s *serviceStatus) UpdateUserSync(ctx context.Context, now time.Time, nUser
 		userSync.LastSuccessful = &now
 		userSync.NumUsersSynced = int32(nUsers)
 	}
-	reportPluginStatus(ctx, s.log, s.sink, s.code, s.details)
+	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
 func (s *serviceStatus) UpdateAppGroupSync(ctx context.Context, now time.Time, nApps, nGroups int, err error) {
@@ -72,7 +71,7 @@ func (s *serviceStatus) UpdateAppGroupSync(ctx context.Context, now time.Time, n
 		s.details.AppGroupSyncDetails.LastSuccessful = &now
 	}
 
-	reportPluginStatus(ctx, s.log, s.sink, s.code, s.details)
+	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
 func (s *serviceStatus) UpdateAccessListSync(ctx context.Context, now time.Time, nApps, nGroups int, err error) {
@@ -92,11 +91,11 @@ func (s *serviceStatus) UpdateAccessListSync(ctx context.Context, now time.Time,
 		acl.LastSuccessful = &now
 	}
 
-	reportPluginStatus(ctx, s.log, s.sink, s.code, s.details)
+	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
 // reportPluginStatus will report the plugin status to the given status sink if it exists.
-func reportPluginStatus(ctx context.Context, log *logrus.Entry, pluginStatusSink common.StatusSink, code types.PluginStatusCode, details *types.PluginOktaStatusV1) {
+func reportPluginStatus(ctx context.Context, log *slog.Logger, pluginStatusSink common.StatusSink, code types.PluginStatusCode, details *types.PluginOktaStatusV1) {
 	if pluginStatusSink == nil {
 		return
 	}
@@ -105,6 +104,6 @@ func reportPluginStatus(ctx context.Context, log *logrus.Entry, pluginStatusSink
 		Code:    code,
 		Details: &types.PluginStatusV1_Okta{Okta: details},
 	}); err != nil {
-		log.Errorf("Error emitting plugin status: %v", err)
+		log.ErrorContext(ctx, "Error emitting plugin status", "error", err)
 	}
 }

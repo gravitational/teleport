@@ -14,7 +14,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	oktaquery "github.com/okta/okta-sdk-golang/v2/okta/query"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,7 +38,7 @@ func firstVal[T, U any](t T, _ U) T {
 
 func TestAssignmentClient(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
+	log := slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
 	testGroup := oktaGroupID("test-group")
 	testApp := oktaAppID("test-app")
 	testUser := userName("test-user@test.user")
@@ -280,15 +279,14 @@ func (b *badOktaUserLister) ListUsers(ctx context.Context, paramOpts ...oktaquer
 // server. Creating
 type testAssignmentOktaServer struct {
 	t                *testing.T
-	log              *logrus.Entry
 	httpServer       *httptest.Server
 	appsCallsCount   atomic.Int64
 	group1CallsCount atomic.Int64
 	group2CallsCount atomic.Int64
 }
 
-func newTestAssignmentOktaServer(t *testing.T, log *logrus.Entry) *testAssignmentOktaServer {
-	fixture := &testAssignmentOktaServer{t: t, log: log}
+func newTestAssignmentOktaServer(t *testing.T) *testAssignmentOktaServer {
+	fixture := &testAssignmentOktaServer{t: t}
 	fixture.httpServer = httptest.NewTLSServer(fixture)
 	t.Cleanup(func() { fixture.httpServer.Close() })
 
@@ -351,10 +349,10 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 	ctx := context.Background()
 	const numOfParallelCalls = 20
 
-	log := logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
+	log := slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
 
 	t.Run("get assigned app for user concurrent calls", func(t *testing.T) {
-		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
+		testServer := newTestAssignmentOktaServer(t)
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
 		// Test the Okta API is called only once for the same user and app
@@ -378,7 +376,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 	})
 
 	t.Run("get assigned groups for user concurrent calls", func(t *testing.T) {
-		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
+		testServer := newTestAssignmentOktaServer(t)
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
 		// Test the Okta API is called only once for the same user and group
@@ -408,7 +406,7 @@ func TestClientGetAssignedAppsGroups(t *testing.T) {
 	})
 
 	t.Run("get assigned for username2", func(t *testing.T) {
-		testServer := newTestAssignmentOktaServer(t, log.WithField("test", t.Name()))
+		testServer := newTestAssignmentOktaServer(t)
 		assignmentClient := newAssignmentClient(log, testServer.client(t, ctx))
 
 		// Check if for other user the Okta API will not be called again and cached value will be used.

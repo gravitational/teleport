@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -19,7 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // stopAllHeartbeats cleans up any active heartbeats at the end of a test,
@@ -237,7 +236,6 @@ func TestSynchronizeGroups(t *testing.T) {
 }
 
 func TestSynchronizeAppsImportError(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
 	appNames := []string{"app1", "app2", "app3"}
 
 	testCases := []struct {
@@ -613,10 +611,6 @@ func verifyEventResources(t *testing.T, resources []*apievents.OktaResource, off
 }
 
 func TestFetchUsers(t *testing.T) {
-	logrus.SetFormatter(logutils.NewDefaultTextFormatter(true))
-	logrus.SetLevel(logrus.TraceLevel)
-	log := logrus.WithField("test", t.Name())
-
 	ctx := context.Background()
 	testClient := newTestClient()
 	testClient.OktaUsers = []*okta.User{
@@ -644,7 +638,7 @@ func TestFetchUsers(t *testing.T) {
 		return types.NewUser(u.Id)
 	}
 
-	users, err := fetchOktaUsers(ctx, testClient, converter, log)
+	users, err := fetchOktaUsers(ctx, testClient, converter, utils.NewSlogLoggerForTests())
 	require.NoError(t, err)
 
 	require.Len(t, users, 2)
@@ -654,7 +648,6 @@ func TestFetchUsers(t *testing.T) {
 }
 
 func TestFetchAppUsers(t *testing.T) {
-	log := logrus.WithField("test", t.Name())
 	ctx := context.Background()
 	testClient := newTestClient()
 	testClient.OktaAppUsers = []*okta.AppUser{
@@ -687,7 +680,7 @@ func TestFetchAppUsers(t *testing.T) {
 		return types.NewUser(u.ExternalId)
 	}
 
-	users, err := fetchOktaAppUsers(ctx, testClient, "blahblahblah", converter, log)
+	users, err := fetchOktaAppUsers(ctx, testClient, "blahblahblah", converter, utils.NewSlogLoggerForTests())
 	require.NoError(t, err)
 
 	require.Len(t, users, 2)

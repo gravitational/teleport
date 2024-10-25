@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/gravitational/teleport/e/lib/okta/api"
@@ -23,7 +23,7 @@ import (
 // yet been retrieved from Okta, it will be retrieved upon request. This client
 // should be discarded at the end of an assignment loop or singular assignment run.
 type assignmentClient struct {
-	log        *logrus.Entry
+	logger     *slog.Logger
 	oktaClient api.Client
 
 	// Mapping of usernames to user IDs. Initialized once on first read and then
@@ -46,9 +46,9 @@ type assignmentClient struct {
 }
 
 // newAssignmentClient will return a new assignment client.
-func newAssignmentClient(log *logrus.Entry, oktaClient api.Client) *assignmentClient {
+func newAssignmentClient(log *slog.Logger, oktaClient api.Client) *assignmentClient {
 	return &assignmentClient{
-		log:        log,
+		logger:     log,
 		oktaClient: oktaClient,
 	}
 }
@@ -65,18 +65,16 @@ func (a *assignmentClient) getGroupAssignments(ctx context.Context, groupID okta
 			return cachedMembers, nil
 		}
 
-		a.log.Debugf("Refreshing assignments for group %s", groupID)
+		a.logger.DebugContext(ctx, "Refreshing group assignments", "group", groupID)
 		members, err := a.oktaClient.GetGroupAssignments(ctx, groupID)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		cachedMembers = set.New[oktaUserID](members...)
-		a.log.
-			WithFields(logrus.Fields{
-				"members": members,
-				"groupID": groupID,
-			}).
-			Debugf("Found users assigned to group")
+		a.logger.DebugContext(ctx, "Found users assigned to group",
+			"members", members,
+			"group_id", groupID,
+		)
 		a.groups.Store(groupID, cachedMembers)
 		return cachedMembers, nil
 	})
@@ -130,7 +128,7 @@ func (a *assignmentClient) registerUserToGroup(ctx context.Context, username use
 
 	// Already registered.
 	if ok {
-		a.log.Debugf("User %s is already assigned to group %s", userID, groupID)
+		a.logger.DebugContext(ctx, "User is already assigned to group", "user_id", userID, "group_id", groupID)
 		return nil
 	}
 
@@ -138,7 +136,7 @@ func (a *assignmentClient) registerUserToGroup(ctx context.Context, username use
 		return trace.Wrap(err)
 	}
 
-	a.log.Debugf("User %s has been assigned to group %s", userID, groupID)
+	a.logger.DebugContext(ctx, "User has been assigned to group", "user_id", userID, "group_id", groupID)
 
 	// update our local cache to reflect the new assignment in the upstream
 	// Okta org
@@ -161,11 +159,11 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 		return trace.Wrap(err)
 	}
 
-	log := a.log.WithFields(logrus.Fields{"user": userID, "group": groupID})
+	logger := a.logger.With("user_id", userID, "group_id", groupID)
 
 	// Already unregistered.
 	if !ok {
-		log.Debug("User is already unassigned from group")
+		logger.DebugContext(ctx, "User is already unassigned from group")
 		return nil
 	}
 
@@ -173,14 +171,14 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 		if oErr := (*api.OktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
-			log.Warn("Unable to remove user from group due to API validation exception. This membership is likely managed by Okta group rules. Proceeding as if this were successful.")
+			logger.WarnContext(ctx, "Unable to remove user from group due to API validation exception. This membership is likely managed by Okta group rules. Proceeding as if this were successful.")
 		} else if trace.IsNotFound(err) {
-			log.Warn("Unable to remove user from group due because the group cannot be found in Okta. Proceeding as if this were successful.")
+			logger.WarnContext(ctx, "Unable to remove user from group due because the group cannot be found in Okta. Proceeding as if this were successful.")
 		} else {
 			return trace.Wrap(err)
 		}
 	} else {
-		log.Debug("User has been unassigned from groups")
+		logger.DebugContext(ctx, "User has been unassigned from groups")
 	}
 
 	// Update the local group cache to match the upstream Okta organization
@@ -202,7 +200,7 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaA
 		if populated {
 			return cached, nil
 		}
-		a.log.Debugf("Refreshing assignments for app %s", appID)
+		a.logger.DebugContext(ctx, "Refreshing app assignments", "app_id", appID)
 		items, err := a.oktaClient.GetAppAssignments(ctx, appID)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -211,12 +209,10 @@ func (a *assignmentClient) getUserAssignedToApp(ctx context.Context, appID oktaA
 		for _, member := range items {
 			cached.Add(member)
 		}
-		a.log.
-			WithFields(logrus.Fields{
-				"members": maps.Keys(cached),
-				"appID":   appID,
-			}).
-			Debugf("Found users assigned to app")
+		a.logger.DebugContext(ctx, "Found users assigned to app",
+			"members", maps.Keys(cached),
+			"app_id", appID,
+		)
 
 		a.apps.Store(appID, cached)
 		return cached, nil
@@ -273,7 +269,7 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username userN
 
 	// Already registered.
 	if ok {
-		a.log.Debugf("User %s is already assigned to app %s", userID, appID)
+		a.logger.DebugContext(ctx, "User is already assigned to app", "user_id", userID, "app_id", appID)
 		return nil
 	}
 
@@ -283,7 +279,7 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username userN
 	}
 
 	// Update local cache
-	a.log.Debugf("User %s has been assigned to app %s", userID, appID)
+	a.logger.DebugContext(ctx, "User has been assigned to app", "user_id", userID, "app_id", appID)
 	a.apps.Write(func(apps map[oktaAppID]set.Set[api.AppAssignment]) {
 		apps[appID].Add(api.AppAssignment{UserID: string(userID), Scope: api.UserScope})
 	})
@@ -303,11 +299,11 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username u
 		return trace.Wrap(err)
 	}
 
-	log := a.log.WithFields(logrus.Fields{"user": userID, "application": appID})
+	logger := a.logger.With("user_id", userID, "app_id", appID)
 
 	// Already unregistered.
 	if !ok {
-		log.Debug("User has already been unassigned from app")
+		logger.DebugContext(ctx, "User has already been unassigned from app")
 		return nil
 	}
 
@@ -315,14 +311,14 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username u
 		if oErr := (*api.OktaAPIValidationError)(nil); errors.As(err, &oErr) {
 			// This is referring to Okta group rules:
 			// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
-			log.Warn("Unable to remove user from application due to API validation exception. Proceeding as if this were successful.")
+			logger.WarnContext(ctx, "Unable to remove user from application due to API validation exception. Proceeding as if this were successful.")
 		} else if trace.IsNotFound(err) {
-			log.Warn("Unable to remove user from application due because the application cannot be found in Okta. Proceeding as if this were successful.")
+			logger.WarnContext(ctx, "Unable to remove user from application due because the application cannot be found in Okta. Proceeding as if this were successful.")
 		} else {
 			return trace.Wrap(err)
 		}
 	} else {
-		log.Debug("User has been unassigned from app")
+		logger.DebugContext(ctx, "User has been unassigned from app")
 	}
 
 	// Update local cache
@@ -338,7 +334,7 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 	var err error
 
 	a.initUsersOnce.Do(func() {
-		a.log.Debugf("Refreshing organization user list")
+		a.logger.DebugContext(ctx, "Refreshing organization user list")
 		a.users, err = a.oktaClient.ListUsers(ctx)
 		if err != nil {
 			err = trace.Wrap(err)

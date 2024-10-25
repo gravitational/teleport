@@ -8,12 +8,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -83,8 +83,6 @@ func makeTestGroup(id api.OktaGroupID, kind, name string) *okta.Group {
 
 func TestSSOConectorCreation(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.WithField("test", t.Name())
-	log.Logger.SetLevel(logrus.DebugLevel)
 
 	t.Run("happy path", func(t *testing.T) {
 		const (
@@ -169,7 +167,7 @@ func TestSSOConectorCreation(t *testing.T) {
 			ClusterName:          testClusterName,
 			ConnectorName:        testConnectorName,
 			PublicURL:            must(url.Parse(testClusterURL)),
-			Log:                  log,
+			Logger:               utils.NewSlogLoggerForTests(),
 		})
 
 		// Expect that the operation succeeded, and all of the expected
@@ -208,7 +206,7 @@ func TestSSOConectorCreation(t *testing.T) {
 			ClusterName:          testClusterName,
 			ConnectorName:        testConnectorName,
 			PublicURL:            must(url.Parse(testClusterURL)),
-			Log:                  log,
+			Logger:               utils.NewSlogLoggerForTests(),
 		})
 
 		// Expect that the operation fails, indicating that an SSO connector

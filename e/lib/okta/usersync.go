@@ -12,7 +12,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -100,20 +99,20 @@ type userConverter func(*okta.User) (types.User, error)
 
 // fetchOktaUsers fetches users from the upstream okta service and creates
 // candidate Teleport user equivalents for them.
-func fetchOktaUsers(ctx context.Context, oktaClient api.Client, convertUser userConverter, log logrus.FieldLogger) (map[string]types.User, error) {
+func fetchOktaUsers(ctx context.Context, oktaClient api.Client, convertUser userConverter, log *slog.Logger) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := oktaClient.IterateUsers(ctx, func(ou *okta.User) error {
-		log := log.WithField("okta_user_id", ou.Id)
-		log.Debug("Processing Okta user...")
+		log := log.With("okta_user_id", ou.Id)
+		log.DebugContext(ctx, "Processing Okta user")
 
 		if ou.Status == userStatusSuspended {
-			log.Debugf("User was suspended. Skipping.")
+			log.DebugContext(ctx, "Skipping suspended user")
 			return nil
 		}
 
 		teleportUser, err := convertUser(ou)
 		if err != nil {
-			log.Warnf("Failed converting user: %s. Skipping.", err)
+			log.WarnContext(ctx, "Skipping invalid user object", "error", err)
 			return nil
 		}
 		result[teleportUser.GetName()] = teleportUser
@@ -131,22 +130,22 @@ type appUserConverter func(*okta.AppUser) (types.User, error)
 
 // fetchOktaUsers fetches users from the upstream okta service and creates
 // candidate Teleport user equivalents for them.
-func fetchOktaAppUsers(ctx context.Context, oktaClient api.Client, appID string, convertUser appUserConverter, log logrus.FieldLogger) (map[string]types.User, error) {
+func fetchOktaAppUsers(ctx context.Context, oktaClient api.Client, appID string, convertUser appUserConverter, logger *slog.Logger) (map[string]types.User, error) {
 	result := map[string]types.User{}
 	err := oktaClient.IterateAppUsers(ctx, oktaAppID(appID), func(oau *okta.AppUser) error {
 		if oau == nil {
-			log.Warn("AppUser value was nil. Skipping.")
+			logger.WarnContext(ctx, "Skipping missing AppUser")
 			return nil
 		}
-		log := log.WithFields(logrus.Fields{
-			"user_name":    oau.ExternalId,
-			"okta_user_id": oau.Id,
-		})
-		log.Debug("Processing Okta AppUser")
+		logger := logger.With(
+			"user_name", oau.ExternalId,
+			"okta_user_id", oau.Id,
+		)
+		logger.DebugContext(ctx, "Processing Okta AppUser")
 
 		teleportUser, err := convertUser(oau)
 		if err != nil {
-			log.Warnf("Failed converting appuser: %s. Skipping.", err)
+			logger.WarnContext(ctx, "Failed converting appuser", "error", err)
 			return nil
 		}
 		result[teleportUser.GetName()] = teleportUser
@@ -161,7 +160,7 @@ func fetchOktaAppUsers(ctx context.Context, oktaClient api.Client, appID string,
 // listTeleportUsers lists the teleport users that are managed by the Okta
 // integration. Users for individual integrations are differentiated by the
 // `userOrgURL`.
-func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userOrgURL string, log logrus.FieldLogger) (map[string]types.User, error) {
+func listTeleportUsers(ctx context.Context, userSvc ReconcilerAccessPoint, userOrgURL string) (map[string]types.User, error) {
 	result := map[string]types.User{}
 
 	users, err := userSvc.GetUsers(ctx, false)

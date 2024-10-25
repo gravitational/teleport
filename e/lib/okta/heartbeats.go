@@ -34,7 +34,7 @@ func (s *Service) startHeartbeat(ctx context.Context, app types.Application) err
 	}
 	go func() {
 		if err := heartbeat.Run(); err != nil {
-			s.log.Debugf("Error after running heartbeat: %v", err)
+			s.logger.DebugContext(ctx, "Error running heartbeat", "error", err)
 		}
 	}()
 	s.heartbeatsMu.Lock()
@@ -90,7 +90,7 @@ func (s *Service) getServerInfo(name string) (types.Resource, error) {
 		},
 	)
 	if err != nil {
-		s.log.Errorf("Error getting server info: %v", err)
+		s.logger.ErrorContext(context.Background(), "Error getting server info", "error", err)
 	}
 	return appServer, trace.Wrap(err)
 }
@@ -99,7 +99,7 @@ func (s *Service) getServerInfo(name string) (types.Resource, error) {
 func (s *Service) getRotationState() types.Rotation {
 	rotation, err := s.rotationGetter(types.RoleOkta)
 	if err != nil && !trace.IsNotFound(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
+		s.logger.WarnContext(context.Background(), "Failed to get rotation state", "error", err)
 	}
 	if rotation != nil {
 		return *rotation

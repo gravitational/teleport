@@ -277,7 +277,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	p.authServer.AuthServer.SetUpgradeWindowStartHourGetter(p.getAccountUpgradeWindowStartHour)
 
 	p.oktaConnected, err = connected.New(connected.Config{
-		Log:             log,
+		Logger:          logger,
 		ConnectedGetter: p.authServer.AuthServer,
 		Plugins:         p.plugins,
 	})
@@ -292,7 +292,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	// Register the Okta user assignment creator login hook.
 	uac, err := okta.NewUserAssignmentCreator(okta.UserAssignmentCreatorConfig{
-		Log:           log,
+		Logger:        logger,
 		ClusterName:   clusterName.GetClusterName(),
 		AccessPoint:   p.authServer.AuthServer,
 		OktaConnected: p.oktaConnected,

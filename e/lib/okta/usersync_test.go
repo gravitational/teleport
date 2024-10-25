@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -140,7 +139,6 @@ func setUserOktaStatus(u types.User, status string) {
 
 func TestListTeleportUsers(t *testing.T) {
 	ctx := context.Background()
-	log := logrus.WithField("test", t.Name())
 
 	t.Run("Empty list is not an error", func(t *testing.T) {
 		mockUsersSvc := &mockReconcilerAP{}
@@ -148,7 +146,7 @@ func TestListTeleportUsers(t *testing.T) {
 			On("GetUsers", someContext, false).
 			Return([]types.User{}, nil)
 
-		users, err := listTeleportUsers(ctx, mockUsersSvc, testOrgURL, log)
+		users, err := listTeleportUsers(ctx, mockUsersSvc, testOrgURL)
 		require.NoError(t, err)
 		require.Empty(t, users)
 	})
@@ -175,7 +173,7 @@ func TestListTeleportUsers(t *testing.T) {
 			Return([]types.User{scooby, shaggy, fred, daphne, velma}, nil)
 
 		// When I list the teleport users requiring reconciliation
-		users, err := listTeleportUsers(ctx, mockUsersSvc, testOrgURL, log)
+		users, err := listTeleportUsers(ctx, mockUsersSvc, testOrgURL)
 
 		// Expect the returned list contains only those teleport users with the
 		// correct Okta attributes set

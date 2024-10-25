@@ -14,7 +14,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport"
@@ -62,7 +61,7 @@ type ProxyGetter interface {
 type Config struct {
 	Leader isLeaderGetter
 	// Log is the logger for the Okta config.
-	Log *logrus.Entry
+	Logger *slog.Logger
 
 	// Clock is the clock to use for this service.
 	Clock clockwork.Clock
@@ -158,8 +157,8 @@ type Config struct {
 }
 
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -249,7 +248,7 @@ func (c *Config) CheckAndSetDefaults() error {
 // service synchronizes data with an upstream Okta IdP.
 type Service struct {
 	leader     isLeaderGetter
-	log        *logrus.Entry
+	logger     *slog.Logger
 	clock      clockwork.Clock
 	tlsConfig  *tls.Config
 	authorizer authz.Authorizer
@@ -406,7 +405,7 @@ type ClientConfig struct {
 	Token string
 
 	// Log receives any log info
-	Log *logrus.Entry
+	Logger *slog.Logger
 
 	// UpdateStatusCode is a function that will report a new status code for the
 	// entire integration.
@@ -422,8 +421,8 @@ func (cfg *ClientConfig) Check() error {
 	if cfg.Token == "" {
 		return trace.BadParameter("missing Okta Client parameter Token")
 	}
-	if cfg.Log == nil {
-		return trace.BadParameter("missing OktaCLient parameter Log")
+	if cfg.Logger == nil {
+		return trace.BadParameter("missing OktaCLient parameter Logger")
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{
@@ -449,7 +448,7 @@ func New(ctx context.Context, config Config) (*Service, error) {
 // newWithClientCreator will create a new Okta service with the given oktaClient.
 func newWithClientCreator(ctx context.Context, config Config, creator api.OktaClientFn) (*Service, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
-		reportPluginStatus(ctx, config.Log, config.PluginStatusSink,
+		reportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
 			types.PluginStatusCode_OTHER_ERROR,
 			nil /* no details available yet */)
 		return nil, trace.Wrap(err)
@@ -458,7 +457,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 	s := &Service{
 		leader:                  config.Leader,
 		connectorService:        config.ConnectorService,
-		log:                     config.Log,
+		logger:                  config.Logger,
 		clock:                   config.Clock,
 		authorizer:              config.Authorizer,
 		clusterName:             config.ClusterName,
@@ -483,9 +482,9 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		oktaSAMLAppID:           config.OktaSAMLAppID,
 		disableOktaAppGroupSync: config.DisableAppGroupSync,
 		serviceStatus: serviceStatus{
-			sink: config.PluginStatusSink,
-			code: types.PluginStatusCode_UNKNOWN,
-			log:  config.Log,
+			sink:   config.PluginStatusSink,
+			code:   types.PluginStatusCode_UNKNOWN,
+			logger: config.Logger,
 			details: &types.PluginOktaStatusV1{
 				AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
 					Enabled: !config.DisableAppGroupSync,
@@ -504,34 +503,33 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 			},
 		},
 	}
-	s.tlsConfig = app.CopyAndConfigureTLS(config.Log, s.accessPoint, config.TLSConfig)
+	// TODO(tross) pass in config.Logger once this supports slog. Until then
+	// it will create a logger if the passed in logger is nil.
+	s.tlsConfig = app.CopyAndConfigureTLS(nil, s.accessPoint, config.TLSConfig)
 
 	if config.UserSyncEnabled {
-		config.Log.
-			WithField("okta_org_url", config.OktaAPIEndpoint).
-			Info("User sync is enabled. Configuring reconciler.")
+		config.Logger.InfoContext(ctx, "User sync is enabled", "okta_org_url", config.OktaAPIEndpoint)
 
 		var err error
 		s.userReconciler, err = newUserReconciler(userReconcilerConfig{
 			clusterName: config.ClusterName,
 			teleportAP:  config.AccessPoint,
-			// TODO(tross): convert this once service is migrated to slog
-			logger:     slog.Default(),
-			userOrgURL: config.OktaAPIEndpoint,
-			emitter:    config.Emitter,
+			logger:      config.Logger,
+			userOrgURL:  config.OktaAPIEndpoint,
+			emitter:     config.Emitter,
 		})
 		if err != nil {
 			s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		config.Log.Info("User synchronization is disabled.")
+		config.Logger.InfoContext(ctx, "User synchronization is disabled")
 	}
 
 	client, err := creator(ctx, api.ClientConfig{
 		Endpoint:         config.OktaAPIEndpoint,
 		AuthProvider:     config.AuthProvider,
-		Log:              slog.With("okta", "client"),
+		Log:              config.Logger.With("okta", "client"),
 		UpdateStatusCode: s.serviceStatus.SetCode,
 	})
 	if err != nil {
@@ -554,10 +552,9 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 	}
 
 	if config.AccessListSyncEnabled {
-		config.Log.Info("Access list synchronization is enabled. Configuring synchronizer.")
+		config.Logger.InfoContext(ctx, "Access list synchronization is enabled")
 		alSync, err := newAccessListSync(accessListSyncConfig{
-			// TODO(tross) convert this once service is migrated to slog
-			Logger:              slog.Default(),
+			Logger:              s.logger,
 			Clock:               s.clock,
 			ClusterName:         s.clusterName,
 			Client:              s.client,
@@ -581,7 +578,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 		}
 		s.accessListSync = alSync
 	} else {
-		config.Log.Info("Access list synchronization is disabled.")
+		config.Logger.InfoContext(ctx, "Access list synchronization is disabled")
 	}
 
 	s.serviceStatus.SetCode(ctx, types.PluginStatusCode_RUNNING)
@@ -645,7 +642,7 @@ func (s *Service) Shutdown() error {
 	var errs []error
 	for _, heartbeat := range s.heartbeats {
 		if err := heartbeat.Close(); err != nil {
-			s.log.Errorf("Unable to close heartbeat: %v", err)
+			s.logger.ErrorContext(context.Background(), "Unable to close heartbeat", "error", err)
 		}
 	}
 

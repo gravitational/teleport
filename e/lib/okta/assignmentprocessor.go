@@ -3,12 +3,12 @@ package okta
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
 	ossteleport "github.com/gravitational/teleport"
@@ -64,7 +64,7 @@ type assignmentProcessorAccessPoint interface {
 // assignmentProcessor will process an Okta assignment, updating its status along the way.
 type assignmentProcessor struct {
 	leader             isLeaderGetter
-	log                *logrus.Entry
+	logger             *slog.Logger
 	clock              clockwork.Clock
 	oktaOrgURL         string
 	hostID             string
@@ -88,7 +88,7 @@ type assignmentProcessor struct {
 func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssignments) *assignmentProcessor {
 	return &assignmentProcessor{
 		leader:            svc.leader,
-		log:               svc.log,
+		logger:            svc.logger,
 		clock:             svc.clock,
 		oktaOrgURL:        svc.orgURL,
 		hostID:            svc.hostID,
@@ -96,7 +96,7 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		accessPoint:       svc.accessPoint,
 		assignmentGetter:  assignmentGetter,
 		oktaClient:        svc.client,
-		assignmentClient:  newAssignmentClient(svc.log, svc.client),
+		assignmentClient:  newAssignmentClient(svc.logger, svc.client),
 		stopCh:            make(chan struct{}, 1),
 		userTargetCounter: map[string]map[string]struct{}{},
 	}
@@ -128,11 +128,11 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient api.Client) {
 
 		// Refresh the assignment client every loop.
 		a.assignmentClientMu.Lock()
-		a.assignmentClient = newAssignmentClient(a.log, oktaClient)
+		a.assignmentClient = newAssignmentClient(a.logger, oktaClient)
 		a.assignmentClientMu.Unlock()
 
 		if err := a.processAssignments(ctx, true); err != nil {
-			a.log.Errorf("Error while processing assignments: %v", err)
+			a.logger.ErrorContext(ctx, "Error while processing assignments", "error", err)
 		}
 	}
 }
@@ -232,7 +232,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	startStatus := assignment.GetStatus()
 
 	// See if we should process this assignment.
-	shouldProcess, err := a.shouldProcess(assignment, needsCleanup)
+	shouldProcess, err := a.shouldProcess(ctx, assignment, needsCleanup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -252,7 +252,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 
 	if err := assignment.SetStatus(constants.OktaAssignmentStatusProcessing); err != nil {
 		if !trace.IsCompareFailed(err) {
-			a.log.Debugf("Another service claimed assignment %s, so we're skipping it", assignment.GetName())
+			a.logger.DebugContext(ctx, "Skipping assignment claimed by another service", "assignment", assignment.GetName())
 			return nil
 		}
 		return trace.Wrap(err)
@@ -308,7 +308,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	return trace.Wrap(err)
 }
 
-func (a *assignmentProcessor) shouldProcess(assignment types.OktaAssignment, needsCleanup bool) (bool, error) {
+func (a *assignmentProcessor) shouldProcess(ctx context.Context, assignment types.OktaAssignment, needsCleanup bool) (bool, error) {
 	sinceTransition := a.clock.Since(assignment.GetLastTransition())
 	startStatus := assignment.GetStatus()
 
@@ -339,12 +339,12 @@ func (a *assignmentProcessor) shouldProcess(assignment types.OktaAssignment, nee
 			if sinceTransition < processingTimeout {
 				return false, nil
 			}
-			a.log.Debugf("Assignment %s is stuck, so this service will be reprocessing it", assignment.GetName())
+			a.logger.DebugContext(ctx, "Restarting processing of stuck assignment", "assignment", assignment.GetName())
 		default:
 			return false, trace.BadParameter("unknown state %s, unable to process assignment %s", assignment.GetStatus(), assignment.GetName())
 		}
 	} else {
-		a.log.Debugf("Assignment %s just transitioned to cleanup, so this service will be processing it immediately", assignment.GetName())
+		a.logger.DebugContext(ctx, "Processing assignment which transitioned into cleanup state immediately", "assignment", assignment.GetName())
 	}
 
 	return true, nil
@@ -354,7 +354,7 @@ func (a *assignmentProcessor) shouldProcess(assignment types.OktaAssignment, nee
 func (a *assignmentProcessor) processTargets(ctx context.Context, assignment types.OktaAssignment) error {
 	assignmentClient := a.getAssignmentClient()
 
-	a.log.Infof("Provisioning assignment %s for user %s", assignment.GetName(), assignment.GetUser())
+	a.logger.InfoContext(ctx, "Provisioning assignment", "assignment", assignment.GetName(), "user", assignment.GetUser())
 
 	// If we can't find the user in Okta, skip trying to process any of the targets.
 	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
@@ -373,7 +373,12 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 		}
 
 		if !ok {
-			a.log.Warnf("%s is not managed by this service", targetDescriptor(assignment, target))
+			a.logger.WarnContext(ctx, "target is not managed by this service",
+				"assignment", assignment.GetName(),
+				"user", assignment.GetUser(),
+				"target_type", target.GetTargetType(),
+				"target_id", target.GetID(),
+			)
 			continue
 		}
 
@@ -391,10 +396,20 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 		}
 
 		if err == nil {
-			a.log.Infof("Successfully provisioned %s", targetDescriptor(assignment, target))
+			a.logger.InfoContext(ctx, "Successfully provisioned target",
+				"assignment", assignment.GetName(),
+				"user", assignment.GetUser(),
+				"target_type", target.GetTargetType(),
+				"target_id", target.GetID(),
+			)
 			a.registerUserTarget(assignment, target)
 		} else {
-			a.log.Errorf("Error provisioning target %s: %v", targetDescriptor(assignment, target), err)
+			a.logger.ErrorContext(ctx, "Error provisioning target",
+				"assignment", assignment.GetName(),
+				"user", assignment.GetUser(),
+				"target_type", target.GetTargetType(),
+				"target_id", target.GetID(),
+			)
 			errs = append(errs, err)
 		}
 	}
@@ -407,7 +422,12 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 	var errs []error
 	assignmentClient := a.getAssignmentClient()
 
-	a.log.Infof("Cleaning up assignment %s for user %s", assignment.GetName(), assignment.GetUser())
+	logger := a.logger.With(
+		"assignment", assignment.GetName(),
+		"user", assignment.GetUser(),
+	)
+
+	logger.InfoContext(ctx, "Cleaning up target")
 
 	// If we can't find the user in Okta, skip trying to process any of the targets.
 	if _, err := assignmentClient.userID(ctx, userName(assignment.GetUser())); err != nil {
@@ -415,6 +435,10 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 	}
 
 	for _, target := range assignment.GetTargets() {
+		logger := logger.With(
+			"target_type", target.GetTargetType(),
+			"target_id", target.GetID(),
+		)
 		ok, err := a.authorizeTarget(ctx, target)
 		if err != nil {
 			// If we can't find the target, then we'll continue because there's nothing we can do here.
@@ -425,15 +449,16 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 		}
 
 		if !ok {
-			a.log.Warnf("%s is not managed by this service", targetDescriptor(assignment, target))
+			logger.WarnContext(ctx, "Target is not managed by this service")
 			continue
 		}
 
 		// Only cleanup the target if there are no more known assignments that have the given target.
 		remainingAssignments := a.unregisterUserTarget(assignment, target)
 		if len(remainingAssignments) != 0 {
-			a.log.Infof("%s cleaned up, but assignments %v still reference it, so the target will not be removed.",
-				targetDescriptor(assignment, target), remainingAssignments)
+			logger.InfoContext(ctx, "Target cleaned up, but assignments still reference it, so the target will not be removed",
+				"remaining_assignments", len(remainingAssignments),
+			)
 			continue
 		}
 
@@ -451,10 +476,10 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 		}
 
 		if err != nil {
-			a.log.Errorf("Error cleaning up target %s: %v", targetDescriptor(assignment, target), err)
+			logger.ErrorContext(ctx, "Error cleaning up target", "error", err)
 			errs = append(errs, err)
 		} else {
-			a.log.Infof("Successfully cleaned up %s", targetDescriptor(assignment, target))
+			logger.InfoContext(ctx, "Successfully cleaned up target")
 		}
 	}
 
@@ -603,7 +628,7 @@ func (a *assignmentProcessor) emitAuditEvent(ctx context.Context, assignment typ
 	}
 
 	if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-		a.log.WithError(emitErr).Warnf("Failed to emit Okta assignment result: %v", event)
+		a.logger.WarnContext(ctx, "Failed to emit Okta assignment result", "event_type", event.GetType(), "error", emitErr)
 	}
 }
 
@@ -612,13 +637,8 @@ func userTargetName(assignment types.OktaAssignment, target types.OktaAssignment
 	return fmt.Sprintf("%x:%x:%x", assignment.GetUser(), target.GetTargetType(), target.GetID())
 }
 
-// targetDescriptor will return a string describing the target.
-func targetDescriptor(assignment types.OktaAssignment, target types.OktaAssignmentTarget) string {
-	return fmt.Sprintf("assignment %s for user %s, target %s %s", assignment.GetName(), assignment.GetUser(), target.GetTargetType(), target.GetID())
-}
-
 func (a *assignmentProcessor) deleteFinalizedAssignment(ctx context.Context, assignment types.OktaAssignment) error {
-	a.log.Debugf("Pruning cleaned up assignment %s from backend", assignment.GetName())
+	a.logger.DebugContext(ctx, "Pruning cleaned up assignment from backend", "assignment", assignment.GetName())
 	if err := a.accessPoint.DeleteOktaAssignment(ctx, assignment.GetName()); err != nil {
 		return trace.Wrap(err)
 	}

@@ -5,12 +5,12 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"maps"
 	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -59,7 +59,7 @@ type UserAssignmentCreatorAccessPoint interface {
 // UserAssignmentCreatorConfig is the configuration for the UserAssignmentCreator.
 type UserAssignmentCreatorConfig struct {
 	// Log is the logger for the UserAssignmentCreator.
-	Log *logrus.Entry
+	Logger *slog.Logger
 
 	// Clock is the clock to use for the UserAssignmentCreator.
 	Clock clockwork.Clock
@@ -90,8 +90,8 @@ func (c *UserAssignmentCreatorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("okta connected is missing")
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaUserAssignmentCreator)
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOktaUserAssignmentCreator)
 	}
 
 	if c.Clock == nil {
@@ -105,7 +105,7 @@ func (c *UserAssignmentCreatorConfig) CheckAndSetDefaults() error {
 // the permissions the user has within Teleport are appropriately reflected
 // in Okta.
 type UserAssignmentCreator struct {
-	log         *logrus.Entry
+	logger      *slog.Logger
 	clock       clockwork.Clock
 	clusterName string
 	accessPoint UserAssignmentCreatorAccessPoint
@@ -126,7 +126,7 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 	}
 
 	creator := &UserAssignmentCreator{
-		log:         config.Log,
+		logger:      config.Logger,
 		clock:       config.Clock,
 		clusterName: config.ClusterName,
 		accessPoint: config.AccessPoint,
@@ -266,13 +266,16 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 	}
 
 	// If debug is enabled, print out the diff of the old vs. new assignments.
-	if logrus.IsLevelEnabled(logrus.DebugLevel) && u.printDiffs {
+	if u.logger.Enabled(ctx, slog.LevelDebug) && u.printDiffs {
 		newGroups, newApps, removedGroups, removedApps := assignmentDiff(newAssignment, oldAssignments...)
 
-		u.log.Debugf("New groups for user %s: %v", userState.GetName(), newGroups)
-		u.log.Debugf("New apps for user %s: %v", userState.GetName(), newApps)
-		u.log.Debugf("Removed groups for user %s: %v", userState.GetName(), removedGroups)
-		u.log.Debugf("Removed apps for user %s: %v", userState.GetName(), removedApps)
+		u.logger.DebugContext(ctx, "User assignments updated after reconciliation",
+			"user_name", userState.GetName(),
+			"new_groups", newGroups,
+			"removed_groups", removedGroups,
+			"new_apps", newApps,
+			"removed_apps", removedApps,
+		)
 	}
 
 	return nil
@@ -322,7 +325,7 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 				if err := accessChecker.CheckAccess(group, u.accessState); err == nil {
 					targets[group.GetName()] = struct{}{}
 				} else if !trace.IsAccessDenied(err) {
-					u.log.Errorf("Error checking access to group during login: %v", err)
+					u.logger.ErrorContext(ctx, "Error checking access to group during login", "error", err)
 				}
 			}
 		}
@@ -362,7 +365,10 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 				appServer, ok := resource.(types.AppServer)
 
 				if !ok {
-					u.log.Errorf("Expected AppServer, got %T", resource)
+					u.logger.ErrorContext(ctx, "received unexpected resource when listing AppServers",
+						"resource_type", resource.GetKind(),
+						"resource_name", resource.GetName(),
+					)
 					continue
 				}
 				app := appServer.GetApp()
@@ -372,7 +378,7 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 					// so we're making sure that we're not creating duplicate entries for the same apps.
 					targets[app.GetName()] = struct{}{}
 				} else if !trace.IsAccessDenied(err) {
-					u.log.Errorf("Error checking access to application during login: %v", err)
+					u.logger.ErrorContext(ctx, "Error checking access to application during login", "error", err)
 				}
 			}
 		}
@@ -447,7 +453,7 @@ func (u *UserAssignmentCreator) findOldOktaAssignments(ctx context.Context, user
 		for _, assignment := range assignments {
 			sourceLabel, ok := assignment.GetLabel(eteleport.OktaAssignmentSourceLabel)
 			if !ok {
-				u.log.Debugf("No source label for assignment %s, skipping", assignment.GetName())
+				u.logger.DebugContext(ctx, "Skipping assignment without a source label", "assignment", assignment.GetName())
 				continue
 			}
 

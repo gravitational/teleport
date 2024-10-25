@@ -2,6 +2,7 @@ package oktaservice
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -110,7 +111,7 @@ func TestGetOktaGroups(t *testing.T) {
 				apiClientProviderFn: func(ctx context.Context, cfg api.ClientConfig) (api.Client, error) {
 					return testClient, nil
 				},
-				log: utils.NewLogger(),
+				logger: slog.Default(),
 				authorizer: &fakeAuthorizer{
 					checker: &fakeChecker{
 						allow: map[check]bool{
@@ -234,7 +235,7 @@ func TestGetOktaApps(t *testing.T) {
 				apiClientProviderFn: func(ctx context.Context, cfg api.ClientConfig) (api.Client, error) {
 					return testClient, nil
 				},
-				log: utils.NewLogger(),
+				logger: slog.Default(),
 				authorizer: &fakeAuthorizer{
 					checker: &fakeChecker{
 						allow: map[check]bool{

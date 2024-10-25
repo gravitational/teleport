@@ -2,11 +2,11 @@ package connected
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -28,7 +28,7 @@ type connectedGetter interface {
 // Config is the configuration for the OktaConnected utility.
 type Config struct {
 	// Log is the log to use for the OktaConnected utility.
-	Log *logrus.Entry
+	Logger *slog.Logger
 	// Clock is the clock to use for the OktaConnected utility.
 	Clock clockwork.Clock
 	// DisableCache will disable the cache.
@@ -46,8 +46,8 @@ func (o *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing connected getter")
 	}
 
-	if o.Log == nil {
-		o.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOktaConnected)
+	if o.Logger == nil {
+		o.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOktaConnected)
 	}
 
 	if o.Clock == nil {
@@ -80,15 +80,15 @@ func New(cfg Config) (*OktaConnected, error) {
 	}
 	o := &OktaConnected{
 		fnCache: fnCache,
-		log:     cfg.Log,
+		log:     cfg.Logger,
 		getter:  cfg.ConnectedGetter,
 		plugins: cfg.Plugins,
 	}
 
 	if o.plugins == nil {
-		o.log.Debug("This auth server does not support plugins, so the Okta access request reconciler will not check for Okta plugins.")
+		o.log.DebugContext(context.Background(), "This auth server does not support plugins, so the Okta access request reconciler will not check for Okta plugins")
 	} else {
-		o.log.Debug("This auth server supports plugins, so the Okta access request reconciler will check for Okta plugins.")
+		o.log.DebugContext(context.Background(), "This auth server supports plugins, so the Okta access request reconciler will check for Okta plugins")
 	}
 
 	return o, nil
@@ -97,7 +97,7 @@ func New(cfg Config) (*OktaConnected, error) {
 // OktaConnected is a cache with a short TTL for repeated calls to IsConnected.
 type OktaConnected struct {
 	fnCache *utils.FnCache
-	log     logrus.FieldLogger
+	log     *slog.Logger
 	getter  connectedGetter
 	plugins services.Plugins
 }
@@ -112,7 +112,7 @@ func (o *OktaConnected) IsConnected(ctx context.Context) bool {
 		isConnected, err = utils.FnCacheGet(ctx, o.fnCache, "", o.load)
 	}
 	if err != nil {
-		o.log.WithError(err).Error("Error trying to get plugins to test for Okta service connectivity")
+		o.log.ErrorContext(ctx, "Error trying to get plugins to test for Okta service connectivity", "error", err)
 	}
 
 	return isConnected

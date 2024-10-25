@@ -46,7 +46,7 @@ func (s *Service) getOrCreateSAMLConnector(ctx context.Context, oktaClient api.C
 			SAMLConnectorService: s.authService,
 			ClusterName:          pingInfo.ClusterName,
 			PublicURL:            publicURL,
-			Log:                  s.log,
+			Logger:               s.logger,
 		})
 		return connInfo, trace.Wrap(err, "creating new SAML connector")
 	} else if err != nil {

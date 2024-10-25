@@ -2,7 +2,6 @@ package okta
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -42,7 +41,7 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 	}
 
 	defer func() {
-		s.log.Info("Synchronizer stopped.")
+		s.logger.InfoContext(ctx, "Synchronizer stopped")
 		s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
 	}()
 
@@ -52,7 +51,7 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 	timer := s.clock.NewTimer(interval + utils.RandomDuration(syncJitter))
 	defer timer.Stop()
 
-	s.log.Infof("Synchronizer started with a refresh period of %s.", interval)
+	s.logger.InfoContext(ctx, "Synchronizer started", "refresh_interval", interval)
 
 	for {
 		s.synchronizeAndEmitEvents(ctx)
@@ -72,7 +71,7 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 // waitIfNotLeader will wait for this service to become the leader. It will return true if the service should stop.
 func (s *Service) waitIfNotLeader(ctx context.Context) bool {
 	// Don't start the loop until we acquire leadership.
-	s.log.Infof("Waiting for leadership to be acquired before starting synchronizer.")
+	s.logger.InfoContext(ctx, "Waiting for leadership to be acquired before starting synchronizer")
 	waitForLeadershipTicker := s.clock.NewTicker(SyncRetryAfterLeadershipFailure)
 	defer waitForLeadershipTicker.Stop()
 	for {
@@ -110,7 +109,7 @@ func (s *Service) emitSyncError(ctx context.Context, err error) {
 	}
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-		s.log.WithError(emitErr).Warnf("Failed to emit Okta synchronization failure event: %v", event)
+		s.logger.WarnContext(ctx, "Failed to emit Okta synchronization failure event", "event_type", event.GetType(), "error", emitErr)
 	}
 }
 
@@ -119,7 +118,7 @@ func (s *Service) getSynchronizerInterval(ctx context.Context) time.Duration {
 	timeBetweenSyncs := s.timeBetweenSyncs
 	pref, err := s.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		s.log.WithError(err).Errorf("Error getting auth preference during synchronization, using service level default of %s", timeBetweenSyncs)
+		s.logger.ErrorContext(ctx, "Error getting configure okta sync interval, using default", "default_interval", timeBetweenSyncs, "error", err)
 	} else {
 		if pref.GetOktaSyncPeriod() != 0 {
 			timeBetweenSyncs = pref.GetOktaSyncPeriod()
@@ -146,7 +145,7 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 	s.serviceStatus.UpdateAppGroupSync(ctx, s.clock.Now(), s.apps.Len(), s.groups.Len(), err)
 
 	if err != nil {
-		s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
+		s.logger.ErrorContext(ctx, "Error while synchronizing Okta resources with Teleport", "error", err)
 		s.emitSyncError(ctx, err)
 	} else {
 		// The synchronizer has completed at least once successfully. This will allow the access
@@ -167,13 +166,13 @@ func (s *Service) synchronize(ctx context.Context) error {
 		}
 		groupsToAppsMapping, err := s.synchronizeApplications(ctx)
 		if err != nil {
-			s.log.Warnf("Error when synchronizing applications, unable to sync groups: %v", err)
+			s.logger.WarnContext(ctx, "Error when synchronizing applications, unable to sync groups", "error", err)
 			// We need the groups to apps mapping in order to synchronize groups properly, so
 			// we won't try to synchronize groups if we can't synchronize apps.
 			return trace.Wrap(err)
 		}
 		if err := s.synchronizeGroups(ctx, groupsToAppsMapping); err != nil {
-			s.log.Warnf("Error when synchronizing groups: %v", err)
+			s.logger.WarnContext(ctx, "Error when synchronizing groups", "error", err)
 			return trace.Wrap(err)
 		}
 	}
@@ -187,16 +186,16 @@ func (s *Service) synchronize(ctx context.Context) error {
 // synchronizeGroups will synchronize Okta groups with the backend.
 func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping userGroupsToApplications) error {
 	if s.groupsReconciler == nil {
-		s.log.Debug("Group synchronization is disabled. Skipping.")
+		s.logger.DebugContext(ctx, "Group synchronization is disabled")
 		return nil
 	}
 	newGroups := map[string]types.UserGroup{}
 	err := s.client.IterateGroups(ctx, func(oktaGroup *okta.Group) error {
-		s.log.Debugf("Processing Okta group %v", oktaGroup.Id)
+		s.logger.DebugContext(ctx, "Processing Okta group", "group_id", oktaGroup.Id)
 
 		userGroup, err := s.oktaGroupToUserGroup(oktaGroup, groupsToAppsMapping[oktaGroup.Id])
 		if err != nil {
-			s.log.Debugf("Error converting Okta group: %v", err)
+			s.logger.DebugContext(ctx, "Error converting Okta group", "error", err)
 			return nil
 		}
 
@@ -234,10 +233,10 @@ type userGroupsToApplications map[string][]string
 // synchronizeApplications will synchronize Okta applications with the backend.
 func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToApplications, error) {
 	if s.appsReconciler == nil {
-		s.log.Debug("Application synchronization is disabled. Skipping.")
+		s.logger.DebugContext(ctx, "Application synchronization is disabled")
 		return nil, nil
 	}
-	s.log.Debug("Synchronizing applications")
+	s.logger.DebugContext(ctx, "Synchronizing applications")
 
 	groupsToAppsMapping := userGroupsToApplications{}
 	newApps := map[string]types.Application{}
@@ -247,16 +246,16 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 		// object.
 		oktaApplication, ok := oktaApp.(*okta.Application)
 		if !ok {
-			s.log.Debugf("Unable to process Okta application of unknown type %T", oktaApp)
+			s.logger.DebugContext(ctx, "Unable to process Okta application of unknown type")
 			return nil
 		}
 
-		log := s.log.WithField("application_id", oktaApplication.Id)
-		log.Debug("Processing Okta application")
+		logger := s.logger.With("application_id", oktaApplication.Id)
+		logger.DebugContext(ctx, "Processing Okta application")
 
 		oktaGroups, err := s.client.GetAppGroups(ctx, oktaAppID(oktaApplication.Id))
 		if err != nil {
-			log.WithError(err).Warn("Error getting groups for application")
+			s.logger.WarnContext(ctx, "Error getting groups for application", "error", err)
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err, "getting groups for application %q", oktaApplication.Id)
 			}
@@ -270,7 +269,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 
 		apps, err := s.oktaAppToApp(oktaApplication, groups)
 		if err != nil {
-			log.WithError(err).Debug("Error converting Okta app")
+			s.logger.DebugContext(ctx, "Error converting Okta app", "error", err)
 			return nil
 		}
 
@@ -353,8 +352,7 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		OnCreate:            s.onCreateGroup,
 		OnUpdate:            s.onUpdateGroup,
 		OnDelete:            s.onDeleteGroup,
-		// TODO(tross): convert this once service is migrate to slog
-		Logger: slog.Default(),
+		Logger:              s.logger,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -367,8 +365,7 @@ func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 		OnCreate:            s.onCreateApp,
 		OnUpdate:            s.onUpdateApp,
 		OnDelete:            s.onDeleteApp,
-		// TODO(tross): convert this once service is migrate to slog
-		Logger: slog.Default(),
+		Logger:              s.logger,
 	})
 
 	return trace.Wrap(err)
@@ -462,7 +459,7 @@ func (s *Service) onCreateApp(ctx context.Context, app types.Application) error 
 		return trace.Wrap(err, "error starting heartbeat for new app %v", app)
 	}
 
-	s.addAppOktaResource(&s.appsAdded, app)
+	s.addAppOktaResource(ctx, &s.appsAdded, app)
 
 	return nil
 }
@@ -475,7 +472,7 @@ func (s *Service) onUpdateApp(ctx context.Context, app, _ types.Application) err
 
 	s.apps.Store(app.GetName(), app)
 
-	s.addAppOktaResource(&s.appsUpdated, app)
+	s.addAppOktaResource(ctx, &s.appsUpdated, app)
 
 	return nil
 }
@@ -497,7 +494,7 @@ func (s *Service) onDeleteApp(ctx context.Context, app types.Application) error 
 
 	s.apps.Delete(app.GetName())
 
-	s.addAppOktaResource(&s.appsDeleted, app)
+	s.addAppOktaResource(ctx, &s.appsDeleted, app)
 
 	return nil
 }
@@ -511,10 +508,10 @@ func (s *Service) addGroupOktaResource(target *[]*apievents.OktaResource, group 
 }
 
 // addAppOktaResource adds the app to the list of Okta resources.
-func (s *Service) addAppOktaResource(target *[]*apievents.OktaResource, app types.Application) {
+func (s *Service) addAppOktaResource(ctx context.Context, target *[]*apievents.OktaResource, app types.Application) {
 	oktaID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
 	if !ok {
-		s.log.Warnf("app ID label is missing for app %s, using the app name instead", app.GetName())
+		s.logger.WarnContext(ctx, "app ID label is missing for app, using the app name instead", "app", app.GetName())
 		oktaID = app.GetName()
 	}
 
@@ -581,7 +578,11 @@ func (s *Service) emitSyncEventsInBatches(ctx context.Context, eventName, eventC
 		}
 
 		if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-			s.log.WithError(emitErr).Warnf("Failed to emit %s event: %v", eventName, event)
+			s.logger.WarnContext(ctx, "Failed to emit %s event: %v",
+				"event_name", eventName,
+				"event_type", event.GetType(),
+				"error", emitErr,
+			)
 		}
 	}
 }
@@ -590,33 +591,33 @@ func (s *Service) syncUsers(ctx context.Context) (err error) {
 	defer func() {
 		// Always update the failure state if we exit with a non-nil error
 		if err != nil {
-			s.log.Error("Setting error flag")
+			s.logger.ErrorContext(ctx, "Setting error flag")
 			s.serviceStatus.UpdateUserSync(ctx, s.clock.Now(), 0, err)
 		}
 	}()
 
 	if s.userReconciler == nil {
-		s.log.Debug("User synchronization is disabled. Skipping.")
+		s.logger.DebugContext(ctx, "User synchronization is disabled")
 		return nil
 	}
 
 	var oktaUsers map[string]types.User
 	if s.oktaSAMLAppID != "" {
-		s.log.Debug("APP ID is set. Fetching app users.")
+		s.logger.DebugContext(ctx, "Fetching app users", "app_id", s.oktaSAMLAppID)
 		convertUser := func(oktaUser *okta.AppUser) (types.User, error) {
 			return ConvertAppUser(oktaUser, s.clock, s.ssoConnectorID, s.orgURL)
 		}
-		oktaUsers, err = fetchOktaAppUsers(ctx, s.client, s.oktaSAMLAppID, convertUser, s.log)
+		oktaUsers, err = fetchOktaAppUsers(ctx, s.client, s.oktaSAMLAppID, convertUser, s.logger)
 	} else {
-		s.log.Debug("APP ID is not set. Fetching org users.")
+		s.logger.DebugContext(ctx, "Fetching org users")
 		convertUser := makeUserConverter(s.clock, s.ssoConnectorID, s.orgURL)
-		oktaUsers, err = fetchOktaUsers(ctx, s.client, convertUser, s.log)
+		oktaUsers, err = fetchOktaUsers(ctx, s.client, convertUser, s.logger)
 	}
 	if err != nil {
 		return trace.Wrap(err, "enumerating Okta users")
 	}
 
-	teleportUsers, err := listTeleportUsers(ctx, s.accessPoint, s.orgURL, s.log)
+	teleportUsers, err := listTeleportUsers(ctx, s.accessPoint, s.orgURL)
 	if err != nil {
 		return trace.Wrap(err, "listing okta-originated Teleport users")
 	}
@@ -631,8 +632,10 @@ func (s *Service) syncUsers(ctx context.Context) (err error) {
 		}
 	}
 
-	s.log.Infof("Reconciling %d Okta and %d Teleport Accounts",
-		len(oktaUsers), len(teleportUsers))
+	s.logger.InfoContext(ctx, "Reconciling Okta and Teleport Accounts",
+		"okta_user_count", len(oktaUsers),
+		"teleport_user_count", len(teleportUsers),
+	)
 	stats, err := s.userReconciler.reconcileUsers(ctx, oktaUsers, teleportUsers)
 	if err != nil {
 		return trace.Wrap(err, "reconciling teleport users")
