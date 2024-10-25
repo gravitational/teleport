@@ -1066,6 +1066,19 @@ Add the following to enable read access to trusted clusters
     - [ ] Re-execute `kubectl exec --stdin --tty shell-demo -- /bin/bash` mentioned above to
           verify that Kube access is working with MFA.
   - [ ] Verify that Connect prompts for MFA during Connect My Computer setup.
+- Hardware key support
+  - You will need a YubiKey 4.3+ and Teleport Enterprise. 
+    The easiest way to test it is to enable [cluster-wide hardware keys enforcement](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/#step-12-enforce-hardware-key-support)
+    (set `require_session_mfa: hardware_key_touch_and_pin` to get both touch and PIN prompts).
+  - [ ] Log in. Verify that you were asked for both PIN and touch.
+  - [ ] Connect to a database. Verify you were prompted for touch (a PIN prompt can appear too).
+  - [ ] Change the PIN (leave the PIV PIN field empty during login to access this flow).
+  - [ ] Close the app, disconnect the YubiKey, then reopen the app. Verify the app shows an error about the missing key.
+  - Verify that all items from this section work on:
+    - [ ] macOS
+    - [ ] Windows
+    - [ ] Linux
+
 - Connect My Computer
   - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
         connect to it.
