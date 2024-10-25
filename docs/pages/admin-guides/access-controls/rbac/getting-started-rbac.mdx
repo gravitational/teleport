@@ -63,7 +63,6 @@ See [Teleport Access Controls Reference](../../../reference/access-controls/role
 Before configuring RBAC, it’s essential to understand how Teleport tags and matches resources to users’ roles.
 
 - Resource Tagging: Teleport uses labels (key-value pairs) to tag resources like SSH nodes, databases, or Kubernetes clusters. For example, a server might have the label env: production.
-
 - Role Matching: A role in Teleport allows or denies access to resources based on matching these labels. For instance, if a user has a role that allows access to resources labeled env: staging, they will only access resources with that label.
 
 You can use this labeling and matching logic to grant users specific access, ensuring they only interact with the resources they need.
@@ -230,16 +229,12 @@ Next, follow the instructions to set up an authentication connector that maps us
 
 - **Regular audits**: 
 Periodically review and update RBAC policies to ensure they align with current organizational needs and security best practices.
-
 - **Principle of least privilege**: 
 Always start with minimal access and gradually increase permissions as needed.
-
 - **Integration with identity providers (IdPs) like Okta and AWS OIDC**:
 Leverage existing identity management systems to streamline user management and access control.
-
 - **Monitoring and alerting**:
 Set up comprehensive logging and alerting for access events, especially for sensitive resources.
-
 - **User education**:
 Ensure that all users understand their access levels and the importance of adhering to security policies.
 
