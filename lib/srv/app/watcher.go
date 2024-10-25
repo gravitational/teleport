@@ -40,7 +40,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		Log:                 s.legacyLog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -74,7 +74,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
-			Log:       s.log,
+			Log:       s.legacyLog,
 			Client:    s.c.AccessPoint,
 		},
 	})
