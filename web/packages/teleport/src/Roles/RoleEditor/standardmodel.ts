@@ -244,6 +244,7 @@ export function newRole(): Role {
 export function newAccessSpec(kind: 'node'): ServerAccessSpec;
 export function newAccessSpec(kind: 'kube_cluster'): KubernetesAccessSpec;
 export function newAccessSpec(kind: 'app'): AppAccessSpec;
+export function newAccessSpec(kind: AccessSpecKind): AppAccessSpec;
 export function newAccessSpec(kind: AccessSpecKind): AccessSpec {
   switch (kind) {
     case 'node':
