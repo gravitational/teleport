@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +30,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mailgun/mailgun-go/v4"
 	"gopkg.in/mail.v2"
+
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/lib/logger"
+)
+
+const (
+	statusEmitTimeout = 10 * time.Second
 )
 
 // Mailer is an interface to mail sender
@@ -41,6 +49,7 @@ type SMTPMailer struct {
 	dialer      *mail.Dialer
 	sender      string
 	clusterName string
+	sink        common.StatusSink
 }
 
 // MailgunMailer implements mailgun mailer
@@ -51,24 +60,32 @@ type MailgunMailer struct {
 }
 
 // NewSMTPMailer inits new SMTP mailer
-func NewSMTPMailer(c SMTPConfig, sender, clusterName string) Mailer {
+func NewSMTPMailer(c SMTPConfig, sink common.StatusSink, sender, clusterName string) Mailer {
 	dialer := mail.NewDialer(c.Host, c.Port, c.Username, c.Password)
 	dialer.StartTLSPolicy = c.MailStartTLSPolicy
 
-	return &SMTPMailer{dialer, sender, clusterName}
+	return &SMTPMailer{dialer, sender, clusterName, sink}
 }
 
 // NewMailgunMailer inits new Mailgun mailer
-func NewMailgunMailer(c MailgunConfig, sender, clusterName string) Mailer {
+func NewMailgunMailer(c MailgunConfig, sink common.StatusSink, sender, clusterName string) Mailer {
 	m := mailgun.NewMailgun(c.Domain, c.PrivateKey)
 	if c.APIBase != "" {
 		m.SetAPIBase(c.APIBase)
 	}
+	client := &http.Client{
+		Transport: &statusSinkTransport{
+			RoundTripper: http.DefaultTransport,
+			sink:         sink,
+		},
+	}
+	m.SetClient(client)
 	return &MailgunMailer{m, sender, clusterName}
 }
 
 // Send sends email via SMTP
 func (m *SMTPMailer) Send(ctx context.Context, id, recipient, body, references string) (string, error) {
+	log := logger.Get(ctx)
 	subject := fmt.Sprintf("%v Role Request %v", m.clusterName, id)
 	refHeader := fmt.Sprintf("<%v>", references)
 
@@ -92,9 +109,15 @@ func (m *SMTPMailer) Send(ctx context.Context, id, recipient, body, references s
 
 	err = m.dialer.DialAndSend(msg)
 	if err != nil {
+		if m.sink != nil {
+			// Returned error is undocumented. Using geneirc error code for all errors.
+			status := common.StatusFromStatusCode(http.StatusInternalServerError)
+			if err := m.sink.Emit(ctx, status); err != nil {
+				log.WithError(err).Errorf("Error while emitting Email plugin status: %v", err)
+			}
+		}
 		return "", trace.Wrap(err)
 	}
-
 	return id, nil
 }
 
@@ -146,4 +169,31 @@ func (m *MailgunMailer) Send(ctx context.Context, id, recipient, body, reference
 	}
 
 	return id, nil
+}
+
+// statusSinkTransport wraps the Mailgun client transport and
+// emits plugin status.
+type statusSinkTransport struct {
+	http.RoundTripper
+	sink common.StatusSink
+}
+
+// RoundTrip implements the http.RoundTripper interface.
+func (t *statusSinkTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	log := logger.Get(req.Context())
+	resp, err := t.RoundTripper.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	if t.sink != nil {
+		// No usable context in scope, use background with a reasonable timeout
+		ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
+		defer cancel()
+
+		status := common.StatusFromStatusCode(resp.StatusCode)
+		if err := t.sink.Emit(ctx, status); err != nil {
+			log.WithError(err).Errorf("Error while emitting Email plugin status: %v", err)
+		}
+	}
+	return resp, nil
 }
