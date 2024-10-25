@@ -84,18 +84,19 @@ func (fn pluginInstallerFn) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 // initialized, but there is nothing stopping us from wrapping it in mutexes
 // and making it dynamic data in the future.
 var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginType]pluginDescriptor{
-	types.PluginTypeDiscord:    pluginInstallerFn(installDiscordPlugin),
-	types.PluginTypeJamf:       pluginInstallerFn(installJamfPlugin),
-	types.PluginTypeJira:       pluginInstallerFn(installJiraPlugin),
-	types.PluginTypeOkta:       oktaPluginDescriptor{},
-	types.PluginTypeOpsgenie:   pluginInstallerFn(installOpsgeniePlugin),
-	types.PluginTypePagerDuty:  pluginInstallerFn(installPagerdutyPlugin),
-	types.PluginTypeMattermost: pluginInstallerFn(installMattermostPlugin),
-	types.PluginTypeServiceNow: pluginInstallerFn(installServiceNowPlugin),
-	types.PluginTypeSlack:      slackDescriptor{},
-	types.PluginTypeGitlab:     pluginInstallerFn(installGitlabPlugin),
-	types.PluginTypeEntraID:    entraIDPluginDescriptor{},
-	types.PluginTypeDatadog:    pluginInstallerFn(installDatadogPlugin),
+	types.PluginTypeDiscord:           pluginInstallerFn(installDiscordPlugin),
+	types.PluginTypeJamf:              pluginInstallerFn(installJamfPlugin),
+	types.PluginTypeJira:              pluginInstallerFn(installJiraPlugin),
+	types.PluginTypeOkta:              oktaPluginDescriptor{},
+	types.PluginTypeOpsgenie:          pluginInstallerFn(installOpsgeniePlugin),
+	types.PluginTypePagerDuty:         pluginInstallerFn(installPagerdutyPlugin),
+	types.PluginTypeMattermost:        pluginInstallerFn(installMattermostPlugin),
+	types.PluginTypeServiceNow:        pluginInstallerFn(installServiceNowPlugin),
+	types.PluginTypeSlack:             slackDescriptor{},
+	types.PluginTypeGitlab:            pluginInstallerFn(installGitlabPlugin),
+	types.PluginTypeEntraID:           entraIDPluginDescriptor{},
+	types.PluginTypeDatadog:           pluginInstallerFn(installDatadogPlugin),
+	types.PluginTypeAWSIdentityCenter: awsICPluginDescriptor{},
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {

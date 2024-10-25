@@ -352,5 +352,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeDatadog,
 		},
+		{
+			Type: types.PluginTypeAWSIdentityCenter,
+		},
 	}, resp.PluginTypes)
 }

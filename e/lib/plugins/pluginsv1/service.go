@@ -46,6 +46,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeGitlab,
 		types.PluginTypeEntraID,
 		types.PluginTypeDatadog,
+		types.PluginTypeAWSIdentityCenter,
 	}
 }
 

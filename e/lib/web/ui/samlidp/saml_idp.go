@@ -22,6 +22,8 @@ type CreateSAMLIdPServiceProviderRequest struct {
 	// Preset is used to define service provider profile that will have a custom behavior
 	// processed by Teleport.
 	Preset string `json:"preset,omitempty"`
+	// Labels are SAML service provider resource metadata labels.
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // TransformToProtoType transforms SAMLIdPServiceProvider to
@@ -30,7 +32,8 @@ func TransformToProtoType(req CreateSAMLIdPServiceProviderRequest) (*types.SAMLI
 	sp := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name: req.Name,
+				Name:   req.Name,
+				Labels: req.Labels,
 			},
 		},
 		Spec: types.SAMLIdPServiceProviderSpecV1{
