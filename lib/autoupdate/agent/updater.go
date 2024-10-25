@@ -135,6 +135,10 @@ func NewLocalUpdater(cfg LocalUpdaterConfig) (*Updater, error) {
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
 		},
+		Process: &SystemdService{
+			ServiceName: "teleport.service",
+			Log:         cfg.Log,
+		},
 	}, nil
 }
 
@@ -175,29 +179,41 @@ type Installer interface {
 	// Install the Teleport agent at version from the download template.
 	// Install must be idempotent.
 	Install(ctx context.Context, version, template string, flags InstallFlags) error
-	// Link the Teleport agent at version into the system location.
-	// Link must be idempotent.
+	// Link the Teleport agent at the specified version into the system location.
 	// The revert function must restore the previous linking, returning false on failure.
+	// Link must be idempotent.
 	Link(ctx context.Context, version string) (revert func(context.Context) bool, err error)
 	// List the installed versions of Teleport.
 	List(ctx context.Context) (versions []string, err error)
 	// Remove the Teleport agent at version.
+	// Must return ErrLinked if unable to remove due to being linked.
 	// Remove must be idempotent.
-	// Returns ErrLinked if unable to remove due to being linked.
 	Remove(ctx context.Context, version string) error
 }
 
-// ErrLinked is returned when a linked version cannot be removed.
-var ErrLinked = errors.New("linked version cannot be removed")
+var (
+	// ErrLinked is returned when a linked version cannot be operated on.
+	ErrLinked = errors.New("version is linked")
+	// ErrNotNeeded is returned when the operation is not needed.
+	ErrNotNeeded = errors.New("not needed")
+	// ErrNotSupported is returned when the operation is not supported on the platform.
+	ErrNotSupported = errors.New("not supported on this platform")
+)
 
 // Process provides an API for interacting with a running Teleport process.
 type Process interface {
 	// Reload must reload the Teleport process as gracefully as possible.
 	// If the process is not healthy after reloading, Reload must return an error.
-	// Reload must return nil if the process did not require reloading.
+	// If the process did not require reloading, Reload must return ErrNotNeeded.
+	// E.g., if the process is not enabled, or it was already reloaded after the last Sync.
+	// If the type implementing Process does not support the system process manager,
+	// Reload must return ErrNotSupported.
 	Reload(ctx context.Context) error
 	// Sync must validate and synchronize process configuration.
-	// Sync may need to be called before the process is reloaded to ensure it is successful.
+	// After the linked Teleport installation is changed, failure to call Sync without
+	// error before Reload may result in undefined behavior.
+	// If the type implementing Process does not support the system process manager,
+	// Sync must return ErrNotSupported.
 	Sync(ctx context.Context) error
 }
 
@@ -323,8 +339,7 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	}
 	if cfg.Status.ActiveVersion != desiredVersion {
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
-		err = u.Process.Reload(ctx)
-		if err != nil {
+		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
 			// If reloading Teleport at the new version fails, revert, resync, and reload.
 			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 			if ok := revert(ctx); !ok {
@@ -333,7 +348,7 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 			if err := u.Process.Sync(ctx); err != nil {
 				u.Log.ErrorContext(ctx, "Invalid configuration found after failed restart. Attempting restart anyways.", "error", err)
 			}
-			if err := u.Process.Reload(ctx); err != nil {
+			if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
 				u.Log.ErrorContext(ctx, "Failed to revert Teleport.", "error", err)
 			}
 			return trace.Errorf("failed to start new version %q of Teleport: %w", desiredVersion, err)

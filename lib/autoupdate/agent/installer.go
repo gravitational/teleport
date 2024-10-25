@@ -99,7 +99,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 		return trace.Errorf("failed to determine if linked: %w", err)
 	}
 	if linked {
-		return trace.Wrap(ErrLinked)
+		return trace.Errorf("refusing to remove: %w", ErrLinked)
 	}
 
 	// invalidate checksum first, to protect against partially-removed

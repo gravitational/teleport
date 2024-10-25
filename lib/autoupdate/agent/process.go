@@ -19,24 +19,123 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"log/slog"
+	"os"
+	"os/exec"
+
+	"github.com/gravitational/trace"
 )
 
 // SystemdService manages a Teleport systemd service.
 type SystemdService struct {
+	// ServiceName specifies the systemd service name.
 	ServiceName string
 	// Log contains a logger.
 	Log *slog.Logger
 }
 
 func (s SystemdService) Reload(ctx context.Context) error {
+	if err := s.checkSystem(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
+	if code < 0 {
+		return trace.Errorf("unable to determine if systemd service is active")
+	}
+	if code > 0 {
+		s.Log.WarnContext(ctx, "Teleport service not running.")
+		return trace.Wrap(ErrNotNeeded)
+	}
+	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
+	if code < 0 {
+		return trace.Errorf("unable to attempt reload of Teleport systemd service")
+	}
+	if code > 0 {
+		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
+		if code != 0 {
+			return trace.Errorf("hard restart of systemd failed")
+		}
+		s.Log.WarnContext(ctx, "Teleport ungracefully restarted. Connections may have been dropped.")
+		return nil
+	}
 	s.Log.InfoContext(ctx, "Teleport gracefully reloaded.")
-	s.Log.WarnContext(ctx, "Teleport ungracefully restarted.")
-	s.Log.WarnContext(ctx, "Teleport not running.")
-	panic("implement me")
+	return nil
 }
 
 func (s SystemdService) Sync(ctx context.Context) error {
-	panic("implement me")
+	if err := s.checkSystem(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	code := s.systemctl(ctx, slog.LevelError, "daemon-reload")
+	if code != 0 {
+		return trace.Errorf("unable to reload systemd configuration")
+	}
+	return nil
+}
+
+func (s SystemdService) checkSystem(ctx context.Context) error {
+	_, err := os.Stat("/run/systemd/system")
+	if errors.Is(err, os.ErrNotExist) {
+		s.Log.ErrorContext(ctx, "This system does not support SystemD, which is required by the updater.")
+		return trace.Wrap(ErrNotSupported)
+	}
+	return trace.Wrap(err)
+}
+
+func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args ...string) int {
+	cmd := exec.CommandContext(ctx, "systemctl", args...)
+	stderr := &lineLogger{ctx: ctx, log: s.Log, level: errLevel}
+	stdout := &lineLogger{ctx: ctx, log: s.Log, level: slog.LevelDebug}
+	cmd.Stderr = stderr
+	cmd.Stdout = stdout
+	err := cmd.Run()
+	stderr.Flush()
+	stdout.Flush()
+	code := cmd.ProcessState.ExitCode()
+	if code == 255 {
+		code = -1
+	}
+	if err != nil {
+		s.Log.Log(ctx, errLevel, "Failed to run systemctl.",
+			"args", args,
+			"code", code,
+			"error", err)
+	}
+	return code
+}
+
+type lineLogger struct {
+	ctx   context.Context
+	log   *slog.Logger
+	level slog.Level
+
+	last bytes.Buffer
+}
+
+func (w *lineLogger) Write(p []byte) (n int, err error) {
+	lines := bytes.Split(p, []byte("\n"))
+	if len(lines) > 0 {
+		n, err = w.last.Write(lines[0])
+		lines = lines[1:]
+	}
+	if len(lines) == 0 || err != nil {
+		return n, trace.Wrap(err)
+	}
+	w.log.Log(w.ctx, w.level, w.last.String())
+	w.last.Reset()
+	for _, line := range lines[:len(lines)-1] {
+		w.log.Log(w.ctx, w.level, string(line))
+		n += len(line)
+	}
+	n2, err := w.last.Write(lines[0])
+	n += n2
+	return n, trace.Wrap(err)
+}
+
+func (w *lineLogger) Flush() {
+	w.log.Log(w.ctx, w.level, w.last.String())
+	w.last.Reset()
 }
