@@ -428,18 +428,9 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		}
 		oldname := filepath.Join(binDir, entry.Name())
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
-		orig, err := os.Readlink(newname)
-		if errors.Is(err, os.ErrInvalid) ||
-			errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
-			// important: do not attempt to replace a non-linked install of Teleport
-			return nil, trace.Errorf("refusing to replace file at %s", newname)
-		}
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, trace.Wrap(err)
-		}
-		err = renameio.Symlink(oldname, newname)
+		orig, err := tryLink(oldname, newname)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
 		}
 		if orig != "" {
 			revertLinks = append(revertLinks, symlink{
@@ -457,18 +448,9 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 
 	oldname := filepath.Join(versionDir, servicePath)
 	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
-	orig, err := os.Readlink(newname)
-	if errors.Is(err, os.ErrInvalid) ||
-		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
-		// important: do not attempt to replace a non-linked install of Teleport
-		return nil, trace.Errorf("refusing to replace file at %s", newname)
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, trace.Wrap(err)
-	}
-	err = renameio.Symlink(oldname, newname)
+	orig, err := tryLink(oldname, newname)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
 	}
 	if orig != "" {
 		revertLinks = append(revertLinks, symlink{
@@ -477,6 +459,25 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		})
 	}
 	return revertFunc, nil
+}
+
+// tryLink attempts to create a symlink, atomically replacing an existing link if already present.
+// If a non-symlink file or directory exists in newname already, tryLink errors.
+func tryLink(oldname, newname string) (orig string, err error) {
+	orig, err = os.Readlink(newname)
+	if errors.Is(err, os.ErrInvalid) ||
+		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
+		// important: do not attempt to replace a non-linked install of Teleport
+		return orig, trace.Errorf("refusing to replace file at %s", newname)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return orig, trace.Wrap(err)
+	}
+	err = renameio.Symlink(oldname, newname)
+	if err != nil {
+		return orig, trace.Wrap(err)
+	}
+	return orig, nil
 }
 
 // versionDir returns the storage directory for a Teleport version.
