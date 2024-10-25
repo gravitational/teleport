@@ -129,6 +129,9 @@ func (c *AutoUpdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 	}
 
 	if c.toolsTargetVersion != "" {
+		if _, err := semver.NewVersion(c.toolsTargetVersion); err != nil {
+			return trace.WrapWithMessage(err, "not semantic version")
+		}
 		version, err := client.GetAutoUpdateVersion(ctx)
 		if trace.IsNotFound(err) {
 			if version, err = autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{}); err != nil {
