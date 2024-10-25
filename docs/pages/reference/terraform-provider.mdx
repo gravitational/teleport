@@ -14,7 +14,7 @@ It lists all the supported resources and their fields.
 
 <Admonition type="tip">
 To get started with the Terraform provider, you must start with [the installation
-guide](../admin-guides/infrastructure-as-code/terraform-provider.mdx).
+guide](../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
 Once you got a working provider, we recommend you to follow the
 ["Managing users and roles with
 IaC"](../admin-guides/infrastructure-as-code/managing-resources/user-and-role.mdx) guide.
@@ -80,7 +80,8 @@ provider "teleport" {
 
 This section lists the different ways of passing credentials to the Terraform provider.
 You can find which method fits your use case in
-the [Teleport Terraform provider setup page](../admin-guides/infrastructure-as-code/terraform-provider.mdx)
+the [Teleport Terraform provider setup
+page](../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
 
 ### With an identity file
 
@@ -115,7 +116,8 @@ the ["Run the Terraform provider locally" guide](../admin-guides/infrastructure-
 short-lived credentials. Such credentials are harder to exfiltrate, and you can control more precisely who has access to
 which roles (e.g. you can allow only GitHub Actions pipelines targeting the `prod` environment to get certificates).
 
-You can follow [the Terraform Provider guide](../admin-guides/infrastructure-as-code/terraform-provider.mdx) to setup `tbot`
+You can follow [the Terraform Provider
+guide](../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx) to setup `tbot`
 and have Terraform use its identity.
 
 #### Obtaining an identity file via `tctl auth sign`
