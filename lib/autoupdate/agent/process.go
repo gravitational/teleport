@@ -37,6 +37,9 @@ type SystemdService struct {
 	Log *slog.Logger
 }
 
+// Reload a systemd service.
+// Attempts a graceful reload before a hard restart.
+// See Process interface for more details.
 func (s SystemdService) Reload(ctx context.Context) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
@@ -65,6 +68,8 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	return nil
 }
 
+// Sync systemd service configuration by running systemctl daemon-reload.
+// See Process interface for more details.
 func (s SystemdService) Sync(ctx context.Context) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
@@ -76,6 +81,7 @@ func (s SystemdService) Sync(ctx context.Context) error {
 	return nil
 }
 
+// checkSystem returns an error if the system is not compatible with this process manager.
 func (s SystemdService) checkSystem(ctx context.Context) error {
 	_, err := os.Stat("/run/systemd/system")
 	if errors.Is(err, os.ErrNotExist) {
@@ -85,6 +91,9 @@ func (s SystemdService) checkSystem(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// systemctl returns a systemctl subcommand, converting the output to logs.
+// Output sent to stdout is logged at debug level.
+// Output sent to stderr is logged at the level specified by errLevel.
 func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args ...string) int {
 	cmd := exec.CommandContext(ctx, "systemctl", args...)
 	stderr := &lineLogger{ctx: ctx, log: s.Log, level: errLevel}
@@ -107,6 +116,7 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	return code
 }
 
+// lineLogger logs each line written to it.
 type lineLogger struct {
 	ctx   context.Context
 	log   *slog.Logger

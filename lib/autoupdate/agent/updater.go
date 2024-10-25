@@ -254,26 +254,16 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if err != nil {
 		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
 	}
-	if override.Proxy != "" {
-		cfg.Spec.Proxy = override.Proxy
-	}
-	if override.Group != "" {
-		cfg.Spec.Group = override.Group
-	}
-	if override.URLTemplate != "" {
-		cfg.Spec.URLTemplate = override.URLTemplate
-	}
-	cfg.Spec.Enabled = true
-	if err := validateConfigSpec(&cfg.Spec); err != nil {
+	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Lookup target version from the proxy.
+
 	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
 	if err != nil {
 		return trace.Errorf("failed to parse proxy server address: %w", err)
 	}
-
 	desiredVersion := override.ForceVersion
 	var flags InstallFlags
 	if desiredVersion == "" {
@@ -313,7 +303,9 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", "error", err)
 		}
 	}
-	// If the active version and target don't match, kick off upgrade.
+
+	// Install the desired version (or validate existing installation)
+
 	template := cfg.Spec.URLTemplate
 	if template == "" {
 		template = cdnURITemplate
@@ -326,8 +318,11 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if err != nil {
 		return trace.Errorf("failed to link: %w", err)
 	}
+
+	// Sync process configuration after linking.
+
 	if err := u.Process.Sync(ctx); err != nil {
-		// If sync fails, we may have left the host in a bad state, so we revert and re-Sync.
+		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
 		if ok := revert(ctx); !ok {
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
@@ -337,9 +332,13 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		}
 		return trace.Errorf("failed to validate configuration for new version %q of Teleport: %w", desiredVersion, err)
 	}
+
+	// Restart Teleport if necessary.
+
 	if cfg.Status.ActiveVersion != desiredVersion {
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
 		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
+
 			// If reloading Teleport at the new version fails, revert, resync, and reload.
 			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 			if ok := revert(ctx); !ok {
@@ -362,6 +361,8 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		u.Log.InfoContext(ctx, "Backup version set.", "version", v)
 	}
 
+	// Check if manual cleanup might be needed.
+
 	versions, err := u.Installer.List(ctx)
 	if err != nil {
 		return trace.Errorf("failed to list installed versions: %w", err)
@@ -371,6 +372,8 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	}
 
 	// Always write the configuration file if enable succeeds.
+
+	cfg.Spec.Enabled = true
 	if err := writeConfig(u.ConfigPath, cfg); err != nil {
 		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
 	}
@@ -440,12 +443,20 @@ func writeConfig(filename string, cfg *UpdateConfig) error {
 	return trace.Wrap(t.CloseAtomicallyReplace())
 }
 
-func validateConfigSpec(spec *UpdateSpec) error {
+func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
+	if override.Proxy != "" {
+		spec.Proxy = override.Proxy
+	}
+	if override.Group != "" {
+		spec.Group = override.Group
+	}
+	if override.URLTemplate != "" {
+		spec.URLTemplate = override.URLTemplate
+	}
 	if spec.URLTemplate != "" &&
 		!strings.HasPrefix(strings.ToLower(spec.URLTemplate), "https://") {
 		return trace.Errorf("Teleport download URL must use TLS (https://)")
 	}
-
 	if spec.Proxy == "" {
 		return trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", updateConfigName)
 	}
