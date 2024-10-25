@@ -85,6 +85,7 @@ type LocalInstaller struct {
 
 // Remove a Teleport version directory from InstallDir.
 // This function is idempotent.
+// See Installer interface for additional specs.
 func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 	// os.RemoveAll is dangerous because it can remove an entire directory tree.
 	// We must validate the version to ensure that we remove only a single path
@@ -117,6 +118,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
+// See Installer interface for additional specs.
 func (li *LocalInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
 	versionDir, err := li.versionDir(version)
 	if err != nil {
@@ -372,7 +374,9 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 	return versions, nil
 }
 
-// Link the specified version into the system LinkBinDir.
+// Link the specified version into the system LinkBinDir and LinkServiceDir.
+// The revert function restores the previous linking.
+// See Installer interface for additional specs.
 func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
 	// setup revert function
 	type symlink struct {
