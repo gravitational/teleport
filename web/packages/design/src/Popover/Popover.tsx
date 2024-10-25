@@ -491,6 +491,10 @@ export class Popover extends Component<Props> {
     }
 
     const popoverPos = getPopoverPosition(
+      // We use the non-null assertion operator (!) here and elsewhere to tell TS
+      // that the value is guaranteed to be defined due to default props.
+      // Unfortunately, `defaultProps` field is not recognized by TS, so assertions are needed.
+      // This approach is a workaround and is not recommended, as we lose the benefits of strict null checks.
       this.props.anchorOrigin!,
       this.props.transformOrigin!
     );
