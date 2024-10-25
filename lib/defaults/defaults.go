@@ -707,8 +707,8 @@ const (
 	// made for an existing file transfer request
 	WebsocketFileTransferDecision = "t"
 
-	// WebsocketWebauthnChallenge is sending a webauthn challenge.
-	WebsocketWebauthnChallenge = "n"
+	// MFAChallenge is sending an MFA challenge. Only supports WebAuthn and SSO MFA.
+	MFAChallenge = "n"
 
 	// WebsocketSessionMetadata is sending the data for a ssh session.
 	WebsocketSessionMetadata = "s"

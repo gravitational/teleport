@@ -111,6 +111,14 @@ type MFAChallengeResponse struct {
 	TOTPCode string `json:"totp_code,omitempty"`
 	// WebauthnResponse is a response from a webauthn device.
 	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+	// SSOResponse is a response from an SSO MFA flow.
+	SSOResponse *SSOResponse `json:"sso_response"`
+}
+
+// SSOResponse is a json compatible [proto.SSOResponse].
+type SSOResponse struct {
+	RequestID string `json:"requestId,omitempty"`
+	Token     string `json:"token,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
@@ -457,6 +465,37 @@ type MFAAuthenticateChallenge struct {
 	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
+	// SSOChallenge is an SSO MFA challenge.
+	SSOChallenge *SSOChallenge `json:"sso_challenge"`
+}
+
+// SSOChallenge is a json compatible [proto.SSOChallenge].
+type SSOChallenge struct {
+	RequestID   string        `json:"requestId,omitempty"`
+	RedirectURL string        `json:"redirectUrl,omitempty"`
+	Device      *SSOMFADevice `json:"device"`
+	// ChannelID is used by the front end to differentiate multiple ongoing SSO
+	// MFA requests so they don't interfere with each other.
+	ChannelID string `json:"channelId"`
+}
+
+// SSOMFADevice is a json compatible [proto.SSOMFADevice].
+type SSOMFADevice struct {
+	ConnectorID   string `json:"connectorId,omitempty"`
+	ConnectorType string `json:"connectorType,omitempty"`
+	DisplayName   string `json:"displayName,omitempty"`
+}
+
+func SSOChallengeFromProto(ssoChal *proto.SSOChallenge) *SSOChallenge {
+	return &SSOChallenge{
+		RequestID:   ssoChal.RequestId,
+		RedirectURL: ssoChal.RedirectUrl,
+		Device: &SSOMFADevice{
+			ConnectorID:   ssoChal.Device.ConnectorId,
+			ConnectorType: ssoChal.Device.ConnectorType,
+			DisplayName:   ssoChal.Device.DisplayName,
+		},
+	}
 }
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.

@@ -1251,6 +1251,8 @@ message SSOChallenge {
   string request_id = 1;
   // RedirectUrl is an IdP redirect URL to initate the SSO MFA flow.
   string redirect_url = 2;
+  // Device is the SSO device corresponding to the challenge.
+  types.SSOMFADevice device = 3;
 }
 
 // SSOResponse is a response to SSOChallenge.
