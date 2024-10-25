@@ -160,7 +160,7 @@ func (a *App) SendEvent(ctx context.Context, url string, e *TeleportEvent) error
 
 // init initializes application state
 func (a *App) init(ctx context.Context) error {
-	a.Config.Dump(ctx)
+	a.Config.Dump(ctx, a.log)
 
 	var err error
 	a.client, err = newClient(ctx, a.log, a.Config)
