@@ -43,37 +43,24 @@ import { FieldSelect } from 'shared/components/FieldSelect';
 
 import { Option } from 'shared/components/Select';
 
-import { assertUnreachable } from 'shared/utils/assertUnreachable';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
-import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { routing } from 'teleterm/ui/uri';
+import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
 
-type MfaType = 'webauthn' | 'totp';
+type MfaType = 'webauthn' | 'totp' | 'sso';
+type AvailableMfaTypes = Option<MfaType, string>[];
 
 export const ReAuthenticate: FC<{
   promptMfaRequest: PromptMFARequest;
   onCancel: () => void;
   onSuccess: (otp: string) => void;
+  onSsoContinue: (redirectUrl: string) => void;
 }> = props => {
-  const logger = useLogger('ReAuthenticate');
   const { promptMfaRequest: req } = props;
 
-  const availableMfaTypes: MfaType[] = [];
-  // Add Webauthn first to prioritize it if both Webauthn and TOTP are available.
-  if (req.webauthn) {
-    availableMfaTypes.push('webauthn');
-  }
-  if (req.totp) {
-    availableMfaTypes.push('totp');
-  }
-  if (availableMfaTypes.length === 0) {
-    // This shouldn't happen but is technically allowed by the req data structure.
-    logger.warn('availableMfaTypes is empty, defaulting to webauthn and totp');
-    availableMfaTypes.push('webauthn', 'totp');
-  }
+  const availableMfaTypes = makeAvailableMfaTypes(req);
 
   const [selectedMfaType, setSelectedMfaType] = useState(availableMfaTypes[0]);
   const [otpToken, setOtpToken] = useState('');
@@ -137,17 +124,20 @@ export const ReAuthenticate: FC<{
                     <FieldSelect
                       flex="1"
                       label="Two-factor Type"
-                      value={mfaTypeToOption(selectedMfaType)}
-                      options={availableMfaTypes.map(mfaTypeToOption)}
-                      onChange={option =>
-                        setSelectedMfaType(
-                          (option as Option<string, string>).value as MfaType
-                        )
-                      }
+                      value={selectedMfaType}
+                      options={availableMfaTypes}
+                      onChange={option => {
+                        const value = (option as Option<string, string>)
+                          .value as MfaType;
+                        setSelectedMfaType(option);
+                        if (value === 'sso') {
+                          props.onSsoContinue(req.sso.redirectUrl);
+                        }
+                      }}
                     />
                   )}
 
-                  {selectedMfaType === 'totp' ? (
+                  {selectedMfaType.value === 'totp' ? (
                     <FieldInput
                       flex="1"
                       autoFocus
@@ -166,7 +156,7 @@ export const ReAuthenticate: FC<{
                   )}
                 </Flex>
 
-                {selectedMfaType === 'webauthn' && (
+                {selectedMfaType.value === 'webauthn' && (
                   <>
                     <Image width="200px" src={svgHardwareKey} mx="auto" />
                     <Box
@@ -179,12 +169,14 @@ export const ReAuthenticate: FC<{
                     </Box>
                   </>
                 )}
+
+                {selectedMfaType.value === 'sso' && <PromptSsoStatus />}
               </Flex>
             </DialogContent>
 
             <DialogFooter>
               <Flex gap={3}>
-                {selectedMfaType === 'totp' && (
+                {selectedMfaType.value === 'totp' && (
                   <ButtonPrimary type="submit">Continue</ButtonPrimary>
                 )}
                 <ButtonSecondary type="button" onClick={props.onCancel}>
@@ -199,19 +191,28 @@ export const ReAuthenticate: FC<{
   );
 };
 
-const mfaTypeToOption = (mfaType: MfaType): Option<string, string> => {
-  let label: string;
+function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaTypes {
+  let availableMfaTypes: AvailableMfaTypes = [];
+  const totp = { value: 'totp' as MfaType, label: 'Authenticator App' };
+  const webauthn = { value: 'webauthn' as MfaType, label: 'Hardware Key' };
 
-  switch (mfaType) {
-    case 'webauthn':
-      label = 'Hardware Key';
-      break;
-    case 'totp':
-      label = 'Authenticator App';
-      break;
-    default:
-      assertUnreachable(mfaType);
+  if (req.webauthn) {
+    availableMfaTypes.push(webauthn);
+  }
+  if (req.sso) {
+    availableMfaTypes.push({
+      value: 'sso',
+      label: req.sso.displayName || req.sso.connectorId,
+    });
+  }
+  if (req.totp) {
+    availableMfaTypes.push(totp);
   }
 
-  return { value: mfaType, label };
-};
+  // This shouldn't happen but is technically allowed by the req data structure.
+  if (availableMfaTypes.length === 0) {
+    availableMfaTypes.push(webauthn);
+    availableMfaTypes.push(totp);
+  }
+  return availableMfaTypes;
+}

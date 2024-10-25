@@ -182,6 +182,9 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
             handleClose();
             dialog.onSuccess(totpCode);
           }}
+          onSsoContinue={(redirectUrl: string) => {
+            dialog.onSsoContinue(redirectUrl);
+          }}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
