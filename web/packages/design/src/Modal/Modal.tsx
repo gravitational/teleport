@@ -117,10 +117,10 @@ export default class Modal extends React.Component<ModalProps> {
     }
   }
 
-  dialogEl = (): Element | undefined => {
+  dialogEl = (): Element | null => {
     const modalEl = this.modalRef.current;
     if (!modalEl) {
-      return;
+      return null;
     }
 
     const isBackdropRenderedFirst = !this.props.hideBackdrop;
@@ -129,7 +129,7 @@ export default class Modal extends React.Component<ModalProps> {
       return modalEl.children[1];
     }
 
-    return modalEl.firstElementChild || undefined;
+    return modalEl.firstElementChild;
   };
 
   handleOpen = () => {
