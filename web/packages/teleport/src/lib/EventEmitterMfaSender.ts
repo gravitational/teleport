@@ -33,7 +33,7 @@ class EventEmitterMfaSender extends EventEmitter {
     throw new Error('Not implemented');
   }
 
-  // TODO (avatus) DELETE IN 19
+  // TODO (avatus) DELETE IN 18
   /**
    * @deprecated Use sendChallengeResponse instead.
    */

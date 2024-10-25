@@ -128,7 +128,7 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
 
   useEffect(() => {
     let ssoChallengeAbortController: AbortController | undefined;
-    const chanllengeHandler = (challengeJson: string) => {
+    const challengeHandler = (challengeJson: string) => {
       const { webauthnPublicKey, ssoChallenge, totpChallenge } =
         makeMfaAuthenticateChallenge(challengeJson);
 
@@ -150,14 +150,11 @@ export function useMfa(emitterSender: EventEmitterMfaSender): MfaState {
       }
     };
 
-    emitterSender?.on(TermEvent.WEBAUTHN_CHALLENGE, chanllengeHandler);
+    emitterSender?.on(TermEvent.MFA_CHALLENGE, challengeHandler);
 
     return () => {
       ssoChallengeAbortController?.abort();
-      emitterSender?.removeListener(
-        TermEvent.WEBAUTHN_CHALLENGE,
-        chanllengeHandler
-      );
+      emitterSender?.removeListener(TermEvent.MFA_CHALLENGE, challengeHandler);
     };
   }, [emitterSender, waitForSsoChallengeResponse]);
 
