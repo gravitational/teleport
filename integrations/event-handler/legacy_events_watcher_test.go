@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"sync"
 	"testing"
@@ -153,7 +154,7 @@ func newTeleportEventWatcher(t *testing.T, eventsClient TeleportSearchEventsClie
 			SkipSessionTypesRaw: skipEventTypesRaw,
 			WindowSize:          24 * time.Hour,
 		},
-	}, eventsClient, cursor, exportFn)
+	}, eventsClient, cursor, exportFn, slog.Default())
 }
 
 func TestEvents(t *testing.T) {
