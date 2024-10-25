@@ -49,7 +49,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		return trace.Errorf("unable to determine if systemd service is active")
 	}
 	if code > 0 {
-		s.Log.WarnContext(ctx, "Teleport service not running.")
+		s.Log.WarnContext(ctx, "Teleport systemd service not running.")
 		return trace.Wrap(ErrNotNeeded)
 	}
 	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
@@ -59,9 +59,9 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	if code > 0 {
 		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 		if code != 0 {
-			return trace.Errorf("hard restart of systemd failed")
+			return trace.Errorf("hard restart of Teleport systemd service failed")
 		}
-		s.Log.WarnContext(ctx, "Teleport ungracefully restarted. Connections may have been dropped.")
+		s.Log.WarnContext(ctx, "Teleport ungracefully restarted. Connections potentially dropped.")
 		return nil
 	}
 	s.Log.InfoContext(ctx, "Teleport gracefully reloaded.")
@@ -85,7 +85,7 @@ func (s SystemdService) Sync(ctx context.Context) error {
 func (s SystemdService) checkSystem(ctx context.Context) error {
 	_, err := os.Stat("/run/systemd/system")
 	if errors.Is(err, os.ErrNotExist) {
-		s.Log.ErrorContext(ctx, "This system does not support SystemD, which is required by the updater.")
+		s.Log.ErrorContext(ctx, "This system does not support systemd, which is required by the updater.")
 		return trace.Wrap(ErrNotSupported)
 	}
 	return trace.Wrap(err)
