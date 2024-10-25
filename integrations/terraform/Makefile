@@ -196,4 +196,5 @@ $(LOCALBIN):
 
 bin/tfplugindocs: go.mod $(LOCALBIN)
 	mkdir -p bin
-	GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+# Turning off GOWORK to prevent missing package errors.
+	GOWORK=off GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
