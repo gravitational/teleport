@@ -225,7 +225,9 @@ func (j *EventsJob) runLegacyPolling(ctx context.Context) error {
 		lc.WindowStartTime = *st
 	}
 
-	eventWatcher := NewLegacyEventsWatcher(j.app.Config, j.app.client, *lc, j.handleEvent)
+	eventWatcher := NewLegacyEventsWatcher(
+		j.app.Config, j.app.client, *lc, j.handleEvent, j.app.log,
+	)
 
 	// periodically sync cursor values to disk
 	go func() {
