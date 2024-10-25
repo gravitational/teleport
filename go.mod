@@ -59,9 +59,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.49.3
 	github.com/aws/aws-sdk-go-v2/service/glue v1.99.2
 	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3
-	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.2
 	github.com/aws/aws-sdk-go-v2/service/kms v1.36.3
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.2
 	github.com/aws/aws-sdk-go-v2/service/rds v1.85.2
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.47.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3
@@ -69,7 +67,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.32.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.35.3
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.54.3
-	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.31.3
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/aws/smithy-go v1.22.0
@@ -79,6 +76,7 @@ require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v0.13.0
+	github.com/cloudflare/cfssl v1.6.4
 	github.com/coreos/go-oidc v2.2.1+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.23
@@ -289,7 +287,6 @@ require (
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/charmbracelet/x/ansi v0.2.3 // indirect
 	github.com/charmbracelet/x/term v0.2.0 // indirect
-	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/cncf/xds/go v0.0.0-20240822171458-6449f94b4d59 // indirect
 	github.com/containerd/containerd v1.7.18 // indirect
 	github.com/containerd/errdefs v0.1.0 // indirect
