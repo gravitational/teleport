@@ -189,6 +189,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
 		return types.KindWindowsDesktop, nil
+	case types.KindDynamicWindowsDesktop, "dynamic_win_desktop", "dynamic_desktop":
+		return types.KindDynamicWindowsDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
 	case types.KindInstaller:
@@ -251,6 +253,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateConfig, nil
 	case types.KindAutoUpdateVersion:
 		return types.KindAutoUpdateVersion, nil
+	case types.KindAutoUpdateAgentRollout:
+		return types.KindAutoUpdateAgentRollout, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

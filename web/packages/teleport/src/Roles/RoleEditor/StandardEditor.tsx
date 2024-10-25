@@ -17,7 +17,16 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonIcon, Flex, H3, Text } from 'design';
+import {
+  Box,
+  ButtonIcon,
+  ButtonSecondary,
+  Flex,
+  H3,
+  H4,
+  Mark,
+  Text,
+} from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -27,7 +36,10 @@ import styled, { useTheme } from 'styled-components';
 
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { FieldSelectCreatable } from 'shared/components/FieldSelect';
+import {
+  FieldSelect,
+  FieldSelectCreatable,
+} from 'shared/components/FieldSelect';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 
@@ -42,6 +54,12 @@ import {
   AccessSpecKind,
   AccessSpec,
   ServerAccessSpec,
+  newAccessSpec,
+  KubernetesAccessSpec,
+  newKubernetesResourceModel,
+  kubernetesResourceKindOptions,
+  kubernetesVerbOptions,
+  KubernetesResourceModel,
 } from './standardmodel';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
@@ -112,7 +130,7 @@ export const StandardEditor = ({
       ...standardEditorModel.roleModel,
       accessSpecs: [
         ...standardEditorModel.roleModel.accessSpecs,
-        { kind, labels: [], logins: [] },
+        newAccessSpec(kind),
       ],
     });
   }
@@ -210,7 +228,7 @@ export const StandardEditor = ({
   );
 };
 
-type SectionProps<T> = {
+export type SectionProps<T> = {
   value: T;
   isProcessing: boolean;
   onChange?(value: T): void;
@@ -289,7 +307,7 @@ const Section = ({
       open={expanded}
       border={1}
       borderColor={theme.colors.interactive.tonal.neutral[0]}
-      borderRadius={2}
+      borderRadius={3}
     >
       <Flex
         as="summary"
@@ -419,12 +437,166 @@ export function ServerAccessSpecSection({
   );
 }
 
-function KubernetesAccessSpecSection() {
-  // TODO(bl-nero): add the Kubernetes section
-  return null;
+export function KubernetesAccessSpecSection({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<KubernetesAccessSpec>) {
+  return (
+    <>
+      <FieldSelectCreatable
+        isMulti
+        label="Groups"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Group: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        value={value.groups}
+        onChange={groups => onChange?.({ ...value, groups })}
+      />
+
+      <Text typography="body3" mb={1}>
+        Labels
+      </Text>
+      <LabelsInput
+        disableBtns={isProcessing}
+        labels={value.labels}
+        setLabels={labels => onChange?.({ ...value, labels })}
+      />
+
+      <Flex flexDirection="column" gap={3} mt={3}>
+        {value.resources.map((resource, index) => (
+          <KubernetesResourceView
+            key={resource.id}
+            value={resource}
+            isProcessing={isProcessing}
+            onChange={newRes =>
+              onChange?.({
+                ...value,
+                resources: value.resources.map((res, i) =>
+                  i === index ? newRes : res
+                ),
+              })
+            }
+            onRemove={() =>
+              onChange?.({
+                ...value,
+                resources: value.resources.toSpliced(index, 1),
+              })
+            }
+          />
+        ))}
+
+        <Box>
+          <ButtonSecondary
+            disabled={isProcessing}
+            gap={1}
+            onClick={() =>
+              onChange?.({
+                ...value,
+                resources: [...value.resources, newKubernetesResourceModel()],
+              })
+            }
+          >
+            <Icon.Add disabled={isProcessing} size="small" />
+            {value.resources.length > 0
+              ? 'Add Another Resource'
+              : 'Add a Resource'}
+          </ButtonSecondary>
+        </Box>
+      </Flex>
+    </>
+  );
+}
+
+function KubernetesResourceView({
+  value,
+  isProcessing,
+  onChange,
+  onRemove,
+}: {
+  value: KubernetesResourceModel;
+  isProcessing: boolean;
+  onChange(m: KubernetesResourceModel): void;
+  onRemove(): void;
+}) {
+  const { kind, name, namespace, verbs } = value;
+  const theme = useTheme();
+  return (
+    <Box
+      border={1}
+      borderColor={theme.colors.interactive.tonal.neutral[0]}
+      borderRadius={3}
+      padding={3}
+    >
+      <Flex>
+        <Box flex="1">
+          <H4 mb={3}>Resource</H4>
+        </Box>
+        <ButtonIcon
+          aria-label="Remove resource"
+          disabled={isProcessing}
+          onClick={onRemove}
+        >
+          <Icon.Trash
+            size="small"
+            color={theme.colors.interactive.solid.danger.default}
+          />
+        </ButtonIcon>
+      </Flex>
+      <FieldSelect
+        label="Kind"
+        isDisabled={isProcessing}
+        options={kubernetesResourceKindOptions}
+        value={kind}
+        onChange={k => onChange?.({ ...value, kind: k })}
+      />
+      <FieldInput
+        label="Name"
+        toolTipContent={
+          <>
+            Name of the resource. Special value <MarkInverse>*</MarkInverse>{' '}
+            means any name.
+          </>
+        }
+        disabled={isProcessing}
+        value={name}
+        onChange={e => onChange?.({ ...value, name: e.target.value })}
+      />
+      <FieldInput
+        label="Namespace"
+        toolTipContent={
+          <>
+            Namespace that contains the resource. Special value{' '}
+            <MarkInverse>*</MarkInverse> means any namespace.
+          </>
+        }
+        disabled={isProcessing}
+        value={namespace}
+        onChange={e => onChange?.({ ...value, namespace: e.target.value })}
+      />
+      <FieldSelect
+        isMulti
+        label="Verbs"
+        isDisabled={isProcessing}
+        options={kubernetesVerbOptions}
+        value={verbs}
+        onChange={v => onChange?.({ ...value, verbs: v })}
+        mb={0}
+      />
+    </Box>
+  );
 }
 
 export const EditorWrapper = styled(Box)<{ mute?: boolean }>`
   opacity: ${p => (p.mute ? 0.4 : 1)};
   pointer-events: ${p => (p.mute ? 'none' : '')};
+`;
+
+// TODO(bl-nero): This should ideally use tonal neutral 1 from the opposite
+// theme as background.
+const MarkInverse = styled(Mark)`
+  background: ${p => p.theme.colors.text.primaryInverse};
+  color: ${p => p.theme.colors.text.main};
 `;

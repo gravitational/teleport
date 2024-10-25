@@ -63,10 +63,24 @@ export enum IntegrationKind {
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
+
+/**
+ * IntegrationAudience defines supported audience value for IntegrationSpecAwsOidc
+ * audience field.
+ */
+export enum IntegrationAudience {
+  AwsIdentityCenter = 'aws-identity-center',
+}
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
+  /**
+   * audience is used to record name of a plugin or discover services in Teleport
+   * that depends on this integration.
+   */
+  audience?: IntegrationAudience;
 };
 
 export enum IntegrationStatusCode {

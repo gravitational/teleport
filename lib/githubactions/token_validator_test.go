@@ -20,8 +20,7 @@ package githubactions
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
+	"crypto"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,19 +31,22 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type fakeIDP struct {
 	t             *testing.T
 	signer        jose.Signer
-	privateKey    *rsa.PrivateKey
+	publicKey     crypto.PublicKey
 	server        *httptest.Server
 	entepriseSlug string
 	ghesMode      bool
 }
 
 func newFakeIDP(t *testing.T, ghesMode bool, enterpriseSlug string) *fakeIDP {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	// Github uses RSA2048, prefer to test with it.
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -56,7 +58,7 @@ func newFakeIDP(t *testing.T, ghesMode bool, enterpriseSlug string) *fakeIDP {
 	f := &fakeIDP{
 		signer:        signer,
 		ghesMode:      ghesMode,
-		privateKey:    privateKey,
+		publicKey:     privateKey.Public(),
 		t:             t,
 		entepriseSlug: enterpriseSlug,
 	}
@@ -142,7 +144,7 @@ func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
 	jwks := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Key: &f.privateKey.PublicKey,
+				Key: f.publicKey,
 			},
 		},
 	}

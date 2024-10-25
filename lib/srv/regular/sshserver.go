@@ -1266,7 +1266,7 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	// Create host user.
 	created, userCloser, err := s.termHandlers.SessionRegistry.UpsertHostUser(identityContext)
 	if err != nil {
-		log.Infof("error while creating host users: %s", err)
+		log.Warnf("error while creating host users: %s", err)
 	}
 
 	// Indicate that the user was created by Teleport.

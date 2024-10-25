@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -258,6 +259,7 @@ type cacheCollections struct {
 	webSessions              collectionReader[webSessionGetter]
 	webTokens                collectionReader[webTokenGetter]
 	windowsDesktops          collectionReader[windowsDesktopsGetter]
+	dynamicWindowsDesktops   collectionReader[dynamicWindowsDesktopsGetter]
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
 	userNotifications        collectionReader[notificationGetter]
 	accessGraphSettings      collectionReader[accessGraphSettingsGetter]
@@ -266,6 +268,7 @@ type cacheCollections struct {
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
 	autoUpdateConfigs        collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions       collectionReader[autoUpdateVersionGetter]
+	autoUpdateAgentRollouts  collectionReader[autoUpdateAgentRolloutGetter]
 	provisioningStates       collectionReader[provisioningStateGetter]
 }
 
@@ -621,6 +624,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.windowsDesktops
+		case types.KindDynamicWindowsDesktop:
+			if c.WindowsDesktops == nil {
+				return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
+			}
+			collections.dynamicWindowsDesktops = &genericCollection[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter, dynamicWindowsDesktopsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
 		case types.KindSAMLIdPServiceProvider:
 			if c.SAMLIdPServiceProviders == nil {
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
@@ -804,6 +816,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.autoUpdateVersions
+		case types.KindAutoUpdateAgentRollout:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateAgentRollouts = &genericCollection[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter, autoUpdateAgentRolloutExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateAgentRollouts
 
 		case types.KindProvisioningPrincipalState:
 			if c.ProvisioningStates == nil {
@@ -1358,6 +1379,41 @@ type autoUpdateVersionGetter interface {
 }
 
 var _ executor[*autoupdate.AutoUpdateVersion, autoUpdateVersionGetter] = autoUpdateVersionExecutor{}
+
+type autoUpdateAgentRolloutExecutor struct{}
+
+func (autoUpdateAgentRolloutExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateAgentRollout, error) {
+	plan, err := cache.AutoUpdateService.GetAutoUpdateAgentRollout(ctx)
+	return []*autoupdate.AutoUpdateAgentRollout{plan}, trace.Wrap(err)
+}
+
+func (autoUpdateAgentRolloutExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateAgentRollout) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateAgentRollout(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateAgentRolloutExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentRollout(ctx)
+}
+
+func (autoUpdateAgentRolloutExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentRollout(ctx)
+}
+
+func (autoUpdateAgentRolloutExecutor) isSingleton() bool { return true }
+
+func (autoUpdateAgentRolloutExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateAgentRolloutGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateAgentRolloutGetter interface {
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter] = autoUpdateAgentRolloutExecutor{}
 
 type userExecutor struct{}
 
@@ -2317,6 +2373,54 @@ type windowsDesktopsGetter interface {
 }
 
 var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExecutor{}
+
+type dynamicWindowsDesktopsExecutor struct{}
+
+func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
+	var desktops []types.DynamicWindowsDesktop
+	next := ""
+	for {
+		d, token, err := cache.dynamicWindowsDesktopsCache.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+		if err != nil {
+			return nil, err
+		}
+		desktops = append(desktops, d...)
+		if token == "" {
+			break
+		}
+		next = token
+	}
+	return desktops, nil
+}
+
+func (dynamicWindowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.DynamicWindowsDesktop) error {
+	_, err := cache.dynamicWindowsDesktopsCache.UpsertDynamicWindowsDesktop(ctx, resource)
+	return err
+}
+
+func (dynamicWindowsDesktopsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.dynamicWindowsDesktopsCache.DeleteAllDynamicWindowsDesktops(ctx)
+}
+
+func (dynamicWindowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.dynamicWindowsDesktopsCache.DeleteDynamicWindowsDesktop(ctx, resource.GetName())
+}
+
+func (dynamicWindowsDesktopsExecutor) isSingleton() bool { return false }
+
+func (dynamicWindowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) dynamicWindowsDesktopsGetter {
+	if cacheOK {
+		return cache.dynamicWindowsDesktopsCache
+	}
+	return cache.Config.DynamicWindowsDesktops
+}
+
+type dynamicWindowsDesktopsGetter interface {
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error)
+}
+
+var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dynamicWindowsDesktopsExecutor{}
 
 type kubeClusterExecutor struct{}
 

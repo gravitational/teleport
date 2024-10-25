@@ -285,7 +285,9 @@ func TryRun(commands []CLICommand, args []string) error {
 	proxyAddr := resp.ProxyPublicAddr
 	client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		return libmfa.NewCLIPromptV2(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	})
 
 	// execute whatever is selected:

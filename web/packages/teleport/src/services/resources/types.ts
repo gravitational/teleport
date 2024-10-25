@@ -62,9 +62,19 @@ export type Role = {
 export type RoleConditions = {
   node_labels?: Labels;
   logins?: string[];
+  kubernetes_groups?: string[];
+  kubernetes_labels?: Labels;
+  kubernetes_resources?: KubernetesResource[];
 };
 
 export type Labels = Record<string, string | string[]>;
+
+export type KubernetesResource = {
+  kind?: string;
+  name?: string;
+  namespace?: string;
+  verbs?: string[];
+};
 
 /**
  * Teleport role options in full format, as returned from Teleport API. Note

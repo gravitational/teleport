@@ -21,7 +21,8 @@ import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
-// TODO(nklaassen): Document me.
+// RegisterUsingIAMMethodRequest is a request for registration via the IAM join
+// method.
 message RegisterUsingIAMMethodRequest {
   // RegisterUsingTokenRequest holds registration parameters common to all
   // join methods.
@@ -172,4 +173,7 @@ service JoinService {
   // RegisterUsingTPMMethod allows registration of a new agent or Bot to the
   // cluster using a known TPM.
   rpc RegisterUsingTPMMethod(stream RegisterUsingTPMMethodRequest) returns (stream RegisterUsingTPMMethodResponse);
+  // RegisterUsingToken is used to register a new node to the cluster using one
+  // of the legacy join methods which do not yet have their own gRPC method.
+  rpc RegisterUsingToken(types.RegisterUsingTokenRequest) returns (Certs);
 }
