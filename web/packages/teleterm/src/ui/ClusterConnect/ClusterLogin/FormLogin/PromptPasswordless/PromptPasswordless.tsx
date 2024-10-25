@@ -23,13 +23,17 @@ import Validation from 'shared/components/Validation';
 
 import styled from 'styled-components';
 
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import svgHardwareKey from './hardware.svg';
 
-import type { WebauthnLogin } from '../../useClusterLogin';
+import type { PasswordlessLoginState } from '../../useClusterLogin';
 
-export function PromptWebauthn(props: Props) {
+type Props = PasswordlessLoginState & {
+  onCancel(): void;
+};
+
+export function PromptPasswordless(props: Props) {
   const { prompt } = props;
   return (
     <Box minHeight="40px" p={4}>
@@ -195,15 +199,11 @@ const requiredLength = value => () => {
   if (!value || value.length < 4) {
     return {
       valid: false,
-      message: 'pin must be at least 4 characters',
+      message: 'PIN must be at least 4 characters',
     };
   }
 
   return {
     valid: true,
   };
-};
-
-export type Props = WebauthnLogin & {
-  onCancel(): void;
 };
