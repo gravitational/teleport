@@ -397,7 +397,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			ctx := context.Background()
 
 			if tt.linkedVersion != "" {
-				err = installer.Link(ctx, tt.linkedVersion)
+				_, err = installer.Link(ctx, tt.linkedVersion)
 				require.NoError(t, err)
 			}
 			err = installer.Remove(ctx, tt.removeVersion)

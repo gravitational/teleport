@@ -328,15 +328,25 @@ func TestUpdater_Enable(t *testing.T) {
 					installedFlags = flags
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, version string) error {
+				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
 					linkedVersion = version
-					return nil
+					return func(_ context.Context) bool {
+						return true
+					}, nil
 				},
 				FuncList: func(_ context.Context) (versions []string, err error) {
 					return []string{"old"}, nil
 				},
 				FuncRemove: func(_ context.Context, version string) error {
 					removedVersion = version
+					return nil
+				},
+			}
+			updater.Process = &testProcess{
+				FuncReload: func(_ context.Context) error {
+					return nil
+				},
+				FuncSync: func(_ context.Context) error {
 					return nil
 				},
 			}
@@ -377,7 +387,7 @@ func blankTestAddr(s []byte) []byte {
 type testInstaller struct {
 	FuncInstall func(ctx context.Context, version, template string, flags InstallFlags) error
 	FuncRemove  func(ctx context.Context, version string) error
-	FuncLink    func(ctx context.Context, version string) error
+	FuncLink    func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
 	FuncList    func(ctx context.Context) (versions []string, err error)
 }
 
@@ -389,10 +399,23 @@ func (ti *testInstaller) Remove(ctx context.Context, version string) error {
 	return ti.FuncRemove(ctx, version)
 }
 
-func (ti *testInstaller) Link(ctx context.Context, version string) error {
+func (ti *testInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
 	return ti.FuncLink(ctx, version)
 }
 
 func (ti *testInstaller) List(ctx context.Context) (versions []string, err error) {
 	return ti.FuncList(ctx)
+}
+
+type testProcess struct {
+	FuncReload func(ctx context.Context) error
+	FuncSync   func(ctx context.Context) error
+}
+
+func (tp *testProcess) Reload(ctx context.Context) error {
+	return tp.FuncReload(ctx)
+}
+
+func (tp *testProcess) Sync(ctx context.Context) error {
+	return tp.FuncSync(ctx)
 }
