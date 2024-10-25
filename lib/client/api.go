@@ -498,9 +498,6 @@ type Config struct {
 	// If empty, a default CLI prompt is used.
 	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
 
-	// SSOCeremonyConstructor is a custom SSO ceremony constructor to use.
-	SSOCeremonyConstructor func() *sso.Ceremony
-
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
