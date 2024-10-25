@@ -44,6 +44,12 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	if err := s.checkSystem(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	// Command error codes < 0 indicate that we are unable to run the command.
+	// Errors from s.systemctl are logged along with stderr and stdout (debug only).
+
+	// If the service is not running, return ErrNotNeeded.
+	// Note systemctl reload returns an error if the unit is not active, and
+	// try-reload-or-restart is too recent of an addition for centos7.
 	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
 	if code < 0 {
 		return trace.Errorf("unable to determine if systemd service is active")
@@ -52,11 +58,13 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		s.Log.WarnContext(ctx, "Teleport systemd service not running.")
 		return trace.Wrap(ErrNotNeeded)
 	}
+	// Attempt graceful reload of running service.
 	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
 	if code < 0 {
 		return trace.Errorf("unable to attempt reload of Teleport systemd service")
 	}
 	if code > 0 {
+		// Graceful reload fails, try hard restart.
 		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 		if code != 0 {
 			return trace.Errorf("hard restart of Teleport systemd service failed")
