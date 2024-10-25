@@ -17,11 +17,12 @@
  */
 
 import React from 'react';
-import styled, { DefaultTheme } from 'styled-components';
+import styled from 'styled-components';
 
+import { Theme } from '../theme';
 import { space, SpaceProps } from '../system';
 
-const kind = ({ kind, theme }: { kind?: LabelKind; theme: DefaultTheme }) => {
+const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
   if (kind === 'secondary') {
     return {
       backgroundColor: theme.colors.spotBackground[0],
