@@ -323,39 +323,35 @@ type localRegionGetter interface {
 	GetRegion(context.Context) (string, error)
 }
 
-func getFallbackRegion(ctx context.Context, w io.Writer, fips bool, localRegionGetter localRegionGetter) (string, error) {
+func getLocalRegion(ctx context.Context, localRegionGetter localRegionGetter) (string, bool) {
 	if localRegionGetter == nil {
 		imdsClient, err := awsimds.NewInstanceMetadataClient(ctx)
-		if err == nil && imdsClient != nil && imdsClient.IsAvailable(ctx) {
-			localRegionGetter = imdsClient
+		if err != nil || !imdsClient.IsAvailable(ctx) {
+			return "", false
 		}
+		localRegionGetter = imdsClient
 	}
 
-	if localRegionGetter != nil {
-		localRegion, err := localRegionGetter.GetRegion(ctx)
-		if err == nil && localRegion != "" {
-			fmt.Fprintf(w, "Using region %q from instance metadata.\n", localRegion)
-			return localRegion, nil
-		}
+	region, err := localRegionGetter.GetRegion(ctx)
+	if err != nil || region == "" {
+		return "", false
+	}
+	return region, true
+}
+
+func getFallbackRegion(ctx context.Context, w io.Writer, localRegionGetter localRegionGetter) string {
+	if localRegion, ok := getLocalRegion(ctx, localRegionGetter); ok {
+		fmt.Fprintf(w, "Using region %q from instance metadata.\n", localRegion)
+		return localRegion
 	}
 
-	// Fips STS endpoints are regional.
-	if fips {
-		return "", trace.Errorf("no region found from the default AWS config or instance metadata. Please provide a region in your AWS config or through AWS_REGION environment variable.")
-	}
-
-	// Fallback to aws-global which works for both STS and IAM services. Print
-	// a warning since global STS endpoint is legacy and it won't work in
-	// non-standard partitions like us-gov-, cn- regions.
-	//
-	// Reference:
-	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
+	// Fallback to us-east-1, which also supports fips.
 	fmt.Fprint(w, `
-Warning. No region found from the default AWS config or instance metadata. Defaulting to 'aws-global'
-To avoid seeing this warning, please provide a region in your AWS config or through AWS_REGION environment variable.
+Warning: No region found from the default AWS config or instance metadata. Defaulting to 'us-east-1'.
+To avoid seeing this warning, please provide a region in your AWS config or through the AWS_REGION environment variable.
 
 `)
-	return "aws-global", nil
+	return "us-east-1"
 }
 
 // CheckAndSetDefaults checks and set configuration default values.
@@ -386,11 +382,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			}
 
 			if cfg.Region == "" {
-				if region, err := getFallbackRegion(ctx, os.Stdout, modules.GetModules().IsBoringBinary(), nil); err != nil {
-					return trace.Wrap(err)
-				} else {
-					cfg.Region = region
-				}
+				cfg.Region = getFallbackRegion(ctx, os.Stdout, nil)
 			}
 			c.awsCfg = &cfg
 		}

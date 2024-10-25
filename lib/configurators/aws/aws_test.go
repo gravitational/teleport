@@ -1932,9 +1932,7 @@ func (m mockLocalRegionGetter) GetRegion(context.Context) (string, error) {
 func Test_getFallbackRegion(t *testing.T) {
 	tests := []struct {
 		name              string
-		fips              bool
 		localRegionGetter localRegionGetter
-		wantError         bool
 		wantRegion        string
 	}{
 		{
@@ -1945,31 +1943,18 @@ func Test_getFallbackRegion(t *testing.T) {
 			wantRegion: "my-local-region",
 		},
 		{
-			name: "fails to fallback (fips)",
+			name: "fallback to us-east",
 			localRegionGetter: mockLocalRegionGetter{
 				err: fmt.Errorf("failed to get local region"),
 			},
-			fips:      true,
-			wantError: true,
-		},
-		{
-			name: "fallback to aws-global",
-			localRegionGetter: mockLocalRegionGetter{
-				err: fmt.Errorf("failed to get local region"),
-			},
-			wantRegion: "aws-global",
+			wantRegion: "us-east-1",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			region, err := getFallbackRegion(context.Background(), io.Discard, test.fips, test.localRegionGetter)
-			if test.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, test.wantRegion, region)
-			}
+			region := getFallbackRegion(context.Background(), io.Discard, test.localRegionGetter)
+			require.Equal(t, test.wantRegion, region)
 		})
 	}
 }
