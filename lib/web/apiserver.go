@@ -1551,10 +1551,8 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	// This ensures we fail open and don't accidentally update agents if something is going wrong.
 	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
 	// than changing this logic.
-	if autoUpdateConfig.GetSpec().GetTools() == nil {
-		response.AutoUpdate.ToolsMode = autoupdate.ToolsUpdateModeDisabled
-	} else {
-		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
+	if autoUpdateConfig.GetSpec().GetTools() != nil {
+		response.AutoUpdate.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetTools().GetMode() == autoupdate.ToolsUpdateModeEnabled
 	}
 
 	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
