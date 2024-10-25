@@ -33,7 +33,7 @@ export const CustomCell: React.FC<PropsWithChildren<{ disabled: boolean }>> = ({
         overflow: hidden;
         text-overflow: ellipsis;
       `}
-      title={children}
+      title={typeof children === 'string' ? children : undefined}
     >
       {children}
     </Cell>

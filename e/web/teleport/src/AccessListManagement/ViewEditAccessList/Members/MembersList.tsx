@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Flex, Text, Box, ButtonText, ButtonSecondary } from 'design';
+import { Flex, Text, Box, ButtonText, ButtonSecondary, H2 } from 'design';
 import Table, { StyledPanel } from 'design/DataTable';
 import { UsersTriple, Add, ArrowRight } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
@@ -9,8 +9,6 @@ import { StyledTable } from 'design/DataTable/StyledTable';
 import { ClientSidePager } from 'design/DataTable/Pager';
 import { getPagerPosition } from 'design/DataTable/Table';
 import { useClientSidePager } from 'design/DataTable/Pager/ClientSidePager/useClientSidePager';
-
-import { H2 } from 'design';
 
 import {
   AccessList,
@@ -142,7 +140,19 @@ export const AccessListMemberTable = ({
           key: 'joined',
           headerText: 'Date Added',
           isSortable: true,
-          onSort: sortCustomDate,
+          onSort: (a, b) => {
+            const aStr = getFormattedDate(a.joined);
+            const bStr = getFormattedDate(b.joined);
+
+            if (aStr < bStr) {
+              return -1;
+            }
+            if (aStr > bStr) {
+              return 1;
+            }
+
+            return 0;
+          },
           render: ({ joined, ineligibleReason }) => (
             <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
               {getFormattedDate(joined)}
@@ -184,20 +194,6 @@ export const AccessListMemberTable = ({
     />
   );
 };
-
-function sortCustomDate(a: Date, b: Date) {
-  const aStr = getFormattedDate(a);
-  const bStr = getFormattedDate(b);
-
-  if (aStr < bStr) {
-    return -1;
-  }
-  if (aStr > bStr) {
-    return 1;
-  }
-
-  return 0;
-}
 
 function CustomTable<T>({
   nextPage,

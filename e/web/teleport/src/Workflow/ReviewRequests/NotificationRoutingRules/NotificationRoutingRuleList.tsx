@@ -272,6 +272,6 @@ const renderInfoCell = (plugin: Plugin) => {
   return null;
 };
 
-const StyledCell = styled(Cell)`
+const StyledCell = styled(Cell)<{ $plugin: boolean }>`
   color: ${p => (p.$plugin ? p.theme.colors.text.muted : 'inherit')} !important;
 `;
