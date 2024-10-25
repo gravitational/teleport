@@ -38,7 +38,7 @@ func CompareResources[T any](resA, resB T) int {
 		equal = hasEqual.IsEqual(resB)
 	} else {
 		equal = cmp.Equal(resA, resB,
-			ignoreProtoXXXFields(),
+			IgnoreProtoXXXFields(),
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseV3{}, "Status"),
 			cmpopts.IgnoreFields(types.UserSpecV2{}, "Status"),
@@ -59,9 +59,9 @@ func CompareResources[T any](resA, resB T) int {
 	return Different
 }
 
-// ignoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto
+// IgnoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto
 // messages.
-func ignoreProtoXXXFields() cmp.Option {
+func IgnoreProtoXXXFields() cmp.Option {
 	return cmp.FilterPath(func(path cmp.Path) bool {
 		if field, ok := path.Last().(cmp.StructField); ok {
 			return strings.HasPrefix(field.Name(), "XXX_")
