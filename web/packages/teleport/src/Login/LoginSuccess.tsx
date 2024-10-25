@@ -16,12 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { CardSuccessLogin } from 'design';
 
 import { LogoHero } from 'teleport/components/LogoHero';
 
 export function LoginSuccess() {
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      window.close();
+    }, 5000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, []);
   return (
     <>
       <LogoHero />
