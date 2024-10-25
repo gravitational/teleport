@@ -340,6 +340,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 			err := os.MkdirAll(versionDir, 0o755)
 			require.NoError(t, err)
 
+			// setup files in version directory
 			for _, d := range tt.installDirs {
 				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
 				require.NoError(t, err)
@@ -348,6 +349,8 @@ func TestLocalInstaller_Link(t *testing.T) {
 				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
 				require.NoError(t, err)
 			}
+
+			// setup files in system links directory
 			linkDir := t.TempDir()
 			for _, n := range tt.existingLinks {
 				err := os.MkdirAll(filepath.Dir(filepath.Join(linkDir, n)), os.ModePerm)
@@ -374,7 +377,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
 
-				// verify automatic reverts
+				// verify automatic revert
 				for _, link := range tt.existingLinks {
 					v, err := os.Readlink(filepath.Join(linkDir, link))
 					require.NoError(t, err)
@@ -385,18 +388,24 @@ func TestLocalInstaller_Link(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, filepath.Base(n), string(v))
 				}
+
+				// ensure revert still succeeds
+				ok := revert(ctx)
+				require.True(t, ok)
 				return
 			}
 			require.NoError(t, err)
 
+			// verify links
 			for _, link := range tt.resultLinks {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
 				require.Equal(t, filepath.Base(link), string(v))
 			}
+
+			// verify manual revert
 			ok := revert(ctx)
 			require.True(t, ok)
-
 			for _, link := range tt.existingLinks {
 				v, err := os.Readlink(filepath.Join(linkDir, link))
 				require.NoError(t, err)
