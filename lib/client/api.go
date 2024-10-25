@@ -711,7 +711,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
-	toolsVersion, reExec, err := updater.CheckRemote(ctx, tc.WebProxyAddr)
+	toolsVersion, reExec, err := updater.CheckRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 	if err != nil {
 		return trace.Wrap(err)
 	}

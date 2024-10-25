@@ -151,7 +151,7 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 // the `webapi/find` handler, which stores information about the required client tools version to
 // operate with this cluster. It returns the semantic version that needs updating and whether
 // re-execution is necessary, by re-execution flag we understand that update and re-execute is required.
-func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version string, reExec bool, err error) {
+func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bool) (version string, reExec bool, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
@@ -179,6 +179,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (version st
 		ProxyAddr: proxyAddr,
 		Pool:      certPool,
 		Timeout:   30 * time.Second,
+		Insecure:  insecure,
 	})
 	if err != nil {
 		return "", false, trace.Wrap(err)

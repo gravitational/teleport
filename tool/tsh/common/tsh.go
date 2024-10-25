@@ -1878,7 +1878,7 @@ func onLogin(cf *CLIConf) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := updateAndRun(cf.Context, tc.WebProxyAddr); err != nil {
+		if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1896,7 +1896,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr); err != nil {
+			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1916,7 +1916,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr); err != nil {
+			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1992,7 +1992,7 @@ func onLogin(cf *CLIConf) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := updateAndRun(context.Background(), tc.WebProxyAddr); err != nil {
+			if err := updateAndRun(context.Background(), tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -5558,7 +5558,7 @@ const (
 		"https://goteleport.com/docs/access-controls/guides/headless/#troubleshooting"
 )
 
-func updateAndRun(ctx context.Context, proxy string) error {
+func updateAndRun(ctx context.Context, proxy string, insecure bool) error {
 	// The user has typed a command like `tsh ssh ...` without being logged in,
 	// if the running binary needs to be updated, update and re-exec.
 	//
@@ -5570,7 +5570,7 @@ func updateAndRun(ctx context.Context, proxy string) error {
 		return trace.Wrap(err)
 	}
 	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
-	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy)
+	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
 	if err != nil {
 		return trace.Wrap(err)
 	}
