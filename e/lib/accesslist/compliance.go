@@ -24,7 +24,7 @@ func (s *Service) ReportCompliance(ctx context.Context) {
 		return
 	}
 
-	s.log.Debug("Reporting Access List review compliance.")
+	s.logger.DebugContext(ctx, "Reporting Access List review compliance")
 
 	ticker := interval.New(interval.Config{
 		Duration: timeBetweenComplianceReports,
@@ -44,7 +44,7 @@ func (s *Service) ReportCompliance(ctx context.Context) {
 			return
 		}
 		if err := s.reportComplianceMetrics(ctx); err != nil {
-			s.log.WithError(err).Error("Error reporting compliance metrics")
+			s.logger.ErrorContext(ctx, "Error reporting compliance metrics", "error", err)
 		}
 	}
 }

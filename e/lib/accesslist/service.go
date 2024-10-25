@@ -2,6 +2,7 @@ package accesslist
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"math"
 	"slices"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -59,7 +59,7 @@ type AuthServer interface {
 // ServiceConfig is the service config for the Access Lists gRPC service.
 type ServiceConfig struct {
 	// Logger is the logger to use.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
@@ -138,7 +138,7 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(teleport.ComponentKey, componentAccessListService)
+		c.Logger = slog.With(teleport.ComponentKey, componentAccessListService)
 	}
 
 	if c.Clock == nil {
@@ -151,7 +151,7 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 type Service struct {
 	accesslistv1.UnimplementedAccessListServiceServer
 
-	log               logrus.FieldLogger
+	logger            *slog.Logger
 	authorizer        authz.Authorizer
 	accessLists       services.AccessLists
 	membershipChecker *services.AccessListMembershipChecker
@@ -175,7 +175,7 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 	}
 
 	s := &Service{
-		log:         cfg.Logger,
+		logger:      cfg.Logger,
 		authorizer:  cfg.Authorizer,
 		accessLists: cfg.AccessLists,
 		membershipChecker: services.NewAccessListMembershipChecker(
@@ -592,7 +592,7 @@ func (s *Service) emitUpsertAccessListEvent(ctx context.Context, username string
 	}
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-		s.log.WithError(emitErr).Warnf("Failed to emit access list create/update event: %v", event)
+		s.logger.WarnContext(ctx, "Failed to emit access list create/update event", "error", emitErr)
 	}
 }
 
@@ -625,7 +625,7 @@ func (s *Service) emitUpsertAccessListUsageEvent(ctx context.Context, updated bo
 		}
 	}
 	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit access list create/update usage event")
+		s.logger.WarnContext(ctx, "Failed to emit access list create/update usage event", "error", err)
 	}
 }
 
@@ -694,7 +694,7 @@ func (s *Service) emitDeleteAccessListEvent(ctx context.Context, authCtx *authz.
 	}
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-		s.log.WithError(emitErr).Warnf("Failed to emit access list delete event: %v", event)
+		s.logger.WarnContext(ctx, "Failed to emit access list delete event", "error", emitErr)
 	}
 }
 
@@ -715,7 +715,7 @@ func (s *Service) emitDeleteAccessListUsageEvent(ctx context.Context, accessList
 			},
 		},
 	}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit access list delete usage event")
+		s.logger.WarnContext(ctx, "Failed to emit access list delete usage event", "error", err)
 	}
 }
 
@@ -982,7 +982,7 @@ func (s *Service) emitUpsertAccessListMemberEvent(ctx context.Context, username 
 		}
 
 		if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-			s.log.WithError(emitErr).Warnf("Failed to emit access list member create/update event: %v", event)
+			s.logger.WarnContext(ctx, "Failed to emit access list member create/update event", "error", emitErr)
 		}
 	}
 }
@@ -1015,7 +1015,7 @@ func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, upda
 		}
 	}
 	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit access list member create/update usage event")
+		s.logger.WarnContext(ctx, "Failed to emit access list member create/update usage event", "error", err)
 	}
 }
 
@@ -1083,7 +1083,7 @@ func (s *Service) emitDeleteAccessListMemberEvent(ctx context.Context, username 
 		}
 
 		if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-			s.log.WithError(emitErr).Warnf("Failed to emit access list delete member event: %v", event)
+			s.logger.WarnContext(ctx, "Failed to emit access list delete member event", "error", emitErr)
 		}
 	}
 }
@@ -1105,7 +1105,7 @@ func (s *Service) emitDeleteAccessListMemberUsageEvent(ctx context.Context, acce
 			},
 		},
 	}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit access list delete usage event")
+		s.logger.WarnContext(ctx, "Failed to emit access list delete usage event", "error", err)
 	}
 }
 
@@ -1170,7 +1170,7 @@ func (s *Service) emitDeleteAllAccessListMembersForAccessListEvent(ctx context.C
 	}
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-		s.log.WithError(emitErr).Warnf("Failed to emit access list delete event: %v", event)
+		s.logger.WarnContext(ctx, "Failed to emit access list delete event", "error", emitErr)
 	}
 }
 
@@ -1468,7 +1468,7 @@ func (s *Service) hasAccessListRBAC(ctx context.Context, authCtx *authz.Context,
 	}
 
 	if authErr != nil && !trace.IsAccessDenied(authErr) {
-		s.log.WithError(authErr).Debug("hasAccessListRBAC had unexpected error")
+		s.logger.DebugContext(ctx, "hasAccessListRBAC had unexpected error", "error", authErr)
 	}
 
 	return trace.Wrap(authErr)
@@ -1478,7 +1478,7 @@ func (s *Service) hasAccessListRBAC(ctx context.Context, authCtx *authz.Context,
 func (s *Service) hasUserRBAC(ctx context.Context, authCtx *authz.Context, verb string, additionalVerbs ...string) bool {
 	authErr := authCtx.CheckAccessToKind(types.KindUser, verb, additionalVerbs...)
 	if authErr != nil {
-		s.log.WithError(authErr).Debug("hasUserRBAC had error")
+		s.logger.DebugContext(ctx, "hasUserRBAC had error", "error", authErr)
 	}
 
 	return authErr == nil
@@ -1513,7 +1513,7 @@ func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList
 func (s *Service) isOwnerOfAccessList(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList) error {
 	identity := authCtx.Identity.GetIdentity()
 	if err := services.IsAccessListOwner(identity, accessList); err != nil {
-		s.log.WithError(err).Debug("isOwnerOfAccessList returned error")
+		s.logger.DebugContext(ctx, "isOwnerOfAccessList returned error", "error", err)
 		// Return an opaque error
 		return trace.AccessDenied("access denied")
 	}
@@ -1754,7 +1754,7 @@ func (s *Service) emitCreateAccessListReview(ctx context.Context, username strin
 	}
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
-		s.log.WithError(emitErr).Warnf("Failed to emit access list review create: %v", event)
+		s.logger.WarnContext(ctx, "Failed to emit access list review create event", "error", emitErr)
 	}
 }
 
@@ -1781,7 +1781,7 @@ func (s *Service) emitCreateAccessListReviewUsageEvent(ctx context.Context, acce
 	}
 
 	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit access list review create usage event")
+		s.logger.WarnContext(ctx, "Failed to emit access list review create usage event", "error", err)
 	}
 }
 
@@ -1829,7 +1829,7 @@ func (s *Service) emitDeleteAccessListReviewUsageEvent(ctx context.Context, acce
 	}
 
 	if err := s.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{Event: event}); err != nil {
-		s.log.WithError(err).Warn("Failed to emit access list review delete usage event")
+		s.logger.WarnContext(ctx, "Failed to emit access list review delete usage event", "error", err)
 	}
 }
 
@@ -1862,7 +1862,7 @@ func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb
 	// Make sure the user is authorized within Teleport.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
-		s.log.WithError(err).Debug("Failed to authorize user")
+		s.logger.DebugContext(ctx, "Failed to authorize user", "error", err)
 		// Return an opaque error
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -1879,7 +1879,7 @@ func (s *Service) authOrIsOwner(ctx context.Context, accessListName string, verb
 	}
 
 	if getErr != nil {
-		s.log.WithError(err).Debug("Failed to get access list")
+		s.logger.DebugContext(ctx, "Failed to get access list", "error", getErr)
 		// Return an opaque error
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -1897,14 +1897,14 @@ func (s *Service) authOrIsOwnerWithAccessList(ctx context.Context, accessListNam
 	// Make sure the user is authorized within Teleport.
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
-		s.log.WithError(err).Debug("Failed to authorize user")
+		s.logger.DebugContext(ctx, "Failed to authorize user", "error", err)
 		// Return an opaque error
 		return nil, nil, trace.AccessDenied("access denied")
 	}
 
 	accessList, err := s.accessLists.GetAccessList(ctx, accessListName)
 	if err != nil {
-		s.log.WithError(err).Debug("Failed to get access list")
+		s.logger.DebugContext(ctx, "Failed to get access list", "error", err)
 		// Return an opaque error
 		return nil, nil, trace.AccessDenied("access denied")
 	}
@@ -1929,7 +1929,7 @@ func (s *Service) addMemberCounts(ctx context.Context, isMember bool, accessList
 
 	memberCount, err := s.accessLists.CountAccessListMembers(ctx, accessList.GetName())
 	if err != nil {
-		s.log.WithError(err).Error("Error counting access list members")
+		s.logger.ErrorContext(ctx, "Error counting access list members", "error", err)
 		return
 	}
 	accessList.Status.MemberCount = &memberCount
@@ -1956,7 +1956,7 @@ func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
 					IneligibleStatusReconcilerConfig{
 						Cache:   s.cache,
 						Service: s.accessLists,
-						Log:     s.log.WithField("reconciler", accessListIneligibleReconciler),
+						Logger:  s.logger.With("reconciler", accessListIneligibleReconciler),
 						Clock:   s.clock,
 					},
 				)
@@ -1965,7 +1965,7 @@ func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
 				}
 				defer reconciler.Close()
 				if err := reconciler.Run(ctx); err != nil {
-					s.log.WithError(err).Error("Error running access list ineligible reconciler")
+					s.logger.ErrorContext(ctx, "Error running access list ineligible reconciler", "error", err)
 					return trace.Wrap(err)
 				}
 				return nil
@@ -1977,7 +1977,7 @@ func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
 			case <-ctx.Done():
 				return trace.Wrap(err)
 			}
-			s.log.WithError(err).Error("Error running access list ineligible reconciler")
+			s.logger.ErrorContext(ctx, "Error running access list ineligible reconciler", "error", err)
 		}
 	}
 }

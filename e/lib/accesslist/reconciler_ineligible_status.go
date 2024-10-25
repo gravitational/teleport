@@ -2,11 +2,11 @@ package accesslist
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -20,8 +20,8 @@ type IneligibleStatusReconcilerConfig struct {
 	Cache Cache
 	// Service is the Access Lists service in the auth server.
 	Service AccessListUpdater
-	// Log is the logger.
-	Log logrus.FieldLogger
+	// Logger emits log messages.
+	Logger *slog.Logger
 	// Clock is the clock.
 	Clock clockwork.Clock
 }
@@ -67,7 +67,7 @@ func NewIneligibleStatusReconciler(ctx context.Context, cfg IneligibleStatusReco
 		cache:   cfg.Cache,
 		service: cfg.Service,
 		watcher: watcher,
-		log:     cfg.Log,
+		logger:  cfg.Logger,
 		clock:   cfg.Clock,
 	}, nil
 }
@@ -91,7 +91,7 @@ type IneligibleStatusReconciler struct {
 	service AccessListUpdater
 	clock   clockwork.Clock
 	watcher types.Watcher
-	log     logrus.FieldLogger
+	logger  *slog.Logger
 }
 
 const (
@@ -145,7 +145,7 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 				return nil
 			}
 		} else if err != nil {
-			r.log.WithError(err).Warn("Failed to reconcile memberships")
+			r.logger.WarnContext(ctx, "Failed to reconcile memberships", "error", err)
 		}
 
 		if nextExpirationTime <= 0 {
@@ -172,15 +172,9 @@ func (r *IneligibleStatusReconciler) Close() error {
 }
 
 func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now time.Time) (nextExpirationTime time.Duration, err error) {
-	r.log.Debug("Reconciling memberships")
+	r.logger.DebugContext(ctx, "Reconciling memberships")
 	defer func() {
-		fields := logrus.Fields{
-			"next_expiration_time": nextExpirationTime,
-		}
-		if err != nil && !trace.IsCompareFailed(err) {
-			fields["error"] = err
-		}
-		r.log.WithFields(fields).Debug("AccessList reconciliation complete")
+		r.logger.DebugContext(ctx, "AccessList reconciliation complete", "next_expiration_time", nextExpirationTime, "error", err)
 	}()
 	// get all users
 	users, err := getAllUsers(ctx, r.cache, 0 /* use the default page size */)
@@ -234,12 +228,12 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 			oldIneligibleStatus := owner.IneligibleStatus
 			owner.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
 			if oldIneligibleStatus != owner.IneligibleStatus {
-				r.log.WithFields(logrus.Fields{
-					"access_list": accessList.GetName(),
-					"username":    owner.Name,
-					"old_status":  oldIneligibleStatus,
-					"new_status":  owner.IneligibleStatus,
-				}).Debug("Updating access list owner ineligibility status")
+				r.logger.DebugContext(ctx, "Updating access list owner ineligibility status",
+					"access_list", accessList.GetName(),
+					"username", owner.Name,
+					"old_status", oldIneligibleStatus,
+					"new_status", owner.IneligibleStatus,
+				)
 				toUpdate = true
 			}
 			accessList.Spec.Owners[i] = owner
@@ -272,7 +266,7 @@ func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, n
 		for _, member := range accessListsMembers {
 			accessList, ok := accessListsMap[member.Spec.AccessList]
 			if !ok {
-				r.log.WithField("access_list", member.Spec.AccessList).Warn("Access list not found")
+				r.logger.WarnContext(ctx, "Access list not found", "access_list", member.Spec.AccessList)
 				continue
 			}
 			ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
@@ -285,12 +279,12 @@ func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, n
 			oldIneligibleStatus := member.Spec.IneligibleStatus
 			member.Spec.IneligibleStatus = ineligibleStatus.String()
 			if oldIneligibleStatus != member.Spec.IneligibleStatus {
-				r.log.WithFields(logrus.Fields{
-					"access_list": member.Spec.AccessList,
-					"username":    member.Spec.Name,
-					"old_status":  oldIneligibleStatus,
-					"new_status":  member.Spec.IneligibleStatus,
-				}).Debug("Updating access list member ineligibility status")
+				r.logger.DebugContext(ctx, "Updating access list member ineligibility status",
+					"access_list", member.Spec.AccessList,
+					"username", member.Spec.Name,
+					"old_status", oldIneligibleStatus,
+					"new_status", member.Spec.IneligibleStatus,
+				)
 				toUpdate = append(toUpdate, member)
 			}
 		}
