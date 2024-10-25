@@ -404,10 +404,27 @@ export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
   switch (engine) {
     case DatabaseEngine.Postgres:
     case DatabaseEngine.AuroraPostgres:
+    case DatabaseEngine.Redshift:
       return 'postgres';
     case DatabaseEngine.MySql:
     case DatabaseEngine.AuroraMysql:
       return 'mysql';
+    case DatabaseEngine.MongoDb:
+      return 'mongodb';
+    case DatabaseEngine.Redis:
+      return 'redis';
+    case DatabaseEngine.CoackroachDb:
+      return 'cockroachdb';
+    case DatabaseEngine.SqlServer:
+      return 'sqlserver';
+    case DatabaseEngine.Snowflake:
+      return 'snowflake';
+    case DatabaseEngine.Cassandra:
+      return 'cassandra';
+    case DatabaseEngine.ElasticSearch:
+      return 'elasticsearch';
+    case DatabaseEngine.DynamoDb:
+      return 'dynamodb';
   }
 
   return '' as any;
