@@ -61,23 +61,8 @@ type CLIPrompt struct {
 	cfg CLIPromptConfig
 }
 
-// NewCLIPrompt returns a new CLI mfa prompt with the config and writer.
-// TODO(Joerger): Delete once /e is no longer dependent on it.
-func NewCLIPrompt(cfg *PromptConfig, writer io.Writer) *CLIPrompt {
-	// If no config is provided, use defaults (zero value).
-	if cfg == nil {
-		cfg = new(PromptConfig)
-	}
-	return NewCLIPromptV2(&CLIPromptConfig{
-		PromptConfig: *cfg,
-		Writer:       writer,
-	})
-}
-
-// NewCLIPromptV2 returns a new CLI mfa prompt with the given config.
-// TODO(Joerger): this is V2 because /e depends on a different function
-// signature for NewCLIPrompt, so this requires a couple follow up PRs to fix.
-func NewCLIPromptV2(cfg *CLIPromptConfig) *CLIPrompt {
+// NewCLIPrompt returns a new CLI mfa prompt with the given config.
+func NewCLIPrompt(cfg *CLIPromptConfig) *CLIPrompt {
 	// If no config is provided, use defaults (zero value).
 	if cfg == nil {
 		cfg = new(CLIPromptConfig)
@@ -85,6 +70,12 @@ func NewCLIPromptV2(cfg *CLIPromptConfig) *CLIPrompt {
 	return &CLIPrompt{
 		cfg: *cfg,
 	}
+}
+
+// NewCLIPromptV2 returns a new CLI mfa prompt with the given config.
+// TODO(Joerger): remove once /e is no longer dependent on this.
+func NewCLIPromptV2(cfg *CLIPromptConfig) *CLIPrompt {
+	return NewCLIPrompt(cfg)
 }
 
 func (c *CLIPrompt) stdin() prompt.StdinReader {
