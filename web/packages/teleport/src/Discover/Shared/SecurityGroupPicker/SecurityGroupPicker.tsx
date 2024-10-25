@@ -67,7 +67,7 @@ export const SecurityGroupPicker = ({
     useState<ViewRulesSelection>();
 
   function onCloseRulesDialog() {
-    setViewRulesSelection(null);
+    setViewRulesSelection(undefined);
   }
 
   if (attempt.status === 'failed') {
@@ -160,7 +160,7 @@ export const SecurityGroupPicker = ({
                   altKey: 'tooltip',
                   headerText: '',
                   render: (sg: SecurityGroupWithRecommendation) => {
-                    if (sg.recommended) {
+                    if (sg.recommended && sg.tips?.length) {
                       return (
                         <Cell>
                           <ToolTipInfo>
@@ -173,7 +173,7 @@ export const SecurityGroupPicker = ({
                         </Cell>
                       );
                     }
-                    return null;
+                    return <Cell />;
                   },
                 },
               ]

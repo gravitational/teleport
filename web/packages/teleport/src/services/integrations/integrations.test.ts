@@ -121,6 +121,8 @@ test('fetchAwsDatabases response', async () => {
         accountId: 'account-id-1',
         resourceId: 'resource-id-1',
         vpcId: 'vpc-123',
+        subnets: [],
+        securityGroups: [],
       },
       {
         engine: 'mysql',
@@ -131,6 +133,8 @@ test('fetchAwsDatabases response', async () => {
         accountId: undefined,
         resourceId: undefined,
         vpcId: undefined,
+        subnets: [],
+        securityGroups: [],
       },
       {
         engine: 'mysql',
@@ -141,6 +145,8 @@ test('fetchAwsDatabases response', async () => {
         accountId: undefined,
         resourceId: undefined,
         vpcId: undefined,
+        subnets: [],
+        securityGroups: [],
       },
     ],
     nextToken: 'next-token',
