@@ -68,7 +68,7 @@ const ModalBox = styled.div`
   transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
 `;
 
-const DialogBox = styled.div<{ dialogCss?: StyleFunction<any> }>`
+const DialogBox = styled.div<{ dialogCss: StyleFunction<any> | undefined }>`
   padding: 32px;
   padding-top: 24px;
   background: ${props => props.theme.colors.levels.surface};
@@ -80,5 +80,5 @@ const DialogBox = styled.div<{ dialogCss?: StyleFunction<any> }>`
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  ${props => props.dialogCss && props.dialogCss?.(props)};
+  ${props => props.dialogCss?.(props)};
 `;
