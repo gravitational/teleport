@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Logger } from 'design/logger';
-
 /**
  * Copies text to clipboard.
  *
@@ -28,16 +26,13 @@ export async function copyToClipboard(textToCopy: string): Promise<void> {
     await navigator.clipboard.writeText(textToCopy);
   } catch (error) {
     // This can happen if the user denies clipboard permissions.
-    if (error instanceof Error) {
-      showErrorInBrowser(error, textToCopy);
-    } else {
-      new Logger('copyToClipboard').error(error);
-    }
+    showErrorInBrowser(error, textToCopy);
   }
 }
 
-function showErrorInBrowser(error: Error, textToCopy: string): void {
-  const message = `Cannot copy to clipboard. Use Ctrl/Cmd + C.\n${error.message}`;
+function showErrorInBrowser(error: unknown, textToCopy: string): void {
+  const errorMessage = error instanceof Error ? error.message : `${error}`;
+  const message = `Cannot copy to clipboard. Use Ctrl/Cmd + C.\n${errorMessage}`;
   try {
     // window.prompt doesn't work in Electron.
     window.prompt(message, textToCopy);
