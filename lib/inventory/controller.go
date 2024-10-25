@@ -351,9 +351,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	defer func() {
 		if handle.goodbye.GetDeleteResources() {
 			log.WithFields(log.Fields{
-				"apps": len(handle.appServers),
-				"dbs":  len(handle.databaseServers),
-				"kube": len(handle.kubernetesServers),
+				"apps":      len(handle.appServers),
+				"dbs":       len(handle.databaseServers),
+				"kube":      len(handle.kubernetesServers),
+				"server_id": handle.Hello().ServerID,
 			}).Debug("Cleaning up resources in response to instance termination")
 			for _, app := range handle.appServers {
 				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
