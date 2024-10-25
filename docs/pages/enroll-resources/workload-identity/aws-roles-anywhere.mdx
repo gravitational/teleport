@@ -32,6 +32,25 @@ Whilst this guide is primarily aimed at allowing a machine to access AWS,
 the `tsh svid issue` command can be used in place of Machine ID to allow a human
 user to authenticate with using AWS Roles Anywhere.
 
+## OIDC Federation vs Roles Anywhere
+
+The AWS platform offers two routes for workload identity federation: OIDC
+Federation and Roles Anywhere. Teleport Workload Identity supports both of these
+methods.
+
+There are a number of differences between the two methods:
+
+- Roles Anywhere exchanges an X509 SVID for an AWS credential, whereas OIDC
+  Federation exchanges a JWT SVID for an AWS credential. The use of X509 SVIDs
+  is generally considered more secure.
+- Roles Anywhere requires the installation of an AWS credential helper alongside
+  the workloads, whereas OIDC Federation does not.
+- Roles Anywhere does not require the Teleport Proxy Service to be reachable by
+  AWS, whereas OIDC Federation does.
+
+This guide covers configuring Roles Anywhere, for OIDC federation, see
+[Configuring Workload Identity and AWS OIDC Federation](./aws-oidc-federation.mdx).
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -39,7 +58,7 @@ user to authenticate with using AWS Roles Anywhere.
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the host where the
 workloads which need to access Teleport Workload Identity will run. For more
-information, see the [deployment guides](../machine-id/deployment.mdx).
+information, see the [deployment guides](../machine-id/deployment/deployment.mdx).
 
 ### Deciding on a SPIFFE ID structure
 

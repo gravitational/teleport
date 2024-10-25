@@ -102,6 +102,45 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 							AWSOIDC: &AWSOIDCIntegrationSpecV1{
 								RoleARN:     "some arn role",
 								IssuerS3URI: "s3://my-issuer/my-prefix",
+								Audience:    "",
+							},
+						},
+					},
+				}
+			},
+			expectedErrorIs: noErrorFunc,
+		},
+		{
+			name: "aws-oidc: valid with supported audience value",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN:     "some arn role",
+						IssuerS3URI: "s3://my-issuer/my-prefix",
+						Audience:    IntegrationAWSOIDCAudienceAWSIdentityCenter,
+					},
+				)
+			},
+			expectedIntegration: func(name string) *IntegrationV1 {
+				return &IntegrationV1{
+					ResourceHeader: ResourceHeader{
+						Kind:    KindIntegration,
+						SubKind: IntegrationSubKindAWSOIDC,
+						Version: V1,
+						Metadata: Metadata{
+							Name:      name,
+							Namespace: defaults.Namespace,
+						},
+					},
+					Spec: IntegrationSpecV1{
+						SubKindSpec: &IntegrationSpecV1_AWSOIDC{
+							AWSOIDC: &AWSOIDCIntegrationSpecV1{
+								RoleARN:     "some arn role",
+								IssuerS3URI: "s3://my-issuer/my-prefix",
+								Audience:    IntegrationAWSOIDCAudienceAWSIdentityCenter,
 							},
 						},
 					},
@@ -159,6 +198,21 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 						Name: name,
 					},
 					&AWSOIDCIntegrationSpecV1{},
+				)
+			},
+			expectedErrorIs: trace.IsBadParameter,
+		},
+		{
+			name: "aws-oidc: error when invalid audience value is provided",
+			integration: func(name string) (*IntegrationV1, error) {
+				return NewIntegrationAWSOIDC(
+					Metadata{
+						Name: name,
+					},
+					&AWSOIDCIntegrationSpecV1{
+						RoleARN:  "some-role",
+						Audience: "testvalue",
+					},
 				)
 			},
 			expectedErrorIs: trace.IsBadParameter,

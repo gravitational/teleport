@@ -7275,6 +7275,14 @@ message AWSOIDCIntegrationSpecV1 {
     (gogoproto.jsontag) = "issuer_s3_uri,omitempty",
     deprecated = true
   ];
+
+  // Audience is used to record a name of a plugin or a discover service in Teleport
+  // that depends on this integration.
+  // Audience value can be empty or configured with supported preset audience type.
+  // Preset audience may impose specific behavior on the integration CRUD API,
+  // such as preventing integration from update or deletion. Empty audience value
+  // should be treated as a default and backward-compatible behavior of the integration.
+  string audience = 3 [(gogoproto.jsontag) = "audience,omitempty"];
 }
 
 // AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.

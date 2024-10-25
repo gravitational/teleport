@@ -59,6 +59,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -69,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1544,7 +1546,14 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
-	} else if err == nil {
+	}
+	// If we can't get the AU config or tools AU are not configured, we default to "disabled".
+	// This ensures we fail open and don't accidentally update agents if something is going wrong.
+	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
+	// than changing this logic.
+	if autoUpdateConfig.GetSpec().GetTools() == nil {
+		response.AutoUpdate.ToolsMode = autoupdate.ToolsUpdateModeDisabled
+	} else {
 		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
 	}
 
@@ -1552,7 +1561,12 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
-	} else if err == nil {
+	}
+	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
+	// This ensures we always advertise a version compatible with the cluster.
+	if autoUpdateVersion.GetSpec().GetTools() == nil {
+		response.AutoUpdate.ToolsVersion = api.Version
+	} else {
 		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
 	}
 
