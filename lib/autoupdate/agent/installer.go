@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -400,7 +401,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		old, new string
 	}
 	var revertLinks []symlink
-	revert = func(ctx context.Context) bool {
+	revertFunc := func(ctx context.Context) bool {
 		ok := true
 		for _, l := range revertLinks {
 			err := renameio.Symlink(l.old, l.new)
@@ -414,7 +415,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	// revert on error
 	defer func() {
 		if err != nil {
-			revert(ctx)
+			revertFunc(ctx)
 		}
 	}()
 
@@ -428,6 +429,11 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		oldname := filepath.Join(binDir, entry.Name())
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
 		orig, err := os.Readlink(newname)
+		if errors.Is(err, os.ErrInvalid) ||
+			errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
+			// important: do not attempt to replace a non-linked install of Teleport
+			return nil, trace.Errorf("refusing to replace file at %s", newname)
+		}
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, trace.Wrap(err)
 		}
@@ -452,6 +458,11 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	oldname := filepath.Join(versionDir, servicePath)
 	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
 	orig, err := os.Readlink(newname)
+	if errors.Is(err, os.ErrInvalid) ||
+		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
+		// important: do not attempt to replace a non-linked install of Teleport
+		return nil, trace.Errorf("refusing to replace file at %s", newname)
+	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, trace.Wrap(err)
 	}
@@ -465,7 +476,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 			new: newname,
 		})
 	}
-	return revert, nil
+	return revertFunc, nil
 }
 
 // versionDir returns the storage directory for a Teleport version.
