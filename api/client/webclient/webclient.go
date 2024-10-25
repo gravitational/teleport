@@ -305,6 +305,10 @@ type PingResponse struct {
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
+	// Edition represents the Teleport edition. Possible values are "oss", "ent", and "community".
+	Edition string `json:"edition"`
+	// FIPS represents if Teleport is using FIPS-compliant cryptography.
+	FIPS bool `json:"fips"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.

@@ -1542,59 +1542,63 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		MinClientVersion:  teleport.MinClientVersion,
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
+		AutoUpdate:        h.automaticUpdateSettings(r.Context()),
+		Edition:           modules.GetModules().BuildType(),
+		FIPS:              modules.IsBoringBinary(),
 	}, nil
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	// cache the generic answer to avoid doing work for each request
 	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (*webclient.PingResponse, error) {
-		response := webclient.PingResponse{
+		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		authPref, err := h.cfg.AccessPoint.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &webclient.PingResponse{
+			Proxy:            *proxyConfig,
+			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
 			ServerVersion:    teleport.Version,
 			MinClientVersion: teleport.MinClientVersion,
 			ClusterName:      h.auth.clusterName,
-		}
-
-		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		response.Proxy = *proxyConfig
-
-		authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		response.Auth = webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()}
-
-		autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
-		// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-		if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-			h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
-		}
-
-		autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
-		// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-		if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-			h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
-		}
-
-		response.AutoUpdate = webclient.AutoUpdateSettings{
-			ToolsMode:                getToolsMode(autoUpdateConfig),
-			ToolsVersion:             getToolsVersion(autoUpdateVersion),
-			AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-			AgentVersion:             getAgentVersion(autoUpdateVersion),
-			AgentAutoUpdate:          agentShouldUpdate(autoUpdateConfig, autoUpdateVersion),
-		}
-
-		return &response, nil
+			Edition:          modules.GetModules().BuildType(),
+			FIPS:             modules.IsBoringBinary(),
+			AutoUpdate:       h.automaticUpdateSettings(ctx),
+		}, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// TODO: modulate autoupdate response here based on the updater group and uuid.
-
 	return resp, nil
+}
+
+// TODO: add the request as a parameter when we'll need to modulate the content based on the UUID and group
+func (h *Handler) automaticUpdateSettings(ctx context.Context) webclient.AutoUpdateSettings {
+	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(ctx)
+	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
+	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateConfig", "error", err)
+	}
+
+	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
+	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
+	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(ctx, "failed to receive AutoUpdateVersion", "error", err)
+	}
+
+	return webclient.AutoUpdateSettings{
+		ToolsMode:                getToolsMode(autoUpdateConfig),
+		ToolsVersion:             getToolsVersion(autoUpdateVersion),
+		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+		AgentVersion:             getAgentVersion(autoUpdateVersion),
+		AgentAutoUpdate:          agentShouldUpdate(autoUpdateConfig, autoUpdateVersion),
+	}
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
