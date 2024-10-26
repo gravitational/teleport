@@ -105,6 +105,7 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 			Roles:          loggedInUser.Roles,
 			ActiveRequests: loggedInUser.ActiveRequests,
 		},
+		SsoHostname: cluster.SSOHostname,
 	}
 
 	if cluster.GetProfileStatusError() != nil {
