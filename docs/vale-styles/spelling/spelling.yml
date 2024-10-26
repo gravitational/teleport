@@ -1,0 +1,15 @@
+extends: spelling
+message: "Incorrect spelling: %s. To ignore the spellchecker for this word, either (a) wrap it in `backticks` (if it is code) or (b) add the word to docs/vale-styles/spelling/ignore.txt."
+level: error
+scope:
+  - heading
+  - table
+  - list
+  - paragraph
+ignore:
+   - "spelling/ignore.txt"
+# Patterns to ignore
+filters:
+  # Abbreviations, including the plural and possessive forms
+  - "[A-Z]+'?s?"
+
