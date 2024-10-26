@@ -1992,7 +1992,7 @@ func onLogin(cf *CLIConf) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := updateAndRun(context.Background(), tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 		}

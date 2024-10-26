@@ -188,18 +188,17 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	// If a version of client tools has already been downloaded to
 	// tools directory, return that.
 	toolsVersion, err := CheckToolVersion(u.toolsDir)
-	if trace.IsNotFound(err) {
-		return u.localVersion, false, nil
-	}
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return "", false, trace.Wrap(err)
 	}
 
 	switch {
 	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
-		return toolsVersion, true, nil
+		if toolsVersion == "" {
+			return u.localVersion, false, nil
+		}
 	case u.localVersion == resp.AutoUpdate.ToolsVersion:
-		return resp.AutoUpdate.ToolsVersion, false, nil
+		return u.localVersion, false, nil
 	case resp.AutoUpdate.ToolsVersion != toolsVersion:
 		return resp.AutoUpdate.ToolsVersion, true, nil
 	}
