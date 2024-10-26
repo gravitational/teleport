@@ -55,7 +55,11 @@ export default function useManageDevices(ctx: Ctx) {
     // they have no valid devices to be challenged and should instead use a privilege token
     // to add a new device.
     // TODO (avatus): add SSO challenge here as well when we add SSO for MFA
-    if (!response.webauthnPublicKey?.challenge && !response.totpChallenge) {
+    if (
+      !response.webauthnPublicKey?.challenge &&
+      !response.totpChallenge &&
+      !response.ssoChallenge
+    ) {
       createRestrictedTokenAttempt.run(() =>
         auth.createRestrictedPrivilegeToken().then(token => {
           setToken(token);

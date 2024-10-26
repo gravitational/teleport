@@ -155,6 +155,7 @@ function getReauthenticationErrorMessage(
   numMfaOptions: number,
   attempt: Attempt
 ): string {
+  console.log({ auth2faType });
   if (numMfaOptions === 0) {
     switch (auth2faType) {
       case 'on':
