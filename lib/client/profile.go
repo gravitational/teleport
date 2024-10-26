@@ -242,6 +242,9 @@ type ProfileStatus struct {
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
+
+	// SSOHostname is the hostname of the SSO provider used to login..
+	SSOHostname string
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
@@ -255,6 +258,7 @@ type profileOptions struct {
 	KubeProxyAddr           string
 	IsVirtual               bool
 	SAMLSingleLogoutEnabled bool
+	SSOHostname             string
 }
 
 // profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
