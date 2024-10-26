@@ -370,6 +370,9 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if staticCreds == nil {
 			return trace.BadParameter("Email plugin must be used with the static credentials ref type")
 		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	default:
 		return nil
 	}
