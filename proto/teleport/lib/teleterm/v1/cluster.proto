@@ -64,6 +64,8 @@ message Cluster {
   // profile_status_error is set if there was an error when reading the profile.
   // This allows the app to be usable, when one or more profiles cannot be read.
   string profile_status_error = 12;
+  // sso_hostname is the hostname of the SSO provider used to login..
+  string sso_hostname = 13;
 }
 
 // ShowResources tells if the cluster can show requestable resources on the resources page.

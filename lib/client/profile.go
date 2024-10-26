@@ -379,6 +379,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		IsVirtual:               opts.IsVirtual,
 		AllowedResourceIDs:      allowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
+		SSOHostname:             opts.SSOHostname,
 	}, nil
 }
 
