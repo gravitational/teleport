@@ -173,6 +173,26 @@ func NewKubernetesServerHeartbeat(cfg HeartbeatV2Config[*types.KubernetesServerV
 	}), nil
 }
 
+// NewWindowsDesktopHeartbeat creates a [HeartbeatV2] that can be used to update
+// the presence of [types.WindowsDesktopV3].
+func NewWindowsDesktopHeartbeat(cfg HeartbeatV2Config[*types.WindowsDesktopV3]) (*HeartbeatV2, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inner := &windowsDesktopHeartbeatV2{
+		getServer: cfg.GetResource,
+		announcer: cfg.Announcer,
+	}
+
+	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
+		onHeartbeatInner:           cfg.OnHeartbeat,
+		announceInterval:           cfg.AnnounceInterval,
+		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
+		pollInterval:               cfg.PollInterval,
+	}), nil
+}
+
 // hbv2TestEvent is a basic event type used to monitor/await
 // specific events within the HeartbeatV2 type's operations
 // during tests.
@@ -801,5 +821,69 @@ func (h *kubeServerHeartbeatV2) Announce(ctx context.Context, sender inventory.D
 	}
 
 	h.prev = server
+	return true
+}
+
+// windowsDesktopHeartbeatV2 is the heartbeatV2 implementation for Windows desktops.
+type windowsDesktopHeartbeatV2 struct {
+	getServer func(ctx context.Context) (*types.WindowsDesktopV3, error)
+	announcer authclient.Announcer
+	prev      *types.WindowsDesktopV3
+}
+
+func (w *windowsDesktopHeartbeatV2) Poll(ctx context.Context) (changed bool) {
+	if w.prev == nil {
+		return true
+	}
+
+	server, err := w.getServer(ctx)
+	if err != nil {
+		return false
+	}
+
+	return services.CompareServers(server, w.prev) == services.Different
+}
+
+func (w *windowsDesktopHeartbeatV2) SupportsFallback() bool {
+	return w.announcer != nil
+}
+
+func (w *windowsDesktopHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
+	if !w.SupportsFallback() {
+		return false
+	}
+
+	server, err := w.getServer(ctx)
+	if err != nil {
+		log.Warnf("Failed to perform fallback heartbeat for desktop: %v", err)
+		return false
+	}
+
+	if err := w.announcer.UpsertWindowsDesktop(ctx, server); err != nil {
+		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+			log.Warnf("Failed to perform fallback heartbeat for windows desktop: %v", err)
+		}
+		return false
+	}
+
+	w.prev = server
+	return true
+}
+
+func (w *windowsDesktopHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
+	server, err := w.getServer(ctx)
+	if err != nil {
+		log.Warnf("Failed to perform inventory heartbeat for windows desktop: %v", err)
+		return false
+	}
+
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{
+		WindowsDesktop: apiutils.CloneProtoMsg(server),
+	}); err != nil {
+		log.Warnf("Failed to perform inventory heartbeat for windows desktop: %v", err)
+		return false
+	}
+
+	w.prev = server
 	return true
 }

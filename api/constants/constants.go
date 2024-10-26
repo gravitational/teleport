@@ -102,6 +102,9 @@ const (
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
 
+	// KeepAliveWindowsDesktop is the keep alive type for a Windows desktop.
+	KeepAliveWindowsDesktop = "windows_desktop"
+
 	// KeepAliveWindowsDesktopService is the keep alive type for a Windows
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"

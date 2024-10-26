@@ -52,6 +52,9 @@ type Auth interface {
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
 
+	UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error
+	DeleteWindowsDesktop(ctx context.Context, hostID, name string) error
+
 	KeepAliveServer(context.Context, types.KeepAlive) error
 	UpsertInstance(ctx context.Context, instance types.Instance) error
 }
@@ -97,6 +100,16 @@ const (
 
 	kubeUpsertRetryOk  testEvent = "kube-upsert-retry-ok"
 	kubeUpsertRetryErr testEvent = "kube-upsert-retry-err"
+
+	windowsDesktopKeepAliveOk  testEvent = "windows-desktop-keep-alive-ok"
+	windowsDesktopKeepAliveErr testEvent = "windows-desktop-keep-alive-err"
+	windowsDesktopKeepAliveDel testEvent = "windows-desktop-keep-alive-del"
+
+	windowsDesktopUpsertOk  testEvent = "windows-desktop-upsert-ok"
+	windowsDesktopUpsertErr testEvent = "windows-desktop-upsert-err"
+
+	windowsDesktopUpsertRetryOk  testEvent = "windows-desktop-upsert-retry-ok"
+	windowsDesktopUpsertRetryErr testEvent = "windows-desktop-upsert-retry-err"
 
 	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
 	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
@@ -354,6 +367,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				"apps":      len(handle.appServers),
 				"dbs":       len(handle.databaseServers),
 				"kube":      len(handle.kubernetesServers),
+				"desktops":  len(handle.windowsDesktops),
 				"server_id": handle.Hello().ServerID,
 			}).Debug("Cleaning up resources in response to instance termination")
 			for _, app := range handle.appServers {
@@ -371,6 +385,12 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			for _, kube := range handle.kubernetesServers {
 				if err := c.auth.DeleteKubernetesServer(c.closeContext, kube.resource.GetHostID(), kube.resource.GetName()); err != nil && !trace.IsNotFound(err) {
 					log.Warnf("Failed to remove kube server %q on termination: %v.", handle.Hello().ServerID, err)
+				}
+			}
+
+			for _, desktop := range handle.windowsDesktops {
+				if err := c.auth.DeleteWindowsDesktop(c.closeContext, desktop.resource.GetHostID(), desktop.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+					log.Warnf("Failed to remove Windows desktop %q on termination: %v", handle.Hello().ServerID, err)
 				}
 			}
 		}
@@ -399,9 +419,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			c.onDisconnectFunc(constants.KeepAliveKube, len(handle.kubernetesServers))
 		}
 
+		if len(handle.windowsDesktops) > 0 {
+			c.onDisconnectFunc(constants.KeepAliveWindowsDesktop, len(handle.windowsDesktops))
+		}
+
 		clear(handle.appServers)
 		clear(handle.databaseServers)
 		clear(handle.kubernetesServers)
+		clear(handle.windowsDesktops)
 		c.testEvent(handlerClose)
 	}()
 
@@ -583,6 +608,12 @@ func (c *Controller) handleHeartbeatMsg(handle *upstreamHandle, hb proto.Invento
 
 	if hb.KubernetesServer != nil {
 		if err := c.handleKubernetesServerHB(handle, hb.KubernetesServer); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if hb.WindowsDesktop != nil {
+		if err := c.handleWindowsDesktopHB(handle, hb.WindowsDesktop); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -779,6 +810,53 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	return nil
 }
 
+func (c *Controller) handleWindowsDesktopHB(handle *upstreamHandle, desktop *types.WindowsDesktopV3) error {
+	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
+	// client cert. after that point it is our responsibility to ensure that heartbeated information is
+	// consistent with the identity and capabilities claimed in the initial hello.
+	if !(handle.HasService(types.RoleWindowsDesktop) || handle.HasService(types.RoleProxy)) {
+		return trace.AccessDenied("control stream not configured to support Windows desktop heartbeats")
+	}
+	if desktop.GetHostID() != handle.Hello().ServerID {
+		return trace.AccessDenied("incorrect desktop ID (expected %q, got %q)", handle.Hello().ServerID, desktop.GetHostID())
+	}
+
+	if handle.windowsDesktops == nil {
+		handle.windowsDesktops = make(map[resourceKey]*heartBeatInfo[*types.WindowsDesktopV3])
+	}
+
+	key := resourceKey{hostID: desktop.GetHostID(), name: desktop.GetName()}
+
+	if _, ok := handle.windowsDesktops[key]; !ok {
+		c.onConnectFunc(constants.KeepAliveWindowsDesktop)
+		handle.windowsDesktops[key] = &heartBeatInfo[*types.WindowsDesktopV3]{}
+	}
+
+	now := time.Now()
+	desktop.SetExpiry(now.Add(c.serverTTL).UTC())
+
+	err := c.auth.UpsertWindowsDesktop(c.closeContext, desktop)
+	if err == nil {
+		c.testEvent(windowsDesktopUpsertOk)
+		// store the new lease and reset retry state
+		srv := handle.windowsDesktops[key]
+		// srv.lease = lease TODO(zmb3)
+		srv.retryUpsert = false
+		srv.resource = desktop
+	} else {
+		c.testEvent(windowsDesktopUpsertErr)
+		log.Warnf("Failed to upsert Windows desktop %q on heartbeat: %v.", handle.Hello().ServerID, err)
+
+		// blank old lease if any and set retry state. next time handleKeepAlive is called
+		// we will attempt to upsert the server again.
+		srv := handle.windowsDesktops[key]
+		srv.lease = nil
+		srv.retryUpsert = true
+		srv.resource = desktop
+	}
+	return nil
+}
+
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
 	handle.SetAgentMetadata(m)
 
@@ -821,6 +899,10 @@ func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) erro
 	}
 
 	if err := c.keepAliveKubernetesServer(handle, now); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.keepAliveWindowsDesktop(handle, now); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -998,6 +1080,48 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 		handle.sshServer.retryUpsert = false
 	}
 
+	return nil
+}
+
+func (c *Controller) keepAliveWindowsDesktop(handle *upstreamHandle, now time.Time) error {
+	for name, srv := range handle.windowsDesktops {
+		if srv.lease != nil {
+			lease := *srv.lease
+			lease.Expires = now.Add(c.serverTTL).UTC()
+			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+				c.testEvent(windowsDesktopKeepAliveErr)
+
+				srv.keepAliveErrs++
+				handle.windowsDesktops[name] = srv
+				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+				log.Warnf("Failed to keep alive Windows desktop %q: %v (count=%d, removing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldRemove)
+
+				if shouldRemove {
+					c.testEvent(windowsDesktopKeepAliveDel)
+					c.onDisconnectFunc(constants.KeepAliveWindowsDesktop, 1)
+					delete(handle.windowsDesktops, name)
+				}
+			} else {
+				srv.keepAliveErrs = 0
+				c.testEvent(windowsDesktopKeepAliveOk)
+			}
+		} else if srv.retryUpsert {
+			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+			err := c.auth.UpsertWindowsDesktop(c.closeContext, srv.resource)
+			if err != nil {
+				c.testEvent(windowsDesktopUpsertRetryErr)
+				log.Warnf("Failed to upsert Windows desktop %q on retry: %v.", handle.Hello().ServerID, err)
+				// since this is retry-specific logic, an error here means that upsert failed twice in
+				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
+				// attempting a third time.
+				return trace.Errorf("failed to upsert Windows desktop on retry: %v", err)
+			}
+			c.testEvent(windowsDesktopUpsertRetryOk)
+
+			// srv.lease = lease TODO(zmb3)
+			srv.retryUpsert = false
+		}
+	}
 	return nil
 }
 

@@ -4715,13 +4715,15 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
-			NodeHeartbeats:       true,
-			AppHeartbeats:        true,
-			AppCleanup:           true,
-			DatabaseHeartbeats:   true,
-			DatabaseCleanup:      true,
-			KubernetesHeartbeats: true,
-			KubernetesCleanup:    true,
+			NodeHeartbeats:           true,
+			AppHeartbeats:            true,
+			AppCleanup:               true,
+			DatabaseHeartbeats:       true,
+			DatabaseCleanup:          true,
+			KubernetesHeartbeats:     true,
+			KubernetesCleanup:        true,
+			WindowsDesktopHeartbeats: true,
+			WindowsDesktopCleanup:    true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
