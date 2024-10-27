@@ -103,8 +103,13 @@ export const renderTimeCell = ({ time }: Event) => (
   <Cell style={{ minWidth: '120px' }}>{time.toISOString()}</Cell>
 );
 
-export function renderDescCell({ message }: Event) {
-  return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
+export function renderDescCell(event: Event) {
+  const { message, render } = event;
+  return (
+    <Cell style={{ wordBreak: 'break-word' }}>
+      {render ? render(event.raw) : message}
+    </Cell>
+  );
 }
 
 type Props = {
