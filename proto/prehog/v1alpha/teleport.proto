@@ -1451,10 +1451,6 @@ message SubmitEventRequest {
     UserLoginEvent user_login = 3;
     SSOCreateEvent sso_create = 4;
     ResourceCreateEvent resource_create = 5;
-
-    // REMOVE IN V14: Use session_start_v2 instead
-    SessionStartEvent session_start = 6;
-
     UIBannerClickEvent ui_banner_click = 7;
     UIOnboardCompleteGoToDashboardClickEvent ui_onboard_complete_go_to_dashboard_click = 9;
     UIOnboardAddFirstResourceClickEvent ui_onboard_add_first_resource_click = 10;
@@ -1590,6 +1586,9 @@ message SubmitEventRequest {
 
     UserTaskStateEvent user_task_state = 94;
   }
+
+  reserved 6;
+  reserved "session_start"; // SessionStartEvent
 
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

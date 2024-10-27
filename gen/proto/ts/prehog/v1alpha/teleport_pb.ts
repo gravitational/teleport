@@ -2619,14 +2619,6 @@ export interface SubmitEventRequest {
          */
         resourceCreate: ResourceCreateEvent;
     } | {
-        oneofKind: "sessionStart";
-        /**
-         * REMOVE IN V14: Use session_start_v2 instead
-         *
-         * @generated from protobuf field: prehog.v1alpha.SessionStartEvent session_start = 6;
-         */
-        sessionStart: SessionStartEvent;
-    } | {
         oneofKind: "uiBannerClick";
         /**
          * @generated from protobuf field: prehog.v1alpha.UIBannerClickEvent ui_banner_click = 7;
@@ -9767,7 +9759,6 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 3, name: "user_login", kind: "message", oneof: "event", T: () => UserLoginEvent },
             { no: 4, name: "sso_create", kind: "message", oneof: "event", T: () => SSOCreateEvent },
             { no: 5, name: "resource_create", kind: "message", oneof: "event", T: () => ResourceCreateEvent },
-            { no: 6, name: "session_start", kind: "message", oneof: "event", T: () => SessionStartEvent },
             { no: 7, name: "ui_banner_click", kind: "message", oneof: "event", T: () => UIBannerClickEvent },
             { no: 9, name: "ui_onboard_complete_go_to_dashboard_click", kind: "message", oneof: "event", T: () => UIOnboardCompleteGoToDashboardClickEvent },
             { no: 10, name: "ui_onboard_add_first_resource_click", kind: "message", oneof: "event", T: () => UIOnboardAddFirstResourceClickEvent },
@@ -9891,12 +9882,6 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                     message.event = {
                         oneofKind: "resourceCreate",
                         resourceCreate: ResourceCreateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).resourceCreate)
-                    };
-                    break;
-                case /* prehog.v1alpha.SessionStartEvent session_start */ 6:
-                    message.event = {
-                        oneofKind: "sessionStart",
-                        sessionStart: SessionStartEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionStart)
                     };
                     break;
                 case /* prehog.v1alpha.UIBannerClickEvent ui_banner_click */ 7:
@@ -10442,9 +10427,6 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.ResourceCreateEvent resource_create = 5; */
         if (message.event.oneofKind === "resourceCreate")
             ResourceCreateEvent.internalBinaryWrite(message.event.resourceCreate, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.SessionStartEvent session_start = 6; */
-        if (message.event.oneofKind === "sessionStart")
-            SessionStartEvent.internalBinaryWrite(message.event.sessionStart, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         /* prehog.v1alpha.UIBannerClickEvent ui_banner_click = 7; */
         if (message.event.oneofKind === "uiBannerClick")
             UIBannerClickEvent.internalBinaryWrite(message.event.uiBannerClick, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
