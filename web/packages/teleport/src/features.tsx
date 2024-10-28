@@ -19,7 +19,6 @@
 import React from 'react';
 
 import {
-  AddCircle,
   Bots as BotsIcon,
   CirclePlay,
   ClipboardUser,
@@ -29,14 +28,14 @@ import {
   Laptop,
   ListAddCheck,
   ListThin,
-  Lock,
+  LockKey,
+  PlugsConnected,
   Question,
   Server,
-  ShieldCheck,
   SlidersVertical,
   Terminal,
   UserCircleGear,
-  Users as UsersIcon,
+  User as UserIcon,
 } from 'design/Icon';
 
 import cfg from 'teleport/config';
@@ -221,7 +220,7 @@ export class FeatureUsers implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.Users,
-    icon: UsersIcon,
+    icon: UserIcon,
     exact: true,
     getLink() {
       return cfg.getUsersRoute();
@@ -268,13 +267,12 @@ export class FeatureBots implements TeleportFeature {
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.Access;
-  hideFromNavigation = true;
+  sideNavCategory = SideNavigationCategory.AddNew;
 
   route = {
-    title: 'New Bot',
+    title: 'Bot',
     path: cfg.routes.botsNew,
-    exact: false,
+    exact: true,
     component: () => <AddBots />,
   };
 
@@ -285,6 +283,16 @@ export class FeatureAddBots implements TeleportFeature {
   getRoute() {
     return this.route;
   }
+
+  navigationItem = {
+    title: NavTitle.NewBot,
+    icon: BotsIcon,
+    exact: true,
+    getLink() {
+      return cfg.getBotsNewRoute();
+    },
+    searchableTags: ['add bot', 'new bot', 'bots'],
+  };
 }
 
 export class FeatureRoles implements TeleportFeature {
@@ -332,7 +340,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.AuthConnectors,
-    icon: ShieldCheck,
+    icon: PlugsConnected,
     exact: false,
     getLink() {
       return cfg.routes.sso;
@@ -359,7 +367,7 @@ export class FeatureLocks implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.SessionAndIdentityLocks,
-    icon: Lock,
+    icon: LockKey,
     exact: false,
     getLink() {
       return cfg.getLocksRoute();
@@ -394,7 +402,7 @@ export class FeatureDiscover implements TeleportFeature {
   standalone = true;
 
   route = {
-    title: 'Enroll New Resource',
+    title: 'Resource',
     path: cfg.routes.discover,
     exact: true,
     component: Discover,
@@ -402,12 +410,12 @@ export class FeatureDiscover implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.EnrollNewResource,
-    icon: AddCircle,
+    icon: Server,
     exact: true,
     getLink() {
       return cfg.routes.discover;
     },
-    searchableTags: ['new resource', 'add'],
+    searchableTags: ['new', 'add', 'enroll', 'resources'],
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -453,11 +461,10 @@ export class FeatureIntegrations implements TeleportFeature {
 export class FeatureIntegrationEnroll implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
-  sideNavCategory = SideNavigationCategory.Access;
-  parent = FeatureIntegrations;
+  sideNavCategory = SideNavigationCategory.AddNew;
 
   route = {
-    title: 'Enroll New Integration',
+    title: 'Integration',
     path: cfg.routes.integrationEnroll,
     exact: false,
     component: () => <IntegrationEnroll />,
@@ -469,10 +476,11 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   navigationItem = {
     title: NavTitle.EnrollNewIntegration,
-    icon: AddCircle,
+    icon: IntegrationsIcon,
     getLink() {
       return cfg.getIntegrationEnrollRoute(null);
     },
+    searchableTags: ['new', 'add', 'enroll', 'integration'],
   };
 
   // getRoute allows child class extending this
@@ -586,7 +594,7 @@ export class FeatureTrust implements TeleportFeature {
     getLink() {
       return cfg.routes.trustedClusters;
     },
-    searchableTags: ['clusters', 'trusted clusters'],
+    searchableTags: ['clusters', 'trusted clusters', 'root clusters'],
   };
 }
 
@@ -668,17 +676,18 @@ export function getOSSFeatures(): TeleportFeature[] {
     // TODO(rudream): Implement shortcuts to pinned/nodes/apps/dbs/desktops/kubes.
     new FeatureUnifiedResources(),
 
-    // Management
+    // AddNew
+    new FeatureDiscover(),
+    new FeatureIntegrationEnroll(),
+    new FeatureAddBots(),
 
     // - Access
     new FeatureUsers(),
-    new FeatureRoles(),
     new FeatureBots(),
-    new FeatureAddBots(),
     new FeatureJoinTokens(),
+    new FeatureRoles(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
-    new FeatureIntegrationEnroll(),
     new FeatureClusters(),
     new FeatureTrust(),
 
@@ -692,8 +701,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAudit(),
     new FeatureRecordings(),
     new FeatureSessions(),
-
-    new FeatureDiscover(),
 
     // Other
     new FeatureAccount(),
