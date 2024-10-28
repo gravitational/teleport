@@ -146,7 +146,7 @@ func extractFile(tarball *tar.Reader, header *tar.Header, dir string, dirMode os
 }
 
 // sanitizeTarPath checks that the tar header paths resolve to a subdirectory
-// path, and don't contain file paths or links that could escape the tar fileteleport.DirMaskSharedGroup
+// path, and don't contain file paths or links that could escape the tar file
 // like ../../etc/password.
 func sanitizeTarPath(header *tar.Header, dir string) error {
 	// Sanitize all tar paths resolve to within the destination directory.
