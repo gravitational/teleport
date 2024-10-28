@@ -236,10 +236,13 @@ func TestCheckAppTCPPorts(t *testing.T) {
 			check: hasNoErr(),
 		},
 		{
-			name: "valid non-TCP app with ports ignored",
+			// Ports are validated only for TCP apps to allow for some forwards compatibility.
+			// If HTTP apps support port ranges in the future, old versions of Teleport shouldn't hard
+			// fail to make downgrades easier.
+			name: "valid non-TCP app with invalid ports ignored",
 			uri:  "http://localhost:8000",
 			tcpPorts: []PortRange{
-				PortRange{Port: 123456789},
+				PortRange{Port: 0},
 				PortRange{Port: 10, EndPort: 2},
 			},
 			check: hasNoErr(),
@@ -253,25 +256,11 @@ func TestCheckAppTCPPorts(t *testing.T) {
 			check: hasErrTypeBadParameter(),
 		},
 		{
-			name: "port bigger than 65535",
-			tcpPorts: []PortRange{
-				PortRange{Port: 78787},
-			},
-			check: hasErrTypeBadParameter(),
-		},
-		{
 			name: "end port smaller than 2",
 			tcpPorts: []PortRange{
 				PortRange{Port: 5, EndPort: 1},
 			},
 			check: hasErrTypeBadParameterAndContains("end port must be between"),
-		},
-		{
-			name: "end port bigger than 65535",
-			tcpPorts: []PortRange{
-				PortRange{Port: 1, EndPort: 78787},
-			},
-			check: hasErrTypeBadParameter(),
 		},
 		{
 			name: "end port smaller than port",

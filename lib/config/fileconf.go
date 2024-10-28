@@ -2092,11 +2092,11 @@ type AppAWS struct {
 // PortRange can be used to describe a single port in which case the Port field is the port and the
 // EndPort field is 0.
 type PortRange struct {
-	// Port describes the start of the range. It must be between 1-65535.
-	Port uint32 `yaml:"port"`
-	// EndPort describes the end of the range, inclusive. It must be between 2-65535 and be greater
-	// than Port when describing a port range. When describing a single port, it must be set to 0.
-	EndPort uint32 `yaml:"end_port,omitempty"`
+	// Port describes the start of the range. It must be greater than 0.
+	Port uint16 `yaml:"port"`
+	// EndPort describes the end of the range, inclusive. When describing a port range, it must be
+	// greater than 2 and be greater than Port. When describing a single port, it must be set to 0.
+	EndPort uint16 `yaml:"end_port,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

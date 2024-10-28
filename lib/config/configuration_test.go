@@ -2487,6 +2487,19 @@ app_service:
 			name:   "TCP app with only end port",
 			outErr: require.Error,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "tcp://127.0.0.1"
+      tcp_ports:
+      - port: 78787
+`,
+			name:   "TCP app with port bigger than 65535",
+			outErr: require.Error,
+		},
 	}
 
 	for _, tt := range tests {

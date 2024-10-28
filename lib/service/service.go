@@ -6776,8 +6776,8 @@ func makeApplicationTCPPorts(servicePorts []servicecfg.PortRange) []*types.PortR
 	ports := make([]*types.PortRange, 0, len(servicePorts))
 	for _, portRange := range servicePorts {
 		ports = append(ports, &types.PortRange{
-			Port:    portRange.Port,
-			EndPort: portRange.EndPort,
+			Port:    uint32(portRange.Port),
+			EndPort: uint32(portRange.EndPort),
 		})
 	}
 	return ports
