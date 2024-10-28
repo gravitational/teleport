@@ -3011,7 +3011,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// TODO(greedy52) any better way to validate user id from client cert?
 	// could we use user state or req.githubUserID only?
 	if req.githubUserID != "" {
-		allowedLogins = append(allowedLogins, githubUserID)
+		allowedLogins = append(allowedLogins, req.githubUserID)
 	} else if req.user.GetGitHubUserID() != "" && req.user.GetGitHubUserID() != req.githubUserID {
 		allowedLogins = append(allowedLogins, req.user.GetGitHubUserID())
 	}
