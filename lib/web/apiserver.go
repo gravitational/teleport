@@ -131,6 +131,10 @@ const (
 	// DefaultFeatureWatchInterval is the default time in which the feature watcher
 	// should ping the auth server to check for updated features
 	DefaultFeatureWatchInterval = time.Minute * 5
+	// findEndpointCacheTTL is the cache TTL for the find endpoint generic answer.
+	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
+	// cluster configuration changes.
+	findEndpointCacheTTL = 10 * time.Second
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -174,6 +178,11 @@ type Handler struct {
 	// an authenticated websocket so unauthenticated sockets dont get left
 	// open.
 	wsIODeadline time.Duration
+
+	// findEndpointCache is used to cache the find endpoint answer. As this endpoint is unprotected and has high
+	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
+	// caller specified its Automatic Updates UUID or group.
+	findEndpointCache *utils.FnCache
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -477,6 +486,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
+	findCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       h.clock,
+		Context:     cfg.Context,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating /find cache")
+	}
+	h.findEndpointCache = findCache
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
@@ -1522,56 +1543,63 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	// TODO(jent,espadolini): add a time-based cache to further reduce load on this endpoint
-	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	// cache the generic answer to avoid doing work for each request
+	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (*webclient.PingResponse, error) {
+		response := webclient.PingResponse{
+			ServerVersion:    teleport.Version,
+			MinClientVersion: teleport.MinClientVersion,
+			ClusterName:      h.auth.clusterName,
+		}
+
+		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Proxy = *proxyConfig
+
+		authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Auth = webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()}
+
+		autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
+		// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
+		if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+			h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
+		}
+		// If we can't get the AU config or tools AU are not configured, we default to "disabled".
+		// This ensures we fail open and don't accidentally update agents if something is going wrong.
+		// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
+		// than changing this logic.
+		if autoUpdateConfig.GetSpec().GetTools() == nil {
+			response.AutoUpdate.ToolsMode = autoupdate.ToolsUpdateModeDisabled
+		} else {
+			response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
+		}
+
+		autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
+		// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
+		if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+			h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
+		}
+		// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
+		// This ensures we always advertise a version compatible with the cluster.
+		if autoUpdateVersion.GetSpec().GetTools() == nil {
+			response.AutoUpdate.ToolsVersion = api.Version
+		} else {
+			response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
+		}
+
+		return &response, nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := webclient.PingResponse{
-		Auth: webclient.AuthenticationSettings{
-			// Nodes need the signature algorithm suite when joining to generate
-			// keys with the correct algorithm.
-			SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
-		},
-		Proxy:            *proxyConfig,
-		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
-		ClusterName:      h.auth.clusterName,
-	}
 
-	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
-	}
-	// If we can't get the AU config or tools AU are not configured, we default to "disabled".
-	// This ensures we fail open and don't accidentally update agents if something is going wrong.
-	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
-	// than changing this logic.
-	if autoUpdateConfig.GetSpec().GetTools() == nil {
-		response.AutoUpdate.ToolsMode = autoupdate.ToolsUpdateModeDisabled
-	} else {
-		response.AutoUpdate.ToolsMode = autoUpdateConfig.GetSpec().GetTools().GetMode()
-	}
-
-	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
-	}
-	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
-	// This ensures we always advertise a version compatible with the cluster.
-	if autoUpdateVersion.GetSpec().GetTools() == nil {
-		response.AutoUpdate.ToolsVersion = api.Version
-	} else {
-		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
-	}
-
-	return response, nil
+	// If you need to modulate the response based on the request params (will need to do this for automatic updates)
+	// Do it here.
+	return resp, nil
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
