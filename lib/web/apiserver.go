@@ -786,7 +786,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Site specific API
 
 	// get site info
-	h.GET("/webapi/sites/:site/info", h.WithClusterAuth(h.getClusterDetails))
+	h.GET("/webapi/sites/:site/info", h.WithClusterAuth(h.getClusterInfo))
 
 	// get namespaces
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
@@ -2826,19 +2826,41 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 	return out, nil
 }
 
-// getClusterDetails returns the information about the cluster being in the :site param
+type GetClusterInfoResponse struct {
+	ui.Cluster
+	IsCloud bool `json:"isCloud"`
+}
+
+// getClusterInfo returns the information about the cluster being in the :site param
 //
 // GET /v1/webapi/sites/:site/info
 //
 // Successful response:
 //
 //	{"name": "localhost","lastConnected": "RFC3339 time","status": "online","publicURL": "localhost:3080","authVersion": "17.0.0-dev","proxyVersion": "17.0.0-dev"}
-func (h *Handler) getClusterDetails(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	c, err := ui.GetClusterDetails(r.Context(), site)
+func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+	c, err := ui.GetClusterDetails(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return c, nil
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	isCloud := pingResp.GetServerFeatures().Cloud
+
+	return GetClusterInfoResponse{
+		Cluster: *c,
+		IsCloud: isCloud,
+	}, nil
 }
 
 type getSiteNamespacesResponse struct {
