@@ -803,13 +803,13 @@ func (s *AWSOIDCService) Ping(ctx context.Context, req *integrationpb.PingReques
 
 	var awsClientReq *awsoidc.AWSClientRequest
 	switch {
-	case req.Arn != "":
-		awsClientReq, err = s.awsClientReqWithARN(ctx, req.Integration, awsutils.AWSGlobalRegion, req.Arn)
+	case req.GetRoleArn() != "":
+		awsClientReq, err = s.awsClientReqWithARN(ctx, req.Integration, awsutils.AWSGlobalRegion, req.GetRoleArn())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case req.Integration != "":
-		awsClientReq, err = s.awsClientReq(ctx, req.Integration, awsutils.AWSGlobalRegion)
+	case req.GetIntegration() != "":
+		awsClientReq, err = s.awsClientReq(ctx, req.GetIntegration(), awsutils.AWSGlobalRegion)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

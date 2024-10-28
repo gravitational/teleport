@@ -29,7 +29,6 @@ import (
 func TestCheckAndSetDefaults(t *testing.T) {
 	t.Run("invalid regions must return an error", func(t *testing.T) {
 		err := (&AWSClientRequest{
-			//IntegrationName: "my-integration",
 			Token:   "token",
 			RoleARN: "some-arn",
 			Region:  "?",
@@ -39,7 +38,6 @@ func TestCheckAndSetDefaults(t *testing.T) {
 	})
 	t.Run("valid region", func(t *testing.T) {
 		err := (&AWSClientRequest{
-			//IntegrationName: "my-integration",
 			Token:   "token",
 			RoleARN: "some-arn",
 			Region:  "us-east-1",
@@ -49,7 +47,6 @@ func TestCheckAndSetDefaults(t *testing.T) {
 
 	t.Run("empty region", func(t *testing.T) {
 		err := (&AWSClientRequest{
-			//IntegrationName: "my-integration",
 			Token:   "token",
 			RoleARN: "some-arn",
 			Region:  "",

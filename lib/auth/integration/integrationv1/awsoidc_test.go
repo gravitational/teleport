@@ -323,7 +323,7 @@ func TestRBAC(t *testing.T) {
 				fn: func() error {
 					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
 						Integration: integrationName,
-						Arn:         "some-arn",
+						RoleArn:     "some-arn",
 					})
 					return err
 				},
