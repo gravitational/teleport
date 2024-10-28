@@ -36,13 +36,12 @@ following use cases:
 </TabItem>
 <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
-For Teleport Enterprise (managed) you choose the sub-domain of
+On Teleport Enterprise (Cloud), you can choose the sub-domain of
 the domain `teleport.sh` for your account. That fully qualified domain name
-(ex: `example.teleport.sh`) are managed by Teleport for your account 
-along with any sub-domains of it for Teleport Application Service. The public
-address (`public_addr`) for the Teleport Application Service is configurable.
+(e.g., `example.teleport.sh`) is managed by Teleport for your account 
+along with any sub-domains assigned to Teleport-protected applications (e.g., `grafana.example.teleport.sh`).
 
-In the case of web applications the public address must be a subdomain of the Teleport account URL
+The public address (`public_addr`) for the Teleport Application Service is configurable. In the case of web applications, the public address must be a subdomain of the Teleport account URL
 since the domain and TLS certificates are maintained by Teleport.
 
 ```yaml
