@@ -85,9 +85,6 @@ export const TopBarContainer = styled(TopNav)`
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
     height: ${p => p.theme.topBarHeight[1]}px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    height: ${p => p.theme.topBarHeight[2]}px;
-  }
 `;
 
 const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
