@@ -520,7 +520,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSCIM
 	case *PluginSpecV1_Datadog:
 		return PluginTypeDatadog
-
+	case *PluginSpecV1_AwsIc:
+		return PluginTypeAWSIdentityCenter
 	default:
 		return PluginTypeUnknown
 	}

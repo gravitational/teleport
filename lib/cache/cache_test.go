@@ -3015,7 +3015,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 			}
 
 			assert.Empty(collect, cmp.Diff(expected, out, cmpOpts...))
-		}, 2*time.Second, 250*time.Millisecond)
+		}, 2*time.Second, 10*time.Millisecond)
 	}
 
 	// Check that the resource is now in the backend.
