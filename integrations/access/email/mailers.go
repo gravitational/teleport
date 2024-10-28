@@ -36,12 +36,18 @@ import (
 )
 
 const (
+	// statusEmitTimeout specifies the max timeout to emit status.
 	statusEmitTimeout = 10 * time.Second
+
+	// mailgunHTTPTimeout specifies the max timeout for mailgun api send request.
+	mailgunHTTPTimeout = 10 * time.Second
 )
 
 // Mailer is an interface to mail sender
 type Mailer interface {
 	Send(ctx context.Context, id, recipient, body, references string) (string, error)
+	// CheckHealth checks if the Email client connection is healthy.
+	CheckHealth(ctx context.Context) error
 }
 
 // SMTPMailer implements SMTP mailer
@@ -57,6 +63,10 @@ type MailgunMailer struct {
 	mailgun     *mailgun.MailgunImpl
 	sender      string
 	clusterName string
+
+	// fallbackRecipients specifies the list of default recipients.
+	// This is only used for inital health check.
+	fallbackRecipients []string
 }
 
 // NewSMTPMailer inits new SMTP mailer
@@ -68,7 +78,7 @@ func NewSMTPMailer(c SMTPConfig, sink common.StatusSink, sender, clusterName str
 }
 
 // NewMailgunMailer inits new Mailgun mailer
-func NewMailgunMailer(c MailgunConfig, sink common.StatusSink, sender, clusterName string) Mailer {
+func NewMailgunMailer(c MailgunConfig, sink common.StatusSink, sender, clusterName string, fallbackRecipients []string) Mailer {
 	m := mailgun.NewMailgun(c.Domain, c.PrivateKey)
 	if c.APIBase != "" {
 		m.SetAPIBase(c.APIBase)
@@ -80,12 +90,30 @@ func NewMailgunMailer(c MailgunConfig, sink common.StatusSink, sender, clusterNa
 		},
 	}
 	m.SetClient(client)
-	return &MailgunMailer{m, sender, clusterName}
+	return &MailgunMailer{
+		mailgun:            m,
+		sender:             sender,
+		clusterName:        clusterName,
+		fallbackRecipients: fallbackRecipients,
+	}
+}
+
+// CheckHealth checks the health of the SMTP service.
+func (m *SMTPMailer) CheckHealth(ctx context.Context) error {
+	log := logger.Get(ctx)
+	client, err := m.dialer.Dial()
+	m.emitStatus(ctx, err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.Close(); err != nil {
+		log.Debug("Failed to close client connection after health check")
+	}
+	return nil
 }
 
 // Send sends email via SMTP
 func (m *SMTPMailer) Send(ctx context.Context, id, recipient, body, references string) (string, error) {
-	log := logger.Get(ctx)
 	subject := fmt.Sprintf("%v Role Request %v", m.clusterName, id)
 	refHeader := fmt.Sprintf("<%v>", references)
 
@@ -108,14 +136,8 @@ func (m *SMTPMailer) Send(ctx context.Context, id, recipient, body, references s
 	}
 
 	err = m.dialer.DialAndSend(msg)
+	m.emitStatus(ctx, err)
 	if err != nil {
-		if m.sink != nil {
-			// Returned error is undocumented. Using geneirc error code for all errors.
-			status := common.StatusFromStatusCode(http.StatusInternalServerError)
-			if err := m.sink.Emit(ctx, status); err != nil {
-				log.WithError(err).Errorf("Error while emitting Email plugin status: %v", err)
-			}
-		}
 		return "", trace.Wrap(err)
 	}
 	return id, nil
@@ -146,6 +168,38 @@ func (m *SMTPMailer) base36(input uint64) string {
 	return strings.ToUpper(strconv.FormatUint(input, 36))
 }
 
+// emitStatus emits generic internal server error status.
+func (m *SMTPMailer) emitStatus(ctx context.Context, err error) {
+	if m.sink == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, statusEmitTimeout)
+	defer cancel()
+
+	log := logger.Get(ctx)
+	code := http.StatusOK
+	if err != nil {
+		// Returned error is undocumented. Using geneirc error code for all errors.
+		code = http.StatusInternalServerError
+	}
+	if err := m.sink.Emit(ctx, common.StatusFromStatusCode(code)); err != nil {
+		log.WithError(err).Error("Error while emitting Email plugin status")
+	}
+}
+
+// CheckHealth checks the health of the Mailgun service.
+func (m *MailgunMailer) CheckHealth(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, mailgunHTTPTimeout)
+	defer cancel()
+
+	msg := m.mailgun.NewMessage(m.sender, "Health Check", "Testing Mailgun API connection...", m.fallbackRecipients...)
+	msg.SetRequireTLS(true)
+	msg.EnableTestMode() // Test message submission without delivering to recpients.
+	_, _, err := m.mailgun.Send(ctx, msg)
+	return trace.Wrap(err)
+}
+
 // Send sends email via Mailgun
 func (m *MailgunMailer) Send(ctx context.Context, id, recipient, body, references string) (string, error) {
 	subject := fmt.Sprintf("%v Role Request %v", m.clusterName, id)
@@ -159,7 +213,7 @@ func (m *MailgunMailer) Send(ctx context.Context, id, recipient, body, reference
 		msg.AddHeader("In-Reply-To", refHeader)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancel := context.WithTimeout(ctx, mailgunHTTPTimeout)
 	defer cancel()
 
 	_, id, err := m.mailgun.Send(ctx, msg)
@@ -183,16 +237,15 @@ func (t *statusSinkTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	log := logger.Get(req.Context())
 	resp, err := t.RoundTripper.RoundTrip(req)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	if t.sink != nil {
-		// No usable context in scope, use background with a reasonable timeout
-		ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
+		ctx, cancel := context.WithTimeout(req.Context(), statusEmitTimeout)
 		defer cancel()
 
 		status := common.StatusFromStatusCode(resp.StatusCode)
 		if err := t.sink.Emit(ctx, status); err != nil {
-			log.WithError(err).Errorf("Error while emitting Email plugin status: %v", err)
+			log.WithError(err).Error("Error while emitting Email plugin status")
 		}
 	}
 	return resp, nil

@@ -1269,7 +1269,7 @@ func TestPluginEmailSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "(smtp) no credentials label",
+			name: "(smtp) valid settings",
 			mutateSettings: func(s *PluginEmailSettings) {
 				s.Spec = &PluginEmailSettings_SmtpSpec{
 					SmtpSpec: &SMTPSpec{
