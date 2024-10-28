@@ -92,11 +92,8 @@ spec:
 In this example:
 
 - `kubernetes_groups` assigns the user to the admin-group, granting them permissions typically associated with cluster-admin roles in Kubernetes.
-
 - `kubernetes_labels` provides access to all clusters, as denoted by `"*": "*"`.
-
 - `kubernetes_resources` allows the user to interact with any Kubernetes resource type (denoted by "kind": "*"), including pods, services, deployments, config maps, and more.
-
 - `verbs` grants all actions (denoted by "*"), which means users can get, list, create, update, and delete resources.
 
 This role is ideal for cluster administrators or platform engineers who need full control over Kubernetes resources across all environments (development, staging, production).
