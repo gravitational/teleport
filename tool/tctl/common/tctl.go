@@ -268,7 +268,6 @@ func TryRun(commands []CLICommand, args []string) error {
 			return nil, trace.Wrap(err)
 		}
 
-		context.AfterFunc(ctx, rd.Close)
 		return sso.NewCLIMFACeremony(rd), nil
 	})
 

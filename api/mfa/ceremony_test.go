@@ -201,3 +201,5 @@ func (m *mockSSOMFACeremony) GetClientCallbackURL() string {
 func (m *mockSSOMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	return m.prompt(ctx, chal)
 }
+
+func (m *mockSSOMFACeremony) Close() {}

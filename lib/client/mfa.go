@@ -98,6 +98,5 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 		return nil, trace.Wrap(err)
 	}
 
-	context.AfterFunc(ctx, rd.Close)
 	return sso.NewCLIMFACeremony(rd), nil
 }
