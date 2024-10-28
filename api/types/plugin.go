@@ -43,6 +43,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeSCIM,
 	PluginTypeDatadog,
 	PluginTypeAWSIdentityCenter,
+	PluginTypeEmail,
 }
 
 const (

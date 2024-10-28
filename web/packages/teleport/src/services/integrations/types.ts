@@ -245,7 +245,7 @@ export type PluginDatadogSpec = {
 export type PluginEmailSpec = {
   sender: string;
   fallbackRecipient: string;
-}
+};
 
 export type IntegrationCreateRequest = {
   name: string;
