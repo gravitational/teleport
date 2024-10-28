@@ -6,6 +6,7 @@ import { ToolTipInfo, HoverTooltip } from 'shared/components/ToolTip';
 
 import { OktaAccessListSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 import cfg from 'e-teleport/config';
 
@@ -53,7 +54,7 @@ export function AccessListsSync({
             Lists enable simple permissions management and provide auditing
             capabilities.
           </Text>
-          <ButtonLockedFeature mt={3}>
+          <ButtonLockedFeature mt={3} event={CtaEvent.CTA_ACCESS_LIST}>
             Unlock with Teleport Identity
           </ButtonLockedFeature>
         </>

@@ -6,6 +6,7 @@ import { OktaScimDetails } from 'teleport/services/integrations/oktaStatusTypes'
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 import { Panel, PanelTitle, CenteredFlex, CustomLabel } from './Shared';
 import { generateOktaScimSettingsUrl } from './generateOktaAdminLink';
@@ -67,7 +68,7 @@ export function Scim({
         </>
       )}
       {!hasScim && (
-        <ButtonLockedFeature mt={3}>
+        <ButtonLockedFeature mt={3} event={CtaEvent.CTA_OKTA_SCIM}>
           Unlock with Teleport Identity
         </ButtonLockedFeature>
       )}

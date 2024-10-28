@@ -7,6 +7,7 @@ import { HoverTooltip } from 'shared/components/ToolTip';
 import { OktaUserSyncDetails } from 'teleport/services/integrations/oktaStatusTypes';
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 import {
   Panel,
@@ -37,7 +38,7 @@ export function UserSync({ spec }: { spec: OktaUserSyncDetails }) {
           height="100%"
         >
           <UserSyncExplanation />
-          <ButtonLockedFeature mt={3} size="small">
+          <ButtonLockedFeature mt={3} event={CtaEvent.CTA_OKTA_USER_SYNC}>
             Unlock with Teleport Identity
           </ButtonLockedFeature>
         </Flex>
