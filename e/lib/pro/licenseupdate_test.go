@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"io/fs"
@@ -15,30 +14,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudflare/cfssl/csr"
-	"github.com/google/uuid"
-	"github.com/gravitational/license/authority"
 	"github.com/gravitational/license/constants"
-	"github.com/gravitational/license/generate"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestNewService(t *testing.T) {
-	validLicenseFile, err := licensefile.FromPEM([]byte(newTestLicensePEM(t, map[entitlements.EntitlementKind]modules.EntitlementInfo{
-		entitlements.AccessLists: modules.EntitlementInfo{Enabled: true},
-	})))
+	validLicenseFile, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license.pem"))
 	require.NoError(t, err)
 
 	tt := []struct {
@@ -220,21 +213,12 @@ func TestAppendAnonymizationKey(t *testing.T) {
 	}
 }
 
-func TestLicenseUpdateService_Run(t *testing.T) {
-	originalEntitlements := map[entitlements.EntitlementKind]modules.EntitlementInfo{
-		entitlements.DB:  modules.EntitlementInfo{Enabled: true},
-		entitlements.App: modules.EntitlementInfo{Enabled: true},
-	}
-	originalPEM := newTestLicensePEM(t, originalEntitlements)
-
-	withAnonymizatonKey, err := generate.AppendAnonymizationKey([]byte(originalPEM))
-	require.NoError(t, err)
-
-	originalLicense, err := licensefile.FromPEM(withAnonymizatonKey)
+func TestLicenseUpdateServiceRun(t *testing.T) {
+	originalLicense, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license.pem"))
 	require.NoError(t, err)
 
 	features := modules.Features{}
-	features.Entitlements = originalEntitlements
+	features.Entitlements = feature.GetLicenseEntitlements(originalLicense.License.GetEntitlements())
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: features,
 	})
@@ -242,9 +226,9 @@ func TestLicenseUpdateService_Run(t *testing.T) {
 	fakeClock := clockwork.NewFakeClock()
 
 	// create the test license on disk
+	permissions := os.FileMode(0o644)
 	licensePath := path.Join(t.TempDir(), "license.cert")
-	err = os.WriteFile(licensePath, withAnonymizatonKey, 0644)
-	require.NoError(t, err)
+	require.NoError(t, utils.CopyFile(filepath.Join("testdata", "license.pem"), licensePath, permissions))
 
 	client := new(testClient)
 	// initially, client returns nothing
@@ -274,24 +258,26 @@ func TestLicenseUpdateService_Run(t *testing.T) {
 	require.Equal(t, features, modules.GetModules().Features())
 
 	// update client to return a new license
-	newEntitlements := map[entitlements.EntitlementKind]modules.EntitlementInfo{
-		entitlements.DB:  modules.EntitlementInfo{Enabled: false},
-		entitlements.App: modules.EntitlementInfo{Enabled: false},
-	}
-	newPEM := newTestLicensePEM(t, newEntitlements)
-	newLicense, err := licensefile.FromPEM([]byte(newPEM))
+	newLicense, err := licensefile.NewLicenseFile(filepath.Join("testdata", "license-no-monitoring-or-identity.pem"))
+	require.NoError(t, err)
+
 	// The new license does not include an anonymization key because the server does not have one.
 	require.NoError(t, err)
 	newLicenseEntitlements := feature.GetLicenseEntitlements(newLicense.License.GetEntitlements())
 
 	client.setMockGetUpdatedLicense(func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
+		content, err := os.ReadFile(filepath.Join("testdata", "license-no-monitoring-or-identity.pem"))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &cloudapi.GetUpdatedLicenseResponse{
-			Pem: newPEM,
+			Pem: string(content),
 		}, nil
 	})
 
 	// assert that the entitlements, licensefile, anonymization key and disk license eventually match the new license
-	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), 0644, newLicense, service.licensePath)
+	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath)
 
 	// test that the service won't crash if it receives an error
 	client.setMockGetUpdatedLicense(
@@ -300,26 +286,26 @@ func TestLicenseUpdateService_Run(t *testing.T) {
 		},
 	)
 	// require the same license as before
-	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), 0644, newLicense, service.licensePath)
+	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath)
 
 	// assert that the service is still running and able to download a new license after getting an error from the server
-	newEntitlements = map[entitlements.EntitlementKind]modules.EntitlementInfo{
-		entitlements.DB:  modules.EntitlementInfo{Enabled: false},
-		entitlements.App: modules.EntitlementInfo{Enabled: true},
-		entitlements.K8s: modules.EntitlementInfo{Enabled: true},
-	}
-	newPEM = newTestLicensePEM(t, newEntitlements)
-	newLicense, err = licensefile.FromPEM([]byte(newPEM))
+	newLicense, err = licensefile.NewLicenseFile(filepath.Join("testdata", "license-no-app-or-db.pem"))
 	require.NoError(t, err)
+
 	newLicenseEntitlements = feature.GetLicenseEntitlements(newLicense.License.GetEntitlements())
 	client.setMockGetUpdatedLicense(
 		func(ctx context.Context, r *cloudapi.GetUpdatedLicenseRequest) (*cloudapi.GetUpdatedLicenseResponse, error) {
+			content, err := os.ReadFile(filepath.Join("testdata", "license-no-app-or-db.pem"))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			return &cloudapi.GetUpdatedLicenseResponse{
-				Pem: newPEM,
+				Pem: string(content),
 			}, nil
 		},
 	)
-	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), 0644, newLicense, service.licensePath)
+	requireNewLicense(t, fakeClock, newLicenseEntitlements, originalLicense.License.GetAnonymizationKey(), permissions, newLicense, service.licensePath)
 }
 
 // requireNewLicense is a helper function that advances the clock and checks that
@@ -328,7 +314,7 @@ func requireNewLicense(t *testing.T,
 	fakeClock clockwork.FakeClock,
 	expectedEntitlements map[entitlements.EntitlementKind]modules.EntitlementInfo,
 	expectedAnonKey string,
-	expectedPerms uint32,
+	expectedPerms os.FileMode,
 	newLicense *licensefile.LicenseFile,
 	licensePath string,
 ) {
@@ -351,7 +337,7 @@ func requireNewLicense(t *testing.T,
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, os.FileMode(expectedPerms), info.Mode().Perm())
+		assert.Equal(t, expectedPerms, info.Mode().Perm())
 	}, time.Second*10, time.Millisecond*100)
 }
 
@@ -381,50 +367,3 @@ func (t *testClient) setMockGetUpdatedLicense(f func(ctx context.Context, r *clo
 
 // Implement cloud.Client interface for mocked client
 func (t *testClient) Close() error { return nil }
-
-func newTestLicensePEM(t *testing.T, entitlements map[entitlements.EntitlementKind]modules.EntitlementInfo) string {
-	ca, err := authority.GenerateSelfSignedCA(csr.CertificateRequest{
-		CN:    "localhost",
-		Names: csr.New().Names,
-		Hosts: []string{"localhost"},
-	})
-	require.NoError(t, err)
-
-	pk, err := generate.NewPrivateKey()
-	require.NoError(t, err)
-
-	// payload
-	license := licensefile.LicenseFile{}
-	license.License, err = types.NewLicense(uuid.NewString(), types.LicenseSpecV3{
-		AccountID:    uuid.NewString(),
-		Entitlements: entitlementKindMapToStringMap(entitlements),
-	})
-	require.NoError(t, err)
-
-	license.License.SetExpiry(time.Now().UTC().Add(time.Hour))
-
-	payload, err := json.Marshal(license.License)
-	require.NoError(t, err)
-
-	l, err := generate.NewLicense(generate.NewLicenseInfo{
-		ValidFor:   time.Hour,
-		PrivateKey: pk,
-		TLSKeyPair: *ca,
-		Payload:    payload,
-	})
-	require.NoError(t, err)
-	return l
-}
-
-// entitlementKindMapToStringMap converts map[entitlements.EntitlementKind]modules.EntitlementInfo into the type expected
-// in the license spec (map[string]types.EntitlementInfo).
-func entitlementKindMapToStringMap(input map[entitlements.EntitlementKind]modules.EntitlementInfo) map[string]types.EntitlementInfo {
-	output := make(map[string]types.EntitlementInfo)
-	for key, value := range input {
-		output[string(key)] = types.EntitlementInfo{
-			Enabled: types.Bool(value.Enabled),
-			Limit:   value.Limit,
-		}
-	}
-	return output
-}
