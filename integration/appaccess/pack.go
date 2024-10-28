@@ -351,7 +351,12 @@ func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName str
 // request.
 func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
 	session := p.CreateAppSession(t, p.username, p.rootAppClusterName, p.rootAppPublicAddr)
-	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
+	config := p.makeTLSConfig(t, tlsConfigParams{
+		sessionID:   session.GetName(),
+		username:    session.GetUser(),
+		publicAddr:  p.rootAppPublicAddr,
+		clusterName: p.rootAppClusterName,
+	})
 	return config.Certificates
 }
 
@@ -471,8 +476,16 @@ func (p *Pack) startLocalProxy(t *testing.T, tlsConfig *tls.Config) string {
 	return proxy.GetAddr()
 }
 
+type tlsConfigParams struct {
+	sessionID   string
+	username    string
+	publicAddr  string
+	clusterName string
+	pinnedIP    string
+}
+
 // makeTLSConfig returns TLS config suitable for making an app access request.
-func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clusterName, pinnedIP string) *tls.Config {
+func (p *Pack) makeTLSConfig(t *testing.T, params tlsConfigParams) *tls.Config {
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	privateKeyPEM, err := keys.MarshalPrivateKey(key)
@@ -483,19 +496,19 @@ func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clus
 	// Make sure the session ID can be seen in the backend before we continue onward.
 	require.Eventually(t, func() bool {
 		_, err := p.rootCluster.Process.GetAuthServer().GetAppSession(context.Background(), types.GetAppSessionRequest{
-			SessionID: sessionID,
+			SessionID: params.sessionID,
 		})
 		return err == nil
 	}, 5*time.Second, 100*time.Millisecond)
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
 		auth.AppTestCertRequest{
 			PublicKey:   publicKeyPEM,
-			Username:    username,
+			Username:    params.username,
 			TTL:         time.Hour,
-			PublicAddr:  publicAddr,
-			ClusterName: clusterName,
-			SessionID:   sessionID,
-			PinnedIP:    pinnedIP,
+			PublicAddr:  params.publicAddr,
+			ClusterName: params.clusterName,
+			SessionID:   params.sessionID,
+			PinnedIP:    params.pinnedIP,
 		})
 	require.NoError(t, err)
 
