@@ -178,9 +178,9 @@ type Handler struct {
 	// open.
 	wsIODeadline time.Duration
 
-	// findCache is used to cache the find endpoint answer. As this endpoint is unprotected and has high rate-limits,
-	// each call must cause minimal work. The cached answer can be modulated after, for example if the caller specified
-	// a specific Automatic Updates UUID or group.
+	// findEndpointCache is used to cache the find endpoint answer. As this endpoint is unprotected and has high
+	// rate-limits, each call must cause minimal work. The cached answer can be modulated after, for example if the
+	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
 }
 
