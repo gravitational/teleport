@@ -1,0 +1,140 @@
+---
+title: Examples of Role-Based Access Control in Kubernetes
+description: RBAC examples with Kubernetes.
+---
+
+In Teleport's flexible RBAC system, you can define custom roles and granularly control what users can do within your Kubernetes clusters. 
+Limit access to specific namespaces, enforce read-only permissions, or restrict administrative actions as needed.
+
+:Note:
+Please reference [Setting Up Teleport Access Controls for Kubernetes](../../enroll-resources/kubernetes-access/manage-access.mdx) before proceeding, if you have not done so already.
+
+Here are a few common use cases. These are simple examples to get you started; for more in-depth coverage of roles in Kubernetes access, please visit the [Kubernetes Access Controls guide](../../enroll-resources/kubernetes-access/controls.dx).
+
+## Use case 1: Example role for developers
+
+In many organizations, developers need limited access to Kubernetes clusters, typically restricted to their development environments. 
+
+Below is an example of a role that provides developers with access to only the dev namespace:
+
+```code
+kind: role
+version: v6
+metadata:
+  name: dev-k8s-access
+spec:
+  allow:
+    kubernetes_groups: ["dev-group"]
+    kubernetes_labels:
+      "environment": "dev"  # Allow access only to development clusters
+    kubernetes_resources:
+      - kind: pod
+        namespace: dev
+      - kind: service
+        namespace: dev
+  deny:
+    kubernetes_labels:
+      "environment": "prod"  # Deny access to production clusters
+```
+
+In this example, the developers in the group dev-group are allowed to access the `dev` namespace's pods and services. Access to any production environments is explicitly denied, using the `deny` directive.
+
+## Use case 2: Read-only access for auditors
+
+In some scenarios, you may need to provide auditors with read-only access to a Kubernetes cluster for compliance purposes. The following auditor role grants read-only access to all namespaces 
+but does not allow any write operations:
+
+```code
+kind: role
+version: v6
+metadata:
+  name: auditor-k8s-read-only
+spec:
+  allow:
+    kubernetes_groups: ["auditor-group"]
+    kubernetes_labels:
+      "*": "*"  # Access to all clusters
+    kubernetes_resources:
+      - kind: pod
+        verbs: ["get", "list", "watch"]
+      - kind: service
+        verbs: ["get", "list", "watch"]
+  deny:
+    kubernetes_resources:
+      - kind: pod
+        verbs: ["create", "update", "delete"]  # Deny any modification operations
+      - kind: service
+        verbs: ["create", "update", "delete"]
+```
+
+In this example, the auditor-group is allowed to access all namespaces (*), but only with `get`, `list`, and `watch` permissions (read-only). Modifications such as creating, updating, or deleting resources are denied.
+
+## Use case 3: Admin access to all Kubernetes clusters
+
+In organizations with DevOps or platform engineering teams, certain users need full administrative access to all Kubernetes clusters for management purposes. This role grants full access to all Kubernetes resources across all clusters, allowing the user to perform any action on any resource.
+
+```code
+kind: role
+version: v6
+metadata:
+  name: admin-k8s-access
+spec:
+  allow:
+    kubernetes_groups: ["admin-group"]
+    kubernetes_labels:
+      "*": "*"  # Allow access to all Kubernetes clusters
+    kubernetes_resources:
+      - kind: "*"  # Allow access to all Kubernetes resources (pods, services, deployments, etc.)
+        verbs: ["*"]  # Allow all verbs (get, list, create, delete, etc.)
+```
+
+In this example:
+
+- `kubernetes_groups` assigns the user to the admin-group, granting them permissions typically associated with cluster-admin roles in Kubernetes.
+
+- `kubernetes_labels` provides access to all clusters, as denoted by `"*": "*"`.
+
+- `kubernetes_resources` allows the user to interact with any Kubernetes resource type (denoted by "kind": "*"), including pods, services, deployments, config maps, and more.
+
+- `verbs` grants all actions (denoted by "*"), which means users can get, list, create, update, and delete resources.
+
+This role is ideal for cluster administrators or platform engineers who need full control over Kubernetes resources across all environments (development, staging, production).
+
+## Use case 4: Access for CI/CD pipelines
+
+In certain cases, you may want to provide a specific user or service account (often used by a CI/CD pipeline) with limited permissions to deploy and manage resources in Kubernetes. This role is designed for automation systems, allowing them to deploy applications and update resources in a specific namespace without granting unnecessary permissions to other parts of the cluster.
+
+```code
+kind: role
+version: v6
+metadata:
+  name: cicd-k8s-access
+spec:
+  allow:
+    kubernetes_groups: ["cicd-group"]
+    kubernetes_labels:
+      "environment": "prod"  # Only allow access to production environments
+    kubernetes_resources:
+      - kind: deployment
+        namespace: prod  # Only allow modifying deployments in the production namespace
+        verbs: ["get", "create", "update"]
+      - kind: service
+        namespace: prod
+        verbs: ["get", "create", "update"]
+      - kind: pod
+        namespace: prod
+        verbs: ["get", "list"]
+  deny:
+    kubernetes_resources:
+      - kind: deployment
+        namespace: prod
+        verbs: ["delete"]  # Prevent the pipeline from deleting deployments
+```
+
+In this example we have:
+
+- `kubernetes_groups` which assigns the user (or service account) to the cicd-group, which represents the CI/CD pipeline's identity in Teleport. 
+- `kubernetes_labels` grants access to clusters labeled as "production" environments only. `kubernetes_resources` limits the pipeline’s actions to specific resources.
+- `Deployment` allows the pipeline to get, create, and update deployments in the prod namespace. Similar permissions for `service`, so the pipeline can manage services associated with deployments.
+- `Pod` allows listing and getting pods for status checks but denies permission to update or delete pods.
+- `Deny rules` role explicitly prevents the pipeline from deleting any deployments, ensuring that destructive actions are restricted to human operators.
