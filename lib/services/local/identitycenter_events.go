@@ -17,7 +17,6 @@
 package local
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
