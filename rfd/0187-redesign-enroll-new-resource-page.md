@@ -5,6 +5,11 @@ state: draft
 
 # RFD 0187 - Redesign Enroll New Resource Page
 
+## Required Approvers
+
+* Engineering: @r0mant
+* Product: @xinding33
+
 ## Overview
 
 ### Problem
