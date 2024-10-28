@@ -92,6 +92,7 @@ export const makeRootCluster = (
   showResources: ShowResources.REQUESTABLE,
   profileStatusError: '',
   ...props,
+  ssoHostname: 'example.auth0.com',
 });
 
 export const makeLeafCluster = (
@@ -108,6 +109,7 @@ export const makeLeafCluster = (
   profileStatusError: '',
   showResources: ShowResources.UNSPECIFIED,
   ...props,
+  ssoHostname: 'example.auth0.com',
 });
 
 export const makeLoggedInUser = (
