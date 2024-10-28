@@ -73,40 +73,40 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		rootAppName:        "app-01",
 		rootAppPublicAddr:  "app-01.example.com",
 		rootAppClusterName: "example.com",
-		rootMessage:        uuid.New().String(),
+		rootMessage:        uuidWithLabel("app-01"),
 
 		rootWSAppName:    "ws-01",
 		rootWSPublicAddr: "ws-01.example.com",
-		rootWSMessage:    uuid.New().String(),
+		rootWSMessage:    uuidWithLabel("ws-01"),
 
 		rootWSSAppName:    "wss-01",
 		rootWSSPublicAddr: "wss-01.example.com",
-		rootWSSMessage:    uuid.New().String(),
+		rootWSSMessage:    uuidWithLabel("wss-01"),
 
 		rootTCPAppName:    "tcp-01",
 		rootTCPPublicAddr: "tcp-01.example.com",
-		rootTCPMessage:    uuid.New().String(),
+		rootTCPMessage:    uuidWithLabel("tcp-01"),
 
 		rootTCPTwoWayAppName:    "tcp-twoway",
 		rootTCPTwoWayPublicAddr: "tcp-twoway.example.com",
-		rootTCPTwoWayMessage:    uuid.New().String(),
+		rootTCPTwoWayMessage:    uuidWithLabel("tcp-twoway"),
 
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
 		leafAppClusterName: "leaf.example.com",
-		leafMessage:        uuid.New().String(),
+		leafMessage:        uuidWithLabel("app-02"),
 
 		leafWSAppName:    "ws-02",
 		leafWSPublicAddr: "ws-02.example.com",
-		leafWSMessage:    uuid.New().String(),
+		leafWSMessage:    uuidWithLabel("ws-02"),
 
 		leafWSSAppName:    "wss-02",
 		leafWSSPublicAddr: "wss-02.example.com",
-		leafWSSMessage:    uuid.New().String(),
+		leafWSSMessage:    uuidWithLabel("wss-02"),
 
 		leafTCPAppName:    "tcp-02",
 		leafTCPPublicAddr: "tcp-02.example.com",
-		leafTCPMessage:    uuid.New().String(),
+		leafTCPMessage:    uuidWithLabel("tcp-02"),
 
 		jwtAppName:        "app-03",
 		jwtAppPublicAddr:  "app-03.example.com",
@@ -401,4 +401,12 @@ func newTCPServer(t *testing.T, handleConn func(net.Conn)) net.Listener {
 	}()
 
 	return listener
+}
+
+// uuidWithLabel returns a random UUID with a specific label in front of it.
+// It's mostly used to generate unique messages that various cluster app servers are going to
+// respond with. The labels make it easier to differentiate between apps when a connection gets
+// routed to the wrong app.
+func uuidWithLabel(label string) string {
+	return fmt.Sprintf("%s-%s", label, uuid.New().String())
 }
