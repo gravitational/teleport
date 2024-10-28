@@ -415,7 +415,7 @@ export class FeatureDiscover implements TeleportFeature {
     getLink() {
       return cfg.routes.discover;
     },
-    searchableTags: ['new resource', 'add'],
+    searchableTags: ['new', 'add', 'enroll', 'resources'],
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -480,6 +480,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
     getLink() {
       return cfg.getIntegrationEnrollRoute(null);
     },
+    searchableTags: ['new', 'add', 'enroll', 'integration'],
   };
 
   // getRoute allows child class extending this
@@ -593,7 +594,7 @@ export class FeatureTrust implements TeleportFeature {
     getLink() {
       return cfg.routes.trustedClusters;
     },
-    searchableTags: ['clusters', 'trusted clusters'],
+    searchableTags: ['clusters', 'trusted clusters', 'root clusters'],
   };
 }
 
