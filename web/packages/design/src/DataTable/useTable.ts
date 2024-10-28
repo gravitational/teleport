@@ -205,7 +205,7 @@ export default function useTable<T>({
       pagination: state.pagination
         ? {
             ...state.pagination,
-            currentPage: state.pagination.currentPage + 1,
+            currentPage: state.pagination.currentPage - 1,
           }
         : undefined,
     });
