@@ -3,7 +3,7 @@ authors: Dave Sudia (david.sudia@goteleport.com)
 state: draft
 ---
 
-# RFD 0189 - Windows Desktop Access guide
+# RFD 0190 - Add Labels During Guided Enrollment
 
 ## Required Approvers
 
