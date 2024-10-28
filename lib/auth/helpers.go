@@ -366,6 +366,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			WebSession:              svces.Identity.WebSessions(),
 			WebToken:                svces.WebTokens(),
 			WindowsDesktops:         svces.WindowsDesktops,
+			DynamicWindowsDesktops:  svces.DynamicWindowsDesktops,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
