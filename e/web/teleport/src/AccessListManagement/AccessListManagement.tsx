@@ -3,19 +3,12 @@ import { Switch, Route } from 'teleport/components/Router';
 
 import cfg from 'e-teleport/config';
 
-import { CreateAccessList } from './CreateAccessList';
 import { AccessLists } from './AccessLists';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
 export function AccessListManagement() {
   return (
     <Switch>
-      <Route
-        key="access-list-create"
-        exact
-        path={cfg.routes.accessListNew}
-        component={CreateAccessList}
-      />
       <Route
         key="access-lists"
         exact

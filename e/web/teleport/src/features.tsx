@@ -41,6 +41,8 @@ import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
 import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
 
+import { CreateAccessList } from './AccessListManagement/CreateAccessList';
+
 import type {
   FeatureFlags,
   TeleportFeature,
@@ -295,6 +297,31 @@ class FeatureAccessListManagement implements TeleportFeature {
   };
 }
 
+class FeatureNewAccessList implements TeleportFeature {
+  sideNavCategory = SideNavigationCategory.AddNew;
+
+  route = {
+    title: NavTitle.NewAccessList,
+    path: cfg.routes.accessListNew,
+    exact: true,
+    component: CreateAccessList,
+  };
+
+  // Hide if this is a self-hosted dashboard tenant
+  hasAccess() {
+    return !cfg.oss.isDashboard;
+  }
+
+  navigationItem = {
+    title: NavTitle.NewAccessList,
+    icon: UserList,
+    getLink() {
+      return cfg.routes.accessListNew;
+    },
+    searchableTags: ['new access lists', 'add access list', 'lists'],
+  };
+}
+
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Identity;
@@ -339,8 +366,6 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
 }
 
 class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
-  parent = FeatureIntegrations;
-
   route = {
     ...super.getRoute(),
     // Enterprise version includes creating both plugin
@@ -393,6 +418,7 @@ export class FeatureDeviceTrustWeb implements TeleportFeature {
   }
 
   logoOnlyTopbar = true;
+  hideNavigation = true;
 }
 
 export class FeatureSSOConfirm implements TeleportFeature {
@@ -461,15 +487,19 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureDownloadCenter(),
     new FeatureSupport(),
 
+    // AddNew
+    new FeatureDiscoverE(),
+    new FeatureIntegrationEnroll(),
+    new OSS.FeatureAddBots(),
+    new FeatureNewAccessList(),
+
     // - Access
     new FeatureUsersE(),
     new OSS.FeatureRoles(),
     new OSS.FeatureBots(),
-    new OSS.FeatureAddBots(),
     new OSS.FeatureJoinTokens(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
-    new FeatureIntegrationEnroll(),
     new FeatureIntegrationStatus(),
 
     // - Permissions
@@ -493,8 +523,6 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
 
     // - Policy
     new FeatureAccessGraph(),
-
-    new FeatureDiscoverE(),
 
     // Other
     new FeatureAccount(),

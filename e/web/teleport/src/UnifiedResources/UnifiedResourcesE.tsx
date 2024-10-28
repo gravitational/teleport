@@ -219,7 +219,7 @@ const CheckoutWrapper = styled(Box)`
   padding: ${props => props.theme.space[5]}px;
   padding-bottom: 0px;
   background-color: ${props => props.theme.colors.levels.sunken};
-  max-height: calc(100vh - ${props => props.theme.topBarHeight[2]}px);
+  max-height: calc(100vh - ${props => props.theme.topBarHeight[1]}px);
   overflow-y: auto;
 `;
 
