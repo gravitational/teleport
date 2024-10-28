@@ -136,10 +136,10 @@ type CORS struct {
 // EndPort field is 0.
 type PortRange struct {
 	// Port describes the start of the range. It must be between 1-65535.
-	Port uint32
+	Port uint16
 	// EndPort describes the end of the range, inclusive. It must be between 2-65535 and be greater
 	// than Port when describing a port range. When describing a single port, it must be set to 0.
-	EndPort uint32
+	EndPort uint16
 }
 
 // CheckAndSetDefaults validates an application.
