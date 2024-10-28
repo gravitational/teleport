@@ -6216,8 +6216,28 @@ message PluginEntraIDSyncSettings {
   // DefaultOwners are the default owners for all imported access lists.
   repeated string default_owners = 1;
 
-  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin
+  // SSOConnectorID is the name of the Teleport SSO connector created and used by the Entra ID plugin.
   string sso_connector_id = 2;
+
+  // credentials_source specifies the source of the credentials used for authentication with Azure.
+  EntraIDCredentialsSource credentials_source = 3;
+
+  // tenant_id refers to the Azure Directory that this plugin synchronizes with.
+  // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
+  // For existing plugins, it is filled in using the Entra integration when utilized.
+  string tenant_id = 4;
+}
+
+// EntraIDCredentialsSource defines the credentials source for Entra ID.
+enum EntraIDCredentialsSource {
+  // ENTRAID_CREDENTIALS_SOURCE_UNKNOWN is used when the credentials source is not specified.
+  // Due to legacy reasons, UNKNOWN is handled as OIDC.
+  ENTRAID_CREDENTIALS_SOURCE_UNKNOWN = 0;
+  // ENTRAID_CREDENTIALS_SOURCE_OIDC indicates that the plugin will authenticate with Azure/Entra ID using OIDC.
+  ENTRAID_CREDENTIALS_SOURCE_OIDC = 1;
+  // ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS means the plugin will rely on system-provided credentials
+  // for authentication with Azure Entra ID, especially for clusters with no internet access.
+  ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS = 2;
 }
 
 // AccessGraphSettings controls settings for syncing access graph specific data.
