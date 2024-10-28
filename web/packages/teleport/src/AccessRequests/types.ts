@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Option } from 'shared/components/Select';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 
-import type { ResourceIdKind } from 'teleport/services/agents';
+import type { Option } from 'shared/components/Select';
 
 export type DurationOption = Option<number>;
 
 export interface Resource {
   id: {
-    kind: ResourceIdKind;
+    kind: RequestableResourceKind;
     name: string;
     clusterName: string;
     subResourceName?: string;
@@ -38,7 +38,7 @@ export interface Resource {
 type RequestState = 'NONE' | 'PENDING' | 'APPROVED' | 'DENIED' | 'APPLIED' | '';
 
 export interface ResourceId {
-  kind: ResourceIdKind;
+  kind: RequestableResourceKind;
   name: string;
   clusterName: string;
   subResourceName?: string;

@@ -48,6 +48,8 @@ jobs:
           path: "docs"
 
       - name: Prepare docs site configuration
+        # Prevent occasional `yarn install` executions that run indefinitely
+        timeout-minutes: 10
         # The environment we use for linting the docs differs from the one we
         # use for the live docs site in that we only test a single version of
         # the content.

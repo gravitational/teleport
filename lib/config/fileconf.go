@@ -919,6 +919,11 @@ type AWSKMS struct {
 	Account string `yaml:"account"`
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
+	// MultiRegion contains configuration for multi-region AWS KMS.
+	MultiRegion struct {
+		// Enabled configures new keys to be multi-region.
+		Enabled bool
+	} `yaml:"multi_region,omitempty"`
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

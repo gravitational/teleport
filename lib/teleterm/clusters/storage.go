@@ -285,17 +285,6 @@ func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *clien
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	// Set AllowStdinHijack to true to enable daemon.mfaPrompt to ask for both TOTP and Webauthn at
-	// the same time if available.
-	//
-	// tsh sets AllowStdinHijack to true only during tsh login to avoid input swallowing bugs where
-	// calling a command would prompt for MFA and then expect some further data through stdin. tsh
-	// login does not ask for any further input after the MFA prompt.
-	//
-	// Since tsh daemon ran by Connect never expects data over stdin, it can always set this flag to
-	// true.
-	cfg.AllowStdinHijack = true
-
 	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll

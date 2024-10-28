@@ -62,8 +62,16 @@ export function useUrlFiltering(
 
   const [initialParamsState] = useState(initialParams);
   const params = useMemo(() => {
-    return { ...initialParamsState, ...getResourceUrlQueryParams(search) };
-  }, [initialParamsState, search]);
+    const urlParams = getResourceUrlQueryParams(search);
+    return {
+      ...initialParamsState,
+      ...urlParams,
+      pinnedOnly:
+        urlParams.pinnedOnly !== undefined
+          ? urlParams.pinnedOnly
+          : initialParamsState.pinnedOnly,
+    };
+  }, [search]);
 
   function setParams(newParams: ResourceFilter) {
     replaceHistory(
@@ -134,6 +142,7 @@ export default function getResourceUrlQueryParams(
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
     // Conditionally adds the pinnedResources field based on whether its true or not
-    ...(pinnedOnly === 'true' && { pinnedOnly: true }),
+    pinnedOnly:
+      pinnedOnly === 'true' ? true : pinnedOnly === 'false' ? false : undefined,
   };
 }

@@ -979,10 +979,14 @@ manualy testing.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
-  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis/Valkey.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
   - [ ] Self-hosted MSSQL with PKINIT authentication.
+  - [ ] Self-hosted Elasticsearch.
+  - [ ] Self-hosted Cassandra/ScyllaDB.
+  - [ ] Self-hosted Oracle.
+  - [ ] Self-hosted ClickHouse.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
     - [ ] MySQL server version reported by Teleport is correct.
@@ -992,32 +996,36 @@ manualy testing.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
+  - [ ] AWS OpenSearch.
+  - [ ] AWS Dynamodb.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
+  - [ ] AWS DocumentDB
+  - [ ] AWS Keyspaces
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
-  - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
-  - [ ] Azure flexible-server MySQL and Postgres
-  - [ ] Elasticsearch.
-  - [ ] OpenSearch.
-  - [ ] Cassandra/ScyllaDB.
-    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] Dynamodb.
-    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
+  - [ ] Azure flexible-server MySQL
+  - [ ] Azure flexible-server Postgres
   - [ ] Azure SQL Server.
-  - [ ] Oracle.
-  - [ ] ClickHouse.
+  - [ ] Snowflake.
+  - [ ] MongoDB Atlas.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
-  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis/Valkey.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
   - [ ] Self-hosted MSSQL with PKINIT authentication.
+  - [ ] Self-hosted Elasticsearch.
+  - [ ] Self-hosted Cassandra/ScyllaDB.
+  - [ ] Self-hosted Oracle.
+  - [ ] Self-hosted ClickHouse.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
@@ -1025,20 +1033,20 @@ manualy testing.
   - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
+  - [ ] AWS OpenSearch.
+  - [ ] AWS Dynamodb.
+  - [ ] AWS DocumentDB
+  - [ ] AWS Keyspaces
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
-  - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
-  - [ ] Azure flexible-server MySQL and Postgres
-  - [ ] Elasticsearch.
-  - [ ] OpenSearch.
-  - [ ] Cassandra/ScyllaDB.
-  - [ ] Dynamodb.
+  - [ ] Azure flexible-server MySQL
+  - [ ] Azure flexible-server Postgres
   - [ ] Azure SQL Server.
-  - [ ] Oracle.
-  - [ ] ClickHouse.
+  - [ ] Snowflake.
+  - [ ] MongoDB Atlas.
 - [ ] Verify auto user provisioning.
   Verify all supported modes: `keep`, `best_effort_drop`
   - [ ] Self-hosted Postgres.
@@ -1084,6 +1092,7 @@ manualy testing.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
+      - [ ] Can detect and register DocumentDB clusters.
     - [ ] Azure
       - [ ] Can detect and register MySQL and Postgres single-server instances.
       - [ ] Can detect and register MySQL and Postgres flexible-server instances.
@@ -1098,6 +1107,11 @@ manualy testing.
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
 - [ ] `tsh bench` load tests (instructions on Notion -> Database Access -> Load test)
+- [ ] Verify database session player
+  - [ ] Web UI
+    - [ ] Postgres
+  - [ ] `tsh play`
+    - [ ] Postgres
 
 ## TLS Routing
 

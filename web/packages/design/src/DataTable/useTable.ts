@@ -185,30 +185,30 @@ export default function useTable<T>({
     if (serversideProps) {
       fetching?.onFetchNext?.();
     }
-    setState({
-      ...state,
-      pagination: state.pagination
+    setState(prevState => ({
+      ...prevState,
+      pagination: prevState.pagination
         ? {
-            ...state.pagination,
-            currentPage: state.pagination.currentPage + 1,
+            ...prevState.pagination,
+            currentPage: prevState.pagination.currentPage + 1,
           }
         : undefined,
-    });
+    }));
   }
 
   function prevPage() {
     if (serversideProps) {
       fetching?.onFetchPrev?.();
     }
-    setState({
-      ...state,
-      pagination: state.pagination
+    setState(prevState => ({
+      ...prevState,
+      pagination: prevState.pagination
         ? {
-            ...state.pagination,
-            currentPage: state.pagination.currentPage + 1,
+            ...prevState.pagination,
+            currentPage: prevState.pagination.currentPage - 1,
           }
         : undefined,
-    });
+    }));
   }
 
   useEffect(() => {
