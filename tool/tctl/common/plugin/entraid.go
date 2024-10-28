@@ -82,7 +82,7 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Flag("force", "Proceed with installation even if plugin already exists.").
 		Short('f').
 		Default("false").
-		BoolVar(&p.install.scim.force)
+		BoolVar(&p.install.entraID.force)
 }
 
 type entraSettings struct {
@@ -215,7 +215,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 	saml, err := types.NewSAMLConnector(inputs.entraID.authConnectorName, types.SAMLConnectorSpecV2{
 		AssertionConsumerService: proxyPublicAddr + "/v1/webapi/saml/acs/" + inputs.entraID.authConnectorName,
 		AllowIDPInitiated:        true,
-		// AttributesToRoles is required, but Entra ID does not by have a default group (like Okta's "Everyone"),
+		// AttributesToRoles is required, but Entra ID does not have a default group (like Okta's "Everyone"),
 		// so we add a dummy claim that will never be fulfilled with the default configuration instead,
 		// and expect the user to modify it per their requirements.
 		AttributesToRoles: []types.AttributeMapping{
@@ -315,7 +315,6 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 }
 
 func buildScript(proxyPublicAddr string, authConnectorName string, accessGraph, skipOIDCSetup bool) (string, error) {
-
 	oidcIssuer, err := oidc.IssuerFromPublicAddress(proxyPublicAddr, "")
 	if err != nil {
 		return "", trace.Wrap(err)
