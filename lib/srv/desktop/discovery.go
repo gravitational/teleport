@@ -23,7 +23,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"maps"
 	"net"
 	"net/netip"
@@ -55,8 +54,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
-		// TODO(tross): update to use the service logger once it is converted to use slog
-		Logger: slog.With("kind", types.KindWindowsDesktop),
+		Logger:              s.cfg.Logger.With("kind", types.KindWindowsDesktop),
 	})
 	if err != nil {
 		return trace.Wrap(err)
