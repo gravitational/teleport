@@ -124,22 +124,24 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
       agentMeta.awsIntegration.spec.roleArn
     );
 
+    const deployment = {
+      region: dbMeta.awsRegion,
+      accountId: awsAccountId,
+      taskRoleArn,
+      deployments: [
+        {
+          vpcId: dbMeta.awsVpcId,
+          subnetIds: selectedSubnetIds,
+          securityGroups: selectedSecurityGroups,
+        },
+      ],
+    };
+
     if (wantAutoDiscover) {
       setAttempt({ status: 'processing' });
 
       integrationService
-        .deployDatabaseServices(integrationName, {
-          region: dbMeta.awsRegion,
-          accountId: awsAccountId,
-          taskRoleArn,
-          deployments: [
-            {
-              vpcId: dbMeta.awsVpcId,
-              subnetIds: selectedSubnetIds,
-              securityGroups: selectedSecurityGroups,
-            },
-          ],
-        })
+        .deployDatabaseServices(integrationName, deployment)
         .then(url => {
           setAttempt({ status: 'success' });
           setSvcDeployedAwsUrl(url);
@@ -153,15 +155,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     } else {
       setAttempt({ status: 'processing' });
       integrationService
-        .deployAwsOidcService(integrationName, {
-          deploymentMode: 'database-service',
-          region: dbMeta.awsRegion,
-          subnetIds: selectedSubnetIds,
-          taskRoleArn,
-          securityGroups: selectedSecurityGroups,
-          vpcId: dbMeta.awsVpcId,
-          accountId: awsAccountId,
-        })
+        .deployDatabaseServices(integrationName, deployment)
         // The user is still technically in the "processing"
         // state, because after this call succeeds, we will
         // start pinging for the newly registered db

@@ -3,16 +3,13 @@ title: JWT SVIDs
 description: An overview of the JWT SVIDs issued by Teleport Workload Identity
 ---
 
-<Admonition type="tip" title="Preview">
-Teleport Workload Identity is currently in Preview. This means that some
-features may be missing. We're actively looking for design partners to help us
-shape the future of Workload Identity and would love to
-[hear your feedback](mailto:product@goteleport.com).
-</Admonition>
+(!/docs/pages/includes/workload-id-preview.mdx!)
 
 One type of credential that can be issued by Teleport Workload Identity is a
 JWT SVID. This is a short-lived JSON Web Token (JWT) that contains the identity
 of the workload and is signed by the Teleport Workload Identity CA.
+
+The ability is issue JWT SVIDs has been available since Teleport 16.4.3.
 
 ## Claims
 
@@ -59,7 +56,7 @@ Teleport Proxy service as the issuer URL for OIDC configuration.
 We have tested Teleport Workload Identity issued JWT-SVIDs with the following
 platforms:
 
-- AWS
+- [AWS](./aws-oidc-federation.mdx)
 - [Google Cloud Platform](./gcp-workload-identity-federation-jwt.mdx)
 - Azure
 
