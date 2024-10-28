@@ -46,11 +46,11 @@ export function UnifiedResourcesE() {
   const {
     addOrRemoveResource,
     addedResources,
-    numAddedResources,
     clearAddedResources,
     setAddedResources,
+    bulkToggleResources,
   } = useNewRequest(ctx);
-  const { clearAttempt, createAttempt, ...requestCheckout } =
+  const { clearAttempt, createAttempt, numAddedResources, ...requestCheckout } =
     useRequestCheckout({
       ctx,
       selectedResource: 'resource',
@@ -65,7 +65,7 @@ export function UnifiedResourcesE() {
     includedResourceMode: IncludedResourceMode
   ) => {
     const isAgentAdded =
-      !!addedResources[resource.kind][getResourceId(resource)];
+      !!addedResources[resource.kind][getResourceId(resource, clusterId)];
     // if we are currently making an access request, all buttons change to
     // add to request
     const showRequestButton =
@@ -96,7 +96,7 @@ export function UnifiedResourcesE() {
             }
             addOrRemoveResource(
               resource.kind,
-              getResourceId(resource),
+              getResourceId(resource, clusterId),
               resourceName
             );
           }}
@@ -115,10 +115,11 @@ export function UnifiedResourcesE() {
   ) {
     const newResources: ResourceMap = deepCopyResourceMap(addedResources);
     const allAdded = data.every(
-      ({ resource }) => newResources[resource.kind][getResourceId(resource)]
+      ({ resource }) =>
+        newResources[resource.kind][getResourceId(resource, clusterId)]
     );
     data.forEach(({ resource }) => {
-      const resourceId = getResourceId(resource);
+      const resourceId = getResourceId(resource, clusterId);
       const resourceName =
         resource.kind === 'node' ? resource.hostname : resourceId;
       if (allAdded) {
@@ -194,6 +195,7 @@ export function UnifiedResourcesE() {
                 </Box>
               )}
               SuccessComponent={SuccessActionComponent}
+              bulkToggleKubeResources={items => bulkToggleResources(items)}
             />
           </CheckoutWrapper>
         )}

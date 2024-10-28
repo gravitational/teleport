@@ -2,21 +2,25 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
-
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
 import {
   getDryRunMaxDuration,
-  ResourceKind,
+  PendingListItem,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
+import {
+  isKubeClusterWithNamespaces,
+  KubeNamespaceRequest,
+} from 'shared/components/AccessRequests/NewRequest/kube';
+import KubeService from 'teleport/services/kube';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 
 import Ctx from 'e-teleport/teleportContextE';
 
 import { State as NewRequestState } from './useNewRequest';
+import { parseResourceIdUri } from './kube';
 
-import type { ResourceIdKind } from 'teleport/services/agents';
 import type { AccessRequest, ResourceId } from 'e-teleport/services/workflow';
 
 type LoadingStatus = 'loading' | 'loaded';
@@ -53,24 +57,38 @@ export function useRequestCheckout({
   } = useSpecifiableFields();
 
   // Format data suitable for table listing.
-  const pendingAccessRequests: {
-    kind: ResourceKind;
-    name: string;
-    id: string;
-  }[] = [];
-  const resourceKeys = Object.keys(addedResources) as ResourceKind[];
+  const pendingAccessRequests: PendingListItem[] = [];
+  const resourceKeys = Object.keys(addedResources) as RequestableResourceKind[];
   resourceKeys.forEach(kind => {
-    Object.keys(addedResources[kind]).forEach(id =>
+    Object.keys(addedResources[kind]).forEach(id => {
+      let subResourceName = '';
+      let resourceId = id;
+      let resourceName = addedResources[kind][id];
+      if (kind === 'namespace') {
+        const {
+          subResourceName: namespaceName,
+          resourceName: kubeClusterName,
+        } = parseResourceIdUri(id).params;
+        resourceId = kubeClusterName;
+        subResourceName = namespaceName;
+        resourceName = namespaceName;
+      }
       pendingAccessRequests.push({
         kind: kind,
-        name: addedResources[kind][id],
-        id: id,
-      })
-    );
+        name: resourceName,
+        id: resourceId,
+        subResourceName,
+      });
+    });
   });
-  const [numRequestedResources, setNumRequestedResources] = useState(0);
 
-  const numAddedResources = getNumAddedResources(addedResources);
+  const pendingAccessRequestsWithoutParentResource =
+    pendingAccessRequests.filter(
+      item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
+    );
+
+  const [numRequestedResources, setNumRequestedResources] = useState(0);
+  const numAddedResources = pendingAccessRequestsWithoutParentResource.length;
 
   useEffect(() => {
     if (isResourceRequest && numAddedResources > 0) {
@@ -88,7 +106,11 @@ export function useRequestCheckout({
   // Options and reviewers can change depending on the selected
   // roles or resources.
   useEffect(() => {
+    if (createAttempt.attempt.status === 'success') {
+      return;
+    }
     setFetchStatus('loading');
+    clearAttempt();
 
     createAccessRequest({
       maxDuration: getDryRunMaxDuration(),
@@ -115,11 +137,7 @@ export function useRequestCheckout({
     if (selectedResource == 'role') {
       roles = pendingAccessRequests.map(item => item.name);
     } else {
-      resourceIds = pendingAccessRequests.map(item => ({
-        name: item.id,
-        kind: item.kind as ResourceIdKind,
-        clusterName: clusterId,
-      }));
+      resourceIds = getResourceIdsForRequests();
       roles = selectedResourceRequestRoles;
     }
 
@@ -140,7 +158,7 @@ export function useRequestCheckout({
     createAccessRequest(req)
       .then(() => {
         createAttempt.setAttempt({ status: 'success' });
-        setNumRequestedResources(pendingAccessRequests.length);
+        setNumRequestedResources(numAddedResources);
         reset();
       })
       .catch((err: Error) => {
@@ -154,15 +172,7 @@ export function useRequestCheckout({
   // Fetches the necessary roles for a resource request
   function fetchResourceRequestRoles() {
     fetchResourceRequestRolesAttempt.setAttempt({ status: 'processing' });
-    const resourceIdRequest: {
-      kind: ResourceIdKind;
-      name: string;
-      clusterName: string;
-    }[] = pendingAccessRequests.map(resource => ({
-      kind: resource.kind as ResourceIdKind,
-      name: resource.id,
-      clusterName: clusterId,
-    }));
+    const resourceIdRequest: ResourceId[] = getResourceIdsForRequests();
 
     ctx.workflowService
       .fetchResourceRequestRoles(resourceIdRequest)
@@ -183,6 +193,30 @@ export function useRequestCheckout({
     createAttempt.setAttempt({ status: '' });
   }
 
+  function getResourceIdsForRequests() {
+    return pendingAccessRequestsWithoutParentResource.map(resource => ({
+      name: resource.id,
+      kind: resource.kind,
+      clusterName: clusterId,
+      subResourceName: resource.subResourceName,
+    }));
+  }
+
+  async function fetchKubeNamespaces({
+    kubeCluster,
+    search,
+  }: KubeNamespaceRequest): Promise<string[]> {
+    const kubeSvc = new KubeService();
+    const namespaces = await kubeSvc.fetchKubernetesResources(clusterId, {
+      kubeCluster,
+      search,
+      limit: 50,
+      searchAsRoles: 'yes',
+      kind: 'namespace',
+    });
+    return namespaces.items.map(i => i.name);
+  }
+
   return {
     createAttempt: createAttempt.attempt,
     fetchResourceRequestRolesAttempt: fetchResourceRequestRolesAttempt.attempt,
@@ -193,6 +227,7 @@ export function useRequestCheckout({
     resourceRequestRoles,
     pendingAccessRequests,
     clearAttempt,
+    fetchKubeNamespaces,
     numRequestedResources,
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,

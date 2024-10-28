@@ -50,8 +50,8 @@ import { getSalesURL } from 'teleport/services/sales';
 import cfg from 'teleport/config';
 
 import {
+  RequestableResourceKind,
   ResourceList,
-  ResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 
 import useTeleportE from 'e-teleport/useTeleportE';
@@ -142,6 +142,8 @@ function NewRequest(props: State) {
     usage,
     fetchUsage,
     ctx,
+    bulkToggleResources,
+    numAddedResources,
   } = props;
   const { setEnforceMinWidth } = useContentMinWidthContext();
   const history = useHistory();
@@ -191,10 +193,6 @@ function NewRequest(props: State) {
     setCurrResourceOpt(newOption);
     updateResourceKind(newOption.value);
   }, [resourceOptions, updateResourceKind]);
-
-  // numAddedResources is the number of resources added to the Access Request without counting roles.
-  // Having any of these resources added to the Access Request makes it a Resource Access Request
-  const numAddedResources = getNumAddedResources(addedResources);
 
   const isResourceRequest = numAddedResources > 0;
   const isRoleList = currResourceOpt.value === 'role';
@@ -351,7 +349,9 @@ function NewRequest(props: State) {
                     <RequestButton
                       disabled={resourceRequestsDisabled}
                       isAgentAdded={Boolean(
-                        addedResources[resource.kind][getResourceId(resource)]
+                        addedResources[resource.kind][
+                          getResourceId(resource, clusterId)
+                        ]
                       )}
                       onClick={() => {
                         let resourceName;
@@ -360,7 +360,7 @@ function NewRequest(props: State) {
                         }
                         addOrRemoveResource(
                           resource.kind,
-                          getResourceId(resource),
+                          getResourceId(resource, clusterId),
                           resourceName
                         );
                       }}
@@ -472,6 +472,7 @@ function NewRequest(props: State) {
             reset={clearAddedResources}
             selectedResource={selectedResource}
             isResourceRequest={isResourceRequest}
+            bulkToggleKubeResources={items => bulkToggleResources(items)}
           />
         )}
       </Transition>
@@ -559,7 +560,7 @@ const UsageNotice = styled(Flex)`
 `;
 
 type ResourceOption = {
-  value: ResourceKind;
+  value: RequestableResourceKind;
   label: string;
 };
 

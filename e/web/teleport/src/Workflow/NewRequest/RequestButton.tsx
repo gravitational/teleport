@@ -1,19 +1,18 @@
 import React from 'react';
-import { ButtonPrimary, ButtonBorder, Flex, Text } from 'design';
+import { ButtonPrimary, ButtonBorder, Flex } from 'design';
 import styled from 'styled-components';
-import { components, OptionProps } from 'react-select';
-import Select, { Option as BaseOption } from 'shared/components/Select';
+import Select from 'shared/components/Select';
 import { App } from 'teleport/services/apps';
 
 import {
-  ResourceKind,
+  RequestableResourceKind,
   ResourceMap,
 } from 'shared/components/AccessRequests/NewRequest';
 
-type Option = BaseOption & {
-  isAdded?: boolean;
-  kind: 'app' | 'user_group';
-};
+import {
+  CheckableOptionComponent,
+  Option,
+} from 'shared/components/AccessRequests/NewRequest/CheckableOption';
 
 function getButtonText(addText: string, requestStarted: boolean): string {
   if (addText) {
@@ -69,24 +68,6 @@ export const RequestButton = ({
   );
 };
 
-const OptionComponent = (props: OptionProps<Option> & { data: Option }) => {
-  const { data } = props;
-  return (
-    <components.Option {...props}>
-      <Flex alignItems="center" py="8px" px="12px">
-        <input
-          type="checkbox"
-          checked={data.isAdded}
-          readOnly
-          name={data.value}
-          id={data.value}
-        />{' '}
-        <Text ml={1}>{data.label}</Text>
-      </Flex>
-    </components.Option>
-  );
-};
-
 export function AppRequestButton({
   agent,
   addedResources,
@@ -101,7 +82,7 @@ export function AppRequestButton({
   addText?: string;
   requestStarted?: boolean;
   addOrRemoveResource: (
-    kind: ResourceKind,
+    kind: RequestableResourceKind,
     resourceId: string,
     resourceName?: string
   ) => void;
@@ -167,7 +148,7 @@ export function AppRequestButton({
         closeMenuOnSelect={false}
         onChange={handleSelect}
         components={{
-          Option: OptionComponent,
+          Option: CheckableOptionComponent,
         }}
       />
     </Flex>

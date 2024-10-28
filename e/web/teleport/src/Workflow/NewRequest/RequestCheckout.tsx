@@ -6,7 +6,7 @@ import {
   RequestCheckoutWithSlider as SharedRequestCheckout,
   RequestCheckoutProps as SharedRequestCheckoutProps,
   ResourceMap,
-  ResourceKind,
+  RequestableResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 
 import cfg from 'e-teleport/config';
@@ -26,8 +26,9 @@ export const RequestCheckout = forwardRef<
     | 'userGroupFetchAttempt'
     | 'reset'
     | 'isResourceRequest'
+    | 'bulkToggleKubeResources'
   > & {
-    selectedResource: ResourceKind;
+    selectedResource: RequestableResourceKind;
     addedResources: ResourceMap;
     transitionState: TransitionStatus;
   }

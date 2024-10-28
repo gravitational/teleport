@@ -9,12 +9,20 @@ import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabe
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import {
-  ResourceKind,
+  PendingListItem,
   ResourceMap,
   getEmptyResourceState,
 } from 'shared/components/AccessRequests/NewRequest';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import { KubeResource } from 'teleport/services/kube';
 
 import Ctx from 'e-teleport/teleportContextE';
+
+import {
+  AccessRequestResourceIdParam,
+  getResourceIdUri,
+  parseResourceIdUri,
+} from './kube';
 
 import type {
   ResourceLabel,
@@ -22,11 +30,6 @@ import type {
   ResourcesResponse,
   UnifiedResource,
 } from 'teleport/services/agents';
-
-export type {
-  /** @deprecated Import `ResourceKind` directly. */
-  ResourceKind,
-};
 
 const pageSize = 10;
 
@@ -37,9 +40,8 @@ export function useNewRequest(ctx: Ctx) {
   );
   const { attempt: dryRunAttempt, setAttempt: setDryRunAttempt } =
     useAttempt('processing');
-  const [selectedResource, setSelectedResource] = useState<ResourceKind>(
-    isLeafCluster ? 'node' : 'role'
-  );
+  const [selectedResource, setSelectedResource] =
+    useState<RequestableResourceKind>(isLeafCluster ? 'node' : 'role');
   const {
     attempt: userGroupFetchAttempt,
     setAttempt: setUserGroupFetchAttempt,
@@ -298,7 +300,7 @@ export function useNewRequest(ctx: Ctx) {
   }
 
   const updateResourceKind = useCallback(
-    (kind: ResourceKind) => {
+    (kind: RequestableResourceKind) => {
       setSelectedResource(kind);
       setAgentFilter({
         searchAsRoles: 'yes',
@@ -321,29 +323,73 @@ export function useNewRequest(ctx: Ctx) {
     [setAttempt]
   );
 
-  // addOrRemoveResource adds the resource if it doesn't exist already in the map.
-  // Else removes it. "resourceName" is optional, if not provided, it is assumed that
-  // "resourceId" is the same as "resourceName" e.g: for resource type "node", we display
-  // hostname to the user which isn't the id, but a more readable/identifiable name for
-  // the user.
+  /**
+   * addOrRemoveResource adds the resource if it doesn't exist already in the map.
+   * Else removes it.
+   *
+   * "resourceName" is optional for most kinds, if not provided,
+   * it is assumed that "resourceId" is the same as "resourceName".
+   */
   function addOrRemoveResource(
-    kind: ResourceKind,
+    kind: RequestableResourceKind,
     resourceId: string,
+    /**
+     * resourceName can refer to:
+     *  - node's "hostname": used to refer to a friendlier readable name
+     */
     resourceName?: string
   ) {
-    // if this is adding a resource for the first time, we run a dry run again to
-    // get updated dryrun return and clear the old attempt
     const newResources: ResourceMap = deepCopyResourceMap(addedResources);
-    if (newResources[kind][resourceId]) {
-      delete newResources[kind][resourceId];
+    const { id, val } = getResourceIdAndVal({
+      resourceKind: kind,
+      resourceName: resourceId,
+      subResourceName: resourceName,
+      teleportClusterName: clusterId,
+    });
+    if (newResources[kind][id]) {
+      delete newResources[kind][id];
+      // Delete all related namespaces as well.
+      if (kind === 'kube_cluster') {
+        const kubeNamespaceUris = Object.keys(newResources['namespace']);
+        kubeNamespaceUris.forEach(uri => {
+          const { resourceName } = parseResourceIdUri(uri).params;
+          if (resourceName === id) {
+            delete newResources['namespace'][uri];
+          }
+        });
+      }
     } else {
-      newResources[kind][resourceId] = resourceName ? resourceName : resourceId;
+      newResources[kind][id] = val;
     }
 
     setAddedResources(newResources);
   }
 
-  function getAgentsFetchCallback(ctx: Ctx, resourceType: ResourceKind) {
+  function bulkToggleResources(resources: PendingListItem[]) {
+    const newResources: ResourceMap = deepCopyResourceMap(addedResources);
+
+    resources.forEach(resource => {
+      const { id, val } = getResourceIdAndVal({
+        resourceKind: resource.kind,
+        resourceName: resource.id,
+        subResourceName: resource.subResourceName,
+        teleportClusterName: clusterId,
+      });
+
+      if (newResources[resource.kind][id]) {
+        delete newResources[resource.kind][id];
+      } else {
+        newResources[resource.kind][id] = val;
+      }
+    });
+
+    setAddedResources(newResources);
+  }
+
+  function getAgentsFetchCallback(
+    ctx: Ctx,
+    resourceType: RequestableResourceKind
+  ) {
     if (resourceType === 'app') {
       return ctx.appService.fetchApps;
     }
@@ -463,20 +509,24 @@ export function useNewRequest(ctx: Ctx) {
 
   const requestableRoles = ctx.storeUser.getRequestableRoles();
 
+  /**
+   * Used with bulk actions (eg: add/remove all)
+   * Does not support bulk adding for:
+   *  - apps with user groups
+   *  - kubes with namespaces
+   */
   const addSelectedResources = (
-    resources: {
-      unifiedResourceId: string;
-      resource: SharedUnifiedResource['resource'];
-    }[]
+    resources: { unifiedResourceId: string; resource: ResourceDefinition }[]
   ) => {
     const allAdded = resources.every(
-      ({ resource }) => addedResources[resource.kind]?.[getResourceId(resource)]
+      ({ resource }) =>
+        addedResources[resource.kind]?.[getResourceId(resource, clusterId)]
     );
 
     let newMap = { ...addedResources };
     if (allAdded) {
       resources.forEach(({ resource }) => {
-        const key = getResourceId(resource);
+        const key = getResourceId(resource, clusterId);
         const kind = resource.kind;
         delete newMap[kind][key];
       });
@@ -485,7 +535,7 @@ export function useNewRequest(ctx: Ctx) {
     }
 
     resources.forEach(({ resource }) => {
-      const key = getResourceId(resource);
+      const key = getResourceId(resource, clusterId);
       const kind = resource.kind;
       const name = kind === 'node' ? resource.hostname : key;
       newMap[kind][key] = name;
@@ -532,8 +582,25 @@ export function useNewRequest(ctx: Ctx) {
     fetchUsage,
     usage,
     ctx,
+    bulkToggleResources,
   };
 }
+
+const getResourceIdAndVal = (params: AccessRequestResourceIdParam) => {
+  const { resourceKind, resourceName, subResourceName } = params;
+
+  let id = resourceName;
+  let val = subResourceName ? subResourceName : resourceName;
+  if (resourceKind === 'namespace') {
+    id = getResourceIdUri(params);
+    val = resourceName;
+  }
+
+  return {
+    id,
+    val,
+  };
+};
 
 function getEmptyFetchedDataState() {
   return {
@@ -543,7 +610,7 @@ function getEmptyFetchedDataState() {
   };
 }
 
-function getDefaultSort(kind: ResourceKind): SortType {
+function getDefaultSort(kind: RequestableResourceKind): SortType {
   if (kind === 'node') {
     return { fieldName: 'hostname', dir: 'ASC' };
   }
@@ -552,9 +619,17 @@ function getDefaultSort(kind: ResourceKind): SortType {
 
 export type State = ReturnType<typeof useNewRequest>;
 
-export function getResourceId(resource: SharedUnifiedResource['resource']) {
+export function getResourceId(resource: ResourceDefinition, clusterId: string) {
   if (resource.kind === 'node') {
     return resource.id;
+  }
+  if (resource.kind === 'namespace') {
+    return getResourceIdUri({
+      resourceName: resource.cluster,
+      subResourceName: resource.name,
+      teleportClusterName: clusterId,
+      resourceKind: resource.kind,
+    });
   }
   return resource.name;
 }
@@ -569,5 +644,8 @@ export function deepCopyResourceMap(resources: ResourceMap): ResourceMap {
     windows_desktop: { ...resources.windows_desktop },
     role: { ...resources.role },
     saml_idp_service_provider: { ...resources.saml_idp_service_provider },
+    namespace: { ...resources.namespace },
   };
 }
+
+type ResourceDefinition = SharedUnifiedResource['resource'] | KubeResource;

@@ -118,6 +118,7 @@ afterEach(() => {
 
 test('add and remove a resource from table', async () => {
   render(Component);
+  await screen.findAllByText('node1-addr');
 
   // Initial render is a resource table so we select roles
   await selectEvent.select(
@@ -140,13 +141,14 @@ test('add and remove a resource from table', async () => {
   // Add a resource.
   rows = screen.getAllByText(/request access/i);
   expect(rows).toHaveLength(3);
-  fireEvent.click(rows[0]);
+  await userEvent.click(rows[0]);
   checkoutFooter = screen.getByTestId('checkout-footer');
   expect(checkoutFooter).toHaveTextContent(/1/);
   expect(screen.getByText(/proceed to request/i)).toBeEnabled();
 
   // Add another one.
-  fireEvent.click(rows[1]);
+  rows = screen.getAllByText(/request access/i);
+  await userEvent.click(rows[0]);
   checkoutFooter = screen.getByTestId('checkout-footer');
   expect(checkoutFooter).toHaveTextContent(/2/);
 
@@ -167,12 +169,7 @@ test('add and remove a resource from table', async () => {
 
 test('clicking on a resource label constructs predicate query', async () => {
   render(Component);
-
-  // We will use node to test predicate (it will be same for all other agents).
-  await selectEvent.select(
-    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
-    'resources'
-  );
+  await screen.findAllByText('node1-addr');
 
   // Click on a label.
   fireEvent.click(await screen.findByText(/test: node1/i));
@@ -211,15 +208,16 @@ test('select all nodes hostnames in checkout', async () => {
 
   let hostnames = await screen.findAllByText(/hostname-node/);
   expect(hostnames).toHaveLength(1);
-  await screen.getByTestId('select_all').click();
-  const addButtons = await screen.findAllByText(/remove from request/i);
+  const selectAllBtn = screen.getByTestId('select_all');
+  await userEvent.click(selectAllBtn);
+  const addButtons = screen.getAllByText(/remove from request/i);
 
   await userEvent.click(addButtons[0]);
-  const proceedToRequest = await screen.findByText('Proceed to Request');
+  const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
 
   expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
-  hostnames = await screen.findAllByText('hostname-node1');
+  hostnames = screen.getAllByText('hostname-node1');
 
   // one in list and one in the checkout
   expect(hostnames).toHaveLength(2);
@@ -230,15 +228,16 @@ test('adding resources with bulk action properly adds/removes nodes', async () =
 
   let hostnames = await screen.findAllByText(/hostname-node/);
   expect(hostnames).toHaveLength(1);
-  await screen.getByTestId('select_all').click();
-  const addButtons = await screen.findAllByText(/remove from request/i);
+  const selectAllBtn = screen.getByTestId('select_all');
+  await userEvent.click(selectAllBtn);
+  const addButtons = screen.getAllByText(/remove from request/i);
 
   await userEvent.click(addButtons[0]);
-  const proceedToRequest = await screen.findByText('Proceed to Request');
+  const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
 
   expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
-  hostnames = await screen.findAllByText('hostname-node1');
+  hostnames = screen.getAllByText('hostname-node1');
 
   await userEvent.click(await screen.findByTestId('close-checkout'));
   await userEvent.click(await screen.findByText(/add\/remove from request/i));
@@ -249,20 +248,17 @@ test('adding resources with bulk action properly adds/removes nodes', async () =
 test('select all buttons work properly', async () => {
   render(Component);
 
-  await selectEvent.select(
-    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
-    'resources'
-  );
+  await screen.findAllByText('node1-addr');
 
   expect(screen.getByText('Resources Added (0)')).toBeInTheDocument();
-  const selectAll = await screen.findByTestId('select_all');
+  const selectAll = screen.getByTestId('select_all');
   await userEvent.click(selectAll);
 
-  const addToResource = await screen.findByTestId('add_to_resource');
+  const addToResource = screen.getByTestId('add_to_resource');
   await userEvent.click(addToResource);
   expect(screen.getByText('Resources Added (2)')).toBeInTheDocument();
 
-  const proceedToRequest = await screen.findByText('Proceed to Request');
+  const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
   expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
 });
@@ -357,7 +353,7 @@ test('limited: displays upsell link and button when access request limit is reac
   let ctaTexts = screen.getAllByText(/with teleport identity/i);
   expect(ctaTexts).toHaveLength(2);
 
-  let upsellLinks = await screen.findAllByRole('link');
+  let upsellLinks = screen.queryAllByRole('link');
   expect(upsellLinks).toHaveLength(2);
   for (const link of upsellLinks) {
     expect(link).toHaveAttribute('href', expect.stringMatching(/upgrade-igs/i));
@@ -368,18 +364,13 @@ test('created requests specifiable fields are respected on checkout (not overwri
   ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
   render(Component);
 
-  await selectEvent.select(
-    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
-    'resources'
-  );
-
   // Select a resource.
   await screen.findAllByText('node1-addr');
-  const addButtons = await screen.findAllByText(/request access/i);
+  const addButtons = screen.queryAllByText(/request access/i);
   await userEvent.click(addButtons[0]);
 
   // Go to checkout.
-  const proceedToRequest = await screen.findByText('Proceed to Request');
+  const proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
   expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
   await screen.findAllByText('node1-addr');
@@ -424,6 +415,7 @@ test('created requests specifiable fields are respected on checkout (not overwri
         clusterName: 'localhost',
         kind: 'node',
         name: '1',
+        subResourceName: '',
       },
     ],
     roles: ['access'],
