@@ -27,11 +27,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/mailgun-go/v4"
 	"gopkg.in/mail.v2"
+
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
@@ -211,7 +212,7 @@ func (m *MailgunMailer) Send(ctx context.Context, id, recipient, body, reference
 		msg.AddHeader("In-Reply-To", refHeader)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancel := context.WithTimeout(ctx, mailgunHTTPTimeout)
 	defer cancel()
 
 	_, id, err := m.mailgun.Send(ctx, msg)
