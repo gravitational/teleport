@@ -1264,6 +1264,9 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	}
 
 	// KindSAMLIdPServiceProvider does not support label matcher
+	// TODO(sshah): remove this exclusion once we introduce role v8 and ability
+	// to enforce label matcher only for roles v8.
+	// https://github.com/gravitational/teleport/pull/47912
 	if resourceKind == types.KindSAMLIdPServiceProvider {
 		return true, nil
 	}
