@@ -130,7 +130,7 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 
 	a.logger.InfoContext(ctx, "Creating new AWS KMS keypair.",
 		slog.Any("algorithm", algorithm),
-		slog.Bool("multi-region", a.multiRegionEnabled))
+		slog.Bool("multi_region", a.multiRegionEnabled))
 
 	output, err := a.kms.CreateKey(ctx, &kms.CreateKeyInput{
 		Description: aws.String("Teleport CA key"),
