@@ -69,9 +69,6 @@ func TestNewUserContext(t *testing.T) {
 		Metadata: types.Metadata{
 			Name: "root",
 		},
-		Status: types.UserStatusV2{
-			PasswordState: types.PasswordState_PASSWORD_STATE_SET,
-		},
 		Spec: types.UserSpecV2{
 			CreatedBy: types.CreatedBy{
 				Connector: &types.ConnectorRef{},
