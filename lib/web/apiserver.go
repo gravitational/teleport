@@ -5207,10 +5207,5 @@ func agentShouldUpdate(config *autoupdatepb.AutoUpdateConfig, version *autoupdat
 	}
 
 	scheduleName := version.GetSpec().GetAgents().GetSchedule()
-	if scheduleName == autoupdate.AgentsScheduleImmediate {
-		return true
-	}
-
-	// TODO: add support for the regular schedule name as we implement groups and autoupdate_agent_rollout
-	return false
+	return scheduleName == autoupdate.AgentsScheduleImmediate
 }
