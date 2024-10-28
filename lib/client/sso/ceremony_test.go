@@ -81,7 +81,7 @@ func TestCLICeremony(t *testing.T) {
 
 		// Read the clickable url from stderr and navigate to it
 		// using a simplified regexp for http://127.0.0.1:<port>/<uuid>
-		const clickableURLPattern = `^http://127.0.0.1:\d+/[0-9A-Fa-f-]+$`
+		const clickableURLPattern = `http://127.0.0.1:\d+/[0-9A-Fa-f-]+`
 		clickableURL := regexp.MustCompile(clickableURLPattern).FindString(stderr.String())
 		resp, err := http.Get(clickableURL)
 		require.NoError(t, err)
@@ -132,7 +132,6 @@ func TestCLICeremony_MFA(t *testing.T) {
 	t.Cleanup(mockIdPServer.Close)
 
 	ceremony := sso.NewCLIMFACeremony(rd)
-	defer rd.Close()
 
 	// Modify handle redirect to also browse to the clickable URL printed to stderr.
 	baseHandleRedirect := ceremony.HandleRedirect
