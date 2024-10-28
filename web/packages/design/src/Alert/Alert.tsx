@@ -20,6 +20,8 @@ import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { style, color, ColorProps } from 'styled-system';
 
+import { IconProps } from 'design/Icon/Icon';
+
 import { space, SpaceProps, width, WidthProps } from '../system';
 import { Theme } from '../theme';
 import * as Icon from '../Icon';
@@ -111,7 +113,7 @@ interface Props<K> {
   /** Additional description to be displayed below the main content. */
   details?: React.ReactNode;
   /** Overrides the icon specified by {@link AlertProps.kind}. */
-  icon?: React.ComponentType<Icon.IconProps>;
+  icon?: React.ComponentType<IconProps>;
   /** If specified, causes the alert to display a primary action button. */
   primaryAction?: Action;
   /** If specified, causes the alert to display a secondary action button. */
@@ -253,8 +255,8 @@ const AlertIcon = ({
   ...otherProps
 }: {
   kind: AlertKind | BannerKind;
-  customIcon?: React.ComponentType<Icon.IconProps>;
-} & Icon.IconProps) => {
+  customIcon?: React.ComponentType<IconProps>;
+} & IconProps) => {
   const commonProps = { role: 'graphics-symbol', ...otherProps };
   if (CustomIcon) {
     return <CustomIcon {...commonProps} />;
