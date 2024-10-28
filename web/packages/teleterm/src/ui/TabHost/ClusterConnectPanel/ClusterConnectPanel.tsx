@@ -17,14 +17,11 @@
  */
 
 import React from 'react';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, ResourceIcon, Text } from 'design';
 import styled from 'styled-components';
-
-import Image from 'design/Image';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import clusterPng from './clusters.png';
 import { RecentClusters } from './RecentClusters';
 
 export function ClusterConnectPanel() {
@@ -43,7 +40,7 @@ export function ClusterConnectPanel() {
           flexDirection="column"
           alignItems="center"
         >
-          <Image width="120px" src={clusterPng} mb={3} />
+          <ResourceIcon width="120px" name="server" mb={3} />
           <Text typography="h3" bold mb={2}>
             Connect a Cluster
           </Text>
