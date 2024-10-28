@@ -100,6 +100,16 @@ func (s *WindowsService) ldapSearchFilter() string {
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
+	// Check whether we've ever successfully initialized our LDAP client.
+	s.mu.Lock()
+	if !s.ldapInitialized {
+		s.cfg.Logger.DebugContext(context.Background(), "LDAP not ready, skipping discovery and attempting to reconnect")
+		s.mu.Unlock()
+		s.initializeLDAP()
+		return nil
+	}
+	s.mu.Unlock()
+
 	filter := s.ldapSearchFilter()
 	s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
 
