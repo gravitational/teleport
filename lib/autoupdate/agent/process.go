@@ -153,6 +153,9 @@ func (w *lineLogger) Write(p []byte) (n int, err error) {
 }
 
 func (w *lineLogger) Flush() {
+	if w.last.Len() == 0 {
+		return
+	}
 	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint
 	w.last.Reset()
 }

@@ -51,13 +51,13 @@ var (
 	// See utils.Extract for more details on how this list is parsed.
 	// Paths must use tarball-style / separators (not filepath).
 	tgzExtractPaths = []utils.ExtractPath{
-		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service"},
-		{Src: "teleport/examples", Skip: true},
-		{Src: "teleport/install", Skip: true},
-		{Src: "teleport/README.md", Dst: "share/README.md"},
-		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md"},
-		{Src: "teleport/VERSION", Dst: "share/VERSION"},
-		{Src: "teleport", Dst: "bin"},
+		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service", DirMode: 0755},
+		{Src: "teleport/examples", Skip: true, DirMode: 0755},
+		{Src: "teleport/install", Skip: true, DirMode: 0755},
+		{Src: "teleport/README.md", Dst: "share/README.md", DirMode: 0755},
+		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md", DirMode: 0755},
+		{Src: "teleport/VERSION", Dst: "share/VERSION", DirMode: 0755},
+		{Src: "teleport", Dst: "bin", DirMode: 0755},
 	}
 
 	// servicePath contains the path to the Teleport SystemD service within the version directory.
@@ -119,7 +119,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
+func (li *LocalInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) (err error) {
 	versionDir, err := li.versionDir(version)
 	if err != nil {
 		return trace.Wrap(err)
@@ -175,11 +175,18 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	if err != nil {
 		return trace.Errorf("failed to download teleport: %w", err)
 	}
-
 	// Seek to the start of the tgz file after writing
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start of download: %w", err)
 	}
+
+	// If interrupted, close the file immediately to stop extracting.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		<-ctx.Done()
+		_ = f.Close()
+	}()
 	// Check integrity before decompression
 	if !bytes.Equal(newSum, pathSum) {
 		return trace.Errorf("mismatched checksum, download possibly corrupt")
@@ -193,6 +200,17 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start: %w", err)
 	}
+
+	// If there's an error after we start extracting, delete the version dir.
+	defer func() {
+		if err != nil {
+			if err := os.RemoveAll(versionDir); err != nil {
+				li.Log.WarnContext(ctx, "Failed to cleanup broken version extraction.", "error", err, "dir", versionDir)
+			}
+		}
+	}()
+
+	// Extract tgz into version directory.
 	if err := li.extract(ctx, versionDir, f, n); err != nil {
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
