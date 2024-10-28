@@ -478,3 +478,5 @@ func (m *mockSSOMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticat
 	}
 	return m.mfaResp, nil
 }
+
+func (m *mockSSOMFACeremony) Close() {}

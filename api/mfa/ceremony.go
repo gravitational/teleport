@@ -33,8 +33,7 @@ type Ceremony struct {
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
-	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge. The provided
-	// context will be closed once the ceremony is complete.
+	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge.
 	SSOMFACeremonyConstructor SSOMFACeremonyConstructor
 }
 
@@ -42,6 +41,7 @@ type Ceremony struct {
 type SSOMFACeremony interface {
 	GetClientCallbackURL() string
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	Close()
 }
 
 // SSOMFACeremonyConstructor constructs a new SSO MFA ceremony.
@@ -55,9 +55,6 @@ type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.Create
 // req may be nil if ceremony.CreateAuthenticateChallenge does not require it, e.g. in
 // the moderated session mfa ceremony which uses a custom stream rpc to create challenges.
 func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	switch {
 	case c.CreateAuthenticateChallenge == nil:
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
@@ -77,6 +74,8 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to handle SSO MFA ceremony")
 		}
+		defer ssoMFACeremony.Close()
+
 		req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
 		promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 	}

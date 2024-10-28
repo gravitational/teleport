@@ -132,6 +132,7 @@ func TestCLICeremony_MFA(t *testing.T) {
 	t.Cleanup(mockIdPServer.Close)
 
 	ceremony := sso.NewCLIMFACeremony(rd)
+	defer rd.Close()
 
 	// Modify handle redirect to also browse to the clickable URL printed to stderr.
 	baseHandleRedirect := ceremony.HandleRedirect
