@@ -57,11 +57,13 @@ export default function AuthnDialog({ mfa, onCancel }: Props) {
           >
             <SSOIcon
               type={guessProviderType(
-                mfa.ssoChallenge.device.displayName,
+                mfa.ssoChallenge.device.displayName ||
+                  mfa.ssoChallenge.device.connectorId,
                 mfa.ssoChallenge.device.connectorType
               )}
             />
-            {mfa.ssoChallenge.device.displayName}
+            {mfa.ssoChallenge.device.displayName ||
+              mfa.ssoChallenge.device.connectorId}
           </ButtonSecondary>
         )}
         {mfa.webauthnPublicKey && (
