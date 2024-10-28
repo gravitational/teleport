@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -123,6 +124,7 @@ type WindowsService struct {
 	ldapConfigured  bool
 	ldapInitialized bool
 	ldapCertRenew   *time.Timer
+	heartbeats      map[string]*srv.HeartbeatV2
 
 	// lastDisoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
@@ -144,7 +146,7 @@ type WindowsService struct {
 	// creating shared directory audit events.
 	auditCache sharedDirectoryAuditCache
 
-	// NLA indicates whether this service will attempt to perform
+	// enableNLA indicates whether this service will attempt to perform
 	// Network Level Authentication (NLA) when attempting to connect
 	// to domain-joined Windows hosts
 	enableNLA bool
@@ -225,6 +227,8 @@ type HeartbeatConfig struct {
 	OnHeartbeat func(error)
 	// StaticHosts is an optional list of static Windows hosts to register
 	StaticHosts []servicecfg.WindowsHost
+	// InventoryHandle is used to send desktop heartbeats via the inventory control stream.
+	InventoryHandle inventory.DownstreamHandle
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
@@ -297,6 +301,9 @@ func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
 	if cfg.OnHeartbeat == nil {
 		return trace.BadParameter("HeartbeatConfig is missing OnHeartbeat")
 	}
+	if cfg.InventoryHandle == nil {
+		return trace.BadParameter("HeartbeatConfig is missing InventoryHandle")
+	}
 	return nil
 }
 
@@ -360,6 +367,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
+		heartbeats:  make(map[string]*srv.HeartbeatV2),
 		dnsResolver: resolver,
 		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
@@ -407,7 +415,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.startStaticHostHeartbeats(); err != nil {
+	if err := s.startInventoryHeartbeats(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -606,36 +614,37 @@ func (s *WindowsService) startServiceHeartbeat() error {
 // service itself is running.
 func (s *WindowsService) startStaticHostHeartbeats() error {
 	for _, host := range s.cfg.Heartbeat.StaticHosts {
-		if err := s.startStaticHostHeartbeat(host); err != nil {
-			return err
+		hb, err := srv.NewWindowsDesktopHeartbeat(srv.HeartbeatV2Config[*types.WindowsDesktopV3]{
+			InventoryHandle: s.cfg.Heartbeat.InventoryHandle,
+			Announcer:       s.cfg.AccessPoint,
+			GetResource:     s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
+			OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
+
+		go hb.Run()
+
+		s.mu.Lock()
+		s.heartbeats[host.Name] = hb
+		s.mu.Unlock()
 	}
 	return nil
 }
 
-// startStaticHostHeartbeats spawns heartbeat goroutine for single host
-func (s *WindowsService) startStaticHostHeartbeat(host servicecfg.WindowsHost) error {
-	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Context:         s.closeCtx,
-		Component:       teleport.ComponentWindowsDesktop,
-		Mode:            srv.HeartbeatModeWindowsDesktop,
-		Announcer:       s.cfg.AccessPoint,
-		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn),
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-		CheckPeriod:     5 * time.Minute,
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+// TODO(zmb3): where do I use this?
+func (s *WindowsService) stopHeartbeat(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hb, ok := s.heartbeats[name]
+	if !ok {
+		return nil
 	}
-	go func() {
-		if err := heartbeat.Run(); err != nil {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "static host heartbeat ended", "error", err)
-		}
-	}()
-	return nil
+
+	delete(s.heartbeats, name)
+	return trace.Wrap(hb.Close())
 }
 
 // Close instructs the server to stop accepting new connections and abort all
@@ -1147,11 +1156,12 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 }
 
 // staticHostHeartbeatInfo generates the Windows Desktop resource
-// for heartbeating statically defined hosts
-func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
+// for heartbeating statically defined hosts.
+func (s *WindowsService) staticHostHeartbeatInfo(
+	host servicecfg.WindowsHost,
 	getHostLabels func(string) map[string]string,
-) func() (types.Resource, error) {
-	return func() (types.Resource, error) {
+) func(ctx context.Context) (*types.WindowsDesktopV3, error) {
+	return func(ctx context.Context) (*types.WindowsDesktopV3, error) {
 		addr := host.Address.String()
 		labels := getHostLabels(addr)
 		for k, v := range host.Labels {

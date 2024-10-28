@@ -585,6 +585,9 @@ type upstreamHandle struct {
 
 	// kubernetesServers track kubernetesServers server details.
 	kubernetesServers map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3]
+
+	// windowsDesktops tracks Windows desktop details
+	windowsDesktops map[resourceKey]*heartBeatInfo[*types.WindowsDesktopV3]
 }
 
 type resourceKey struct {

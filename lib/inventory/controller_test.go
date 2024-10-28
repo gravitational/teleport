@@ -127,6 +127,23 @@ func (a *fakeAuth) DeleteKubernetesServer(ctx context.Context, hostID, name stri
 	return nil
 }
 
+// TODO(zmb3) do we need to return a types.KeepAlive?
+func (a *fakeAuth) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return trace.Errorf("upsert failed as test condition")
+	}
+	return nil
+}
+
+func (a *fakeAuth) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
+	return nil
+}
+
 func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -232,6 +232,7 @@ var connectedResourceGauges = map[string]prometheus.Gauge{
 	constants.KeepAliveApp:                   connectedResources.WithLabelValues(constants.KeepAliveApp),
 	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
 	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
+	constants.KeepAliveWindowsDesktop:        connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktop),
 	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
 }
 
