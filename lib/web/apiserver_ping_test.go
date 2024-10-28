@@ -395,9 +395,9 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// clear the fn cache to force the next answer to be fresh
+			// expire the fn cache to force the next answer to be fresh
 			for _, proxy := range env.proxies {
-				proxy.handler.handler.findEndpointCache.Remove("find")
+				proxy.clock.Advance(2 * findEndpointCacheTTL)
 			}
 
 			resp, err := client.NewInsecureWebClient().Do(req)
