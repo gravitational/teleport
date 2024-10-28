@@ -241,9 +241,6 @@ importers:
       jest-fail-on-console:
         specifier: ^3.3.0
         version: 3.3.0
-      jest-styled-components:
-        specifier: ^7.2.0
-        version: 7.2.0(styled-components@6.1.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -278,6 +275,9 @@ importers:
       '@types/styled-system':
         specifier: ^5.1.22
         version: 5.1.22
+      jest-styled-components:
+        specifier: ^7.2.0
+        version: 7.2.0(styled-components@6.1.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
 
   web/packages/shared:
     dependencies:

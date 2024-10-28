@@ -482,6 +482,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 		StaticHostUser:            cfg.StaticHostUsers,
 		ProvisioningStates:        cfg.ProvisioningStates,
+		IdentityCenter:            cfg.IdentityCenter,
 	}
 
 	as := Server{
@@ -516,9 +517,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
 		}),
-		inventory.WithOnDisconnect(func(s string) {
+		inventory.WithOnDisconnect(func(s string, c int) {
 			if g, ok := connectedResourceGauges[s]; ok {
-				g.Dec()
+				g.Sub(float64(c))
 			} else {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}

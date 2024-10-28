@@ -62,15 +62,14 @@ export function Section({
 
 const rightPanelWidth = '236px';
 
-export const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
+export const RightPanel = styled(Box).attrs({ pt: 2, px: '5px' })<{
   isVisible: boolean;
   skipAnimation: boolean;
 }>`
   position: fixed;
   left: var(--sidenav-width);
   height: 100%;
-  scrollbar-gutter: auto;
-  overflow: visible;
+  scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
   width: ${rightPanelWidth};
   background: ${p => p.theme.colors.levels.surface};
   z-index: ${zIndexMap.sideNavExpandedPanel};
@@ -93,18 +92,14 @@ export const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
     top: ${p => p.theme.topBarHeight[1]}px;
     padding-bottom: ${p => p.theme.topBarHeight[1] + p.theme.space[2]}px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    top: ${p => p.theme.topBarHeight[2]}px;
-    padding-bottom: ${p => p.theme.topBarHeight[3] + p.theme.space[2]}px;
-  }
 `;
 
 export const CategoryButton = styled.button<{
   $active: boolean;
   isExpanded: boolean;
 }>`
-  height: 60px;
-  width: 60px;
+  min-height: 60px;
+  min-width: 60px;
   cursor: pointer;
   outline: hidden;
   border: none;
@@ -114,6 +109,11 @@ export const CategoryButton = styled.button<{
   justify-content: center;
   border-radius: ${props => props.theme.radii[2]}px;
   z-index: ${zIndexMap.sideNavButtons};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${props => props.theme.space[1]}px;
+  font-family: ${props => props.theme.font};
 
   font-size: ${props => props.theme.typography.body4.fontSize};
   font-weight: ${props => props.theme.typography.body4.fontWeight};
@@ -163,7 +163,7 @@ export function getCategoryStyles(
     }
     ${isExpanded &&
     `
-         background: ${theme.colors.interactive.tonal.neutral[0]};
+      background: ${theme.colors.interactive.tonal.neutral[0]};
       color: ${theme.colors.text.main};
       `}
   `;
@@ -176,20 +176,28 @@ export function SubsectionItem({
   to,
   exact,
   children,
+  onClick,
 }: {
   $active: boolean;
   to: string;
   exact: boolean;
   children: React.ReactNode;
+  onClick?: (event: React.MouseEvent) => void;
 }) {
   return (
-    <StyledSubsectionItem $active={$active} to={to} exact={exact} tabIndex={0}>
+    <StyledSubsectionItem
+      $active={$active}
+      to={to}
+      exact={exact}
+      tabIndex={0}
+      onClick={onClick}
+    >
       {children}
     </StyledSubsectionItem>
   );
 }
 
-const StyledSubsectionItem = styled(NavLink)<{
+export const StyledSubsectionItem = styled(NavLink)<{
   $active: boolean;
 }>`
   display: flex;
@@ -213,6 +221,9 @@ export function getSubsectionStyles(theme: Theme, active: boolean) {
     return css`
       color: ${theme.colors.brand};
       background: ${theme.colors.interactive.tonal.primary[0]};
+      p {
+        font-weight: 500;
+      }
       &:focus-visible {
         outline: 2px solid ${theme.colors.interactive.solid.primary.default};
       }

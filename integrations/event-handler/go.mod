@@ -14,7 +14,6 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/peterbourgon/diskv/v3 v3.0.1
 	github.com/sethvargo/go-limiter v1.0.0
-	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/time v0.6.0
 	google.golang.org/protobuf v1.35.1
@@ -80,18 +79,15 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.49.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/glue v1.99.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.20 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.20 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kms v1.36.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.85.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.54.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.23.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.27.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.31.3 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
@@ -249,6 +245,7 @@ require (
 	github.com/scim2/filter-parser/v2 v2.2.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sijms/go-ora/v2 v2.8.22 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/cobra v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

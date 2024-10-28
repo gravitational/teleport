@@ -466,11 +466,12 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdstypes.DBCluster, rdsInstance *rdsty
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
-			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
-			Subnets:    subnets,
-			VPCID:      vpcID,
+			ClusterID:      aws.StringValue(rdsCluster.DBClusterIdentifier),
+			ResourceID:     aws.StringValue(rdsCluster.DbClusterResourceId),
+			IAMAuth:        aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+			Subnets:        subnets,
+			VPCID:          vpcID,
+			SecurityGroups: rdsSecurityGroupInfo(rdsCluster.VpcSecurityGroups),
 		},
 	}, nil
 }
