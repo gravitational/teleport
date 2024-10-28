@@ -131,7 +131,6 @@ func newIdentityCenterAccountAssignmentParser() *identityCenterAccountAssignment
 }
 
 func (p *identityCenterAccountAssignmentParser) parse(event backend.Event) (types.Resource, error) {
-	fmt.Printf(">>> Parse %s %s\n", event.Type, event.Item.Key.String())
 	switch event.Type {
 	case types.OpDelete:
 		name := event.Item.Key.TrimPrefix(p.prefix).String()
