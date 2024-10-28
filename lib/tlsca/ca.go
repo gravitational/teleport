@@ -458,6 +458,10 @@ var (
 	// the list of allowed GCP service accounts into a certificate.
 	GCPServiceAccountsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 19}
 
+	// UserTypeASN1ExtensionOID is an extension that encodes the user type.
+	// Its value is either local or sso.
+	UserTypeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 20}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -539,10 +543,6 @@ var (
 	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
 	// instance identifier into a certificate.
 	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
-
-	// UserTypeASN1ExtensionOID is an extension that encodes the user type.
-	// Its value is either local or sso.
-	UserTypeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
 )
 
 // Device Trust OIDs.
