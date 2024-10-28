@@ -3,8 +3,6 @@ run-name: Lint (Docs)
 on:
   pull_request:
 
-  merge_group:
-
 jobs:
   changes:
     name: Check for relevant changes
@@ -15,9 +13,6 @@ jobs:
       changed: ${{ steps.changes.outputs.changed }}
       changed_files: ${{ steps.changes.outputs.changed_files }}
     steps:
-      - name: Checkout
-        if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
@@ -37,15 +32,24 @@ jobs:
     if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
 
+    
     permissions:
       contents: read
+      # Required in order to comment on PRs with a deployment link
+      pull-requests: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: "gravitational/docs"
-          path: "docs"
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: 'gravitational/docs'
+          path: 'docs'
 
       - name: Prepare docs site configuration
         # The environment we use for linting the docs differs from the one we
@@ -62,39 +66,54 @@ jobs:
         # of gravitational/teleport. We override this in order to build only a
         # single version of the docs.
         run: |
-          if [ $GITHUB_EVENT_NAME = "pull_request" ]; then
-            BRANCH=$GITHUB_HEAD_REF;
-          elif [ $GITHUB_EVENT_NAME = "merge_group" ]; then
-            # GitHub populates $GITHUB_REF with:
-            # refs/heads/gh-readonly-queue/<base branch>/pr-<PR number>-<SHA>
-            #
-            # We strip the "refs/heads/" prefix so we can check out the branch.
-            BRANCH=$(echo $GITHUB_REF | sed -E "s|refs/heads/(.*)|\1|")
-          else
-            echo "Unexpected event name: $GITHUB_EVENT_NAME";
-            exit 1;
-          fi
-
+          BRANCH=$GITHUB_HEAD_REF;
           cd $GITHUB_WORKSPACE/docs
           echo "" > .gitmodules
           rm -rf content/*
           cd content
-          # Add a submodule at docs/content/teleport
-          git submodule add --force -b $BRANCH -- https://github.com/gravitational/teleport
+          # Rather than using a submodule, copy the teleport source into the
+          # content directory.
+          cp -r $GITHUB_WORKSPACE/teleport $GITHUB_WORKSPACE/docs/content
           cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$BRANCH\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"teleport\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          cat <<< "$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json)" > package.json
           yarn install
           yarn build-node
 
       - name: Check spelling
-        run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/teleport
+        working-directory: 'docs'
+        run: yarn spellcheck content/teleport
 
-      - name: Lint the docs
-        run: cd $GITHUB_WORKSPACE/docs && yarn markdown-lint
+      - name: Prepare Vercel environment
+        run: |
+          yarn global add vercel@latest
+          vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Test the docs build
-        run: cd $GITHUB_WORKSPACE/docs && yarn install && yarn build
+      - name: Build and deploy Vercel artifacts
+        id: deploy
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          vercel deploy --archive=tgz --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > deployment-url.txt
+          preview_url="$(cat deployment-url.txt)"
+          echo "PREVIEW_URL=$preview_url" >> $GITHUB_OUTPUT
 
+      - name: Post preview link
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.PREVIEW_URL }}
+        with:
+          script: |
+            const previewUrl = process.env.PREVIEW_URL
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 Vercel preview here: ${previewUrl}/docs/ver/preview`
+            })
   stylecheck:
     name: Lint docs prose style
     runs-on: ubuntu-latest
