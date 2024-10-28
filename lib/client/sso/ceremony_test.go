@@ -44,7 +44,7 @@ func TestCLICeremony(t *testing.T) {
 	username := "alice"
 
 	// Capture stderr.
-	stderr := bytes.NewBuffer([]byte{})
+	stderr := &bytes.Buffer{}
 
 	// Create a basic redirector.
 	rd, err := sso.NewRedirector(sso.RedirectorConfig{
@@ -81,10 +81,9 @@ func TestCLICeremony(t *testing.T) {
 
 		// Read the clickable url from stderr and navigate to it
 		// using a simplified regexp for http://127.0.0.1:<port>/<uuid>
-		clickableURLPattern := "http://127.0.0.1:.*/.*[0-9a-f]"
-		clickableURL := regexp.MustCompile(clickableURLPattern).Find(stderr.Bytes())
-
-		resp, err := http.Get(string(clickableURL))
+		const clickableURLPattern = `^http://127.0.0.1:\d+/[0-9A-Fa-f-]+$`
+		clickableURL := regexp.MustCompile(clickableURLPattern).FindString(stderr.String())
+		resp, err := http.Get(clickableURL)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 

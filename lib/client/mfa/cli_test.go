@@ -132,11 +132,8 @@ func TestCLIPrompt(t *testing.T) {
 				},
 			},
 		}, {
-			name: "OK prefer webauthn with authenticator attachment requested",
-			expectStdOut: "" +
-				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n" +
-				"Tap any security key\n",
+			name:         "OK prefer webauthn with authenticator attachment requested",
+			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 				TOTP:              &proto.TOTPChallenge{},
@@ -350,9 +347,6 @@ Enter your security key PIN:
 			challenge: &proto.MFAAuthenticateChallenge{
 				TOTP:              nil, // no TOTP challenge
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
-			},
-			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
-				cfg.AllowStdinHijack = true
 			},
 			stdin: "1234",
 			expectStdOut: `Tap any security key
