@@ -5,7 +5,7 @@ DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 include $(DIR)arch.mk
 endif
 
-BUILDBOX_VERSION ?= teleport17
+BUILDBOX_VERSION ?= teleport18
 BUILDBOX_BASE_NAME ?= ghcr.io/gravitational/teleport-buildbox
 
 BUILDBOX = $(BUILDBOX_BASE_NAME):$(BUILDBOX_VERSION)
