@@ -2328,7 +2328,7 @@ func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, 
 	var desktops []types.DynamicWindowsDesktop
 	next := ""
 	for {
-		d, token, err := cache.dynamicWindowsDesktopsCache.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+		d, token, err := cache.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
 		if err != nil {
 			return nil, err
 		}
