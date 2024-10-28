@@ -42,7 +42,6 @@ export const NAVIGATION_CATEGORIES = [
 ];
 
 export const STANDALONE_CATEGORIES = [
-  NavigationCategory.AddNew,
   // TODO(rudream): Remove this once shortcuts to pinned/nodes/apps/dbs/desktops/kubes are implemented.
   NavigationCategory.Resources,
 ];

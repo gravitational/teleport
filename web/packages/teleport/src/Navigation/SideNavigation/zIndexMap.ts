@@ -17,8 +17,8 @@
  */
 
 export const zIndexMap = {
-  topBar: 23,
-  sideNavButtons: 22,
-  sideNavContainer: 21,
-  sideNavExpandedPanel: 20,
+  topBar: 9,
+  sideNavButtons: 8,
+  sideNavContainer: 7,
+  sideNavExpandedPanel: 6,
 };
