@@ -22,6 +22,7 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 
 import {
   ShowResources,
@@ -49,7 +50,6 @@ import type {
   ResourceLabel,
   ResourceFilter as WeakAgentFilter,
   ResourcesResponse,
-  ResourceIdKind,
   UnifiedResource,
 } from 'teleport/services/agents';
 import type * as teleportApps from 'teleport/services/apps';
@@ -211,6 +211,17 @@ export default function useNewRequest(rootCluster: Cluster) {
       return;
     }
 
+    /**
+     * This should never happen but just a safeguard.
+     * This function is used in the "unified resources" view,
+     * where a user can click on a "request access" button.
+     * Selecting kube_cluster's namespace is not available in this view
+     * (instead it is rendered in the "request checkout" view).
+     */
+    if (kind === 'namespace') {
+      return;
+    }
+
     accessRequestsService.addOrRemoveResource(
       toResourceRequest({
         kind,
@@ -346,7 +357,10 @@ function getDefaultSort(kind: ResourceKind): SortType {
 }
 
 export type ResourceKind =
-  | Extract<ResourceIdKind, 'node' | 'app' | 'db' | 'kube_cluster'>
+  | Extract<
+      RequestableResourceKind,
+      'node' | 'app' | 'db' | 'kube_cluster' | 'namespace'
+    >
   | 'role';
 
 export type State = ReturnType<typeof useNewRequest>;

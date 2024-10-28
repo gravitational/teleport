@@ -118,7 +118,7 @@ test('getAddedItemsCount() returns added resource count for pending request', ()
   expect(service.getAddedItemsCount()).toBe(0);
 });
 
-test('addOrRemoveResources() adds all resources to pending request', async () => {
+test('addAllOrRemoveAllResources() adds all resources to pending request', async () => {
   const { accessRequestsService: service } = getTestSetup(
     getMockPendingResourceAccessRequest()
   );
@@ -132,7 +132,9 @@ test('addOrRemoveResources() adds all resources to pending request', async () =>
   });
 
   // add a single resource that isn't added should add to the request
-  await service.addOrRemoveResources([{ kind: 'server', resource: server }]);
+  await service.addAllOrRemoveAllResources([
+    { kind: 'server', resource: server },
+  ]);
   let pendingAccessRequest = service.getPendingAccessRequest();
   expect(
     pendingAccessRequest.kind === 'resource' &&
@@ -143,7 +145,7 @@ test('addOrRemoveResources() adds all resources to pending request', async () =>
   });
 
   // padding an array that contains some resources already added and some that aren't should add them all
-  await service.addOrRemoveResources([
+  await service.addAllOrRemoveAllResources([
     { kind: 'server', resource: server },
     { kind: 'server', resource: server2 },
   ]);
@@ -164,7 +166,7 @@ test('addOrRemoveResources() adds all resources to pending request', async () =>
   });
 
   // passing an array of resources that are all already added should remove all the passed resources
-  await service.addOrRemoveResources([
+  await service.addAllOrRemoveAllResources([
     { kind: 'server', resource: server },
     { kind: 'server', resource: server2 },
   ]);

@@ -223,7 +223,7 @@ export function UnifiedResources(props: {
 
   const bulkAddResources = useCallback(
     (resources: UnifiedResourceResponse[]) => {
-      accessRequestsService.addOrRemoveResources(resources);
+      accessRequestsService.addAllOrRemoveAllResources(resources);
     },
     [accessRequestsService]
   );
