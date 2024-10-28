@@ -164,6 +164,10 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		chosenMethods = []string{cliMFATypeOTP}
 		promptWebauthn, promptSSO = false, false
 		userSpecifiedMethod = true
+	case c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto:
+		chosenMethods = []string{cliMFATypeWebauthn}
+		promptSSO, promptOTP = false, false
+		userSpecifiedMethod = true
 	}
 
 	// Use stronger auth methods if hijack is not allowed.
@@ -176,10 +180,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	case promptWebauthn:
 		chosenMethods = []string{cliMFATypeWebauthn}
 		promptSSO = false
-
-		// If a specific webauthn attachment was requested, skip OTP.
-		// Otherwise, allow dual prompt with OTP.
-		promptOTP = promptOTP && c.cfg.AuthenticatorAttachment == wancli.AttachmentAuto
+		// Allow dual prompt with OTP.
 		if promptOTP {
 			chosenMethods = append(chosenMethods, cliMFATypeOTP)
 		}
