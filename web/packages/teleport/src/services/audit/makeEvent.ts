@@ -1950,6 +1950,27 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a crown jewel [${name}]`;
     },
   },
+  [eventCodes.USER_TASK_CREATE]: {
+    type: 'user_task.create',
+    desc: 'User Task Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a user task [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_UPDATE]: {
+    type: 'user_task.update',
+    desc: 'User Task Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a user task [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_DELETE]: {
+    type: 'user_task.delete',
+    desc: 'User Task Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a user task [${name}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
@@ -1966,17 +1987,15 @@ const unknownFormatter = {
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code] || unknownFormatter;
-  const event = {
+  return {
     codeDesc: formatter.desc,
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,
     user: json.user,
-    time: json.time,
+    time: new Date(json.time),
     raw: json,
   };
-
-  return event;
 }
 
 // older events might not have an uid field.

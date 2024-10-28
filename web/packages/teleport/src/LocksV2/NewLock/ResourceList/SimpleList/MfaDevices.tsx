@@ -20,7 +20,7 @@ import React from 'react';
 import { Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { dateMatcher } from 'design/utils/match';
-import { displayDate } from 'shared/services/loc';
+import { displayDate } from 'design/datetime';
 
 import { MfaDevice } from 'teleport/services/mfa/types';
 

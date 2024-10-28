@@ -18,8 +18,11 @@
 
 import Logger from 'shared/libs/logger';
 
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { WebauthnAssertionResponse } from 'teleport/services/auth';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
+import {
+  MfaChallengeResponse,
+  WebauthnAssertionResponse,
+} from 'teleport/services/auth';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
@@ -31,7 +34,7 @@ const defaultOptions = {
   buffered: true,
 };
 
-class Tty extends EventEmitterWebAuthnSender {
+class Tty extends EventEmitterMfaSender {
   socket = null;
 
   _buffered = true;
@@ -80,6 +83,28 @@ class Tty extends EventEmitterWebAuthnSender {
     this.socket.send(bytearray.buffer);
   }
 
+  sendChallengeResponse(data: MfaChallengeResponse) {
+    // we want to have the backend listen on a single message type
+    // for any responses. so our data will look like data.webauthn, data.sso, etc
+    // but to be backward compatible, we need to still spread the existing webauthn only fields
+    // as "top level" fields so old proxies can still respond to webauthn challenges.
+    // in 19, we can just pass "data" without this extra step
+    // TODO (avatus): DELETE IN 18
+    const backwardCompatibleData = {
+      ...data.webauthn_response,
+      ...data,
+    };
+    const encoded = this._proto.encodeChallengeResponse(
+      JSON.stringify(backwardCompatibleData)
+    );
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  // TODO (avatus) DELETE IN 18
+  /**
+   * @deprecated Use sendChallengeResponse instead.
+   */
   sendWebAuthn(data: WebauthnAssertionResponse) {
     const encoded = this._proto.encodeChallengeResponse(JSON.stringify(data));
     const bytearray = new Uint8Array(encoded);
@@ -190,8 +215,8 @@ class Tty extends EventEmitterWebAuthnSender {
       const msg = this._proto.decode(uintArray);
 
       switch (msg.type) {
-        case MessageTypeEnum.WEBAUTHN_CHALLENGE:
-          this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
+        case MessageTypeEnum.MFA_CHALLENGE:
+          this.emit(TermEvent.MFA_CHALLENGE, msg.payload);
           break;
         case MessageTypeEnum.AUDIT:
           this._processAuditPayload(msg.payload);

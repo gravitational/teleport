@@ -23,11 +23,11 @@ package accesspoint
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -105,6 +105,8 @@ type Config struct {
 	WebToken                types.WebTokenInterface
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
+	ProvisioningStates      services.ProvisioningStates
+	IdentityCenter          services.IdentityCenter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -124,7 +126,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Creating in-memory backend for %v.", cfg.CacheName)
+	slog.DebugContext(cfg.Context, "Creating in-memory backend cache.", "cache_name", cfg.CacheName)
 	mem, err := memory.New(memory.Config{
 		Context:   cfg.Context,
 		EventsOff: !cfg.EventsSystem,
@@ -154,7 +156,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	component = append(component, teleport.ComponentCache)
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
-	cacheCfg := &cache.Config{
+	cacheCfg := cache.Config{
 		Context:         cfg.Context,
 		Backend:         reporter,
 		Component:       teleport.Component(component...),
@@ -199,7 +201,9 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		WebSession:              cfg.WebSession,
 		WebToken:                cfg.WebToken,
 		WindowsDesktops:         cfg.WindowsDesktops,
+		ProvisioningStates:      cfg.ProvisioningStates,
+		IdentityCenter:          cfg.IdentityCenter,
 	}
 
-	return cache.New(cfg.Setup(*cacheCfg))
+	return cache.New(cfg.Setup(cacheCfg))
 }

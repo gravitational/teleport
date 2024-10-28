@@ -53,14 +53,14 @@ export function ClusterLoginPresentation({
   onAbort,
   loggedInUserName,
   shouldPromptSsoStatus,
-  webauthnLogin,
+  passwordlessLoginState,
   reason,
 }: ClusterLoginPresentationProps) {
   return (
     <>
       <DialogHeader px={4} pt={4} mb={0}>
         <H2>
-          Login to <b>{title}</b>
+          Log in to <b>{title}</b>
         </H2>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
           <Icons.Cross size="medium" />
@@ -94,7 +94,7 @@ export function ClusterLoginPresentation({
             loginAttempt={loginAttempt}
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
-            webauthnLogin={webauthnLogin}
+            passwordlessLoginState={passwordlessLoginState}
           />
         )}
       </DialogContent>

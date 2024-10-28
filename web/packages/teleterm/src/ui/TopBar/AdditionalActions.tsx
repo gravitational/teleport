@@ -221,7 +221,7 @@ export function MenuItem({
         as="button"
         type="button"
         disabled={item.isDisabled}
-        title={item.isDisabled && item.disabledText}
+        title={item.isDisabled ? item.disabledText : undefined}
         onClick={handleClick}
       >
         <item.Icon

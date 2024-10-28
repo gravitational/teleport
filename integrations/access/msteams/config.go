@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -29,6 +30,8 @@ import (
 
 // Config represents plugin configuration
 type Config struct {
+	// Client is the Teleport API client.
+	Client     teleport.Client
 	Teleport   lib.TeleportConfig
 	Recipients common.RawRecipientsMap `toml:"role_to_recipients"`
 	Log        logger.Config

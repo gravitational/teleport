@@ -1008,6 +1008,10 @@ message AccessListReviewComplianceEvent {
 
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
+//
+// Note: IntegrationEnrollKind enum must be kept in sync with the values defined
+// in api/proto/teleport/usageevents/v1/usageevents.proto. Values 18-25 have
+// become out of sync and are manually mapped to each other.
 enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
   INTEGRATION_ENROLL_KIND_SLACK = 1;
@@ -1034,6 +1038,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
   INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
+  INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1398,6 +1403,38 @@ message DatabaseUserPermissionsUpdateEvent {
   int32 num_tables_permissions = 4;
 }
 
+// UserTaskStateEvent is emitted when a UserTask state changes.
+// This can happen when the Task is created, when it's manually
+// resolved by the user or when it changes back to being open
+// when the issue happens again.
+//
+// PostHog event: tp.usertask.state
+message UserTaskStateEvent {
+  // task_type is the identifier for the type of task.
+  // Eg, discover-ec2
+  //
+  // PostHog property: tp.usertask.task_type
+  string task_type = 1;
+
+  // issue_type is the identifier for the type of issue that occurred.
+  //
+  // PostHog property: tp.usertask.issue_type
+  string issue_type = 2;
+
+  // state identifies the new state for this task.
+  // One of: OPEN, RESOLVED
+  //
+  // PostHog property: tp.usertask.state
+  string state = 3;
+
+  // instances_count contains the number of instances that were affected by the issue
+  // This field is only present for the following task_types:
+  // - discover-ec2
+  //
+  // PostHog property: tp.usertask.discover_ec2.instances_count
+  int32 instances_count = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1550,6 +1587,8 @@ message SubmitEventRequest {
     AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
 
     UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+
+    UserTaskStateEvent user_task_state = 94;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

@@ -33,7 +33,6 @@ rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.6"
 sspi = { version = "0.13.0", features = ["network_client"] }
-static_init = "1.0.3"
 tokio = { version = "1.40", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/databaseobject"
+	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -896,6 +897,8 @@ type OIDCAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -941,6 +944,8 @@ type SAMLAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -1485,6 +1490,8 @@ type SSHLoginResponse struct {
 	HostSigners []TrustedCerts `json:"host_signers"`
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1593,6 +1600,8 @@ type ClientI interface {
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
+
+	DynamicDesktopClient() *dynamicwindows.Client
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1873,42 +1882,4 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-}
-
-type CreateAppSessionForV15Client interface {
-	Ping(ctx context.Context) (proto.PingResponse, error)
-	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
-}
-
-// TryCreateAppSessionForClientCertV15 creates an app session if the auth
-// server is pre-v16 and returns the app session ID. This app session ID
-// is needed for user app certs requests before v16.
-// TODO (Joerger): DELETE IN v17.0.0
-func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSessionForV15Client, username string, routeToApp proto.RouteToApp) (string, error) {
-	pingResp, err := client.Ping(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// If the auth server is v16+, the client does not need to provide a pre-created app session.
-	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
-		return "", nil
-	}
-
-	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:          username,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		AWSRoleARN:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GCPServiceAccount,
-		URI:               routeToApp.URI,
-		AppName:           routeToApp.Name,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return ws.GetName(), nil
 }

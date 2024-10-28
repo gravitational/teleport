@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -67,7 +68,38 @@ func TestPing(t *testing.T) {
 			},
 			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
 				assert.Equal(t, cap.GetType(), resp.Auth.Type)
-				assert.Equal(t, cap.GetSecondFactor(), resp.Auth.SecondFactor)
+				assert.Equal(t, constants.SecondFactorOn, resp.Auth.SecondFactor)
+				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
+				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
+
+				u2f, _ := cap.GetU2F()
+				require.NotNil(t, resp.Auth.U2F)
+				assert.Equal(t, u2f.AppID, resp.Auth.U2F.AppID)
+
+				webCfg, _ := cap.GetWebauthn()
+				require.NotNil(t, resp.Auth.Webauthn)
+				assert.Equal(t, webCfg.RPID, resp.Auth.Webauthn.RPID)
+
+				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, resp.Auth.SignatureAlgorithmSuite)
+			},
+		},
+		{
+			name: "OK local auth SecondFactors",
+			spec: &types.AuthPreferenceSpecV2{
+				Type: constants.Local,
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				},
+				U2F: &types.U2F{
+					AppID: "https://example.com",
+				},
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+			},
+			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+				assert.Equal(t, cap.GetType(), resp.Auth.Type)
+				assert.Equal(t, constants.SecondFactorWebauthn, resp.Auth.SecondFactor)
 				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
 				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
 
@@ -271,32 +303,81 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		expected webclient.AutoUpdateSettings
 	}{
 		{
-			name:     "resources not defined",
-			expected: webclient.AutoUpdateSettings{},
+			name: "resources not defined",
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion: api.Version,
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+			},
 		},
 		{
-			name:     "enable auto update",
-			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
-			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: true},
-			cleanup:  true,
+			name: "enable auto update",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeEnabled,
+				},
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
+				ToolsVersion: api.Version,
+			},
+			cleanup: true,
 		},
 		{
-			name:     "set auto update version",
-			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
-			expected: webclient.AutoUpdateSettings{ToolsVersion: "1.2.3"},
-			cleanup:  true,
+			name:    "no autoupdate tool config nor version",
+			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion: api.Version,
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+			},
+			cleanup: true,
 		},
 		{
-			name:     "enable auto update and set version",
-			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
-			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
-			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: true, ToolsVersion: "1.2.3"},
+			name: "set auto update version",
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3",
+				},
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion: "1.2.3",
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+			},
+			cleanup: true,
 		},
 		{
-			name:     "modify auto update config and version",
-			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: false},
-			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "3.2.1"},
-			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: false, ToolsVersion: "3.2.1"},
+			name: "enable auto update and set version",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeEnabled,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "1.2.3",
+				},
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
+				ToolsVersion: "1.2.3",
+			},
+		},
+		{
+			name: "modify auto update config and version",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+					Mode: autoupdate.ToolsUpdateModeDisabled,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+					TargetVersion: "3.2.1",
+				},
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion: "3.2.1",
+			},
 		},
 	}
 	for _, tc := range tests {

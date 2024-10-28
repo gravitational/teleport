@@ -65,6 +65,7 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   accountId: 'account-id-1',
   resourceId: 'resource-id-1',
   vpcId: 'vpc-123',
+  securityGroups: ['sg-1', 'sg-2'],
   region: region,
   subnets: ['subnet1', 'subnet2'],
 };
@@ -239,7 +240,7 @@ function getMockedContexts() {
   };
 
   jest
-    .spyOn(integrationService, 'deployAwsOidcService')
+    .spyOn(integrationService, 'deployDatabaseServices')
     .mockResolvedValue('dashboard-url');
 
   jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({

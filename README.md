@@ -115,8 +115,7 @@ To run a full test suite locally, see [the test dependencies list](BUILD_macos.m
 ## Building Teleport
 
 The `teleport` repository contains the Teleport daemon binary (written in Go)
-and a web UI written in Javascript (a git submodule located in the `webassets/`
-directory).
+and a web UI written in TypeScript.
 
 If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
@@ -182,18 +181,6 @@ To perform a build
 make full
 ```
 
-To build `tsh` with Apple TouchID support enabled:
-
-> **Important**
->
->`tsh` binaries with Touch ID support are only functional using binaries signed
-with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
-maintainer, ask the team for access.
-
-```shell
-make build/tsh TOUCHID=yes
-```
-
 `tsh` dynamically links against libfido2 by default, to support development
 environments, as long as the library itself can be found:
 
@@ -214,6 +201,9 @@ make build/tsh FIDO2=static  # static linking, for an easy setup use `make enter
                              # or `build.assets/macos/build-fido2-macos.sh`.
 make build/tsh FIDO2=off     # doesn't link libfido2 in any way
 ```
+
+`tsh` builds with Touch ID support require access to an Apple Developer account.
+If you are a Teleport maintainer, ask the team for access.
 
 #### Build output and run locally
 

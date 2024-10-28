@@ -342,6 +342,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			DiscoveryConfigs:        svces.DiscoveryConfigs,
 			DynamicAccess:           svces.DynamicAccessExt,
 			Events:                  svces.Events,
+			IdentityCenter:          svces.IdentityCenter,
 			Integrations:            svces.Integrations,
 			KubeWaitingContainers:   svces.KubeWaitingContainer,
 			Kubernetes:              svces.Kubernetes,
@@ -349,6 +350,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			Okta:                    svces.Okta,
 			Presence:                svces.PresenceInternal,
 			Provisioner:             svces.Provisioner,
+			ProvisioningStates:      svces.ProvisioningStates,
 			Restrictions:            svces.Restrictions,
 			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
 			SAMLIdPSession:          svces.Identity,
@@ -883,8 +885,7 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 	// use very permissive limiter configuration by default
 	if cfg.Limiter == nil {
 		cfg.Limiter = &limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		}
 	}
 	return nil

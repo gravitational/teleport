@@ -14,7 +14,7 @@ work with Teleport.
 
 - (!docs/pages/includes/tctl.mdx!)
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../enroll-resources/database-access/guides.mdx) for how to set up the Teleport
+  [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
 ### Get connection information
@@ -30,7 +30,7 @@ You won't need to configure any credentials when connecting to this tunnel.
 
 Here is an example on how to start the proxy:
 
-```bash
+```code
 # Start the local proxy.
 $ tsh proxy db --tunnel <database-name>
 Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.

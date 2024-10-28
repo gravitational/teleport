@@ -63,10 +63,24 @@ export enum IntegrationKind {
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
+
+/**
+ * IntegrationAudience defines supported audience value for IntegrationSpecAwsOidc
+ * audience field.
+ */
+export enum IntegrationAudience {
+  AwsIdentityCenter = 'aws-identity-center',
+}
+
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
+  /**
+   * audience is used to record name of a plugin or discover services in Teleport
+   * that depends on this integration.
+   */
+  audience?: IntegrationAudience;
 };
 
 export enum IntegrationStatusCode {
@@ -177,7 +191,8 @@ export type PluginKind =
   | 'servicenow'
   | 'jamf'
   | 'entra-id'
-  | 'datadog';
+  | 'datadog'
+  | 'aws-identity-center';
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
@@ -324,6 +339,10 @@ export type AwsRdsDatabase = {
   subnets: string[];
   // vpcId is the AWS VPC ID for the DB.
   vpcId: string;
+  /**
+   * securityGroups is a list of AWS security group IDs attached to the DB.
+   */
+  securityGroups: string[];
   // region is the AWS cloud region that this database is from.
   region: Regions;
   // status contains this Instance status.
@@ -372,6 +391,15 @@ export type AwsOidcDeployServiceRequest = {
   vpcId: string;
   accountId: string;
 };
+
+/**
+ * AwsOidcPolicyPreset specifies preset policy to apply
+ * to the AWS IAM role created for the OIDC integration.
+ */
+export enum AwsOidcPolicyPreset {
+  Unspecified = '',
+  AwsIdentityCenter = 'aws-identity-center',
+}
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
 type DeployDatabaseServiceDeployment = {

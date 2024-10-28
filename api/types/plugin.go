@@ -42,6 +42,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeEntraID,
 	PluginTypeSCIM,
 	PluginTypeDatadog,
+	PluginTypeAWSIdentityCenter,
 }
 
 const (
@@ -75,6 +76,8 @@ const (
 	PluginTypeSCIM = "scim"
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
+	// PluginTypeAWSIdentityCenter indicates AWS Identity Center plugin
+	PluginTypeAWSIdentityCenter = "aws-identity-center"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -318,6 +321,11 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+		// backfill the credentials source if it's not set.
+		if settings.EntraId.SyncSettings.CredentialsSource == EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN {
+			settings.EntraId.SyncSettings.CredentialsSource = EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC
+		}
+
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
@@ -339,6 +347,14 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_AwsIc:
+		if settings.AwsIc == nil {
+			return trace.BadParameter("Must be used with AWS Identity Center settings")
+		}
+
+		if err := settings.AwsIc.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 	default:
 		return nil
@@ -504,7 +520,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSCIM
 	case *PluginSpecV1_Datadog:
 		return PluginTypeDatadog
-
+	case *PluginSpecV1_AwsIc:
+		return PluginTypeAWSIdentityCenter
 	default:
 		return PluginTypeUnknown
 	}
@@ -688,6 +705,38 @@ func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	if c.FallbackRecipient == "" {
 		return trace.BadParameter("fallback_recipient must be set")
 	}
+	return nil
+}
+
+func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
+	if c.IntegrationName == "" {
+		return trace.BadParameter("AWS OIDC integration name must be set")
+	}
+
+	if c.Arn == "" {
+		return trace.BadParameter("AWS Identity Center Instance ARN must be set")
+	}
+
+	if c.Region == "" {
+		return trace.BadParameter("AWS Identity Center region must be set")
+	}
+
+	if c.ProvisioningSpec == nil {
+		return trace.BadParameter("provisioning config must be set")
+	}
+
+	if err := c.ProvisioningSpec.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "checking provisioning config")
+	}
+
+	return nil
+}
+
+func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
+	if c.BaseUrl == "" {
+		return trace.BadParameter("base URL data must be set")
+	}
+
 	return nil
 }
 

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 const (
@@ -72,6 +73,7 @@ type WorkloadIdentityServiceConfig struct {
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetProxies() ([]types.Server, error)
 }
 
 // KeyStorer is an interface that provides methods to retrieve keys and
@@ -375,6 +377,7 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 	ctx context.Context,
 	authCtx *authz.Context,
 	clusterName string,
+	issuer string,
 	key *jwt.Key,
 	req *pb.JWTSVIDRequest,
 ) (res *pb.JWTSVIDResponse, err error) {
@@ -457,6 +460,7 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 		SPIFFEID:  spiffeID,
 		TTL:       ttl,
 		JTI:       jti,
+		Issuer:    issuer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "signing jwt")
@@ -507,10 +511,17 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 		return nil, trace.Wrap(err, "getting JWT key")
 	}
 
+	// Determine the public address of the proxy for inclusion in the JWT as
+	// the issuer for purposes of OIDC compatibility.
+	issuer, err := oidc.IssuerForCluster(ctx, wis.cache, "/workload-identity")
+	if err != nil {
+		return nil, trace.Wrap(err, "determining issuer")
+	}
+
 	res := &pb.SignJWTSVIDsResponse{}
 	for i, svidReq := range req.Svids {
 		svidRes, err := wis.signJWTSVID(
-			ctx, authCtx, clusterName.GetClusterName(), jwtKey, svidReq,
+			ctx, authCtx, clusterName.GetClusterName(), issuer, jwtKey, svidReq,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "signing svid %d", i)

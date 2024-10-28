@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Transition } from 'react-transition-group';
 
 import {
@@ -85,7 +85,7 @@ export function AccessRequestCheckout() {
     fetchResourceRolesAttempt,
     setSelectedResourceRequestRoles,
     clearCreateAttempt,
-    data,
+    pendingAccessRequests,
     shouldShowClusterNameColumn,
     selectedReviewers,
     setSelectedReviewers,
@@ -104,7 +104,8 @@ export function AccessRequestCheckout() {
     onStartTimeChange,
   } = useAccessRequestCheckout();
 
-  const isRoleRequest = data[0]?.kind === 'role';
+  const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
+  const transitionRef = useRef<HTMLDivElement>();
 
   function closeCheckout() {
     setShowCheckout(false);
@@ -112,10 +113,15 @@ export function AccessRequestCheckout() {
 
   // We should rather detect how much space we have,
   // but for simplicity we only count items.
-  const moreToShow = Math.max(data.length - MAX_RESOURCES_IN_BAR_TO_SHOW, 0);
+  const moreToShow = Math.max(
+    pendingAccessRequests.length - MAX_RESOURCES_IN_BAR_TO_SHOW,
+    0
+  );
+  const numPendingAccessRequests = pendingAccessRequests.length;
+
   return (
     <>
-      {data.length > 0 && !isCollapsed() && (
+      {pendingAccessRequests.length > 0 && !isCollapsed() && (
         <Box
           px={3}
           py={2}
@@ -133,12 +139,15 @@ export function AccessRequestCheckout() {
           >
             <Flex flexDirection="column" minWidth={0}>
               <Text mb={1}>
-                {data.length}{' '}
-                {pluralize(data.length, isRoleRequest ? 'role' : 'resource')}{' '}
+                {numPendingAccessRequests}{' '}
+                {pluralize(
+                  numPendingAccessRequests,
+                  isRoleRequest ? 'role' : 'resource'
+                )}{' '}
                 added to access request:
               </Text>
               <Flex gap={1} flexWrap="wrap">
-                {data
+                {pendingAccessRequests
                   .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
                   .map(c => {
                     let resource = {
@@ -217,6 +226,7 @@ export function AccessRequestCheckout() {
       ))}
       <Transition
         in={showCheckout}
+        nodeRef={transitionRef}
         onEntered={() => setHasExited(false)}
         onExited={() => setHasExited(true)}
         timeout={300}
@@ -225,6 +235,7 @@ export function AccessRequestCheckout() {
       >
         {transitionState => (
           <RequestCheckoutWithSlider
+            ref={transitionRef}
             toggleResource={toggleResource}
             onClose={closeCheckout}
             transitionState={transitionState}
@@ -235,7 +246,7 @@ export function AccessRequestCheckout() {
               })
             }
             reset={reset}
-            data={data}
+            pendingAccessRequests={pendingAccessRequests}
             showClusterNameColumn={shouldShowClusterNameColumn}
             createAttempt={createRequestAttempt}
             resourceRequestRoles={resourceRequestRoles}

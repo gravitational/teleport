@@ -210,6 +210,8 @@ type WindowsServiceConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
+	// ResourceMatchers match dynamic Windows desktop resources.
+	ResourceMatchers []services.ResourceMatcher
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -409,6 +411,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if _, err := s.startDynamicReconciler(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if len(s.cfg.DiscoveryBaseDN) > 0 {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
@@ -454,6 +460,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		domain:             s.cfg.Domain,
 		ttl:                windowsDesktopServiceCertTTL,
 		activeDirectorySID: s.cfg.SID,
+		omitCDP:            true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1279,7 +1286,8 @@ type generateCredentialsRequest struct {
 	// createUser specifies if Windows user should be created if missing
 	createUser bool
 	// groups are groups that user should be member of
-	groups []string
+	groups  []string
+	omitCDP bool
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -1307,6 +1315,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 		AuthClient:         s.cfg.AuthClient,
 		CreateUser:         request.createUser,
 		Groups:             request.groups,
+		OmitCDP:            request.omitCDP,
 	})
 }
 

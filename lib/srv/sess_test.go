@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -236,9 +235,7 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	logger := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentAuth,
-	})
+	logger := utils.NewSlogLoggerForTests()
 
 	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
@@ -256,8 +253,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream-when-proxy-recording",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -277,8 +274,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream--when-proxy-sync-recording",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -298,8 +295,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -338,8 +335,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "best-effort-err-new-audit-writer-succeeds",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -385,8 +382,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "audit-writer",
 			sess: &session{
-				id:  "test",
-				log: logger,
+				id:     "test",
+				logger: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -427,9 +424,7 @@ func TestSession_newRecorder(t *testing.T) {
 func TestSession_emitAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	logger := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentAuth,
-	})
+	logger := utils.NewSlogLoggerForTests()
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
 		srv := newMockServer(t)
@@ -441,8 +436,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		t.Cleanup(func() { reg.Close() })
 
 		sess := &session{
-			id:  "test",
-			log: logger,
+			id:     "test",
+			logger: logger,
 			recorder: &mockRecorder{
 				SessionPreparerRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
 				done:                    true,
@@ -1124,8 +1119,8 @@ func TestTrackingSession(t *testing.T) {
 			}
 
 			sess := &session{
-				id:  rsession.NewID(),
-				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
+				id:     rsession.NewID(),
+				logger: utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{

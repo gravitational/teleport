@@ -24,7 +24,7 @@ import init, {
 } from 'teleport/ironrdp/pkg/ironrdp';
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import Codec, {
@@ -93,7 +93,7 @@ export enum LogType {
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterWebAuthnSender {
+export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
   protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
@@ -374,7 +374,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(

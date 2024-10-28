@@ -1335,6 +1335,17 @@ manualy testing.
   - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5 (check occurs every 5 minutes so you may need to wait to confirm)
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
+- Dynamic registration
+  - [ ] Dynamic Windows desktop resources can be added, removed, and updated using `tctl`
+  - [ ] `tctl get dynamic_windows_desktop` works with all supported formats
+  - [ ] Adding dynamic Windows desktop that doesn't match labels for any Windows Desktop Service does not create any
+      Windows desktop
+  - [ ] Adding dynamic Windows desktop that matches some `windows_desktop_services`s creates Windows desktops for each
+      matching WDS
+  - [ ] Updating dynamic Windows desktop updates corresponding Windows desktops
+  - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
+      corresponding Windows desktops
+  - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
 
 ## Binaries / OS compatibility
 

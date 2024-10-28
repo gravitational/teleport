@@ -29,8 +29,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -120,7 +120,7 @@ func newMockCertIssuer(t *testing.T, clock clockwork.Clock) *mockCertIssuer {
 }
 
 func (c *mockCertIssuer) initCA(t *testing.T) {
-	priv, err := native.GeneratePrivateKey()
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
@@ -147,7 +147,7 @@ func (c *mockCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error)
 		return tls.Certificate{}, trace.Wrap(c.issueErr)
 	}
 
-	priv, err := native.GeneratePrivateKey()
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
