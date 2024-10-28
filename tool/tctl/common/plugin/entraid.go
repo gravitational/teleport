@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/fatih/color"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -95,32 +96,46 @@ var (
 )
 
 func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings, error) {
-	fileLoc, err := pathForFile(os.Stdout, os.Stdin)
+	pwd, err := os.Getwd()
 	if err != nil {
-		return entraSettings{}, trace.Wrap(err, "failed to get file location")
+		return entraSettings{}, trace.Wrap(err)
 	}
+	f, err := os.CreateTemp(pwd, "entraid-setup-*.sh")
+	if err != nil {
+		return entraSettings{}, trace.Wrap(err, "failed to create temp file")
+	}
+
+	defer os.Remove(f.Name())
 
 	buildScript, err := buildScript(proxyPublicAddr, p.install.entraID.authConnectorName, p.install.entraID.accessGraph, p.install.entraID.useSystemCredentials)
 	if err != nil {
 		return entraSettings{}, trace.Wrap(err, "failed to build script")
 	}
 
-	if err := os.WriteFile(fileLoc, []byte(buildScript), 0644); err != nil {
+	if _, err := f.Write([]byte(buildScript)); err != nil {
 		return entraSettings{}, trace.Wrap(err, "failed to write script to file")
 	}
 
+	if err := f.Close(); err != nil {
+		return entraSettings{}, trace.Wrap(err, "failed to close file")
+	}
+	fileLoc := f.Name()
+
+	bold := color.New(color.Bold).SprintFunc()
+	boldRed := color.New(color.Bold, color.FgRed).SprintFunc()
+
 	tmpl := `Step 1: Run the Setup Script
 
-1. Open **Azure Cloud Shell** (Bash) using **Google Chrome** or **Safari** for the best compatibility.
-2. Upload the setup script using the **Upload** button in the Cloud Shell toolbar.
+1. Open ` + bold("Azure Cloud Shell") + ` (Bash) using ` + bold("Google Chrome") + ` or ` + bold("Safari") + ` for the best compatibility.
+2. Upload the setup script in ` + boldRed(fileLoc) + ` using the ` + bold("Upload") + ` button in the Cloud Shell toolbar.
 3. Once uploaded, execute the script by running the following command:
    $ bash %s
 
-**Important Considerations**:
-- You must have **Azure privileged administrator permissions** to complete the integration.
-- Ensure you're using the **Bash** environment in Cloud Shell.
-- During the script execution, you'll be prompted to run 'az login' to authenticate with Azure. **Teleport** does not store or persist your credentials.
-- **Mozilla Firefox** users may experience connectivity issues in Azure Cloud Shell; using Chrome or Safari is recommended.
+` + bold("Important Considerations") + `:
+- You must have ` + bold("Azure privileged administrator permissions") + ` to complete the integration.
+- Ensure you're using the ` + bold("Bash") + ` environment in Cloud Shell.
+- During the script execution, you'll be prompted to run 'az login' to authenticate with Azure. ` + bold("Teleport") + ` does not store or persist your credentials.
+- ` + bold("Mozilla Firefox") + ` users may experience connectivity issues in Azure Cloud Shell; using Chrome or Safari is recommended.
 
 `
 
@@ -340,37 +355,9 @@ func getProxyPublicAddr(ctx context.Context, authClient authClient) (string, err
 	return proxyPublicAddr, nil
 }
 
-func pathForFile(w io.Writer, r io.Reader) (string, error) {
-
-	pwd, err := os.Getwd()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	const defaultFileName = "entraid.sh"
-
-	file := filepath.Join(pwd, defaultFileName)
-	_, err = readData(r, w, fmt.Sprintf("Enter the path to write the script file [%s]", file), func(input string) bool {
-		if input != "" {
-			file = input
-		}
-		// Check if the directory exists
-		_, err = os.Stat(filepath.Dir(file))
-		return err == nil
-	},
-		"Invalid directory file location",
-	)
-
-	return file, trace.Wrap(err)
-}
-
-var (
-	errNoTAGCache = trace.BadParameter("no TAG cache file found")
-)
-
 func readTAGCache(fileLoc string) (*azureoidc.TAGInfoCache, error) {
 	if fileLoc == "" {
-		return nil, trace.Wrap(errNoTAGCache)
+		return nil, trace.BadParameter("no TAG cache file found")
 	}
 
 	file, err := os.Open(fileLoc)
