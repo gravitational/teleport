@@ -712,16 +712,20 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		// Download the version of client tools required by the cluster. This
 		// is required if the user passed in the TELEPORT_TOOLS_VERSION
 		// explicitly.
-		if err := updater.UpdateWithLock(ctx, toolsVersion); err != nil {
+		err := updater.UpdateWithLock(ctx, toolsVersion)
+		if errors.Is(err, context.Canceled) {
+			var cancel context.CancelFunc
+			ctx, cancel = signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+			defer cancel()
+		} else if err != nil {
 			return trace.Wrap(err)
 		}
-
 		// Re-execute client tools with the correct version of client tools.
 		code, err := updater.Exec()
-		if err != nil {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			log.Debugf("Failed to re-exec client tool: %v.", err)
 			os.Exit(code)
-		} else {
+		} else if err == nil {
 			os.Exit(code)
 		}
 	}
@@ -5577,16 +5581,17 @@ func updateAndRun(ctx context.Context, proxy string, insecure bool) error {
 	if reExec {
 		// Download the version of client tools required by the cluster.
 		err := updater.UpdateWithLock(ctx, toolsVersion)
-		if err != nil {
-			return trace.Wrap(err)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			utils.FatalError(err)
 		}
-
 		// Re-execute client tools with the correct version of client tools.
 		code, err := updater.Exec()
-		if err != nil {
-			return trace.Wrap(err)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
 		}
-		os.Exit(code)
 	}
 
 	return nil

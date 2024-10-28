@@ -270,14 +270,6 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 // update downloads the archive and validate against the hash. Download to a
 // temporary path within tools directory.
 func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) error {
-	hash, err := u.downloadHash(ctx, pkg.Hash)
-	if pkg.Optional && trace.IsNotFound(err) {
-		return nil
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	f, err := os.CreateTemp(u.toolsDir, "tmp-")
 	if err != nil {
 		return trace.Wrap(err)
@@ -296,6 +288,15 @@ func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	hash, err := u.downloadHash(ctx, pkg.Hash)
+	if pkg.Optional && trace.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if !bytes.Equal(archiveHash, hash) {
 		return trace.BadParameter("hash of archive does not match downloaded archive")
 	}
@@ -378,6 +379,11 @@ func (u *Updater) downloadHash(ctx context.Context, url string) ([]byte, error) 
 // downloadArchive downloads the archive package by `url` and writes content to the writer interface,
 // return calculated sha256 hash sum of the content.
 func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) ([]byte, error) {
+	// Display a progress bar before initiating the update request to inform the user that
+	// an update is in progress, allowing them the option to cancel before actual response
+	// which might be delayed with slow internet connection or complete isolation to CDN.
+	pw, finish := newProgressWriter(10)
+	defer finish()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -401,14 +407,10 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 	}
 
 	h := sha256.New()
-	pw := &progressWriter{n: 0, limit: resp.ContentLength}
-	body := io.TeeReader(io.TeeReader(resp.Body, h), pw)
-
 	// It is a little inefficient to download the file to disk and then re-load
 	// it into memory to unarchive later, but this is safer as it allows client
 	// tools to validate the hash before trying to operate on the archive.
-	_, err = io.CopyN(f, body, resp.ContentLength)
-	if err != nil {
+	if _, err := pw.CopyLimit(f, io.TeeReader(resp.Body, h), resp.ContentLength); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

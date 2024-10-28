@@ -718,16 +718,17 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if reExec {
 		// Download the version of client tools required by the cluster.
 		err := updater.UpdateWithLock(ctx, toolsVersion)
-		if err != nil {
-			return trace.Wrap(err)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			utils.FatalError(err)
 		}
-
 		// Re-execute client tools with the correct version of client tools.
 		code, err := updater.Exec()
-		if err != nil {
-			return trace.Wrap(err)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
 		}
-		os.Exit(code)
 	}
 
 	if opt.afterLoginHook != nil {

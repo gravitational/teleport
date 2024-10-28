@@ -125,15 +125,17 @@ func Run(ctx context.Context, commands []CLICommand) {
 		// is required if the user passed in the TELEPORT_TOOLS_VERSION
 		// explicitly.
 		err := updater.UpdateWithLock(ctx, toolsVersion)
-		if err != nil {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			utils.FatalError(err)
 		}
 		// Re-execute client tools with the correct version of client tools.
 		code, err := updater.Exec()
-		if err != nil {
-			utils.FatalError(err)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
 		}
-		os.Exit(code)
 	}
 
 	err = TryRun(commands, os.Args[1:])

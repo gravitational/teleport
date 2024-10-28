@@ -132,7 +132,9 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
 				return trace.Wrap(err)
 			}
-			if err := os.Symlink(dest, appPath); err != nil {
+			// For the Windows build we have to use hard links to be able
+			// to use client tools without administrative access.
+			if err := os.Link(dest, appPath); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(destFile.Close())
