@@ -6236,7 +6236,7 @@ message PluginSpecV1 {
     PluginDatadogAccessSettings datadog = 15;
     // PluginAWSICSettings holds settings for AWSICSettings
     PluginAWSICSettings aws_ic = 16;
-    // Settings for the Email Plugin
+    // Settings for the Email Access Request plugin
     PluginEmailSettings email = 17;
   }
 
