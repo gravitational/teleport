@@ -213,7 +213,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 	}
 
 	saml, err := types.NewSAMLConnector(inputs.entraID.authConnectorName, types.SAMLConnectorSpecV2{
-		AssertionConsumerService: proxyPublicAddr + "/v1/webapi/saml/acs/" + inputs.entraID.authConnectorName,
+		AssertionConsumerService: strings.TrimRight(proxyPublicAddr, "/") + "/v1/webapi/saml/acs/" + inputs.entraID.authConnectorName,
 		AllowIDPInitiated:        true,
 		// AttributesToRoles is required, but Entra ID does not have a default group (like Okta's "Everyone"),
 		// so we add a dummy claim that will never be fulfilled with the default configuration instead,
@@ -315,15 +315,10 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 }
 
 func buildScript(proxyPublicAddr string, authConnectorName string, accessGraph, skipOIDCSetup bool) (string, error) {
-	oidcIssuer, err := oidc.IssuerFromPublicAddress(proxyPublicAddr, "")
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
 	// The script must execute the following command:
 	argsList := []string{
 		"integration", "configure", "azure-oidc",
-		fmt.Sprintf("--proxy-public-addr=%s", shsprintf.EscapeDefaultContext(oidcIssuer)),
+		fmt.Sprintf("--proxy-public-addr=%s", shsprintf.EscapeDefaultContext(proxyPublicAddr)),
 		fmt.Sprintf("--auth-connector-name=%s", shsprintf.EscapeDefaultContext(authConnectorName)),
 	}
 
@@ -351,7 +346,8 @@ func getProxyPublicAddr(ctx context.Context, authClient authClient) (string, err
 		return "", trace.Wrap(err, "failed fetching cluster info")
 	}
 	proxyPublicAddr := pingResp.GetProxyPublicAddr()
-	return proxyPublicAddr, nil
+	oidcIssuer, err := oidc.IssuerFromPublicAddress(proxyPublicAddr, "")
+	return oidcIssuer, trace.Wrap(err)
 }
 
 func readTAGCache(fileLoc string) (*azureoidc.TAGInfoCache, error) {
