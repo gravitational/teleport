@@ -122,16 +122,7 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-// TODO(tross): change the log type once e has been updated
-func NewStreamingUsageReporter(log any, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
-	logger := slog.Default()
-
-	if log != nil {
-		if l, ok := log.(*slog.Logger); ok {
-			logger = l
-		}
-	}
-
+func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
 	if anonymizationKey == "" {
 		return nil, trace.BadParameter("anonymization key is required")
 	}

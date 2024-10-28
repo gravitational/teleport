@@ -21,7 +21,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -41,8 +40,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		// TODO(tross): update to use the server logger once it is converted to slog
-		Logger: slog.With("kind", types.KindApp),
+		Logger:              s.log.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,9 +74,8 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
-			// TODO(tross): update this once converted to use slog
-			// Log:       s.log,
-			Client: s.c.AccessPoint,
+			Logger:    s.log,
+			Client:    s.c.AccessPoint,
 		},
 	})
 	if err != nil {
