@@ -45,7 +45,7 @@ External users are useful for larger organizations or those that want to central
 
 Machine ID provides machines with an identity that can authenticate to the Teleport cluster. This identity is known as a robot. Robots are represented in Teleport by a user and a role resource and can be created via the tctl bots add command. Unlike human users, who use a password, MFA, or SSO, robot users join the cluster as Teleport services using a join method. They can still join even if local auth is disabled.
 
-See the [Machine ID introduction](../../../enroll-resources/machine-id/introduction.mdx) for more information.
+See the [Machine ID introduction](../../enroll-resources/machine-id/introduction.mdx) for more information.
 
 ## Teleport roles
 
@@ -56,7 +56,7 @@ Some examples of roles include:
 - **auditor**: Allows users to view logs and auditing activities.
 
 Roles enforce Role-Based Access Control (RBAC), ensuring that users only have the permissions needed for their specific tasks. 
-See [Teleport Access Controls Reference](../../../reference/access-controls/roles.mdx) for in-depth information about types of roles, options, and usage.
+See [Teleport Access Controls Reference](../../reference/access-controls/roles.mdx) for in-depth information about types of roles, options, and usage.
 
 ## Understanding Teleport’s Resource Tagging and Matching
 
@@ -226,7 +226,7 @@ $ tctl get roles --format text
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-Next, follow the instructions to set up an authentication connector that maps users within your SSO solution to Teleport roles. Follow the instructions to set up an authentication connector that maps users within your [SSO solution](../../../admin-guides/access-controls/sso) to Teleport roles.
+Next, follow the instructions to set up an authentication connector that maps users within your SSO solution to Teleport roles. Follow the instructions to set up an authentication connector that maps users within your [SSO solution](../../admin-guides/access-controls/sso) to Teleport roles.
 
 ## Best practices
 
@@ -243,8 +243,8 @@ Ensure that all users understand their access levels and the importance of adher
 
 ## Next steps
 
-- [Mapping SSO and local users traits with role templates](../../access-controls/guides/role-templates.mdx)
-- [Access Control for Servers](../../../enroll-resources/server-access/rbac.mdx)
-- [Access Control for Kubernetes](../../../enroll-resources/kubernetes-access/controls.mdx)
-- [Enroll a Kubernetes Cluster](../../../enroll-resources/kubernetes-access/getting-started.mdx) 
-- [Create certs for CI/CD using impersonation](../../../admin-guides/access-controls/guides/impersonation.mdx) 
+- [Mapping SSO and local users traits with role templates](../access-controls/guides/role-templates.mdx)
+- [Access Control for Servers](../../enroll-resources/server-access/rbac.mdx)
+- [Access Control for Kubernetes](../../enroll-resources/kubernetes-access/controls.mdx)
+- [Enroll a Kubernetes Cluster](../../enroll-resources/kubernetes-access/getting-started.mdx) 
+- [Create certs for CI/CD using impersonation](../../admin-guides/access-controls/guides/impersonation.mdx) 
