@@ -163,7 +163,7 @@ export function getCategoryStyles(
     }
     ${isExpanded &&
     `
-         background: ${theme.colors.interactive.tonal.neutral[0]};
+      background: ${theme.colors.interactive.tonal.neutral[0]};
       color: ${theme.colors.text.main};
       `}
   `;
@@ -197,7 +197,7 @@ export function SubsectionItem({
   );
 }
 
-const StyledSubsectionItem = styled(NavLink)<{
+export const StyledSubsectionItem = styled(NavLink)<{
   $active: boolean;
 }>`
   display: flex;
