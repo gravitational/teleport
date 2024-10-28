@@ -23,8 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
-	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -283,7 +281,11 @@ type instanceIDsSSMState struct {
 }
 
 func instanceIDsFrom(m map[string]string) []string {
-	return slices.Collect(maps.Keys(m))
+	ret := make([]string, 0, len(m))
+	for k := range m {
+		ret = append(ret, k)
+	}
+	return ret
 }
 
 // describeSSMAgentState returns the instanceIDsSSMState for all the instances.
