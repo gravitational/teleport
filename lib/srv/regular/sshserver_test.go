@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -2865,12 +2866,13 @@ func newLockWatcher(ctx context.Context, t testing.TB, client types.Events) *ser
 	return lockWatcher
 }
 
-func newNodeWatcher(ctx context.Context, t *testing.T, client types.Events) *services.NodeWatcher {
+func newNodeWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.Server, readonly.Server] {
 	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
 			Client:    client,
 		},
+		NodesGetter: client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(nodeWatcher.Close)

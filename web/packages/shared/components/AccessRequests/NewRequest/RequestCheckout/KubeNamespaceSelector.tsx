@@ -129,12 +129,16 @@ export function KubeNamespaceSelector({
   };
 
   async function handleLoadOptions(input: string) {
-    const options = await fetchKubeNamespaces({
+    const namespaces = await fetchKubeNamespaces({
       kubeCluster: kubeClusterItem.id,
       search: input,
     });
 
-    return options;
+    return namespaces.map(namespace => ({
+      kind: 'namespace',
+      value: namespace,
+      label: namespace,
+    }));
   }
 
   return (
