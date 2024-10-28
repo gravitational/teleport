@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -311,7 +312,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 
 // startDynamicReconciler starts resource watcher and reconciler that registers/unregisters Windows desktops
 // according to the up-to-date list of dynamic Windows desktops resources.
-func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.DynamicWindowsDesktopWatcher, error) {
+func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.GenericWatcher[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop], error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
 		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
 		return nil, nil
@@ -354,7 +355,7 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 		defer watcher.Close()
 		for {
 			select {
-			case desktops := <-watcher.DynamicWindowsDesktopsC:
+			case desktops := <-watcher.ResourcesC:
 				newResources = make(map[string]types.WindowsDesktop)
 				for _, dynamicDesktop := range desktops {
 					desktop, err := s.toWindowsDesktop(dynamicDesktop)
