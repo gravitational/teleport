@@ -162,7 +162,9 @@ func TestUpdateDeployServices(t *testing.T) {
 	clusterName := "my-cluster"
 	integrationName := "my-integration"
 	ownershipTags := tags.DefaultResourceCreationTags(clusterName, integrationName)
-	teleportVersion := teleport.Version
+	semVer := *teleport.SemVersion
+	semVer.PreRelease = ""
+	teleportVersion := semVer.String()
 	log := utils.NewSlogLoggerForTests().With("test", t.Name())
 
 	t.Run("only legacy service present", func(t *testing.T) {

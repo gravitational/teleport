@@ -755,6 +755,9 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)
+
+	// GetUserTask gets a single User Task by its name.
+	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -1178,6 +1181,8 @@ type Cache interface {
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 	// ListUserTasks returns the user tasks resources.
 	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	// ListUserTasksByIntegration returns the user tasks resources filtered by an integration.
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
 
 	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter

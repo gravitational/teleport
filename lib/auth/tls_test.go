@@ -4356,6 +4356,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-creator",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4384,6 +4388,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-creator",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
@@ -4507,6 +4515,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-upserter",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4535,6 +4547,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
@@ -4566,6 +4582,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "**************",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",

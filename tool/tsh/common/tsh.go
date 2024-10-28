@@ -802,6 +802,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 
+	resolve := app.Command("resolve", "Resolves an SSH host.")
+	resolve.Arg("host", "Remote hostname to resolve").Required().StringVar(&cf.UserHost)
+	resolve.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	resolve.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
 	daemonStart := daemon.Command("start", "Starts tsh daemon service.").Hidden()
@@ -1361,6 +1366,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
+	case resolve.FullCommand():
+		err = onResolve(&cf)
+		// If quiet was specified for this command and
+		// an error occurred, exit with a non-zero exit
+		// code without emitting any other messaging.
+		// In this case, the command was likely invoked
+		// via a Match exec block from an SSH config and
+		// if no matches were found, we should not add
+		// additional spam to stderr.
+		if err != nil && cf.Quiet {
+			err = trace.Wrap(&common.ExitCodeError{Code: 1})
+		}
 	case latencySSH.FullCommand():
 		err = onSSHLatency(&cf)
 	case benchSSH.FullCommand():
@@ -1442,9 +1459,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case login.FullCommand():
 		err = onLogin(&cf)
 	case logout.FullCommand():
-		if err := refuseArgs(logout.FullCommand(), args); err != nil {
-			return trace.Wrap(err)
-		}
 		err = onLogout(&cf)
 	case show.FullCommand():
 		err = onShow(&cf)
@@ -2213,9 +2227,10 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		fmt.Printf("Logged out all users from all proxies.\n")
-	default:
-		fmt.Printf("Specify --proxy and --user to remove keys for specific user ")
-		fmt.Printf("from a proxy or neither to log out all users from all proxies.\n")
+	case proxyHost != "" && cf.Username == "":
+		fmt.Printf("Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+	case proxyHost == "" && cf.Username != "":
+		fmt.Printf("Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
 	}
 	return nil
 }
@@ -3597,6 +3612,95 @@ func runLocalCommand(hostLogin string, command []string) error {
 	return cmd.Run()
 }
 
+// onResolve executes `tsh resolve`, a command that
+// attempts to resolve a single host from a provided
+// hostname. The host information provided may be
+// interpolated by proxy templates and converted
+// from a hostname into a fuzzy search, or predicate query.
+// Errors are returned if unable to connect to the cluster,
+// no matching hosts were found, or multiple matching hosts
+// were found. This is primarily meant to be used as a command
+// for a match exec block in an SSH config.
+func onResolve(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+		UseSearchAsRoles:    tc.UseSearchAsRoles,
+		SortBy:              types.SortBy{Field: types.ResourceKind},
+		// Limit to 2 so we can check for an ambiguous result
+		Limit: 2,
+	}
+
+	// If no search criteria were explicitly provided, then match exclusively
+	// on the hostname of the server. Otherwise, this would end up listing
+	// the first two servers that the user has access to and yield unexpected results.
+	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
+		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+	}
+
+	// Only enable the re-authentication behavior if not invoked with `-q`. When
+	// in quiet mode, this command is likely being invoked via ssh and
+	// the login prompt will not be able to be presented to users anyway.
+	executor := client.RetryWithRelogin
+	if cf.Quiet {
+		executor = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, option ...client.RetryWithReloginOption) error {
+			return f()
+		}
+	}
+
+	var page []*types.EnrichedResource
+	if err := executor(cf.Context, tc, func() error {
+		clt, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		defer clt.Close()
+
+		page, _, err = apiclient.GetUnifiedResourcePage(cf.Context, clt.AuthClient, &req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch len(page) {
+	case 1:
+	case 0:
+		return trace.NotFound("no matching hosts found")
+	default:
+		return trace.BadParameter("multiple matching hosts found")
+	}
+
+	if cf.Quiet {
+		return nil
+	}
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printNodesAsText(cf.Stdout(), []types.Server{page[0].ResourceWithLabels.(types.Server)}, true)
+	case teleport.JSON:
+		utils.WriteJSON(cf.Stdout(), page[0].ResourceWithLabels)
+	case teleport.YAML:
+		utils.WriteYAML(cf.Stdout(), page[0].ResourceWithLabels)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
+	return nil
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
@@ -4393,19 +4497,6 @@ func parseCertificateCompatibilityFlag(compatibility string, certificateFormat s
 	default:
 		return "", trace.BadParameter("--compat or --cert-format must be specified")
 	}
-}
-
-// refuseArgs helper makes sure that 'args' (list of CLI arguments)
-// does not contain anything other than command
-func refuseArgs(command string, args []string) error {
-	for _, arg := range args {
-		if arg == command || strings.HasPrefix(arg, "-") {
-			continue
-		} else {
-			return trace.BadParameter("unexpected argument: %s", arg)
-		}
-	}
-	return nil
 }
 
 // flattenIdentity reads an identity file and flattens it into a tsh profile on disk.

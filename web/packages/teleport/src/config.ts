@@ -372,7 +372,7 @@ const cfg = {
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
 
     gcpWorkforceConfigurePath:
-      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+      '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
       '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
@@ -480,8 +480,20 @@ const cfg = {
     return 'sso';
   },
 
-  getDeviceTrustAuthorizeRoute(id: string, token: string) {
-    return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
+  getDeviceTrustAuthorizeRoute(id: string, token: string, redirect?: string) {
+    const path = generatePath(cfg.routes.deviceTrustAuthorize, {
+      id,
+      token,
+    });
+
+    const searchParams = new URLSearchParams();
+
+    if (redirect) {
+      searchParams.append('redirect_uri', redirect);
+    }
+
+    const searchString = searchParams.toString();
+    return searchString ? `${path}?${searchString}` : path;
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {

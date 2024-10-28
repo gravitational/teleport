@@ -4908,6 +4908,13 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			_, err = clt.UpsertNode(context.Background(), server)
 			require.NoError(t, err)
 
+			// Wait for the node to be visible before continuing.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				found, err := clt.GetNodes(context.Background(), defaults.Namespace)
+				assert.NoError(t, err)
+				assert.Len(t, found, 2)
+			}, 10*time.Second, 100*time.Millisecond)
+
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 
 			// check if we were able to exec the command or not
@@ -6195,7 +6202,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	teleport := suite.NewTeleportWithConfig(t, nil, nil, makeConfig())
 	defer teleport.StopAll()
 
-	// Create and start a reversetunnel node.
+	// Create and start a node.
 	nodeConfig := func() *servicecfg.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"
@@ -6207,8 +6214,20 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 		return tconf
 	}
-	_, err := teleport.StartReverseTunnelNode(nodeConfig())
+	_, err := teleport.StartNode(nodeConfig())
 	require.NoError(t, err)
+
+	slowPrintCommand := func(s string) []string {
+		cmd := make([]string, 0)
+		for i, char := range strings.Split(s, "") {
+			if i != 0 {
+				cmd = append(cmd, "&&")
+			}
+			cmd = append(cmd, "echo", "-n", char, "&&", "sleep", "0.05")
+		}
+
+		return cmd
+	}
 
 	// test label patterns that match both nodes, and each
 	// node individually.
@@ -6219,10 +6238,11 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 		expectLines []string
 	}{
 		{
-			desc:        "Both",
-			command:     []string{"echo", "two"},
+			desc: "Both",
+			// Print slowly so we can confirm that the output isn't interleaved.
+			command:     slowPrintCommand("abcd1234"),
 			labels:      map[string]string{"spam": "eggs"},
-			expectLines: []string{"[server-01] two", "[server-02] two"},
+			expectLines: []string{"[server-01] abcd1234", "[server-02] abcd1234"},
 		},
 		{
 			desc:        "Worker only",
