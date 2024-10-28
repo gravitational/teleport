@@ -461,28 +461,16 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 
 	cfg.SetDefaults()
-	clock := clockwork.NewRealClock()
-
-	findCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         findEndpointCacheTTL,
-		Clock:       clock,
-		Context:     cfg.Context,
-		ReloadOnErr: false,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating /find cache")
-	}
 
 	h := &Handler{
 		cfg:                  cfg,
 		log:                  newPackageLogger(),
 		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
-		clock:                clock,
+		clock:                clockwork.NewRealClock(),
 		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
-		findEndpointCache:    findCache,
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
@@ -497,6 +485,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
+	findCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         findEndpointCacheTTL,
+		Clock:       h.clock,
+		Context:     cfg.Context,
+		ReloadOnErr: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating /find cache")
+	}
+	h.findEndpointCache = findCache
 
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
@@ -1543,7 +1543,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, "find", func(ctx context.Context) (*webclient.PingResponse, error) {
 		response := webclient.PingResponse{
 			ServerVersion:    teleport.Version,
 			MinClientVersion: teleport.MinClientVersion,
@@ -1552,13 +1552,13 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 		if err != nil {
-			return response, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		response.Proxy = *proxyConfig
 
 		authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
 		if err != nil {
-			return response, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		response.Auth = webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()}
 
@@ -1590,7 +1590,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetTools().GetTargetVersion()
 		}
 
-		return response, nil
+		return &response, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
