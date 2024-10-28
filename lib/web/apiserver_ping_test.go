@@ -395,6 +395,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			// clear the fn cache to force the next answer to be fresh
+			for _, proxy := range env.proxies {
+				proxy.handler.handler.findEndpointCache.Remove("find")
+			}
+
 			resp, err := client.NewInsecureWebClient().Do(req)
 			require.NoError(t, err)
 
