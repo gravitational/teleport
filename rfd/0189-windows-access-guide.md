@@ -15,7 +15,7 @@ state: draft
 ### Problem
 
 * Currently only 15% of users convert from going to the docs to starting a session
-* We need better insight into drop-off points: we only know they clicked out to the docs then started a session and don’t know where they’re struggling
+* We need better insight into drop-off points: we only know they clicked out to the docs and whether they started a session, and don’t know where they’re struggling.
 
 ### Other data/context
 
