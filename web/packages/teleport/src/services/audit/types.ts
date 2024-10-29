@@ -317,6 +317,7 @@ export const eventCodes = {
   USER_TASK_CREATE: 'UT001I',
   USER_TASK_UPDATE: 'UT002I',
   USER_TASK_DELETE: 'UT003I',
+  SFTP_SUMMARY: 'TS021I',
 } as const;
 
 /**
@@ -1745,6 +1746,13 @@ export type RawEvents = {
   [eventCodes.USER_TASK_DELETE]: RawEvent<
     typeof eventCodes.USER_TASK_DELETE,
     HasName
+  >;
+  [eventCodes.SFTP_SUMMARY]: RawEvent<
+    typeof eventCodes.SFTP_SUMMARY,
+    {
+      user: string;
+      server_hostname: string;
+    }
   >;
 };
 

@@ -822,6 +822,9 @@ const (
 	UserTaskUpdateEvent = "user_task.update"
 	// UserTaskDeleteEvent is emitted when a user task resource is deleted.
 	UserTaskDeleteEvent = "user_task.delete"
+
+	// SFTPSummaryEvent is emitted at the end of an SFTP transfer.
+	SFTPSummaryEvent = "sftp_summary"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

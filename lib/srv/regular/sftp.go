@@ -189,21 +189,50 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				return
 			}
 
-			var sftpEvent apievents.SFTP
-			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &sftpEvent)
+			// If the next byte is a NULL byte, this event is a SFTPSummary event
+			var lastEvent bool
+			var event apievents.AuditEvent
+			nextByte, err := r.Peek(1)
 			if err != nil {
-				s.log.WithError(err).Warn("Failed to unmarshal SFTP event.")
-				continue
+				s.log.WithError(err).Warn("Failed to peek SFTP event file.")
+			} else if nextByte[0] == 0x0 {
+				var summaryEvent apievents.SFTPSummary
+				err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &summaryEvent)
+				if err != nil {
+					s.log.WithError(err).Warn("Failed to unmarshal SFTP event.")
+					continue
+				}
+				summaryEvent.Metadata.ClusterName = serverCtx.ClusterName
+				summaryEvent.ServerMetadata = serverMeta
+				summaryEvent.SessionMetadata = sessionMeta
+				summaryEvent.UserMetadata = userMeta
+				summaryEvent.ConnectionMetadata = connectionMeta
+
+				event = &summaryEvent
+				lastEvent = true
+			} else {
+				var sftpEvent apievents.SFTP
+				err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &sftpEvent)
+				if err != nil {
+					s.log.WithError(err).Warn("Failed to unmarshal SFTP event.")
+					continue
+				}
+				sftpEvent.Metadata.ClusterName = serverCtx.ClusterName
+				sftpEvent.ServerMetadata = serverMeta
+				sftpEvent.SessionMetadata = sessionMeta
+				sftpEvent.UserMetadata = userMeta
+				sftpEvent.ConnectionMetadata = connectionMeta
+
+				event = &sftpEvent
 			}
 
-			sftpEvent.Metadata.ClusterName = serverCtx.ClusterName
-			sftpEvent.ServerMetadata = serverMeta
-			sftpEvent.SessionMetadata = sessionMeta
-			sftpEvent.UserMetadata = userMeta
-			sftpEvent.ConnectionMetadata = connectionMeta
-
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, &sftpEvent); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
 				log.WithError(err).Warn("Failed to emit SFTP event.")
+			}
+
+			// the last event was received, stop reading events
+			if lastEvent {
+				break
 			}
 		}
 	}()
