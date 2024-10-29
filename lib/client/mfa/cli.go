@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -138,6 +139,15 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	// Otherwise, allow dual prompt with OTP.
 	if promptWebauthn && c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto {
 		promptOTP = false
+	}
+
+	// DELETE IN v18.0 after TOTP session MFA support is removed (codingllama)
+	// Technically we could remove api/mfa.WithPromptChallengeExtensions along
+	// with this, as it's likely its only use, although arguably keeping it could
+	// prove useful.
+	usageSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+	if promptOTP && usageSessionMFA {
+		fmt.Fprint(c.writer(), "\nWARNING: Starting with Teleport 18, OTP will not be accepted for per-session MFA.\n\n")
 	}
 
 	switch {
