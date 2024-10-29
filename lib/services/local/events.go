@@ -100,6 +100,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAutoUpdateConfigParser()
 		case types.KindAutoUpdateVersion:
 			parser = newAutoUpdateVersionParser()
+		case types.KindAutoUpdateAgentRollout:
+			parser = newAutoUpdateAgentRolloutParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -167,6 +169,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopServicesParser()
 		case types.KindWindowsDesktop:
 			parser = newWindowsDesktopsParser()
+		case types.KindDynamicWindowsDesktop:
+			parser = newDynamicWindowsDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
@@ -238,6 +242,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newStaticHostUserParser()
 		case types.KindProvisioningPrincipalState:
 			parser = newProvisioningStateParser()
+		case types.KindIdentityCenterAccount:
+			parser = newIdentityCenterAccountParser()
+		case types.KindIdentityCenterPrincipalAssignment:
+			parser = newIdentityCenterPrincipalAssignmentParser()
+		case types.KindIdentityCenterAccountAssignment:
+			parser = newIdentityCenterAccountAssignmentParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -805,6 +815,41 @@ func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, er
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(autoUpdateVersion), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateAgentRolloutParser() *autoUpdateAgentRolloutParser {
+	return &autoUpdateAgentRolloutParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateAgentRolloutPrefix)),
+	}
+}
+
+type autoUpdateAgentRolloutParser struct {
+	baseParser
+}
+
+func (p *autoUpdateAgentRolloutParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateAgentRollout,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameAutoUpdateAgentRollout,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateAgentRollout, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentRollout](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateAgentRollout), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -1842,6 +1887,43 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktopService(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDynamicWindowsDesktopsParser() *dynamicWindowsDesktopsParser {
+	return &dynamicWindowsDesktopsParser{
+		baseParser: newBaseParser(backend.NewKey(dynamicWindowsDesktopsPrefix, "")),
+	}
+}
+
+type dynamicWindowsDesktopsParser struct {
+	baseParser
+}
+
+func (p *dynamicWindowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(dynamicWindowsDesktopsPrefix, "")).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindDynamicWindowsDesktop,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalDynamicWindowsDesktop(
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),

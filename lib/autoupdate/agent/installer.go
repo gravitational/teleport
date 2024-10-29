@@ -34,6 +34,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -44,11 +45,33 @@ const (
 	checksumHexLen = sha256.Size * 2 // bytes to hex
 )
 
+var (
+	// tgzExtractPaths describes how to extract the Teleport tgz.
+	// See utils.Extract for more details on how this list is parsed.
+	// Paths must use tarball-style / separators (not filepath).
+	tgzExtractPaths = []utils.ExtractPath{
+		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service"},
+		{Src: "teleport/examples", Skip: true},
+		{Src: "teleport/install", Skip: true},
+		{Src: "teleport/README.md", Dst: "share/README.md"},
+		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md"},
+		{Src: "teleport/VERSION", Dst: "share/VERSION"},
+		{Src: "teleport", Dst: "bin"},
+	}
+
+	// servicePath contains the path to the Teleport SystemD service within the version directory.
+	servicePath = filepath.Join("etc", "systemd", "teleport.service")
+)
+
 // LocalInstaller manages the creation and removal of installations
 // of Teleport.
 type LocalInstaller struct {
 	// InstallDir contains each installation, named by version.
 	InstallDir string
+	// LinkBinDir contains symlinks to the linked installation's binaries.
+	LinkBinDir string
+	// LinkServiceDir contains a symlink to the linked installation's systemd service.
+	LinkServiceDir string
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
 	// Log contains a logger.
@@ -59,15 +82,32 @@ type LocalInstaller struct {
 	ReservedFreeInstallDisk uint64
 }
 
+// ErrLinked is returned when a linked version cannot be removed.
+var ErrLinked = errors.New("linked version cannot be removed")
+
 // Remove a Teleport version directory from InstallDir.
 // This function is idempotent.
 func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
-	versionDir := filepath.Join(li.InstallDir, version)
-	sumPath := filepath.Join(versionDir, checksumType)
+	// os.RemoveAll is dangerous because it can remove an entire directory tree.
+	// We must validate the version to ensure that we remove only a single path
+	// element under the InstallDir, and not InstallDir or its parents.
+	// versionDir performs these validations.
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	linked, err := li.isLinked(versionDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return trace.Errorf("failed to determine if linked: %w", err)
+	}
+	if linked {
+		return trace.Wrap(ErrLinked)
+	}
 
 	// invalidate checksum first, to protect against partially-removed
 	// directory with valid checksum.
-	err := os.Remove(sumPath)
+	err = os.Remove(filepath.Join(versionDir, checksumType))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return trace.Wrap(err)
 	}
@@ -80,7 +120,10 @@ func (li *LocalInstaller) Remove(ctx context.Context, version string) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 func (li *LocalInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
-	versionDir := filepath.Join(li.InstallDir, version)
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	sumPath := filepath.Join(versionDir, checksumType)
 
 	// generate download URI from template
@@ -154,7 +197,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
-	err = os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
+	err = renameio.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
 	if err != nil {
 		return trace.Errorf("failed to write checksum: %w", err)
 	}
@@ -208,6 +251,7 @@ func readChecksum(path string) ([]byte, error) {
 func (li *LocalInstaller) getChecksum(ctx context.Context, url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -292,8 +336,7 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
-	// TODO(sclevine): add variadic arg to Extract to extract teleport/ subdir into bin/.
-	err = utils.Extract(zr, dstDir)
+	err = utils.Extract(zr, dstDir, tgzExtractPaths...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -314,4 +357,109 @@ func uncompressedSize(f io.Reader) (int64, error) {
 		return 0, trace.Wrap(err)
 	}
 	return n, nil
+}
+
+// List installed versions of Teleport.
+func (li *LocalInstaller) List(ctx context.Context) (versions []string, err error) {
+	entries, err := os.ReadDir(li.InstallDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		versions = append(versions, entry.Name())
+	}
+	return versions, nil
+}
+
+// Link the specified version into the system LinkBinDir.
+func (li *LocalInstaller) Link(ctx context.Context, version string) error {
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ensure target directories exist before trying to create links
+	err = os.MkdirAll(li.LinkBinDir, 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// create binary links
+	binDir := filepath.Join(versionDir, "bin")
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return trace.Errorf("failed to find Teleport binary directory: %w", err)
+	}
+	var linked int
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		err := renameio.Symlink(filepath.Join(binDir, entry.Name()), filepath.Join(li.LinkBinDir, entry.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		linked++
+	}
+	if linked == 0 {
+		return trace.Errorf("no binaries available to link")
+	}
+
+	// create systemd service link
+	service := filepath.Join(versionDir, servicePath)
+	err = renameio.Symlink(service, filepath.Join(li.LinkServiceDir, filepath.Base(servicePath)))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// versionDir returns the storage directory for a Teleport version.
+// versionDir will fail if the version cannot be used to construct the directory name.
+// For example, it ensures that ".." cannot be provided to return a system directory.
+func (li *LocalInstaller) versionDir(version string) (string, error) {
+	installDir, err := filepath.Abs(li.InstallDir)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	versionDir := filepath.Join(installDir, version)
+	if filepath.Dir(versionDir) != filepath.Clean(installDir) {
+		return "", trace.Errorf("refusing to directory outside of version directory")
+	}
+	return versionDir, nil
+}
+
+// isLinked returns true if any binaries or services in versionDir are linked.
+// Returns os.ErrNotExist error if the versionDir does not exist.
+func (li *LocalInstaller) isLinked(versionDir string) (bool, error) {
+	binDir := filepath.Join(versionDir, "bin")
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		v, err := os.Readlink(filepath.Join(li.LinkBinDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		if filepath.Clean(v) == filepath.Join(binDir, entry.Name()) {
+			return true, nil
+		}
+	}
+	v, err := os.Readlink(filepath.Join(li.LinkServiceDir, filepath.Base(servicePath)))
+	if err != nil {
+		return false, nil
+	}
+	return filepath.Clean(v) ==
+		filepath.Join(versionDir, servicePath), nil
 }

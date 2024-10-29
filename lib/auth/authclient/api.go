@@ -314,6 +314,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -1088,6 +1091,12 @@ type Cache interface {
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
+	// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+
+	// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() (types.StaticTokens, error)
 
@@ -1205,6 +1214,9 @@ type Cache interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)

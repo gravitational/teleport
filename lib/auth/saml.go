@@ -44,9 +44,8 @@ var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only 
 // authentication - the connector CRUD operations and Get methods are
 // implemented in auth.Server and provide no connector-specific logic.
 type SAMLService interface {
-	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
-	// ValidateSAMLResponse validates SAML auth response
+	CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error)
 }
 
@@ -211,6 +210,17 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 	}
 
 	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
+	return rq, trace.Wrap(err)
+}
+
+// CreateSAMLAuthRequestForMFA delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if a.samlAuthService == nil {
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
+	rq, err := a.samlAuthService.CreateSAMLAuthRequestForMFA(ctx, req)
 	return rq, trace.Wrap(err)
 }
 

@@ -2018,7 +2018,7 @@ func (process *TeleportProcess) initAuthService() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		traceConf.Logger = process.log.WithField(teleport.ComponentKey, teleport.ComponentTracing)
+		traceConf.Logger = process.logger.With(teleport.ComponentKey, teleport.ComponentTracing)
 
 		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
 		if err != nil {
@@ -2531,6 +2531,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
+	cfg.IdentityCenter = services.IdentityCenter
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3629,7 +3630,7 @@ func (process *TeleportProcess) initTracingService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	traceConf.Logger = process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
+	traceConf.Logger = process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentTracing, process.id))
 
 	provider, err := tracing.NewTraceProvider(process.ExitContext(), *traceConf)
 	if err != nil {
@@ -4486,7 +4487,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			traceConf.Logger = process.log.WithField(teleport.ComponentKey, teleport.ComponentTracing)
+			traceConf.Logger = process.logger.With(teleport.ComponentKey, teleport.ComponentTracing)
 
 			clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
 			if err != nil {
@@ -5025,6 +5026,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 				Client:    accessPoint,
 			},
+			KubernetesServerGetter: accessPoint,
 		})
 		if err != nil {
 			return trace.Wrap(err)

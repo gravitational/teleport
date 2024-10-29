@@ -247,6 +247,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.DynamicWindowsDesktops == nil {
+		cfg.DynamicWindowsDesktops, err = local.NewDynamicWindowsDesktopService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.SAMLIdPServiceProviders == nil {
 		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 		if err != nil {
@@ -450,6 +456,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AuditLogSessionStreamer:   cfg.AuditLog,
 		Events:                    cfg.Events,
 		WindowsDesktops:           cfg.WindowsDesktops,
+		DynamicWindowsDesktops:    cfg.DynamicWindowsDesktops,
 		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
 		UserGroups:                cfg.UserGroups,
 		SessionTrackerService:     cfg.SessionTrackerService,
@@ -475,6 +482,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 		StaticHostUser:            cfg.StaticHostUsers,
 		ProvisioningStates:        cfg.ProvisioningStates,
+		IdentityCenter:            cfg.IdentityCenter,
 	}
 
 	as := Server{
@@ -509,9 +517,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
 		}),
-		inventory.WithOnDisconnect(func(s string) {
+		inventory.WithOnDisconnect(func(s string, c int) {
 			if g, ok := connectedResourceGauges[s]; ok {
-				g.Dec()
+				g.Sub(float64(c))
 			} else {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
@@ -651,6 +659,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.WindowsDesktops
+	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
@@ -3665,7 +3674,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -6746,7 +6755,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRedirectURL string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -6756,6 +6765,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	}
 	enableTOTP := apref.IsSecondFactorTOTPAllowed()
 	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
+	enableSSO := apref.IsSecondFactorSSOAllowed()
 
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
 	// include the necessary checks of config empty, disabled, etc.
@@ -6826,7 +6836,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	groupedDevs := groupByDeviceType(devs, enableWebauthn)
+	groupedDevs := groupByDeviceType(devs)
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	// TOTP challenge.
@@ -6835,7 +6845,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	}
 
 	// WebAuthn challenge.
-	if len(groupedDevs.Webauthn) > 0 {
+	if enableWebauthn && len(groupedDevs.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
@@ -6846,6 +6856,14 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 			return nil, trace.Wrap(err)
 		}
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
+	}
+
+	// If the user has an SSO device and the client provided a redirect URL to handle
+	// the MFA SSO flow, create an SSO challenge.
+	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, challengeExtensions); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := a.GetClusterName()
@@ -6875,20 +6893,16 @@ type devicesByType struct {
 	SSO      *types.MFADevice
 }
 
-func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
+func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 	res := devicesByType{}
 	for _, dev := range devs {
 		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
 			res.TOTP = true
 		case *types.MFADevice_U2F:
-			if groupWebauthn {
-				res.Webauthn = append(res.Webauthn, dev)
-			}
+			res.Webauthn = append(res.Webauthn, dev)
 		case *types.MFADevice_Webauthn:
-			if groupWebauthn {
-				res.Webauthn = append(res.Webauthn, dev)
-			}
+			res.Webauthn = append(res.Webauthn, dev)
 		case *types.MFADevice_Sso:
 			res.SSO = dev
 		default:
@@ -6906,7 +6920,7 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -6915,16 +6929,18 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 			// Allowed, no devices registered.
 			return false, nil
 		}
+		devsByType := groupByDeviceType(devices)
 
 		authPref, err := a.GetAuthPreference(ctx)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		totpEnabled := authPref.IsSecondFactorTOTPAllowed()
-		webauthnEnabled := authPref.IsSecondFactorWebauthnAllowed()
 
-		devsByType := groupByDeviceType(devices, webauthnEnabled)
-		if (totpEnabled && devsByType.TOTP) || (webauthnEnabled && len(devsByType.Webauthn) > 0) {
+		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
+		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
+		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+
+		if hasTOTP || hasWebAuthn || hasSSO {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -6952,6 +6968,10 @@ func (a *Server) ValidateMFAAuthResponse(
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("required challenge extensions parameter required")
+	}
+
 	authData, validateErr := a.validateMFAAuthResponseInternal(ctx, resp, user, requiredExtensions)
 	// validateErr handled after audit.
 
@@ -7086,6 +7106,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}, nil
 
+	case *proto.MFAAuthenticateResponse_SSO:
+		mfaAuthData, err := a.verifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}

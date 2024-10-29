@@ -63,10 +63,9 @@ export default function SessionList(props: Props) {
         },
         {
           key: 'durationText',
-          altSortKey: 'created',
           headerText: 'Duration',
           isSortable: true,
-          onSort: (a, b) => b - a,
+          onSort: (a, b) => b.created.getTime() - a.created.getTime(),
         },
         {
           altKey: 'join-btn',

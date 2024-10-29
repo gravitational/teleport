@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -114,7 +115,7 @@ type server struct {
 
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
-	proxyWatcher *services.ProxyWatcher
+	proxyWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
@@ -201,7 +202,7 @@ type Config struct {
 	LockWatcher *services.LockWatcher
 
 	// NodeWatcher is a node watcher.
-	NodeWatcher *services.NodeWatcher
+	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
@@ -307,9 +308,6 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		},
 		ProxiesC:    make(chan []types.Server, 10),
 		ProxyGetter: cfg.LocalAccessPoint,
-		ProxyDiffer: func(_, _ types.Server) bool {
-			return true // we always want to store the most recently heartbeated proxy
-		},
 	})
 	if err != nil {
 		cancel()
@@ -401,7 +399,7 @@ func (s *server) periodicFunctions() {
 			s.log.Debugf("Closing.")
 			return
 		// Proxies have been updated, notify connected agents about the update.
-		case proxies := <-s.proxyWatcher.ProxiesC:
+		case proxies := <-s.proxyWatcher.ResourcesC:
 			s.fanOutProxies(proxies)
 		case <-ticker.C:
 			if err := s.fetchClusterPeers(); err != nil {

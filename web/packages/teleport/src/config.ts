@@ -1284,7 +1284,7 @@ export interface UrlKubeResourcesParams {
   searchAsRoles?: 'yes' | '';
   kubeNamespace?: string;
   kubeCluster: string;
-  kind: KubeResourceKind;
+  kind: Omit<KubeResourceKind, '*'>;
 }
 
 export interface UrlDeployServiceIamConfigureScriptParams {

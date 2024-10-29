@@ -18,7 +18,13 @@
 
 import { Role } from 'teleport/services/resources';
 
+import { Label as UILabel } from 'teleport/components/LabelsInput/LabelsInput';
+
+import { Labels } from 'teleport/services/resources';
+
 import {
+  labelsModelToLabels,
+  labelsToModel,
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
@@ -224,7 +230,7 @@ describe('roleToRoleEditorModel', () => {
     } as RoleEditorModel);
   });
 
-  it('converts server access spec', () => {
+  it('creates a server access spec', () => {
     const minRole = minimalRole();
     expect(
       roleToRoleEditorModel({
@@ -232,7 +238,7 @@ describe('roleToRoleEditorModel', () => {
         spec: {
           ...minRole.spec,
           allow: {
-            node_labels: { foo: 'bar', doubleFoo: ['bar1', 'bar2'] },
+            node_labels: { foo: 'bar' },
             logins: ['root', 'cthulhu', 'sandman'],
           },
         },
@@ -242,11 +248,7 @@ describe('roleToRoleEditorModel', () => {
       accessSpecs: [
         {
           kind: 'node',
-          labels: [
-            { name: 'foo', value: 'bar' },
-            { name: 'doubleFoo', value: 'bar1' },
-            { name: 'doubleFoo', value: 'bar2' },
-          ],
+          labels: [{ name: 'foo', value: 'bar' }],
           logins: [
             { label: 'root', value: 'root' },
             { label: 'cthulhu', value: 'cthulhu' },
@@ -256,6 +258,144 @@ describe('roleToRoleEditorModel', () => {
       ],
     } as RoleEditorModel);
   });
+
+  it('creates a Kubernetes access spec', () => {
+    const minRole = minimalRole();
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            kubernetes_groups: ['group1', 'group2'],
+            kubernetes_labels: { bar: 'foo' },
+            kubernetes_resources: [
+              {
+                kind: 'pod',
+                name: 'some-pod',
+                namespace: '*',
+                verbs: ['get', 'update'],
+              },
+              {
+                // No namespace required for cluster-wide resources.
+                kind: 'kube_node',
+                name: 'some-node',
+              },
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'kube_cluster',
+          groups: [
+            { label: 'group1', value: 'group1' },
+            { label: 'group2', value: 'group2' },
+          ],
+          labels: [{ name: 'bar', value: 'foo' }],
+          resources: [
+            {
+              id: expect.any(String),
+              kind: { value: 'pod', label: 'Pod' },
+              name: 'some-pod',
+              namespace: '*',
+              verbs: [
+                { label: 'get', value: 'get' },
+                { label: 'update', value: 'update' },
+              ],
+            },
+            {
+              id: expect.any(String),
+              kind: { value: 'kube_node', label: 'Node' },
+              name: 'some-node',
+              namespace: '',
+              verbs: [],
+            },
+          ],
+        },
+      ],
+    } as RoleEditorModel);
+  });
+
+  it('creates an app access spec', () => {
+    const minRole = minimalRole();
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            app_labels: { foo: 'bar' },
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'app',
+          labels: [{ name: 'foo', value: 'bar' }],
+          awsRoleARNs: [],
+          azureIdentities: [],
+          gcpServiceAccounts: [],
+        },
+      ],
+    } as RoleEditorModel);
+
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            app_labels: { foo: 'bar' },
+            aws_role_arns: [
+              'arn:aws:iam::123456789012:role/role1',
+              'arn:aws:iam::123456789012:role/role2',
+            ],
+            azure_identities: [
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+            ],
+            gcp_service_accounts: [
+              'account1@some-project.iam.gserviceaccount.com',
+              'account2@some-project.iam.gserviceaccount.com',
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...minimalRoleModel(),
+      accessSpecs: [
+        {
+          kind: 'app',
+          labels: [{ name: 'foo', value: 'bar' }],
+          awsRoleARNs: [
+            'arn:aws:iam::123456789012:role/role1',
+            'arn:aws:iam::123456789012:role/role2',
+          ],
+          azureIdentities: [
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+          ],
+          gcpServiceAccounts: [
+            'account1@some-project.iam.gserviceaccount.com',
+            'account2@some-project.iam.gserviceaccount.com',
+          ],
+        },
+      ],
+    } as RoleEditorModel);
+  });
+});
+
+test('labelsToModel', () => {
+  expect(labelsToModel({ foo: 'bar', doubleFoo: ['bar1', 'bar2'] })).toEqual([
+    { name: 'foo', value: 'bar' },
+    { name: 'doubleFoo', value: 'bar1' },
+    { name: 'doubleFoo', value: 'bar2' },
+  ]);
 });
 
 describe('roleEditorModelToRole', () => {
@@ -287,12 +427,7 @@ describe('roleEditorModelToRole', () => {
         accessSpecs: [
           {
             kind: 'node',
-            labels: [
-              { name: 'foo', value: 'bar' },
-              { name: 'tripleFoo', value: 'bar1' },
-              { name: 'tripleFoo', value: 'bar2' },
-              { name: 'tripleFoo', value: 'bar3' },
-            ],
+            labels: [{ name: 'foo', value: 'bar' }],
             logins: [
               { label: 'root', value: 'root' },
               { label: 'cthulhu', value: 'cthulhu' },
@@ -306,10 +441,136 @@ describe('roleEditorModelToRole', () => {
       spec: {
         ...minRole.spec,
         allow: {
-          node_labels: { foo: 'bar', tripleFoo: ['bar1', 'bar2', 'bar3'] },
+          node_labels: { foo: 'bar' },
           logins: ['root', 'cthulhu', 'sandman'],
         },
       },
     } as Role);
   });
+
+  it('converts a Kubernetes access spec', () => {
+    const minRole = minimalRole();
+    expect(
+      roleEditorModelToRole({
+        ...minimalRoleModel(),
+        accessSpecs: [
+          {
+            kind: 'kube_cluster',
+            groups: [
+              { label: 'group1', value: 'group1' },
+              { label: 'group2', value: 'group2' },
+            ],
+            labels: [{ name: 'bar', value: 'foo' }],
+            resources: [
+              {
+                id: 'dummy-id-1',
+                kind: { value: 'pod', label: 'Pod' },
+                name: 'some-pod',
+                namespace: '*',
+                verbs: [
+                  { label: 'get', value: 'get' },
+                  { label: 'update', value: 'update' },
+                ],
+              },
+              {
+                id: 'dummy-id-2',
+                kind: { value: 'kube_node', label: 'Node' },
+                name: 'some-node',
+                namespace: '',
+                verbs: [],
+              },
+            ],
+          },
+        ],
+      })
+    ).toEqual({
+      ...minRole,
+      spec: {
+        ...minRole.spec,
+        allow: {
+          kubernetes_groups: ['group1', 'group2'],
+          kubernetes_labels: { bar: 'foo' },
+          kubernetes_resources: [
+            {
+              kind: 'pod',
+              name: 'some-pod',
+              namespace: '*',
+              verbs: ['get', 'update'],
+            },
+            {
+              kind: 'kube_node',
+              name: 'some-node',
+              namespace: '',
+              verbs: [],
+            },
+          ],
+        },
+      },
+    } as Role);
+  });
+
+  it('converts an app access spec', () => {
+    const minRole = minimalRole();
+    expect(
+      roleEditorModelToRole({
+        ...minimalRoleModel(),
+        accessSpecs: [
+          {
+            kind: 'app',
+            labels: [{ name: 'foo', value: 'bar' }],
+            awsRoleARNs: [
+              'arn:aws:iam::123456789012:role/role1',
+              'arn:aws:iam::123456789012:role/role2',
+            ],
+            azureIdentities: [
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+              '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+            ],
+            gcpServiceAccounts: [
+              'account1@some-project.iam.gserviceaccount.com',
+              'account2@some-project.iam.gserviceaccount.com',
+            ],
+          },
+        ],
+      })
+    ).toEqual({
+      ...minRole,
+      spec: {
+        ...minRole.spec,
+        allow: {
+          app_labels: { foo: 'bar' },
+          aws_role_arns: [
+            'arn:aws:iam::123456789012:role/role1',
+            'arn:aws:iam::123456789012:role/role2',
+          ],
+          azure_identities: [
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id1',
+            '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id2',
+          ],
+          gcp_service_accounts: [
+            'account1@some-project.iam.gserviceaccount.com',
+            'account2@some-project.iam.gserviceaccount.com',
+          ],
+        },
+      },
+    } as Role);
+  });
+});
+
+test('labelsModelToLabels', () => {
+  const model: UILabel[] = [
+    { name: 'foo', value: 'bar' },
+    { name: 'doubleFoo', value: 'bar1' },
+    { name: 'doubleFoo', value: 'bar2' },
+    // Moving from 2 to 3 values is a separate code branch, hence one more
+    // case.
+    { name: 'tripleFoo', value: 'bar1' },
+    { name: 'tripleFoo', value: 'bar2' },
+    { name: 'tripleFoo', value: 'bar3' },
+  ];
+  expect(labelsModelToLabels(model)).toEqual({
+    foo: 'bar',
+    doubleFoo: ['bar1', 'bar2'],
+    tripleFoo: ['bar1', 'bar2', 'bar3'],
+  } as Labels);
 });

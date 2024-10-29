@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -302,8 +303,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		expected webclient.AutoUpdateSettings
 	}{
 		{
-			name:     "resources not defined",
-			expected: webclient.AutoUpdateSettings{},
+			name: "resources not defined",
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion: api.Version,
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+			},
 		},
 		{
 			name: "enable auto update",
@@ -312,8 +316,21 @@ func TestPing_autoUpdateResources(t *testing.T) {
 					Mode: autoupdate.ToolsUpdateModeEnabled,
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsMode: "enabled"},
-			cleanup:  true,
+			expected: webclient.AutoUpdateSettings{
+				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
+				ToolsVersion: api.Version,
+			},
+			cleanup: true,
+		},
+		{
+			name:    "no autoupdate tool config nor version",
+			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion: api.Version,
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+			},
+			cleanup: true,
 		},
 		{
 			name: "set auto update version",
@@ -322,8 +339,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 					TargetVersion: "1.2.3",
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsVersion: "1.2.3"},
-			cleanup:  true,
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion: "1.2.3",
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+			},
+			cleanup: true,
 		},
 		{
 			name: "enable auto update and set version",
@@ -337,7 +357,10 @@ func TestPing_autoUpdateResources(t *testing.T) {
 					TargetVersion: "1.2.3",
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsMode: "enabled", ToolsVersion: "1.2.3"},
+			expected: webclient.AutoUpdateSettings{
+				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
+				ToolsVersion: "1.2.3",
+			},
 		},
 		{
 			name: "modify auto update config and version",
@@ -351,7 +374,10 @@ func TestPing_autoUpdateResources(t *testing.T) {
 					TargetVersion: "3.2.1",
 				},
 			},
-			expected: webclient.AutoUpdateSettings{ToolsMode: "disabled", ToolsVersion: "3.2.1"},
+			expected: webclient.AutoUpdateSettings{
+				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion: "3.2.1",
+			},
 		},
 	}
 	for _, tc := range tests {
@@ -367,6 +393,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				require.NoError(t, err)
 				_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 				require.NoError(t, err)
+			}
+
+			// expire the fn cache to force the next answer to be fresh
+			for _, proxy := range env.proxies {
+				proxy.clock.Advance(2 * findEndpointCacheTTL)
 			}
 
 			resp, err := client.NewInsecureWebClient().Do(req)

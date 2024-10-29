@@ -70,7 +70,7 @@ func NewHostSudoers(uuid string) HostSudoers {
 	backend, err := newHostSudoersBackend(uuid)
 	switch {
 	case trace.IsNotImplemented(err):
-		slog.DebugContext(context.Background(), "Skipping host sudoers management", "error", err)
+		slog.DebugContext(context.Background(), "Skipping host sudoers management", "error", err.Error())
 		return nil
 	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		slog.DebugContext(context.Background(), "Error making new HostSudoersBackend", "error", err)

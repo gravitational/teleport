@@ -39,7 +39,7 @@ import useDesktopSession, {
 import TopBar from './TopBar';
 
 import type { State, WebsocketAttempt } from './useDesktopSession';
-import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
+import type { MfaState } from 'teleport/lib/useMfa';
 
 export function DesktopSessionContainer() {
   const state = useDesktopSession();
@@ -54,7 +54,7 @@ declare global {
 
 export function DesktopSession(props: State) {
   const {
-    webauthn,
+    mfa,
     tdpClient,
     username,
     hostname,
@@ -105,7 +105,7 @@ export function DesktopSession(props: State) {
         tdpConnection,
         wsConnection,
         showAnotherSessionActiveDialog,
-        webauthn
+        mfa
       )
     );
   }, [
@@ -113,7 +113,7 @@ export function DesktopSession(props: State) {
     tdpConnection,
     wsConnection,
     showAnotherSessionActiveDialog,
-    webauthn,
+    mfa,
   ]);
 
   return (
@@ -144,7 +144,7 @@ export function DesktopSession(props: State) {
       {screenState.screen === 'anotherSessionActive' && (
         <AnotherSessionActiveDialog {...props} />
       )}
-      {screenState.screen === 'mfa' && <MfaDialog webauthn={webauthn} />}
+      {screenState.screen === 'mfa' && <MfaDialog mfa={mfa} />}
       {screenState.screen === 'alert dialog' && (
         <AlertDialog screenState={screenState} />
       )}
@@ -181,20 +181,15 @@ export function DesktopSession(props: State) {
   );
 }
 
-const MfaDialog = ({ webauthn }: { webauthn: WebAuthnState }) => {
+const MfaDialog = ({ mfa }: { mfa: MfaState }) => {
   return (
     <AuthnDialog
-      onContinue={webauthn.authenticate}
+      mfa={mfa}
       onCancel={() => {
-        webauthn.setState(prevState => {
-          return {
-            ...prevState,
-            errorText:
-              'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.',
-          };
-        });
+        mfa.setErrorText(
+          'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.'
+        );
       }}
-      errorText={webauthn.errorText}
     />
   );
 };
@@ -282,7 +277,7 @@ const nextScreenState = (
   tdpConnection: Attempt,
   wsConnection: WebsocketAttempt,
   showAnotherSessionActiveDialog: boolean,
-  webauthn: WebAuthnState
+  webauthn: MfaState
 ): ScreenState => {
   // We always want to show the user the first alert that caused the session to fail/end,
   // so if we're already showing an alert, don't change the screen.

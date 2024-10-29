@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
@@ -334,25 +333,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-// RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via CreateToken/UpsertToken.
-func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &certs, nil
 }
 
 type upsertTunnelConnectionRawReq struct {
