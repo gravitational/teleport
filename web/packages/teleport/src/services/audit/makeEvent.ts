@@ -1971,6 +1971,13 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a user task [${name}]`;
     },
   },
+  [eventCodes.SFTP_SUMMARY]: {
+    type: 'sftp_summary',
+    desc: 'File Transfer Completed',
+    format: ({ user, server_hostname }) => {
+      return `User [${user}] completed a file transfer on [${server_hostname}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

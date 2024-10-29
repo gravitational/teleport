@@ -297,6 +297,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.USER_TASK_CREATE]: Icons.Info,
   [eventCodes.USER_TASK_UPDATE]: Icons.Info,
   [eventCodes.USER_TASK_DELETE]: Icons.Info,
+  [eventCodes.SFTP_SUMMARY]: Icons.FolderPlus,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

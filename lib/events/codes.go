@@ -671,6 +671,13 @@ const (
 	// UserTaskDeleteCode is the user task delete event code.
 	UserTaskDeleteCode = "UT003I"
 
+	// SFTPSummaryCode is the SFTP summary code.
+	SFTPSummaryCode = "TS021I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
+
+// After defining an event code, make sure to keep
+// `web/packages/teleport/src/services/audit/types.ts` in sync and add an
+// entry in the `eventsMap` in `lib/events/events_test.go`.

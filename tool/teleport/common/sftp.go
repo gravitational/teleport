@@ -30,9 +30,11 @@ import (
 	"os/user"
 	"path"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
@@ -80,6 +82,11 @@ func (c compositeCh) Close() error {
 	return trace.NewAggregate(c.r.Close(), c.w.Close())
 }
 
+type protoAuditEvent interface {
+	apievents.AuditEvent
+	proto.Message
+}
+
 type allowedOps struct {
 	write bool
 	path  string
@@ -89,10 +96,31 @@ type allowedOps struct {
 type sftpHandler struct {
 	logger  *log.Entry
 	allowed *allowedOps
-	events  chan<- *apievents.SFTP
+	files   []*trackedFile
+	events  chan<- protoAuditEvent
 }
 
-func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- *apievents.SFTP) (*sftpHandler, error) {
+type trackedFile struct {
+	*os.File
+	bytesRead    atomic.Uint64
+	bytesWritten atomic.Uint64
+}
+
+func (t *trackedFile) ReadAt(b []byte, off int64) (int, error) {
+	n, err := t.File.ReadAt(b, off)
+	t.bytesRead.Add(uint64(n))
+	return n, err
+
+}
+
+func (t *trackedFile) WriteAt(b []byte, off int64) (int, error) {
+	n, err := t.File.WriteAt(b, off)
+	t.bytesWritten.Add(uint64(n))
+	return n, err
+
+}
+
+func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- protoAuditEvent) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
 		allowed = &allowedOps{
@@ -188,7 +216,7 @@ func (s *sftpHandler) Filewrite(req *sftp.Request) (_ io.WriterAt, retErr error)
 	return s.openFile(req)
 }
 
-func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
+func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error) {
 	if err := s.ensureReqIsAllowed(req); err != nil {
 		return nil, err
 	}
@@ -220,8 +248,10 @@ func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	trackFile := &trackedFile{File: f}
+	s.files = append(s.files, trackFile)
 
-	return f, nil
+	return trackFile, nil
 }
 
 // Filecmd handles file modification requests.
@@ -607,7 +637,7 @@ func onSFTP() error {
 	}
 	ch := compositeCh{io.NopCloser(bufferedReader), chw}
 
-	sftpEvents := make(chan *apievents.SFTP, 1)
+	sftpEvents := make(chan protoAuditEvent, 1)
 	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)
 	if err != nil {
 		return trace.Wrap(err)
@@ -634,6 +664,13 @@ func onSFTP() error {
 				// Append a NULL byte so the parent process will know where
 				// this event ends
 				buf.WriteByte(0x0)
+				// If this is the last event, a summary event send another
+				// NULL byte so the parent process knows to unmarshal
+				// a SFTPSummary event
+				if _, ok := event.(*apievents.SFTPSummary); ok {
+					buf.WriteByte(0x0)
+				}
+
 				_, err = io.Copy(auditFile, &buf)
 				if err != nil {
 					logger.WithError(err).Warn("Failed to send SFTP event to parent.")
@@ -650,6 +687,25 @@ func onSFTP() error {
 	} else {
 		serveErr = trace.Wrap(serveErr)
 	}
+
+	// Send a summary event last
+	summaryEvent := &apievents.SFTPSummary{
+		Metadata: apievents.Metadata{
+			Type: events.SFTPSummaryEvent,
+			Code: events.SFTPSummaryCode,
+			Time: time.Now(),
+		},
+	}
+	// We don't need to worry about closing these files, handler will
+	// take care of that for us
+	for _, file := range h.files {
+		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
+			Path:         file.Name(),
+			BytesRead:    file.bytesRead.Load(),
+			BytesWritten: file.bytesWritten.Load(),
+		})
+	}
+	sftpEvents <- summaryEvent
 
 	// Wait until event marshaling goroutine is finished
 	close(sftpEvents)
