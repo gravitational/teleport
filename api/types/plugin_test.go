@@ -1291,6 +1291,30 @@ func TestPluginEmailSettings(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		{
+			name: "(smtp) change start TLS policy",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = &PluginEmailSettings_SmtpSpec{
+					SmtpSpec: &SMTPSpec{
+						Host:           "smtp.example.com",
+						Port:           587,
+						StartTlsPolicy: SMTPStartTLSPolicy_SMTP_OPPORTUNISTIC_START_TLS,
+					},
+				}
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
