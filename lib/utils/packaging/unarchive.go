@@ -119,7 +119,7 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			defer file.Close()
 
 			dest := filepath.Join(extractDir, baseName)
-			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -132,9 +132,10 @@ func replaceZip(toolsDir string, archivePath string, extractDir string, execName
 			if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
 				return trace.Wrap(err)
 			}
-			// For the Windows build we have to use hard links to be able
-			// to use client tools without administrative access.
-			if err := os.Link(dest, appPath); err != nil {
+			// For the Windows build we have to copy binary to be able
+			// to do this without administrative access as it required
+			// for symlinks.
+			if err := utils.CopyFile(dest, appPath, 0o755); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(destFile.Close())

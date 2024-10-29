@@ -51,7 +51,7 @@ func (w *progressWriter) Print(n int) {
 
 func (w *progressWriter) Write(p []byte) (int, error) {
 	if w.limit == 0 || w.size == 0 {
-		return 0, io.EOF
+		return len(p), nil
 	}
 
 	w.n += int64(len(p))
@@ -66,8 +66,13 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 
 // CopyLimit sets the limit of writing bytes to the progress writer and initiate copying process.
 func (w *progressWriter) CopyLimit(dst io.Writer, src io.Reader, limit int64) (written int64, err error) {
+	if limit < 0 {
+		n, err := io.Copy(dst, io.TeeReader(src, w))
+		w.Print(w.size)
+		return n, trace.Wrap(err)
+	}
+
 	w.limit = limit
 	n, err := io.CopyN(dst, io.TeeReader(src, w), limit)
-
 	return n, trace.Wrap(err)
 }
