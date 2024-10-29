@@ -1100,6 +1100,22 @@ func TestPluginEmailSettings(t *testing.T) {
 			},
 		}
 	}
+	validMailgunSpec := func() *PluginEmailSettings_MailgunSpec {
+		return &PluginEmailSettings_MailgunSpec{
+			MailgunSpec: &MailgunSpec{
+				Domain: "sandbox.mailgun.org",
+			},
+		}
+	}
+	validSMTPSpec := func() *PluginEmailSettings_SmtpSpec {
+		return &PluginEmailSettings_SmtpSpec{
+			SmtpSpec: &SMTPSpec{
+				Host:           "smtp.example.com",
+				Port:           587,
+				StartTlsPolicy: "mandatory",
+			},
+		}
+	}
 
 	testCases := []struct {
 		name           string
@@ -1141,11 +1157,7 @@ func TestPluginEmailSettings(t *testing.T) {
 		{
 			name: "(mailgun) no credentials",
 			mutateSettings: func(s *PluginEmailSettings) {
-				s.Spec = &PluginEmailSettings_MailgunSpec{
-					MailgunSpec: &MailgunSpec{
-						Domain: "sandbox.mailgun.org",
-					},
-				}
+				s.Spec = validMailgunSpec()
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
 				require.True(t, trace.IsBadParameter(err))
@@ -1155,11 +1167,7 @@ func TestPluginEmailSettings(t *testing.T) {
 		{
 			name: "(mailgun) no credentials label",
 			mutateSettings: func(s *PluginEmailSettings) {
-				s.Spec = &PluginEmailSettings_MailgunSpec{
-					MailgunSpec: &MailgunSpec{
-						Domain: "sandbox.mailgun.org",
-					},
-				}
+				s.Spec = validMailgunSpec()
 			},
 			creds: &PluginCredentialsV1{
 				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
@@ -1176,11 +1184,7 @@ func TestPluginEmailSettings(t *testing.T) {
 		{
 			name: "(mailgun) valid settings",
 			mutateSettings: func(s *PluginEmailSettings) {
-				s.Spec = &PluginEmailSettings_MailgunSpec{
-					MailgunSpec: &MailgunSpec{
-						Domain: "sandbox.mailgun.org",
-					},
-				}
+				s.Spec = validMailgunSpec()
 			},
 			creds: &PluginCredentialsV1{
 				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
@@ -1232,7 +1236,7 @@ func TestPluginEmailSettings(t *testing.T) {
 			},
 		},
 		{
-			name: "(smtp) no credentials",
+			name: "(smtp) no start TLS policy",
 			mutateSettings: func(s *PluginEmailSettings) {
 				s.Spec = &PluginEmailSettings_SmtpSpec{
 					SmtpSpec: &SMTPSpec{
@@ -1243,18 +1247,23 @@ func TestPluginEmailSettings(t *testing.T) {
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
 				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "start TLS policy must be set")
+			},
+		},
+		{
+			name: "(smtp) no credentials",
+			mutateSettings: func(s *PluginEmailSettings) {
+				s.Spec = validSMTPSpec()
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
 			},
 		},
 		{
 			name: "(smtp) no credentials label",
 			mutateSettings: func(s *PluginEmailSettings) {
-				s.Spec = &PluginEmailSettings_SmtpSpec{
-					SmtpSpec: &SMTPSpec{
-						Host: "smtp.example.com",
-						Port: 587,
-					},
-				}
+				s.Spec = validSMTPSpec()
 			},
 			creds: &PluginCredentialsV1{
 				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
@@ -1271,12 +1280,7 @@ func TestPluginEmailSettings(t *testing.T) {
 		{
 			name: "(smtp) valid settings",
 			mutateSettings: func(s *PluginEmailSettings) {
-				s.Spec = &PluginEmailSettings_SmtpSpec{
-					SmtpSpec: &SMTPSpec{
-						Host: "smtp.example.com",
-						Port: 587,
-					},
-				}
+				s.Spec = validSMTPSpec()
 			},
 			creds: &PluginCredentialsV1{
 				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
@@ -1298,7 +1302,7 @@ func TestPluginEmailSettings(t *testing.T) {
 					SmtpSpec: &SMTPSpec{
 						Host:           "smtp.example.com",
 						Port:           587,
-						StartTlsPolicy: SMTPStartTLSPolicy_SMTP_START_TLS_POLICY_OPPORTUNISTIC,
+						StartTlsPolicy: "opportunistic",
 					},
 				}
 			},
