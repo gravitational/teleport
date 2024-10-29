@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -724,7 +725,7 @@ func New(
 	options ...ServerOption,
 ) (*Server, error) {
 	// read the host UUID:
-	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
+	uuid, err := hostid.ReadOrCreateFile(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

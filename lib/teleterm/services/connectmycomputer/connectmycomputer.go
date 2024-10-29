@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 type RoleSetup struct {
@@ -395,7 +396,7 @@ func (n *NodeJoinWait) getNodeNameFromHostUUIDFile(ctx context.Context, cluster 
 			// the file is empty.
 			//
 			// Here we need to be able to distinguish between both of those two cases.
-			out, err := utils.ReadPath(utils.GetHostUUIDPath(dataDir))
+			out, err := utils.ReadPath(hostid.GetPath(dataDir))
 			if err != nil {
 				if trace.IsNotFound(err) {
 					continue
@@ -536,7 +537,7 @@ type NodeDelete struct {
 
 // Run grabs the host UUID of an agent from a disk and deletes the node with that name.
 func (n *NodeDelete) Run(ctx context.Context, presence Presence, cluster *clusters.Cluster) error {
-	hostUUID, err := utils.ReadHostUUID(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName))
+	hostUUID, err := hostid.ReadFile(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName))
 	if trace.IsNotFound(err) {
 		return nil
 	}
@@ -585,7 +586,7 @@ type NodeName struct {
 
 // Get returns the host UUID of the agent from a disk.
 func (n *NodeName) Get(cluster *clusters.Cluster) (string, error) {
-	hostUUID, err := utils.ReadHostUUID(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName))
+	hostUUID, err := hostid.ReadFile(getAgentDataDir(n.cfg.AgentsDir, cluster.ProfileName))
 	return hostUUID, trace.Wrap(err)
 }
 
