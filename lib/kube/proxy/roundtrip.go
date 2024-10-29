@@ -110,7 +110,6 @@ func (s *SpdyRoundTripper) Dial(req *http.Request) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if err := req.Write(conn); err != nil {
 		conn.Close()
 		return nil, err
