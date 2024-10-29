@@ -170,3 +170,11 @@ func (a *azureFetcher) IsFromDiscoveryConfig() bool {
 func (a *azureFetcher) GetSubscriptionID() string {
 	return a.Config.SubscriptionID
 }
+
+func ptrsToList(ptrs []*string) []string {
+	strList := make([]string, len(ptrs))
+	for _, ptr := range ptrs {
+		strList = append(strList, *ptr)
+	}
+	return strList
+}
