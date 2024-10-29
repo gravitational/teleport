@@ -149,13 +149,13 @@ func (w *lineLogger) Write(p []byte) (n int, err error) {
 	}
 
 	// Newline found, log line
-	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint
+	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint // msg cannot be constant
 	n += w.last.Len() + 1
 	w.last.Reset()
 
 	// Log lines that are already newline-terminated
 	for _, line := range lines[:len(lines)-1] {
-		w.log.Log(w.ctx, w.level, string(line)) //nolint:sloglint
+		w.log.Log(w.ctx, w.level, string(line)) //nolint:sloglint // msg cannot be constant
 		n += len(line) + 1
 	}
 
@@ -170,6 +170,6 @@ func (w *lineLogger) Flush() {
 	if w.last.Len() == 0 {
 		return
 	}
-	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint
+	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint // msg cannot be constant
 	w.last.Reset()
 }

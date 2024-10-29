@@ -327,7 +327,7 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 
 	if err := u.Process.Sync(ctx); err != nil {
 		if errors.Is(err, context.Canceled) {
-			return trace.Errorf("sync cancelled")
+			return trace.Errorf("sync canceled")
 		}
 		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
@@ -347,7 +347,7 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
 		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
 			if errors.Is(err, context.Canceled) {
-				return trace.Errorf("reload cancelled")
+				return trace.Errorf("reload canceled")
 			}
 			// If reloading Teleport at the new version fails, revert, resync, and reload.
 			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
