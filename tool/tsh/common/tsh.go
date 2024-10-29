@@ -1882,7 +1882,7 @@ func onLogin(cf *CLIConf) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+		if cf.Context, err = updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1900,7 +1900,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if cf.Context, err = updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1920,7 +1920,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if cf.Context, err = updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1996,7 +1996,7 @@ func onLogin(cf *CLIConf) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
+			if cf.Context, err = updateAndRun(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -5562,7 +5562,7 @@ const (
 		"https://goteleport.com/docs/access-controls/guides/headless/#troubleshooting"
 )
 
-func updateAndRun(ctx context.Context, proxy string, insecure bool) error {
+func updateAndRun(ctx context.Context, proxy string, insecure bool) (context.Context, error) {
 	// The user has typed a command like `tsh ssh ...` without being logged in,
 	// if the running binary needs to be updated, update and re-exec.
 	//
@@ -5571,18 +5571,23 @@ func updateAndRun(ctx context.Context, proxy string, insecure bool) error {
 	//
 	toolsDir, err := tools.Dir()
 	if err != nil {
-		return trace.Wrap(err)
+		return ctx, trace.Wrap(err)
 	}
 	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
 	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
 	if err != nil {
-		return trace.Wrap(err)
+		return ctx, trace.Wrap(err)
 	}
 	if reExec {
+		// Prevents cancel parent context for the desired signals.
+		signal.Ignore(syscall.SIGTERM, syscall.SIGINT)
+		updateCtx, cancel := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
+		defer cancel()
+
 		// Download the version of client tools required by the cluster.
-		err := updater.UpdateWithLock(ctx, toolsVersion)
+		err := updater.UpdateWithLock(updateCtx, toolsVersion)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			utils.FatalError(err)
+			return ctx, trace.Wrap(err)
 		}
 		// Re-execute client tools with the correct version of client tools.
 		code, err := updater.Exec()
@@ -5592,9 +5597,11 @@ func updateAndRun(ctx context.Context, proxy string, insecure bool) error {
 		} else if err == nil {
 			os.Exit(code)
 		}
+		// Re-enable context to receive signal notifications.
+		ctx, _ = signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 	}
 
-	return nil
+	return ctx, nil
 }
 
 // Lock the process memory to prevent rsa keys and certificates in memory from being exposed in a swap.

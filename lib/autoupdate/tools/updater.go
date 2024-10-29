@@ -124,11 +124,12 @@ func (u *Updater) CheckLocal() (version string, reExec bool, err error) {
 	// Requested version already the same as client version.
 	case u.localVersion:
 		return u.localVersion, false, nil
-	}
-
-	if requestedVersion != "" {
+	// No requested version, we continue.
+	case "":
+	// Requested version that is not the local one.
+	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return "", false, trace.WrapWithMessage(err, "not valid semantic version")
+			return "", false, trace.Wrap(err, "checking that request version is semantic")
 		}
 		return requestedVersion, true, nil
 	}
@@ -161,11 +162,12 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	// Requested version already the same as client version.
 	case u.localVersion:
 		return u.localVersion, false, nil
-	}
-
-	if requestedVersion != "" {
+	// No requested version, we continue.
+	case "":
+	// Requested version that is not the local one.
+	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return "", false, trace.WrapWithMessage(err, "not valid semantic version")
+			return "", false, trace.Wrap(err, "checking that request version is semantic")
 		}
 		return requestedVersion, true, nil
 	}
