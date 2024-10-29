@@ -497,7 +497,7 @@ func tryLink(oldname, newname string) (orig string, err error) {
 		return orig, trace.Wrap(err)
 	}
 	if orig == oldname {
-		return orig, nil
+		return "", nil
 	}
 	err = renameio.Symlink(oldname, newname)
 	if err != nil {
