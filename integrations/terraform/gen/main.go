@@ -218,7 +218,7 @@ var (
 		DeleteMethod:           "DynamicDesktopClient().DeleteDynamicWindowsDesktop",
 		UpsertMethodArity:      2,
 		ID:                     `desktop.Metadata.Name`,
-		Kind:                   "desktop",
+		Kind:                   "dynamic_windows_desktop",
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_desktop",
 		HasCheckAndSetDefaults: true,
