@@ -80,7 +80,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 
 	err = desktopResource.CheckAndSetDefaults()
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error setting DynamicWindowsDesktop defaults", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting DynamicWindowsDesktop defaults", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 
@@ -89,20 +89,20 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 	_, err = r.p.Client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, id)
 	if !trace.IsNotFound(err) {
 		if err == nil {
-			existErr := fmt.Sprintf("DynamicWindowsDesktop exists in Teleport. Either remove it (tctl rm desktop/%v)"+
+			existErr := fmt.Sprintf("DynamicWindowsDesktop exists in Teleport. Either remove it (tctl rm dynamic_windows_desktop/%v)"+
 				" or import it to the existing state (terraform import teleport_desktop.%v %v)", id, id, id)
 
 			resp.Diagnostics.Append(diagFromErr("DynamicWindowsDesktop exists in Teleport", trace.Errorf(existErr)))
 			return
 		}
 
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 
 	_, err = r.p.Client.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, desktopResource)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error creating DynamicWindowsDesktop", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error creating DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 		
@@ -115,12 +115,12 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 		desktopI, err = r.p.Client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(bErr), "desktop"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(bErr), "dynamic_windows_desktop"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading DynamicWindowsDesktop (tried %d times) - state outdated, please import resource", tries)
-				resp.Diagnostics.AddError(diagMessage, "desktop")
+				resp.Diagnostics.AddError(diagMessage, "dynamic_windows_desktop")
 			}
 			continue
 		}
@@ -128,13 +128,13 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 	}
 
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 
 	desktopResource, ok := desktopI.(*apitypes.DynamicWindowsDesktopV1)
 	if !ok {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Errorf("Can not convert %T to DynamicWindowsDesktopV1", desktopI), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Errorf("Can not convert %T to DynamicWindowsDesktopV1", desktopI), "dynamic_windows_desktop"))
 		return
 	}
 	desktop = desktopResource
@@ -177,7 +177,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Read(ctx context.Context, req tfs
 	}
 
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 	
@@ -219,20 +219,20 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 
 
 	if err := desktopResource.CheckAndSetDefaults(); err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DynamicWindowsDesktop", err, "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DynamicWindowsDesktop", err, "dynamic_windows_desktop"))
 		return
 	}
 	name := desktopResource.Metadata.Name
 
 	desktopBefore, err := r.p.Client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", err, "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", err, "dynamic_windows_desktop"))
 		return
 	}
 
 	_, err = r.p.Client.DynamicDesktopClient().UpdateDynamicWindowsDesktop(ctx, desktopResource)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DynamicWindowsDesktop", err, "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error updating DynamicWindowsDesktop", err, "dynamic_windows_desktop"))
 		return
 	}
 		
@@ -245,7 +245,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 		tries = tries + 1
 		desktopI, err = r.p.Client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
 		if err != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", err, "desktop"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", err, "dynamic_windows_desktop"))
 			return
 		}
 		if desktopBefore.GetMetadata().Revision != desktopI.GetMetadata().Revision || false {
@@ -253,19 +253,19 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 		}
 
 		if err := backoff.Do(ctx); err != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "desktop"))
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 			return
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading DynamicWindowsDesktop (tried %d times) - state outdated, please import resource", tries)
-			resp.Diagnostics.AddError(diagMessage, "desktop")
+			resp.Diagnostics.AddError(diagMessage, "dynamic_windows_desktop")
 			return
 		}
 	}
 
 	desktopResource, ok := desktopI.(*apitypes.DynamicWindowsDesktopV1)
 	if !ok {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Errorf("Can not convert %T to DynamicWindowsDesktopV1", desktopI), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Errorf("Can not convert %T to DynamicWindowsDesktopV1", desktopI), "dynamic_windows_desktop"))
 		return
 	}
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &plan)
@@ -292,7 +292,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Delete(ctx context.Context, req t
 
 	err := r.p.Client.DynamicDesktopClient().DeleteDynamicWindowsDesktop(ctx, id.Value)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting DynamicWindowsDesktopV1", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting DynamicWindowsDesktopV1", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 
@@ -303,7 +303,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Delete(ctx context.Context, req t
 func (r resourceTeleportDynamicWindowsDesktop) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
 	desktop, err := r.p.Client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, req.ID)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 

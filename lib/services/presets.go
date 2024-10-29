@@ -594,6 +594,7 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindClusterMaintenanceConfig,
 							types.KindClusterNetworkingConfig,
 							types.KindDatabase,
+							types.KindDynamicWindowsDesktop,
 							types.KindDevice,
 							types.KindGithub,
 							types.KindLoginRule,

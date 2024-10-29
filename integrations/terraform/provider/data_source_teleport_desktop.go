@@ -61,7 +61,7 @@ func (r dataSourceTeleportDynamicWindowsDesktop) Read(ctx context.Context, req t
 
 	desktopI, err := r.p.Client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, id.Value)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "desktop"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Wrap(err), "dynamic_windows_desktop"))
 		return
 	}
 
