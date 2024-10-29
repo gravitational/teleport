@@ -58,6 +58,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/accessrequest"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -2659,6 +2660,28 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
 		if err := tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
+
+			if resourceIDs := req.GetRequestedResourceIDs(); len(resourceIDs) != 0 {
+
+				withExtraRoles := func(req *proto.ListResourcesRequest) {
+					req.UseSearchAsRoles = true
+					req.UsePreviewAsRoles = true
+				}
+				resources, err := accessrequest.GetResourcesByResourceIDs(cf.Context, clt, resourceIDs, withExtraRoles)
+				if err != nil {
+					log.Warnf("failed to load requested resources for login detection: %v", err)
+				}
+
+				logins := req.GetLogins()
+				for _, rsc := range resources {
+					// check for login hint label
+					if loginHint, ok := rsc.GetLabel("teleport.dev/login-hint"); ok && loginHint != "" {
+						logins = append(logins, loginHint)
+					}
+				}
+				req.SetLogins(logins)
+			}
+
 			req, err = clt.CreateAccessRequestV2(cf.Context, req)
 			return trace.Wrap(err)
 		}); err != nil {

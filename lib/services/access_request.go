@@ -1168,6 +1168,10 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			return trace.BadParameter("user %q cannot request login %q", req.GetUser(), loginName)
 		}
 
+		if _, ok := m.Logins.Allow[types.Wildcard]; ok {
+			continue
+		}
+
 		if _, ok := m.Logins.Allow[loginName]; !ok {
 			return trace.BadParameter("user %q cannot request login %q", req.GetUser(), loginName)
 		}
