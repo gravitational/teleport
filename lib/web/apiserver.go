@@ -139,6 +139,8 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
+	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
+	DefaultAgentUpdateJitterSeconds = 60
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -1612,6 +1614,8 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings(r.Context()),
+		Edition:           modules.GetModules().BuildType(),
+		FIPS:              modules.IsBoringBinary(),
 	}, nil
 }
 
@@ -1634,13 +1638,12 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			ServerVersion:    teleport.Version,
 			MinClientVersion: teleport.MinClientVersion,
 			ClusterName:      h.auth.clusterName,
+			Edition:          modules.GetModules().BuildType(),
+			FIPS:             modules.IsBoringBinary(),
 			AutoUpdate:       h.automaticUpdateSettings(ctx),
 		}, nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
+	return resp, err
 }
 
 // TODO: add the request as a parameter when we'll need to modulate the content based on the UUID and group
@@ -1658,8 +1661,11 @@ func (h *Handler) automaticUpdateSettings(ctx context.Context) webclient.AutoUpd
 	}
 
 	return webclient.AutoUpdateSettings{
-		ToolsAutoUpdate: getToolsAutoUpdate(autoUpdateConfig),
-		ToolsVersion:    getToolsVersion(autoUpdateVersion),
+		ToolsAutoUpdate:          getToolsAutoUpdate(autoUpdateConfig),
+		ToolsVersion:             getToolsVersion(autoUpdateVersion),
+		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+		AgentVersion:             getAgentVersion(autoUpdateVersion),
+		AgentAutoUpdate:          agentShouldUpdate(autoUpdateConfig, autoUpdateVersion),
 	}
 }
 
@@ -5286,4 +5292,40 @@ func getToolsVersion(version *autoupdatepb.AutoUpdateVersion) string {
 		return api.Version
 	}
 	return version.GetSpec().GetTools().GetTargetVersion()
+}
+
+func getAgentVersion(version *autoupdatepb.AutoUpdateVersion) string {
+	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
+	// This ensures we always advertise a version compatible with the cluster.
+	// TODO: read the version from the autoupdate_agent_rollout when the resource is implemented
+	if version.GetSpec().GetAgents() == nil {
+		return api.Version
+	}
+
+	return version.GetSpec().GetAgents().GetTargetVersion()
+}
+
+func agentShouldUpdate(config *autoupdatepb.AutoUpdateConfig, version *autoupdatepb.AutoUpdateVersion) bool {
+	// TODO: read the data from the autoupdate_agent_rollout when the resource is implemented
+
+	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
+	// This ensures we fail open and don't accidentally update agents if something is going wrong.
+	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
+	// than changing this logic.
+	if config.GetSpec().GetAgents() == nil {
+		return false
+	}
+	if version.GetSpec().GetAgents() == nil {
+		return false
+	}
+	configMode := config.GetSpec().GetAgents().GetMode()
+	versionMode := version.GetSpec().GetAgents().GetMode()
+
+	// We update only if both version and config agent modes are "enabled"
+	if configMode != autoupdate.AgentsUpdateModeEnabled || versionMode != autoupdate.AgentsUpdateModeEnabled {
+		return false
+	}
+
+	scheduleName := version.GetSpec().GetAgents().GetSchedule()
+	return scheduleName == autoupdate.AgentsScheduleImmediate
 }
