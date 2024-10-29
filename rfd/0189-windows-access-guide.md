@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @r0mant
+* Engineering: @r0mant, @zmb3
 * Product: @xinding33
 
 ## Overview
