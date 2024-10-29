@@ -41,7 +41,7 @@ func TestNewAutoUpdateAgentRollout(t *testing.T) {
 			spec: &autoupdate.AutoUpdateAgentRolloutSpec{
 				StartVersion:   "1.2.3",
 				TargetVersion:  "2.3.4-dev",
-				Schedule:       AgentsScheduleRegular,
+				Schedule:       AgentsScheduleImmediate,
 				AutoupdateMode: AgentsUpdateModeEnabled,
 				Strategy:       AgentsStrategyHaltOnError,
 			},
@@ -57,7 +57,7 @@ func TestNewAutoUpdateAgentRollout(t *testing.T) {
 				Spec: &autoupdate.AutoUpdateAgentRolloutSpec{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "2.3.4-dev",
-					Schedule:       AgentsScheduleRegular,
+					Schedule:       AgentsScheduleImmediate,
 					AutoupdateMode: AgentsUpdateModeEnabled,
 					Strategy:       AgentsStrategyHaltOnError,
 				},
@@ -74,7 +74,7 @@ func TestNewAutoUpdateAgentRollout(t *testing.T) {
 			name: "missing start version",
 			spec: &autoupdate.AutoUpdateAgentRolloutSpec{
 				TargetVersion:  "2.3.4-dev",
-				Schedule:       AgentsScheduleRegular,
+				Schedule:       AgentsScheduleImmediate,
 				AutoupdateMode: AgentsUpdateModeEnabled,
 				Strategy:       AgentsStrategyHaltOnError,
 			},
@@ -87,7 +87,7 @@ func TestNewAutoUpdateAgentRollout(t *testing.T) {
 			spec: &autoupdate.AutoUpdateAgentRolloutSpec{
 				StartVersion:   "1.2.3",
 				TargetVersion:  "2-3-4",
-				Schedule:       AgentsScheduleRegular,
+				Schedule:       AgentsScheduleImmediate,
 				AutoupdateMode: AgentsUpdateModeEnabled,
 				Strategy:       AgentsStrategyHaltOnError,
 			},
@@ -100,7 +100,7 @@ func TestNewAutoUpdateAgentRollout(t *testing.T) {
 			spec: &autoupdate.AutoUpdateAgentRolloutSpec{
 				StartVersion:   "1.2.3",
 				TargetVersion:  "2.3.4-dev",
-				Schedule:       AgentsScheduleRegular,
+				Schedule:       AgentsScheduleImmediate,
 				AutoupdateMode: "invalid-mode",
 				Strategy:       AgentsStrategyHaltOnError,
 			},
@@ -126,7 +126,7 @@ func TestNewAutoUpdateAgentRollout(t *testing.T) {
 			spec: &autoupdate.AutoUpdateAgentRolloutSpec{
 				StartVersion:   "1.2.3",
 				TargetVersion:  "2.3.4-dev",
-				Schedule:       AgentsScheduleRegular,
+				Schedule:       AgentsScheduleImmediate,
 				AutoupdateMode: AgentsUpdateModeEnabled,
 				Strategy:       "invalid-strategy",
 			},

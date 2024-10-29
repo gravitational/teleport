@@ -305,6 +305,10 @@ type PingResponse struct {
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
+	// Edition represents the Teleport edition. Possible values are "oss", "ent", and "community".
+	Edition string `json:"edition"`
+	// FIPS represents if Teleport is using FIPS-compliant cryptography.
+	FIPS bool `json:"fips"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
@@ -336,6 +340,12 @@ type AutoUpdateSettings struct {
 	ToolsVersion string `json:"tools_version"`
 	// ToolsAutoUpdate indicates if the requesting tools client should be updated.
 	ToolsAutoUpdate bool `json:"tools_auto_update"`
+	// AgentVersion defines the version of teleport that agents enrolled into autoupdates should run.
+	AgentVersion string `json:"agent_version"`
+	// AgentAutoUpdate indicates if the requesting agent should attempt to update now.
+	AgentAutoUpdate bool `json:"agent_auto_update"`
+	// AgentUpdateJitterSeconds defines the jitter time an agent should wait before updating.
+	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
