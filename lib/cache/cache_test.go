@@ -665,6 +665,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		WebSession:              p.cache.webSessionCache,
 		WebToken:                p.cache.webTokenCache,
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
+		DynamicWindowsDesktops:  p.cache.dynamicWindowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		StaticHostUsers:         p.staticHostUsers,
