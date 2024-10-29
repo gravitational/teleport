@@ -35,7 +35,7 @@ service DynamicWindowsService {
   rpc CreateDynamicWindowsDesktop(CreateDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
   // UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
   rpc UpdateDynamicWindowsDesktop(UpdateDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
-  // UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
+  // UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
   rpc UpsertDynamicWindowsDesktop(UpsertDynamicWindowsDesktopRequest) returns (types.DynamicWindowsDesktopV1);
   // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
   rpc DeleteDynamicWindowsDesktop(DeleteDynamicWindowsDesktopRequest) returns (google.protobuf.Empty);
