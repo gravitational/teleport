@@ -240,20 +240,26 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	}
 
 	desiredVersion := override.ForceVersion
+	var flags InstallFlags
 	if desiredVersion == "" {
 		resp, err := webclient.Find(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: addr.Addr,
-			Insecure:  u.InsecureSkipVerify,
-			Timeout:   30 * time.Second,
-			//Group:     cfg.Spec.Group, // TODO(sclevine): add web API for verssion
-			Pool: u.Pool,
+			Context:     ctx,
+			ProxyAddr:   addr.Addr,
+			Insecure:    u.InsecureSkipVerify,
+			Timeout:     30 * time.Second,
+			UpdateGroup: cfg.Spec.Group,
+			Pool:        u.Pool,
 		})
 		if err != nil {
 			return trace.Errorf("failed to request version from proxy: %w", err)
 		}
-		desiredVersion, _ = "16.3.0", resp // TODO(sclevine): add web API for version
-		//desiredVersion := resp.AutoUpdate.AgentVersion
+		desiredVersion = resp.AutoUpdate.AgentVersion
+		if resp.Edition == "ent" {
+			flags |= FlagEnterprise
+		}
+		if resp.FIPS {
+			flags |= FlagFIPS
+		}
 	}
 
 	if desiredVersion == "" {
@@ -277,7 +283,7 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if template == "" {
 		template = cdnURITemplate
 	}
-	err = u.Installer.Install(ctx, desiredVersion, template, 0) // TODO(sclevine): add web API for flags
+	err = u.Installer.Install(ctx, desiredVersion, template, flags)
 	if err != nil {
 		return trace.Errorf("failed to install: %w", err)
 	}
