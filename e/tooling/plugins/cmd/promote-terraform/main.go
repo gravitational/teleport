@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
@@ -15,7 +16,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport-plugins/tooling/internal/terraform/registry"
+	"github.com/gravitational/teleport.e/tooling/plugins/internal/terraform/registry"
 )
 
 func main() {
@@ -127,7 +128,7 @@ func updateRegistry(ctx context.Context, workspace *registryPaths, namespace, pr
 func flattenVersionIndex(versionIndex map[semver.Version]registry.Version) []registry.Version {
 	// We want to output a list of semvers with semver ordering, so first we
 	// generate a sorted list of semvers
-	semvers := maps.Keys(versionIndex)
+	semvers := slices.Collect(maps.Keys(versionIndex))
 	semverPtrs := make([]*semver.Version, 0, len(semvers)) // Pointer array is required by the sort function
 
 	for i := range semvers {

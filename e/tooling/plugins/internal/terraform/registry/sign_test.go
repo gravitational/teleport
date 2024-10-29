@@ -15,7 +15,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport-plugins/tooling/internal/filename"
+	"github.com/gravitational/teleport.e/tooling/plugins/internal/filename"
 )
 
 const (

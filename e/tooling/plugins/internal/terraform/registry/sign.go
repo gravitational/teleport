@@ -13,7 +13,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport-plugins/tooling/internal/filename"
+	"github.com/gravitational/teleport.e/tooling/plugins/internal/filename"
 )
 
 // FileNames describes the location of a registry-compatible zipfile and its
