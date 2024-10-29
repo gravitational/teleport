@@ -98,7 +98,7 @@ var (
 func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings, error) {
 	pwd, err := os.Getwd()
 	if err != nil {
-		return entraSettings{}, trace.Wrap(err)
+		return entraSettings{}, trace.Wrap(err, "failed to get working dir")
 	}
 	f, err := os.CreateTemp(pwd, "entraid-setup-*.sh")
 	if err != nil {
@@ -126,7 +126,7 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings,
 
 	tmpl := `Step 1: Run the Setup Script
 
-1. Open ` + bold("Azure Cloud Shell") + ` (Bash) using ` + bold("Google Chrome") + ` or ` + bold("Safari") + ` for the best compatibility.
+1. Open ` + bold("Azure Cloud Shell") + ` (Bash) [https://portal.azure.com/#cloudshell/] using ` + bold("Google Chrome") + ` or ` + bold("Safari") + ` for the best compatibility.
 2. Upload the setup script in ` + boldRed(fileLoc) + ` using the ` + bold("Upload") + ` button in the Cloud Shell toolbar.
 3. Once uploaded, execute the script by running the following command:
    $ bash %s
@@ -189,6 +189,22 @@ With the output of Step 1, please copy and paste the following information:
 	return settings, nil
 }
 
+// InstallEntra is the entry point for the `tctl plugins install entraid` command.
+// This function guides users through an interactive setup process to configure EntraID integration,
+// directing them to execute a script in Azure Cloud Shell and provide the required configuration inputs.
+// The script creates an Azure EntraID Enterprise Application, enabling SAML logins in Teleport with
+// the following claims:
+// - givenname: user.givenname
+// - surname: user.surname
+// - emailaddress: user.mail
+// - name: user.userprincipalname
+// - groups: user.groups
+// Additionally, the script establishes a Trust Policy in the application to allow Teleport
+// to be recognized as a credential issuer when system credentials are not used.
+// If system credentials are present, the script will skip the Trust policy creation using
+// system credentials for EntraID authentication.
+// Finally, if no system credentials are in use, the script will set up an Azure OIDC integration
+// in Teleport and a Teleport plugin to synchronize access lists from EntraID to Teleport.
 func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArgs) error {
 	inputs := p.install
 
@@ -352,7 +368,7 @@ func getProxyPublicAddr(ctx context.Context, authClient authClient) (string, err
 
 func readTAGCache(fileLoc string) (*azureoidc.TAGInfoCache, error) {
 	if fileLoc == "" {
-		return nil, trace.BadParameter("no TAG cache file found")
+		return nil, trace.BadParameter("no TAG cache file specified")
 	}
 
 	file, err := os.Open(fileLoc)
