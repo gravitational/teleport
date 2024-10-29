@@ -320,17 +320,24 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		return trace.Errorf("failed to link: %w", err)
 	}
 
+	// If we fail to revert after this point, the next update/enable will
+	// fix the link to restore the active version.
+
 	// Sync process configuration after linking.
 
 	if err := u.Process.Sync(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return trace.Errorf("sync cancelled")
+		}
 		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
 		if ok := revert(ctx); !ok {
 			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
-		}
-		if err := u.Process.Sync(ctx); err != nil {
+		} else if err := u.Process.Sync(ctx); err != nil {
 			u.Log.ErrorContext(ctx, "Failed to sync configuration after failed restart.", "error", err)
 		}
+		u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+
 		return trace.Errorf("failed to validate configuration for new version %q of Teleport: %w", desiredVersion, err)
 	}
 
@@ -339,18 +346,20 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if cfg.Status.ActiveVersion != desiredVersion {
 		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
 		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-
+			if errors.Is(err, context.Canceled) {
+				return trace.Errorf("reload cancelled")
+			}
 			// If reloading Teleport at the new version fails, revert, resync, and reload.
 			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 			if ok := revert(ctx); !ok {
-				u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
+				u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks to older version. Installation likely broken.")
+			} else if err := u.Process.Sync(ctx); err != nil {
+				u.Log.ErrorContext(ctx, "Invalid configuration found after reverting Teleport to older version. Installation likely broken.", "error", err)
+			} else if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
+				u.Log.ErrorContext(ctx, "Failed to revert Teleport to older version. Installation likely broken.", "error", err)
 			}
-			if err := u.Process.Sync(ctx); err != nil {
-				u.Log.ErrorContext(ctx, "Invalid configuration found after failed restart. Attempting restart anyways.", "error", err)
-			}
-			if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-				u.Log.ErrorContext(ctx, "Failed to revert Teleport.", "error", err)
-			}
+			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+
 			return trace.Errorf("failed to start new version %q of Teleport: %w", desiredVersion, err)
 		}
 		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
