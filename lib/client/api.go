@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/signal"
 )
 
 const (
@@ -716,8 +717,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 	if reExec {
+		ctxUpdate, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
+		defer cancel()
 		// Download the version of client tools required by the cluster.
-		err := updater.UpdateWithLock(ctx, toolsVersion)
+		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			utils.FatalError(err)
 		}

@@ -20,14 +20,13 @@ package main
 
 import (
 	"context"
-	"os/signal"
-	"syscall"
 
+	"github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
 	defer cancel()
 
 	common.Run(ctx, common.Commands())

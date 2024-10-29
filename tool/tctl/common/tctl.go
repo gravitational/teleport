@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -121,10 +122,12 @@ func Run(ctx context.Context, commands []CLICommand) {
 		utils.FatalError(err)
 	}
 	if reExec {
+		ctxUpdate, cancel := signal.GetSignalHandler().NotifyContext(ctx)
+		defer cancel()
 		// Download the version of client tools required by the cluster. This
 		// is required if the user passed in the TELEPORT_TOOLS_VERSION
 		// explicitly.
-		err := updater.UpdateWithLock(ctx, toolsVersion)
+		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			utils.FatalError(err)
 		}
