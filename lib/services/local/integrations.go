@@ -201,7 +201,7 @@ func integrationReferencedByEAS(ctx context.Context, bk backend.Backend, name st
 // by an existing AWS Identity Center plugin. In case the AWS Identity Center plugin exists
 // but does not reference this integration, a conditional action is returned with a revision
 // of the plugin to ensure that plugin hasn't changed during deletion of the AWS OIDC integration.
-// Returns nil ConditionalAction if no AWS Identity Center plugin is found.
+// Returns nil ConditionalAction if AWS Identity Center plugin is not found.
 func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, name string) (*backend.ConditionalAction, error) {
 	pluginService := NewPluginsService(bk)
 	plugins, err := pluginService.GetPlugins(ctx, false)
