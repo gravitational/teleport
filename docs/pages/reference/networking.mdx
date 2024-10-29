@@ -36,21 +36,8 @@ following use cases:
 </TabItem>
 <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
-On Teleport Enterprise (Cloud), you can choose the sub-domain of
-the domain `teleport.sh` for your account. That fully qualified domain name
-(e.g., `example.teleport.sh`) is managed by Teleport for your account 
-along with any sub-domains assigned to Teleport-protected applications (e.g., `grafana.example.teleport.sh`).
-
-The public address (`public_addr`) for an application in the Teleport Application Service is configurable.
-In the case of web applications, the public address must be a subdomain of the Teleport account URL
-since the domain and TLS certificates are maintained by Teleport.
-
-```yaml
-public_addr: "myapp.example.teleport.sh"
-```
-
-For TCP applications you can specify a fully qualified domain name outside of `teleport.sh` in combination
-with [VNet](../enroll-resources/application-access/guides/vnet.mdx) since that domain is served via your machine's local network.
+On Teleport Enterprise (Cloud) the Teleport agent services always
+connect using reverse tunnels so there is no need to set a public address for a agent.
 
 </TabItem>
 </Tabs>
