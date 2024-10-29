@@ -19,7 +19,7 @@ state: draft
 
 ### Other data/context
 
-Historically we have more local user sessions than AD sessions (last 180 days, 36.3k local vs 30.1k AD). This may be skewed by us not getting metrics from major self-hosted customers who are likely using AD.
+Historically Teleport Cloud has more local user sessions than AD sessions (last 180 days, 36.3k local vs 30.1k AD). This may be skewed by us not getting metrics from major self-hosted customers who are likely using AD.
 
 ### Appetite/Resources
 
