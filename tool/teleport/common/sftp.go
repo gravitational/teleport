@@ -101,23 +101,25 @@ type sftpHandler struct {
 }
 
 type trackedFile struct {
-	*os.File
+	file         *os.File
 	bytesRead    atomic.Uint64
 	bytesWritten atomic.Uint64
 }
 
 func (t *trackedFile) ReadAt(b []byte, off int64) (int, error) {
-	n, err := t.File.ReadAt(b, off)
+	n, err := t.file.ReadAt(b, off)
 	t.bytesRead.Add(uint64(n))
 	return n, err
-
 }
 
 func (t *trackedFile) WriteAt(b []byte, off int64) (int, error) {
-	n, err := t.File.WriteAt(b, off)
+	n, err := t.file.WriteAt(b, off)
 	t.bytesWritten.Add(uint64(n))
 	return n, err
+}
 
+func (t *trackedFile) Close() error {
+	return t.file.Close()
 }
 
 func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- protoAuditEvent) (*sftpHandler, error) {
@@ -248,7 +250,7 @@ func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error)
 	if err != nil {
 		return nil, err
 	}
-	trackFile := &trackedFile{File: f}
+	trackFile := &trackedFile{file: f}
 	s.files = append(s.files, trackFile)
 
 	return trackFile, nil
@@ -698,11 +700,11 @@ func onSFTP() error {
 	}
 	// We don't need to worry about closing these files, handler will
 	// take care of that for us
-	for _, file := range h.files {
+	for _, f := range h.files {
 		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
-			Path:         file.Name(),
-			BytesRead:    file.bytesRead.Load(),
-			BytesWritten: file.bytesWritten.Load(),
+			Path:         f.file.Name(),
+			BytesRead:    f.bytesRead.Load(),
+			BytesWritten: f.bytesWritten.Load(),
 		})
 	}
 	sftpEvents <- summaryEvent
