@@ -37,21 +37,27 @@ func TestGetSignalHandler(t *testing.T) {
 	ctx1, cancel1 := testHandler.NotifyContext(parent)
 	ctx2, cancel2 := testHandler.NotifyContext(parent)
 	ctx3, cancel3 := testHandler.NotifyContext(parent)
+	ctx4, cancel4 := testHandler.NotifyContext(parent)
 	t.Cleanup(func() {
-		cancel3()
+		cancel4()
 		cancel2()
 		cancel1()
 	})
 
 	// Verify that all context not canceled.
+	require.NoError(t, ctx4.Err())
 	require.NoError(t, ctx3.Err())
 	require.NoError(t, ctx2.Err())
 	require.NoError(t, ctx1.Err())
 
+	// Cancel context manually to ensure it was removed from stack in right order.
+	cancel3()
+
 	// Check that last added context is canceled.
 	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
 	select {
-	case <-ctx3.Done():
+	case <-ctx4.Done():
+		assert.ErrorIs(t, ctx3.Err(), context.Canceled)
 		assert.NoError(t, ctx2.Err())
 		assert.NoError(t, ctx1.Err())
 	case <-time.After(time.Second):
@@ -62,6 +68,7 @@ func TestGetSignalHandler(t *testing.T) {
 	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
 	select {
 	case <-ctx2.Done():
+		assert.ErrorIs(t, ctx4.Err(), context.Canceled)
 		assert.ErrorIs(t, ctx3.Err(), context.Canceled)
 		assert.NoError(t, ctx1.Err())
 	case <-time.After(time.Second):
@@ -72,6 +79,7 @@ func TestGetSignalHandler(t *testing.T) {
 	require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGINT))
 	select {
 	case <-ctx1.Done():
+		assert.ErrorIs(t, ctx4.Err(), context.Canceled)
 		assert.ErrorIs(t, ctx3.Err(), context.Canceled)
 		assert.ErrorIs(t, ctx2.Err(), context.Canceled)
 	case <-time.After(time.Second):

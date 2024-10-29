@@ -19,6 +19,7 @@
 package signal
 
 import (
+	"container/list"
 	"context"
 	"os"
 	"os/signal"
@@ -28,11 +29,13 @@ import (
 
 // Handler implements stack for context cancellation.
 type Handler struct {
-	cancels []context.CancelFunc
-	mu      sync.Mutex
+	mu   sync.Mutex
+	list *list.List
 }
 
-var handler = &Handler{}
+var handler = &Handler{
+	list: list.New(),
+}
 
 // GetSignalHandler returns global singleton instance of signal
 func GetSignalHandler() *Handler {
@@ -46,13 +49,20 @@ func (s *Handler) NotifyContext(parent context.Context) (context.Context, contex
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if len(s.cancels) == 0 {
+	if s.list.Len() == 0 {
 		s.listenSignals()
 	}
 
 	ctx, cancel := context.WithCancel(parent)
-	s.cancels = append(s.cancels, cancel)
-	return ctx, cancel
+	element := s.list.PushBack(cancel)
+
+	return ctx, func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		s.list.Remove(element)
+		cancel()
+	}
 }
 
 // listenSignals sets up the signal listener for SIGINT, SIGTERM.
@@ -77,11 +87,12 @@ func (s *Handler) cancelNext() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if len(s.cancels) > 0 {
-		cancel := s.cancels[len(s.cancels)-1]
-		s.cancels = s.cancels[:len(s.cancels)-1]
-		cancel()
+	if s.list.Len() > 0 {
+		cancel := s.list.Remove(s.list.Back())
+		if cancel != nil {
+			cancel.(context.CancelFunc)()
+		}
 	}
 
-	return len(s.cancels) != 0
+	return s.list.Len() != 0
 }
