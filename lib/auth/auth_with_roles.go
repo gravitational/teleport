@@ -2875,6 +2875,10 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 			}
 			accessInfo.AllowedResourceIDs = requestedResourceIDs
 		}
+
+		for _, login := range accessRequest.GetLogins() {
+			accessInfo.Traits[constants.TraitLogins] = append(accessInfo.Traits[constants.TraitLogins], login)
+		}
 	}
 	accessInfo.Roles = apiutils.Deduplicate(accessInfo.Roles)
 

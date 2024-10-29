@@ -2595,6 +2595,9 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+
+  // Logins is a list of logins that the user is requesting access to.
+  repeated string Logins = 22 [(gogoproto.jsontag) = "logins,omitempty"];
 }
 
 enum AccessRequestScope {
@@ -3418,6 +3421,9 @@ message AccessRequestConditions {
     (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // Logins is a list of *nix system logins that can be requested.
+  repeated string Logins = 8 [(gogoproto.jsontag) = "logins,omitempty"];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

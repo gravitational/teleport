@@ -39,6 +39,10 @@ type AccessRequest interface {
 	GetRoles() []string
 	// SetRoles overrides the roles being requested by the user
 	SetRoles([]string)
+	// GetLogins returns the logins requested by the user
+	GetLogins() []string
+	// SetLogins sets the logins requested by the user
+	SetLogins([]string)
 	// GetState gets the current state of the request
 	GetState() RequestState
 	// SetState sets the approval state of the request
@@ -172,6 +176,16 @@ func (r *AccessRequestV3) GetRoles() []string {
 // SetRoles sets Roles
 func (r *AccessRequestV3) SetRoles(roles []string) {
 	r.Spec.Roles = roles
+}
+
+// GetLogins gets Logins
+func (r *AccessRequestV3) GetLogins() []string {
+	return r.Spec.Logins
+}
+
+// SetLogins sets Logins
+func (r *AccessRequestV3) SetLogins(logins []string) {
+	r.Spec.Logins = logins
 }
 
 // GetState gets State

@@ -1036,6 +1036,12 @@ type RequestValidator struct {
 		AllowRequest, DenyRequest []parse.Matcher
 		AllowSearch, DenySearch   []string
 	}
+
+	Logins struct {
+		Allow map[string]struct{}
+		Deny  map[string]struct{}
+	}
+
 	Annotations struct {
 		// Allowed annotations are not greedy, the role that defines the annotation must allow requesting one
 		// of the roles that are being requested in order for the annotation to be applied.
@@ -1069,6 +1075,10 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		userState: uls,
 		logger:    slog.With(teleport.ComponentKey, "request.validator"),
 	}
+
+	m.Logins.Allow = make(map[string]struct{})
+	m.Logins.Deny = make(map[string]struct{})
+
 	for _, opt := range opts {
 		opt(&m)
 	}
@@ -1150,6 +1160,16 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			if !m.CanRequestRole(roleName) {
 				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
+		}
+	}
+
+	for _, loginName := range req.GetLogins() {
+		if _, ok := m.Logins.Deny[loginName]; ok {
+			return trace.BadParameter("user %q cannot request login %q", req.GetUser(), loginName)
+		}
+
+		if _, ok := m.Logins.Allow[loginName]; !ok {
+			return trace.BadParameter("user %q cannot request login %q", req.GetUser(), loginName)
 		}
 	}
 
@@ -1514,7 +1534,17 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	m.Roles.AllowSearch = apiutils.Deduplicate(append(m.Roles.AllowSearch, allow.SearchAsRoles...))
 	m.Roles.DenySearch = apiutils.Deduplicate(append(m.Roles.DenySearch, deny.SearchAsRoles...))
 
+	for _, allowedLogin := range allow.Logins {
+		m.Logins.Allow[allowedLogin] = struct{}{}
+	}
+
+	for _, deniedLogin := range deny.Logins {
+		m.Logins.Deny[deniedLogin] = struct{}{}
+	}
+
 	if m.opts.expandVars {
+		// TODO: threshold indexes need to also be evaluated for login requests
+
 		// if this role added additional allow matchers, then we need to record the relationship
 		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.

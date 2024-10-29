@@ -142,7 +142,8 @@ type CLIConf struct {
 	// Commands to execute on a remote host
 	RemoteCommand []string
 	// DesiredRoles indicates one or more roles which should be requested.
-	DesiredRoles string
+	DesiredRoles  string
+	DesiredLogins string
 	// RequestReason indicates the reason for an access request.
 	RequestReason string
 	// SuggestedReviewers is a list of suggested request reviewers.
@@ -1160,6 +1161,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// public facing documentation should now refer to "tsh request create".
 	reqCreate := req.Command("create", "Create a new access request.").Alias("new")
 	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
+	reqCreate.Flag("logins", "Logins to be requested").StringVar(&cf.DesiredLogins)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
@@ -2574,6 +2576,7 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
+	logins := utils.SplitIdentifiers(cf.DesiredLogins)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
 	requestedResourceIDs, err := types.ResourceIDsFromStrings(cf.RequestedResourceIDs)
 	if err != nil {
@@ -2586,6 +2589,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	}
 	req.SetRequestReason(cf.RequestReason)
 	req.SetSuggestedReviewers(reviewers)
+	req.SetLogins(logins)
 
 	// Only set RequestTTL and SessionTTL if values are greater than zero.
 	// Otherwise, leave defaults, and the server will take the zero values and
