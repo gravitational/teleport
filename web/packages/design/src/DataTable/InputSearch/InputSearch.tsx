@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { JSX, SetStateAction, FormEvent } from 'react';
+import React, { JSX, FormEvent } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -65,7 +65,7 @@ export default function InputSearch({
 
 type Props = {
   searchValue: string;
-  setSearchValue: React.Dispatch<SetStateAction<string>>;
+  setSearchValue: (searchValue: string) => void;
   children?: JSX.Element;
   bigInputSize?: boolean;
 };

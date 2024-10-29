@@ -54,7 +54,7 @@ export function FieldMultiInput({
   // Index of the input to be focused after the next rendering.
   const toFocus = useRef<number | undefined>();
 
-  const setFocus = element => {
+  const setFocus = (element: HTMLInputElement) => {
     element?.focus();
     toFocus.current = undefined;
   };

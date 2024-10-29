@@ -374,7 +374,7 @@ export default class Client extends EventEmitterMfaSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(

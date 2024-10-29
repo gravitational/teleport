@@ -16,10 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { TdHTMLAttributes } from 'react';
 
-import { Label, Flex } from 'design';
-import * as Icons from 'design/Icon';
+import { Theme } from 'design/theme';
+
+import Label from '../Label';
+import Flex from '../Flex';
+import * as Icons from '../Icon';
 
 import { displayDate } from '../datetime';
 
@@ -30,7 +33,9 @@ import {
   LabelDescription,
 } from './types';
 
-export const Cell = props => <td children={props.children} {...props} />;
+export function Cell(props: TdHTMLAttributes<HTMLTableCellElement>) {
+  return <td {...props} />;
+}
 
 export function SortHeaderCell<T>({
   column,
@@ -40,8 +45,9 @@ export function SortHeaderCell<T>({
   onClick,
 }: SortHeaderCellProps<T>) {
   function handleServersideClick() {
-    serversideProps.setSort({
+    serversideProps?.setSort({
       dir: serversideProps.sort?.dir === 'ASC' ? 'DESC' : 'ASC',
+      // @ts-expect-error TODO(gzdunek): The key can be undefined since the column can provide altKey. Improve the types.
       fieldName: column.key,
     });
   }
@@ -58,7 +64,7 @@ export function SortHeaderCell<T>({
             sortDir={
               serversideProps.sort?.fieldName === column.key
                 ? serversideProps.sort.dir
-                : null
+                : undefined
             }
           />
         </a>
@@ -92,7 +98,9 @@ export function SortIndicator<T>({
   return <Icons.ChevronsVertical title="sort items" />;
 }
 
-export const TextCell = ({ data }) => <Cell>{`${data || ''}`}</Cell>;
+export const TextCell = ({ data }: { data: unknown }) => (
+  <Cell>{`${data || ''}`}</Cell>
+);
 
 export const LabelCell = ({ data }: { data: string[] }) =>
   renderLabelCell(data);
@@ -134,7 +142,8 @@ export const ClickableLabelCell = ({
         css={`
           cursor: pointer;
           &:hover {
-            background-color: ${props => props.theme.colors.spotBackground[1]};
+            background-color: ${(props: { theme: Theme }) =>
+              props.theme.colors.spotBackground[1]};
           }
         `}
       >
@@ -152,8 +161,8 @@ export const ClickableLabelCell = ({
 
 type SortHeaderCellProps<T> = {
   column: TableColumn<T>;
-  serversideProps: ServersideProps;
+  serversideProps?: ServersideProps;
   text: string;
-  dir: SortDir;
+  dir?: SortDir;
   onClick: () => void;
 };

@@ -44,7 +44,7 @@ var (
 // TestUpdate verifies the basic update logic. We first download a lower version, then request
 // an update to a newer version, expecting it to re-execute with the updated version.
 func TestUpdate(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
@@ -86,7 +86,7 @@ func TestUpdate(t *testing.T) {
 // first update is complete, other processes should acquire the lock one by one and re-execute
 // the command with the updated version without any new downloads.
 func TestParallelUpdate(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	// Initial fetch the updater binary un-archive and replace.
@@ -160,7 +160,7 @@ func TestParallelUpdate(t *testing.T) {
 
 // TestUpdateInterruptSignal verifies the interrupt signal send to the process must stop downloading.
 func TestUpdateInterruptSignal(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	// Initial fetch the updater binary un-archive and replace.

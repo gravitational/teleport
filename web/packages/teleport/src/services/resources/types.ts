@@ -59,12 +59,22 @@ export type Role = {
   version: string;
 };
 
+/**
+ * A set of conditions that must be matched to allow or deny access. Fields
+ * follow the snake case convention to match the wire format.
+ */
 export type RoleConditions = {
   node_labels?: Labels;
   logins?: string[];
+
   kubernetes_groups?: string[];
   kubernetes_labels?: Labels;
   kubernetes_resources?: KubernetesResource[];
+
+  app_labels?: Labels;
+  aws_role_arns?: string[];
+  azure_identities?: string[];
+  gcp_service_accounts?: string[];
 };
 
 export type Labels = Record<string, string | string[]>;

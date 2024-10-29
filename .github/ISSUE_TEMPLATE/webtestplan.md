@@ -574,6 +574,45 @@ With the previous role you created from `Strategy Reason`, change `request_acces
 
 - [ ] Verify after login, dashboard is rendered as normal
 
+## Access Lists
+
+Not available for OSS
+
+- Creating new Access List:
+  - [ ] Verify that traits/roles are not be required in order to create
+  - [ ] Verify that one can be created with members and owners
+  - [ ] Verify the web cache is updated (new list should appear under "Access Lists" page without reloading)
+- Deleting existing Access List:
+  - [ ] Verify the web cache is updated (deleted list should disappear from "Access Lists" page without reloading)
+  - [ ] Verify that an Access List used as a member or owner in other lists cannot be deleted (should show a warning)
+- Reviewing Access List:
+  - [ ] Verify that after reviewing, the web cache is updated (list cards should show any member/role changes)
+- Updating (renaming, removing members, adding members):
+  - [ ] Verify the web cache is updated (changes to name/members appear under "Access Lists" page without reloading)
+- [ ] Verify Access List search is preserved between sub-route navigation (clicking into specific List and navigating back)
+- Can manage members/owners for an existing Access List:
+  - [ ] Verify that existing Users:
+    - [ ] Can be enrolled as members and owners
+    - [ ] Enrolled as members or owners can be removed
+  - [ ] Verify that existing Access Lists:
+    - [ ] Can be enrolled as members and owners
+    - [ ] Enrolled as members or owners can be removed
+  - [ ] Verify that an Access List cannot be added as a member or owner:
+    - [ ] If it is already a member or owner
+    - [ ] If it would result in a circular reference (ACL A -> ACL B -> ACL A)
+    - [ ] If the depth of the inheritance would exceed 10 levels
+    - [ ] If it includes yourself (and you lack RBAC)
+  - [ ] Verify that non-existing Members and Owners can be enrolled in an existing List (e.g., SSO users)
+- Inherited grants are properly calculated and displayed:
+  - [ ] Verify that members of a nested Access List:
+    - [ ] Added as a member to another Access List inherit its Member grants
+    - [ ] Added as an owner to another Access List inherit its Owner grants
+    - [ ] That do not meet Membership Requirements in a Nested List do not inherit any Grants from Parent Lists
+    - [ ] That do not meet the Parent List's Membership/Ownership Requirements do not inherit its Member/Owner Grants
+  - [ ] Verify that owners of Access Lists added as Members/Owners to other Access Lists do *not* inherit any Grants
+  - [ ] Verify that inherited grants are updated on reload or navigating away from / back to Access List View/Edit route
+  - [ ] Verify that 'View More' exists and can be clicked under the 'Inherited Member Grants' section if inherited grants overflows the container
+
 ## Web Terminal (aka console)
 
 - [ ] Verify that top nav has a user menu (Main and Logout)
@@ -1066,6 +1105,19 @@ Add the following to enable read access to trusted clusters
     - [ ] Re-execute `kubectl exec --stdin --tty shell-demo -- /bin/bash` mentioned above to
           verify that Kube access is working with MFA.
   - [ ] Verify that Connect prompts for MFA during Connect My Computer setup.
+- Hardware key support
+  - You will need a YubiKey 4.3+ and Teleport Enterprise. 
+    The easiest way to test it is to enable [cluster-wide hardware keys enforcement](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/#step-12-enforce-hardware-key-support)
+    (set `require_session_mfa: hardware_key_touch_and_pin` to get both touch and PIN prompts).
+  - [ ] Log in. Verify that you were asked for both PIN and touch.
+  - [ ] Connect to a database. Verify you were prompted for touch (a PIN prompt can appear too).
+  - [ ] Change the PIN (leave the PIV PIN field empty during login to access this flow).
+  - [ ] Close the app, disconnect the YubiKey, then reopen the app. Verify the app shows an error about the missing key.
+  - Verify that all items from this section work on:
+    - [ ] macOS
+    - [ ] Windows
+    - [ ] Linux
+
 - Connect My Computer
   - [ ] Verify the happy path from clean slate (no existing role) setup: set up the node and then
         connect to it.

@@ -28,13 +28,16 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import {
   AccessSpec,
+  AppAccessSpec,
   KubernetesAccessSpec,
+  newAccessSpec,
   newRole,
   roleToRoleEditorModel,
   ServerAccessSpec,
   StandardEditorModel,
 } from './standardmodel';
 import {
+  AppAccessSpecSection,
   KubernetesAccessSpecSection,
   SectionProps,
   ServerAccessSpecSection,
@@ -69,7 +72,11 @@ test('adding and removing sections', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add New Specifications' })
   );
-  expect(getAllMenuItemNames()).toEqual(['Kubernetes', 'Servers']);
+  expect(getAllMenuItemNames()).toEqual([
+    'Kubernetes',
+    'Servers',
+    'Applications',
+  ]);
 
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   expect(getAllSectionNames()).toEqual(['Role Metadata', 'Servers']);
@@ -77,7 +84,7 @@ test('adding and removing sections', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add New Specifications' })
   );
-  expect(getAllMenuItemNames()).toEqual(['Kubernetes']);
+  expect(getAllMenuItemNames()).toEqual(['Kubernetes', 'Applications']);
 
   await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
   expect(getAllSectionNames()).toEqual([
@@ -154,17 +161,13 @@ const StatefulSection = <S extends AccessSpec>({
   );
 };
 
-test('editing server access specs', async () => {
+test('ServerAccessSpecSection', async () => {
   const user = userEvent.setup();
   const onChange = jest.fn();
   render(
     <StatefulSection<ServerAccessSpec>
       component={ServerAccessSpecSection}
-      defaultValue={{
-        kind: 'node',
-        labels: [],
-        logins: [],
-      }}
+      defaultValue={newAccessSpec('node')}
       onChange={onChange}
     />
   );
@@ -194,12 +197,7 @@ describe('KubernetesAccessSpecSection', () => {
     render(
       <StatefulSection<KubernetesAccessSpec>
         component={KubernetesAccessSpecSection}
-        defaultValue={{
-          kind: 'kube_cluster',
-          groups: [],
-          labels: [],
-          resources: [],
-        }}
+        defaultValue={newAccessSpec('kube_cluster')}
         onChange={onChange}
       />
     );
@@ -310,6 +308,49 @@ describe('KubernetesAccessSpecSection', () => {
       expect.objectContaining({ resources: [] })
     );
   });
+});
+
+test('AppAccessSpecSection', async () => {
+  const user = userEvent.setup();
+  const onChange = jest.fn();
+  render(
+    <StatefulSection<AppAccessSpec>
+      component={AppAccessSpecSection}
+      defaultValue={newAccessSpec('app')}
+      onChange={onChange}
+    />
+  );
+
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  await user.type(screen.getByPlaceholderText('label key'), 'env');
+  await user.type(screen.getByPlaceholderText('label value'), 'prod');
+  await user.type(
+    within(screen.getByRole('group', { name: 'AWS Role ARNs' })).getByRole(
+      'textbox'
+    ),
+    'arn:aws:iam::123456789012:role/admin'
+  );
+  await user.type(
+    within(screen.getByRole('group', { name: 'Azure Identities' })).getByRole(
+      'textbox'
+    ),
+    '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin'
+  );
+  await user.type(
+    within(
+      screen.getByRole('group', { name: 'GCP Service Accounts' })
+    ).getByRole('textbox'),
+    'admin@some-project.iam.gserviceaccount.com'
+  );
+  expect(onChange).toHaveBeenLastCalledWith({
+    kind: 'app',
+    labels: [{ name: 'env', value: 'prod' }],
+    awsRoleARNs: ['arn:aws:iam::123456789012:role/admin'],
+    azureIdentities: [
+      '/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/admin',
+    ],
+    gcpServiceAccounts: ['admin@some-project.iam.gserviceaccount.com'],
+  } as AppAccessSpec);
 });
 
 const reactSelectValueContainer = (input: HTMLInputElement) =>
