@@ -439,6 +439,13 @@ Allowing SSO as an MFA method would bypass the device trust check, opening the
 cluster back up to attacks in the case of an IdP compromise. To maintain this
 invariant, device trust must be enforced within the SSO MFA check.
 
+#### Challenge Scopes and Reuse
+
+SSO MFA challenges will adhere to [RFD 155](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md)
+by supporting MFA challenge scopes and optionally allowing reuse for specific
+scopes (Admin MFA). When reuse is not requested/allowed, the SSO MFA token will
+be validated once and then discarded immediately to prevent reuse.
+
 ### Implementation
 
 #### SSO MFA flow
@@ -507,15 +514,16 @@ sequenceDiagram
     Proxy ->> Node: connect w/ MFA verified certs
 ```
 
+Note that we don't encrypt the mfa token in the Web SSO MFA flow with a 
+client-held secret key. However, the mfa token alone is useless without the
+request id, which is kept secret by the client anyways.
+
 #### SSO MFA session
 
 When a user requests an SSO MFA challenge, an SSO MFA session data object will
 be created in the backend. Once the user completes the SSO MFA flow, the client
 and session data will gain a matching MFA token, which can be used by the client
 to verify itself as the owner of the session.
-
-Note: challenge extensions are included, so scopes and reuse are both available.
-See RFD 155 for details.
 
 ```go
 // SSOMFASessionData SSO MFA Session data.
