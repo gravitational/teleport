@@ -60,7 +60,7 @@ type DynamicWindowsServiceClient interface {
 	CreateDynamicWindowsDesktop(ctx context.Context, in *CreateDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*types.DynamicWindowsDesktopV1, error)
 	// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
 	UpdateDynamicWindowsDesktop(ctx context.Context, in *UpdateDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*types.DynamicWindowsDesktopV1, error)
-	// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
+	// UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
 	UpsertDynamicWindowsDesktop(ctx context.Context, in *UpsertDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*types.DynamicWindowsDesktopV1, error)
 	// DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
 	DeleteDynamicWindowsDesktop(ctx context.Context, in *DeleteDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -148,7 +148,7 @@ type DynamicWindowsServiceServer interface {
 	CreateDynamicWindowsDesktop(context.Context, *CreateDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error)
 	// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
 	UpdateDynamicWindowsDesktop(context.Context, *UpdateDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error)
-	// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
+	// UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
 	UpsertDynamicWindowsDesktop(context.Context, *UpsertDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error)
 	// DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
 	DeleteDynamicWindowsDesktop(context.Context, *DeleteDynamicWindowsDesktopRequest) (*emptypb.Empty, error)
