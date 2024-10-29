@@ -127,7 +127,7 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 		return trace.Wrap(err)
 	}
 
-	conditionalActions, err := notReferencedByEAS(ctx, s.backend, name)
+	conditionalActions, err := integrationNotReferencedByOtherServices(ctx, s.backend, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,9 +140,33 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 	return trace.Wrap(err)
 }
 
-// notReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that
+// integrationNotReferencedByOtherServices checks if the AWS OIDC integration is s referenced by another
+// Teleport service. It returns a slice of backend.ConditionalAction or an error.
+// ConditionalAction ensures that current reference status remains unchanged (i.e. integration not referenced)
+// until the integration is completely deleted.
+// Error should immidiately prevent deletion of the integration.
+func integrationNotReferencedByOtherServices(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
+	var conditionalActions []backend.ConditionalAction
+	easCOndition, err := integrationNotReferencedByEAS(ctx, bk, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conditionalActions = append(conditionalActions, easCOndition...)
+
+	awsIcCOndition, err := integrationReferencedByAWSICPlugin(ctx, bk, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if awsIcCOndition != nil {
+		conditionalActions = append(conditionalActions, *awsIcCOndition)
+	}
+
+	return conditionalActions, nil
+}
+
+// integrationNotReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that
 // integration [name] is not referenced by any EAS (External Audit Storage) integration.
-func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
+func integrationNotReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
 	var conditionalActions []backend.ConditionalAction
 	for _, key := range []backend.Key{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
 		condition := backend.ConditionalAction{
@@ -171,6 +195,40 @@ func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([
 		conditionalActions = append(conditionalActions, condition)
 	}
 	return conditionalActions, nil
+}
+
+// integrationNotReferencedByAWSICPlugin returns an error if the integration name is referenced
+// by an existing AWS Identity Center plugin. In case the AWS Identity Center plugin exists
+// but does not reference this integration, a conditional action is returned with a revision
+// of the plugin to ensure that plugin hasn't changed when deleting the AWS OIDC integration.
+func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, name string) (*backend.ConditionalAction, error) {
+	pluginService := NewPluginsService(bk)
+	plugins, err := pluginService.GetPlugins(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, p := range plugins {
+		pluginV1, ok := p.(*types.PluginV1)
+		if !ok {
+			continue
+		}
+
+		if pluginV1.GetType() == types.PluginType(types.PluginTypeAWSIdentityCenter) {
+			switch pluginV1.Spec.GetAwsIc().IntegrationName {
+			case name:
+				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by AWS Identity Center integration")
+			default:
+				return &backend.ConditionalAction{
+					Key:       backend.NewKey(pluginsPrefix, name),
+					Action:    backend.Nop(),
+					Condition: backend.Revision(pluginV1.GetRevision()),
+				}, nil
+			}
+		}
+	}
+
+	return nil, nil
 }
 
 // DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.
