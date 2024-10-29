@@ -32,6 +32,8 @@ message AzureResource {
   oneof resource {
     AzureVirtualMachine virtual_machine = 1;
     AzureUser user = 2;
+    AzureRoleDefinition role_definition = 3;
+    AzureRoleAssignment role_assignment = 4;
   }
 }
 
