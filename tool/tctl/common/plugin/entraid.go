@@ -43,6 +43,33 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
+var (
+	bold    = color.New(color.Bold).SprintFunc()
+	boldRed = color.New(color.Bold, color.FgRed).SprintFunc()
+
+	step1Template = `Step 1: Run the Setup Script
+
+1. Open ` + bold("Azure Cloud Shell") + ` (Bash) [https://portal.azure.com/#cloudshell/] using ` + bold("Google Chrome") + ` or ` + bold("Safari") + ` for the best compatibility.
+2. Upload the setup script in ` + boldRed("%s") + ` using the ` + bold("Upload") + ` button in the Cloud Shell toolbar.
+3. Once uploaded, execute the script by running the following command:
+   $ bash %s
+
+` + bold("Important Considerations") + `:
+- You must have ` + bold("Azure privileged administrator permissions") + ` to complete the integration.
+- Ensure you're using the ` + bold("Bash") + ` environment in Cloud Shell.
+- During the script execution, you'll be prompted to run 'az login' to authenticate with Azure. ` + bold("Teleport") + ` does not store or persist your credentials.
+- ` + bold("Mozilla Firefox") + ` users may experience connectivity issues in Azure Cloud Shell; using Chrome or Safari is recommended.
+
+`
+
+	step2Template = `
+	
+Step 2: Input Tenant ID and Client ID
+
+With the output of Step 1, please copy and paste the following information:
+`
+)
+
 type entraArgs struct {
 	cmd                  *kingpin.CmdClause
 	authConnectorName    string
@@ -107,7 +134,7 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings,
 
 	defer os.Remove(f.Name())
 
-	buildScript, err := buildScript(proxyPublicAddr, p.install.entraID.authConnectorName, p.install.entraID.accessGraph, p.install.entraID.useSystemCredentials)
+	buildScript, err := buildScript(proxyPublicAddr, p.install.entraID)
 	if err != nil {
 		return entraSettings{}, trace.Wrap(err, "failed to build script")
 	}
@@ -121,28 +148,10 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings,
 	}
 	fileLoc := f.Name()
 
-	bold := color.New(color.Bold).SprintFunc()
-	boldRed := color.New(color.Bold, color.FgRed).SprintFunc()
-
-	tmpl := `Step 1: Run the Setup Script
-
-1. Open ` + bold("Azure Cloud Shell") + ` (Bash) [https://portal.azure.com/#cloudshell/] using ` + bold("Google Chrome") + ` or ` + bold("Safari") + ` for the best compatibility.
-2. Upload the setup script in ` + boldRed(fileLoc) + ` using the ` + bold("Upload") + ` button in the Cloud Shell toolbar.
-3. Once uploaded, execute the script by running the following command:
-   $ bash %s
-
-` + bold("Important Considerations") + `:
-- You must have ` + bold("Azure privileged administrator permissions") + ` to complete the integration.
-- Ensure you're using the ` + bold("Bash") + ` environment in Cloud Shell.
-- During the script execution, you'll be prompted to run 'az login' to authenticate with Azure. ` + bold("Teleport") + ` does not store or persist your credentials.
-- ` + bold("Mozilla Firefox") + ` users may experience connectivity issues in Azure Cloud Shell; using Chrome or Safari is recommended.
-
-`
-
-	fmt.Fprintf(os.Stdout, tmpl, filepath.Base(fileLoc))
+	fmt.Fprintf(os.Stdout, step1Template, fileLoc, filepath.Base(fileLoc))
 
 	op, err := readData(os.Stdin, os.Stdout,
-		"Once the script completes, type 'continue' to proceed, 'exit' to quit",
+		"Once the script completes, type 'continue' to proceed, 'exit' to quit. If you need to rerun the script, type 'exit' and restart the process.",
 		func(input string) bool {
 			return input == "continue" || input == "exit"
 		}, "Invalid input. Please enter 'continue' or 'exit'.")
@@ -158,13 +167,8 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings,
 		return err == nil
 	}
 
-	tmpl = `
-	
-Step 2: Input Tenant ID and Client ID
+	fmt.Fprint(os.Stdout, step2Template)
 
-With the output of Step 1, please copy and paste the following information:
-`
-	fmt.Fprint(os.Stdout, tmpl)
 	var settings entraSettings
 	settings.tenantID, err = readData(os.Stdin, os.Stdout, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
 	if err != nil {
@@ -232,12 +236,11 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 		AssertionConsumerService: strings.TrimRight(proxyPublicAddr, "/") + "/v1/webapi/saml/acs/" + inputs.entraID.authConnectorName,
 		AllowIDPInitiated:        true,
 		// AttributesToRoles is required, but Entra ID does not have a default group (like Okta's "Everyone"),
-		// so we add a dummy claim that will never be fulfilled with the default configuration instead,
-		// and expect the user to modify it per their requirements.
+		// so we add a dummy claim that will always be fulfilled and map them to the "requester" role.
 		AttributesToRoles: []types.AttributeMapping{
 			{
-				Name:  "https://example.com/my_attribute",
-				Value: "my_value",
+				Name:  "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
+				Value: "*",
 				Roles: []string{"requester"},
 			},
 		},
@@ -273,10 +276,13 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 			if !trace.IsAlreadyExists(err) || !inputs.entraID.force {
 				return trace.Wrap(err, "failed to create Azure OIDC integration")
 			}
-			if err = args.authClient.DeleteIntegration(ctx, integrationSpec.GetName()); err != nil {
-				return trace.Wrap(err, "failed to delete Azure OIDC integration")
+
+			integration, err := args.authClient.GetIntegration(ctx, integrationSpec.GetName())
+			if err != nil {
+				return trace.Wrap(err, "failed to get Azure OIDC integration")
 			}
-			if _, err = args.authClient.CreateIntegration(ctx, integrationSpec); err != nil {
+			integration.SetAWSOIDCIntegrationSpec(integrationSpec.GetAWSOIDCIntegrationSpec())
+			if _, err = args.authClient.UpdateIntegration(ctx, integration); err != nil {
 				return trace.Wrap(err, "failed to create Azure OIDC integration")
 			}
 		}
@@ -315,12 +321,19 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 		if !trace.IsAlreadyExists(err) || !inputs.entraID.force {
 			return trace.Wrap(err)
 		}
-		if _, err = args.plugins.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
-			Name: inputs.name,
-		}); err != nil {
-			return trace.Wrap(err)
+		plugin := req.GetPlugin()
+		{
+			oldPlugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+				Name: inputs.name,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			plugin.Metadata.Revision = oldPlugin.GetMetadata().Revision
 		}
-		if _, err = args.plugins.CreatePlugin(ctx, req); err != nil {
+		if _, err = args.plugins.UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{
+			Plugin: plugin,
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -330,19 +343,19 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 	return nil
 }
 
-func buildScript(proxyPublicAddr string, authConnectorName string, accessGraph, skipOIDCSetup bool) (string, error) {
+func buildScript(proxyPublicAddr string, entraCfg entraArgs) (string, error) {
 	// The script must execute the following command:
 	argsList := []string{
 		"integration", "configure", "azure-oidc",
 		fmt.Sprintf("--proxy-public-addr=%s", shsprintf.EscapeDefaultContext(proxyPublicAddr)),
-		fmt.Sprintf("--auth-connector-name=%s", shsprintf.EscapeDefaultContext(authConnectorName)),
+		fmt.Sprintf("--auth-connector-name=%s", shsprintf.EscapeDefaultContext(entraCfg.authConnectorName)),
 	}
 
-	if accessGraph {
+	if entraCfg.accessGraph {
 		argsList = append(argsList, "--access-graph")
 	}
 
-	if skipOIDCSetup {
+	if entraCfg.useSystemCredentials {
 		argsList = append(argsList, "--skip-oidc-integration")
 	}
 
@@ -366,6 +379,9 @@ func getProxyPublicAddr(ctx context.Context, authClient authClient) (string, err
 	return oidcIssuer, trace.Wrap(err)
 }
 
+// readTAGCache reads the TAG cache file and returns the TAGInfoCache object.
+// azureoidc.TAGInfoCache is a struct that contains the information necessary for Access Graph to analyze Azure SSO.
+// It contains a list of AppID and their corresponding FederatedSsoV2 information.
 func readTAGCache(fileLoc string) (*azureoidc.TAGInfoCache, error) {
 	if fileLoc == "" {
 		return nil, trace.BadParameter("no TAG cache file specified")
