@@ -449,9 +449,14 @@ func (m *mockPluginsClient) CreatePlugin(ctx context.Context, in *pluginsv1.Crea
 	return result.Get(0).(*emptypb.Empty), result.Error(1)
 }
 
-func (m *mockPluginsClient) DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (m *mockPluginsClient) GetPlugin(ctx context.Context, in *pluginsv1.GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
 	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*emptypb.Empty), result.Error(1)
+	return result.Get(0).(*types.PluginV1), result.Error(1)
+}
+
+func (m *mockPluginsClient) UpdatePlugin(ctx context.Context, in *pluginsv1.UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
+	result := m.Called(ctx, in, opts)
+	return result.Get(0).(*types.PluginV1), result.Error(1)
 }
 
 type mockAuthClient struct {
@@ -474,10 +479,16 @@ func (m *mockAuthClient) CreateIntegration(ctx context.Context, ig types.Integra
 	result := m.Called(ctx, ig)
 	return result.Get(0).(types.Integration), result.Error(1)
 }
-func (m *mockAuthClient) DeleteIntegration(ctx context.Context, name string) error {
-	result := m.Called(ctx, name)
-	return result.Error(0)
+func (m *mockAuthClient) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	result := m.Called(ctx, ig)
+	return result.Get(0).(types.Integration), result.Error(1)
 }
+
+func (m *mockAuthClient) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	result := m.Called(ctx, name)
+	return result.Get(0).(types.Integration), result.Error(1)
+}
+
 func (m *mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
 	result := m.Called(ctx)
 	return result.Get(0).(proto.PingResponse), result.Error(1)
