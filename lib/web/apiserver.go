@@ -2880,7 +2880,7 @@ type GetClusterInfoResponse struct {
 //
 // Successful response:
 //
-//	{"name": "localhost","lastConnected": "RFC3339 time","status": "online","publicURL": "localhost:3080","authVersion": "17.0.0-dev","proxyVersion": "17.0.0-dev"}
+//	{"name": "localhost","lastConnected": "RFC3339 time","status": "online","publicURL": "localhost:3080","authVersion": "17.0.0-dev","proxyVersion": "17.0.0-dev", "isCloud": true}
 func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
 	c, err := ui.GetClusterDetails(ctx, site)

@@ -19,7 +19,7 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { makeCluster, makeClusterList } from './makeCluster';
+import { makeClusterInfo, makeClusterList } from './makeCluster';
 
 import { Cluster } from '.';
 
@@ -41,6 +41,6 @@ export default class ClustersService {
   }
 
   fetchClusterDetails(clusterId) {
-    return api.get(cfg.getClusterInfoPath(clusterId)).then(makeCluster);
+    return api.get(cfg.getClusterInfoPath(clusterId)).then(makeClusterInfo);
   }
 }

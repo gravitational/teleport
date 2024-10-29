@@ -26,6 +26,7 @@ import { MultiRowBox, Row } from 'design/MultiRowBox';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
 import Text, { H2 } from 'design/Text';
+import { Indicator } from 'design/Indicator';
 
 import Box, { BoxProps } from 'design/Box';
 
@@ -44,10 +45,10 @@ import {
 import { useTeleport } from 'teleport/index';
 import cfg from 'teleport/config';
 import { useNoMinWidth } from 'teleport/Main';
-import { Cluster } from 'teleport/services/clusters';
+import { ClusterInfo } from 'teleport/services/clusters';
 
 export function ManageCluster() {
-  const [cluster, setCluster] = useState<Cluster>(null);
+  const [cluster, setCluster] = useState<ClusterInfo>(null);
   const { attempt, run } = useAttempt();
   const ctx = useTeleport();
 
@@ -70,7 +71,13 @@ export function ManageCluster() {
   return (
     <FeatureBox>
       <ManageClusterHeader clusterId={clusterId} />
-      <ClusterInformation cluster={cluster} attempt={attempt} />
+      {attempt.status === 'processing' ? (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      ) : (
+        <ClusterInformation cluster={cluster} attempt={attempt} />
+      )}
     </FeatureBox>
   );
 }
@@ -100,7 +107,7 @@ export function ManageClusterHeader({ clusterId }: { clusterId: string }) {
 }
 
 type ClusterInformationProps = {
-  cluster?: Cluster;
+  cluster?: ClusterInfo;
   style?: React.CSSProperties;
   attempt: Attempt;
 } & BoxProps;
