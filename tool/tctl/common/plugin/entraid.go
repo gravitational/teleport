@@ -47,7 +47,7 @@ var (
 	bold    = color.New(color.Bold).SprintFunc()
 	boldRed = color.New(color.Bold, color.FgRed).SprintFunc()
 
-	step1Template = `Step 1: Run the Setup Script
+	step1Template = bold("Step 1: Run the Setup Script") + `
 
 1. Open ` + bold("Azure Cloud Shell") + ` (Bash) [https://portal.azure.com/#cloudshell/] using ` + bold("Google Chrome") + ` or ` + bold("Safari") + ` for the best compatibility.
 2. Upload the setup script in ` + boldRed("%s") + ` using the ` + bold("Upload") + ` button in the Cloud Shell toolbar.
@@ -60,11 +60,13 @@ var (
 - During the script execution, you'll be prompted to run 'az login' to authenticate with Azure. ` + bold("Teleport") + ` does not store or persist your credentials.
 - ` + bold("Mozilla Firefox") + ` users may experience connectivity issues in Azure Cloud Shell; using Chrome or Safari is recommended.
 
+To rerun the script, type 'exit' to close and then restart the process.
+
 `
 
 	step2Template = `
 	
-Step 2: Input Tenant ID and Client ID
+` + bold("Step 2: Input Tenant ID and Client ID") + `
 
 With the output of Step 1, please copy and paste the following information:
 `
@@ -151,7 +153,7 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings,
 	fmt.Fprintf(os.Stdout, step1Template, fileLoc, filepath.Base(fileLoc))
 
 	op, err := readData(os.Stdin, os.Stdout,
-		"Once the script completes, type 'continue' to proceed, 'exit' to quit. If you need to rerun the script, type 'exit' and restart the process.",
+		`Once the script completes, type 'continue' to proceed, 'exit' to quit`,
 		func(input string) bool {
 			return input == "continue" || input == "exit"
 		}, "Invalid input. Please enter 'continue' or 'exit'.")
