@@ -482,6 +482,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 		StaticHostUser:            cfg.StaticHostUsers,
 		ProvisioningStates:        cfg.ProvisioningStates,
+		IdentityCenter:            cfg.IdentityCenter,
 	}
 
 	as := Server{
