@@ -127,7 +127,7 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 		return trace.Wrap(err)
 	}
 
-	deleteConditions, err := integrationConditionalDeletion(ctx, s.backend, name)
+	deleteConditions, err := integrationDeletionConditions(ctx, s.backend, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,12 +140,12 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 	return trace.Wrap(err)
 }
 
-// integrationConditionalDeletion returns a BadParameter error if the integration is referenced by another
+// integrationDeletionConditions returns a BadParameter error if the integration is referenced by another
 // Teleport service. If it does not find any direct reference, the backend.ConditionalAction is returned
 // with the current state of reference, which should be added to AtomicWrite to ensure that the current
-// reference state remains unchanged until the integration is completeley deleted.
-// Service may have zero or multuple ConditionalActions returned.
-func integrationConditionalDeletion(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
+// reference state remains unchanged until the integration is completely deleted.
+// Service may have zero or multiple ConditionalActions returned.
+func integrationDeletionConditions(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
 	var deleteConditionalActions []backend.ConditionalAction
 	easDeleteConditions, err := integrationReferencedByEAS(ctx, bk, name)
 	if err != nil {
@@ -157,9 +157,7 @@ func integrationConditionalDeletion(ctx context.Context, bk backend.Backend, nam
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if awsIcDeleteCondition != nil {
-		deleteConditionalActions = append(deleteConditionalActions, *awsIcDeleteCondition)
-	}
+	deleteConditionalActions = append(deleteConditionalActions, awsIcDeleteCondition...)
 
 	return deleteConditionalActions, nil
 }
@@ -201,8 +199,8 @@ func integrationReferencedByEAS(ctx context.Context, bk backend.Backend, name st
 // by an existing AWS Identity Center plugin. In case the AWS Identity Center plugin exists
 // but does not reference this integration, a conditional action is returned with a revision
 // of the plugin to ensure that plugin hasn't changed during deletion of the AWS OIDC integration.
-// Returns nil ConditionalAction if AWS Identity Center plugin is not found.
-func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, name string) (*backend.ConditionalAction, error) {
+func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
+	var conditionalActions []backend.ConditionalAction
 	pluginService := NewPluginsService(bk)
 	plugins, err := pluginService.GetPlugins(ctx, false)
 	if err != nil {
@@ -218,18 +216,19 @@ func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend,
 		if pluginV1.GetType() == types.PluginType(types.PluginTypeAWSIdentityCenter) {
 			switch pluginV1.Spec.GetAwsIc().IntegrationName {
 			case name:
-				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by AWS Identity Center integration")
+				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
 			default:
-				return &backend.ConditionalAction{
+				conditionalActions = append(conditionalActions, backend.ConditionalAction{
 					Key:       backend.NewKey(pluginsPrefix, name),
 					Action:    backend.Nop(),
 					Condition: backend.Revision(pluginV1.GetRevision()),
-				}, nil
+				})
+				return conditionalActions, nil
 			}
 		}
 	}
 
-	return nil, nil
+	return conditionalActions, nil
 }
 
 // DeleteAllIntegrations removes all Integration resources. This should only be used in a cache.
