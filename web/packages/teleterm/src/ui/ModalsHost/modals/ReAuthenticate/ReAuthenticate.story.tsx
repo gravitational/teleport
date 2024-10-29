@@ -39,6 +39,7 @@ export const WithWebauthn = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{ ...promptMfaRequest, webauthn: true }}
+      onSsoContinue={() => {}}
       onCancel={() => {}}
       onSuccess={() => {
         window.alert(
@@ -56,16 +57,51 @@ export const WithTotp = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{ ...promptMfaRequest, totp: true }}
+      onSsoContinue={() => {}}
       onCancel={() => {}}
       onSuccess={showToken}
     />
   </MockAppContextProvider>
 );
 
-export const WithWebauthnAndTotp = () => (
+export const WithSso = () => (
   <MockAppContextProvider>
     <ReAuthenticate
-      promptMfaRequest={{ ...promptMfaRequest, webauthn: true, totp: true }}
+      promptMfaRequest={{
+        ...promptMfaRequest,
+        sso: {
+          connectorId: '',
+          connectorType: '',
+          displayName: '',
+          redirectUrl: '',
+        },
+      }}
+      onSsoContinue={() => {}}
+      onCancel={() => {}}
+      onSuccess={() => {
+        window.alert(
+          'You somehow submitted a form while only SSO was available.'
+        );
+      }}
+    />
+  </MockAppContextProvider>
+);
+
+export const WithWebauthnAndTotpAndSSO = () => (
+  <MockAppContextProvider>
+    <ReAuthenticate
+      promptMfaRequest={{
+        ...promptMfaRequest,
+        webauthn: true,
+        totp: true,
+        sso: {
+          connectorId: '',
+          connectorType: '',
+          displayName: '',
+          redirectUrl: '',
+        },
+      }}
+      onSsoContinue={() => {}}
       onCancel={() => {}}
       onSuccess={showToken}
     />
@@ -81,6 +117,7 @@ export const MultilineTitle = () => (
         totp: true,
         clusterUri: '/clusters/lorem.cloud.gravitational.io',
       }}
+      onSsoContinue={() => {}}
       onCancel={() => {}}
       onSuccess={showToken}
     />
@@ -96,6 +133,7 @@ export const ForLeafCluster = () => (
         totp: true,
         clusterUri: makeLeafCluster().uri,
       }}
+      onSsoContinue={() => {}}
       onCancel={() => {}}
       onSuccess={showToken}
     />
