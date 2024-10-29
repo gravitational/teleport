@@ -1563,18 +1563,18 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		}
 		response.Auth = webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()}
 
-	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
-	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
-	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
-		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
-	}
-	// If we can't get the AU config or tools AU are not configured, we default to "disabled".
-	// This ensures we fail open and don't accidentally update agents if something is going wrong.
-	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
-	// than changing this logic.
-	if autoUpdateConfig.GetSpec().GetTools() != nil {
-		response.AutoUpdate.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetTools().GetMode() == autoupdate.ToolsUpdateModeEnabled
-	}
+		autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
+		// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
+		if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+			h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
+		}
+		// If we can't get the AU config or tools AU are not configured, we default to "disabled".
+		// This ensures we fail open and don't accidentally update agents if something is going wrong.
+		// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
+		// than changing this logic.
+		if autoUpdateConfig.GetSpec().GetTools() != nil {
+			response.AutoUpdate.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetTools().GetMode() == autoupdate.ToolsUpdateModeEnabled
+		}
 
 		autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
 		// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.

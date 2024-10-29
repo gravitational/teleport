@@ -272,7 +272,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 // update downloads the archive and validate against the hash. Download to a
 // temporary path within tools directory.
 func (u *Updater) update(ctx context.Context, pkg packageURL, pkgName string) error {
-	f, err := os.CreateTemp(u.toolsDir, "tmp-")
+	f, err := os.CreateTemp("", "teleport-")
 	if err != nil {
 		return trace.Wrap(err)
 	}
