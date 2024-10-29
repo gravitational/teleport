@@ -18,6 +18,7 @@ package msgraph
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/gravitational/trace"
 )
@@ -34,6 +35,12 @@ type DirectoryObject struct {
 
 type Group struct {
 	DirectoryObject
+	GroupTypes []string `json:"groupTypes,omitempty"`
+}
+
+func (g *Group) IsOffice365Group() bool {
+	const office365Group = "Unified"
+	return slices.Contains(g.GroupTypes, office365Group)
 }
 
 func (g *Group) isGroupMember() {}
@@ -53,9 +60,10 @@ func (u *User) GetID() *string { return u.ID }
 type Application struct {
 	DirectoryObject
 
-	AppID          *string         `json:"appId,omitempty"`
-	IdentifierURIs *[]string       `json:"identifierUris,omitempty"`
-	Web            *WebApplication `json:"web,omitempty"`
+	AppID                 *string         `json:"appId,omitempty"`
+	IdentifierURIs        *[]string       `json:"identifierUris,omitempty"`
+	Web                   *WebApplication `json:"web,omitempty"`
+	GroupMembershipClaims *string         `json:"groupMembershipClaims,omitempty"`
 }
 
 type WebApplication struct {
