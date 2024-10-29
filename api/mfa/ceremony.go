@@ -18,6 +18,7 @@ package mfa
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -72,6 +73,12 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 
 	if c.PromptConstructor == nil {
 		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
+	}
+
+	// Set challenge extensions in the prompt, if present, but set it first so the
+	// caller can still override it.
+	if req != nil && req.ChallengeExtensions != nil {
+		promptOpts = slices.Insert(promptOpts, 0, WithPromptChallengeExtensions(req.ChallengeExtensions))
 	}
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
