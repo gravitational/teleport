@@ -97,6 +97,7 @@ func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChalle
 	}, nil
 }
 
+// Close closes resources associated with the SSO MFA ceremony.
 func (m *MFACeremony) Close() {
 	if m.close != nil {
 		m.close()
@@ -104,6 +105,7 @@ func (m *MFACeremony) Close() {
 }
 
 // NewCLIMFACeremony creates a new CLI SSO ceremony from the given redirector.
+// The returned MFACeremony takes ownership of the Redirector.
 func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 	return &MFACeremony{
 		clientCallbackURL: rd.ClientCallbackURL,

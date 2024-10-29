@@ -116,7 +116,6 @@ func TestCLICeremony_MFA(t *testing.T) {
 		Stderr:    stderr,
 	})
 	require.NoError(t, err)
-	t.Cleanup(rd.Close)
 
 	// Construct a fake mfa response with the redirector's client callback URL.
 	successResponseURL, err := web.ConstructSSHResponse(web.AuthParams{
@@ -132,6 +131,7 @@ func TestCLICeremony_MFA(t *testing.T) {
 	t.Cleanup(mockIdPServer.Close)
 
 	ceremony := sso.NewCLIMFACeremony(rd)
+	t.Cleanup(ceremony.Close)
 
 	// Modify handle redirect to also browse to the clickable URL printed to stderr.
 	baseHandleRedirect := ceremony.HandleRedirect
