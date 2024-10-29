@@ -318,7 +318,7 @@ refresh_identity = true
 
 [mailgun]
 domain = "sandbox123abc.mailgun.org" 
-private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"                                     
+private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"
 
 # As an alternative, you can use SMTP server credentials:
 #
@@ -328,6 +328,7 @@ private_key = "xoxb-fakekey62b0eac53565a38c8cc0316f6"
 # username = "username@gmail.com"
 # password = ""
 # password_file = "/var/lib/teleport/plugins/email/smtp_password"
+# starttls_policy = "mandatory"
 
 [delivery]
 sender = "noreply@example.com" 
@@ -353,7 +354,8 @@ teleport:
 
 mailgun:
   domain: "sandbox123abc.mailgun.org" 
-  privateKeyFromSecret: "mailgun-private-key"                                     
+  privateKeyFromSecret: "mailgun-private-key"
+
 # As an alternative, you can use SMTP server credentials:
 #
 # smtp:
@@ -361,6 +363,7 @@ mailgun:
 #   port: 587
 #   username: "username@gmail.com"
 #   passwordFromSecret: "smtp-password"
+#   starttls_policy = "mandatory"
 
 delivery:
   sender: "noreply@example.com" 
