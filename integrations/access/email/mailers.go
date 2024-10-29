@@ -66,7 +66,7 @@ type MailgunMailer struct {
 	clusterName string
 
 	// fallbackRecipients specifies the list of default recipients.
-	// This is only used for inital health check.
+	// This is only used for initial health check.
 	fallbackRecipients []string
 }
 
