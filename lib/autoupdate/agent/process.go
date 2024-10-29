@@ -51,28 +51,31 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	// Note systemctl reload returns an error if the unit is not active, and
 	// try-reload-or-restart is too recent of an addition for centos7.
 	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
-	if code < 0 {
+	switch {
+	case code < 0:
 		return trace.Errorf("unable to determine if systemd service is active")
-	}
-	if code > 0 {
+	case code > 0:
 		s.Log.WarnContext(ctx, "Teleport systemd service not running.")
 		return trace.Wrap(ErrNotNeeded)
 	}
 	// Attempt graceful reload of running service.
 	code = s.systemctl(ctx, slog.LevelError, "reload", s.ServiceName)
-	if code < 0 {
+	switch {
+	case code < 0:
 		return trace.Errorf("unable to attempt reload of Teleport systemd service")
-	}
-	if code > 0 {
+	case code > 0:
 		// Graceful reload fails, try hard restart.
 		code = s.systemctl(ctx, slog.LevelError, "try-restart", s.ServiceName)
 		if code != 0 {
 			return trace.Errorf("hard restart of Teleport systemd service failed")
 		}
 		s.Log.WarnContext(ctx, "Teleport ungracefully restarted. Connections potentially dropped.")
-		return nil
+	default:
+		s.Log.InfoContext(ctx, "Teleport gracefully reloaded.")
 	}
-	s.Log.InfoContext(ctx, "Teleport gracefully reloaded.")
+
+	// TODO(sclevine): Ensure restart was successful and verify healthcheck.
+
 	return nil
 }
 
@@ -135,23 +138,34 @@ type lineLogger struct {
 
 func (w *lineLogger) Write(p []byte) (n int, err error) {
 	lines := bytes.Split(p, []byte("\n"))
+	// Finish writing line
 	if len(lines) > 0 {
 		n, err = w.last.Write(lines[0])
 		lines = lines[1:]
 	}
+	// Quit if no newline
 	if len(lines) == 0 || err != nil {
 		return n, trace.Wrap(err)
 	}
-	w.Flush()
+
+	// Newline found, log line
+	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint
+	n += w.last.Len() + 1
+	w.last.Reset()
+
+	// Log lines that are already newline-terminated
 	for _, line := range lines[:len(lines)-1] {
 		w.log.Log(w.ctx, w.level, string(line)) //nolint:sloglint
-		n += len(line)
+		n += len(line) + 1
 	}
-	n2, err := w.last.Write(lines[0])
+
+	// Store remaining line non-newline-terminated line.
+	n2, err := w.last.Write(lines[len(lines)-1])
 	n += n2
 	return n, trace.Wrap(err)
 }
 
+// Flush logs any trailing bytes that were never terminated with a newline.
 func (w *lineLogger) Flush() {
 	if w.last.Len() == 0 {
 		return
