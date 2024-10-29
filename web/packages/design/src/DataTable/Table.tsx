@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, PropsWithChildren } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -108,6 +108,22 @@ export default function Table<T>(props: TableProps<T>) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {
+      const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
+        <tr
+          key={rowIdx}
+          onClick={() => row?.onClick?.(item)}
+          style={row?.getStyle?.(item)}
+        >
+          {children}
+        </tr>
+      );
+
+      const customRow = row?.customRow?.(item);
+      if (customRow) {
+        rows.push(<TableRow key={rowIdx}>{customRow}</TableRow>);
+        return;
+      }
+
       const cells = columns.flatMap((column, columnIdx) => {
         if (column.isNonRender) {
           return []; // does not include this column.
@@ -125,15 +141,7 @@ export default function Table<T>(props: TableProps<T>) {
           </React.Fragment>
         );
       });
-      rows.push(
-        <tr
-          key={rowIdx}
-          onClick={() => row?.onClick?.(item)}
-          style={row?.getStyle?.(item)}
-        >
-          {cells}
-        </tr>
-      );
+      rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
     });
 
     if (rows.length) {

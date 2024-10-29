@@ -294,6 +294,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 				Component: teleport.ComponentKube,
 				Client:    client,
 			},
+			KubernetesServerGetter: client,
 		},
 	)
 	require.NoError(t, err)
@@ -387,7 +388,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Ensure watcher has the correct list of clusters.
 	require.Eventually(t, func() bool {
-		kubeServers, err := kubeServersWatcher.GetKubernetesServers(ctx)
+		kubeServers, err := kubeServersWatcher.CurrentResources(ctx)
 		return err == nil && len(kubeServers) == len(cfg.Clusters)
 	}, 3*time.Second, time.Millisecond*100)
 
