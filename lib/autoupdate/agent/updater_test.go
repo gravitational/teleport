@@ -20,6 +20,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -129,10 +131,12 @@ func TestUpdater_Enable(t *testing.T) {
 		cfg        *UpdateConfig // nil -> file not present
 		userCfg    OverrideConfig
 		installErr error
+		flags      InstallFlags
 
 		removedVersion    string
 		installedVersion  string
 		installedTemplate string
+		requestGroup      string
 		errMatch          string
 	}{
 		{
@@ -150,6 +154,7 @@ func TestUpdater_Enable(t *testing.T) {
 			},
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			requestGroup:      "group",
 		},
 		{
 			name: "config from user",
@@ -256,6 +261,12 @@ func TestUpdater_Enable(t *testing.T) {
 			installedTemplate: cdnURITemplate,
 		},
 		{
+			name:              "FIPS and Enterprise flags",
+			flags:             FlagEnterprise | FlagFIPS,
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+		},
+		{
 			name:     "invalid metadata",
 			cfg:      &UpdateConfig{},
 			errMatch: "invalid",
@@ -276,9 +287,20 @@ func TestUpdater_Enable(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			var requestedGroup string
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// TODO(sclevine): add web API test including group verification
-				w.Write([]byte(`{}`))
+				requestedGroup = r.URL.Query().Get("group")
+				config := webclient.PingResponse{
+					AutoUpdate: webclient.AutoUpdateSettings{
+						AgentVersion: "16.3.0",
+					},
+				}
+				if tt.flags&FlagEnterprise != 0 {
+					config.Edition = "ent"
+				}
+				config.FIPS = tt.flags&FlagFIPS != 0
+				err := json.NewEncoder(w).Encode(config)
+				require.NoError(t, err)
 			}))
 			t.Cleanup(server.Close)
 
@@ -297,11 +319,13 @@ func TestUpdater_Enable(t *testing.T) {
 				installedTemplate string
 				linkedVersion     string
 				removedVersion    string
+				installedFlags    InstallFlags
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, version, template string, _ InstallFlags) error {
+				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
 					installedVersion = version
 					installedTemplate = template
+					installedFlags = flags
 					return tt.installErr
 				},
 				FuncLink: func(_ context.Context, version string) error {
@@ -329,6 +353,8 @@ func TestUpdater_Enable(t *testing.T) {
 			require.Equal(t, tt.installedTemplate, installedTemplate)
 			require.Equal(t, tt.installedVersion, linkedVersion)
 			require.Equal(t, tt.removedVersion, removedVersion)
+			require.Equal(t, tt.flags, installedFlags)
+			require.Equal(t, tt.requestGroup, requestedGroup)
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
