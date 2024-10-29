@@ -12,7 +12,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/entraid"
+	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/web"
@@ -62,7 +62,7 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 			},
 		},
 		Display:             "Entra ID",
-		EntityDescriptorURL: entraid.FederationMetadataURL(inputs.tenantID, inputs.clientID),
+		EntityDescriptorURL: entraapiutils.FederationMetadataURL(inputs.tenantID, inputs.clientID),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,8 +103,10 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 				Settings: &types.PluginSpecV1_EntraId{
 					EntraId: &types.PluginEntraIDSettings{
 						SyncSettings: &types.PluginEntraIDSyncSettings{
-							DefaultOwners:  owners,
-							SsoConnectorId: inputs.authConnectorName,
+							DefaultOwners:     owners,
+							SsoConnectorId:    inputs.authConnectorName,
+							TenantId:          inputs.tenantID,
+							CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},

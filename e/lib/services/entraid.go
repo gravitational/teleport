@@ -62,17 +62,30 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 
 		return trace.Wrap(err)
 	}
-
+	var credential msgraph.AzureTokenProvider
 	// Construct MS Graph Client
-
-	getAssertion := func(ctx context.Context) (string, error) {
-		token, err := azureoidc.GenerateEntraOIDCToken(ctx, authServer, authServer.GetKeyStore(), process.Clock)
+	if usesSystemCredentials(spec) {
+		credential, err = azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return "", err
+			return trace.Wrap(err, "failed to create Azure default credential")
 		}
-		return token, nil
+	} else if integrationSpec != nil {
+		getAssertion := func(ctx context.Context) (string, error) {
+			token, err := azureoidc.GenerateEntraOIDCToken(ctx, authServer, authServer.GetKeyStore(), process.Clock)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			return token, nil
+		}
+		credential, err = azidentity.NewClientAssertionCredential(integrationSpec.TenantID, integrationSpec.ClientID, getAssertion, nil)
+		if err != nil {
+			return trace.Wrap(err, "failed to create Azure client assertion credential")
+		}
+	} else {
+		return trace.BadParameter("Azure OIDC integration spec is required for Entra ID service when system credentials are not used")
 	}
-	graphClient, err := constructGraphClient(integrationSpec.TenantID, integrationSpec.ClientID, getAssertion)
+
+	graphClient, err := constructGraphClient(credential)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -84,12 +97,17 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		owners = append(owners, accesslist.Owner{Name: name})
 	}
 
+	tenantID, err := getTenantID(spec, integrationSpec)
+	if err != nil {
+		return trace.Wrap(err, "failed to get tenant ID")
+	}
+
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
 		GraphClient:    graphClient,
 		UserSvc:        authServer,
 		AccessListSvc:  authServer,
 		DefaultOwners:  owners,
-		TenantID:       integrationSpec.TenantID,
+		TenantID:       tenantID,
 		SSOConnectorID: spec.SyncSettings.SsoConnectorId,
 	})
 	if err != nil {
@@ -110,7 +128,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 			Credentials:      conn.ClientGetCertificate,
 			SyncSettings:     spec.AccessGraphSettings,
 			GraphClient:      graphClient,
-			TenantID:         integrationSpec.TenantID,
+			TenantID:         tenantID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -162,15 +180,25 @@ func EntraIDPluginInit(ctx context.Context, process *service.TeleportProcess, st
 }
 
 // constructGraphClient returns a new MS Graph API client using the given function to retrieve the client assertion.
-func constructGraphClient(tenantID string, clientID string, getAssertion func(context.Context) (string, error)) (*msgraph.Client, error) {
-	credential, err := azidentity.NewClientAssertionCredential(tenantID, clientID, getAssertion, nil)
-	if err != nil {
-		return nil, err
-	}
-
+func constructGraphClient(credential msgraph.AzureTokenProvider) (*msgraph.Client, error) {
 	graphClient, err := msgraph.NewClient(msgraph.Config{
 		TokenProvider: credential,
 	})
 
 	return graphClient, trace.Wrap(err)
+}
+
+func usesSystemCredentials(plugin *types.PluginEntraIDSettings) bool {
+	return plugin.SyncSettings != nil && plugin.SyncSettings.CredentialsSource == types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
+}
+
+func getTenantID(spec *types.PluginEntraIDSettings, integrationSpec *types.AzureOIDCIntegrationSpecV1) (string, error) {
+	tenantID := spec.SyncSettings.TenantId
+	if tenantID == "" && integrationSpec != nil {
+		// backfill tenant ID from integration spec
+		tenantID = integrationSpec.TenantID
+	} else if tenantID == "" && integrationSpec == nil {
+		return "", trace.BadParameter("Tenant ID is required for Entra ID service")
+	}
+	return tenantID, nil
 }

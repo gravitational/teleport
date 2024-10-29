@@ -8,13 +8,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"path"
 
 	"github.com/gravitational/trace"
 	samltypes "github.com/russellhaering/gosaml2/types"
 
 	"github.com/gravitational/teleport/api/types"
+	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/msgraph"
 )
@@ -53,19 +52,8 @@ func entraAppToProto(ctx context.Context, app *msgraph.Application, ssoSettings 
 	}, nil
 }
 
-func FederationMetadataURL(tenantID, appID string) string {
-	return (&url.URL{
-		Scheme: "https",
-		Host:   "login.microsoftonline.com",
-		Path:   path.Join(tenantID, "federationmetadata", "2007-06", "federationmetadata.xml"),
-		RawQuery: url.Values{
-			"appid": {appID},
-		}.Encode(),
-	}).String()
-}
-
 func getAppSAMLSigningCertificates(ctx context.Context, client *http.Client, tenantID, appID string) ([]string, error) {
-	uri := FederationMetadataURL(tenantID, appID)
+	uri := entraapiutils.FederationMetadataURL(tenantID, appID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {

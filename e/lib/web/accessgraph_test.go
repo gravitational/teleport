@@ -294,6 +294,7 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 						SyncSettings: &types.PluginEntraIDSyncSettings{
 							DefaultOwners:  []string{"admin"},
 							SsoConnectorId: "foo",
+							TenantId:       "bar",
 						},
 					},
 				},

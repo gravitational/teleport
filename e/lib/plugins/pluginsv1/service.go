@@ -145,6 +145,10 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.BadParameter("Plugin must be set")
 	}
 
+	if err := validateEntraTenantID(plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If the plugin needs cleanup, we won't allow the plugin to be created.
 	needsCleanup, _, err := s.needsCleanup(ctx, plugin.GetType())
 	// We'll ignore the not found error for now and let the rest of this function produce a more specific error.
@@ -273,6 +277,10 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 		if err := inPlugin.SetCredentials(oldPlugin.GetCredentials()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if err := validateEntraTenantID(inPlugin); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	updatedPlugin, err := s.pluginService.UpdatePlugin(ctx, inPlugin)
@@ -781,4 +789,19 @@ func (s *Service) isPluginOfTypeActive(ctx context.Context, pluginType types.Plu
 	}
 
 	return false, nil
+}
+
+func isEntraIDPlugin(plugin *types.PluginV1) bool {
+	return plugin.Spec.GetEntraId() != nil
+}
+
+func validateEntraTenantID(plugin *types.PluginV1) error {
+	if !isEntraIDPlugin(plugin) {
+		return nil
+	}
+
+	if plugin.Spec.GetEntraId().SyncSettings == nil || plugin.Spec.GetEntraId().SyncSettings.TenantId != "" {
+		return nil
+	}
+	return trace.BadParameter("field Spec.EntraId.SyncSettings.TenantId must be present")
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/services"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 // entraIDInstanceFactory will create Entra ID services based on the plugin specification.
@@ -20,13 +21,13 @@ func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 	authServer := deps.parentProcess.GetAuthServer()
 
 	return func() error {
-		integration, err := authServer.Services.GetIntegration(ctx, plugin.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		azureSpec := integration.GetAzureOIDCIntegrationSpec()
-		if azureSpec == nil {
-			return trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
+		var azureSpec *types.AzureOIDCIntegrationSpecV1
+		if !usesSystemCredentials(plugin) {
+			var err error
+			azureSpec, err = loadAzureIntegration(ctx, authServer, plugin.GetName())
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 
 		closeEvent, err := services.EntraIDPluginInit(deps.lifetime, deps.parentProcess, deps.statusSink, entraSpec, azureSpec)
@@ -50,4 +51,20 @@ func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 		deps.logger.InfoContext(ctx, "Entra ID plugin has stopped")
 		return nil
 	}, nil
+}
+
+func usesSystemCredentials(plugin *types.PluginV1) bool {
+	return plugin.Spec.GetEntraId() != nil && plugin.Spec.GetEntraId().SyncSettings != nil && plugin.Spec.GetEntraId().SyncSettings.CredentialsSource == types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
+}
+
+func loadAzureIntegration(ctx context.Context, authServer *auth.Server, name string) (*types.AzureOIDCIntegrationSpecV1, error) {
+	integration, err := authServer.Services.GetIntegration(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	azureSpec := integration.GetAzureOIDCIntegrationSpec()
+	if azureSpec == nil {
+		return nil, trace.BadParameter("expected %q to be an %q integration, was %q instead", integration.GetName(), types.IntegrationSubKindAzureOIDC, integration.GetSubKind())
+	}
+	return azureSpec, nil
 }
