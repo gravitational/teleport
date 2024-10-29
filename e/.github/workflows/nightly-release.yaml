@@ -20,7 +20,7 @@ jobs:
           # As part of the preflight process this should be uncommented to prepare
           # nightly builds for prereleases of a new release. Once the new version has
           # fully released, this should be bumped to the next release and commented out.
-          # - branch/v17
+          - branch/v17
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
