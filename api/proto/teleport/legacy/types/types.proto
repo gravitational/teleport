@@ -6620,19 +6620,22 @@ message SMTPSpec {
 // SMTPStartTLSPolicy defines the start TLS policy used to communicate with the
 // SMTP service.
 enum SMTPStartTLSPolicy {
-  // SMTP_MANDATORY_START_TLS means that SMTP transactions must be encrypted.
-  // SMTP transactions are aborted unless STARTTLS is supported by the
-  // SMTP server. Recommended for all modern SMTP servers.
-  SMTP_MANDATORY_START_TLS = 0;
+  // SMTP_START_TLS_POLICY_UNSPECIFIED is the default zero value.
+  SMTP_START_TLS_POLICY_UNSPECIFIED = 0;
 
-  // SMTP_OPPORTUNISTIC_START_TLS means that SMTP transactions are encrypted if
-  // STARTTLS is supported by the SMTP server. Otherwise, messages are
-  // sent in the clear.
-  SMTP_OPPORTUNISTIC_START_TLS = 1;
+  // SMTP_START_TLS_POLICY_MANDATORY means that SMTP transactions must be
+  // encrypted. SMTP transactions are aborted unless STARTTLS is supported by
+  // the SMTP server. Recommended for all modern SMTP servers.
+  SMTP_START_TLS_POLICY_MANDATORY = 1;
 
-  // SMTP_NO_START_TLS means encryption is disabled and messages are sent in the
-  // clear.
-  SMTP_NO_START_TLS = 2;
+  // SMTP_START_TLS_POLICY_OPPORTUNISTIC means that SMTP transactions are
+  // encrypted if STARTTLS is supported by the SMTP server. Otherwise, messages
+  // are sent in the clear.
+  SMTP_START_TLS_POLICY_OPPORTUNISTIC = 2;
+
+  // SMTP_START_TLS_POLICY_DISABLED means encryption is disabled and messages
+  // are sent in the clear.
+  SMTP_START_TLS_POLICY_DISABLED = 3;
 }
 
 message PluginBootstrapCredentialsV1 {

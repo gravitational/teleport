@@ -1298,7 +1298,7 @@ func TestPluginEmailSettings(t *testing.T) {
 					SmtpSpec: &SMTPSpec{
 						Host:           "smtp.example.com",
 						Port:           587,
-						StartTlsPolicy: SMTPStartTLSPolicy_SMTP_OPPORTUNISTIC_START_TLS,
+						StartTlsPolicy: SMTPStartTLSPolicy_SMTP_START_TLS_POLICY_OPPORTUNISTIC,
 					},
 				}
 			},
