@@ -40,6 +40,8 @@ const (
 	statusEmitTimeout = 10 * time.Second
 	// mailgunHTTPTimeout specifies the max timeout for mailgun api send request.
 	mailgunHTTPTimeout = 10 * time.Second
+	// smtpDialerTimeout specifies the max timeout for smtp dialer read/write operations.
+	smtpDialerTimeout = 10 * time.Second
 )
 
 // Mailer is an interface to mail sender
@@ -72,8 +74,14 @@ type MailgunMailer struct {
 func NewSMTPMailer(c SMTPConfig, sink common.StatusSink, sender, clusterName string) Mailer {
 	dialer := mail.NewDialer(c.Host, c.Port, c.Username, c.Password)
 	dialer.StartTLSPolicy = c.MailStartTLSPolicy
+	dialer.Timeout = smtpDialerTimeout
 
-	return &SMTPMailer{dialer, sender, clusterName, sink}
+	return &SMTPMailer{
+		dialer:      dialer,
+		sender:      sender,
+		clusterName: clusterName,
+		sink:        sink,
+	}
 }
 
 // NewMailgunMailer inits new Mailgun mailer
@@ -167,8 +175,8 @@ func (m *SMTPMailer) base36(input uint64) string {
 	return strings.ToUpper(strconv.FormatUint(input, 36))
 }
 
-// emitStatus emits generic internal server error status.
-func (m *SMTPMailer) emitStatus(ctx context.Context, err error) {
+// emitStatus emits status based on provided statusErr.
+func (m *SMTPMailer) emitStatus(ctx context.Context, statusErr error) {
 	if m.sink == nil {
 		return
 	}
@@ -178,8 +186,8 @@ func (m *SMTPMailer) emitStatus(ctx context.Context, err error) {
 
 	log := logger.Get(ctx)
 	code := http.StatusOK
-	if err != nil {
-		// Returned error is undocumented. Using geneirc error code for all errors.
+	if statusErr != nil {
+		// Returned error is undocumented. Using generic error code for all errors.
 		code = http.StatusInternalServerError
 	}
 	if err := m.sink.Emit(ctx, common.StatusFromStatusCode(code)); err != nil {
@@ -194,7 +202,7 @@ func (m *MailgunMailer) CheckHealth(ctx context.Context) error {
 
 	msg := m.mailgun.NewMessage(m.sender, "Health Check", "Testing Mailgun API connection...", m.fallbackRecipients...)
 	msg.SetRequireTLS(true)
-	msg.EnableTestMode() // Test message submission without delivering to recpients.
+	msg.EnableTestMode() // Test message submission without delivering to recipients.
 	_, _, err := m.mailgun.Send(ctx, msg)
 	return trace.Wrap(err)
 }
