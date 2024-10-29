@@ -141,7 +141,7 @@ describe('requiredEmailLike', () => {
 });
 
 describe('requiredPort', () => {
-  const errMsg = 'Port required [0-65535]';
+  const errMsg = 'Port required [1-65535]';
   test.each`
     port       | expected
     ${''}      | ${{ valid: false, message: errMsg }}
