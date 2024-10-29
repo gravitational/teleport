@@ -802,6 +802,9 @@ func (c *SMTPSpec) CheckAndSetDefaults() error {
 	if c.Port == 0 {
 		return trace.BadParameter("port must be set")
 	}
+	if c.StartTlsPolicy == SMTPStartTLSPolicy_SMTP_START_TLS_POLICY_UNSPECIFIED {
+		c.StartTlsPolicy = SMTPStartTLSPolicy_SMTP_START_TLS_POLICY_MANDATORY
+	}
 	return nil
 }
 
