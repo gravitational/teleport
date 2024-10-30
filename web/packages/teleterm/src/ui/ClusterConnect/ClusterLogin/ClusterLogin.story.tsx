@@ -15,59 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
-import { FC, PropsWithChildren } from 'react';
-
-import Dialog from 'design/Dialog';
-import {
-  Attempt,
-  makeErrorAttempt,
-  makeProcessingAttempt,
-  makeSuccessAttempt,
-} from 'shared/hooks/useAsync';
-
-import * as types from 'teleterm/ui/services/clusters/types';
-
-import { dialogCss } from '../ClusterConnect';
-
-import {
-  ClusterLoginPresentation,
-  ClusterLoginPresentationProps,
-} from './ClusterLogin';
+import { ClusterLoginPresentation } from './ClusterLogin';
+import { TestContainer, makeProps } from './storyHelpers';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin',
 };
-
-function makeProps(): ClusterLoginPresentationProps {
-  return {
-    shouldPromptSsoStatus: false,
-    title: 'localhost',
-    loginAttempt: {
-      status: '',
-      statusText: '',
-    } as Attempt<void>,
-    init: () => null,
-    initAttempt: makeSuccessAttempt({
-      localAuthEnabled: true,
-      authProviders: [],
-      type: '',
-      hasMessageOfTheDay: false,
-      allowPasswordless: true,
-      localConnectorName: '',
-      authType: 'local',
-    } as types.AuthSettings),
-    loggedInUserName: null,
-    onCloseDialog: () => null,
-    onAbort: () => null,
-    onLoginWithLocal: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithPasswordless: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithSso: () => null,
-    clearLoginAttempt: () => null,
-    passwordlessLoginState: null,
-    reason: undefined,
-  };
-}
 
 export const LocalOnly = () => {
   const props = makeProps();
@@ -345,9 +300,3 @@ export const HardwareCredentialPromptProcessing = () => {
     </TestContainer>
   );
 };
-
-const TestContainer: FC<PropsWithChildren> = ({ children }) => (
-  <Dialog dialogCss={dialogCss} open={true}>
-    {children}
-  </Dialog>
-);
