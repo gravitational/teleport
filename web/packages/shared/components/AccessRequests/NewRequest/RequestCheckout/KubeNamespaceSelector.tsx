@@ -24,8 +24,6 @@ import { ActionMeta } from 'react-select';
 import { Option } from 'shared/components/Select';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 
-import { requiredField } from 'shared/components/Validation/rules';
-
 import { CheckableOptionComponent } from '../CheckableOption';
 
 import { PendingListItem, PendingKubeResourceItem } from './RequestCheckout';
@@ -38,7 +36,6 @@ export function KubeNamespaceSelector({
   savedResourceItems,
   toggleResource,
   bulkToggleKubeResources,
-  namespaceRequired,
 }: {
   kubeClusterItem: PendingListItem;
   fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
@@ -48,7 +45,6 @@ export function KubeNamespaceSelector({
     resources: PendingKubeResourceItem[],
     resource: PendingListItem
   ) => void;
-  namespaceRequired: boolean;
 }) {
   // Flag is used to determine if we need to perform batch action
   // eg: When menu is open, we want to apply changes only after
@@ -144,7 +140,7 @@ export function KubeNamespaceSelector({
   return (
     <Box width="100%" mb={-3}>
       <StyledSelect
-        label={`Namespaces${namespaceRequired ? ' (required)' : ''}:`}
+        label={`Namespaces:`}
         inputId={kubeClusterItem.id}
         width="100%"
         placeholder="Start typing a namespace and press enter"
@@ -162,11 +158,6 @@ export function KubeNamespaceSelector({
         onChange={handleChange}
         value={selectedOpts}
         menuPosition="fixed" /* required to render dropdown out of its row */
-        rule={
-          namespaceRequired
-            ? requiredField('namespace selection required')
-            : undefined
-        }
         initOptionsOnMenuOpen={(opts: Option[]) => setInitOptions(opts)}
         defaultOptions={initOptions}
       />
