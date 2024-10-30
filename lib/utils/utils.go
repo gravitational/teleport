@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -725,3 +726,26 @@ const (
 	// ExtIntCertTypeUser indicates a user-type certificate.
 	ExtIntCertTypeUser = "user"
 )
+
+// IsEmpty checks if the struct is empty (contains default values).
+func IsEmpty(s interface{}) bool {
+	v := reflect.ValueOf(s)
+	if v.Kind() != reflect.Struct {
+		return false
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		f := v.Field(i)
+		if f.Kind() == reflect.Struct {
+			if f.CanInterface() && !IsEmpty(f.Interface()) {
+				return false
+			}
+			continue
+		}
+
+		if !v.Field(i).IsZero() {
+			return false
+		}
+	}
+	return true
+}

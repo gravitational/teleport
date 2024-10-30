@@ -42,6 +42,73 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestIsEmpty(t *testing.T) {
+	type nestedS struct {
+		B bool
+	}
+	type s struct {
+		Ip *int
+		I  int
+		i  int
+		Ia []int
+		B  bool
+		Sp *nestedS
+		S  nestedS
+	}
+
+	var i int
+	for _, tc := range []struct {
+		name    string
+		s       s
+		isEmpty bool
+	}{
+		{
+			name:    "all values are empty",
+			s:       s{},
+			isEmpty: true,
+		},
+		{
+			name:    "non-nil int pointer is not empty",
+			s:       s{Ip: &i},
+			isEmpty: false,
+		},
+		{
+			name:    "non-nil int array is not empty",
+			s:       s{Ia: []int{}},
+			isEmpty: false,
+		},
+		{
+			name:    "non-default int is not empty",
+			s:       s{I: 1},
+			isEmpty: false,
+		},
+		{
+			name:    "non-default bool is not empty",
+			s:       s{B: true},
+			isEmpty: false,
+		},
+		{
+			name:    "non-nil struct pointer is not empty",
+			s:       s{Sp: &nestedS{}},
+			isEmpty: false,
+		},
+		{
+			name:    "nested empty struct is empty",
+			s:       s{S: nestedS{}},
+			isEmpty: true,
+		},
+		{
+			name:    "nested non-default struct is not empty",
+			s:       s{S: nestedS{B: true}},
+			isEmpty: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.isEmpty, IsEmpty(tc.s))
+		})
+	}
+}
+
 func TestHostUUIDIdempotent(t *testing.T) {
 	t.Parallel()
 

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -214,7 +215,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		}
 		backendForNewKeys = gcpBackend
 		usableSigningBackends = []backend{gcpBackend, softwareBackend}
-	case cfg.AWSKMS != (servicecfg.AWSKMSConfig{}):
+	case !utils.IsEmpty(cfg.AWSKMS):
 		awsBackend, err := newAWSKMSKeystore(ctx, &cfg.AWSKMS, opts)
 		if err != nil {
 			return nil, trace.Wrap(err)

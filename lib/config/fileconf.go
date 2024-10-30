@@ -924,6 +924,10 @@ type AWSKMS struct {
 		// Enabled configures new keys to be multi-region.
 		Enabled bool
 	} `yaml:"multi_region,omitempty"`
+	// Tags are key/value pairs used as AWS resource tags. This replaces the default
+	// TeleportCluster tag used for KMS keys. Changing tags after Teleport has already
+	// created KMS keys may require manually updating the tags of existing keys.
+	Tags map[string]string
 }
 
 // TrustedCluster struct holds configuration values under "trusted_clusters" key

@@ -211,13 +211,13 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestMultiRegionKeys asserts that a keystore created with multi-region enabled
-// correctly passes this argument to the AWS client. This gives very little real
-// coverage since the AWS KMS service here is faked, but at least we know the
-// keystore passed the bool to the client correctly. TestBackends and
-// TestManager are both able to run with a real AWS KMS client and you can
-// confirm the keys are really multi-region there.
-func TestMultiRegionKeys(t *testing.T) {
+// TestKeyAWSKeyCreationParameters asserts that an AWS keystore created with a
+// variety of parameters correctly passes these parameters to the AWS client.
+// This gives very little real coverage since the AWS KMS service here is faked,
+// but at least we know the keystore passed the parameters to the client correctly.
+// TestBackends and TestManager are both able to run with a real AWS KMS client
+// and you can confirm the keys are configured correctly there.
+func TestAWSKeyCreationParameters(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -236,15 +236,37 @@ func TestMultiRegionKeys(t *testing.T) {
 		clockworkOverride: clock,
 	}
 
-	for _, multiRegion := range []bool{false, true} {
-		t.Run(fmt.Sprint(multiRegion), func(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		multiRegion bool
+		tags        map[string]string
+	}{
+		{
+			name:        "multi-region enabled with default tags",
+			multiRegion: true,
+		},
+		{
+			name:        "multi-region disabled with default tags",
+			multiRegion: false,
+		},
+		{
+			name:        "multi region disabled with custom tags",
+			multiRegion: false,
+			tags: map[string]string{
+				"key": "value",
+			},
+		},
+	} {
+
+		t.Run(tc.name, func(t *testing.T) {
 			cfg := servicecfg.KeystoreConfig{
 				AWSKMS: servicecfg.AWSKMSConfig{
 					AWSAccount: "123456789012",
 					AWSRegion:  "us-west-2",
 					MultiRegion: struct{ Enabled bool }{
-						Enabled: multiRegion,
+						Enabled: tc.multiRegion,
 					},
+					Tags: tc.tags,
 				},
 			}
 			keyStore, err := NewManager(ctx, &cfg, opts)
@@ -256,10 +278,24 @@ func TestMultiRegionKeys(t *testing.T) {
 			keyID, err := parseAWSKMSKeyID(sshKeyPair.PrivateKey)
 			require.NoError(t, err)
 
-			if multiRegion {
+			if tc.multiRegion {
 				assert.Contains(t, keyID.arn, "mrk-")
 			} else {
 				assert.NotContains(t, keyID.arn, "mrk-")
+			}
+
+			awsKeyStore, ok := keyStore.backendForNewKeys.(*awsKMSKeystore)
+			require.True(t, ok)
+			tagsOut, err := awsKeyStore.kms.ListResourceTags(ctx, &kms.ListResourceTagsInput{KeyId: &keyID.arn})
+			require.NoError(t, err)
+			if len(tc.tags) == 0 {
+				tc.tags = map[string]string{
+					"TeleportCluster": clusterName.GetClusterName(),
+				}
+			}
+			for _, tag := range tagsOut.Tags {
+				v := tc.tags[aws.ToString(tag.TagKey)]
+				require.Equal(t, v, aws.ToString(tag.TagValue))
 			}
 		})
 	}
