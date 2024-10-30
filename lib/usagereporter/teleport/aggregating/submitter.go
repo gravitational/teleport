@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -69,9 +68,6 @@ var alertMessage = fmt.Sprintf("Teleport has failed to contact the usage reporti
 type SubmitterConfig struct {
 	// Backend is the backend to use to read reports and apply locks. Required.
 	Backend backend.Backend
-	// Log is the [logrus.FieldLogger] used for logging.
-	// TODO(tross): remove once e has been converted
-	Log logrus.FieldLogger
 	// Logger is the used for emitting log messages.
 	Logger *slog.Logger
 	// Status is used to create or clear cluster alerts on a failure. Required.
