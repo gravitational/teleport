@@ -22,12 +22,12 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
-import { dialogCss } from '../ClusterConnect';
+import { dialogCss } from '../spacing';
 
 import { ClusterLoginPresentationProps } from './ClusterLogin';
 
 export const TestContainer: FC<PropsWithChildren> = ({ children }) => (
-  <Dialog dialogCss={dialogCss} open={true}>
+  <Dialog dialogCss={dialogCss} open>
     {children}
   </Dialog>
 );

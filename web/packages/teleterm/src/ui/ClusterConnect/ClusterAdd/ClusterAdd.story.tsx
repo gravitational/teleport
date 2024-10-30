@@ -24,7 +24,7 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
-import { dialogCss } from '../ClusterConnect';
+import { dialogCss } from '../spacing';
 
 import { ClusterAdd } from './ClusterAdd';
 
