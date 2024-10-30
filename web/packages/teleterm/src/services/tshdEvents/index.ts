@@ -85,8 +85,6 @@ async function createServer(
           return logger.error(error.message);
         }
 
-        server.start();
-
         const resolvedAddress = requestedAddress.startsWith('tcp:')
           ? `localhost:${port}`
           : requestedAddress;
