@@ -26,12 +26,13 @@ func GetCloudFeatures(ctx context.Context, cloudClient cloud.Client) (*modules.F
 
 	f := &modules.Features{
 		// Cloud Settings
-		Cloud:               resp.IsCloud,
-		CustomTheme:         resp.CustomTheme,
-		IsStripeManaged:     resp.StripeManaged,
-		IsUsageBasedBilling: resp.IsUsageBased,
-		Questionnaire:       resp.Questionnaire,
-		SupportType:         proto.SupportType(resp.SupportType),
+		Cloud:                 resp.IsCloud,
+		CustomTheme:           resp.CustomTheme,
+		IsStripeManaged:       resp.StripeManaged,
+		IsUsageBasedBilling:   resp.IsUsageBased,
+		Questionnaire:         resp.Questionnaire,
+		SupportType:           proto.SupportType(resp.SupportType),
+		CloudAnonymizationKey: resp.CloudAnonymizationKey,
 		// Entitlements
 		Entitlements: GetCloudEntitlements(resp.Entitlements),
 

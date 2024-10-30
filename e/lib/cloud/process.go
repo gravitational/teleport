@@ -124,16 +124,28 @@ func NewTeleport(cfg Config) (*Process, error) {
 		cloudClient.Close()
 	})
 
+	// the initial anonymization key may come from a self-hosted license, a cloud API call, or default to the cluster ID
+	anonymizationKey, err := process.GetAuthServer().GetAnonymizationKey(process.ExitContext())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Start feature service
 	if cfg.LicenseFile.License.GetCloud() {
-		// Use a jittered interval between (defaultFeatureQuerryInterval, defaultFeatureQueryInterval * 2)
+		// Use a jittered interval between (defaultFeatureQueryInterval, defaultFeatureQueryInterval * 2)
 		// so cloud server doesn't get too crowded when all auth servers are restarted on upgrades
 		jitteredQueryInterval := utils.HalfJitter(defaultFeatureQueryInterval * 2)
 		featureService, err := feature.NewService(feature.Config{
-			Backend:        process.GetBackend(),
-			CloudClient:    cloudClient,
-			Interval:       jitteredQueryInterval,
-			RequestTimeout: defaultFeatureQueryTimeout,
+			Backend:                  process.GetBackend(),
+			CloudClient:              cloudClient,
+			Interval:                 jitteredQueryInterval,
+			RequestTimeout:           defaultFeatureQueryTimeout,
+			OnAnonymizationKeyUpdate: anonymizer.SetAnonymizationKey,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -155,6 +167,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		process.ExitContext(),
 		cfg.LicenseFile,
 		process.TeleportProcess,
+		anonymizer,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,6 +177,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		process.TeleportProcess,
 		cfg.LicenseFile,
 		isCloudTrue,
+		anonymizer,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}

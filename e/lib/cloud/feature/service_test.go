@@ -148,13 +148,29 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 	mockCloudClient := &testClient{}
 	backend := newMemoryBackend(t)
 
+	lastKnownKey := []byte{}
+	var mu sync.Mutex
+
+	keyUpdates := func(key []byte) {
+		mu.Lock()
+		lastKnownKey = key
+		mu.Unlock()
+	}
+
+	getLastKey := func() []byte {
+		mu.Lock()
+		defer mu.Unlock()
+		return lastKnownKey
+	}
+
 	fakeClock := clockwork.NewFakeClock()
 	cfg := Config{
-		Backend:        backend,
-		CloudClient:    mockCloudClient,
-		Interval:       500 * time.Millisecond,
-		RequestTimeout: 500 * time.Millisecond,
-		Clock:          fakeClock,
+		Backend:                  backend,
+		CloudClient:              mockCloudClient,
+		Interval:                 500 * time.Millisecond,
+		RequestTimeout:           500 * time.Millisecond,
+		Clock:                    fakeClock,
+		OnAnonymizationKeyUpdate: keyUpdates,
 	}
 	service, err := NewService(cfg)
 	require.NoError(t, err)
@@ -172,6 +188,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 					string(entitlements.K8s):            {Enabled: true},
 					string(entitlements.AccessRequests): {Enabled: true},
 				},
+				CloudAnonymizationKey: []byte("anonymization-key-1"),
 			}, nil
 		},
 	)
@@ -187,6 +204,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		AccessControls:          true,
 		Assist:                  false,
 		AdvancedAccessWorkflows: true,
+		CloudAnonymizationKey:   []byte("anonymization-key-1"),
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.K8s:                    {Enabled: true, Limit: 0},
 			entitlements.AccessLists:            {},
@@ -215,6 +233,8 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		},
 	})
 
+	require.Equal(t, []byte("anonymization-key-1"), getLastKey())
+
 	// update features
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
@@ -225,15 +245,17 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 					"K8s": {Enabled: false, Limit: 0},
 					"App": {Enabled: true, Limit: 0},
 				},
+				CloudAnonymizationKey: []byte("anonymization-key-2"),
 			}, nil
 		},
 	)
 	// check backend for updated features
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		IsUsageBasedBilling: true,
-		ProductType:         modules.ProductTypeTeam,
-		AccessControls:      true,
-		Assist:              false,
+		IsUsageBasedBilling:   true,
+		ProductType:           modules.ProductTypeTeam,
+		AccessControls:        true,
+		Assist:                false,
+		CloudAnonymizationKey: []byte("anonymization-key-2"),
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.App:                    {Enabled: true, Limit: 0},
 			entitlements.K8s:                    {Enabled: false, Limit: 0},
@@ -262,6 +284,8 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		},
 	})
 
+	require.Equal(t, []byte("anonymization-key-2"), getLastKey())
+
 	// test that the service won't crash if it receives an error
 	mockCloudClient.setMockGetFeatures(
 		func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error) {
@@ -270,10 +294,11 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 	)
 	// assert backend has last-known features still stored after error
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
-		IsUsageBasedBilling: true,
-		ProductType:         modules.ProductTypeTeam,
-		AccessControls:      true,
-		Assist:              false,
+		IsUsageBasedBilling:   true,
+		ProductType:           modules.ProductTypeTeam,
+		AccessControls:        true,
+		Assist:                false,
+		CloudAnonymizationKey: []byte("anonymization-key-2"),
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.App:                    {Enabled: true, Limit: 0},
 			entitlements.K8s:                    {Enabled: false, Limit: 0},

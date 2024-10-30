@@ -91,6 +91,7 @@ func InitAggregatingUsageReporting(
 	process *service.TeleportProcess,
 	licenseFile *licensefile.LicenseFile,
 	isCloud bool,
+	anonymizer utils.Anonymizer,
 ) error {
 	endpoint := aggregating.DefaultEndpoint
 	if isCloud {
@@ -116,18 +117,13 @@ func InitAggregatingUsageReporting(
 
 	log := usageReportingLog(process)
 
-	anonymizationKey, err := process.GetAuthServer().GetAnonymizationKey(process.ExitContext())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	reporter, err := aggregating.NewReporter(process.ExitContext(),
 		aggregating.ReporterConfig{
-			Backend:          process.GetBackend(),
-			Logger:           log,
-			ClusterName:      clusterName,
-			HostID:           process.GetAuthServer().ServerID,
-			AnonymizationKey: anonymizationKey,
+			Backend:     process.GetBackend(),
+			Logger:      log,
+			ClusterName: clusterName,
+			HostID:      process.GetAuthServer().ServerID,
+			Anonymizer:  anonymizer,
 		})
 	if err != nil {
 		return trace.Wrap(err)

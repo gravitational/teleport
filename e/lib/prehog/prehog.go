@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/usageevents"
 	"github.com/gravitational/teleport/lib/service"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -41,6 +42,7 @@ func InitStreamingUsageReporting(
 	ctx context.Context,
 	licenseFile *licensefile.LicenseFile,
 	process *service.TeleportProcess,
+	anonymizer utils.Anonymizer,
 ) error {
 	var endpoint string
 	if e := os.Getenv(envVarPreHogEndpoint); e != "" {
@@ -74,14 +76,9 @@ func InitStreamingUsageReporting(
 		return trace.Wrap(err)
 	}
 
-	anonymizationKey, err := process.GetAuthServer().GetAnonymizationKey(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Replace the discard usage reporter with the real implementation.
 	// TODO(tross): Use the slog.Logger once NewStreamingUsageReporter is converted to slog.
-	reporter, err := usagereporter.NewStreamingUsageReporter(nil, clusterName, anonymizationKey, submitter)
+	reporter, err := usagereporter.NewStreamingUsageReporter(nil, clusterName, anonymizer, submitter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

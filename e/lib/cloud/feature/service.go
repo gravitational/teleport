@@ -1,6 +1,7 @@
 package feature
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"time"
@@ -28,6 +29,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// RequestTimeout is the timeout of the Cloud request
 	RequestTimeout time.Duration
+	// OnAnonymizationKeyUpdate is an optional callback that runs when a new anonymization key is detected
+	OnAnonymizationKeyUpdate func([]byte)
 }
 
 // CheckAndSetDefaults checks and sets default config values
@@ -58,12 +61,13 @@ func (c *Config) CheckAndSetDefaults() error {
 // Service is a service that periodically
 // fetch features from Cloud and stores it in the backend
 type Service struct {
-	backend        backend.Backend
-	cloudClient    cloud.Client
-	logger         *slog.Logger
-	interval       time.Duration
-	requestTimeout time.Duration
-	clock          clockwork.Clock
+	backend                  backend.Backend
+	cloudClient              cloud.Client
+	logger                   *slog.Logger
+	interval                 time.Duration
+	requestTimeout           time.Duration
+	clock                    clockwork.Clock
+	onAnonymizationKeyUpdate func([]byte)
 }
 
 // NewService returns a new service that periodically fetches
@@ -74,12 +78,13 @@ func NewService(cfg Config) (*Service, error) {
 	}
 
 	return &Service{
-		backend:        cfg.Backend,
-		cloudClient:    cfg.CloudClient,
-		logger:         cfg.Logger,
-		interval:       cfg.Interval,
-		requestTimeout: cfg.RequestTimeout,
-		clock:          cfg.Clock,
+		backend:                  cfg.Backend,
+		cloudClient:              cfg.CloudClient,
+		logger:                   cfg.Logger,
+		interval:                 cfg.Interval,
+		requestTimeout:           cfg.RequestTimeout,
+		clock:                    cfg.Clock,
+		onAnonymizationKeyUpdate: cfg.OnAnonymizationKeyUpdate,
 	}, nil
 }
 
@@ -88,8 +93,10 @@ func NewService(cfg Config) (*Service, error) {
 func (s *Service) Run(ctx context.Context) error {
 	s.logger.InfoContext(ctx, "Feature service has started", "update_interval", s.interval)
 	ticker := s.clock.NewTicker(s.interval)
-
 	defer ticker.Stop()
+
+	currentAnonymizationKey := modules.GetModules().Features().CloudAnonymizationKey
+
 	for {
 		select {
 		case <-ticker.Chan():
@@ -103,6 +110,12 @@ func (s *Service) Run(ctx context.Context) error {
 
 			// update cluster features
 			modules.GetModules().SetFeatures(*f)
+
+			// call anonymization key callback if provided
+			if s.onAnonymizationKeyUpdate != nil && !bytes.Equal(currentAnonymizationKey, f.CloudAnonymizationKey) {
+				s.onAnonymizationKeyUpdate(f.CloudAnonymizationKey)
+				currentAnonymizationKey = f.CloudAnonymizationKey
+			}
 
 			// store in the backend
 			_, err = Store(ctx, *f, s.backend)
