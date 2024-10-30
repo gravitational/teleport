@@ -30,6 +30,8 @@ import (
 	"os/user"
 	"path"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -89,10 +91,37 @@ type allowedOps struct {
 type sftpHandler struct {
 	logger  *log.Entry
 	allowed *allowedOps
-	events  chan<- *apievents.SFTP
+
+	// mtx protects files
+	mtx   sync.Mutex
+	files []*trackedFile
+
+	events chan<- apievents.AuditEvent
 }
 
-func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- *apievents.SFTP) (*sftpHandler, error) {
+type trackedFile struct {
+	file         *os.File
+	bytesRead    atomic.Uint64
+	bytesWritten atomic.Uint64
+}
+
+func (t *trackedFile) ReadAt(b []byte, off int64) (int, error) {
+	n, err := t.file.ReadAt(b, off)
+	t.bytesRead.Add(uint64(n))
+	return n, err
+}
+
+func (t *trackedFile) WriteAt(b []byte, off int64) (int, error) {
+	n, err := t.file.WriteAt(b, off)
+	t.bytesWritten.Add(uint64(n))
+	return n, err
+}
+
+func (t *trackedFile) Close() error {
+	return t.file.Close()
+}
+
+func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- apievents.AuditEvent) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
 		allowed = &allowedOps{
@@ -188,7 +217,7 @@ func (s *sftpHandler) Filewrite(req *sftp.Request) (_ io.WriterAt, retErr error)
 	return s.openFile(req)
 }
 
-func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
+func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error) {
 	if err := s.ensureReqIsAllowed(req); err != nil {
 		return nil, err
 	}
@@ -220,8 +249,12 @@ func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	trackFile := &trackedFile{file: f}
+	s.mtx.Lock()
+	s.files = append(s.files, trackFile)
+	s.mtx.Unlock()
 
-	return f, nil
+	return trackFile, nil
 }
 
 // Filecmd handles file modification requests.
@@ -607,7 +640,7 @@ func onSFTP() error {
 	}
 	ch := compositeCh{io.NopCloser(bufferedReader), chw}
 
-	sftpEvents := make(chan *apievents.SFTP, 1)
+	sftpEvents := make(chan apievents.AuditEvent, 1)
 	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)
 	if err != nil {
 		return trace.Wrap(err)
@@ -627,17 +660,24 @@ func onSFTP() error {
 		var m jsonpb.Marshaler
 		var buf bytes.Buffer
 		for event := range sftpEvents {
+			oneOfEvent, err := apievents.ToOneOf(event)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to convert SFTP event to OneOf.")
+				continue
+			}
+
 			buf.Reset()
-			if err := m.Marshal(&buf, event); err != nil {
+			if err := m.Marshal(&buf, oneOfEvent); err != nil {
 				logger.WithError(err).Warn("Failed to marshal SFTP event.")
-			} else {
-				// Append a NULL byte so the parent process will know where
-				// this event ends
-				buf.WriteByte(0x0)
-				_, err = io.Copy(auditFile, &buf)
-				if err != nil {
-					logger.WithError(err).Warn("Failed to send SFTP event to parent.")
-				}
+				continue
+			}
+
+			// Append a NULL byte so the parent process will know where
+			// this event ends
+			buf.WriteByte(0x0)
+			_, err = io.Copy(auditFile, &buf)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to send SFTP event to parent.")
 			}
 		}
 
@@ -650,6 +690,25 @@ func onSFTP() error {
 	} else {
 		serveErr = trace.Wrap(serveErr)
 	}
+
+	// Send a summary event last
+	summaryEvent := &apievents.SFTPSummary{
+		Metadata: apievents.Metadata{
+			Type: events.SFTPSummaryEvent,
+			Code: events.SFTPSummaryCode,
+			Time: time.Now(),
+		},
+	}
+	// We don't need to worry about closing these files, handler will
+	// take care of that for us
+	for _, f := range h.files {
+		summaryEvent.FileTransferStats = append(summaryEvent.FileTransferStats, &apievents.FileTransferStat{
+			Path:         f.file.Name(),
+			BytesRead:    f.bytesRead.Load(),
+			BytesWritten: f.bytesWritten.Load(),
+		})
+	}
+	sftpEvents <- summaryEvent
 
 	// Wait until event marshaling goroutine is finished
 	close(sftpEvents)

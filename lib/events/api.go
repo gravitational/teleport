@@ -285,6 +285,8 @@ const (
 	// SFTPEvent means a user attempted a file operation
 	SFTPEvent = "sftp"
 	SFTPPath  = "path"
+	// SFTPSummaryEvent is emitted at the end of an SFTP transfer.
+	SFTPSummaryEvent = "sftp_summary"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
