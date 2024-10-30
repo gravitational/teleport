@@ -243,7 +243,7 @@ type ProfileStatus struct {
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
 
-	// SSOHostname is the hostname of the SSO provider used to login..
+	// SSOHostname is the hostname of the SSO provider used to log in.
 	SSOHostname string
 }
 

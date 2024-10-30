@@ -81,14 +81,13 @@ export function manageRootClusterProxyHostAllowList({
         let browserProxyHost: string;
         try {
           browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
+          allowList.add(browserProxyHost);
         } catch (error) {
           logger.error(
             'Ran into an error when converting proxy host to browser proxy host',
             error
           );
-          continue;
         }
-        allowList.add(browserProxyHost);
       }
 
       // Allow the SSO hostname for SSO login/mfa redirects.

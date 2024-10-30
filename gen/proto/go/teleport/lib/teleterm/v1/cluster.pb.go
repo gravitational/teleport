@@ -184,7 +184,7 @@ type Cluster struct {
 	// profile_status_error is set if there was an error when reading the profile.
 	// This allows the app to be usable, when one or more profiles cannot be read.
 	ProfileStatusError string `protobuf:"bytes,12,opt,name=profile_status_error,json=profileStatusError,proto3" json:"profile_status_error,omitempty"`
-	// sso_hostname is the hostname of the SSO provider used to login..
+	// sso_hostname is the hostname of the SSO provider used to log in.
 	SsoHostname string `protobuf:"bytes,13,opt,name=sso_hostname,json=ssoHostname,proto3" json:"sso_hostname,omitempty"`
 }
 

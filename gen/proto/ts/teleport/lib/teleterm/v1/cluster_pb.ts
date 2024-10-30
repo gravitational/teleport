@@ -121,7 +121,7 @@ export interface Cluster {
      */
     profileStatusError: string;
     /**
-     * sso_hostname is the hostname of the SSO provider used to login..
+     * sso_hostname is the hostname of the SSO provider used to log in.
      *
      * @generated from protobuf field: string sso_hostname = 13;
      */

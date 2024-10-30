@@ -520,7 +520,7 @@ type Config struct {
 	// If nil touchid.HasCredentials is used.
 	HasTouchIDCredentialsFunc func(rpID, user string) bool
 
-	// SSOHostname is the hostname of the SSO provider used to login..
+	// SSOHostname is the hostname of the SSO provider used to log in.
 	SSOHostname string
 }
 
