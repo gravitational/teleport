@@ -4,33 +4,27 @@ h1: Signature Algorithms Reference
 description: "Signature algorithms used in Teleport."
 ---
 
-An important role of the Teleport Auth Service is issuing short-lived SSH and
-TLS certificates to users and hosts that allow all connections to be
-authenticated, authorized, and encrypted.
-This page describes the various cryptographic signature algorithms used to sign
-each kind of certificate issued by Teleport.
+The Teleport Auth Service issues SSH and TLS certificates to users and hosts
+that allow all connections to be authenticated, authorized, and encrypted.
+This page describes the cryptographic signature algorithms used to sign each
+kind of certificate issued by Teleport.
 
-Historically, every Teleport-issued certificate was signed by a 2048-bit RSA key.
-RSA is one of the oldest and most well-known asymmetric cryptography algorithms.
-While it is still considered secure (as long as your keys are large enough),
-modern alternatives based on Elliptic-Curve Cryptography offer much better
-performance with smaller keys and better security.
+Continue reading to learn how to:
+
+- configure a Teleport cluster created before Teleport 17 to use fast and secure
+  elliptic-curve keys
+- configure your cluster to use FIPS-compatible signature algorithms
+- configure your cluster to use signature algorithms compatible with your HSM or KMS.
 
 ## Signature algorithm suites
 
-Unilaterally changing the signature algorithms used in Teleport would be a
-breaking change for our users, as certain environments may expect or rely on RSA
-signatures.
-Some users may also require different algorithms to be used if they are looking
-for FIPS compliance or they are storing key material in a Hardware Security
-Module (HSM) or Key Management Service (KMS) that only supports certain
-algorithms.
-
-To allow new and existing Teleport users to opt-in to the new signature
-algorithms when they are ready, we introduced the concept of "signature
-algorithm suites".
-By selecting a single algorithm suite, Teleport admins can control all of the
-cryptographic signature algorithms used across their cluster.
+New Teleport clusters created after Teleport 17 will automatically use
+elliptic-curve keys in most cases.
+If you created your cluster on an older version of Teleport it will continue to
+use RSA keys until you opt in to the new algorithms by configuring a **signature
+algorithm suite**.
+By selecting a single algorithm suite, you can control all of the cryptographic
+signature algorithms used across your cluster.
 
 ### `legacy`
 
@@ -47,13 +41,13 @@ We recommend that users upgrade to one of the newer suites when they are able.
 The `balanced-v1` suite is the default suite for self-hosted clusters created
 after version 17.0.0.
 It is our recommended suite for most self-hosted users.
-When this suite is configured, Ed25519 is used for all SSH certificates.
+When this suite is configured, Ed25519 is used for all SSH certificates and
 ECDSA with the NIST P-256 curve is used for all TLS certificates.
 
 RSA is still used where compatibility with common third-party software that
 Teleport integrates with is known to be unable to support non-RSA algorithms.
-This includes Database Access certificates and certain JSON Web Tokens (JWTs)
-that are issued by Teleport.
+This includes certificates issued by the `db` or `db_client` CAs and certain
+JSON Web Tokens (JWTs) that are issued by Teleport.
 
 ### `fips-v1`
 
@@ -64,10 +58,10 @@ default.
 
 FIPS 186-5 only added approval for Ed25519 relatively recently (in February 2023)
 and there is some nuance to how the algorithm can be used.
-More importanly for Teleport, the `boringcrypto` module our FIPS Go binaries are
+More importantly for Teleport, the `boringcrypto` module our FIPS Go binaries are
 compiled with does not yet support Ed25519.
 For these reasons, the `fips-v1` suite is based on the `balanced-v1` suite but
-replaces all uses of Ed25519 with ECSDA.
+replaces all uses of Ed25519 with ECDSA.
 
 ### `hsm-v1`
 
@@ -156,7 +150,7 @@ updated.
 In order to use new signature algorithms for your existing Certificate
 Authorities, you will need to complete a CA rotation for each authority.
 This may require manual steps to update the trust relationships in your Cluster.
-The procedure is documented [here](../admin-guides/management/operations/ca-rotation.mdx).
+The procedure is documented in the [CA rotation guide](../admin-guides/management/operations/ca-rotation.mdx).
 This process is optional, your cluster will continue to function with the
 existing Certificate Authority keys if you don't complete a CA rotation.
 
