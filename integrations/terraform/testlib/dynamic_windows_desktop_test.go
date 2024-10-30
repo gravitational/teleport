@@ -41,7 +41,7 @@ func (s *TerraformSuiteOSS) TestDynamicWindowsDesktop() {
 		return err
 	}
 
-	name := "teleport_desktop.test"
+	name := "teleport_dynamic_windows_desktop.test"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
@@ -49,7 +49,7 @@ func (s *TerraformSuiteOSS) TestDynamicWindowsDesktop() {
 		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config: s.getFixture("desktop_0_create.tf"),
+				Config: s.getFixture("dynamic_windows_desktop_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "dynamic_windows_desktop"),
 					resource.TestCheckResourceAttr(name, "spec.addr", "localhost:3000"),
@@ -58,11 +58,11 @@ func (s *TerraformSuiteOSS) TestDynamicWindowsDesktop() {
 				),
 			},
 			{
-				Config:   s.getFixture("desktop_0_create.tf"),
+				Config:   s.getFixture("dynamic_windows_desktop_0_create.tf"),
 				PlanOnly: true,
 			},
 			{
-				Config: s.getFixture("desktop_1_update.tf"),
+				Config: s.getFixture("dynamic_windows_desktop_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "dynamic_windows_desktop"),
 					resource.TestCheckResourceAttr(name, "spec.addr", "localhost:3000"),
@@ -71,7 +71,7 @@ func (s *TerraformSuiteOSS) TestDynamicWindowsDesktop() {
 				),
 			},
 			{
-				Config:   s.getFixture("desktop_1_update.tf"),
+				Config:   s.getFixture("dynamic_windows_desktop_1_update.tf"),
 				PlanOnly: true,
 			},
 		},
@@ -82,7 +82,7 @@ func (s *TerraformSuiteOSS) TestImportDynamicWindowsDesktop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
-	r := "teleport_desktop"
+	r := "teleport_dynamic_windows_desktop"
 	id := "test_import"
 	name := r + "." + id
 
@@ -138,7 +138,7 @@ func (s *TerraformSuiteOSSWithCache) TestDynamicWindowsDesktopWithCache() {
 		return err
 	}
 
-	name := "teleport_desktop.test"
+	name := "teleport_dynamic_windows_desktop.test"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
@@ -146,7 +146,7 @@ func (s *TerraformSuiteOSSWithCache) TestDynamicWindowsDesktopWithCache() {
 		IsUnitTest:               true,
 		Steps: []resource.TestStep{
 			{
-				Config: s.getFixture("desktop_0_create.tf"),
+				Config: s.getFixture("dynamic_windows_desktop_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "dynamic_windows_desktop"),
 					resource.TestCheckResourceAttr(name, "spec.addr", "localhost:3000"),
@@ -155,7 +155,7 @@ func (s *TerraformSuiteOSSWithCache) TestDynamicWindowsDesktopWithCache() {
 				),
 			},
 			{
-				Config:   s.getFixture("desktop_0_create.tf"),
+				Config:   s.getFixture("dynamic_windows_desktop_0_create.tf"),
 				PlanOnly: true,
 			},
 		},

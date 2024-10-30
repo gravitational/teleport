@@ -220,7 +220,7 @@ var (
 		ID:                     `desktop.Metadata.Name`,
 		Kind:                   "dynamic_windows_desktop",
 		HasStaticID:            false,
-		TerraformResourceType:  "teleport_desktop",
+		TerraformResourceType:  "teleport_dynamic_windows_desktop",
 		HasCheckAndSetDefaults: true,
 	}
 

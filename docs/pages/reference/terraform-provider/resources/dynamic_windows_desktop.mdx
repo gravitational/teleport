@@ -1,6 +1,6 @@
 ---
-title: Reference for the teleport_desktop Terraform resource
-description: This page describes the supported values of the teleport_desktop resource of the Teleport Terraform provider.
+title: Reference for the teleport_dynamic_windows_desktop Terraform resource
+description: This page describes the supported values of the teleport_dynamic_windows_desktop resource of the Teleport Terraform provider.
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -13,7 +13,7 @@ description: This page describes the supported values of the teleport_desktop re
 ```hcl
 # Teleport Database
 
-resource "teleport_desktop" "example" {
+resource "teleport_dynamic_windows_desktop" "example" {
   version = "v1"
   metadata = {
     name        = "example"
@@ -24,11 +24,11 @@ resource "teleport_desktop" "example" {
   }
 
   spec = {
-    addr = "some.host.com"
+    addr   = "some.host.com"
     non_ad = true
     domain = "my.domain"
     screen_size = {
-      width = 800
+      width  = 800
       height = 600
     }
   }

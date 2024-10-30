@@ -1,6 +1,6 @@
 # Teleport Database
 
-resource "teleport_desktop" "example" {
+resource "teleport_dynamic_windows_desktop" "example" {
   version = "v1"
   metadata = {
     name        = "example"

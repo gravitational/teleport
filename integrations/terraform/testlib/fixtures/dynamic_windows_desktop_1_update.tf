@@ -1,4 +1,4 @@
-resource "teleport_desktop" "test" {
+resource "teleport_dynamic_windows_desktop" "test" {
   version = "v1"
   metadata = {
     name = "test"
