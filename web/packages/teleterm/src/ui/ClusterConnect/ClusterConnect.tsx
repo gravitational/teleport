@@ -26,8 +26,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { ClusterAdd } from './ClusterAdd';
 import { ClusterLogin } from './ClusterLogin';
-
-import type { StyleFunction } from 'styled-components';
+import { dialogCss } from './spacing';
 
 export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
   const [createdClusterUri, setCreatedClusterUri] = useState<
@@ -70,11 +69,3 @@ export function ClusterConnect(props: { dialog: DialogClusterConnect }) {
     </Dialog>
   );
 }
-
-type NoExtraProps = Record<string, never>;
-export const dialogCss: StyleFunction<NoExtraProps> = () =>
-  `
-max-width: 480px;
-width: 100%;
-padding: 0;
-`;
