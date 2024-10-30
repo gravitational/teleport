@@ -820,10 +820,6 @@ RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
 
-RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
-$(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
-	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
-
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
 
@@ -1822,11 +1818,13 @@ changelog:
 # does not match version set it will fail to create a release. If tag doesn't exist it
 # will also fail to create a release.
 #
-# For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
+# For more information on release notes generation see: 
+#   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
+RELEASE_NOTES_GEN = github.com/gravitational/shared-workflows/tools/release-notes@latest
 .PHONY: create-github-release
 create-github-release: LATEST = false
 create-github-release: GITHUB_RELEASE_LABELS = ""
-create-github-release: $(RELEASE_NOTES_GEN)
+create-github-release:
 	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \
