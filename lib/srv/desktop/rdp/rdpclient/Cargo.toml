@@ -27,6 +27,7 @@ rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "2b0d99cc60c7b
 uuid = { version = "1.4.1", features = ["v4"] }
 utf16string = "0.2.0"
 png = "0.17.10"
+lru = "0.12.5"
 
 [build-dependencies]
 cbindgen = "0.25.0"
