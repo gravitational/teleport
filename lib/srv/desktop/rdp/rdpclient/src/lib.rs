@@ -50,6 +50,7 @@ extern crate log;
 extern crate num_derive;
 
 use errors::try_error;
+use lru::LruCache;
 use rand::Rng;
 use rand::SeedableRng;
 use rdp::core::event::*;
@@ -60,6 +61,7 @@ use rdp::core::mcs;
 use rdp::core::sec;
 use rdp::core::tpkt;
 use rdp::core::x224;
+use rdp::core::LicenseStore;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
 use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
@@ -72,8 +74,10 @@ use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
 use std::net;
 use std::net::{TcpStream, ToSocketAddrs};
+use std::num::NonZeroUsize;
 use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
 
@@ -182,6 +186,7 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
     let username = from_c_string(params.go_username);
+    let client_id = from_c_string(params.go_client_id);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
@@ -190,6 +195,7 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
         ConnectParams {
             addr,
             username,
+            client_id,
             cert_der,
             key_der,
             screen_width: params.screen_width,
@@ -230,6 +236,7 @@ const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 pub struct CGOConnectParams {
     go_addr: *const c_char,
     go_username: *const c_char,
+    go_client_id: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,
@@ -244,6 +251,7 @@ pub struct CGOConnectParams {
 struct ConnectParams {
     addr: String,
     username: String,
+    client_id: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     screen_width: u16,
@@ -252,6 +260,8 @@ struct ConnectParams {
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
 }
+
+static LICENSE_STORE: OnceLock<LruLicenseStore> = OnceLock::new();
 
 fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
     // Connect and authenticate.
@@ -288,7 +298,7 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
         static_channels.push(cliprdr::CHANNEL_NAME.to_string())
     }
     mcs.connect(
-        "rdp-rs".to_string(),
+        params.client_id.clone(),
         params.screen_width,
         params.screen_height,
         KeyboardLayout::US,
@@ -302,8 +312,12 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
     if !params.show_desktop_wallpaper {
         performance_flags |= sec::ExtendedInfoFlag::PerfDisableWallpaper as u32;
     }
+
+    let license_store = LICENSE_STORE.get_or_init(LruLicenseStore::new);
+
     sec::connect(
         &mut mcs,
+        &params.client_id,
         &domain.to_string(),
         &params.username,
         &pin,
@@ -312,6 +326,7 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
         // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
         Some(performance_flags),
+        license_store,
     )?;
     // Client for the "global" channel - video output and user input.
     let global = global::Client::new(
@@ -2046,6 +2061,86 @@ pub struct CGOSharedDirectoryListRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: *const c_char,
+}
+
+const MAX_SAVED_LICENSES: usize = 256;
+
+/// LruLicenseStore stores licenses in an in-memory LRU cache.
+struct LruLicenseStore {
+    licenses: Mutex<LruCache<LicenseStoreKey, Vec<u8>>>,
+}
+
+impl LruLicenseStore {
+    pub fn new() -> Self {
+        Self {
+            licenses: Mutex::new(LruCache::new(
+                NonZeroUsize::new(MAX_SAVED_LICENSES).unwrap(),
+            )),
+        }
+    }
+}
+
+impl LicenseStore for &LruLicenseStore {
+    fn write_license(
+        &mut self,
+        major: u16,
+        minor: u16,
+        company: &str,
+        issuer: &str,
+        product_id: &str,
+        license: &[u8],
+    ) {
+        info!("Saving {major}.{minor} license from {issuer}");
+        self.licenses.lock().unwrap().put(
+            LicenseStoreKey {
+                major,
+                minor,
+                company: company.to_owned(),
+                issuer: issuer.to_owned(),
+                product_id: product_id.to_owned(),
+            },
+            license.to_vec(),
+        );
+    }
+
+    fn read_license(
+        &self,
+        major: u16,
+        minor: u16,
+        company: &str,
+        issuer: &str,
+        product_id: &str,
+    ) -> Option<Vec<u8>> {
+        let license = self
+            .licenses
+            .lock()
+            .unwrap()
+            .get(&LicenseStoreKey {
+                major,
+                minor,
+                company: company.to_owned(),
+                issuer: issuer.to_owned(),
+                product_id: product_id.to_owned(),
+            })
+            .cloned();
+
+        if license.is_some() {
+            info!("Found existing {major}.{minor} license from {issuer}");
+        } else {
+            info!("No existing {major}.{minor} license from {issuer}");
+        }
+
+        license
+    }
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct LicenseStoreKey {
+    major: u16,
+    minor: u16,
+    company: String,
+    issuer: String,
+    product_id: String,
 }
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'

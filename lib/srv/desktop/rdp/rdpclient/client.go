@@ -237,12 +237,14 @@ func (c *Client) connect(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// Addr and username strings only need to be valid for the duration of
+	// These strings only need to be valid for the duration of
 	// C.connect_rdp. They are copied on the Rust side and can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
+	hostID := C.CString(c.cfg.HostID)
+	defer C.free(unsafe.Pointer(hostID))
 
 	cert_der, err := utils.UnsafeSliceData(userCertDER)
 	if err != nil {
@@ -261,8 +263,9 @@ func (c *Client) connect(ctx context.Context) error {
 	res := C.connect_rdp(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
-			go_addr:     addr,
-			go_username: username,
+			go_addr:      addr,
+			go_username:  username,
+			go_client_id: hostID,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(cert_der),
