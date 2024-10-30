@@ -19,11 +19,14 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"net"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -115,30 +118,73 @@ type AuthClientCA interface {
 	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 }
 
-// MakeTestServerTLSConfig returns TLS config suitable for configuring test
-// database Postgres/MySQL servers.
-func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
-	cn := config.CN
+func (cfg *TestServerConfig) generateKeyAndCert() (*keys.PrivateKey, *proto.DatabaseCertResponse, error) {
+	cn := cfg.CN
 	if cn == "" {
 		cn = "localhost"
 	}
 	privateKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{
 		CommonName: cn,
 	}, privateKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	resp, err := config.AuthClient.GenerateDatabaseCert(context.Background(),
+	resp, err := cfg.AuthClient.GenerateDatabaseCert(context.Background(),
 		&proto.DatabaseCertRequest{
 			CSR:           csr,
 			ServerName:    cn,
 			TTL:           proto.Duration(time.Hour),
 			RequesterName: proto.DatabaseCertRequest_TCTL,
 		})
+	return privateKey, resp, trace.Wrap(err)
+}
+
+// TLSConfigPaths defines paths for key, cert, and CAs.
+type TLSConfigPaths struct {
+	DirPath string
+}
+
+func (p TLSConfigPaths) CAPath() string {
+	return filepath.Join(p.DirPath, "teleport.cas")
+}
+func (p TLSConfigPaths) KeyPath() string {
+	return filepath.Join(p.DirPath, "teleport.key")
+}
+func (p TLSConfigPaths) CertPath() string {
+	return filepath.Join(p.DirPath, "teleport.crt")
+}
+
+// SaveTo generates key,cert,cas then save them to the provided dir.
+func (cfg *TestServerConfig) SaveCertsTo(dirPath string) (*TLSConfigPaths, error) {
+	paths := TLSConfigPaths{
+		DirPath: dirPath,
+	}
+
+	privateKey, resp, err := cfg.generateKeyAndCert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for path, content := range map[string][]byte{
+		paths.KeyPath():  privateKey.PrivateKeyPEM(),
+		paths.CertPath(): resp.Cert,
+		paths.CAPath():   bytes.Join(resp.CACerts, []byte("\n")),
+	} {
+		if err := os.WriteFile(path, content, 0o644); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+	return &paths, nil
+}
+
+// MakeTestServerTLSConfig returns TLS config suitable for configuring test
+// database Postgres/MySQL servers.
+func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
+	privateKey, resp, err := config.generateKeyAndCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
