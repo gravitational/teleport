@@ -35,6 +35,7 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mfa"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -190,7 +191,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd.ChallengeExtensions = &wantypes.ChallengeExtensions{
+	sd.ChallengeExtensions = &mfa.ChallengeExtensions{
 		Scope:                       challengeExtensions.Scope,
 		AllowReuse:                  challengeExtensions.AllowReuse,
 		UserVerificationRequirement: challengeExtensions.UserVerificationRequirement,
