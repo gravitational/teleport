@@ -13,5 +13,5 @@ description: "Index of all the datasources supported by the Teleport Terraform P
 
 The Teleport Terraform provider supports the following resources:
 {{ range $key, $value := .ResourceFiles }}
-  - [`{{$key}}`](./resources/{{$value}}.mdx)
+  - [`{{$key}}`](./{{$value}}.mdx)
 {{- end }}
