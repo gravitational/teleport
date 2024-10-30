@@ -18,7 +18,7 @@
 
 import { FC, PropsWithChildren } from 'react';
 
-import { Box } from 'design';
+import Dialog from 'design/Dialog';
 import {
   Attempt,
   makeErrorAttempt,
@@ -26,6 +26,8 @@ import {
 } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
+
+import { dialogCss } from '../ClusterConnect';
 
 import {
   ClusterLoginPresentation,
@@ -320,16 +322,7 @@ export const SsoPrompt = () => {
 };
 
 const TestContainer: FC<PropsWithChildren> = ({ children }) => (
-  <>
-    <span>Bordered box is not part of the component</span>
-    <Box
-      css={`
-        width: 450px;
-        border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surface};
-      `}
-    >
+  <Dialog dialogCss={dialogCss} open={true}>
       {children}
-    </Box>
-  </>
+  </Dialog>
 );
