@@ -279,6 +279,7 @@ export function RequestCheckout<T extends PendingListItem>({
       {({ validator }) => (
         <>
           {!isRequestKubeResourceError &&
+            createAttempt.status !== 'failed' &&
             fetchResourceRequestRolesAttempt.status === 'failed' && (
               <Alert
                 kind="danger"
