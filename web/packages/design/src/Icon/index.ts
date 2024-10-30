@@ -22,7 +22,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export { Icon, type IconProps } from './Icon';
+export { Icon } from './Icon';
 
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';
@@ -121,6 +121,7 @@ export { Info } from './Icons/Info';
 export { Integrations } from './Icons/Integrations';
 export { Invoices } from './Icons/Invoices';
 export { Key } from './Icons/Key';
+export { KeyHole } from './Icons/KeyHole';
 export { Keyboard } from './Icons/Keyboard';
 export { Keypair } from './Icons/Keypair';
 export { Kubernetes } from './Icons/Kubernetes';
@@ -138,6 +139,7 @@ export { ListMagnifyingGlass } from './Icons/ListMagnifyingGlass';
 export { ListThin } from './Icons/ListThin';
 export { ListView } from './Icons/ListView';
 export { Lock } from './Icons/Lock';
+export { LockKey } from './Icons/LockKey';
 export { Logout } from './Icons/Logout';
 export { Magnifier } from './Icons/Magnifier';
 export { MagnifyingMinus } from './Icons/MagnifyingMinus';
@@ -156,6 +158,7 @@ export { PaperPlane } from './Icons/PaperPlane';
 export { Password } from './Icons/Password';
 export { Pencil } from './Icons/Pencil';
 export { Planet } from './Icons/Planet';
+export { PlugsConnected } from './Icons/PlugsConnected';
 export { Plus } from './Icons/Plus';
 export { PowerSwitch } from './Icons/PowerSwitch';
 export { Printer } from './Icons/Printer';

@@ -1782,11 +1782,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	for {
 		rsp, err := c.ListRoles(ctx, &req)
 		if err != nil {
-			if trace.IsNotImplemented(err) {
-				// fallback to calling the old non-paginated role API.
-				roles, err = c.getRoles(ctx)
-				return roles, trace.Wrap(err)
-			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -1799,21 +1794,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 		}
 	}
 
-	return roles, nil
-}
-
-// getRoles calls the old non-paginated GetRoles method.
-//
-// DELETE IN 17.0
-func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
-	resp, err := c.grpc.GetRoles(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roles := make([]types.Role, 0, len(resp.GetRoles()))
-	for _, role := range resp.GetRoles() {
-		roles = append(roles, role)
-	}
 	return roles, nil
 }
 
