@@ -379,7 +379,7 @@ func (h *Handler) performSessionMFACeremony(
 					&client.MFAAuthenticateChallenge{
 						WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 					},
-					defaults.MFAChallenge,
+					defaults.WebsocketMFAChallenge,
 				)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -421,7 +421,7 @@ func (h *Handler) performSessionMFACeremony(
 					break
 				}
 
-				assertion, err := codec.DecodeResponse(buf, defaults.MFAChallenge)
+				assertion, err := codec.DecodeResponse(buf, defaults.WebsocketMFAChallenge)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
