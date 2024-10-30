@@ -11,11 +11,11 @@ resource "teleport_desktop" "example" {
   }
 
   spec = {
-    addr = "some.host.com"
+    addr   = "some.host.com"
     non_ad = true
     domain = "my.domain"
     screen_size = {
-      width = 800
+      width  = 800
       height = 600
     }
   }
