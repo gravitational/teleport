@@ -20,12 +20,12 @@ package handler
 
 import (
 	"context"
-	"sort"
 
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // GetDatabases gets databases with filters and returns paginated results
@@ -84,15 +84,7 @@ func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUs
 }
 
 func newAPIDatabase(db clusters.Database) *api.Database {
-	apiLabels := APILabels{}
-	for name, value := range db.GetAllLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	sort.Sort(apiLabels)
+	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(db.GetAllLabels()))
 
 	return &api.Database{
 		Uri:      db.URI.String(),
