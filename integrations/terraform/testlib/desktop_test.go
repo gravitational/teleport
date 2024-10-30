@@ -53,6 +53,8 @@ func (s *TerraformSuiteOSS) TestDynamicWindowsDesktop() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "dynamic_windows_desktop"),
 					resource.TestCheckResourceAttr(name, "spec.addr", "localhost:3000"),
+					resource.TestCheckResourceAttr(name, "spec.non_ad", "true"),
+					resource.TestCheckResourceAttr(name, "spec.domain", "my.domain"),
 				),
 			},
 			{
@@ -64,6 +66,8 @@ func (s *TerraformSuiteOSS) TestDynamicWindowsDesktop() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "dynamic_windows_desktop"),
 					resource.TestCheckResourceAttr(name, "spec.addr", "localhost:3000"),
+					resource.TestCheckResourceAttr(name, "spec.non_ad", "false"),
+					resource.TestCheckResourceAttr(name, "spec.domain", "my.domain2"),
 				),
 			},
 			{
@@ -116,6 +120,43 @@ func (s *TerraformSuiteOSS) TestImportDynamicWindowsDesktop() {
 
 					return nil
 				},
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSSWithCache) TestDynamicWindowsDesktopWithCache() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, "test")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_desktop.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("desktop_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "dynamic_windows_desktop"),
+					resource.TestCheckResourceAttr(name, "spec.addr", "localhost:3000"),
+					resource.TestCheckResourceAttr(name, "spec.non_ad", "true"),
+					resource.TestCheckResourceAttr(name, "spec.domain", "my.domain"),
+				),
+			},
+			{
+				Config:   s.getFixture("desktop_0_create.tf"),
+				PlanOnly: true,
 			},
 		},
 	})

@@ -10,5 +10,7 @@ resource "teleport_desktop" "test" {
 
   spec = {
     addr = "localhost:3000"
+    non_ad = false
+    domain = "my.domain2"
   }
 }
