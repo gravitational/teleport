@@ -1,5 +1,32 @@
 # Changelog
 
+## 14.3.33 (10/30/24)
+
+* Fixed a bug in the External Audit Storage bootstrap script that broke S3 bucket creation. [#48179](https://github.com/gravitational/teleport/pull/48179)
+* During the Set Up Access of the Enroll New Resource flows, Okta users will be asked to change the role instead of entering the principals and getting an error afterwards. [#47959](https://github.com/gravitational/teleport/pull/47959)
+* Fixed `teleport_connected_resource` metric overshooting after keepalive errors. [#47951](https://github.com/gravitational/teleport/pull/47951)
+* Fixed an issue preventing connections with users whose configured home directories were inaccessible. [#47918](https://github.com/gravitational/teleport/pull/47918)
+* Auto-enroll may be locally disabled using the `TELEPORT_DEVICE_AUTO_ENROLL_DISABLED=1` environment variable. [#47718](https://github.com/gravitational/teleport/pull/47718)
+* Alter ServiceAccounts in the teleport-cluster Helm chart to automatically disable mounting of service account tokens on newer Kubernetes distributions, helping satisfy security linters. [#47701](https://github.com/gravitational/teleport/pull/47701)
+* Avoid tsh auto-enroll escalation in machines without a TPM. [#47697](https://github.com/gravitational/teleport/pull/47697)
+* Postgres database session start events now include the Postgres backend PID for the session. [#47645](https://github.com/gravitational/teleport/pull/47645)
+* Fixes a bug where Let's Encrypt certificate renewal failed in AMI and HA deployments due to insufficient disk space caused by syncing audit logs. [#47623](https://github.com/gravitational/teleport/pull/47623)
+* Adds support for custom SQS consumer lock name and disabling a consumer. [#47612](https://github.com/gravitational/teleport/pull/47612)
+* Include host name instead of host uuid in error messages when SSH connections are prevented due to an invalid login. [#47603](https://github.com/gravitational/teleport/pull/47603)
+* Allow using a custom database for Firestore backends. [#47585](https://github.com/gravitational/teleport/pull/47585)
+* Extended Teleport Discovery Service to support resource discovery across all projects accessible by the service account. [#47566](https://github.com/gravitational/teleport/pull/47566)
+* Fixed a bug that could allow users to list active sessions even when prohibited by RBAC. [#47562](https://github.com/gravitational/teleport/pull/47562)
+* The `tctl tokens ls` command redacts secret join tokens by default. To include the token values, provide the new `--with-secrets` flag. [#47547](https://github.com/gravitational/teleport/pull/47547)
+* Fixed an issue with the Microsoft license negotiation for RDP sessions. [#47544](https://github.com/gravitational/teleport/pull/47544)
+* Fixed a bug where tsh logout failed to parse flags passed with spaces. [#47461](https://github.com/gravitational/teleport/pull/47461)
+* Added kubeconfig context name to the output table of `tsh proxy kube` command for enhanced clarity. [#47381](https://github.com/gravitational/teleport/pull/47381)
+* Improve error messaging when connections to offline agents are attempted. [#47363](https://github.com/gravitational/teleport/pull/47363)
+* Teleport Connect for Linux now requires glibc 2.31 or later. [#47264](https://github.com/gravitational/teleport/pull/47264)
+* Updates self-hosted db discover flow to generate 2190h TTL certs, not 12h. [#47128](https://github.com/gravitational/teleport/pull/47128)
+
+Enterprise:
+* Device auto-enroll failures are now recorded in the audit log.
+
 ## 14.3.32 (10/03/24)
 
 * Fixes an issue preventing access requests from displaying user friendly resource names. [#47110](https://github.com/gravitational/teleport/pull/47110)
