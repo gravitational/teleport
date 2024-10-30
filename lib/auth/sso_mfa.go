@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mfa"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -142,7 +142,7 @@ func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID
 		RequestID:     sessionID,
 		ConnectorID:   connectorID,
 		ConnectorType: connectorType,
-		ChallengeExtensions: &mfa.ChallengeExtensions{
+		ChallengeExtensions: &mfatypes.ChallengeExtensions{
 			Scope:      ext.Scope,
 			AllowReuse: ext.AllowReuse,
 		},
