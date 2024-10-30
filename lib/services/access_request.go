@@ -46,6 +46,7 @@ import (
 const (
 	maxAccessRequestReasonSize = 4096
 	maxResourcesPerRequest     = 300
+	maxResourcesLength         = 2048
 
 	// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
 	day = 24 * time.Hour
@@ -1157,6 +1158,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		// deduplicate requested resource IDs
 		var deduplicated []types.ResourceID
 		seen := make(map[string]struct{})
+		resourcesLen := 0
 		for _, resource := range req.GetRequestedResourceIDs() {
 			id := types.ResourceIDToString(resource)
 			if _, isDuplicate := seen[id]; isDuplicate {
@@ -1164,8 +1166,16 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			}
 			seen[id] = struct{}{}
 			deduplicated = append(deduplicated, resource)
+			resourcesLen += len(id)
 		}
 		req.SetRequestedResourceIDs(deduplicated)
+
+		// In addition to capping the maximum number of resources in a single request,
+		// we also need to ensure that the sum of the resource IDs in the request doesn't
+		// get too big.
+		if resourcesLen > maxResourcesLength {
+			return trace.BadParameter("access request exceeds maximum length: try reducing the number of resources in the request")
+		}
 
 		// determine the roles which should be requested for a resource access
 		// request, and write them to the request
