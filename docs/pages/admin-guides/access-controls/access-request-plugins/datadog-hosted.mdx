@@ -3,8 +3,6 @@ title: Access Requests with Datadog Incident Management
 description: How to set up Teleport's Datadog Incident Management plugin for privilege elevation approvals.
 ---
 
-## How it works
-
 With Teleport's Datadog Incident Management integration, engineers can access the
 infrastructure they need to resolve incidents without longstanding admin
 permissions that can become a vector for attacks.
@@ -14,6 +12,15 @@ Role Access Requests as Datadog incidents, notify the appropriate on-call team,
 and approve or deny the requests via Teleport.
 
 This guide will explain how to set up Teleport's Access Request plugin for Datadog.
+
+## How it works
+
+The Teleport Datadog Incident Management integration connects to the Teleport
+gRPC API and listens for Role Access Requests. When the integration receives a
+status change for a Role Access Request, it either creates a new incident in
+Datadog or, if an incident exists, updates it. The integration also reads
+annotations on each Teleport Access Request and, depending on the annotations,
+may approve the Access Request automatically.
 
 ## Prerequisites
 
