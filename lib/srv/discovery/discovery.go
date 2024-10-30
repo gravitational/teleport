@@ -61,6 +61,7 @@ import (
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/spreadwork"
 )
 
@@ -944,6 +945,15 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 			services.CompareServers(existingNode, eiceNode) == services.OnlyTimestampsDifferent {
 
 			continue
+		}
+		// Only validate the hostname of new nodes to ensure existing EICE nodes that existed
+		// before hostname validation was checked are unaffected
+		if len(existingNodes) == 0 {
+			err := utils.ValidateNodeHostname(eiceNode.GetHostname())
+			if err != nil {
+				s.Log.Warnf("Error validating the hostname %q of node with name %q: %v", eiceNode.GetHostname(), eiceNode.GetName(), err)
+				continue
+			}
 		}
 
 		eiceNodeExpiration := s.clock.Now().Add(s.jitter(serverExpirationDuration))

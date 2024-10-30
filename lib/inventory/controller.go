@@ -600,11 +600,6 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	if sshServer.GetName() != handle.Hello().ServerID {
 		return trace.AccessDenied("incorrect ssh server ID (expected %q, got %q)", handle.Hello().ServerID, sshServer.GetName())
 	}
-	if hostname := sshServer.GetHostname(); hostname != "" {
-		if err := utils.ValidateNodeHostname(hostname); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 
 	// if a peer address is available in the context, use it to override zero-value addresses from
 	// the server heartbeat.
