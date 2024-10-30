@@ -155,7 +155,6 @@ const cfg = {
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
-
     clusters: '/web/clusters',
     manageCluster: '/web/clusters/:clusterId/manage',
 

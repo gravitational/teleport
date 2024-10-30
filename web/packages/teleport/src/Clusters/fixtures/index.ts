@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClusterInfo } from "teleport/services/clusters";
+import { ClusterInfo } from 'teleport/services/clusters';
 
 export const clusters = [
   {

@@ -85,7 +85,7 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
     );
   }
 
-  $items.push(<DropdownDivider />);
+  $items.push(<DropdownDivider key="divider" />);
 
   $items.push(
     renderMenuItem('Manage Cluster', cfg.getManageClusterRoute(clusterId))

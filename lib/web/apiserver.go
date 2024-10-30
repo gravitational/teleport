@@ -2874,7 +2874,7 @@ type GetClusterInfoResponse struct {
 	IsCloud bool `json:"isCloud"`
 }
 
-// getClusterInfo returns the information about the cluster being in the :site param
+// getClusterInfo returns the information about the cluster in the :site param
 //
 // GET /v1/webapi/sites/:site/info
 //
