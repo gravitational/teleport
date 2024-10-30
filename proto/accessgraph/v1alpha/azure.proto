@@ -68,6 +68,7 @@ message AzureRoleDefinition {
   string id = 1;
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
   repeated AzurePermission permissions = 5;
 }
 

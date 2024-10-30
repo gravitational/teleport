@@ -15,10 +15,13 @@ func (a *azureFetcher) fetchRoleDefinitions(ctx context.Context) ([]*accessgraph
 		return nil, trace.Wrap(err)
 	}
 
+	// List the role definitions
 	roleDefs, err := cli.ListRoleDefinitions(ctx, fmt.Sprintf("/subscriptions/%s", a.SubscriptionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Convert to protobuf format
 	pbRoleDefs := make([]*accessgraphv1alpha.AzureRoleDefinition, 0, len(roleDefs))
 	for _, roleDef := range roleDefs {
 		pbPerms := make([]*accessgraphv1alpha.AzurePermission, len(roleDef.Properties.Permissions))
@@ -30,6 +33,7 @@ func (a *azureFetcher) fetchRoleDefinitions(ctx context.Context) ([]*accessgraph
 		}
 		pbRoleDef := &accessgraphv1alpha.AzureRoleDefinition{
 			Id:             *roleDef.ID,
+			Name:           *roleDef.Properties.RoleName,
 			SubscriptionId: a.SubscriptionID,
 			LastSyncTime:   timestamppb.Now(),
 			Permissions:    pbPerms,

@@ -35,6 +35,8 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 	reconciledResources := []*reconcilePair{
 		reconcile(old.VirtualMachines, new.VirtualMachines, azureVmKey, azureVmWrap),
 		reconcile(old.Users, new.Users, azureUserKey, azureUsersWrap),
+		reconcile(old.RoleDefinitions, new.RoleDefinitions, azureRoleDefKey, azureRoleDefWrap),
+		reconcile(old.RoleAssignments, new.RoleAssignments, azureRoleAssignKey, azureRoleAssignWrap),
 	}
 	for _, res := range reconciledResources {
 		upsert.Resources = append(upsert.Resources, res.upsert.Resources...)
@@ -114,4 +116,20 @@ func azureUserKey(user *accessgraphv1alpha.AzureUser) string {
 
 func azureUsersWrap(user *accessgraphv1alpha.AzureUser) *accessgraphv1alpha.AzureResource {
 	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_User{User: user}}
+}
+
+func azureRoleDefKey(roleDef *accessgraphv1alpha.AzureRoleDefinition) string {
+	return fmt.Sprintf("%s:%s", roleDef.SubscriptionId, roleDef.Id)
+}
+
+func azureRoleDefWrap(roleDef *accessgraphv1alpha.AzureRoleDefinition) *accessgraphv1alpha.AzureResource {
+	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleDefinition{RoleDefinition: roleDef}}
+}
+
+func azureRoleAssignKey(roleAssign *accessgraphv1alpha.AzureRoleAssignment) string {
+	return fmt.Sprintf("%s:%s", roleAssign.SubscriptionId, roleAssign.Id)
+}
+
+func azureRoleAssignWrap(roleAssign *accessgraphv1alpha.AzureRoleAssignment) *accessgraphv1alpha.AzureResource {
+	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleAssignment{RoleAssignment: roleAssign}}
 }

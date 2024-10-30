@@ -29,8 +29,10 @@ import (
 )
 
 const (
-	featNameVms   = "azure/virtualmachines"
-	featNameUsers = "azure/users"
+	featNameVms             = "azure/virtualmachines"
+	featNameUsers           = "azure/users"
+	featNameRoleDefinitions = "azure/roledefinitions"
+	featNameRoleAssignments = "azure/roleassignments"
 )
 
 const FetcherConcurrency = 5
@@ -89,6 +91,10 @@ func BuildFeatures(values ...string) Features {
 			features.VirtualMachines = true
 		case featNameUsers:
 			features.Users = true
+		case featNameRoleDefinitions:
+			features.RoleDefinitions = true
+		case featNameRoleAssignments:
+			features.RoleAssignments = true
 		}
 	}
 	return features
@@ -101,6 +107,8 @@ func (a *azureFetcher) Poll(ctx context.Context, feats Features) (*Resources, er
 	}
 	res.VirtualMachines = common.DeduplicateSlice(res.VirtualMachines, azureVmKey)
 	res.Users = common.DeduplicateSlice(res.Users, azureUserKey)
+	res.RoleDefinitions = common.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
+	res.RoleAssignments = common.DeduplicateSlice(res.RoleAssignments, azureRoleAssignKey)
 	return res, trace.Wrap(err)
 }
 
@@ -130,6 +138,28 @@ func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, e
 				return err
 			}
 			result.Users = users
+			return nil
+		})
+	}
+	if feats.RoleDefinitions {
+		eg.Go(func() error {
+			roleDefs, err := a.fetchRoleDefinitions(ctx)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
+			result.RoleDefinitions = roleDefs
+			return nil
+		})
+	}
+	if feats.RoleAssignments {
+		eg.Go(func() error {
+			roleAssigns, err := a.fetchRoleAssignments(ctx)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
+			result.RoleAssignments = roleAssigns
 			return nil
 		})
 	}
