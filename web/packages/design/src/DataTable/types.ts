@@ -218,6 +218,7 @@ export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   prevPage: () => void;
   pagination: Pagination<T>;
   fetching?: FetchingConfig;
+  isSearchable?: boolean;
 };
 
 export type ServersideTableProps<T> = BasicTableProps<T> & {
