@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package mfa
+package mfatypes
 
 import mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 
