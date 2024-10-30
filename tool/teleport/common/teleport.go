@@ -552,6 +552,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAzureOIDCCmd.Flag("proxy-public-addr", "The public address of Teleport Proxy Service").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.ProxyPublicAddr)
 	integrationConfAzureOIDCCmd.Flag("auth-connector-name", "The name of Entra ID SAML Auth connector in Teleport.").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.AuthConnectorName)
 	integrationConfAzureOIDCCmd.Flag("access-graph", "Enable Access Graph integration.").BoolVar(&ccf.IntegrationConfAzureOIDCArguments.AccessGraphEnabled)
+	integrationConfAzureOIDCCmd.Flag("skip-oidc-integration", "Skip OIDC integration.").BoolVar(&ccf.IntegrationConfAzureOIDCArguments.SkipOIDCConfiguration)
 
 	integrationConfSAMLIdP := integrationConfigureCmd.Command("samlidp", "Manage SAML IdP integrations.")
 	integrationSAMLIdPGCPWorkforce := integrationConfSAMLIdP.Command("gcp-workforce", "Configures GCP Workforce Identity Federation pool and SAML provider.")
