@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
@@ -82,11 +81,6 @@ func (c compositeCh) Close() error {
 	return trace.NewAggregate(c.r.Close(), c.w.Close())
 }
 
-type protoAuditEvent interface {
-	apievents.AuditEvent
-	proto.Message
-}
-
 type allowedOps struct {
 	write bool
 	path  string
@@ -97,7 +91,7 @@ type sftpHandler struct {
 	logger  *log.Entry
 	allowed *allowedOps
 	files   []*trackedFile
-	events  chan<- protoAuditEvent
+	events  chan<- apievents.AuditEvent
 }
 
 type trackedFile struct {
@@ -122,7 +116,7 @@ func (t *trackedFile) Close() error {
 	return t.file.Close()
 }
 
-func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- protoAuditEvent) (*sftpHandler, error) {
+func newSFTPHandler(logger *log.Entry, req *srv.FileTransferRequest, events chan<- apievents.AuditEvent) (*sftpHandler, error) {
 	var allowed *allowedOps
 	if req != nil {
 		allowed = &allowedOps{
@@ -639,7 +633,7 @@ func onSFTP() error {
 	}
 	ch := compositeCh{io.NopCloser(bufferedReader), chw}
 
-	sftpEvents := make(chan protoAuditEvent, 1)
+	sftpEvents := make(chan apievents.AuditEvent, 1)
 	h, err := newSFTPHandler(logger, fileTransferReq, sftpEvents)
 	if err != nil {
 		return trace.Wrap(err)
@@ -659,24 +653,24 @@ func onSFTP() error {
 		var m jsonpb.Marshaler
 		var buf bytes.Buffer
 		for event := range sftpEvents {
-			buf.Reset()
-			if err := m.Marshal(&buf, event); err != nil {
-				logger.WithError(err).Warn("Failed to marshal SFTP event.")
-			} else {
-				// Append a NULL byte so the parent process will know where
-				// this event ends
-				buf.WriteByte(0x0)
-				// If this is the last event, a summary event send another
-				// NULL byte so the parent process knows to unmarshal
-				// a SFTPSummary event
-				if _, ok := event.(*apievents.SFTPSummary); ok {
-					buf.WriteByte(0x0)
-				}
+			oneOfEvent, err := apievents.ToOneOf(event)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to convert SFTP event to OneOf.")
+				continue
+			}
 
-				_, err = io.Copy(auditFile, &buf)
-				if err != nil {
-					logger.WithError(err).Warn("Failed to send SFTP event to parent.")
-				}
+			buf.Reset()
+			if err := m.Marshal(&buf, oneOfEvent); err != nil {
+				logger.WithError(err).Warn("Failed to marshal SFTP event.")
+				continue
+			}
+
+			// Append a NULL byte so the parent process will know where
+			// this event ends
+			buf.WriteByte(0x0)
+			_, err = io.Copy(auditFile, &buf)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to send SFTP event to parent.")
 			}
 		}
 
