@@ -5329,6 +5329,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
 		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
 		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
+		Emitter:       cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

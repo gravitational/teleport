@@ -4610,6 +4610,9 @@ message OneOf {
     events.CrownJewelCreate CrownJewelCreate = 182;
     events.CrownJewelUpdate CrownJewelUpdate = 183;
     events.CrownJewelDelete CrownJewelDelete = 184;
+    events.UserTaskCreate UserTaskCreate = 188;
+    events.UserTaskUpdate UserTaskUpdate = 189;
+    events.UserTaskDelete UserTaskDelete = 190;
   }
 }
 
@@ -7305,6 +7308,150 @@ message CrownJewelDelete {
 
   // ResourceMetadata is a common resource event metadata.
   ResourceMetadata resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// UserTaskCreate is emitted when a user task is created.
+message UserTaskCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // UserTaskMetadata holds information about the user task.
+  UserTaskMetadata UserTask = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// UserTaskUpdate is emitted when a user task is updated.
+message UserTaskUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // UserTaskMetadata holds information about the user task.
+  UserTaskMetadata UserTask = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CurrentUserTaskState is the current UserTask State.
+  string CurrentUserTaskState = 7 [(gogoproto.jsontag) = "current_user_task_state"];
+
+  // UpdatedUserTaskState is the updated UserTask State.
+  string UpdatedUserTaskState = 8 [(gogoproto.jsontag) = "updated_user_task_state"];
+}
+
+// UserTaskMetadata contains key fields for the UserTask.
+message UserTaskMetadata {
+  // TaskType is type of the task.
+  string TaskType = 1 [(gogoproto.jsontag) = "user_task_type"];
+  // IssueType is type of the issue task.
+  string IssueType = 2 [(gogoproto.jsontag) = "user_task_issue_type"];
+  // Integration is type of associated integration.
+  string Integration = 3 [(gogoproto.jsontag) = "user_task_integration"];
+}
+
+// UserTaskDelete is emitted when a user task is deleted.
+message UserTaskDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
