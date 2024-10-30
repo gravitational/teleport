@@ -978,11 +978,8 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 		return nil, trace.Wrap(err)
 	}
 	if hostname := s.GetHostname(); hostname != "" {
-		// Allow uppercase node hostnames, they aren't valid hostnames
-		// but there's no reason to reject them here. The goal here is
-		// to disallow most special characters.
-		if !utils.IsValidHostname(strings.ToLower(hostname)) {
-			return nil, trace.BadParameter("invalid hostname %q", hostname)
+		if err := utils.ValidateNodeHostname(hostname); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 	return a.authServer.UpsertNode(ctx, s)

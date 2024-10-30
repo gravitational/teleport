@@ -601,11 +601,8 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		return trace.AccessDenied("incorrect ssh server ID (expected %q, got %q)", handle.Hello().ServerID, sshServer.GetName())
 	}
 	if hostname := sshServer.GetHostname(); hostname != "" {
-		// Allow uppercase node hostnames, they aren't valid hostnames
-		// but there's no reason to reject them here. The goal here is
-		// to disallow most special characters.
-		if !utils.IsValidHostname(strings.ToLower(hostname)) {
-			return trace.BadParameter("invalid ssh server hostname %q in heartbeat", hostname)
+		if err := utils.ValidateNodeHostname(hostname); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

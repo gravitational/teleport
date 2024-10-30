@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -321,6 +322,30 @@ func IsValidHostname(hostname string) bool {
 		}
 	}
 	return true
+}
+
+const (
+	nodeHostnameMaxLen       = 256
+	nodeHostnameRegexPattern = `^[a-zA-Z0-9]([\.-]?[a-zA-Z0-9]+)*$`
+)
+
+var nodeHostnameRegex = regexp.MustCompile(nodeHostnameRegexPattern)
+
+// ValidateNodeHostname returns an error if the node hostname does not entirely
+// consist of alphanumeric characters as well as '-' and '.'. A valid hostname also
+// cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.
+func ValidateNodeHostname(hostname string) error {
+	if len(hostname) > nodeHostnameMaxLen {
+		return trace.Errorf("Invalid hostname %q. Valid node hostnames must be under %d characters.", hostname, nodeHostnameMaxLen)
+	}
+	if !nodeHostnameRegex.MatchString(hostname) {
+		return trace.Errorf(
+			`Invalid hostname %q. Valid node hostnames consist of alphanumeric characters as well as the symbols '-' and '.'
+The hostname cannot begin with a symbol, and a symbol cannot be followed immediately by another symbol.`,
+			hostname,
+		)
+	}
+	return nil
 }
 
 // IsValidUnixUser checks if a string represents a valid
