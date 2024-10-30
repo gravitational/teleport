@@ -26,22 +26,25 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
-	"text/template"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/web"
 )
 
 func TestCLICeremony(t *testing.T) {
+	ctx := context.Background()
+
 	mockProxy := newMockProxy(t)
 	username := "alice"
 
 	// Capture stderr.
-	stderr := bytes.NewBuffer([]byte{})
+	stderr := &bytes.Buffer{}
 
 	// Create a basic redirector.
 	rd, err := sso.NewRedirector(sso.RedirectorConfig{
@@ -69,7 +72,66 @@ func TestCLICeremony(t *testing.T) {
 		return mockIdPServer.URL, nil
 	})
 
-	template.New("Failed to open a browser window for login: %v\n")
+	// Modify handle redirect to also browse to the clickable URL printed to stderr.
+	baseHandleRedirect := ceremony.HandleRedirect
+	ceremony.HandleRedirect = func(ctx context.Context, redirectURL string) error {
+		if err := baseHandleRedirect(ctx, redirectURL); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Read the clickable url from stderr and navigate to it
+		// using a simplified regexp for http://127.0.0.1:<port>/<uuid>
+		const clickableURLPattern = `http://127.0.0.1:\d+/[0-9A-Fa-f-]+`
+		clickableURL := regexp.MustCompile(clickableURLPattern).FindString(stderr.String())
+		resp, err := http.Get(clickableURL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// User should be redirected to success screen.
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, sso.LoginSuccessRedirectURL, string(body))
+		return nil
+	}
+
+	loginResp, err := ceremony.Run(ctx)
+	require.NoError(t, err)
+	require.Equal(t, username, loginResp.Username)
+}
+
+func TestCLICeremony_MFA(t *testing.T) {
+	const token = "sso-mfa-token"
+	const requestID = "soo-mfa-request-id"
+
+	ctx := context.Background()
+	mockProxy := newMockProxy(t)
+
+	// Capture stderr.
+	stderr := bytes.NewBuffer([]byte{})
+
+	// Create a basic redirector.
+	rd, err := sso.NewRedirector(sso.RedirectorConfig{
+		ProxyAddr: mockProxy.URL,
+		Browser:   teleport.BrowserNone,
+		Stderr:    stderr,
+	})
+	require.NoError(t, err)
+
+	// Construct a fake mfa response with the redirector's client callback URL.
+	successResponseURL, err := web.ConstructSSHResponse(web.AuthParams{
+		ClientRedirectURL: rd.ClientCallbackURL,
+		MFAToken:          token,
+	})
+	require.NoError(t, err)
+
+	// Open a mock IdP server which will handle a redirect and result in the expected IdP session payload.
+	mockIdPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
+	}))
+	t.Cleanup(mockIdPServer.Close)
+
+	ceremony := sso.NewCLIMFACeremony(rd)
+	t.Cleanup(ceremony.Close)
 
 	// Modify handle redirect to also browse to the clickable URL printed to stderr.
 	baseHandleRedirect := ceremony.HandleRedirect
@@ -94,7 +156,14 @@ func TestCLICeremony(t *testing.T) {
 		return nil
 	}
 
-	loginResp, err := ceremony.Run(context.Background())
+	mfaResponse, err := ceremony.Run(ctx, &proto.MFAAuthenticateChallenge{
+		SSOChallenge: &proto.SSOChallenge{
+			RedirectUrl: mockIdPServer.URL,
+			RequestId:   requestID,
+		},
+	})
 	require.NoError(t, err)
-	require.Equal(t, username, loginResp.Username)
+	require.NotNil(t, mfaResponse.GetSSO())
+	assert.Equal(t, token, mfaResponse.GetSSO().Token)
+	assert.Equal(t, requestID, mfaResponse.GetSSO().RequestId)
 }
