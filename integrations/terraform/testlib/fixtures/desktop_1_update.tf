@@ -1,7 +1,7 @@
 resource "teleport_desktop" "test" {
   version = "v1"
   metadata = {
-    name        = "test"
+    name = "test"
     labels = {
       example               = "yes"
       "teleport.dev/origin" = "dynamic"
@@ -9,7 +9,7 @@ resource "teleport_desktop" "test" {
   }
 
   spec = {
-    addr = "localhost:3000"
+    addr   = "localhost:3000"
     non_ad = false
     domain = "my.domain2"
   }
