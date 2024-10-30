@@ -30,6 +30,7 @@ import (
 	"os/user"
 	"path"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -90,8 +91,12 @@ type allowedOps struct {
 type sftpHandler struct {
 	logger  *log.Entry
 	allowed *allowedOps
-	files   []*trackedFile
-	events  chan<- apievents.AuditEvent
+
+	// mtx protects files
+	mtx   sync.Mutex
+	files []*trackedFile
+
+	events chan<- apievents.AuditEvent
 }
 
 type trackedFile struct {
@@ -245,7 +250,9 @@ func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error)
 		return nil, err
 	}
 	trackFile := &trackedFile{file: f}
+	s.mtx.Lock()
 	s.files = append(s.files, trackFile)
+	s.mtx.Unlock()
 
 	return trackFile, nil
 }
