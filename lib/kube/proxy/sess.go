@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"reflect"
 	"slices"
 	"strings"
@@ -67,10 +68,11 @@ const (
 
 // remoteClient is either a kubectl or websocket client.
 type remoteClient interface {
+	queueID() uuid.UUID
 	stdinStream() io.Reader
 	stdoutStream() io.Writer
 	stderrStream() io.Writer
-	resizeQueue() <-chan *remotecommand.TerminalSize
+	resizeQueue() <-chan terminalResizeMessage
 	resize(size *remotecommand.TerminalSize) error
 	forceTerminate() <-chan struct{}
 	sendStatus(error) error
@@ -78,7 +80,12 @@ type remoteClient interface {
 }
 
 type websocketClientStreams struct {
+	id     uuid.UUID
 	stream *streamproto.SessionStream
+}
+
+func (p *websocketClientStreams) queueID() uuid.UUID {
+	return p.id
 }
 
 func (p *websocketClientStreams) stdinStream() io.Reader {
@@ -93,8 +100,26 @@ func (p *websocketClientStreams) stderrStream() io.Writer {
 	return p.stream
 }
 
-func (p *websocketClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
-	return p.stream.ResizeQueue()
+func (p *websocketClientStreams) resizeQueue() <-chan terminalResizeMessage {
+	ch := make(chan terminalResizeMessage)
+	go func() {
+		defer close(ch)
+		for {
+			select {
+			case <-p.stream.Done():
+				return
+			case size := <-p.stream.ResizeQueue():
+				if size == nil {
+					return
+				}
+				ch <- terminalResizeMessage{
+					size:   size,
+					source: p.id,
+				}
+			}
+		}
+	}()
+	return ch
 }
 
 func (p *websocketClientStreams) resize(size *remotecommand.TerminalSize) error {
@@ -114,6 +139,7 @@ func (p *websocketClientStreams) Close() error {
 }
 
 type kubeProxyClientStreams struct {
+	id        uuid.UUID
 	proxy     *remoteCommandProxy
 	sizeQueue *termQueue
 	stdin     io.Reader
@@ -127,6 +153,7 @@ func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStream
 	options := proxy.options()
 
 	return &kubeProxyClientStreams{
+		id:        uuid.New(),
 		proxy:     proxy,
 		stdin:     options.Stdin,
 		stdout:    options.Stdout,
@@ -134,6 +161,10 @@ func newKubeProxyClientStreams(proxy *remoteCommandProxy) *kubeProxyClientStream
 		close:     make(chan struct{}),
 		sizeQueue: proxy.resizeQueue,
 	}
+}
+
+func (p *kubeProxyClientStreams) queueID() uuid.UUID {
+	return p.id
 }
 
 func (p *kubeProxyClientStreams) stdinStream() io.Reader {
@@ -148,8 +179,8 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 	return p.stderr
 }
 
-func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSize {
-	ch := make(chan *remotecommand.TerminalSize)
+func (p *kubeProxyClientStreams) resizeQueue() <-chan terminalResizeMessage {
+	ch := make(chan terminalResizeMessage)
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -158,8 +189,9 @@ func (p *kubeProxyClientStreams) resizeQueue() <-chan *remotecommand.TerminalSiz
 			if size == nil {
 				return
 			}
+
 			select {
-			case ch <- size:
+			case ch <- terminalResizeMessage{size, p.id}:
 				// Check if the sizeQueue was already terminated.
 			case <-p.sizeQueue.done.Done():
 				return
@@ -192,21 +224,28 @@ func (p *kubeProxyClientStreams) Close() error {
 	return nil
 }
 
+// terminalResizeMessage is a message that contains the terminal size and the source of the resize event.
+type terminalResizeMessage struct {
+	size   *remotecommand.TerminalSize
+	source uuid.UUID
+}
+
 // multiResizeQueue is a merged queue of multiple terminal size queues.
 type multiResizeQueue struct {
-	queues       map[string]<-chan *remotecommand.TerminalSize
+	queues       map[string]<-chan terminalResizeMessage
 	cases        []reflect.SelectCase
-	callback     func(*remotecommand.TerminalSize)
+	callback     func(terminalResizeMessage)
 	mutex        sync.Mutex
 	parentCtx    context.Context
 	reloadCtx    context.Context
 	reloadCancel context.CancelFunc
+	lastSize     *remotecommand.TerminalSize
 }
 
 func newMultiResizeQueue(parentCtx context.Context) *multiResizeQueue {
 	ctx, cancel := context.WithCancel(parentCtx)
 	return &multiResizeQueue{
-		queues:       make(map[string]<-chan *remotecommand.TerminalSize),
+		queues:       make(map[string]<-chan terminalResizeMessage),
 		parentCtx:    parentCtx,
 		reloadCtx:    ctx,
 		reloadCancel: cancel,
@@ -233,11 +272,17 @@ func (r *multiResizeQueue) rebuild() {
 	}
 }
 
+func (r *multiResizeQueue) getLastSize() *remotecommand.TerminalSize {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	return r.lastSize
+}
+
 func (r *multiResizeQueue) close() {
 	r.reloadCancel()
 }
 
-func (r *multiResizeQueue) add(id string, queue <-chan *remotecommand.TerminalSize) {
+func (r *multiResizeQueue) add(id string, queue <-chan terminalResizeMessage) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.queues[id] = queue
@@ -269,9 +314,12 @@ loop:
 			}
 		}
 
-		size := value.Interface().(*remotecommand.TerminalSize)
+		size := value.Interface().(terminalResizeMessage)
 		r.callback(size)
-		return size
+		r.mutex.Lock()
+		r.lastSize = size.size
+		r.mutex.Unlock()
+		return size.size
 	}
 }
 
@@ -450,7 +498,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	s.io.OnReadError = s.disconnectPartyOnErr
 
 	s.BroadcastMessage("Creating session with ID: %v...", id.String())
-	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
 
 	go func() {
 		if _, open := <-s.io.TerminateNotifier(); open {
@@ -702,20 +749,24 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 
 	if !s.sess.noAuditEvents {
-		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {
+		s.terminalSizeQueue.callback = func(termSize terminalResizeMessage) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 
 			for id, p := range s.parties {
-				err := p.Client.resize(resize)
+				// Skip the party that sent the resize event to avoid a resize loop.
+				if p.Client.queueID() == termSize.source {
+					continue
+				}
+				err := p.Client.resize(termSize.size)
 				if err != nil {
 					s.log.WithError(err).Errorf("Failed to resize client: %v", id.String())
 				}
 			}
 
 			params := tsession.TerminalParams{
-				W: int(resize.Width),
-				H: int(resize.Height),
+				W: int(termSize.size.Width),
+				H: int(termSize.size.Height),
 			}
 
 			resizeEvent, err := s.recorder.PrepareSessionEvent(&apievents.Resize{
@@ -746,7 +797,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 			}
 		}
 	} else {
-		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
+		s.terminalSizeQueue.callback = func(resize terminalResizeMessage) {}
 	}
 
 	// If we get here, it means we are going to have a session.end event.
@@ -930,7 +981,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		return trace.Wrap(err)
 	}
 
-	// we only want to emit the session.join when someone tries to join a session via
+	// We only want to emit the session.join when someone tries to join a session via
 	// tsh kube join and not when the original session owner terminal streams are
 	// connected to the Kubernetes session.
 	if emitJoinEvent {
@@ -941,6 +992,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	if _, err := p.Client.stdoutStream().Write(recentWrites); err != nil {
 		s.log.Warnf("Failed to write history to client: %v.", err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	// increment the party track waitgroup.
 	// It is decremented when session.leave() finishes its execution.
@@ -952,13 +1004,30 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	s.partiesHistorical[p.ID] = p
 	s.terminalSizeQueue.add(stringID, p.Client.resizeQueue())
 
+	// If the session is already running, we need to resize the new party's terminal
+	// to match the last terminal size.
+	// This is done to ensure that the new party's terminal is the same size as the
+	// other parties' terminals and no discrepancies are present.
+	if lastQueueSize := s.terminalSizeQueue.getLastSize(); lastQueueSize != nil {
+		if err := p.Client.resize(lastQueueSize); err != nil {
+			s.log.WithError(err).Errorf("Failed to resize client: %v", stringID)
+		}
+	}
+
 	if p.Mode == types.SessionPeerMode {
 		s.io.AddReader(stringID, p.Client.stdinStream())
 	}
-
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
+	// Send the participant mode and controls to the additional participant
+	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
+		err := srv.MsgParticipantCtrls(p.Client.stdoutStream(), p.Mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
+	// Allow the moderator to force terminate the session
 	if p.Mode == types.SessionModeratorMode {
 		s.weakEventsWaiter.Add(1)
 		go func() {
@@ -1012,7 +1081,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 				}
 			}()
 		} else if len(s.parties) == 1 {
-			base := "Waiting for required participants..."
+			const base = "Waiting for required participants..."
 
 			if s.displayParticipantRequirements {
 				s.BroadcastMessage(base+"\r\n%v", s.accessEvaluator.PrettyRequirementsList())
@@ -1033,7 +1102,6 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 		}
 	}
-
 	return nil
 }
 
@@ -1325,7 +1393,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		SessionID:         s.id.String(),
 		Kind:              string(types.KubernetesSessionKind),
 		State:             types.SessionState_SessionStatePending,
-		Hostname:          s.podName,
+		Hostname:          path.Join(s.podNamespace, s.podName),
 		ClusterName:       s.ctx.teleportCluster.name,
 		KubernetesCluster: s.ctx.kubeClusterName,
 		HostUser:          p.Ctx.User.GetName(),
@@ -1362,7 +1430,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 	case err != nil:
 		return trace.Wrap(err)
 	// the tracker was created successfully
-	case err == nil:
+	default:
 		s.tracker = tracker
 	}
 

@@ -18,13 +18,12 @@
 
 import React from 'react';
 import { Box, LabelInput, Text, TextArea } from 'design';
-import { TextAreaProps } from 'design/TextArea';
 
 import { useRule } from 'shared/components/Validation';
 
 export interface FieldTextAreaProps
   extends Pick<
-    TextAreaProps,
+    React.TextareaHTMLAttributes<HTMLTextAreaElement>,
     'onChange' | 'placeholder' | 'value' | 'readOnly' | 'autoFocus' | 'name'
   > {
   label?: string;

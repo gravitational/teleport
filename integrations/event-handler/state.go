@@ -18,16 +18,23 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"io/fs"
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/peterbourgon/diskv/v3"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/events/export"
 
 	"github.com/gravitational/teleport/integrations/event-handler/lib"
 )
@@ -45,11 +52,17 @@ const (
 	// cursorName is the cursor variable name
 	cursorName = "cursor"
 
+	// cursorV2Dir is the cursor v2 directory
+	cursorV2Dir = "cursor_v2"
+
 	// idName is the id variable name
 	idName = "id"
 
 	// sessionPrefix is the session key prefix
 	sessionPrefix = "session"
+
+	// missingRecordingPrefix is the missing recording key prefix
+	missingRecordingPrefix = "missing_recording"
 
 	// storageDirPerms is storage directory permissions when created
 	storageDirPerms = 0755
@@ -59,6 +72,12 @@ const (
 type State struct {
 	// dv is a diskv instance
 	dv *diskv.Diskv
+
+	// cursorV2 is an export cursor. if the event handler was started before
+	// introduction of the v2 cursor or is talking to an auth that does not
+	// implement the newer bulk export apis, the v1 cursor stored in the above
+	// dv may be the source of truth still.
+	cursorV2 *export.Cursor
 }
 
 // NewCursor creates new cursor instance
@@ -77,7 +96,17 @@ func NewState(c *StartCmdConfig) (*State, error) {
 		CacheSizeMax: cacheSizeMaxBytes,
 	})
 
-	s := State{dv}
+	cursorV2, err := export.NewCursor(export.CursorConfig{
+		Dir: filepath.Join(dir, cursorV2Dir),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s := State{
+		dv:       dv,
+		cursorV2: cursorV2,
+	}
 
 	return &s, nil
 }
@@ -120,6 +149,56 @@ func createStorageDir(c *StartCmdConfig) (string, error) {
 	}
 
 	return dir, nil
+}
+
+func (s *State) GetCursorV2State() export.ExporterState {
+	return s.cursorV2.GetState()
+}
+
+func (s *State) SetCursorV2State(state export.ExporterState) error {
+	return s.cursorV2.Sync(state)
+}
+
+func (s *State) GetLegacyCursorValues() (*LegacyCursorValues, error) {
+	latestCursor, err := s.GetCursor()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	latestID, err := s.GetID()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lastWindowTime, err := s.GetLastWindowTime()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var windowStartTime time.Time
+	if lastWindowTime != nil {
+		windowStartTime = *lastWindowTime
+	}
+
+	lcv := &LegacyCursorValues{
+		Cursor:          latestCursor,
+		ID:              latestID,
+		WindowStartTime: windowStartTime,
+	}
+
+	return lcv, nil
+}
+
+func (s *State) SetLegacyCursorValues(v LegacyCursorValues) error {
+	if err := s.SetCursor(v.Cursor); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.SetID(v.ID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return s.SetLastWindowTime(&v.WindowStartTime)
 }
 
 // GetStartTime gets current start time
@@ -238,7 +317,100 @@ func (s *State) SetSessionIndex(id string, index int64) error {
 	return s.dv.Write(sessionPrefix+id, b)
 }
 
-// RemoveSession removes session from the state
+// SetMissingRecording writes the session with missing recording into state.
+func (s *State) SetMissingRecording(sess session, attempt int) error {
+	b, err := json.Marshal(missingRecording{
+		Index:     sess.Index,
+		Attempt:   attempt,
+		Timestamp: sess.UploadTime,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.dv.Write(missingRecordingPrefix+sess.ID, b); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.RemoveSession(sess.ID))
+}
+
+type missingRecording struct {
+	ID        string `json:"id,omitempty"`
+	Index     int64
+	Attempt   int
+	Timestamp time.Time
+}
+
+// IterateMissingRecordings finds any sessions with a missing recording and
+// provides them to the callback for processing.
+func (s *State) IterateMissingRecordings(callback func(s session, attempts int) error) error {
+	closeC := make(chan struct{})
+	defer close(closeC)
+	for key := range s.dv.KeysPrefix(missingRecordingPrefix, closeC) {
+		b, err := s.dv.Read(key)
+		if err != nil {
+			// Ignore any errors caused by the file being removed
+			// by an external entity.
+			var pathError *fs.PathError
+			if !errors.Is(err, fs.ErrNotExist) ||
+				errors.As(err, &pathError) && errors.Is(pathError.Err, syscall.ENOENT) {
+				continue
+			}
+
+			return trace.Wrap(err)
+		}
+
+		var m missingRecording
+		if err := json.Unmarshal(b, &m); err != nil {
+			logrus.WithError(err).Warnf("Failed to unmarshal missing recording %s from persisted state", key)
+			continue
+		}
+
+		s := session{
+			ID:         key[len(missingRecordingPrefix):],
+			Index:      m.Index,
+			UploadTime: m.Timestamp,
+		}
+
+		if err := callback(s, m.Attempt); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// RemoveMissingRecording removes the session with a missing recording from state.
+func (s *State) RemoveMissingRecording(id string) error {
+	err := s.dv.Erase(missingRecordingPrefix + id)
+	if err == nil {
+		return nil
+	}
+
+	// If the session had no events, the file won't exist, so we ignore the error
+	var pathError *fs.PathError
+	if !errors.Is(err, fs.ErrNotExist) ||
+		errors.As(err, &pathError) && errors.Is(pathError.Err, syscall.ENOENT) {
+		return nil
+	}
+
+	return trace.Wrap(err)
+}
+
+// RemoveSession removes session from the state.
 func (s *State) RemoveSession(id string) error {
-	return s.dv.Erase(sessionPrefix + id)
+	err := s.dv.Erase(sessionPrefix + id)
+	if err == nil {
+		return nil
+	}
+
+	// If the session had no events, the file won't exist, so we ignore the error
+	var pathError *fs.PathError
+	if !errors.Is(err, fs.ErrNotExist) ||
+		errors.As(err, &pathError) && errors.Is(pathError.Err, syscall.ENOENT) {
+		return nil
+	}
+
+	return trace.Wrap(err)
 }

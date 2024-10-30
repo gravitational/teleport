@@ -49,10 +49,11 @@ func logErrorMessage(err error) slog.Attr {
 }
 
 type pluginInstallArgs struct {
-	cmd  *kingpin.CmdClause
-	name string
-	okta oktaArgs
-	scim scimArgs
+	cmd     *kingpin.CmdClause
+	name    string
+	okta    oktaArgs
+	scim    scimArgs
+	entraID entraArgs
 }
 
 type scimArgs struct {
@@ -86,7 +87,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, config *servicecfg
 	pluginsCommand := app.Command("plugins", "Manage Teleport plugins.").Hidden()
 
 	p.cleanupCmd = pluginsCommand.Command("cleanup", "Cleans up the given plugin type.")
-	p.cleanupCmd.Arg("type", "The type of plugin to cleanup. Only supports okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
+	p.cleanupCmd.Arg("type", "The type of plugin to clean up. Only supports Okta at present.").Required().EnumVar(&p.pluginType, string(types.PluginTypeOkta))
 	p.cleanupCmd.Flag("dry-run", "Dry run the cleanup command. Dry run defaults to on.").Default("true").BoolVar(&p.dryRun)
 
 	p.initInstall(pluginsCommand, config)
@@ -98,10 +99,11 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 
 	p.initInstallOkta(p.install.cmd)
 	p.initInstallSCIM(p.install.cmd)
+	p.initInstallEntra(p.install.cmd)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
-	p.install.scim.cmd = p.install.cmd.Command("scim", "Install a new SCIM integration")
+	p.install.scim.cmd = p.install.cmd.Command("scim", "Install a new SCIM integration.")
 	p.install.scim.cmd.
 		Flag("name", "The name of the SCIM plugin resource to create").
 		Default("scim").
@@ -130,7 +132,7 @@ func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
 }
 
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
-	p.delete.cmd = parent.Command("delete", "Remove a plugin instance")
+	p.delete.cmd = parent.Command("delete", "Remove a plugin instance.")
 	p.delete.cmd.
 		Arg("name", "The name of the SCIM plugin resource to delete").
 		StringVar(&p.delete.name)
@@ -200,11 +202,18 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Cli
 
 type authClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 	Ping(ctx context.Context) (proto.PingResponse, error)
 }
 
 type pluginsClient interface {
 	CreatePlugin(ctx context.Context, in *pluginsv1.CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetPlugin(ctx context.Context, in *pluginsv1.GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
+	UpdatePlugin(ctx context.Context, in *pluginsv1.UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
 }
 
 type installPluginArgs struct {
@@ -310,6 +319,9 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *authcli
 		err = p.InstallOkta(ctx, args)
 	case p.install.scim.cmd.FullCommand():
 		err = p.InstallSCIM(ctx, client)
+	case p.install.entraID.cmd.FullCommand():
+		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
+		err = p.InstallEntra(ctx, args)
 	case p.delete.cmd.FullCommand():
 		err = p.Delete(ctx, client)
 	default:

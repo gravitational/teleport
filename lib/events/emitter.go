@@ -285,7 +285,7 @@ func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	}
 	fields[teleport.ComponentKey] = teleport.Component(teleport.ComponentAuditLog)
 
-	log.WithFields(fields).Infof(event.GetType())
+	log.WithFields(fields).Info(event.GetType())
 	return nil
 }
 

@@ -154,7 +154,10 @@ export class WindowsManager {
           return callback(false);
         }
 
-        if (permission === 'clipboard-sanitized-write') {
+        if (
+          permission === 'clipboard-sanitized-write' ||
+          permission === 'clipboard-read'
+        ) {
           return callback(true);
         }
         return callback(false);
@@ -359,7 +362,7 @@ export class WindowsManager {
  * */
 function getWindowUrl(isDev: boolean): string {
   if (isDev) {
-    return 'https://localhost:8080/';
+    return 'http://localhost:8080/';
   }
 
   // The returned URL is percent-encoded.

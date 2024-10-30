@@ -63,7 +63,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -198,9 +200,14 @@ func genEC2Instances(n int) []*ec2.Instance {
 type mockSSMInstaller struct {
 	mu                 sync.Mutex
 	installedInstances map[string]struct{}
+	runError           error
 }
 
 func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) error {
+	if m.runError != nil {
+		return m.runError
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
@@ -221,6 +228,8 @@ func (m *mockSSMInstaller) GetInstalledInstances() []string {
 
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClock()
 
 	defaultDiscoveryGroup := "dc001"
 	defaultStaticMatcher := Matchers{
@@ -247,8 +256,9 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	dcForEC2SSMWithIntegrationName := uuid.NewString()
 	dcForEC2SSMWithIntegration, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: uuid.NewString()},
+		header.Metadata{Name: dcForEC2SSMWithIntegrationName},
 		discoveryconfig.Spec{
 			DiscoveryGroup: defaultDiscoveryGroup,
 			AWS: []types.AWSMatcher{{
@@ -266,16 +276,39 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	discoveryConfigForUserTaskTestName := uuid.NewString()
+	discoveryConfigForUserTaskTest, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigForUserTaskTestName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-west-2"},
+				Tags:    map[string]utils.Strings{"RunDiscover": {"please"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
-		presentInstances       []types.Server
-		foundEC2Instances      []*ec2.Instance
-		ssm                    *mockSSMClient
-		emitter                *mockEmitter
-		discoveryConfig        *discoveryconfig.DiscoveryConfig
-		staticMatchers         Matchers
-		wantInstalledInstances []string
+		presentInstances          []types.Server
+		foundEC2Instances         []*ec2.Instance
+		ssm                       *mockSSMClient
+		emitter                   *mockEmitter
+		discoveryConfig           *discoveryconfig.DiscoveryConfig
+		staticMatchers            Matchers
+		wantInstalledInstances    []string
+		wantDiscoveryConfigStatus *discoveryconfig.Status
+		userTasksDiscoverEC2Check require.ValueAssertionFunc
+		ssmRunError               error
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -515,9 +548,92 @@ func TestDiscoveryServer(t *testing.T) {
 					}, ae)
 				},
 			},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        dcForEC2SSMWithIntegration,
+			staticMatchers:  Matchers{},
+			discoveryConfig: dcForEC2SSMWithIntegration,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 1,
+				LastSyncTime:        fakeClock.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					"my-integration": {
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+							Found:    1,
+							Enrolled: 0,
+							Failed:   0,
+						},
+					},
+				},
+			},
 			wantInstalledInstances: []string{"instance-id-1"},
+		},
+		{
+			name:             "one node found but SSM Run fails and DiscoverEC2 User Task is created",
+			presentInstances: []types.Server{},
+			foundEC2Instances: []*ec2.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []*ec2.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2.InstanceState{
+						Name: aws.String(ec2.InstanceStateNameRunning),
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssm.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       aws.String(ssm.CommandStatusSuccess),
+					ResponseCode: aws.Int64(0),
+				},
+			},
+			ssmRunError: trace.BadParameter("ssm run failed"),
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     ssm.CommandStatusSuccess,
+					}, ae)
+				},
+			},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        discoveryConfigForUserTaskTest,
+			wantInstalledInstances: []string{},
+			userTasksDiscoverEC2Check: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+				existingTasks, ok := i1.([]*usertasksv1.UserTask)
+				require.True(t, ok, "failed to get existing tasks: %T", i1)
+				require.Len(t, existingTasks, 1)
+				existingTask := existingTasks[0]
+
+				require.Equal(t, "OPEN", existingTask.GetSpec().State)
+				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
+				require.Equal(t, "ec2-ssm-invocation-failure", existingTask.GetSpec().IssueType)
+				require.Equal(t, "owner", existingTask.GetSpec().GetDiscoverEc2().GetAccountId())
+				require.Equal(t, "eu-west-2", existingTask.GetSpec().GetDiscoverEc2().GetRegion())
+
+				taskInstances := existingTask.GetSpec().GetDiscoverEc2().Instances
+				require.Contains(t, taskInstances, "instance-id-1")
+				taskInstance := taskInstances["instance-id-1"]
+
+				require.Equal(t, "instance-id-1", taskInstance.InstanceId)
+				require.Equal(t, discoveryConfigForUserTaskTestName, taskInstance.DiscoveryConfig)
+				require.Equal(t, defaultDiscoveryGroup, taskInstance.DiscoveryGroup)
+			},
 		},
 	}
 
@@ -567,8 +683,15 @@ func TestDiscoveryServer(t *testing.T) {
 			reporter := &mockUsageReporter{}
 			installer := &mockSSMInstaller{
 				installedInstances: make(map[string]struct{}),
+				runError:           tc.ssmRunError,
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
+
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+			}
+
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
@@ -578,16 +701,12 @@ func TestDiscoveryServer(t *testing.T) {
 				Emitter:          tc.emitter,
 				Log:              logger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
+				clock:            fakeClock,
 			})
 			require.NoError(t, err)
 			server.ec2Installer = installer
 			tc.emitter.server = server
 			tc.emitter.t = t
-
-			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
-				require.NoError(t, err)
-			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
@@ -605,6 +724,34 @@ func TestDiscoveryServer(t *testing.T) {
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), 1)
+
+			// Discovery Config Status is updated accordingly
+			if tc.wantDiscoveryConfigStatus != nil {
+				// It can take a while for the status to be updated.
+				require.Eventually(t, func() bool {
+					storedDiscoveryConfig, err := tlsServer.Auth().DiscoveryConfigs.GetDiscoveryConfig(ctx, tc.discoveryConfig.GetName())
+					require.NoError(t, err)
+					if len(storedDiscoveryConfig.Status.IntegrationDiscoveredResources) == 0 {
+						return false
+					}
+					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
+					return true
+				}, 500*time.Millisecond, 50*time.Millisecond)
+			}
+			if tc.userTasksDiscoverEC2Check != nil {
+				var allUserTasks []*usertasksv1.UserTask
+				var nextToken string
+				for {
+					var userTasks []*usertasksv1.UserTask
+					userTasks, nextToken, err = tlsServer.Auth().UserTasks.ListUserTasks(context.Background(), 0, "")
+					require.NoError(t, err)
+					allUserTasks = append(allUserTasks, userTasks...)
+					if nextToken == "" {
+						break
+					}
+				}
+				tc.userTasksDiscoverEC2Check(t, allUserTasks)
+			}
 		})
 	}
 }
@@ -1125,6 +1272,24 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			},
 			wantEvents: 2,
 		},
+		{
+			name:                 "no clusters in auth server, import 3 prod clusters from GKE across multiple projects",
+			existingKubeClusters: []types.KubeCluster{},
+			gcpMatchers: []types.GCPMatcher{
+				{
+					Types:      []string{"gke"},
+					Locations:  []string{"*"},
+					ProjectIDs: []string{"*"},
+					Tags:       map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[4], mainDiscoveryGroup),
+			},
+			wantEvents: 3,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1138,6 +1303,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
 				GCPGKE:         newPopulatedGCPMock(),
+				GCPProjects:    newPopulatedGCPProjectsMock(),
 			}
 
 			ctx := context.Background()
@@ -1615,6 +1781,28 @@ var gkeMockClusters = []gcp.GKECluster{
 		Location:    "central-1",
 		Description: "desc1",
 	},
+	{
+		Name:   "cluster5",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "prod",
+			"location": "central-1",
+		},
+		ProjectID:   "p2",
+		Location:    "central-1",
+		Description: "desc1",
+	},
+	{
+		Name:   "cluster6",
+		Status: containerpb.Cluster_RUNNING,
+		Labels: map[string]string{
+			"env":      "stg",
+			"location": "central-1",
+		},
+		ProjectID:   "p2",
+		Location:    "central-1",
+		Description: "desc1",
+	},
 }
 
 func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
@@ -1632,7 +1820,15 @@ type mockGKEAPI struct {
 }
 
 func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, location string) ([]gcp.GKECluster, error) {
-	return m.clusters, nil
+	var clusters []gcp.GKECluster
+	for _, cluster := range m.clusters {
+		if cluster.ProjectID != projectID {
+			continue
+		}
+		clusters = append(clusters, cluster)
+	}
+
+	return clusters, nil
 }
 
 func TestDiscoveryDatabase(t *testing.T) {
@@ -1963,7 +2159,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			// Add Dynamic Matchers and wait for reconcile again
 			if tc.discoveryConfigs != nil {
 				for _, dc := range tc.discoveryConfigs(t) {
-					_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc)
+					_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
 					require.NoError(t, err)
 				}
 
@@ -2088,7 +2284,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
 
 		actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
@@ -2114,7 +2310,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Zero(t, reporter.DiscoveryFetchEventCount())
-		_, err = tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc1)
+		_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc1)
 		require.NoError(t, err)
 
 		// Check for new resource in reconciler
@@ -2144,7 +2340,7 @@ func TestDiscoveryDatabaseRemovingDiscoveryConfigs(t *testing.T) {
 
 		t.Run("removing the DiscoveryConfig: fetcher is removed and database is removed", func(t *testing.T) {
 			// Remove DiscoveryConfig
-			err = tlsServer.Auth().DiscoveryConfigClient().DeleteDiscoveryConfig(ctx, dc1.GetName())
+			err = tlsServer.Auth().DiscoveryConfigs.DeleteDiscoveryConfig(ctx, dc1.GetName())
 			require.NoError(t, err)
 
 			currentEmittedEvents := reporter.DiscoveryFetchEventCount()
@@ -2496,7 +2692,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			emitter.t = t
 
 			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
 
 				// Wait for the DiscoveryConfig to be added to the dynamic matchers
@@ -2530,12 +2726,21 @@ type mockGCPClient struct {
 	vms []*gcpimds.Instance
 }
 
-func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcpimds.Instance, error) {
-	return m.vms, nil
+func (m *mockGCPClient) getVMSForProject(projectID string) []*gcpimds.Instance {
+	var vms []*gcpimds.Instance
+	for _, vm := range m.vms {
+		if vm.ProjectID == projectID {
+			vms = append(vms, vm)
+		}
+	}
+	return vms
+}
+func (m *mockGCPClient) ListInstances(_ context.Context, projectID, _ string) ([]*gcpimds.Instance, error) {
+	return m.getVMSForProject(projectID), nil
 }
 
-func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcpimds.Instance] {
-	return stream.Slice(m.vms)
+func (m *mockGCPClient) StreamInstances(_ context.Context, projectID, _ string) stream.Stream[*gcpimds.Instance] {
+	return stream.Slice(m.getVMSForProject(projectID))
 }
 
 func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcpimds.InstanceRequest) (*gcpimds.Instance, error) {
@@ -2629,6 +2834,37 @@ func TestGCPVMDiscovery(t *testing.T) {
 			wantInstalledInstances: []string{"myinstance"},
 		},
 		{
+			name:       "no nodes present, 2 found for different projects",
+			presentVMs: []types.Server{},
+			foundGCPVMs: []*gcpimds.Instance{
+				{
+					ProjectID: "p1",
+					Zone:      "myzone",
+					Name:      "myinstance1",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+				{
+					ProjectID: "p2",
+					Zone:      "myzone",
+					Name:      "myinstance2",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			staticMatchers: Matchers{
+				GCP: []types.GCPMatcher{{
+					Types:      []string{"gce"},
+					ProjectIDs: []string{"*"},
+					Locations:  []string{"myzone"},
+					Labels:     types.Labels{"teleport": {"yes"}},
+				}},
+			},
+			wantInstalledInstances: []string{"myinstance1", "myinstance2"},
+		},
+		{
 			name: "nodes present, instance filtered",
 			presentVMs: []types.Server{
 				&types.ServerV2{
@@ -2713,6 +2949,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				GCPInstances: &mockGCPClient{
 					vms: tc.foundGCPVMs,
 				},
+				GCPProjects: newPopulatedGCPProjectsMock(),
 			}
 
 			ctx := context.Background()
@@ -2761,7 +2998,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			emitter.t = t
 
 			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
 				require.NoError(t, err)
 
 				// Wait for the DiscoveryConfig to be added to the dynamic matchers
@@ -2793,12 +3030,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 // TestServer_onCreate tests the update of the discovery_group of a resource
 // when a resource already exists with the same name but an empty discovery_group.
 func TestServer_onCreate(t *testing.T) {
-	_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
-	_, awsRedshiftDBEmptyDiscoveryGroup := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "" /* empty discovery group */)
-	accessPoint := &fakeAccessPoint{
-		kube:     mustConvertEKSToKubeCluster(t, eksMockClusters[0], "" /* empty discovery group */),
-		database: awsRedshiftDBEmptyDiscoveryGroup,
-	}
+	accessPoint := &fakeAccessPoint{}
 	s := &Server{
 		Config: &Config{
 			DiscoveryGroup: "test-cluster",
@@ -2808,31 +3040,106 @@ func TestServer_onCreate(t *testing.T) {
 	}
 
 	t.Run("onCreate update kube", func(t *testing.T) {
+		// With cloud origin and an empty discovery group, it should update.
+		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "" /* empty discovery group */)
 		err := s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
 		require.NoError(t, err)
-		require.True(t, accessPoint.updateKube)
+		require.True(t, accessPoint.updatedKube)
 
-		// Reset the update flag.
-		accessPoint.updateKube = false
-		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "nonEmpty")
-		// Update the kube cluster with non-empty discovery group.
+		// Reset the updated flag and set the registered kube cluster to have
+		// non-cloud origin. It should not update.
+		accessPoint.updatedKube = false
+		accessPoint.kube.SetOrigin(types.OriginDynamic)
 		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
 		require.Error(t, err)
-		require.False(t, accessPoint.updateKube)
+		require.False(t, accessPoint.updatedKube)
+
+		// Reset the updated flag and set the registered kube cluster to have
+		// an empty origin. It should not update.
+		accessPoint.updatedKube = false
+		accessPoint.kube.SetOrigin("")
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedKube)
+
+		// Reset the update flag and set the registered kube cluster to have
+		// a non-empty discovery group. It should not update.
+		accessPoint.updatedKube = false
+		accessPoint.kube = mustConvertEKSToKubeCluster(t, eksMockClusters[0], "nonEmpty")
+		err = s.onKubeCreate(context.Background(), mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedKube)
 	})
 
 	t.Run("onCreate update database", func(t *testing.T) {
+		_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
+		_, awsRedshiftDBEmptyDiscoveryGroup := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "" /* empty discovery group */)
+
+		// With cloud origin and an empty discovery group, it should update.
+		accessPoint.database = awsRedshiftDBEmptyDiscoveryGroup
 		err := s.onDatabaseCreate(context.Background(), awsRedshiftDB)
 		require.NoError(t, err)
-		require.True(t, accessPoint.updateDatabase)
+		require.True(t, accessPoint.updatedDatabase)
 
-		// Reset the update flag.
-		accessPoint.updateDatabase = false
-		accessPoint.database = awsRedshiftDB
-		// Update the db with non-empty discovery group.
+		// Reset the updated flag and set the db to empty discovery group
+		// but non-cloud origin. It should not update.
+		accessPoint.updatedDatabase = false
+		accessPoint.database.SetOrigin(types.OriginDynamic)
 		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
 		require.Error(t, err)
-		require.False(t, accessPoint.updateDatabase)
+		require.False(t, accessPoint.updatedDatabase)
+
+		// Reset the updated flag and set the db to empty discovery group
+		// but empty origin. It should not update.
+		accessPoint.updatedDatabase = false
+		accessPoint.database.SetOrigin("")
+		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedDatabase)
+
+		// Reset the updated flag and set the registered db to have a non-empty
+		// discovery group. It should not update.
+		accessPoint.updatedDatabase = false
+		accessPoint.database = awsRedshiftDB
+		err = s.onDatabaseCreate(context.Background(), awsRedshiftDB)
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedDatabase)
+	})
+
+	t.Run("onCreate update app", func(t *testing.T) {
+		kubeSvc := newMockKubeService("service1", "ns1", "",
+			map[string]string{"test-label": "testval"}, nil,
+			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}})
+
+		// With kube origin and empty discovery group, it should update.
+		accessPoint.app = mustConvertKubeServiceToApp(t, "" /*empty discovery group*/, "http", kubeSvc, kubeSvc.Spec.Ports[0])
+		err := s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.NoError(t, err)
+		require.True(t, accessPoint.updatedApp)
+
+		// Reset the updated flag and set the app to empty discovery group
+		// but non-cloud origin. It should not update.
+		accessPoint.updatedApp = false
+		accessPoint.app.SetOrigin(types.OriginDynamic)
+		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedApp)
+
+		// Reset the updated flag and set the app to empty discovery group
+		// but non-cloud origin. It should not update.
+		accessPoint.updatedApp = false
+		accessPoint.app.SetOrigin("")
+		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedApp)
+
+		// Reset the updated flag and set the app to non-empty discovery group.
+		// It should not update.
+		accessPoint.updatedApp = false
+		accessPoint.app = mustConvertKubeServiceToApp(t, "nonEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0])
+		err = s.onAppCreate(context.Background(), mustConvertKubeServiceToApp(t, "notEmpty", "http", kubeSvc, kubeSvc.Spec.Ports[0]))
+		require.Error(t, err)
+		require.False(t, accessPoint.updatedApp)
 	})
 }
 
@@ -2931,10 +3238,12 @@ type fakeAccessPoint struct {
 	ping              func(context.Context) (proto.PingResponse, error)
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 
-	updateKube          bool
-	updateDatabase      bool
+	updatedKube         bool
+	updatedDatabase     bool
+	updatedApp          bool
 	kube                types.KubeCluster
 	database            types.Database
+	app                 types.Application
 	upsertedServerInfos chan types.ServerInfo
 	reports             map[string][]discoveryconfig.Status
 }
@@ -2981,7 +3290,7 @@ func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Dat
 }
 
 func (f *fakeAccessPoint) UpdateDatabase(ctx context.Context, database types.Database) error {
-	f.updateDatabase = true
+	f.updatedDatabase = true
 	return nil
 }
 
@@ -2991,7 +3300,20 @@ func (f *fakeAccessPoint) CreateKubernetesCluster(ctx context.Context, cluster t
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	f.updateKube = true
+	f.updatedKube = true
+	return nil
+}
+
+func (f *fakeAccessPoint) GetApp(ctx context.Context, name string) (types.Application, error) {
+	return f.app, nil
+}
+
+func (f *fakeAccessPoint) CreateApp(ctx context.Context, _ types.Application) error {
+	return trace.AlreadyExists("already exists")
+}
+
+func (f *fakeAccessPoint) UpdateApp(ctx context.Context, _ types.Application) error {
+	f.updatedApp = true
 	return nil
 }
 
@@ -3027,4 +3349,28 @@ func (m fakeWatcher) Close() error {
 
 func (m fakeWatcher) Error() error {
 	return nil
+}
+
+type mockProjectsAPI struct {
+	gcp.ProjectsClient
+	projects []gcp.Project
+}
+
+func (m *mockProjectsAPI) ListProjects(ctx context.Context) ([]gcp.Project, error) {
+	return m.projects, nil
+}
+
+func newPopulatedGCPProjectsMock() *mockProjectsAPI {
+	return &mockProjectsAPI{
+		projects: []gcp.Project{
+			{
+				ID:   "p1",
+				Name: "project1",
+			},
+			{
+				ID:   "p2",
+				Name: "project2",
+			},
+		},
+	}
 }

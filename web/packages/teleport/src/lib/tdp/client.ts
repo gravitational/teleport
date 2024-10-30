@@ -394,31 +394,21 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
-  private wasSuccessful(errCode: SharedDirectoryErrCode) {
-    if (errCode === SharedDirectoryErrCode.Nil) {
-      return true;
-    }
-
-    this.handleError(
-      new Error(`Encountered shared directory error: ${errCode}`),
-      TdpClientEvent.CLIENT_ERROR
-    );
-    return false;
-  }
-
   handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
     const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
-
-    if (!this.wasSuccessful(ack.errCode)) {
+    if (ack.errCode !== SharedDirectoryErrCode.Nil) {
+      // A failure in the acknowledge message means the directory
+      // share operation failed (likely due to server side configuration).
+      // Since this is not a fatal error, we emit a warning but otherwise
+      // keep the sesion alive.
+      this.handleWarning(
+        `Failed to share directory '${this.sdManager.getName()}', drive redirection may be disabled on the RDP server.`,
+        TdpClientEvent.TDP_WARNING
+      );
       return;
     }
-    try {
-      this.logger.info(
-        'Started sharing directory: ' + this.sdManager.getName()
-      );
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+
+    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
   }
 
   async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
@@ -712,7 +702,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
-  // Emits an errType event, closing the socket if the error was fatal.
+  // Emits an errType event and closes the websocket connection.
+  // Should only be used for fatal errors.
   private handleError(
     err: Error,
     errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR
@@ -722,7 +713,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket?.close();
   }
 
-  // Emits an warnType event
+  // Emits a warning event, but keeps the socket open.
   private handleWarning(
     warning: string,
     warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING

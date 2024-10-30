@@ -172,7 +172,7 @@ export const ManualHelmDialogStory = () => {
     resourceSpec: {
       name: 'Eks',
       kind: ResourceKind.Kubernetes,
-      icon: 'Eks',
+      icon: 'eks',
       keywords: '',
       event: DiscoverEventResource.KubernetesEks,
     },

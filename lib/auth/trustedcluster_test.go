@@ -400,7 +400,6 @@ func TestValidateTrustedCluster(t *testing.T) {
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { bk.Close() })
 
 	clusterName := "me.localhost"
 	if len(name) != 0 {
@@ -414,12 +413,18 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	authConfig := &InitConfig{
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() { a.Close() })
+
+	t.Cleanup(func() {
+		bk.Close()
+		a.Close()
+	})
+
 	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	_, err = a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
@@ -464,22 +469,11 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "trustedcluster"))
-	_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
-		Token:           validToken,
-		CAs:             []types.CertAuthority{leafClusterCA},
-		TeleportVersion: teleport.Version,
-	})
-	require.NoError(t, err)
-
-	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
-	require.NoError(t, err)
-
 	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
-	err = a.addCertAuthorities(ctx, trustedCluster, []types.CertAuthority{ca})
-	require.NoError(t, err)
 
-	err = a.UpsertCertAuthority(ctx, ca)
+	configureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
+
+	_, err = a.Services.CreateTrustedCluster(ctx, trustedCluster, []types.CertAuthority{ca})
 	require.NoError(t, err)
 
 	err = a.createReverseTunnel(trustedCluster)

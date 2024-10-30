@@ -1022,13 +1022,7 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: sctx.GetUser()}); err != nil {
 		sessionDeletionErrs = err
 	}
-	if samlSession := sctx.cfg.Session.GetSAMLSession(); samlSession != nil && samlSession.ID != "" {
-		if err := clt.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
-			SessionID: samlSession.ID,
-		}); err != nil && !trace.IsNotFound(err) {
-			sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
-		}
-	}
+
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
 	if err := clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{

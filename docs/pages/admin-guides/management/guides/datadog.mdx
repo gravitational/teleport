@@ -1,0 +1,25 @@
+---
+title: Datadog Integration
+description: How to export Teleport metrics and logs to Datadog
+h1: Export Teleport metrics and logs to Datadog
+---
+
+Datadog has an [officially maintained integration](https://docs.datadoghq.com/integrations/teleport/) for Teleport.
+
+The integration exports both metrics and logs to Datadog. The metrics are Datadog-native,
+not external metrics, which means they incur no extra usage charges to your Datadog account.
+The integration also includes a dashboard for monitoring your Teleport cluster.
+
+There is no installation required to use the integration, only changes to the Datadog
+Agent configuration. Please see the Datadog documentation linked above for how to activate
+the Teleport integration in Datadog.
+
+The Teleport Datadog integration includes log processing rules for
+text-formatted logs printed by an Auth Service instance. If you self-host
+Teleport, you can configure the Datadog Agent to tail these logs on an Auth
+Service host. 
+
+On Teleport Enterprise (Cloud), you must use the Teleport Event Handler to
+subscribe to audit logs from the Auth Service and forward them to Datadog using
+Fluentd. Read the [Teleport documentation](../export-audit-events/datadog.mdx)
+for how to configure audit log exporting using Datadog and the Event Handler.

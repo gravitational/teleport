@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -45,6 +46,8 @@ func TestGenerateServiceWithTaskDefinition(t *testing.T) {
 			},
 		},
 		PropagateTags: ecsTypes.PropagateTagsService,
+		CreatedBy:     aws.String("an extra field that is not present in the UpdateServiceInput"),
+		DesiredCount:  2,
 	}
 
 	expected := &ecs.UpdateServiceInput{
@@ -58,9 +61,15 @@ func TestGenerateServiceWithTaskDefinition(t *testing.T) {
 			},
 		},
 		PropagateTags: ecsTypes.PropagateTagsService,
-	}
+		DesiredCount:  aws.Int32(2),
 
-	require.Equal(t, expected, generateServiceWithTaskDefinition(service, "task-definition-v2"))
+		// Fields that are have a literal value in ecsTypes.Service but a pointer type in ecs.UpdateServiceInput will have their value defaulted to the 0-value
+		EnableECSManagedTags: aws.Bool(false),
+		EnableExecuteCommand: aws.Bool(false),
+	}
+	gotService, err := generateServiceWithTaskDefinition(service, "task-definition-v2")
+	require.NoError(t, err)
+	require.Equal(t, expected, gotService)
 }
 
 func TestGenerateTaskDefinitionWithImage(t *testing.T) {
@@ -71,6 +80,8 @@ func TestGenerateTaskDefinitionWithImage(t *testing.T) {
 		},
 		Cpu:    aws.String(taskCPU),
 		Memory: aws.String(taskMem),
+
+		RegisteredBy: aws.String("a field that doesn't exist in ecs.RegisterTaskDefinitionInput"),
 
 		NetworkMode:      ecsTypes.NetworkModeAwsvpc,
 		TaskRoleArn:      aws.String("task-role-arn"),
@@ -150,8 +161,10 @@ func TestUpdateDeployServices(t *testing.T) {
 
 	clusterName := "my-cluster"
 	integrationName := "my-integration"
-	ownershipTags := defaultResourceCreationTags(clusterName, integrationName)
-	teleportVersion := teleport.Version
+	ownershipTags := tags.DefaultResourceCreationTags(clusterName, integrationName)
+	semVer := *teleport.SemVersion
+	semVer.PreRelease = ""
+	teleportVersion := semVer.String()
 	log := utils.NewSlogLoggerForTests().With("test", t.Name())
 
 	t.Run("only legacy service present", func(t *testing.T) {

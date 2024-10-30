@@ -199,6 +199,9 @@ const (
 	// ComponentSession is an active session.
 	ComponentSession = "session"
 
+	// ComponentHostUsers represents host user management.
+	ComponentHostUsers = "hostusers"
+
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
 
@@ -503,6 +506,10 @@ const (
 	// CertExtensionBotName indicates the name of the Machine ID bot this
 	// certificate was issued to, if any.
 	CertExtensionBotName = "bot-name@goteleport.com"
+	// CertExtensionBotInstanceID indicates the unique identifier of this
+	// Machine ID bot instance, if any. This identifier is persisted through
+	// certificate renewals.
+	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -536,6 +543,10 @@ const (
 	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254
+	// HomeDirNotAccessible is returned when a the "teleport checkhomedir" command has
+	// found the user's home directory, but the user does NOT have permissions to
+	// access it.
+	HomeDirNotAccessible = 253
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -576,9 +587,6 @@ const (
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
-
-	// TraitJWT is the name of the trait containing JWT header for app access.
-	TraitJWT = "jwt"
 
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
@@ -670,6 +678,10 @@ const (
 	// The role is used as a basis for requiring trusted device access to
 	// resources.
 	PresetRequireTrustedDeviceRoleName = "require-trusted-device"
+
+	// PresetTerraformProviderRoleName is a name of a default role that allows the Terraform provider
+	// to configure all its supported Teleport resources.
+	PresetTerraformProviderRoleName = "terraform-provider"
 
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request
@@ -941,4 +953,11 @@ const (
 	// DebugServiceSocketName represents the Unix domain socket name of the
 	// debug service.
 	DebugServiceSocketName = "debug.sock"
+)
+
+const (
+	// OktaAccessRoleContext is the context used to name Okta Access role created by Okta access list sync
+	OktaAccessRoleContext = "access-okta-acl-role"
+	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
+	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )

@@ -177,6 +177,8 @@ func TestAutoUsersPostgres(t *testing.T) {
 
 			// 2. If there are any database permissions: admin connecting to session database.
 			if len(tc.databasePermissions) > 0 {
+				// expect two connections to be made.
+				requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", "user-db")
 				requirePostgresConnection(t, testCtx.postgres["postgres"].db.ParametersCh(), "postgres", "user-db")
 			}
 

@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -74,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -855,7 +857,9 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
-			App: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
 		},
 	})
 
@@ -1327,6 +1331,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
+	fakeClock, ok := clock.(clockwork.FakeClock)
+	require.True(t, ok)
+	fakeClock.Advance(-60 * time.Second)
 
 	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
@@ -4187,7 +4195,11 @@ func TestExport(t *testing.T) {
 // a SAML connector.
 func TestSAMLValidation(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{SAML: true},
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
 	})
 
 	// minimal entity_descriptor to pass validation. not actually valid
@@ -4315,7 +4327,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installer.DefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4326,7 +4338,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			},
 			expectedInstallers: map[string]string{
 				"my-custom-installer":                   "echo test",
-				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installer.DefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4459,8 +4471,8 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 func TestGetAccessGraphConfig(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Policy: modules.PolicyFeature{
-				Enabled: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
 			},
 		},
 	})
@@ -4474,9 +4486,10 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
 	positiveResponse := &clusterconfigpb.AccessGraphConfig{
-		Enabled: true,
-		Ca:      []byte("ca"),
-		Address: "addr",
+		Enabled:           true,
+		Ca:                []byte("ca"),
+		Address:           "addr",
+		SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
 	}
 
 	tests := []struct {

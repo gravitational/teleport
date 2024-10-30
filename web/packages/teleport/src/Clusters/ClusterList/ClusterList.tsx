@@ -22,7 +22,7 @@ import styled from 'styled-components';
 
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import Table, { Cell } from 'design/DataTable';
-import { Primary } from 'design/Label';
+import { Primary, Secondary } from 'design/Label';
 
 import { Cluster } from 'teleport/services/clusters';
 import cfg from 'teleport/config';
@@ -61,7 +61,9 @@ export default function ClustersList(props: Props) {
 function renderRootLabelCell({ clusterId }: Cluster) {
   const isRoot = cfg.proxyCluster === clusterId;
   return (
-    <Cell style={{ width: '40px' }}>{isRoot && <Primary>ROOT</Primary>}</Cell>
+    <Cell style={{ width: '40px' }}>
+      {isRoot ? <Primary>ROOT</Primary> : <Secondary>LEAF</Secondary>}
+    </Cell>
   );
 }
 

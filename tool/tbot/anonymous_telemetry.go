@@ -98,7 +98,7 @@ func sendTelemetry(
 		data.Helper = helper
 		data.HelperVersion = envGetter(helperVersionEnv)
 	}
-	for _, output := range cfg.Outputs {
+	for _, output := range cfg.Services {
 		switch output.(type) {
 		case *config.ApplicationOutput:
 			data.DestinationsApplication++

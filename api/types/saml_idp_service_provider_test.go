@@ -177,13 +177,22 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			},
 		},
 		{
-			name:             "supported preset value",
+			name:             "supported empty preset value",
 			entityDescriptor: "",
 			entityID:         "IAMShowcase",
 			acsURL:           "https:/test.com/acs",
 			expectedEntityID: "IAMShowcase",
 			errAssertion:     require.NoError,
 			preset:           samlsp.GCPWorkforce,
+		},
+		{
+			name:             "supported unspecified preset value",
+			entityDescriptor: "",
+			entityID:         "IAMShowcase",
+			acsURL:           "https:/test.com/acs",
+			expectedEntityID: "IAMShowcase",
+			errAssertion:     require.NoError,
+			preset:           samlsp.Unspecified,
 		},
 		{
 			name:             "unsupported preset value",

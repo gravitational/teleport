@@ -38,6 +38,7 @@ const (
 	PKCS1PrivateKeyType      = "RSA PRIVATE KEY"
 	PKCS8PrivateKeyType      = "PRIVATE KEY"
 	ECPrivateKeyType         = "EC PRIVATE KEY"
+	OpenSSHPrivateKeyType    = "OPENSSH PRIVATE KEY"
 	pivYubiKeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
 )
 
@@ -98,32 +99,12 @@ func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error
 		PrivateKey: k.Signer,
 	}
 
-	var skippedBlockTypes []string
-	for {
-		var certDERBlock *pem.Block
-		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
-		if certDERBlock == nil {
-			break
-		}
-		if certDERBlock.Type == "CERTIFICATE" {
-			cert.Certificate = append(cert.Certificate, certDERBlock.Bytes)
-		} else {
-			skippedBlockTypes = append(skippedBlockTypes, certDERBlock.Type)
-		}
-	}
-
-	if len(cert.Certificate) == 0 {
-		if len(skippedBlockTypes) == 0 {
-			return tls.Certificate{}, trace.BadParameter("tls: failed to find any PEM data in certificate input")
-		}
-		return tls.Certificate{}, trace.BadParameter("tls: failed to find \"CERTIFICATE\" PEM block in certificate input after skipping PEM blocks of the following types: %v", skippedBlockTypes)
-	}
-
-	// Check that the certificate's public key matches this private key.
-	x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+	// Parse the certificate and verify it is valid.
+	x509Cert, rawCerts, err := X509Certificate(certPEMBlock)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
+	cert.Certificate = rawCerts
 
 	if keyPub, ok := k.Public().(cryptoPublicKeyI); !ok {
 		return tls.Certificate{}, trace.BadParameter("private key does not contain a valid public key")
@@ -181,34 +162,54 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 	}
 
 	switch block.Type {
-	case PKCS1PrivateKeyType:
-		cryptoSigner, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
-	case ECPrivateKeyType:
-		cryptoSigner, err := x509.ParseECPrivateKey(block.Bytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
-	case PKCS8PrivateKeyType:
-		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	case pivYubiKeyPrivateKeyType:
+		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
+		return priv, trace.Wrap(err, "parsing YubiKey private key")
+	case OpenSSHPrivateKeyType:
+		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		cryptoSigner, ok := priv.(crypto.Signer)
 		if !ok {
-			return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
+			return nil, trace.BadParameter("ssh.ParseRawPrivateKey returned an invalid private key of type %T", priv)
+		}
+		// For some reason ssh.ParseRawPrivateKey returns a *ed25519.PrivateKey
+		// instead of the plain ed25519.PrivateKey which is used everywhere
+		// else. This breaks comparisons and type switches, so explicitly convert it.
+		if pEdwards, ok := cryptoSigner.(*ed25519.PrivateKey); ok {
+			cryptoSigner = *pEdwards
 		}
 		return NewPrivateKey(cryptoSigner, keyPEM)
-	case pivYubiKeyPrivateKeyType:
-		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse YubiKey private key")
+	case PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType:
+		// The DER format doesn't always exactly match the PEM header, various
+		// versions of Teleport and OpenSSL have been guilty of writing PKCS#8
+		// data into an "RSA PRIVATE KEY" block or vice-versa, so we just try
+		// parsing every DER format. This matches the behavior of [tls.X509KeyPair].
+		var preferredErr error
+		if priv, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+			signer, ok := priv.(crypto.Signer)
+			if !ok {
+				return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
+			}
+			return NewPrivateKey(signer, keyPEM)
+		} else if block.Type == PKCS8PrivateKeyType {
+			preferredErr = err
 		}
-		return priv, nil
+		if signer, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+			return NewPrivateKey(signer, keyPEM)
+		} else if block.Type == PKCS1PrivateKeyType {
+			preferredErr = err
+		}
+		if signer, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
+			return NewPrivateKey(signer, keyPEM)
+		} else if block.Type == ECPrivateKeyType {
+			preferredErr = err
+		}
+		// If all three parse functions returned an error, preferedErr is
+		// guaranteed to be set to the error from the parse function that
+		// usually matches the PEM block type.
+		return nil, trace.Wrap(preferredErr, "parsing private key PEM")
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}
@@ -333,4 +334,37 @@ func IsRSAPrivateKey(privKey []byte) bool {
 	default:
 		return false
 	}
+}
+
+// X509Certificate takes a PEM-encoded file containing one or more certificates, extracts all certificates, and parses
+// the Leaf certificate (the first one in the chain). If you are loading both a certificate and a private key, you
+// should use X509KeyPair instead.
+func X509Certificate(certPEMBlock []byte) (*x509.Certificate, [][]byte, error) {
+	var skippedBlockTypes []string
+	var rawCerts [][]byte
+	for {
+		var certDERBlock *pem.Block
+		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
+		if certDERBlock == nil {
+			break
+		}
+		if certDERBlock.Type == "CERTIFICATE" {
+			rawCerts = append(rawCerts, certDERBlock.Bytes)
+		} else {
+			skippedBlockTypes = append(skippedBlockTypes, certDERBlock.Type)
+		}
+	}
+
+	if len(rawCerts) == 0 {
+		if len(skippedBlockTypes) == 0 {
+			return nil, nil, trace.BadParameter("tls: failed to find any PEM data in certificate input")
+		}
+		return nil, nil, trace.BadParameter("tls: failed to find \"CERTIFICATE\" PEM block in certificate input after skipping PEM blocks of the following types: %v", skippedBlockTypes)
+	}
+
+	x509Cert, err := x509.ParseCertificate(rawCerts[0])
+	if err != nil {
+		return nil, rawCerts, trace.Wrap(err, "failed to parse certificate")
+	}
+	return x509Cert, rawCerts, nil
 }

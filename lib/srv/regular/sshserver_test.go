@@ -126,7 +126,7 @@ func newFixture(t *testing.T) *sshTestFixture {
 	return newCustomFixture(t, func(*auth.TestServerConfig) {})
 }
 
-func newFixtureWithoutDiskBasedLogging(t *testing.T, sshOpts ...ServerOption) *sshTestFixture {
+func newFixtureWithoutDiskBasedLogging(t testing.TB, sshOpts ...ServerOption) *sshTestFixture {
 	t.Helper()
 
 	f := newCustomFixture(t, func(cfg *auth.TestServerConfig) {
@@ -143,7 +143,7 @@ func newFixtureWithoutDiskBasedLogging(t *testing.T, sshOpts ...ServerOption) *s
 	return f
 }
 
-func (f *sshTestFixture) newSSHClient(ctx context.Context, t *testing.T, user *user.User) *tracessh.Client {
+func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *user.User) *tracessh.Client {
 	// set up SSH client using the user private key for signing
 	up, err := newUpack(f.testSrv, user.Username, []string{user.Username}, wildcardAllow)
 	require.NoError(t, err)
@@ -172,7 +172,7 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t *testing.T, user *u
 	return client
 }
 
-func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
+func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
 	ctx := context.Background()
 
 	u, err := user.Current()
@@ -236,6 +236,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetLockWatcher(lockWatcher),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
+		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
 	}
 
 	serverOptions = append(serverOptions, sshOpts...)
@@ -258,7 +259,9 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		sshSrv.Wait()
 	})
 
-	_, err = testServer.Auth().UpsertNode(ctx, sshSrv.getServerInfo())
+	server, err := sshSrv.getServerInfo(ctx)
+	require.NoError(t, err)
+	_, err = testServer.Auth().UpsertNode(ctx, server)
 	require.NoError(t, err)
 
 	sshSrvAddress := sshSrv.Addr()
@@ -2878,6 +2881,8 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 	role.SetRules(types.Allow, rules)
 	opts := role.GetOptions()
 	opts.PermitX11Forwarding = types.NewBool(true)
+	//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
+	opts.CreateHostUser = types.NewBoolOption(true)
 	role.SetOptions(opts)
 	role.SetLogins(types.Allow, allowedLogins)
 	role.SetNodeLabels(types.Allow, allowedLabels)
@@ -2926,7 +2931,7 @@ func newUpack(testSvr *auth.TestServer, username string, allowedLogins []string,
 	}, nil
 }
 
-func newLockWatcher(ctx context.Context, t *testing.T, client types.Events) *services.LockWatcher {
+func newLockWatcher(ctx context.Context, t testing.TB, client types.Events) *services.LockWatcher {
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
@@ -2964,7 +2969,7 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 }
 
 // newSigner creates a new SSH signer that can be used by the Server.
-func newSigner(t *testing.T, ctx context.Context, testServer *auth.TestServer) ssh.Signer {
+func newSigner(t testing.TB, ctx context.Context, testServer *auth.TestServer) ssh.Signer {
 	t.Helper()
 
 	priv, pub, err := testauthority.New().GenerateKeyPair()
@@ -3002,3 +3007,178 @@ func newSigner(t *testing.T, ctx context.Context, testServer *auth.TestServer) s
 //	https://github.com/afborchert/pipebuf
 //	https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
 const maxPipeSize = 65536 + 1
+
+func TestHostUserCreationProxy(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := context.Background()
+
+	proxyClient, _ := newProxyClient(t, f.testSrv)
+	nodeClient, _ := newNodeClient(t, f.testSrv)
+
+	logger := logrus.WithField("test", "TestHostUserCreationProxy")
+	listener, reverseTunnelAddress := mustListen(t)
+	defer listener.Close()
+	lockWatcher := newLockWatcher(ctx, t, proxyClient)
+	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
+	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
+
+	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ClusterName:           f.testSrv.ClusterName(),
+		ClientTLS:             proxyClient.TLSConfig(),
+		ID:                    hostID,
+		Listener:              listener,
+		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
+		LocalAuthClient:       proxyClient,
+		LocalAccessPoint:      proxyClient,
+		NewCachingAccessPoint: noCache,
+		DataDir:               t.TempDir(),
+		Emitter:               proxyClient,
+		Log:                   logger,
+		LockWatcher:           lockWatcher,
+		NodeWatcher:           nodeWatcher,
+		CertAuthorityWatcher:  caWatcher,
+		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
+	})
+	require.NoError(t, err)
+	logger.WithField("tun-addr", reverseTunnelAddress.String()).Info("Created reverse tunnel server.")
+
+	require.NoError(t, reverseTunnelServer.Start())
+	defer reverseTunnelServer.Close()
+
+	router, err := libproxy.NewRouter(libproxy.RouterConfig{
+		ClusterName:         f.testSrv.ClusterName(),
+		Log:                 utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+		RemoteClusterGetter: proxyClient,
+		SiteGetter:          reverseTunnelServer,
+		TracerProvider:      tracing.NoopProvider(),
+	})
+	require.NoError(t, err)
+
+	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+		Semaphores:   proxyClient,
+		AccessPoint:  proxyClient,
+		LockEnforcer: lockWatcher,
+		Emitter:      proxyClient,
+		Component:    teleport.ComponentNode,
+		ServerID:     hostID,
+	})
+	require.NoError(t, err)
+
+	proxy, err := New(
+		ctx,
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+		f.testSrv.ClusterName(),
+		sshutils.StaticHostSigners(f.signer),
+		proxyClient,
+		t.TempDir(),
+		"",
+		utils.NetAddr{},
+		proxyClient,
+		SetProxyMode("", reverseTunnelServer, proxyClient, router),
+		SetEmitter(nodeClient),
+		SetNamespace(apidefaults.Namespace),
+		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetBPF(&bpf.NOP{}),
+		SetClock(f.clock),
+		SetLockWatcher(lockWatcher),
+		SetSessionController(sessionController),
+	)
+	require.NoError(t, err)
+
+	sudoers := &fakeHostSudoers{}
+	proxy.sudoers = sudoers
+
+	usersBackend := &fakeHostUsersBackend{}
+	proxy.users = usersBackend
+
+	// Explicitly enabled host user creation on the proxy, even though this
+	// should never happen, to test that the proxy will not honor this setting.
+	proxy.createHostUser = true
+	proxy.proxyMode = true
+
+	reg, err := srv.NewSessionRegistry(srv.SessionRegistryConfig{Srv: proxy, SessionTrackerService: proxyClient})
+	require.NoError(t, err)
+
+	_, err = reg.WriteSudoersFile(srv.IdentityContext{
+		AccessChecker: &fakeAccessChecker{},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, 0, sudoers.writeAttempts)
+
+	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
+		AccessChecker: &fakeAccessChecker{},
+	})
+	assert.NoError(t, err)
+	assert.Empty(t, usersBackend.calls, 0)
+}
+
+type fakeAccessChecker struct {
+	services.AccessChecker
+}
+
+func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
+	return []string{"test1", "test2", "test3"}, nil
+}
+
+func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
+	return &services.HostUsersInfo{}, nil
+}
+
+type fakeHostSudoers struct {
+	writeAttempts int
+}
+
+func (f *fakeHostSudoers) WriteSudoers(name string, sudoers []string) error {
+	f.writeAttempts++
+	return nil
+}
+
+func (f *fakeHostSudoers) RemoveSudoers(name string) error {
+	return nil
+}
+
+type fakeHostUsersBackend struct {
+	srv.HostUsers
+
+	calls map[string]int
+}
+
+func (f *fakeHostUsersBackend) functionCalled(name string) {
+	if f.calls == nil {
+		f.calls = make(map[string]int)
+	}
+
+	f.calls[name]++
+}
+
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
+	f.functionCalled("UpsertUser")
+	return nil, trace.NotImplemented("")
+}
+
+func (f *fakeHostUsersBackend) DeleteUser(name, gid string) error {
+	f.functionCalled("DeleteUser")
+	return trace.NotImplemented("")
+}
+
+func (f *fakeHostUsersBackend) DeleteAllUsers() error {
+	f.functionCalled("DeleteAllUsers")
+	return trace.NotImplemented("")
+}
+
+func (f *fakeHostUsersBackend) UserCleanup() {
+	f.functionCalled("UserCleanup")
+}
+
+func (f *fakeHostUsersBackend) Shutdown() {
+	f.functionCalled("ShutDown")
+}
+
+func (f *fakeHostUsersBackend) UserExists(name string) error {
+	f.functionCalled("UserExists")
+	return trace.NotImplemented("")
+}
+
+func (f *fakeHostUsersBackend) SetHostUserDeletionGrace(grace time.Duration) {
+	f.functionCalled("SetHostUserDeletionGrace")
+}

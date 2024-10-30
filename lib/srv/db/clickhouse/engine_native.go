@@ -54,5 +54,5 @@ func (e *Engine) handleNativeConnection(ctx context.Context, sessionCtx *common.
 
 func (e *Engine) sendErrorNative(err error) {
 	// TODO: Support clickhouse native wire protocol error messages.
-	e.Log.Debugf("Clickhouse client connection error: %v.", err)
+	e.Log.DebugContext(e.Context, "Clickhouse client connection error.", "error", err)
 }

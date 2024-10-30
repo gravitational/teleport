@@ -17,8 +17,7 @@
  */
 
 import React, { useState } from 'react';
-
-import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
+import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
 
 import { SortType, TableProps } from 'design/DataTable/types';
 
@@ -43,7 +42,7 @@ export const WithServersideProps = () => {
   };
   props.serversideProps = {
     serversideSearchPanel: (
-      <ServersideSearchPanel
+      <ServersideSearchPanelWithPageIndicator
         pageIndicators={{
           from: 1,
           to: allData.length,
@@ -76,7 +75,7 @@ export const WithServersidePropsEmpty = () => {
   };
   props.serversideProps = {
     serversideSearchPanel: (
-      <ServersideSearchPanel
+      <ServersideSearchPanelWithPageIndicator
         pageIndicators={{
           from: 1,
           to: 0,

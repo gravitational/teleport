@@ -112,6 +112,12 @@ type ClusterNetworkingConfig interface {
 
 	// SetCaseInsensitiveRouting sets the case-insenstivie routing option.
 	SetCaseInsensitiveRouting(cir bool)
+
+	// GetSSHDialTimeout gets timeout value that should be used for SSH connections.
+	GetSSHDialTimeout() time.Duration
+
+	// SetSSHDialTimeout sets the timeout value that should be used for SSH connections.
+	SetSSHDialTimeout(t time.Duration)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -383,6 +389,26 @@ func (c *ClusterNetworkingConfigV2) GetCaseInsensitiveRouting() bool {
 // SetCaseInsensitiveRouting sets the case-insensitive routing option.
 func (c *ClusterNetworkingConfigV2) SetCaseInsensitiveRouting(cir bool) {
 	c.Spec.CaseInsensitiveRouting = cir
+}
+
+// GetSSHDialTimeout returns the timeout to be used for SSH connections.
+// If the value is not set, or was intentionally set to zero or a negative value,
+// [defaults.DefaultIOTimeout] is returned instead. This is because
+// a zero value cannot be distinguished to mean no timeout, or
+// that a value had never been set.
+func (c *ClusterNetworkingConfigV2) GetSSHDialTimeout() time.Duration {
+	if c.Spec.SSHDialTimeout <= 0 {
+		return defaults.DefaultIOTimeout
+	}
+
+	return c.Spec.SSHDialTimeout.Duration()
+}
+
+// SetSSHDialTimeout updates the SSH connection timeout. The value is
+// not validated, but will not be respected if zero or negative. See
+// the docs on [ClusterNetworkingConfigV2.GetSSHDialTimeout] for more details.
+func (c *ClusterNetworkingConfigV2) SetSSHDialTimeout(t time.Duration) {
+	c.Spec.SSHDialTimeout = Duration(t)
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshaled to a string

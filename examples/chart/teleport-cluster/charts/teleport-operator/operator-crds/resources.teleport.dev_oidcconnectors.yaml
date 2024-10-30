@@ -65,7 +65,7 @@ spec:
                 type: array
               client_id:
                 description: ClientID is the id of the authentication client (Teleport
-                  Auth server).
+                  Auth Service).
                 type: string
               client_redirect_settings:
                 description: ClientRedirectSettings defines which client redirect
@@ -80,9 +80,18 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  insecure_allowed_cidr_ranges:
+                    description: a list of CIDRs allowed for HTTP or HTTPS client
+                      redirect URLs
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                 type: object
               client_secret:
-                description: ClientSecret is used to authenticate the client.
+                description: ClientSecret is used to authenticate the client. This
+                  field supports secret lookup. See the operator documentation for
+                  more details.
                 type: string
               display:
                 description: Display is the friendly name for this provider.

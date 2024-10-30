@@ -59,6 +59,8 @@ type KeyStoreManager interface {
 // GenerateAWSOIDCTokenRequest contains the required elements to generate an AWS OIDC Token (JWT).
 type GenerateAWSOIDCTokenRequest struct {
 	// Integration is the AWS OIDC Integration name.
+	// This field is only used to obtain custom Issuers (those stored at S3 buckets).
+	// If empty, the default issuer for the cluster (its public endpoint URL) will be used.
 	Integration string
 	// Username is the JWT Username (on behalf of claim)
 	Username string
@@ -119,7 +121,7 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 	}
 
 	if issuer == "" {
-		issuer, err = oidc.IssuerForCluster(ctx, cacheClt)
+		issuer, err = oidc.IssuerForCluster(ctx, cacheClt, "")
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

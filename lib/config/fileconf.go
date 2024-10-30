@@ -798,6 +798,9 @@ type Auth struct {
 	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
 	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
 
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout types.Duration `yaml:"ssh_dial_timeout,omitempty"`
+
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
@@ -848,7 +851,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval
+		a.ProxyPingInterval != empty.ProxyPingInterval ||
+		a.SSHDialTimeout != empty.SSHDialTimeout
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -2001,6 +2005,42 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string `yaml:"cloud,omitempty"`
+
+	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredApps []string `yaml:"required_apps,omitempty"`
+
+	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
+	// controlling how resources are shared across different origins.
+	CORS *CORS `yaml:"cors,omitempty"`
+}
+
+// CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
+// settings that control how the app responds to requests from different origins.
+type CORS struct {
+	// AllowedOrigins specifies the list of origins that are allowed to access the app.
+	// Example: "https://client.teleport.example.com:3080"
+	AllowedOrigins []string `yaml:"allowed_origins"`
+
+	// AllowedMethods specifies the HTTP methods that are allowed when accessing the app.
+	// Example: "POST", "GET", "OPTIONS", "PUT", "DELETE"
+	AllowedMethods []string `yaml:"allowed_methods"`
+
+	// AllowedHeaders specifies the HTTP headers that can be used when making requests to the app.
+	// Example: "Content-Type", "Authorization", "X-Custom-Header"
+	AllowedHeaders []string `yaml:"allowed_headers"`
+
+	// ExposedHeaders indicate which response headers should be made available to scripts running in
+	// the browser, in response to a cross-origin request.
+	ExposedHeaders []string `yaml:"exposed_headers"`
+
+	// AllowCredentials indicates whether credentials such as cookies or authorization headers
+	// are allowed to be included in the requests.
+	AllowCredentials bool `yaml:"allow_credentials"`
+
+	// MaxAge specifies how long (in seconds) the results of a preflight request can be cached.
+	// Example: 86400 (which equals 24 hours)
+	MaxAge uint `yaml:"max_age"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -2321,6 +2361,12 @@ type WindowsDesktopService struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string `yaml:"pki_domain"`
+	// KDCAddress optionally configures the address of the Kerberos Key Distribution Center,
+	// which is used to support RDP Network Level Authentication (NLA).
+	// If empty, the LDAP address will be used instead.
+	// Note: NLA is only supported in Active Directory environments - this field has
+	// no effect when connecting to desktops as local Windows users.
+	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users

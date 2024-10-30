@@ -22,19 +22,20 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 	"slices"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -90,6 +91,10 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 	return &types.KeepAlive{}, a.err
 }
 
+func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	return nil
+}
+
 func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -139,11 +144,14 @@ func TestSSHServerBasics(t *testing.T) {
 		expectAddr: wantAddr,
 	}
 
+	rc := &resourceCounter{}
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
 	)
 	defer controller.Close()
 
@@ -277,6 +285,9 @@ func TestSSHServerBasics(t *testing.T) {
 	// here).
 	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
 
+	// verify that metrics have been updated correctly
+	require.Zero(t, 0, rc.count())
+
 	// verify that the peer address of the control stream was used to override
 	// zero-value IPs for heartbeats.
 	auth.mu.Lock()
@@ -300,11 +311,14 @@ func TestAppServerBasics(t *testing.T) {
 
 	auth := &fakeAuth{}
 
+	rc := &resourceCounter{}
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
 	)
 	defer controller.Close()
 
@@ -495,6 +509,9 @@ func TestAppServerBasics(t *testing.T) {
 	// always *before* closure is propagated to downstream handle, hence being safe to load
 	// here).
 	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
+
+	// verify that metrics have been updated correctly
+	require.Zero(t, rc.count())
 }
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
@@ -721,8 +738,8 @@ func TestUpdateLabels(t *testing.T) {
 // TestAgentMetadata verifies that an instance's agent metadata is received in
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
-	// set the install method to validate it was returned as agent metadata
-	t.Setenv("TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE", "true")
+	t.Parallel()
+
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -752,9 +769,24 @@ func TestAgentMetadata(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, upstreamHello)
+	NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		upstreamHello,
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return &metadata.Metadata{
+				OS:                    "llamaOS",
+				OSVersion:             "1.2.3",
+				HostArchitecture:      "llama",
+				GlibcVersion:          "llama.5.6.7",
+				InstallMethods:        []string{"llama", "alpaca"},
+				ContainerRuntime:      "test",
+				ContainerOrchestrator: "test",
+				CloudEnvironment:      "llama-cloud",
+			}, nil
+		}),
+	)
 
 	// Wait for upstream hello.
 	select {
@@ -772,9 +804,166 @@ func TestAgentMetadata(t *testing.T) {
 
 	// Validate that the agent's metadata ends up in the auth server.
 	require.Eventually(t, func() bool {
-		return slices.Contains(upstreamHandle.AgentMetadata().InstallMethods, "awsoidc_deployservice") &&
-			upstreamHandle.AgentMetadata().OS == runtime.GOOS
-	}, 5*time.Second, 200*time.Millisecond)
+		return slices.Equal([]string{"llama", "alpaca"}, upstreamHandle.AgentMetadata().InstallMethods) &&
+			upstreamHandle.AgentMetadata().OS == "llamaOS"
+	}, 10*time.Second, 200*time.Millisecond)
+}
+
+func TestGoodbye(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		supportsGoodbye bool
+	}{
+		{
+			name: "no goodbye",
+		},
+		{
+			name:            "goodbye",
+			supportsGoodbye: true,
+		},
+	}
+
+	upstreamHello := proto.UpstreamInventoryHello{
+		ServerID: "llama",
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			controller := NewController(
+				&fakeAuth{},
+				usagereporter.DiscardUsageReporter{},
+				withInstanceHBInterval(time.Millisecond*200),
+			)
+			defer controller.Close()
+
+			// Set up fake in-memory control stream.
+			upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
+
+			downstreamHello := proto.DownstreamInventoryHello{
+				Version:  teleport.Version,
+				ServerID: "auth",
+				Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+					AppCleanup:     test.supportsGoodbye,
+					AppHeartbeats:  true,
+					NodeHeartbeats: true,
+				},
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+				return downstream, nil
+			}, upstreamHello)
+
+			// Wait for upstream hello.
+			select {
+			case msg := <-upstream.Recv():
+				require.Equal(t, upstreamHello, msg)
+			case <-ctx.Done():
+				require.Fail(t, "never got upstream hello")
+			}
+			require.NoError(t, upstream.Send(ctx, downstreamHello))
+
+			// Attempt to send a goodbye.
+			go func() {
+				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				assert.NoError(t, handle.SendGoodbye(ctx))
+				// Close the handle to unblock receive below.
+				assert.NoError(t, handle.Close())
+			}()
+
+			// Wait to see if a goodbye is received.
+			timeoutC := time.After(10 * time.Second)
+			for {
+				select {
+				case msg := <-upstream.Recv():
+					switch msg.(type) {
+					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
+						proto.UpstreamInventoryPong, proto.UpstreamInventoryAgentMetadata:
+					case proto.UpstreamInventoryGoodbye:
+						if test.supportsGoodbye {
+							require.Equal(t, proto.UpstreamInventoryGoodbye{DeleteResources: true}, msg)
+						} else {
+							t.Fatalf("received an unexpected message %v", msg)
+						}
+						return
+					}
+				case <-upstream.Done():
+					return
+				case <-timeoutC:
+					if test.supportsGoodbye {
+						require.FailNow(t, "timeout waiting for goodbye message")
+					} else {
+						return
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGetSender(t *testing.T) {
+	controller := NewController(
+		&fakeAuth{},
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+	)
+	defer controller.Close()
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
+
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: "auth",
+		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+			AppCleanup:     true,
+			AppHeartbeats:  true,
+			NodeHeartbeats: true,
+		},
+	}
+
+	upstreamHello := proto.UpstreamInventoryHello{
+		ServerID: "llama",
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
+	}
+
+	handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+		return downstream, nil
+	}, upstreamHello)
+
+	// Validate that the sender is not present prior to
+	// the stream becoming healthy.
+	s, ok := handle.GetSender()
+	require.False(t, ok)
+	require.Nil(t, s)
+
+	// Wait for upstream hello.
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "never got upstream hello")
+	}
+	// Send the downstream hello so that the
+	// sender becomes available.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+
+	// Validate that once healthy the sender is provided.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		s, ok = handle.GetSender()
+		assert.True(t, ok)
+		assert.NotNil(t, s)
+	}, 10*time.Second, 100*time.Millisecond)
 }
 
 type eventOpts struct {
@@ -829,4 +1018,38 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 			require.Failf(t, "timeout waiting for events", "expect=%+v", options.expect)
 		}
 	}
+}
+
+type resourceCounter struct {
+	mu sync.Mutex
+	c  map[string]int
+}
+
+func (r *resourceCounter) onConnect(typ string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.c == nil {
+		r.c = make(map[string]int)
+	}
+	r.c[typ]++
+}
+
+func (r *resourceCounter) onDisconnect(typ string, amount int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.c == nil {
+		r.c = make(map[string]int)
+	}
+	r.c[typ] -= amount
+}
+
+func (r *resourceCounter) count() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var count int
+	for _, v := range r.c {
+		count += v
+	}
+	return count
 }

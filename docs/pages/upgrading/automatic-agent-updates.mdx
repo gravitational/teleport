@@ -35,7 +35,7 @@ regular maintenance window.
 
 - A Teleport Enterprise cluster. If you do not have one, [sign
   up](https://goteleport.com/signup) for a free trial or consult the [Update
-  Reference](./reference.mdx) to read about manual updates.
+  Reference](upgrading-reference.mdx) to read about manual updates.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport agents that are not yet enrolled in automatic updates.
@@ -49,8 +49,7 @@ If you are running a cloud-hosted Teleport Enterprise cluster, skip to [Step
 
 Before enabling automatic upgrades in your self-hosted Teleport cluster, you
 must enable a **version server**. This section shows you how to enable a version
-server in your cluster. Automatic upgrades in self-hosted Teleport clusters
-require at least v14.3.7 or v15.1.3. 
+server in your cluster. 
 
 ### Configure a maintenance schedule
 
@@ -84,7 +83,7 @@ Teleport cluster that agents use to determine when to check for upgrades.
 
 1. Add the role to your Teleport user:
 
-  (!docs/pages/includes/add-role-to-user.mdx!)
+  (!docs/pages/includes/add-role-to-user.mdx role="cmc-editor"!)
 
 1. Create a cluster maintenance config in a file called `cmc.yaml`. The
    following example allows maintenance on Monday, Wednesday and Friday between
@@ -150,10 +149,6 @@ Server ID                            Hostname      Services Version Upgrader
 ...
 ```
 
-Note that the `inventory ls` command will also list `teleport-auth` and
-`teleport-proxy` services. If you use managed Teleport Enterprise, the Teleport
-team updates these services automatically.
-
 ## Step 3/4. Enroll agents on Linux servers in automatic updates
 
 1. For each agent ID returned by the `tctl inventory ls` command, copy the ID
@@ -187,15 +182,22 @@ team updates these services automatically.
    <TabItem label="Managed Teleport Enterprise">
 
    ```code
-   $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} cloud
+   $ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION?} cloud
    ```
 
    </TabItem>
    <TabItem label="Self-Hosted Teleport Enterprise">
 
-   ```code
-   $ curl https://goteleport.com/static/install.sh | bash -s ${TELEPORT_VERSION?} enterprise
-   ```
+   1. Follow the instructions in the Teleport [installation
+      guide](../installation.mdx#package-repositories) to install the `teleport`
+      binary on your Linux server for your package manager.
+
+   1. Using your package manager, install `teleport-ent-updater` on the
+      server where you installed `teleport`. For example:
+
+      ```code
+      $ apt-get install -y teleport-ent-updater
+      ```
 
    </TabItem>
    </Tabs>

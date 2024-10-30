@@ -23,8 +23,8 @@ import { LoadedSample, AllPossibleEvents } from './Audit.story';
 
 test('loaded audit log screen', async () => {
   const { container } = render(<LoadedSample />);
-  await screen.findByText(/Audit Log/);
-  expect(container.firstChild).toMatchSnapshot();
+  await screen.findAllByText(/Showing/);
+  expect(container).toMatchSnapshot();
 });
 
 test('list of all events', async () => {

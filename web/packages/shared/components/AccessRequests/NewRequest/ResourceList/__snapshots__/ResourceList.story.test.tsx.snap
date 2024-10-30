@@ -1750,11 +1750,12 @@ exports[`render Roles 1`] = `
       <div
         class="c3"
       >
-        <div
+        <form
           class="c4"
         >
           <input
             class="c5"
+            name="searchValue"
             placeholder="Search..."
             value=""
           />
@@ -1765,7 +1766,7 @@ exports[`render Roles 1`] = `
               class="c7"
             />
           </div>
-        </div>
+        </form>
       </div>
       <div
         class="c8 c9"

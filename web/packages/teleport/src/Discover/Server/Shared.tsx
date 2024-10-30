@@ -19,12 +19,11 @@
 import React from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import { OutlineInfo } from 'design/Alert/Alert';
-import { Box } from 'design';
+import { Box, Mark } from 'design';
 
 import cfg from 'teleport/config';
 
 import { InfoIcon } from '../Shared/InfoIcon';
-import { Mark } from '../Shared';
 
 export const SingleEc2InstanceInstallation = () => (
   <OutlineInfo mt={3} linkColor="buttons.link.default">

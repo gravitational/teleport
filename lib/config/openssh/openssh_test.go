@@ -191,7 +191,6 @@ func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
 				MuxSocketPath:   "/opt/machine-id/v1.sock",
 				AgentSocketPath: "/opt/machine-id/agent.sock",
 				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
-				Data:            `%h:%p`,
 			},
 		},
 		{
@@ -204,7 +203,6 @@ func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
 				MuxSocketPath:   "/opt/machine-id/v1.sock",
 				AgentSocketPath: "/opt/machine-id/agent.sock",
 				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
-				Data:            `%h:%p`,
 			},
 		},
 		{
@@ -217,7 +215,6 @@ func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
 				MuxSocketPath:   "/opt/machine-id/v1.sock",
 				AgentSocketPath: "/opt/machine-id/agent.sock",
 				ProxyCommand:    []string{"/bin/fdpass-teleport", "foo"},
-				Data:            `%h:%p`,
 			},
 		},
 	}
@@ -233,6 +230,76 @@ func TestSSHConfig_GetMuxedSSHConfig(t *testing.T) {
 
 			sb := &strings.Builder{}
 			err := c.GetMuxedSSHConfig(sb, tt.config)
+			if golden.ShouldSet() {
+				golden.Set(t, []byte(sb.String()))
+			}
+			require.NoError(t, err)
+			require.Equal(t, string(golden.Get(t)), sb.String())
+		})
+	}
+}
+
+func TestSSHConfig_GetClusterSSHConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		sshVersion string
+		config     *ClusterSSHConfigParameters
+	}{
+		{
+			name:       "legacy OpenSSH",
+			sshVersion: "7.4.0",
+			config: &ClusterSSHConfigParameters{
+				AppName:             TbotApp,
+				ClusterName:         "example.teleport.sh",
+				DestinationDir:      "/opt/machine-id",
+				KnownHostsPath:      "/opt/machine-id/example.teleport.sh.known_hosts",
+				CertificateFilePath: "/opt/machine-id/key-cert.pub",
+				IdentityFilePath:    "/opt/machine-id/key",
+				ExecutablePath:      "/bin/tbot",
+				ProxyHost:           "example.teleport.sh",
+				ProxyPort:           "443",
+				Port:                1234,
+				Insecure:            true,
+				FIPS:                true,
+				TLSRouting:          true,
+				ConnectionUpgrade:   true,
+				Resume:              true,
+			},
+		},
+		{
+			name:       "modern OpenSSH",
+			sshVersion: "9.0.0",
+			config: &ClusterSSHConfigParameters{
+				AppName:             TbotApp,
+				ClusterName:         "example.teleport.sh",
+				DestinationDir:      "/opt/machine-id",
+				KnownHostsPath:      "/opt/machine-id/example.teleport.sh.known_hosts",
+				CertificateFilePath: "/opt/machine-id/key-cert.pub",
+				IdentityFilePath:    "/opt/machine-id/key",
+				ExecutablePath:      "/bin/tbot",
+				ProxyHost:           "example.teleport.sh",
+				ProxyPort:           "443",
+				Port:                1234,
+				Insecure:            false,
+				FIPS:                false,
+				TLSRouting:          false,
+				ConnectionUpgrade:   false,
+				Resume:              false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &SSHConfig{
+				getSSHVersion: func() (*semver.Version, error) {
+					return semver.New(tt.sshVersion), nil
+				},
+				log: logrus.New(),
+			}
+
+			sb := &strings.Builder{}
+			err := c.GetClusterSSHConfig(sb, tt.config)
 			if golden.ShouldSet() {
 				golden.Set(t, []byte(sb.String()))
 			}

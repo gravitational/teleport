@@ -158,7 +158,7 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 			continue
 		}
 
-		if !libcloudaws.IsRDSClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
+		if !libcloudaws.IsDBClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
 			cfg.Log.Debugf("The current status of Aurora cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.DBClusterIdentifier),
 				aws.StringValue(cluster.Status))

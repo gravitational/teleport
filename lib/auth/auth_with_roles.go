@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -45,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -277,12 +280,12 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
-func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
+func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
 	// which we don't have all data for, luckily the fields we don't have aren't made available
 	// to the RBAC filter anyway.
-	if tracker.GetKind() == types.KindSSHSession {
+	if tracker.GetSessionKind() == types.SSHSessionKind {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
 			Kind:           tracker.GetSessionKind(),
@@ -433,7 +436,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	ok := a.filterSessionTracker(ctx, joinerRoles, tracker, types.VerbRead)
+	ok := a.filterSessionTracker(joinerRoles, tracker, types.VerbRead)
 	if !ok {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -460,7 +463,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -488,7 +491,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -572,12 +575,42 @@ func (a *ServerWithRoles) GetClusterCACert(
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+
 	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !a.hasBuiltinRole(types.RoleProxy) || req.RemoteAddr == "" {
+	if !isProxy || req.RemoteAddr == "" {
 		if err := setRemoteAddrFromContext(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// Similarly, do not trust bot instance IDs or generation values in the
+	// request unless from a component with the proxy role (e.g. the join
+	// service). They will be derived from the client certificate otherwise.
+	if !isProxy {
+		if req.BotInstanceID != "" {
+			log.WithFields(logrus.Fields{
+				"bot_instance_id": req.BotInstanceID,
+			}).Warnf("Untrusted client attempted to provide a bot instance ID, this will be ignored")
+
+			req.BotInstanceID = ""
+		}
+
+		if req.BotGeneration > 0 {
+			log.WithFields(logrus.Fields{
+				"bot_generation": req.BotGeneration,
+			}).Warnf("Untrusted client attempted to provide a bot generation, this will be ignored")
+
+			req.BotGeneration = 0
+		}
+	}
+
+	// If the identity has a BotInstanceID or BotGeneration included, copy it
+	// onto the request - but only if one wasn't already passed along via the
+	// proxy.
+	ident := a.context.Identity.GetIdentity()
+	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
+	req.BotGeneration = cmp.Or(req.BotGeneration, int32(ident.Generation))
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -1558,7 +1591,7 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
-	if cfg, err := a.authServer.GetClusterNetworkingConfig(ctx); err == nil {
+	if cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx); err == nil {
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
@@ -2189,11 +2222,7 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
-func emitTokenEvent(
-	ctx context.Context,
-	e apievents.Emitter,
-	roles types.SystemRoles,
-	joinMethod types.JoinMethod,
+func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
 ) {
 	userMetadata := authz.ClientUserMetadata(ctx)
 	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
@@ -2201,9 +2230,14 @@ func emitTokenEvent(
 			Type: events.ProvisionTokenCreateEvent,
 			Code: events.ProvisionTokenCreateCode,
 		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      token.GetSafeName(),
+			Expires:   token.Expiry(),
+			UpdatedBy: userMetadata.GetUser(),
+		},
 		UserMetadata: userMetadata,
-		Roles:        roles,
-		JoinMethod:   joinMethod,
+		Roles:        token.GetRoles(),
+		JoinMethod:   token.GetJoinMethod(),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit join token create event.")
 	}
@@ -2227,12 +2261,11 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2249,7 +2282,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
@@ -2951,11 +2984,11 @@ func getBotName(user types.User) string {
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
-	authPref, err := a.authServer.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
+	if err := a.verifyUserDeviceForCertIssuance(req.Usage, readOnlyAuthPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3042,19 +3075,27 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if identity.Renewable || isRoleImpersonation(req) {
 			// Bot self-renewal or role impersonation can request certs with an
 			// expiry up to the global maximum allowed value.
-			if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
-				req.Expires = max
+			if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
+				req.Expires = maxTime
 			}
-		} else if req.GetUsage() == proto.UserCertsRequest_Kubernetes && req.GetRequesterName() == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS {
-			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl.
+		} else if isLocalProxyCertReq(&req) {
+			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl
+			// or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
 			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			sessionTTL := roleSet.AdjustSessionTTL(authPref.GetDefaultSessionTTL().Duration())
-			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+			// [roleSet.AdjustMFAVerificationInterval] will reduce the adjusted sessionTTL if any of the roles requires
+			// MFA tap and `mfa_verification_interval` is set and lower than [roleSet.AdjustSessionTTL].
+			sessionTTL := roleSet.AdjustMFAVerificationInterval(
+				roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration()),
+				readOnlyAuthPref.GetRequireMFAType().IsSessionMFARequired())
+			adjustedSessionExpires := a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+			if req.Expires.After(adjustedSessionExpires) {
+				req.Expires = adjustedSessionExpires
+			}
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
 			// of the current session. This prevents a user renewing their
@@ -3185,6 +3226,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
 				MFAVerified:       verifiedMFADeviceID,
 				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+				AppName:           req.RouteToApp.Name,
+				AppURI:            req.RouteToApp.URI,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -3236,6 +3279,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		appSessionID:      appSessionID,
 		appName:           req.RouteToApp.Name,
 		appPublicAddr:     req.RouteToApp.PublicAddr,
+		appURI:            req.RouteToApp.URI,
 		appClusterName:    req.RouteToApp.ClusterName,
 		awsRoleARN:        req.RouteToApp.AWSRoleARN,
 		azureIdentity:     req.RouteToApp.AzureIdentity,
@@ -3251,7 +3295,14 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
+
+		// Always pass through a bot instance ID if available. Legacy bots
+		// joining without an instance ID may have one generated when
+		// `updateBotInstance()` is called below, and this (empty) value will be
+		// overridden.
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 	}
+
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
 	} else if isRoleImpersonation(req) {
@@ -3297,10 +3348,24 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		certReq.renewable = true
 	}
 
-	// If the cert is renewable, process any certificate generation counter.
+	// If the cert is renewable, process any bot instance updates (generation
+	// counter, auth records, etc). `updateBotInstance()` may modify certain
+	// `certReq` attributes (generation, botInstanceID).
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
-		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
+
+		// If we're handling a renewal for a bot, we want to return the
+		// Host CAs as well as the User CAs.
+		if certReq.botName != "" {
+			certReq.includeHostCA = true
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.authServer.updateBotInstance(
+			ctx, &certReq, user.GetName(), certReq.botName,
+			certReq.botInstanceID, nil, int32(currentIdentityGeneration),
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -3389,7 +3454,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 	}
 
 	// Only set the connector name on the first user registration.
-	if len(users) != 1 {
+	if !hasOneNonPresetUser(users) {
 		return nil
 	}
 
@@ -3406,6 +3471,37 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 	authPreference.SetConnectorName(constants.PasswordlessConnector)
 	_, err = a.authServer.UpdateAuthPreference(ctx, authPreference)
 	return trace.Wrap(err)
+}
+
+// hasOneNonPresetUser returns true only if there is exactly one non-preset user in the provided list of users.
+// This method always compare with the original preset users, and take into account that some preset users may
+// have been removed.
+func hasOneNonPresetUser(users []types.User) bool {
+	presets := getPresetUsers()
+
+	// Exit early if the number of users is greater than the number of presets + 1.
+	if len(users) > len(presets)+1 {
+		return false
+	}
+
+	// We can't simply compare the number of existing users to presets because presets may have been deleted.
+	// Hence, we need to check each user to determine if they are a preset user.
+	presetMap := make(map[string]struct{}, len(presets))
+	for _, preset := range presets {
+		presetMap[preset.GetName()] = struct{}{}
+	}
+
+	qtyNonPreset := 0
+	for _, user := range users {
+		if _, isPreset := presetMap[user.GetName()]; !isPreset {
+			qtyNonPreset++
+		}
+		if qtyNonPreset > 1 {
+			return false
+		}
+	}
+
+	return qtyNonPreset == 1
 }
 
 // UpdateUser updates an existing user in a backend.
@@ -3487,7 +3583,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3508,7 +3604,7 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3528,7 +3624,7 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3572,7 +3668,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if !modules.GetModules().Features().OIDC {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
 		// we can't currently propagate wrapped errors across the gRPC boundary,
 		// and we want tctl to display a clean user-facing message in this case
@@ -3646,7 +3742,7 @@ func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID s
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3669,7 +3765,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3687,7 +3783,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -3733,7 +3829,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if !modules.GetModules().Features().SAML {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.SAML).Enabled {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
@@ -4482,8 +4578,11 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	if err := a.action(apidefaults.Namespace, types.KindClusterAuthPreference, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return a.authServer.GetAuthPreference(ctx)
+	cfg, err := a.authServer.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
@@ -4672,7 +4771,11 @@ func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetClusterNetworkingConfig(ctx)
+	cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cfg.Clone(), nil
 }
 
 // SetClusterNetworkingConfig sets cluster networking configuration.
@@ -5482,6 +5585,7 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 }
 
 // GetSAMLIdPSession gets a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -5524,6 +5628,7 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -5565,6 +5670,7 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 }
 
 // CreateSAMLIdPSession creates a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
 	// Check if this a proxy service.
 	if !a.hasBuiltinRole(types.RoleProxy) {
@@ -5613,6 +5719,7 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 }
 
 // DeleteSAMLIdPSession removes a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
 	samlSession, err := a.authServer.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest(req))
 	if err != nil {
@@ -5669,6 +5776,7 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 }
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -5681,6 +5789,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
 }
 
 // DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (a *ServerWithRoles) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
 	// First, check if the current user can delete the request user sessions.
 	if err := a.canDeleteWebSession(username); err != nil {
@@ -5903,6 +6012,26 @@ func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEve
 	}
 
 	return outEvents, lastKey, nil
+}
+
+// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+// performance over ordering and filtering, and is intended for bulk export of events.
+func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+	}
+
+	return a.alog.ExportUnstructuredEvents(ctx, req)
+}
+
+// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+func (a *ServerWithRoles) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+	}
+
+	return a.alog.GetEventExportChunks(ctx, req)
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
@@ -6771,12 +6900,12 @@ func (a *ServerWithRoles) CreateRegisterChallenge(ctx context.Context, req *prot
 // enforceGlobalModeTrustedDevice is used to enforce global device trust requirements
 // for key endpoints.
 func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) error {
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.authServer.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 
@@ -6910,6 +7039,16 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
@@ -6946,6 +7085,14 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
 		return trace.Wrap(err)
 	}
 

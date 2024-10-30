@@ -35,7 +35,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
-            - /usr/local/bin/teleport-event-handler
+            - /usr/local/bin/teleport-plugin
             - start
             - "--config"
             - "/etc/teleport-event-handler.toml"

@@ -104,6 +104,13 @@ type WebSession interface {
 	// If true the session's TLS and SSH certificates are augmented with device
 	// extensions.
 	GetHasDeviceExtensions() bool
+	// SetTrustedDeviceRequirement sets the session's trusted device requirement.
+	// See [TrustedDeviceRequirement].
+	SetTrustedDeviceRequirement(r TrustedDeviceRequirement)
+	// GetTrustedDeviceRequirement returns the session's trusted device
+	// requirement.
+	// See [TrustedDeviceRequirement].
+	GetTrustedDeviceRequirement() TrustedDeviceRequirement
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -228,6 +235,17 @@ func (ws *WebSessionV2) GetDeviceWebToken() *DeviceWebToken {
 // extensions.
 func (ws *WebSessionV2) GetHasDeviceExtensions() bool {
 	return ws.Spec.HasDeviceExtensions
+}
+
+// SetTrustedDeviceRequirement sets the session's trusted device requirement.
+func (ws *WebSessionV2) SetTrustedDeviceRequirement(r TrustedDeviceRequirement) {
+	ws.Spec.TrustedDeviceRequirement = r
+}
+
+// GetTrustedDeviceRequirement returns the session's trusted device
+// requirement.
+func (ws *WebSessionV2) GetTrustedDeviceRequirement() TrustedDeviceRequirement {
+	return ws.Spec.TrustedDeviceRequirement
 }
 
 // setStaticFields sets static resource header and metadata fields.

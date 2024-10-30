@@ -360,6 +360,9 @@ type SSHProxySettings struct {
 
 	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
 	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
+
+	// DialTimeout indicates the SSH timeout clients should use.
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // DBProxySettings contains database access specific proxy settings.
@@ -446,6 +449,8 @@ type SAMLSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
+	// SingleLogoutEnabled is whether SAML SLO (single logout) is enabled for this auth connector.
+	SingleLogoutEnabled bool `json:"singleLogoutEnabled,omitempty"`
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.

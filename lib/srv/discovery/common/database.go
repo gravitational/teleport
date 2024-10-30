@@ -26,7 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
-	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -313,7 +313,7 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 
 // NewDatabaseFromRDSV2Instance creates a database resource from an RDS instance.
 // It uses aws sdk v2.
-func NewDatabaseFromRDSV2Instance(instance *rdsTypesV2.DBInstance) (types.Database, error) {
+func NewDatabaseFromRDSV2Instance(instance *rdstypes.DBInstance) (types.Database, error) {
 	endpoint := instance.Endpoint
 	if endpoint == nil {
 		return nil, trace.BadParameter("empty endpoint")
@@ -350,7 +350,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdsTypesV2.DBInstance) (types.Databa
 
 // MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
 // It uses aws sdk v2.
-func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, error) {
+func MetadataFromRDSV2Instance(rdsInstance *rdstypes.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -362,19 +362,20 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			InstanceID: aws.StringValue(rdsInstance.DBInstanceIdentifier),
-			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
-			IAMAuth:    aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
-			Subnets:    subnets,
-			VPCID:      vpcID,
+			InstanceID:     aws.StringValue(rdsInstance.DBInstanceIdentifier),
+			ClusterID:      aws.StringValue(rdsInstance.DBClusterIdentifier),
+			ResourceID:     aws.StringValue(rdsInstance.DbiResourceId),
+			IAMAuth:        aws.BoolValue(rdsInstance.IAMDatabaseAuthenticationEnabled),
+			Subnets:        subnets,
+			VPCID:          vpcID,
+			SecurityGroups: rdsSecurityGroupInfo(rdsInstance.VpcSecurityGroups),
 		},
 	}, nil
 }
 
 // labelsFromRDSV2Instance creates database labels for the provided RDS instance.
 // It uses aws sdk v2.
-func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS) map[string]string {
+func labelsFromRDSV2Instance(rdsInstance *rdstypes.DBInstance, meta *types.AWS) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsInstance.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
@@ -388,7 +389,7 @@ func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS
 
 // NewDatabaseFromRDSV2Cluster creates a database resource from an RDS cluster (Aurora).
 // It uses aws sdk v2.
-func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *rdsTypesV2.DBInstance) (types.Database, error) {
+func NewDatabaseFromRDSV2Cluster(cluster *rdstypes.DBCluster, firstInstance *rdstypes.DBInstance) (types.Database, error) {
 	metadata, err := MetadataFromRDSV2Cluster(cluster, firstInstance)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -414,7 +415,7 @@ func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster, firstInstance *r
 		})
 }
 
-func rdsSubnetGroupToNetworkInfo(subnetGroup *rdsTypesV2.DBSubnetGroup) (vpcID string, subnets []string) {
+func rdsSubnetGroupToNetworkInfo(subnetGroup *rdstypes.DBSubnetGroup) (vpcID string, subnets []string) {
 	if subnetGroup == nil {
 		return
 	}
@@ -431,10 +432,24 @@ func rdsSubnetGroupToNetworkInfo(subnetGroup *rdsTypesV2.DBSubnetGroup) (vpcID s
 	return
 }
 
+func rdsSecurityGroupInfo(memberships []rdstypes.VpcSecurityGroupMembership) []string {
+	var secGroups []string
+	if len(memberships) > 0 {
+		secGroups = make([]string, 0, len(memberships))
+	}
+	for _, group := range memberships {
+		groupID := aws.StringValue(group.VpcSecurityGroupId)
+		if groupID != "" {
+			secGroups = append(secGroups, groupID)
+		}
+	}
+	return secGroups
+}
+
 // MetadataFromRDSV2Cluster creates AWS metadata from the provided RDS cluster.
 // It uses aws sdk v2.
-// An optional [rdsTypesV2.DBInstance] can be passed to fill the network configuration of the Cluster.
-func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, error) {
+// An optional [rdstypes.DBInstance] can be passed to fill the network configuration of the Cluster.
+func MetadataFromRDSV2Cluster(rdsCluster *rdstypes.DBCluster, rdsInstance *rdstypes.DBInstance) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -451,18 +466,19 @@ func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, rdsInstance *rds
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		RDS: types.RDS{
-			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
-			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
-			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
-			Subnets:    subnets,
-			VPCID:      vpcID,
+			ClusterID:      aws.StringValue(rdsCluster.DBClusterIdentifier),
+			ResourceID:     aws.StringValue(rdsCluster.DbClusterResourceId),
+			IAMAuth:        aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+			Subnets:        subnets,
+			VPCID:          vpcID,
+			SecurityGroups: rdsSecurityGroupInfo(rdsCluster.VpcSecurityGroups),
 		},
 	}, nil
 }
 
 // labelsFromRDSV2Cluster creates database labels for the provided RDS cluster.
 // It uses aws sdk v2.
-func labelsFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, meta *types.AWS, endpointType string, memberInstance *rdsTypesV2.DBInstance) map[string]string {
+func labelsFromRDSV2Cluster(rdsCluster *rdstypes.DBCluster, meta *types.AWS, endpointType string, memberInstance *rdstypes.DBInstance) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
 	labels[types.DiscoveryLabelEngine] = aws.StringValue(rdsCluster.Engine)
 	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
@@ -571,6 +587,19 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster, memberIns
 	return databases, trace.NewAggregate(errors...)
 }
 
+func checkRDSClusterMembers(cluster *rds.DBCluster) (hasWriterInstance, hasReaderInstance bool) {
+	for _, clusterMember := range cluster.DBClusterMembers {
+		if clusterMember != nil {
+			if aws.BoolValue(clusterMember.IsClusterWriter) {
+				hasWriterInstance = true
+			} else {
+				hasReaderInstance = true
+			}
+		}
+	}
+	return
+}
+
 // NewDatabasesFromRDSCluster creates all database resources from an RDS Aurora
 // cluster.
 func NewDatabasesFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.DBInstance) (types.Databases, error) {
@@ -581,16 +610,7 @@ func NewDatabasesFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.D
 	// - Aurora cluster with one instance: one writer
 	// - Aurora cluster with three instances: one writer and two readers
 	// - Secondary cluster of a global database: one or more readers
-	var hasWriterInstance, hasReaderInstance bool
-	for _, clusterMember := range cluster.DBClusterMembers {
-		if clusterMember != nil {
-			if aws.BoolValue(clusterMember.IsClusterWriter) {
-				hasWriterInstance = true
-			} else {
-				hasReaderInstance = true
-			}
-		}
-	}
+	hasWriterInstance, hasReaderInstance := checkRDSClusterMembers(cluster)
 
 	// Add a database from primary endpoint, if any writer instances.
 	if cluster.Endpoint != nil && hasWriterInstance {
@@ -623,6 +643,80 @@ func NewDatabasesFromRDSCluster(cluster *rds.DBCluster, memberInstances []*rds.D
 	}
 
 	return databases, trace.NewAggregate(errors...)
+}
+
+// NewDatabasesFromDocumentDBCluster creates all database resources from a
+// DocumentDB cluster.
+func NewDatabasesFromDocumentDBCluster(cluster *rds.DBCluster) (types.Databases, error) {
+	var errors []error
+	var databases types.Databases
+
+	// Find out what types of instances the cluster has. Same logic as
+	// NewDatabasesFromRDSCluster.
+	hasWriterInstance, hasReaderInstance := checkRDSClusterMembers(cluster)
+
+	// Add a database from primary endpoint, if any writer instances.
+	if cluster.Endpoint != nil && hasWriterInstance {
+		database, err := NewDatabaseFromDocumentDBClusterEndpoint(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		} else {
+			databases = append(databases, database)
+		}
+	}
+
+	// Add a database from reader endpoint, if any reader instances.
+	if cluster.ReaderEndpoint != nil && hasReaderInstance {
+		database, err := NewDatabaseFromDocumentDBReaderEndpoint(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		} else {
+			databases = append(databases, database)
+		}
+	}
+
+	// DocumentDB does not have custom endpoints.
+	return databases, trace.NewAggregate(errors...)
+}
+
+// NewDatabaseFromDocumentDBClusterEndpoint creates database resource from
+// DocumentDB cluster endpoint.
+func NewDatabaseFromDocumentDBClusterEndpoint(cluster *rds.DBCluster) (types.Database, error) {
+	endpointType := apiawsutils.DocumentDBClusterEndpoint
+	metadata, err := MetadataFromDocumentDBCluster(cluster, endpointType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(
+		setAWSDBName(types.Metadata{
+			Description: fmt.Sprintf("DocumentDB cluster in %v", metadata.Region),
+			Labels:      labelsFromDocumentDBCluster(cluster, metadata, endpointType),
+		}, aws.StringValue(cluster.DBClusterIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: types.DatabaseProtocolMongoDB,
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), aws.Int64Value(cluster.Port)),
+			AWS:      *metadata,
+		})
+}
+
+// NewDatabaseFromDocumentDBReaderEndpoint creates database resource from
+// DocumentDB reader endpoint.
+func NewDatabaseFromDocumentDBReaderEndpoint(cluster *rds.DBCluster) (types.Database, error) {
+	endpointType := apiawsutils.DocumentDBClusterReaderEndpoint
+	metadata, err := MetadataFromDocumentDBCluster(cluster, endpointType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewDatabaseV3(
+		setAWSDBName(types.Metadata{
+			Description: fmt.Sprintf("DocumentDB cluster in %v (%v endpoint)", metadata.Region, endpointType),
+			Labels:      labelsFromDocumentDBCluster(cluster, metadata, endpointType),
+		}, aws.StringValue(cluster.DBClusterIdentifier), endpointType),
+		types.DatabaseSpecV3{
+			Protocol: types.DatabaseProtocolMongoDB,
+			URI:      fmt.Sprintf("%v:%v", aws.StringValue(cluster.ReaderEndpoint), aws.Int64Value(cluster.Port)),
+			AWS:      *metadata,
+		})
 }
 
 // NewDatabaseFromRDSProxy creates database resource from RDS Proxy.
@@ -984,6 +1078,23 @@ func MetadataFromRDSCluster(rdsCluster *rds.DBCluster) (*types.AWS, error) {
 	}, nil
 }
 
+// MetadataFromDocumentDBCluster creates AWS metadata from the provided
+// DocumentDB cluster.
+func MetadataFromDocumentDBCluster(cluster *rds.DBCluster, endpointType string) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(cluster.DBClusterArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		DocumentDB: types.DocumentDB{
+			ClusterID:    aws.StringValue(cluster.DBClusterIdentifier),
+			EndpointType: endpointType,
+		},
+	}, nil
+}
+
 // MetadataFromRDSProxy creates AWS metadata from the provided RDS Proxy.
 func MetadataFromRDSProxy(rdsProxy *rds.DBProxy) (*types.AWS, error) {
 	parsedARN, err := arn.Parse(aws.StringValue(rdsProxy.DBProxyArn))
@@ -1330,6 +1441,14 @@ func labelsFromRDSCluster(rdsCluster *rds.DBCluster, meta *types.AWS, endpointTy
 		labels[types.DiscoveryLabelVPCID] = aws.StringValue(memberInstances[0].DBSubnetGroup.VpcId)
 	}
 	return addLabels(labels, libcloudaws.TagsToLabels(rdsCluster.TagList))
+}
+
+func labelsFromDocumentDBCluster(cluster *rds.DBCluster, meta *types.AWS, endpointType string) map[string]string {
+	labels := labelsFromAWSMetadata(meta)
+	labels[types.DiscoveryLabelEngine] = aws.StringValue(cluster.Engine)
+	labels[types.DiscoveryLabelEngineVersion] = aws.StringValue(cluster.EngineVersion)
+	labels[types.DiscoveryLabelEndpointType] = endpointType
+	return addLabels(labels, libcloudaws.TagsToLabels(cluster.TagList))
 }
 
 // labelsFromRDSProxy creates database labels for the provided RDS Proxy.

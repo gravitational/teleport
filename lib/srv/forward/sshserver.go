@@ -627,7 +627,7 @@ func (s *Server) Serve() {
 
 	// Connect and authenticate to the remote node.
 	s.log.Debugf("Creating remote connection to %s@%s", sconn.User(), s.clientConn.RemoteAddr())
-	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User())
+	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User(), netConfig)
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
 		// close the connection.
@@ -689,10 +689,9 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 	}
 
 	sendSSHClient, err := awsoidc.NewEICESendSSHPublicKeyClient(ctx, &awsoidc.AWSClientRequest{
-		IntegrationName: integration.GetName(),
-		Token:           token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          awsInfo.Region,
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsInfo.Region,
 	})
 	if err != nil {
 		return nil, trace.BadParameter("failed to create an aws client to send ssh public key:  %v", err)
@@ -744,7 +743,7 @@ func (s *Server) Close() error {
 
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
-func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
+func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig) (*tracessh.Client, error) {
 	// the proxy will use the agentless signer as the auth method when
 	// connecting to the remote host if it is available, otherwise the
 	// forwarded agent is used
@@ -766,7 +765,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 			authMethod,
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
-		Timeout:         apidefaults.DefaultIOTimeout,
+		Timeout:         netConfig.GetSSHDialTimeout(),
 	}
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory

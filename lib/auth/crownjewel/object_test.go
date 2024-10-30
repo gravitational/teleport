@@ -79,6 +79,18 @@ func TestValidateCrownJewel(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
+			name: "ValidCrownJewelWithQuery",
+			jewel: &crownjewelv1.CrownJewel{
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &crownjewelv1.CrownJewelSpec{
+					Query: "SELECT * FROM nodes",
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
 			name: "MissingMatchers",
 			jewel: &crownjewelv1.CrownJewel{
 				Metadata: &headerv1.Metadata{

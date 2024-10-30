@@ -64,6 +64,23 @@ export function getPrefersDark(): boolean {
   );
 }
 
+export function updateFavicon() {
+  let base = '/web/app/';
+  if (import.meta.env.MODE === 'development') {
+    base = '/app/';
+  }
+  const darkModePreferred = getPrefersDark();
+  const favicon = document.querySelector('link[rel="icon"]');
+
+  if (favicon instanceof HTMLLinkElement) {
+    if (darkModePreferred) {
+      favicon.href = base + 'favicon-dark.png';
+    } else {
+      favicon.href = base + 'favicon-light.png';
+    }
+  }
+}
+
 const ThemeProvider = props => {
   const [themePreference, setThemePreference] = useState<Theme>(
     storageService.getThemePreference()

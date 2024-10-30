@@ -38,8 +38,8 @@ const (
 )
 
 var (
-	draftExternalAuditStorageBackendKey   = backend.Key(externalAuditStoragePrefix, externalAuditStorageDraftName)
-	clusterExternalAuditStorageBackendKey = backend.Key(externalAuditStoragePrefix, externalAuditStorageClusterName)
+	draftExternalAuditStorageBackendKey   = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageDraftName)
+	clusterExternalAuditStorageBackendKey = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageClusterName)
 )
 
 // ExternalAuditStorageService manages External Audit Storage resources in the Backend.
@@ -253,7 +253,7 @@ func (s *ExternalAuditStorageService) DisableClusterExternalAuditStorage(ctx con
 
 // checkAWSIntegration checks that [integrationName] names an AWS OIDC integration that currently exists, and
 // returns the backend key and revision if the AWS OIDC integration.
-func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, integrationName string) (key []byte, revision string, err error) {
+func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, integrationName string) (key backend.Key, revision string, err error) {
 	integrationsSvc, err := NewIntegrationsService(s.backend)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -268,7 +268,7 @@ func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, i
 	return integrationsSvc.svc.MakeKey(integrationName), integration.GetRevision(), nil
 }
 
-func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key []byte) (*externalauditstorage.ExternalAuditStorage, error) {
+func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key backend.Key) (*externalauditstorage.ExternalAuditStorage, error) {
 	item, err := bk.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)

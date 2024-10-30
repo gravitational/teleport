@@ -31,7 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -48,6 +50,9 @@ type ServiceConfig struct {
 
 	// Clock is the clock.
 	Clock clockwork.Clock
+
+	// Emitter emits audit events.
+	Emitter apievents.Emitter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -59,6 +64,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.Backend == nil {
 		return trace.BadParameter("backend is required")
+	}
+	if s.Emitter == nil {
+		return trace.BadParameter("emitter is required")
 	}
 
 	if s.Logger == nil {
@@ -80,6 +88,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	backend    services.DiscoveryConfigs
 	clock      clockwork.Clock
+	emitter    apievents.Emitter
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -93,6 +102,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
 		clock:      cfg.Clock,
+		emitter:    cfg.Emitter,
 	}, nil
 }
 
@@ -167,6 +177,21 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigCreate{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigCreateEvent,
+			Code: events.DiscoveryConfigCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    resp.GetName(),
+			Expires: resp.Expiry(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config create event.")
+	}
+
 	return conv.ToProto(resp), nil
 }
 
@@ -198,6 +223,21 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigUpdateEvent,
+			Code: events.DiscoveryConfigUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    resp.GetName(),
+			Expires: resp.Expiry(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config update event.")
+	}
+
 	return conv.ToProto(resp), nil
 }
 
@@ -226,6 +266,21 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigCreate{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigCreateEvent,
+			Code: events.DiscoveryConfigCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    resp.GetName(),
+			Expires: resp.Expiry(),
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config create event.")
+	}
+
 	return conv.ToProto(resp), nil
 }
 
@@ -244,6 +299,20 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigDelete{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigDeleteEvent,
+			Code: events.DiscoveryConfigDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config delete event.")
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
@@ -260,6 +329,17 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 
 	if err := s.backend.DeleteAllDiscoveryConfigs(ctx); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.DiscoveryConfigDeleteAll{
+		Metadata: apievents.Metadata{
+			Type: events.DiscoveryConfigDeleteAllEvent,
+			Code: events.DiscoveryConfigDeleteAllCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.log.WithError(err).Warn("Failed to emit discovery config delete all event.")
 	}
 
 	return &emptypb.Empty{}, nil

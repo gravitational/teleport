@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, FormEvent } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
-import { Text, Flex } from 'design';
+import { Text, Flex, Toggle } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { StyledCheckbox } from 'design/Checkbox';
 import {
@@ -31,6 +31,7 @@ import {
   Rows,
   ArrowsIn,
   ArrowsOut,
+  Refresh,
 } from 'design/Icon';
 
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
@@ -77,6 +78,7 @@ interface FilterPanelProps {
   ClusterDropdown?: JSX.Element;
   availabilityFilter?: ResourceAvailabilityFilter;
   changeAvailableResourceMode(mode: IncludedResourceMode): void;
+  onRefresh(): void;
 }
 
 export function FilterPanel({
@@ -94,6 +96,7 @@ export function FilterPanel({
   hideViewModeOptions,
   changeAvailableResourceMode,
   ClusterDropdown = null,
+  onRefresh,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
 
@@ -149,6 +152,18 @@ export function FilterPanel({
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
+        <HoverTooltip tipContent="Refresh">
+          <ButtonBorder
+            onClick={onRefresh}
+            textTransform="none"
+            css={`
+              padding: 0 4.5px;
+            `}
+            size="small"
+          >
+            <Refresh size={12} />
+          </ButtonBorder>
+        </HoverTooltip>
         {!hideViewModeOptions && (
           <>
             {currentViewMode === ViewMode.LIST && (
@@ -512,17 +527,6 @@ function ViewModeSwitch({
   );
 }
 
-const options: { value: IncludedResourceMode; label: string }[] = [
-  {
-    value: 'accessible',
-    label: 'Available',
-  },
-  {
-    value: 'requestable',
-    label: 'Can be requested',
-  },
-];
-
 const IncludedResourcesSelector = ({
   onChange,
   availabilityFilter,
@@ -540,29 +544,15 @@ const IncludedResourcesSelector = ({
     setAnchorEl(null);
   };
 
-  function applyFilter(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    handleClose();
-
-    const formData = new FormData(e.currentTarget);
-    const availabilityOptionsForm = formData.getAll('availabilityOptions');
-
-    if (availabilityOptionsForm.length === 0) {
-      onChange('none');
+  function handleToggle() {
+    if (
+      availabilityFilter.mode === 'requestable' ||
+      availabilityFilter.mode === 'all'
+    ) {
+      onChange('accessible');
       return;
     }
-    if (availabilityOptionsForm.length === 2) {
-      onChange('all');
-      return;
-    }
-
-    onChange(availabilityOptionsForm.at(0) as IncludedResourceMode);
-  }
-
-  function isCheckboxPreSelected(option: IncludedResourceMode): boolean {
-    return (
-      availabilityFilter.mode === option || availabilityFilter.mode === 'all'
-    );
+    onChange(availabilityFilter.canRequestAll ? 'all' : 'requestable');
   }
 
   return (
@@ -577,16 +567,17 @@ const IncludedResourcesSelector = ({
           size="small"
           onClick={handleOpen}
         >
-          Availability
+          Access Requests
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-          {availabilityFilter.canRequestAll === true &&
-            availabilityFilter.mode !== 'none' && <FiltersExistIndicator />}
+          {availabilityFilter.mode === 'accessible' && (
+            <FiltersExistIndicator />
+          )}
         </ButtonSecondary>
       </HoverTooltip>
       <Menu
         popoverCss={() => `
           // TODO (avatus): fix popover component to calculate correct height/anchor
-          margin-top: 76px;
+          margin-top: 36px;
         `}
         transformOrigin={{
           vertical: 'top',
@@ -600,35 +591,16 @@ const IncludedResourcesSelector = ({
         open={Boolean(anchorEl)}
         onClose={handleClose}
       >
-        <form onSubmit={applyFilter}>
-          {options.map(option => (
-            <MenuItem as="label" key={option.value} px={2}>
-              <StyledCheckbox
-                type={availabilityFilter.canRequestAll ? 'checkbox' : 'radio'}
-                name="availabilityOptions"
-                value={option.value}
-                defaultChecked={isCheckboxPreSelected(option.value)}
-              />
-              <Text ml={2} fontWeight={300} fontSize={2}>
-                {option.label}
-              </Text>
-            </MenuItem>
-          ))}
-          <Flex justifyContent="space-between" p={2} gap={2}>
-            <ButtonPrimary size="small" type="submit">
-              Apply Filter
-            </ButtonPrimary>
-            <ButtonSecondary
-              size="small"
-              css={`
-                background-color: transparent;
-              `}
-              onClick={handleClose}
-            >
-              Cancel
-            </ButtonSecondary>
-          </Flex>
-        </form>
+        <AccessRequestsToggleItem>
+          <Text mr={2}>Show requestable resources</Text>
+          <Toggle
+            isToggled={
+              availabilityFilter.mode === 'requestable' ||
+              availabilityFilter.mode === 'all'
+            }
+            onToggle={handleToggle}
+          />
+        </AccessRequestsToggleItem>
       </Menu>
     </Flex>
   );
@@ -676,4 +648,18 @@ const FiltersExistIndicator = styled.div`
   background-color: ${props => props.theme.colors.brand};
   border-radius: 50%;
   display: inline-block;
+`;
+
+const AccessRequestsToggleItem = styled.div`
+  min-height: 40px;
+  box-sizing: border-box;
+  padding-left: ${props => props.theme.space[2]}px;
+  padding-right: ${props => props.theme.space[2]}px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  min-width: 140px;
+  overflow: hidden;
+  text-decoration: none;
+  white-space: nowrap;
 `;

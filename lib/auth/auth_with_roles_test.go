@@ -694,6 +694,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
+	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
 	testCases := []struct {
 		desc       string
 		user       types.User
@@ -702,18 +703,20 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 		{
 			desc:       "Roles don't have max_session_ttl set",
 			user:       user1,
-			expiration: time.Now().Add(authPrefs.GetDefaultSessionTTL().Duration()),
+			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
 		},
 		{
 			desc:       "Roles have max_session_ttl set, cert expiration adjusted",
 			user:       user2,
-			expiration: time.Now().Add(2 * time.Hour),
+			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			client, err := srv.NewClient(TestUser(tt.user.GetName()))
+			user := TestUser(tt.user.GetName())
+			user.TTL = defaultDuration
+			client, err := srv.NewClient(user)
 			require.NoError(t, err)
 
 			_, pub, err := testauthority.New().GenerateKeyPair()
@@ -722,7 +725,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 				PublicKey:         pub,
 				Username:          tt.user.GetName(),
-				Expires:           time.Now().Add(time.Hour),
+				Expires:           srv.Auth().GetClock().Now().Add(defaultDuration),
 				KubernetesCluster: kubeClusterName,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 				Usage:             proto.UserCertsRequest_Kubernetes,
@@ -740,6 +743,186 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	}
 }
 
+func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
+	t.Parallel()
+
+	const minVerificationDuration = 35 * time.Minute
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const kubeClusterName = "kube-cluster-1"
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: kubeClusterName,
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3(
+		types.Metadata{
+			Name:   kubeClusterName,
+			Labels: map[string]string{"name": kubeClusterName},
+		},
+
+		types.KubernetesServerSpecV3{
+			HostID:   kubeClusterName,
+			Hostname: "test",
+			Cluster:  kubeCluster,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
+
+	// Create test user1.
+	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil)
+	require.NoError(t, err)
+
+	// Create test user2.
+	user2, role2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
+	require.NoError(t, err)
+
+	role2Opts := role2.GetOptions()
+	role2Opts.MFAVerificationInterval = minVerificationDuration
+	role2Opts.RequireMFAType = types.RequireMFAType_SESSION
+	role2.SetOptions(role2Opts)
+
+	_, err = srv.Auth().UpsertRole(ctx, role2)
+	require.NoError(t, err)
+
+	// Create test user3.
+	user3, role3, err := CreateUserAndRole(srv.Auth(), "user3", []string{"role3"}, nil)
+	require.NoError(t, err)
+
+	role3Opts := role3.GetOptions()
+	role3Opts.MFAVerificationInterval = minVerificationDuration
+	role3.SetOptions(role3Opts)
+
+	_, err = srv.Auth().UpsertRole(ctx, role3)
+	require.NoError(t, err)
+
+	user1, err = srv.Auth().UpdateUser(ctx, user1)
+	require.NoError(t, err)
+
+	user2, err = srv.Auth().UpdateUser(ctx, user2)
+	require.NoError(t, err)
+
+	user3, err = srv.Auth().UpdateUser(ctx, user3)
+	require.NoError(t, err)
+
+	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
+	authClock := srv.Auth().GetClock()
+
+	testCases := []struct {
+		desc              string
+		user              types.User
+		expiration        time.Time
+		clusterRequireMFA bool
+		usage             proto.UserCertsRequest_CertUsage
+		requester         proto.UserCertsRequest_Requester
+	}{
+		{
+			desc:       "Roles don't have mfa_verification_interval set",
+			user:       user1,
+			expiration: authClock.Now().Add(defaultDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+		},
+		{
+			desc:       "Roles have mfa_verification_interval set, but MFA is not required",
+			user:       user3,
+			expiration: authClock.Now().Add(defaultDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+		},
+		{
+			desc:              "Roles have mfa_verification_interval set, MFA required only on cluster level",
+			user:              user3,
+			expiration:        authClock.Now().Add(minVerificationDuration),
+			usage:             proto.UserCertsRequest_Kubernetes,
+			requester:         proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+			clusterRequireMFA: true,
+		},
+		{
+			desc:       "Kube proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+		},
+		{
+			desc:       "Headless kube proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+		},
+		{
+			desc:       "DB Proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_Database,
+			requester:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		},
+		{
+			desc:       "App proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_App,
+			requester:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			user := TestUser(tt.user.GetName())
+			user.TTL = defaultDuration
+			client, err := srv.NewClient(user)
+			require.NoError(t, err)
+
+			ap, ok := authPrefs.(*types.AuthPreferenceV2)
+			require.True(t, ok)
+
+			if tt.clusterRequireMFA {
+				ap.Spec.RequireMFAType = types.RequireMFAType_SESSION
+			} else {
+				ap.Spec.RequireMFAType = types.RequireMFAType_OFF
+			}
+
+			_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
+			require.NoError(t, err)
+
+			_, pub, err := testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				PublicKey:         pub,
+				Username:          tt.user.GetName(),
+				Expires:           authClock.Now().Add(defaultDuration),
+				KubernetesCluster: kubeClusterName,
+				RouteToDatabase:   proto.RouteToDatabase{ServiceName: "test"},
+				RouteToApp:        proto.RouteToApp{Name: "test"},
+				RequesterName:     tt.requester,
+				Usage:             tt.usage,
+			})
+			require.NoError(t, err)
+
+			// Parse the Identity
+			tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+			require.NoError(t, err)
+			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+			require.NoError(t, err)
+			require.Less(t, tt.expiration.Sub(identity.Expires).Abs(), 10*time.Second,
+				"Identity expiration is out of expected boundaries")
+		})
+	}
+}
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -2549,7 +2732,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 				Name:      name,
 				Namespace: apidefaults.Namespace,
 			}, types.SAMLIdPServiceProviderSpecV1{
-				ACSURL:   fmt.Sprintf("entity-id-%v", i),
+				ACSURL:   fmt.Sprintf("https://entity-id-%v", i),
 				EntityID: fmt.Sprintf("entity-id-%v", i),
 			})
 			require.NoError(t, err)
@@ -2705,7 +2888,7 @@ func TestGetAndList_SAMLIdPServiceProviders(t *testing.T) {
 			Name:      name,
 			Namespace: apidefaults.Namespace,
 		}, types.SAMLIdPServiceProviderSpecV1{
-			ACSURL:   fmt.Sprintf("entity-id-%v", i),
+			ACSURL:   fmt.Sprintf("https://entity-id-%v", i),
 			EntityID: fmt.Sprintf("entity-id-%v", i),
 		})
 		require.NoError(t, err)
@@ -4918,6 +5101,14 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		r := resource.GetDatabaseServer()
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
+
+	// Check for invalid sort error message
+	_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:  []string{types.KindDatabase},
+		Limit:  5,
+		SortBy: types.SortBy{},
+	})
+	require.ErrorContains(t, err, "sort field is required")
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -5024,12 +5215,12 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	sp := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name: "tifaSAML",
+				Name: "example",
 			},
 		},
 		Spec: types.SAMLIdPServiceProviderSpecV1{
-			ACSURL:   "tifaSAML",
-			EntityID: "tifaSAML",
+			ACSURL:   "https://example.com/acs",
+			EntityID: "https://example.com",
 		},
 	}
 	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
@@ -5044,7 +5235,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	inlineEventually(t, func() bool {
 		var err error
 		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			SearchKeywords: []string{"tifa"},
+			SearchKeywords: []string{"example"},
 			Limit:          10,
 			SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
@@ -5057,7 +5248,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	// Check that our returned resource has the correct name
 	for _, resource := range resp.Resources {
 		r := resource.GetSAMLIdPServiceProvider()
-		require.True(t, strings.Contains(r.GetName(), "tifa"))
+		require.True(t, strings.Contains(r.GetName(), "example"))
 	}
 }
 
@@ -5857,7 +6048,41 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		require.NoError(t, err)
 
 		return getActiveSessionsTestCase{"no access with match expression", tracker, role, false}
-	}()}
+	}(), func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.SSHSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRoleWithVersion("dev", types.V3, types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AppLabels:        types.Labels{"*": []string{"*"}},
+				DatabaseLabels:   types.Labels{"*": []string{"*"}},
+				KubernetesLabels: types.Labels{"*": []string{"*"}},
+				KubernetesResources: []types.KubernetesResource{
+					{Kind: types.KindKubePod, Name: "*", Namespace: "*", Verbs: []string{"*"}},
+				},
+				NodeLabels:           types.Labels{"*": []string{"*"}},
+				NodeLabelsExpression: `contains(user.spec.traits["cluster_ids"], labels["cluster_id"]) || contains(user.spec.traits["sub"], labels["owner"])`,
+				Logins:               []string{"{{external.sub}}"},
+				WindowsDesktopLabels: types.Labels{"cluster_id": []string{"{{external.cluster_ids}}"}},
+				WindowsDesktopLogins: []string{"{{external.sub}}", "{{external.windows_logins}}"},
+			},
+			Deny: types.RoleConditions{
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindDatabaseServer, types.KindAppServer, types.KindSession, types.KindSSHSession, types.KindKubeService, types.KindSessionTracker},
+						Verbs:     []string{"list", "read"},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{"filter bug v3 role", tracker, role, false}
+	}(),
+	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -6167,6 +6392,189 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			modifyAndWaitForEvent(t, tc.ErrAssertion, srv, tc.EventCode, func() error {
 				return client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
 			})
+		})
+	}
+}
+
+func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	user, _ := createSAMLIdPTestUsers(t, srv.Auth())
+	client, err := srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		relayState       string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:     "missing url scheme in acs input",
+			entityID: "sp",
+			acsURL:   "sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "http url scheme in acs",
+			entityID: "sp",
+			acsURL:   "http://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:     "unsupported scheme in acs",
+			entityID: "sp",
+			acsURL:   "gopher://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "invalid character in acs",
+			entityID: "sp",
+			acsURL:   "https://sp>",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:       "invalid character in relay state",
+			entityID:   "sp",
+			acsURL:     "https://sp",
+			relayState: "default_state<b",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "test",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+				EntityID:         test.entityID,
+				ACSURL:           test.acsURL,
+				RelayState:       test.relayState,
+			})
+			require.NoError(t, err)
+
+			err = client.CreateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
+		})
+	}
+}
+
+func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	user, _ := createSAMLIdPTestUsers(t, srv.Auth())
+	client, err := srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "sp",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
+	})
+	require.NoError(t, err)
+
+	err = client.CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		relayState       string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:             "invalid character in relay state",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
+			relayState:       "default_state<b",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "sp",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+				RelayState:       test.relayState,
+			})
+			require.NoError(t, err)
+
+			err = client.UpdateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
 		})
 	}
 }
@@ -8069,6 +8477,140 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectResp, resp)
+		})
+	}
+}
+
+func TestCloudDefaultPasswordless(t *testing.T) {
+	tt := []struct {
+		name                     string
+		cloud                    bool
+		withPresetUsers          bool
+		qtyPreexistingUsers      int
+		expectedDefaultConnector string
+	}{
+		{
+			name:                     "First Cloud user should set cluster to passwordless when presets exist",
+			cloud:                    true,
+			withPresetUsers:          true,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: constants.PasswordlessConnector,
+		},
+		{
+			name:                     "First Cloud user should set cluster to passwordless when presets don't exist",
+			cloud:                    true,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: constants.PasswordlessConnector,
+		},
+		{
+			name:                     "Second Cloud user should not set cluster to passwordless when presets exist",
+			cloud:                    true,
+			withPresetUsers:          true,
+			qtyPreexistingUsers:      1,
+			expectedDefaultConnector: "",
+		},
+		{
+			name:                     "Second Cloud user should not set cluster to passwordless when presets don't exist",
+			cloud:                    true,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      1,
+			expectedDefaultConnector: "",
+		},
+		{
+			name:                     "First non-Cloud user should not set cluster to passwordless",
+			cloud:                    false,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: "",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			// create new server
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+
+			// set cluster Webauthn
+			authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorWebauthn,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			})
+			require.NoError(t, err)
+			_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
+			require.NoError(t, err)
+
+			// the test server doesn't create the preset users, so we call createPresetUsers manually
+			if tc.withPresetUsers {
+				createPresetUsers(ctx, srv.Auth())
+			}
+
+			// create preexisting users
+			for i := 0; i < tc.qtyPreexistingUsers; i += 1 {
+				_, _, err = CreateUserAndRole(srv.Auth(), fmt.Sprintf("testuser-%d", i), nil /* allowedLogins */, nil /* allowRules */)
+				require.NoError(t, err)
+			}
+
+			// create the user that might have the auth method changed to passwordless with 2FA
+			// since CreateResetPasswordToken requires MFA verification.
+			u, err := createUserWithSecondFactors(srv)
+			require.NoError(t, err)
+
+			// add permission to edit users, necessary to change auth method to passwordless
+			user, err := srv.Auth().GetUser(ctx, u.username, false /* withSecrets */)
+			require.NoError(t, err)
+			// createUserWithSecondFactors creates a role for the user already, so we modify it with extra perms
+			roleName := user.GetRoles()[0]
+			role, err := srv.Auth().GetRole(ctx, roleName)
+			require.NoError(t, err)
+			role.SetRules(types.Allow, []types.Rule{
+				types.NewRule(types.KindUser, services.RW()),
+			})
+			_, err = srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			// setup to change authentication method to passkey
+			resetToken, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+				Name: user.GetName(),
+			})
+			require.NoError(t, err)
+			token := resetToken.GetName()
+
+			registerChal, err := client.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				TokenID:     token,
+				DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			})
+			require.NoError(t, err)
+
+			_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithPasswordless())
+			require.NoError(t, err)
+
+			_, err = client.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+				TokenID:                token,
+				NewMFARegisterResponse: registerSolved,
+			})
+			require.NoError(t, err)
+
+			authPreferences, err := client.GetAuthPreference(ctx)
+			require.NoError(t, err)
+
+			// assert that the auth preference matches the expected
+			require.Equal(t, tc.expectedDefaultConnector, authPreferences.GetConnectorName())
 		})
 	}
 }

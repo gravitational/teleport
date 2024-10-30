@@ -116,6 +116,7 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 			Transport: &http.Transport{
 				MaxConnsPerHost:     mmMaxConns,
 				MaxIdleConnsPerHost: mmMaxConns,
+				Proxy:               http.ProxyFromEnvironment,
 			},
 		}).
 		SetBaseURL(conf.Mattermost.URL).
@@ -241,7 +242,7 @@ func (b Bot) GetMe(ctx context.Context) (User, error) {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessLists []*accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
@@ -517,6 +518,11 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		Kind: kind,
 		Data: nil,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }
 
 func userResult(resp *resty.Response) (User, error) {

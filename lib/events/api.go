@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -440,6 +442,9 @@ const (
 	// DatabaseSessionQueryFailedEvent is emitted when database client's request
 	// to execute a database query/command was unsuccessful.
 	DatabaseSessionQueryFailedEvent = "db.session.query.failed"
+	// DatabaseSessionCommandResult is emitted when a database returns a
+	// query/command result.
+	DatabaseSessionCommandResultEvent = "db.session.result"
 
 	// DatabaseSessionPostgresParseEvent is emitted when a Postgres client
 	// creates a prepared statement using extended query protocol.
@@ -754,6 +759,10 @@ const (
 
 	// SPIFFESVIDIssuedEvent is emitted when a SPIFFE SVID is issued.
 	SPIFFESVIDIssuedEvent = "spiffe.svid.issued"
+	// SPIFFEFederationCreateEvent is emitted when a SPIFFE federation is created.
+	SPIFFEFederationCreateEvent = "spiffe.federation.create"
+	// SPIFFEFederationDeleteEvent is emitted when a SPIFFE federation is deleted.
+	SPIFFEFederationDeleteEvent = "spiffe.federation.delete"
 
 	// AuthPreferenceUpdateEvent is emitted when a user updates the cluster authentication preferences.
 	AuthPreferenceUpdateEvent = "auth_preference.update"
@@ -761,13 +770,62 @@ const (
 	ClusterNetworkingConfigUpdateEvent = "cluster_networking_config.update"
 	// SessionRecordingConfigUpdateEvent is emitted when a user updates the cluster session recording configuration.
 	SessionRecordingConfigUpdateEvent = "session_recording_config.update"
+	// AccessGraphSettingsUpdateEvent is emitted when a user updates the access graph settings configuration.
+	AccessGraphSettingsUpdateEvent = "access_graph_settings.update"
 
 	// AccessGraphAccessPathChangedEvent is emitted when an access path is changed in the access graph
 	// and an identity/resource is affected.
 	AccessGraphAccessPathChangedEvent = "access_graph.access_path_changed"
 	// TODO(jakule): Remove once e is updated to the new name.
 	AccessGraphAccessPathChanged = AccessGraphAccessPathChangedEvent
+
+	// DiscoveryConfigCreatedEvent is emitted when a discovery config is created.
+	DiscoveryConfigCreateEvent = "discovery_config.create"
+	// DiscoveryConfigUpdatedEvent is emitted when a discovery config is updated.
+	DiscoveryConfigUpdateEvent = "discovery_config.update"
+	// DiscoveryConfigDeletedEvent is emitted when a discovery config is deleted.
+	DiscoveryConfigDeleteEvent = "discovery_config.delete"
+	// DiscoveryConfigDeletedAllEvent is emitted when all discovery configs are deleted.
+	DiscoveryConfigDeleteAllEvent = "discovery_config.delete_all"
+
+	// IntegrationCreateEvent is emitted when an integration resource is created.
+	IntegrationCreateEvent = "integration.create"
+	//IntegrationUpdateEvent is emitted when an integration resource is updated.
+	IntegrationUpdateEvent = "integration.update"
+	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
+	IntegrationDeleteEvent = "integration.delete"
+
+	// PluginCreateEvent is emitted when a plugin resource is created.
+	PluginCreateEvent = "plugin.create"
+	//PluginUpdateEvent is emitted when a plugin resource is updated.
+	PluginUpdateEvent = "plugin.update"
+	// PluginDeleteEvent is emitted when a plugin resource is deleted.
+	PluginDeleteEvent = "plugin.delete"
+
+	// StaticHostUserCreateEvent is emitted when a static host user resource is created.
+	StaticHostUserCreateEvent = "static_host_user.create"
+	//StaticHostUserUpdateEvent is emitted when a static host user resource is updated.
+	StaticHostUserUpdateEvent = "static_host_user.update"
+	// StaticHostUserDeleteEvent is emitted when a static host user resource is deleted.
+	StaticHostUserDeleteEvent = "static_host_user.delete"
+
+	// CrownJewelCreateEvent is emitted when a crown jewel resource is created.
+	CrownJewelCreateEvent = "access_graph.crown_jewel.create"
+	//CrownJewelUpdateEvent is emitted when a crown jewel resource is updated.
+	CrownJewelUpdateEvent = "access_graph.crown_jewel.update"
+	// CrownJewelDeleteEvent is emitted when a crown jewel resource is deleted.
+	CrownJewelDeleteEvent = "access_graph.crown_jewel.delete"
+
+	// UserTaskCreateEvent is emitted when a user task resource is created.
+	UserTaskCreateEvent = "user_task.create"
+	//UserTaskUpdateEvent is emitted when a user task resource is updated.
+	UserTaskUpdateEvent = "user_task.update"
+	// UserTaskDeleteEvent is emitted when a user task resource is deleted.
+	UserTaskDeleteEvent = "user_task.delete"
 )
+
+// Add an entry to eventsMap in lib/events/events_test.go when you add
+// a new event name here.
 
 const (
 	// MaxChunkBytes defines the maximum size of a session stream chunk that
@@ -786,6 +844,16 @@ const (
 	// at the end of the session, so it skips writing session event index
 	// on the fly
 	V3 = 3
+)
+
+var (
+	// SessionRecordingEvents is a list of events that are related to session
+	// recorings.
+	SessionRecordingEvents = []string{
+		SessionEndEvent,
+		WindowsDesktopSessionEndEvent,
+		DatabaseSessionEndEvent,
+	}
 )
 
 // ServerMetadataGetter represents interface
@@ -846,6 +914,9 @@ type StreamPart struct {
 	Number int64
 	// ETag is a part e-tag
 	ETag string
+	// LastModified is the time of last modification of this part (if
+	// available).
+	LastModified time.Time
 }
 
 // StreamUpload represents stream multipart upload
@@ -1032,6 +1103,14 @@ type AuditLogger interface {
 	//
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error)
+
+	// ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+	// performance over ordering and filtering, and is intended for bulk export of events.
+	ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured]
+
+	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
 }
 
 // EventFields instance is attached to every logged event

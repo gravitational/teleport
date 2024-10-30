@@ -25,6 +25,7 @@ import {
   ClipboardUser,
   Cluster,
   Integrations as IntegrationsIcon,
+  Key,
   Laptop,
   ListAddCheck,
   ListThin,
@@ -54,7 +55,6 @@ import { UnifiedResources } from './UnifiedResources';
 import { AccountPage } from './Account';
 import { Support } from './Support';
 import { Clusters } from './Clusters';
-import { Nodes } from './Nodes';
 import { TrustedClusters } from './TrustedClusters';
 import { Users } from './Users';
 import { RolesContainer as Roles } from './Roles';
@@ -68,6 +68,7 @@ import { LockedAccessRequests } from './AccessRequests';
 import { Integrations } from './Integrations';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
+import { JoinTokens } from './JoinTokens/JoinTokens';
 
 import type { FeatureFlags, TeleportFeature } from './types';
 
@@ -97,27 +98,27 @@ class AccessRequests implements TeleportFeature {
   topMenuItem = this.navigationItem;
 }
 
-export class FeatureNodes implements TeleportFeature {
-  route = {
-    title: 'Servers',
-    path: cfg.routes.nodes,
-    exact: true,
-    component: Nodes,
-  };
-
+export class FeatureJoinTokens implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
   navigationItem = {
-    title: NavTitle.Servers,
-    icon: Server,
+    title: NavTitle.JoinTokens,
+    icon: Key,
     exact: true,
-    getLink(clusterId: string) {
-      return cfg.getNodesRoute(clusterId);
+    getLink() {
+      return cfg.getJoinTokensRoute();
     },
   };
 
-  category = NavigationCategory.Resources;
+  route = {
+    title: NavTitle.JoinTokens,
+    path: cfg.routes.joinTokens,
+    exact: true,
+    component: JoinTokens,
+  };
 
-  hasAccess(flags: FeatureFlags) {
-    return flags.nodes;
+  hasAccess(flags: FeatureFlags): boolean {
+    return flags.tokens;
   }
 }
 
@@ -188,7 +189,7 @@ export class FeatureUsers implements TeleportFeature {
     title: 'Manage Users',
     path: cfg.routes.users,
     exact: true,
-    component: () => <Users />,
+    component: Users,
   };
 
   hasAccess(flags: FeatureFlags): boolean {
@@ -523,7 +524,7 @@ export class FeatureTrust implements TeleportFeature {
   section = ManagementSection.Clusters;
 
   route = {
-    title: 'Trusted Clusters',
+    title: 'Trusted Root Clusters',
     path: cfg.routes.trustedClusters,
     component: TrustedClusters,
   };
@@ -626,6 +627,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAddBots(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureJoinTokens(),
     new FeatureDiscover(),
     new FeatureIntegrationEnroll(),
 

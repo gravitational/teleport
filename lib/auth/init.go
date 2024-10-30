@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -42,9 +43,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
@@ -71,10 +74,21 @@ var log = logrus.WithFields(logrus.Fields{
 	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
+// VersionStorage local storage for saving the version.
+type VersionStorage interface {
+	// GetTeleportVersion reads the last known Teleport version from storage.
+	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	// WriteTeleportVersion writes the last known Teleport version to the storage.
+	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+}
+
 // InitConfig is auth server init config
 type InitConfig struct {
 	// Backend is auth backend to use
 	Backend backend.Backend
+
+	// VersionStorage is a version storage for local process
+	VersionStorage VersionStorage
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
@@ -143,6 +157,9 @@ type InitConfig struct {
 
 	// ClusterConfiguration is a services that holds cluster wide configuration.
 	ClusterConfiguration services.ClusterConfiguration
+
+	// AutoUpdateService is a service of autoupdate configuration and version.
+	AutoUpdateService services.AutoUpdateService
 
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
@@ -213,6 +230,9 @@ type InitConfig struct {
 
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
+
+	// UserTasks is a service that manages UserTasks.
+	UserTasks services.UserTasks
 
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
@@ -289,6 +309,16 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// BotInstance is a service that manages Machine ID bot instances
+	BotInstance services.BotInstance
+
+	// SPIFFEFederations is a service that manages storing SPIFFE federations.
+	SPIFFEFederations services.SPIFFEFederations
+
+	// StaticHostUsers is a service that manages host users that should be
+	// created on SSH nodes.
+	StaticHostUsers services.StaticHostUser
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -312,9 +342,9 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err := backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  cfg.Backend,
-				LockName: domainName,
-				TTL:      30 * time.Second,
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{domainName},
+				TTL:                30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}, func(ctx context.Context) error {
@@ -334,6 +364,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -417,6 +450,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
+	})
+
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
+		defer span.End()
+		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
 	})
 
 	g.Go(func() error {
@@ -842,6 +881,31 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 	return trace.LimitExceeded("failed to initialize session recording config in %v iterations", iterationLimit)
 }
 
+func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
+	stored, err := asrv.Services.GetAccessGraphSettings(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if stored != nil {
+		return nil
+	}
+
+	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Creating access graph settings: %v.", stored)
+	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+
+	return trace.Wrap(err)
+}
+
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
 // resource should be used to replace the stored resource during auth server
 // initialization.  Dynamically configured resources must not be overwritten
@@ -920,6 +984,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetRequireTrustedDeviceRole(),
 		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
+		services.NewPresetTerraformProviderRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -993,12 +1058,23 @@ type PresetUsers interface {
 	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
+// getPresetUsers returns a list of all preset users expected to be available on
+// this cluster.
+func getPresetUsers() []types.User {
+	presets := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}
+
+	// Certain `New$FooUser()` functions will return a nil role if the
+	// corresponding feature is disabled. They should be filtered out as they
+	// are not actually made available on the cluster.
+	return slices.DeleteFunc(presets, func(u types.User) bool { return u == nil })
+}
+
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
 func createPresetUsers(ctx context.Context, um PresetUsers) error {
-	users := []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
-	}
+	users := getPresetUsers()
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped
@@ -1029,6 +1105,25 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 

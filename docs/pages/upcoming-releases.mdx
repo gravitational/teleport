@@ -7,31 +7,116 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 ## Teleport
 
-| Version | Date           |
-|---------|----------------|
-| 16.1.0  | July 15, 2024  |
-| 16.2.0  | August 15, 2024 |
+| Version | Date                |
+|---------|---------------------|
+| 17.0.0  | November 15th, 2024 |
+| 17.1.0  | December 13th, 2024 |
 
-### 16.1.0
+### 17.0.0
 
-#### Database Access session replay
+#### New Nav
 
-Database Access users will be able to watch PostgreSQL query replays in the web UI or with `tsh`.
+Teleport 17 will include navigation updates to enhance usability and
+scalability of the web UI.
 
-### 16.2.0
+#### Modern Signature Algorithms
 
-#### Nested access lists
+Teleport admins will have the option to use elliptic curve cryptography for the
+majority of user, host, and certificate authority key material. This includes
+Ed25519 SSH keys and ECDSA TLS keys, replacing the RSA keys used today.
 
-Teleport admins and access list owners will be able to add access lists as members in other access lists.
+#### (Preview) AWS Identity Center integration
+
+Teleport will integrate with AWS Identity Center to allow users to sync and
+manage AWS IC group members via Access Lists.
+
+#### Hardware Key support for Teleport Connect
+
+Teleport's support for [hardware-backed private
+keys](admin-guides/access-controls/guides/hardware-key-support.mdx) will be extended to
+Teleport Connect.
+
+*Delayed from Teleport 16.3.0.*
+
+#### Nested Access Lists
+
+Teleport admins and Access List owners will be able to add Access Lists as
+members in other Access Lists.
+
+*Delayed from Teleport 16.2.0.*
+
+#### Signed and notarized macOS assets
+
+macOS teleport.pkg installer will include signed and notarized `tsh.app` and `tctl.app`
+so downloading a separate tsh.pkg to use Touch ID will no longer be necessary.
+
+In addition, Teleport 17 event-handler and Terraform provider for macOS will also be
+signed and notarized.
+
+#### Datadog Incident Management plugin for access requests
+
+Teleport will support PagerDuty-like integration with Datadog's on-call and incident APIs
+for access request notifications.
+
+#### Hosted Microsoft Teams plugin for access requests
+
+Users will be able to setup Microsoft Teams integration for access request notifications
+using Teleport web UI without needing to self-host the plugin.
+
+### 17.1.0
+
+#### Github access
+
+Teleport will natively support Github access allowing users to transparently interact with
+Github with RBAC and audit logging support.
+
+#### Per-session MFA via IdP
+
+Teleport users will be able to satisfy per-session MFA checks by authenticating with an external
+identity provider as an alternative to using second factors registered with Teleport.
+
+#### Access requests support for AWS Identity Center
+
+AWS Identity Center integration will allow users to request short or long term access to permission
+sets via Access Requests.
+
+#### Database access for PostgreSQL via web UI
+
+Database access users will be able to connect to PostgreSQL databases connected to Teleport right
+from the web UI and use psql-style interface to query the database.
+
+#### Hosted email plugin for access requests
+
+Users will be able to setup Mailgun or generic SMTP server for access request notifications
+using Teleport web UI without needing to self-host the email plugin.
+
+## Teleport Policy
+
+| Version | Date          |
+|---------|---------------|
+| 1.25.0  | December 2024 |
+
+### 1.25.0
+
+#### Support for Teleport trusted clusters
+
+Teleport Policy will support Teleport trusted clusters, allowing users to
+enroll multiple self-hosted Teleport clusters into a single Policy instance.
+This feature will allow users to see access across all Teleport clusters.
+
+#### NetIQ and Azure integrations
+
+Teleport Policy will support NetIQ and Azure integrations, allowing users to
+sync and NetIQ permissions and Azure resources.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of       | Description                                                  |
-|---------------|--------------------------------------------------------------|
-| July 22, 2024 | Teleport 16.1 will begin rollout on Cloud.                   |
-| July 22, 2024 | Teleport 16.1 agents will begin rollout to eligible tenants. |
+| Week of               | Description                                                    |
+|-----------------------|----------------------------------------------------------------|
+| December 16th, 2024   | Teleport 17.1 will begin rollout on Cloud.                     |
+| December 16th, 2024   | Teleport 17.1 agents will begin rollout to eligible tenants.   |
 
 ## Production readiness
 

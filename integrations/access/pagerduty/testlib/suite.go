@@ -32,7 +32,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/pagerduty"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -44,6 +47,7 @@ const (
 	EscalationPolicyID2 = "escalation_policy-2"
 	EscalationPolicyID3 = "escalation_policy-3"
 	NotifyServiceName   = "Teleport Notifications"
+	NotifyServiceName2  = "Teleport Notifications Two"
 	ServiceName1        = "Service 1"
 	ServiceName2        = "Service 2"
 	ServiceName3        = "Service 3"
@@ -57,10 +61,11 @@ type PagerdutyBaseSuite struct {
 	raceNumber    int
 	fakePagerduty *FakePagerduty
 
-	pdNotifyService pagerduty.Service
-	pdService1      pagerduty.Service
-	pdService2      pagerduty.Service
-	pdService3      pagerduty.Service
+	pdNotifyService  pagerduty.Service
+	pdNotifyService2 pagerduty.Service
+	pdService1       pagerduty.Service
+	pdService2       pagerduty.Service
+	pdService3       pagerduty.Service
 }
 
 // SetupTest starts a fake Pagerduty and generates the plugin configuration.
@@ -88,6 +93,11 @@ func (s *PagerdutyBaseSuite) SetupTest() {
 		[]string{NotifyServiceName},
 	)
 
+	// Alternate notify service
+	s.pdNotifyService2 = s.fakePagerduty.StoreService(pagerduty.Service{
+		Name: NotifyServiceName2,
+	})
+
 	// Services 1 and 2 are configured to allow automatic approval if the
 	// requesting user is on-call.
 	s.pdService1 = s.fakePagerduty.StoreService(pagerduty.Service{
@@ -113,6 +123,9 @@ func (s *PagerdutyBaseSuite) SetupTest() {
 
 	var conf pagerduty.Config
 	conf.Teleport = s.TeleportConfig()
+	clt, err := common.GetTeleportClient(ctx, conf.Teleport)
+	require.NoError(t, err)
+	conf.Client = clt
 	conf.Pagerduty.APIEndpoint = s.fakePagerduty.URL()
 	conf.Pagerduty.UserEmail = "bot@example.com"
 	conf.Pagerduty.RequestAnnotations.NotifyService = pagerduty.NotifyServiceDefaultAnnotation
@@ -410,6 +423,73 @@ func (s *PagerdutySuiteEnterprise) TestDenialByReview() {
 	incidentUpdate, err := s.fakePagerduty.CheckIncidentUpdate(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "resolved", incidentUpdate.Status)
+}
+
+func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	const ruleName = "test-pagerduty-amr"
+	var collectedNames []string
+	var mu sync.Mutex
+	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(_ types.OpType, name string, _ *accessmonitoringrulesv1.AccessMonitoringRule) error {
+		mu.Lock()
+		collectedNames = append(collectedNames, name)
+		mu.Unlock()
+		return nil
+	}
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: ruleName,
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "pagerduty",
+					Recipients: []string{
+						NotifyServiceName2,
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	// Incident creation may happen before plugins Access Monitoring Rule cache
+	// has been updated with new rule. Retry until the new cache picks up the rule.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		mu.Lock()
+		require.Contains(t, collectedNames, ruleName)
+		mu.Unlock()
+	}, 3*time.Second, time.Millisecond*100, "new access monitoring rule did not begin applying")
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// Validate the incident has been created in Pagerduty and its ID is stored
+	// in the plugin_data.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data pagerduty.PluginData) bool {
+		return data.IncidentID != ""
+	})
+
+	incident, err := s.fakePagerduty.CheckNewIncident(ctx)
+	assert.NoError(t, err, "no new incidents stored")
+	assert.Equal(t, incident.ID, pluginData.IncidentID)
+
+	assert.Equal(t, pagerduty.PdIncidentKeyPrefix+"/"+req.GetName(), incident.IncidentKey)
+	assert.Equal(t, "triggered", incident.Status)
+
+	assert.Equal(t, s.pdNotifyService2.ID, pluginData.ServiceID)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, ruleName))
 }
 
 func (s *PagerdutyBaseSuite) assertNewEvent(ctx context.Context, watcher types.Watcher, opType types.OpType, resourceKind, resourceName string) types.Event {

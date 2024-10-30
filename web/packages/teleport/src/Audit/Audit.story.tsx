@@ -32,6 +32,7 @@ export default {
 
 export const LoadedSample = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({ events: eventsSample, startKey: '' });
 
@@ -40,6 +41,7 @@ export const LoadedSample = () => {
 
 export const LoadedFetchMore = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({ events, startKey: 'any-text' });
 
@@ -48,12 +50,14 @@ export const LoadedFetchMore = () => {
 
 export const Processing = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.auditService.fetchEvents = () => new Promise(() => null);
   return render(ctx);
 };
 
 export const Failed = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.auditService.fetchEvents = () =>
     Promise.reject(new Error('server error'));
   return render(ctx);

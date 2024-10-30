@@ -18,7 +18,7 @@
 
 import React, { Suspense, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text } from 'design';
+import { Box, ButtonSecondary, Link, Text, Mark } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -46,7 +46,6 @@ import {
   ActionButtons,
   Header,
   HeaderSubtitle,
-  Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
@@ -360,14 +359,6 @@ export function generateCmd(data: GenerateCmdProps) {
     // AutomaticUpgradesTargetVersion contains a v, eg, v13.4.2.
     // However, helm chart expects no 'v', eg, 13.4.2.
     deployVersion = data.automaticUpgradesTargetVersion.replace(/^v/, '');
-
-    // TODO(marco): remove when stable/cloud moves to v14
-    // For v13 releases of the helm chart, we must remove the App role.
-    // We get the following error otherwise:
-    // Error: INSTALLATION FAILED: execution error at (teleport-kube-agent/templates/statefulset.yaml:26:28): at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README
-    if (deployVersion.startsWith('13.')) {
-      roles = ['Kube'];
-    }
   }
 
   const yamlRoles = roles.join(',').toLowerCase();

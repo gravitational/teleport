@@ -9,7 +9,7 @@ on:
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
       - 'package.json'
-      - 'yarn.lock'
+      - 'pnpm-lock.yaml'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'tsconfig.json'
@@ -22,7 +22,7 @@ on:
       - 'gen/proto/js/**'
       - 'gen/proto/ts/**'
       - 'package.json'
-      - 'yarn.lock'
+      - 'pnpm-lock.yaml'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'tsconfig.json'
@@ -46,11 +46,11 @@ jobs:
         run: |
           node --version
 
-      - name: Install Yarn dependencies
-        run: bash web/packages/build/scripts/yarn-install-frozen-lockfile.sh
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build WASM
-        run: yarn build-wasm
+        run: pnpm build-wasm
 
       - name: Run tests
-        run: yarn test
+        run: pnpm test

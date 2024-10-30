@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -628,36 +627,17 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:             user.GetName(),
-		LoginIP:          loginIP,
-		Roles:            user.GetRoles(),
-		Traits:           user.GetTraits(),
-		LoginTime:        a.clock.Now().UTC(),
-		AttestWebSession: true,
+		User:                 user.GetName(),
+		LoginIP:              loginIP,
+		LoginUserAgent:       userAgent,
+		Roles:                user.GetRoles(),
+		Traits:               user.GetTraits(),
+		LoginTime:            a.clock.Now().UTC(),
+		AttestWebSession:     true,
+		CreateDeviceWebToken: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Create the device trust DeviceWebToken.
-	// We only get a token if the server is enabled for Device Trust and the user
-	// has a suitable trusted device.
-	if loginIP != "" && userAgent != "" {
-		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-			WebSessionId:     sess.GetName(),
-			BrowserUserAgent: userAgent,
-			BrowserIp:        loginIP,
-			User:             sess.GetUser(),
-		})
-		switch {
-		case err != nil:
-			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-		case webToken != nil: // May be nil even if err==nil.
-			sess.SetDeviceWebToken(&types.DeviceWebToken{
-				Id:    webToken.Id,
-				Token: webToken.Token,
-			})
-		}
 	}
 
 	return sess, nil

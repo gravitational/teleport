@@ -1264,10 +1264,10 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_name, windows_user }) => {
-      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_name}]`;
+    format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
+      let message = `User [${user}] started session ${sid} on Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
-        message += ` on [${windows_domain}]`;
+        message += ` with domain [${windows_domain}]`;
       }
       return message;
     },
@@ -1278,7 +1278,7 @@ export const formatters: Formatters = {
     format: ({ user, windows_domain, desktop_name, windows_user }) => {
       let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
-        message += ` on [${windows_domain}]`;
+        message += ` with domain [${windows_domain}]`;
       }
       return message;
     },
@@ -1286,12 +1286,12 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+    format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
       let desktopMessage = `[${windows_user}@${desktop_name}]`;
       if (windows_domain) {
-        desktopMessage += ` on [${windows_domain}]`;
+        desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
     },
   },
@@ -1857,6 +1857,118 @@ export const formatters: Formatters = {
         )}] in database [${db_name}] on [${db_service}]`;
       }
       return `User [${user}] attempted to call [${procedure}] in database [${db_name}] on [${db_service}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_CREATE]: {
+    type: 'discovery_config.create',
+    desc: 'Discovery Config Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a discovery config [${name}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_UPDATE]: {
+    type: 'discovery_config.update',
+    desc: 'Discovery Config Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a discovery config [${name}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_DELETE]: {
+    type: 'discovery_config.delete',
+    desc: 'Discovery Config Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a discovery config [${name}]`;
+    },
+  },
+  [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: {
+    type: 'discovery_config.delete_all',
+    desc: 'All Discovery Configs Deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted all discovery configs`;
+    },
+  },
+  [eventCodes.INTEGRATION_CREATE]: {
+    type: 'integration.create',
+    desc: 'Integration Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created an integration [${name}]`;
+    },
+  },
+  [eventCodes.INTEGRATION_UPDATE]: {
+    type: 'integration.update',
+    desc: 'Integration Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated an integration [${name}]`;
+    },
+  },
+  [eventCodes.INTEGRATION_DELETE]: {
+    type: 'integration.delete',
+    desc: 'Integration Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted an integration [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_CREATE]: {
+    type: 'static_host_user.create',
+    desc: 'Static Host User Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a static host user [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_UPDATE]: {
+    type: 'static_host_user.update',
+    desc: 'Static Host User Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a static host user [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_DELETE]: {
+    type: 'static_host_user.delete',
+    desc: 'Static Host User Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a static host user [${name}]`;
+    },
+  },
+  [eventCodes.CROWN_JEWEL_CREATE]: {
+    type: 'access_graph.crown_jewel.create',
+    desc: 'Crown Jewel Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a crown jewel [${name}]`;
+    },
+  },
+  [eventCodes.CROWN_JEWEL_UPDATE]: {
+    type: 'access_graph.crown_jewel.update',
+    desc: 'Crown Jewel Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a crown jewel [${name}]`;
+    },
+  },
+  [eventCodes.CROWN_JEWEL_DELETE]: {
+    type: 'access_graph.crown_jewel.delete',
+    desc: 'Crown Jewel Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a crown jewel [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_CREATE]: {
+    type: 'user_task.create',
+    desc: 'User Task Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a user task [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_UPDATE]: {
+    type: 'user_task.update',
+    desc: 'User Task Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a user task [${name}]`;
+    },
+  },
+  [eventCodes.USER_TASK_DELETE]: {
+    type: 'user_task.delete',
+    desc: 'User Task Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a user task [${name}]`;
     },
   },
   [eventCodes.UNKNOWN]: {

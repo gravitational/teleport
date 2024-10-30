@@ -102,10 +102,6 @@ spec:
                   type: string
                 nullable: true
                 type: array
-              public_addr:
-                description: PublicAddr is the public address where this server can
-                  be reached. DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
-                type: string
               public_addrs:
                 description: PublicAddrs is a list of public addresses where this
                   server can be reached.

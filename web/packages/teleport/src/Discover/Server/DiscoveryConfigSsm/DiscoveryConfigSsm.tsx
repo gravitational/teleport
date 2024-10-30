@@ -17,7 +17,14 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { Box, Link as ExternalLink, Text, Flex, ButtonSecondary } from 'design';
+import {
+  Box,
+  Link as ExternalLink,
+  Text,
+  Flex,
+  ButtonSecondary,
+  Mark,
+} from 'design';
 import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
 import TextEditor from 'shared/components/TextEditor';
@@ -41,8 +48,12 @@ import {
 } from 'teleport/services/discovery';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
-import { ActionButtons, Header, Mark, StyledBox } from '../../Shared';
+import { ActionButtons, Header, StyledBox } from '../../Shared';
 
 import { SingleEc2InstanceInstallation } from '../Shared';
 
@@ -51,8 +62,14 @@ import { DiscoveryConfigCreatedDialog } from './DiscoveryConfigCreatedDialog';
 const IAM_POLICY_NAME = 'EC2DiscoverWithSSM';
 
 export function DiscoveryConfigSsm() {
-  const { agentMeta, emitErrorEvent, nextStep, updateAgentMeta, prevStep } =
-    useDiscover();
+  const {
+    agentMeta,
+    emitErrorEvent,
+    nextStep,
+    updateAgentMeta,
+    prevStep,
+    emitEvent,
+  } = useDiscover();
 
   const { arnResourceName, awsAccountId } = splitAwsIamArn(
     agentMeta.awsIntegration.spec.roleArn
@@ -104,6 +121,13 @@ export function DiscoveryConfigSsm() {
           ],
         });
 
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Success },
+          {
+            eventName: DiscoverEvent.CreateDiscoveryConfig,
+          }
+        );
+
         updateAgentMeta({
           ...agentMeta,
           awsRegion: selectedRegion,
@@ -125,6 +149,8 @@ export function DiscoveryConfigSsm() {
       iamRoleName: arnResourceName,
       region: selectedRegion,
       ssmDocument: ssmDocumentName,
+      integrationName: agentMeta.awsIntegration.name,
+      accountID: awsAccountId,
     });
     setScriptUrl(scriptUrl);
   }
@@ -319,7 +345,7 @@ export function DiscoveryConfigSsm() {
   );
 }
 
-const EditorWrapper = styled(Flex)`
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   flex-directions: column;
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;

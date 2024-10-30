@@ -35,9 +35,7 @@ import (
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -110,7 +108,6 @@ func (c *CloudConfig) CheckAndSetDefaults() error {
 
 type cloud struct {
 	cfg CloudConfig
-	log logrus.FieldLogger
 }
 
 // NewCloud creates a new cloud service.
@@ -120,7 +117,6 @@ func NewCloud(cfg CloudConfig) (Cloud, error) {
 	}
 	return &cloud{
 		cfg: cfg,
-		log: logrus.WithField(teleport.ComponentKey, "cloud"),
 	}, nil
 }
 
@@ -191,7 +187,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	options = append(options, func(creds *stscreds.AssumeRoleProvider) {
 		// Setting role session name to Teleport username will allow to
 		// associate CloudTrail events with the Teleport user.
-		creds.RoleSessionName = req.Identity.Username
+		creds.RoleSessionName = awsutils.MaybeHashRoleSessionName(req.Identity.Username)
 
 		// Setting web console session duration through AssumeRole call for AWS
 		// sessions with temporary credentials.

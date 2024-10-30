@@ -177,6 +177,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		Name:        app.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: tc.SiteName,
+		URI:         app.GetURI(),
 	}
 
 	profile, err := tc.ProfileStatus()
@@ -189,6 +190,7 @@ func (p *vnetAppProvider) reissueAppCert(ctx context.Context, tc *client.Telepor
 		RouteToApp:     routeToApp,
 		AccessRequests: profile.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+		TTL:            tc.KeyTTL,
 	}
 
 	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)

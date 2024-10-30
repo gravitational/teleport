@@ -40,6 +40,8 @@ const (
 	PackageNameOSS = "teleport"
 	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
+	// PackageNameEntFIPS is the teleport package name for the Enterprise with FIPS enabled version.
+	PackageNameEntFIPS = "teleport-ent-fips"
 
 	// ActionRead grants read access (get, list)
 	ActionRead = "read"
@@ -65,6 +67,10 @@ const (
 
 	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
+	// KindBotInstance is an instance of a Machine ID bot
+	KindBotInstance = "bot_instance"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -112,7 +118,10 @@ const (
 	// KindSession is a recorded SSH session.
 	KindSession = "session"
 
-	// KindSSHSession is an active SSH session.
+	// KindSSHSession represents an active SSH session in early versions of Teleport
+	// prior to the introduction of moderated sessions. Note that ssh_session is not
+	// a "real" resource, and it is never used as the "session kind" value in the
+	// session_tracker resource.
 	KindSSHSession = "ssh_session"
 
 	// KindWebSession is a web session resource
@@ -316,6 +325,18 @@ const (
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
 
+	// KindAutoUpdateConfig is the resource with autoupdate configuration.
+	KindAutoUpdateConfig = "autoupdate_config"
+
+	// KindAutoUpdateVersion is the resource with autoupdate versions.
+	KindAutoUpdateVersion = "autoupdate_version"
+
+	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
+	MetaNameAutoUpdateConfig = "autoupdate-config"
+
+	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
+	MetaNameAutoUpdateVersion = "autoupdate-version"
+
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
 
@@ -469,6 +490,9 @@ const (
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
+	// KindUserTask is a task representing an issue with some other resource.
+	KindUserTask = "user_task"
+
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
 
@@ -519,8 +543,26 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
+	// a Teleport SSH node type.
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
+
+	// KindAccessGraphSecretPrivateKey is a private key entry found in
+	// a managed device.
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
+
+	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
+	KindAccessGraphSettings = "access_graph_settings"
+
+	// KindStaticHostUser is a host user to be created on matching SSH nodes.
+	KindStaticHostUser = "static_host_user"
+
+	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
+	// access graph settings.
+	MetaNameAccessGraphSettings = "access-graph-settings"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -546,7 +588,7 @@ const (
 )
 
 // PackageNameKinds is the list of valid teleport package names.
-var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -666,18 +708,32 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
-	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
+	projectIDLabelSuffix = "project-id"
+	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
-	// ZoneLabel is used to identify virtual machines by GCP zone
+	ProjectIDLabelDiscovery = TeleportInternalLabelPrefix + projectIDLabelSuffix
+	// ProjectIDLabel is used to identify the project ID for a virtual machine in GCP.
+	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
+	// and can be used in RBAC checks.
+	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
+	// RegionLabel is used to identify virtual machines by region found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	RegionLabel = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabel is used to identify virtual machines by resource-group found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
+	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	ZoneLabel = TeleportInternalLabelPrefix + "zone"
-	// NameLabel is used to identify virtual machines by GCP VM name
+	ZoneLabelDiscovery = TeleportInternalLabelPrefix + "zone"
+	// NameLabelDiscovery is used to identify virtual machines by GCP VM name
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	NameLabel = TeleportInternalLabelPrefix + "name"
+	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -738,6 +794,8 @@ const (
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
 	// ReqAnnotationNotifySchedulesLabel is the request annotation key at which notify schedules are stored for access plugins.
 	ReqAnnotationNotifySchedulesLabel = "/notify-services"
+	// ReqAnnotationTeamsLabel is the request annotation key at which teams are stored for access plugins.
+	ReqAnnotationTeamsLabel = "/teams"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -910,6 +968,10 @@ const (
 	// AlertLink is an internal label that indicates that an alert is a link.
 	AlertLink = TeleportInternalLabelPrefix + "link"
 
+	// AlertLinkText is a text that will be rendered by Web UI on the action
+	// button accompanying the alert.
+	AlertLinkText = TeleportInternalLabelPrefix + "link-text"
+
 	// AlertVerbPermit is an internal label that permits a user to view the alert if they
 	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
 	// a coarser control than it might initially appear and has the potential for accidental
@@ -1011,6 +1073,8 @@ const (
 	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
 	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
 	NotificationScope = TeleportInternalLabelPrefix + "scope"
+	// NotificationTextContentLabel is the label which contains the text content of a user-created notification.
+	NotificationTextContentLabel = TeleportInternalLabelPrefix + "content"
 
 	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
 	NotificationDefaultInformationalSubKind = "default-informational"
@@ -1246,10 +1310,17 @@ var KubernetesClusterWideResourceKinds = []string{
 }
 
 const (
-	// TeleportServiceGroup is a default group that users of the
-	// teleport automated user provisioning system get added to so
-	// already existing users are not deleted
-	TeleportServiceGroup = "teleport-system"
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )
 
 const (
@@ -1321,4 +1392,18 @@ const (
 	// SCIMBaseURLLabel defines a label indicating the base URL for
 	// interacting with a plugin via SCIM. Useful for diagnostic display.
 	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
+)
+
+const (
+	// DatadogCredentialLabel is used by Datadog-managed PluginStaticCredentials
+	// to indiciate credential type.
+	DatadogCredentialLabel = "datadog/credential"
+
+	// DatadogCredentialAPIKey indicates that the credential is used as a
+	// Datadog API key.
+	DatadogCredentialAPIKey = "datadog-api-key"
+
+	// DatadogCredentialApplicationKey indicates that the credential is used as
+	// a Datadog Application key.
+	DatadogCredentialApplicationKey = "datadog-application-key"
 )

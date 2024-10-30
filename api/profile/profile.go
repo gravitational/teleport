@@ -25,11 +25,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -110,6 +112,13 @@ type Profile struct {
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.
 	MissingClusterDetails bool
+
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
+	// using an auth connector with a SAML SLO URL configured.
+	SAMLSingleLogoutEnabled bool `yaml:"saml_slo_enabled,omitempty"`
+
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout time.Duration `yaml:"ssh_dial_timeout,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -147,6 +156,19 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 	}, nil
+}
+
+// Expiry returns the credential expiry.
+func (p *Profile) Expiry() (time.Time, bool) {
+	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
+	if err != nil {
+		return time.Time{}, false
+	}
+	cert, _, err := keys.X509Certificate(certPEMBlock)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
 }
 
 // RequireKubeLocalProxy returns true if this profile indicates a local proxy
@@ -380,6 +402,13 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
 	}
+
+	// For backwards compatibility, if the dial timeout was not set,
+	// then use the DefaultIOTimeout.
+	if p.SSHDialTimeout == 0 {
+		p.SSHDialTimeout = defaults.DefaultIOTimeout
+	}
+
 	return &p, nil
 }
 

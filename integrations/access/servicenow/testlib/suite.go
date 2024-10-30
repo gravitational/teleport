@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/servicenow"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -75,6 +77,7 @@ func (s *ServiceNowBaseSuite) SetupTest() {
 
 	var conf servicenow.Config
 	conf.Teleport = s.TeleportConfig()
+	conf.PluginType = "servicenow"
 	conf.ClientConfig.APIEndpoint = s.fakeServiceNow.URL()
 	conf.ClientConfig.CloseCode = "resolved"
 
@@ -134,6 +137,55 @@ func (s *ServiceNowSuiteOSS) TestIncidentCreation() {
 	require.NoError(t, err, "no new incidents stored")
 
 	assert.Equal(t, incident.IncidentID, pluginData.IncidentID)
+}
+
+// TestMessagePostingWithAMR validates that a message is sent to each recipient
+// specified in the monitoring rule and the plugin config is ignored. It also checks that the message
+// content is correct.
+func (s *ServiceNowSuiteOSS) TestMessagePostingWithAMR() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-servicenow-amr",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "servicenow",
+					Recipients: []string{
+						"someReviewer", // recipient 1
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	// Test execution: we create a new access request.
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data servicenow.PluginData) bool {
+		return data.IncidentID != ""
+	})
+
+	// Validating a new incident was created.
+	incident, err := s.fakeServiceNow.CheckNewIncident(ctx)
+	require.NoError(t, err, "no new incidents stored")
+
+	require.Equal(t, "someReviewer", incident.AssignedTo)
+
+	assert.Equal(t, incident.IncidentID, pluginData.IncidentID)
+
+	assert.NoError(t, s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-servicenow-amr"))
 }
 
 // TestApproval tests that when a request is approved, its corresponding incident

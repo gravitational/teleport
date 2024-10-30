@@ -298,7 +298,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -824,7 +824,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -1133,9 +1133,12 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
+                  create_host_user_default_shell:
+                    description: CreateHostUserDefaultShell is used to configure the
+                      default shell for newly provisioned host users.
+                    type: string
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
                       created on a host when not set to off. 0 is "unspecified"; 1
@@ -1155,7 +1158,6 @@ spec:
                   device_trust_mode:
                     description: DeviceTrustMode is the device authorization mode
                       used for the resources associated with the role. See DeviceTrust.Mode.
-                      Reserved for future use, not yet used by Teleport.
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
@@ -1211,6 +1213,16 @@ spec:
                       sessions per connection.
                     format: int64
                     type: integer
+                  mfa_verification_interval:
+                    description: MFAVerificationInterval optionally defines the maximum
+                      duration that can elapse between successive MFA verifications.
+                      This variable is used to ensure that users are periodically
+                      prompted to verify their identity, enhancing security by preventing
+                      prolonged sessions without re-authentication when using tsh
+                      proxy * derivatives. It's only effective if the session requires
+                      MFA. If not set, defaults to `max_session_ttl`.
+                    format: duration
+                    type: string
                   permit_x11_forwarding:
                     description: PermitX11Forwarding authorizes use of X11 forwarding.
                     type: boolean
@@ -1242,8 +1254,8 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request strategy
-                      (optional|note|always) where optional is the default.
+                    description: RequestAccess defines the request strategy (optional|note|always)
+                      where optional is the default.
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
@@ -1630,7 +1642,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -2156,7 +2168,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -2465,9 +2477,12 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
+                  create_host_user_default_shell:
+                    description: CreateHostUserDefaultShell is used to configure the
+                      default shell for newly provisioned host users.
+                    type: string
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
                       created on a host when not set to off. 0 is "unspecified"; 1
@@ -2487,7 +2502,6 @@ spec:
                   device_trust_mode:
                     description: DeviceTrustMode is the device authorization mode
                       used for the resources associated with the role. See DeviceTrust.Mode.
-                      Reserved for future use, not yet used by Teleport.
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
@@ -2543,6 +2557,16 @@ spec:
                       sessions per connection.
                     format: int64
                     type: integer
+                  mfa_verification_interval:
+                    description: MFAVerificationInterval optionally defines the maximum
+                      duration that can elapse between successive MFA verifications.
+                      This variable is used to ensure that users are periodically
+                      prompted to verify their identity, enhancing security by preventing
+                      prolonged sessions without re-authentication when using tsh
+                      proxy * derivatives. It's only effective if the session requires
+                      MFA. If not set, defaults to `max_session_ttl`.
+                    format: duration
+                    type: string
                   permit_x11_forwarding:
                     description: PermitX11Forwarding authorizes use of X11 forwarding.
                     type: boolean
@@ -2574,8 +2598,8 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request strategy
-                      (optional|note|always) where optional is the default.
+                    description: RequestAccess defines the request strategy (optional|note|always)
+                      where optional is the default.
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells

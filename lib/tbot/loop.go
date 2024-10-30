@@ -31,9 +31,13 @@ import (
 )
 
 type runOnIntervalConfig struct {
-	name                 string
-	f                    func(ctx context.Context) error
-	clock                clockwork.Clock
+	name  string
+	f     func(ctx context.Context) error
+	clock clockwork.Clock
+	// reloadCh allows the task to be triggered immediately, ideal for handling
+	// CA rotations or a manual signal from a user.
+	// reloadCh can be nil, in which case, the task will only run on the
+	// interval.
 	reloadCh             chan struct{}
 	log                  *slog.Logger
 	interval             time.Duration
@@ -62,10 +66,6 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 		return trace.BadParameter("name is required")
 	}
 
-	// If no reload channel is provided, create one that never yields a value.
-	if cfg.reloadCh == nil {
-		cfg.reloadCh = make(chan struct{})
-	}
 	log := cfg.log.With("task", cfg.name)
 
 	if cfg.clock == nil {

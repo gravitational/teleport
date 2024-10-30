@@ -29,10 +29,6 @@ ButtonLink.propTypes = {
   ...Button.propTypes,
 };
 
-ButtonLink.defaultProps = {
-  size: 'medium',
-};
-
 ButtonLink.displayName = 'ButtonLink';
 
 const StyledButtonLink = styled.a`

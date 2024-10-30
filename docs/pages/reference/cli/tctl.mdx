@@ -46,7 +46,7 @@ file, then the configuration file is ignored.
 
   To provide an accurate audit trail, it is important to limit direct SSH access
   to the Auth Service with
-  [Access Controls](../../access-controls/introduction.mdx) and ensure that
+  [Access Controls](../../admin-guides/access-controls/access-controls.mdx) and ensure that
   admins use `tctl` remotely instead.
 
 </Admonition>
@@ -327,7 +327,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../machine-id/introduction.mdx) is a more secure alternative that
+[Machine ID](../../enroll-resources/machine-id/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -1007,6 +1007,45 @@ $ tctl request approve [token]
 $ tctl request approve request-id-1, request-id-2
 ```
 
+## tctl request create
+
+Create a pending Access Request.
+
+```code
+$ tctl request create <username>
+```
+
+### Arguments
+
+- `<username>` - Name of target user (required).
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+|`roles`|none|Comma-separated list of strings|Roles to be requested|
+|`resource`|none|Comma-separated list of strings|Resource IDs to be requested|
+|`reason`|none|String|Optional reason message|
+|`dry-run`|none|Boolean|Don't actually generate the Access Request|
+
+Use the `dry-run` flag if you want to validate whether Teleport can create an
+Access Request for the user in the `username` argument, given the user's static
+roles.
+
+### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+### Examples
+
+Create an Access Request for user `myuser` for the `prod` role, providing a
+reason:
+
+```code
+$ tctl request create myuser --roles=prod --reason="Fix an outage"
+```
+
 ## tctl request deny
 
 Denies a user's request:
@@ -1216,7 +1255,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../admin-guides/access-controls/sso/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags

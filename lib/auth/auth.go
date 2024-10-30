@@ -46,7 +46,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -63,7 +62,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -79,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -91,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
@@ -108,10 +108,12 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/spacelift"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -143,15 +145,16 @@ const (
 	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
 		"Reach out for unlimited desktops with Teleport Enterprise."
 
-	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
-	OSSDesktopsLimit    = 5
+	OSSDesktopsAlertLink     = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
+	OSSDesktopsAlertLinkText = "Contact Sales"
+	OSSDesktopsLimit         = 5
 )
 
 const (
 	dynamicLabelCheckPeriod  = time.Hour
 	dynamicLabelAlertID      = "dynamic-labels-in-deny-rules"
 	dynamicLabelAlertMessage = "One or more roles has deny rules that include dynamic/ labels. " +
-		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
+		"This is not recommended due to the volatility of dynamic/ labels and is not allowed for new roles. " +
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
@@ -167,6 +170,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.VersionStorage == nil {
+		return nil, trace.BadParameter("version storage is not set")
+	}
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
@@ -191,6 +197,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.ClusterConfiguration = clusterConfig
+	}
+	if cfg.AutoUpdateService == nil {
+		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
@@ -301,6 +313,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.UserTasks == nil {
+		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.DiscoveryConfigs == nil {
 		cfg.DiscoveryConfigs, err = local.NewDiscoveryConfigService(cfg.Backend)
 		if err != nil {
@@ -328,6 +346,18 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.BotInstance == nil {
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.SPIFFEFederations == nil {
+		cfg.SPIFFEFederations, err = local.NewSPIFFEFederationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -342,15 +372,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		CloudClients: cfg.CloudClients,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
-		if !modules.GetModules().Features().HSM {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
 	} else {
@@ -375,6 +405,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.StaticHostUsers == nil {
+		cfg.StaticHostUsers, err = local.NewStaticHostUserService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:             cfg.Trust,
@@ -384,6 +421,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:                    cfg.Access,
 		DynamicAccessExt:          cfg.DynamicAccessExt,
 		ClusterConfiguration:      cfg.ClusterConfiguration,
+		AutoUpdateService:         cfg.AutoUpdateService,
 		Restrictions:              cfg.Restrictions,
 		Apps:                      cfg.Apps,
 		Kubernetes:                cfg.Kubernetes,
@@ -397,6 +435,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:     cfg.SessionTrackerService,
 		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
 		Integrations:              cfg.Integrations,
+		UserTasks:                 cfg.UserTasks,
 		DiscoveryConfigs:          cfg.DiscoveryConfigs,
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
@@ -412,6 +451,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		BotInstance:               cfg.BotInstance,
+		SPIFFEFederations:         cfg.SPIFFEFederations,
+		StaticHostUser:            cfg.StaticHostUsers,
 	}
 
 	as := Server{
@@ -445,9 +487,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
 		}),
-		inventory.WithOnDisconnect(func(s string) {
+		inventory.WithOnDisconnect(func(s string, c int) {
 			if g, ok := connectedResourceGauges[s]; ok {
-				g.Dec()
+				g.Sub(float64(c))
 			} else {
 				log.Warnf("missing connected resources gauge for keep alive %s (this is a bug)", s)
 			}
@@ -470,6 +512,20 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, cacheEnabled := as.getCache()
+
+	// cluster config ttl cache *must* be set up after `opts` has been applied to the server because
+	// the Cache field starts off as a pointer to the local backend services and is only switched
+	// over to being a proper cache during option processing.
+	as.ReadOnlyCache, err = readonly.NewCache(readonly.CacheConfig{
+		Upstream:    as.Cache,
+		Disabled:    !cacheEnabled,
+		ReloadOnErr: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -527,6 +583,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		)
 	}
 
+	if as.terraformIDTokenValidator == nil {
+		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{
+			Clock: as.clock,
+		})
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -548,6 +610,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	return &as, nil
 }
 
+// Services is a collection of services that are used by the auth server.
+// Avoid using this type as a dependency and instead depend on the actual
+// methods/services you need. It should really only be necessary to directly
+// reference this type on auth.Server itself and on code that manages
+// the lifecycle of the auth server.
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
@@ -569,6 +636,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.IntegrationsTokenGenerator
+	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
@@ -586,11 +654,12 @@ type Services struct {
 	services.KubeWaitingContainer
 	services.AccessMonitoringRules
 	services.CrownJewels
-}
-
-// SecReportsClient returns the security reports client.
-func (r *Services) SecReportsClient() *secreport.Client {
-	return nil
+	services.SPIFFEFederations
+	services.AccessGraphSecretsGetter
+	services.DevicesGetter
+	services.BotInstance
+	services.StaticHostUser
+	services.AutoUpdateService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -608,54 +677,6 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
-}
-
-// OktaClient returns the okta client.
-func (r *Services) OktaClient() services.Okta {
-	return r
-}
-
-// SCIMClient returns a client for the SCIM service. Note that in an OSS
-// Teleport cluster, or an Enterprise cluster with IGS disabled, the SCIM
-// service on the other end will return "NotImplemented" for every call.
-func (r *Services) SCIMClient() services.SCIM {
-	return r.SCIM
-}
-
-// AccessListClient returns the access list client.
-func (r *Services) AccessListClient() services.AccessLists {
-	return r
-}
-
-// AccessMonitoringRuleClient returns the access monitoring rules client.
-func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
-	return r
-}
-
-// DiscoveryConfigClient returns the DiscoveryConfig client.
-func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
-	return r
-}
-
-// CrownJewelClient returns the CrownJewels client.
-func (r *Services) CrownJewelClient() services.CrownJewels {
-	return r
-}
-
-// UserLoginStateClient returns the user login state client.
-func (r *Services) UserLoginStateClient() services.UserLoginStates {
-	return r
-}
-
-// KubernetesWaitingContainerClient returns the Kubernetes waiting
-// container client.
-func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
-	return r
-}
-
-// DatabaseObjectsClient returns the database objects client.
-func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
-	return r
 }
 
 var (
@@ -698,6 +719,14 @@ var (
 		prometheus.GaugeOpts{
 			Name: teleport.MetricHeartbeatsMissed,
 			Help: "Number of heartbeats missed by auth server",
+		},
+	)
+
+	roleCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      "roles_total",
+			Help:      "Number of roles that exist in the cluster",
 		},
 	)
 
@@ -785,6 +814,7 @@ var (
 		accessRequestsCreatedMetric,
 		registeredAgentsInstallMethod,
 		userCertificatesGeneratedMetric,
+		roleCount,
 	}
 )
 
@@ -801,6 +831,14 @@ type LoginHook func(context.Context, types.User) error
 // May return `nil, nil` if device trust isn't supported (OSS), disabled, or if
 // the user has no suitable trusted device.
 type CreateDeviceWebTokenFunc func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error)
+
+// CreateDeviceAssertionFunc creates a new device assertion ceremony to authenticate
+// a trusted device.
+type CreateDeviceAssertionFunc func() (assertserver.Ceremony, error)
+
+// ReadOnlyCache is a type alias used to assist with embedding [readonly.Cache] in places
+// where it would have a naming conflict with other types named Cache.
+type ReadOnlyCache = readonly.Cache
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
@@ -852,6 +890,11 @@ type Server struct {
 	// and Services will call the one from Cache. To bypass the cache, call the
 	// method on Services instead.
 	authclient.Cache
+
+	// ReadOnlyCache is a specialized cache that provides read-only shared references
+	// in certain performance-critical paths where deserialization/cloning may be too
+	// expensive at scale.
+	*ReadOnlyCache
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -941,6 +984,11 @@ type Server struct {
 	// server. It can be overridden for the purpose of tests.
 	gcpIDTokenValidator gcpIDTokenValidator
 
+	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	// the purpose of tests.
+	terraformIDTokenValidator terraformCloudIDTokenValidator
+
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
 
@@ -968,6 +1016,15 @@ type Server struct {
 	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
 	// Is nil on OSS clusters.
 	createDeviceWebTokenFunc CreateDeviceWebTokenFunc
+
+	// deviceAssertionServer holds the server-side implementation of device assertions.
+	//
+	// It is used to authenticate devices previously enrolled in the cluster. The goal
+	// is to provide an API for devices to authenticate with the cluster without the need
+	// for valid user credentials, e.g. when running `tsh scan keys`.
+	//
+	// The value is nil on OSS clusters.
+	deviceAssertionServer CreateDeviceAssertionFunc
 
 	// bcryptCostOverride overrides the bcrypt cost for operations executed
 	// directly by [Server].
@@ -1117,6 +1174,26 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
 }
 
+// SetDeviceAssertionServer sets the device assertion implementation.
+func (a *Server) SetDeviceAssertionServer(f CreateDeviceAssertionFunc) {
+	a.lock.Lock()
+	a.deviceAssertionServer = f
+	a.lock.Unlock()
+}
+
+// GetDeviceAssertionServer returns the device assertion implementation.
+// On OSS clusters, this will return a non nil function that returns an error.
+func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	if a.deviceAssertionServer == nil {
+		return func() (assertserver.Ceremony, error) {
+			return nil, trace.NotImplemented("device assertions are not supported on OSS clusters")
+		}
+	}
+	return a.deviceAssertionServer
+}
+
 func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
 	a.lock.Lock()
 	a.createDeviceWebTokenFunc = f
@@ -1201,35 +1278,27 @@ func (a *Server) periodicSyncUpgradeWindowStartHour() {
 	}
 }
 
+// periodicIntervalKey is used to uniquely identify the subintervals registered with
+// the interval.MultiInterval instance that we use for managing periodics operations.
+
+type periodicIntervalKey int
+
+const (
+	heartbeatCheckKey periodicIntervalKey = 1 + iota
+	rotationCheckKey
+	metricsKey
+	releaseCheckKey
+	localReleaseCheckKey
+	instancePeriodicsKey
+	dynamicLabelsCheckKey
+	desktopCheckKey
+	upgradeWindowCheckKey
+	roleCountKey
+)
+
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
-	ctx := context.TODO()
-	// run periodic functions with a semi-random period
-	// to avoid contention on the database in case if there are multiple
-	// auth servers running - so they don't compete trying
-	// to update the same resources.
-	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
-	log.Debugf("Ticking with period: %v.", period)
-	a.lock.RLock()
-	ticker := a.clock.NewTicker(period)
-	a.lock.RUnlock()
-	// Create a ticker with jitter
-	heartbeatCheckTicker := interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL() * 2,
-		Jitter:   retryutils.NewSeventhJitter(),
-	})
-	promTicker := interval.New(interval.Config{
-		FirstDuration: 5 * time.Second,
-		Duration:      defaults.PrometheusScrapeInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	missedKeepAliveCount := 0
-	defer ticker.Stop()
-	defer heartbeatCheckTicker.Stop()
-	defer promTicker.Stop()
-
 	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
 
 	// this environment variable is "unstable" since it will be deprecated
@@ -1238,49 +1307,85 @@ func (a *Server) runPeriodicOperations() {
 		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
 	}
 
-	// note the use of FullJitter for the releases check interval. this lets us ensure
-	// that frequent restarts don't prevent checks from happening despite the infrequent
-	// effective check rate.
-	releaseCheck := interval.New(interval.Config{
-		Duration:      time.Hour * 24,
-		FirstDuration: firstReleaseCheck,
-		Jitter:        retryutils.NewFullJitter(),
-	})
-	defer releaseCheck.Stop()
+	// run periodic functions with a semi-random period
+	// to avoid contention on the database in case if there are multiple
+	// auth servers running - so they don't compete trying
+	// to update the same resources.
+	r := insecurerand.New(insecurerand.NewSource(a.GetClock().Now().UnixNano()))
+	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
 
-	// more frequent release check that just re-calculates alerts based on previously
-	// pulled versioning info.
-	localReleaseCheck := interval.New(interval.Config{
-		Duration:      time.Minute * 10,
-		FirstDuration: utils.HalfJitter(time.Second * 10),
-		Jitter:        retryutils.NewHalfJitter(),
-	})
-	defer localReleaseCheck.Stop()
+	ticker := interval.NewMulti(
+		a.GetClock(),
+		interval.SubInterval[periodicIntervalKey]{
+			Key:      rotationCheckKey,
+			Duration: period,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           metricsKey,
+			Duration:      defaults.PrometheusScrapeInterval,
+			FirstDuration: 5 * time.Second,
+			Jitter:        retryutils.NewSeventhJitter(),
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           instancePeriodicsKey,
+			Duration:      9 * time.Minute,
+			FirstDuration: utils.HalfJitter(time.Minute),
+			Jitter:        retryutils.NewSeventhJitter(),
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           roleCountKey,
+			Duration:      12 * time.Hour,
+			FirstDuration: utils.FullJitter(time.Minute),
+			Jitter:        retryutils.NewSeventhJitter(),
+		},
+	)
 
-	instancePeriodics := interval.New(interval.Config{
-		Duration:      time.Minute * 9,
-		FirstDuration: utils.HalfJitter(time.Minute),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer instancePeriodics.Stop()
+	defer ticker.Stop()
 
-	var ossDesktopsCheck <-chan time.Time
-	if modules.GetModules().IsOSSBuild() {
-		ossDesktopsCheck = interval.New(interval.Config{
-			Duration:      OSSDesktopsCheckPeriod,
-			FirstDuration: utils.HalfJitter(time.Second * 10),
+	missedKeepAliveCount := 0
+
+	// Prevent some periodic operations from running for dashboard tenants.
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           dynamicLabelsCheckKey,
+			Duration:      dynamicLabelCheckPeriod,
+			FirstDuration: utils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.NewSeventhJitter(),
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:      heartbeatCheckKey,
+			Duration: apidefaults.ServerKeepAliveTTL() * 2,
+			Jitter:   retryutils.NewSeventhJitter(),
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           releaseCheckKey,
+			Duration:      24 * time.Hour,
+			FirstDuration: firstReleaseCheck,
+			// note the use of FullJitter for the releases check interval. this lets us ensure
+			// that frequent restarts don't prevent checks from happening despite the infrequent
+			// effective check rate.
+			Jitter: retryutils.NewFullJitter(),
+		})
+		// more frequent release check that just re-calculates alerts based on previously
+		// pulled versioning info.
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           localReleaseCheckKey,
+			Duration:      10 * time.Minute,
+			FirstDuration: utils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.NewHalfJitter(),
-		}).Next()
-	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
-		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
+		})
 	}
 
-	dynamicLabelsCheck := interval.New(interval.Config{
-		Duration:      dynamicLabelCheckPeriod,
-		FirstDuration: utils.HalfJitter(time.Second * 10),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer dynamicLabelsCheck.Stop()
+	if modules.GetModules().IsOSSBuild() {
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           desktopCheckKey,
+			Duration:      OSSDesktopsCheckPeriod,
+			FirstDuration: utils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.NewHalfJitter(),
+		})
+	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
+		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
+	}
 
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
@@ -1296,7 +1401,7 @@ func (a *Server) runPeriodicOperations() {
 			case <-a.closeCtx.Done():
 				return
 			case <-remoteClustersRefresh.Next():
-				a.refreshRemoteClusters(ctx, r)
+				a.refreshRemoteClusters(a.closeCtx, r)
 			}
 		}
 	}()
@@ -1304,50 +1409,116 @@ func (a *Server) runPeriodicOperations() {
 	// cloud auth servers need to periodically sync the upgrade window
 	// from the cloud db.
 	if modules.GetModules().Features().Cloud {
-		go a.periodicSyncUpgradeWindowStartHour()
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           upgradeWindowCheckKey,
+			Duration:      3 * time.Minute,
+			FirstDuration: utils.FullJitter(30 * time.Second),
+			Jitter:        retryutils.NewSeventhJitter(),
+		})
 	}
 
 	for {
 		select {
 		case <-a.closeCtx.Done():
 			return
-		case <-ticker.Chan():
-			err := a.autoRotateCertAuthorities(ctx)
-			if err != nil {
-				if trace.IsCompareFailed(err) {
-					log.Debugf("Cert authority has been updated concurrently: %v.", err)
-				} else {
-					log.Errorf("Failed to perform cert rotation check: %v.", err)
-				}
+		case tick := <-ticker.Next():
+			switch tick.Key {
+			case rotationCheckKey:
+				go func() {
+					if err := a.autoRotateCertAuthorities(a.closeCtx); err != nil {
+						if trace.IsCompareFailed(err) {
+							log.Debugf("Cert authority has been updated concurrently: %v.", err)
+						} else {
+							log.Errorf("Failed to perform cert rotation check: %v.", err)
+						}
+					}
+				}()
+			case heartbeatCheckKey:
+				go func() {
+					req := &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindNode}, SortBy: types.SortBy{Field: types.ResourceKind}}
+
+					for {
+						_, next, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx,
+							func(rwl types.ResourceWithLabels) (bool, error) {
+								srv, ok := rwl.(types.Server)
+								if !ok {
+									return false, nil
+								}
+								if services.NodeHasMissedKeepAlives(srv) {
+									missedKeepAliveCount++
+								}
+								return false, nil
+							},
+							req,
+						)
+						if err != nil {
+							log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
+							return
+						}
+
+						req.StartKey = next
+						if req.StartKey == "" {
+							break
+						}
+					}
+
+					// Update prometheus gauge
+					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
+				}()
+			case metricsKey:
+				go a.updateAgentMetrics()
+			case releaseCheckKey:
+				go a.syncReleaseAlerts(a.closeCtx, true)
+			case localReleaseCheckKey:
+				go a.syncReleaseAlerts(a.closeCtx, false)
+			case instancePeriodicsKey:
+				go a.doInstancePeriodics(a.closeCtx)
+			case desktopCheckKey:
+				go a.syncDesktopsLimitAlert(a.closeCtx)
+			case dynamicLabelsCheckKey:
+				go a.syncDynamicLabelsAlert(a.closeCtx)
+			case upgradeWindowCheckKey:
+				go a.periodicSyncUpgradeWindowStartHour()
+			case roleCountKey:
+				go a.tallyRoles(a.closeCtx)
 			}
-		case <-heartbeatCheckTicker.Next():
-			nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
-			if err != nil {
-				log.Errorf("Failed to load nodes for heartbeat metric calculation: %v", err)
-			}
-			for _, node := range nodes {
-				if services.NodeHasMissedKeepAlives(node) {
-					missedKeepAliveCount++
-				}
-			}
-			// Update prometheus gauge
-			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
-		case <-promTicker.Next():
-			a.updateAgentMetrics()
-		case <-releaseCheck.Next():
-			a.syncReleaseAlerts(ctx, true)
-		case <-localReleaseCheck.Next():
-			a.syncReleaseAlerts(ctx, false)
-		case <-instancePeriodics.Next():
-			// instance periodics are rate-limited and may be time-consuming in large
-			// clusters, so launch them in the background.
-			go a.doInstancePeriodics(ctx)
-		case <-ossDesktopsCheck:
-			a.syncDesktopsLimitAlert(ctx)
-		case <-dynamicLabelsCheck.Next():
-			a.syncDynamicLabelsAlert(ctx)
 		}
 	}
+}
+
+func (a *Server) tallyRoles(ctx context.Context) {
+	var count = 0
+	log.Debug("tallying roles")
+	defer func() {
+		log.Debugf("tallying roles completed, role_count=%d", count)
+	}()
+
+	req := &proto.ListRolesRequest{Limit: 20}
+
+	readLimiter := time.NewTicker(20 * time.Millisecond)
+	defer readLimiter.Stop()
+
+	for {
+		resp, err := a.Cache.ListRoles(ctx, req)
+		if err != nil {
+			return
+		}
+
+		count += len(resp.Roles)
+		req.StartKey = resp.NextKey
+
+		if req.StartKey == "" {
+			break
+		}
+
+		select {
+		case <-readLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	roleCount.Set(float64(count))
 }
 
 func (a *Server) doInstancePeriodics(ctx context.Context) {
@@ -1452,7 +1623,7 @@ const (
 )
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
-// is true it pulls the latest release info from github.  Otherwise, it loads the versions used
+// is true it pulls the latest release info from GitHub.  Otherwise, it loads the versions used
 // for the most recent alerts and re-syncs with latest cluster state.
 func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	log.Debug("Checking for new teleport releases via github api.")
@@ -1734,6 +1905,16 @@ func (a *Server) SetSCIMService(scim services.SCIM) {
 	a.Services.SCIM = scim
 }
 
+// SetAccessGraphSecretService sets the server's access graph secret service
+func (a *Server) SetAccessGraphSecretService(s services.AccessGraphSecretsGetter) {
+	a.Services.AccessGraphSecretsGetter = s
+}
+
+// SetDevicesGetter sets the server's device service
+func (a *Server) SetDevicesGetter(s services.DevicesGetter) {
+	a.Services.DevicesGetter = s
+}
+
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
 	a.Services.AuditLogSessionStreamer = auditLog
@@ -1856,7 +2037,8 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 func (a *Server) generateHostCert(
 	ctx context.Context, p services.HostCertParams,
 ) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(ctx)
+
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1879,7 +2061,7 @@ func (a *Server) generateHostCert(
 	default:
 		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
 	}
-	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+	if lockErr := a.checkLockInForce(readOnlyAuthPref.GetLockingMode(),
 		locks,
 	); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
@@ -1936,6 +2118,8 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
+	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	appURI string
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -1990,6 +2174,9 @@ type certRequest struct {
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
 	botName string
+	// botInstanceID is the unique identifier of the bot instance associated
+	// with this cert, if any
+	botInstanceID string
 }
 
 // check verifies the cert request is valid.
@@ -2041,11 +2228,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("public key is empty")
 	}
 	if req.TTL == 0 {
-		cap, err := a.GetAuthPreference(ctx)
+		readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.BadParameter("cert request does not specify a TTL and the cluster_auth_preference is not available: %v", err)
 		}
-		req.TTL = proto.Duration(cap.GetDefaultSessionTTL())
+		req.TTL = proto.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 	if req.TTL < 0 {
 		return nil, trace.BadParameter("TTL must be positive")
@@ -2593,13 +2780,13 @@ func (a *Server) augmentUserCertificates(
 	}
 
 	// Verify locks right before we re-issue any certificates.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              opts.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             x509Identity.Username,
 		mfaVerified:          x509Identity.MFAVerified,
 		activeAccessRequests: x509Identity.ActiveRequests,
@@ -2732,13 +2919,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	// Reject the cert request if there is a matching lock in force.
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
 		checker:              req.checker,
-		defaultMode:          authPref.GetLockingMode(),
+		defaultMode:          readOnlyAuthPref.GetLockingMode(),
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
@@ -2767,7 +2954,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	var allowedLogins []string
 
 	if req.ttl == 0 {
-		req.ttl = time.Duration(authPref.GetDefaultSessionTTL())
+		req.ttl = time.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
@@ -2797,7 +2984,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	requiredKeyPolicy, err := req.checker.PrivateKeyPolicy(readOnlyAuthPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2819,7 +3006,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		}
 
 		var validateSerialNumber bool
-		hksnv, err := authPref.GetHardwareKeySerialNumberValidation()
+		hksnv, err := readOnlyAuthPref.GetHardwareKeySerialNumberValidation()
 		if err == nil {
 			validateSerialNumber = hksnv.Enabled
 		}
@@ -2933,6 +3120,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -2999,6 +3187,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
+			URI:               req.appURI,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
@@ -3028,6 +3217,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3608,7 +3798,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	authPref, err := a.GetAuthPreference(ctx)
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3656,7 +3846,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 	// Prevent users from deleting their last device for clusters that require second factors.
 	const minDevices = 1
-	switch sf := authPref.GetSecondFactor(); sf {
+	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
 		if knownDevices <= minDevices {
@@ -3677,7 +3867,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// It checks whether the credential to delete is a last passkey and whether
 	// the user has other valid local credentials.
 	canDeleteLastPasskey := func() (bool, error) {
-		if !authPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
+		if !readOnlyAuthPref.GetAllowPasswordless() || numResidentKeys > 1 || !isResidentKey(deviceToDelete) {
 			return true, nil
 		}
 
@@ -3699,7 +3889,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		// Whether we take TOTPs into consideration or not depends on whether it's
 		// enabled.
-		switch sf := authPref.GetSecondFactor(); sf {
+		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
 			if sfToCount[constants.SecondFactorOTP] >= 1 {
 				return true, nil
@@ -4061,7 +4251,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.newWebSession(ctx, NewWebSessionRequest{
+	sess, _, err := a.newWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -4408,6 +4598,11 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 	downstreamHello := proto.DownstreamInventoryHello{
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
+		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+			NodeHeartbeats: true,
+			AppHeartbeats:  true,
+			AppCleanup:     true,
+		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
 		return trace.Wrap(err)
@@ -4876,7 +5071,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -5348,7 +5543,7 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 func enforceLicense(t string) error {
 	switch t {
 	case types.KindKubeServer, types.KindKubernetesCluster:
-		if !modules.GetModules().Features().Kubernetes {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.K8s).Enabled {
 			return trace.AccessDenied(
 				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 		}
@@ -5501,7 +5696,8 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
+		types.WithAlertLabel(types.AlertLink, OSSDesktopsAlertLink),
+		types.WithAlertLabel(types.AlertLinkText, OSSDesktopsAlertLinkText),
 		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
 	if err != nil {
 		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)
@@ -5965,10 +6161,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 	features := modules.GetModules().Features().ToProto()
-
-	// DELETE IN 16.0 and the [func setAccessMonitoringFeatureForOlderClients]
-	// (no other changes necessary)
-	setAccessMonitoringFeatureForOlderClients(ctx, features, a.accessMonitoringEnabled)
+	licenseExpiry := modules.GetModules().LicenseExpiry()
 
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
@@ -5977,25 +6170,8 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:      a.loadAllCAs,
+		LicenseExpiry:   &licenseExpiry,
 	}, nil
-}
-
-// DELETE IN 16.0
-func setAccessMonitoringFeatureForOlderClients(ctx context.Context, features *proto.Features, accessMonitoringEnabled bool) {
-	clientVersionString, versionExists := metadata.ClientVersionFromContext(ctx)
-
-	// Older proxies <= 14.2.0 will read from [Features.IdentityGovernance] to determine
-	// if access monitoring is enabled.
-	if versionExists {
-		clientVersion := semver.New(clientVersionString)
-		supportedVersion := semver.New("14.2.1")
-		if clientVersion.LessThan(*supportedVersion) {
-			features.IdentityGovernance = accessMonitoringEnabled
-		}
-	}
-
-	// Newer proxies will read from new field [Features.AccessMonitoring.Enabled]
-	// which will be already set from startup, so nothing else to do here.
 }
 
 type maintenanceWindowCacheKey struct {
@@ -6854,10 +7030,13 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
-	if f.IsLegacy() || f.IGSEnabled() {
-		return nil // unlimited
+	accessRequestsEntitlement := f.GetEntitlement(entitlements.AccessRequests)
+
+	if accessRequestsEntitlement.Limit == 0 {
+		return nil // unlimited access
 	}
-	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
+
+	monthlyLimit := accessRequestsEntitlement.Limit
 
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
@@ -6865,7 +7044,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if usage >= monthlyLimit {
+	if usage >= int(monthlyLimit) {
 		return trace.AccessDenied(limitReachedMessage)
 	}
 

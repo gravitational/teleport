@@ -540,6 +540,12 @@ func TestProxySSH(t *testing.T) {
 				require.NoError(t, err)
 			})
 
+			t.Run("no-relogin", func(t *testing.T) {
+				t.Parallel()
+				err := runProxySSH(proxyRequest, setNoRelogin(), setHomePath(t.TempDir()))
+				require.Error(t, err)
+			})
+
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
 				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), s.setMockSSOLogin(t))

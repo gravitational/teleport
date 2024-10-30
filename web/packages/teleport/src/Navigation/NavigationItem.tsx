@@ -21,7 +21,7 @@ import styled, { css, keyframes } from 'styled-components';
 
 import { NavLink, useLocation } from 'react-router-dom';
 
-import { ExternalLinkIcon } from 'design/SVGIcon';
+import { ArrowSquareOut } from 'design/Icon';
 
 import { getIcon } from 'teleport/Navigation/utils';
 import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
@@ -63,7 +63,7 @@ const highlight = keyframes`
   }
 `;
 
-const Link = styled(NavLink)`
+const Link = styled(NavLink)<{ isHighlighted?: boolean }>`
   ${commonNavigationItemStyles};
   color: ${props => props.theme.colors.text.main};
   z-index: 1;
@@ -122,7 +122,7 @@ export function NavigationItem(props: NavigationItemProps) {
     params.get('highlight') === props.feature.highlightKey;
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLAnchorElement>) => {
       switch (event.key) {
         case 'ArrowDown':
           let nextSibling = event.currentTarget.nextSibling as HTMLDivElement;
@@ -249,7 +249,7 @@ export function NavigationItem(props: NavigationItemProps) {
             {navigationItem.title}
 
             <ExternalLinkIndicator>
-              <ExternalLinkIcon size={14} />
+              <ArrowSquareOut size="medium" />
             </ExternalLinkIndicator>
           </LinkContent>
         </ExternalLink>

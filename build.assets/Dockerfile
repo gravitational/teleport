@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.14 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.15 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '9cff14fd97814baf8a9a07d8447960a64d616ada' ] && \
+    [ "$(git rev-parse HEAD)" = 'c523121f902fde2929909dc7f76b13ceb4961efe' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -245,7 +245,7 @@ RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo
     mkdir -p ${NODE_PATH} && \
     curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
-RUN corepack enable yarn
+RUN corepack enable yarn pnpm
 
 # Install Go.
 ARG GOLANG_VERSION

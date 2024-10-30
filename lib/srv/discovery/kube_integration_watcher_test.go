@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -54,75 +53,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 )
-
-func TestGetAgentVersion(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	testCases := []struct {
-		desc            string
-		ping            func(ctx context.Context) (proto.PingResponse, error)
-		clusterFeatures proto.Features
-		channelVersion  string
-		expectedVersion string
-		errorAssert     require.ErrorAssertionFunc
-	}{
-		{
-			desc: "ping error",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{}, trace.BadParameter("ping error")
-			},
-			expectedVersion: "",
-			errorAssert:     require.Error,
-		},
-		{
-			desc: "no automatic upgrades",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{ServerVersion: "1.2.3"}, nil
-			},
-			expectedVersion: "1.2.3",
-			errorAssert:     require.NoError,
-		},
-		{
-			desc: "automatic upgrades",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{ServerVersion: "10"}, nil
-			},
-			clusterFeatures: proto.Features{AutomaticUpgrades: true, Cloud: true},
-			channelVersion:  "v1.2.3",
-			expectedVersion: "1.2.3",
-			errorAssert:     require.NoError,
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.desc, func(t *testing.T) {
-			server := Server{
-				ctx: ctx,
-				Config: &Config{
-					AccessPoint: &fakeAccessPoint{ping: tt.ping},
-					ClusterFeatures: func() proto.Features {
-						return tt.clusterFeatures
-					},
-				},
-			}
-
-			var channel *automaticupgrades.Channel
-			if tt.channelVersion != "" {
-				channel = &automaticupgrades.Channel{StaticVersion: tt.channelVersion}
-				err := channel.CheckAndSetDefaults()
-				require.NoError(t, err)
-			}
-			releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: channel}
-
-			version, err := server.getKubeAgentVersion(releaseChannels)
-
-			tt.errorAssert(t, err)
-			require.Equal(t, tt.expectedVersion, version)
-		})
-	}
-}
 
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
@@ -458,7 +388,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 			if tc.discoveryConfig != nil {
 				dc := tc.discoveryConfig(t)
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
 				require.NoError(t, err)
 
 				// Wait for the DiscoveryConfig to be added to the dynamic fetchers

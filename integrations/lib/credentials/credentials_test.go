@@ -54,6 +54,10 @@ func (mc *mockTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
 	return nil, trace.NotImplemented("no ssh config")
 }
 
+func (mc *mockTLSCredentials) Expiry() (time.Time, bool) {
+	return time.Time{}, true
+}
+
 func TestCheckExpiredCredentials(t *testing.T) {
 	// Setup the CA and sign the client certs
 	ca := &x509.Certificate{

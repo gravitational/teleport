@@ -103,6 +103,9 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 
 	wsConn, wsResp, err := wsDialer.DialContext(w.ctx, clone.URL.String(), clone.Header)
 	if err != nil {
+		if wsResp != nil {
+			return nil, trace.Wrap(extractKubeAPIStatusFromReq(wsResp))
+		}
 		return nil, &httpstream.UpgradeFailureError{Cause: err}
 	}
 	w.conn = wsConn

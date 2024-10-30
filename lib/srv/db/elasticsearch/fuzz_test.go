@@ -20,9 +20,9 @@ package elasticsearch
 
 import (
 	"io"
+	"log/slog"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,9 +41,7 @@ func FuzzGetQueryFromRequestBody(f *testing.F) {
 
 	mkEngine := func() *Engine {
 		e := &Engine{}
-		log := logrus.New()
-		log.SetOutput(io.Discard)
-		e.Log = log
+		e.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
 		return e
 	}
 

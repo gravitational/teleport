@@ -72,6 +72,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
@@ -515,34 +516,6 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 
-	// forward local port to target port 80 of the nginx container
-	localPort := newPortValue()
-
-	forwarder, err := newPortForwarder(proxyClientConfig, kubePortForwardArgs{
-		ports:        []string{fmt.Sprintf("%v:80", localPort)},
-		podName:      testPod,
-		podNamespace: testNamespace,
-	})
-	require.NoError(t, err)
-
-	forwarderCh := make(chan error)
-	go func() { forwarderCh <- forwarder.ForwardPorts() }()
-	defer func() {
-		assert.NoError(t, <-forwarderCh, "Forward ports exited with error")
-	}()
-
-	select {
-	case <-time.After(5 * time.Second):
-		t.Fatalf("Timeout waiting for port forwarding.")
-	case <-forwarder.readyC:
-	}
-	defer close(forwarder.stopC)
-
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.NoError(t, resp.Body.Close())
-
 	// impersonating client requests will bse denied
 	_, impersonatingProxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
 		T:             teleport,
@@ -552,18 +525,70 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 
-	localPort = newPortValue()
-	impersonatingForwarder, err := newPortForwarder(impersonatingProxyClientConfig, kubePortForwardArgs{
-		ports:        []string{fmt.Sprintf("%v:80", localPort)},
-		podName:      testPod,
-		podNamespace: testNamespace,
-	})
-	require.NoError(t, err)
+	tests := []struct {
+		name    string
+		builder func(*rest.Config, kubePortForwardArgs) (*kubePortForwarder, error)
+	}{
+		{
+			name:    "SPDY portForwarder",
+			builder: newPortForwarder,
+		},
+		{
+			name:    "SPDY over Websocket portForwarder",
+			builder: newPortForwarderSPDYOverWebsocket,
+		},
+	}
 
-	// This request should be denied
-	err = impersonatingForwarder.ForwardPorts()
-	require.Error(t, err)
-	require.Regexp(t, ".*impersonation request has been denied.*", err.Error())
+	for _, tt := range tests {
+		t.Run(tt.name,
+			func(t *testing.T) {
+				// forward local port to target port 80 of the nginx container
+				listener, err := net.Listen("tcp", "localhost:0")
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, listener.Close())
+				})
+
+				localPort := listener.Addr().(*net.TCPAddr).Port
+
+				forwarder, err := tt.builder(proxyClientConfig, kubePortForwardArgs{
+					ports:        []string{fmt.Sprintf("%v:80", localPort)},
+					podName:      testPod,
+					podNamespace: testNamespace,
+				})
+				require.NoError(t, err)
+
+				forwarderCh := make(chan error)
+				go func() { forwarderCh <- forwarder.ForwardPorts() }()
+
+				select {
+				case <-time.After(5 * time.Second):
+					t.Fatalf("Timeout waiting for port forwarding.")
+				case <-forwarder.readyC:
+				}
+				t.Cleanup(func() {})
+
+				resp, err := http.Get(fmt.Sprintf("http://localhost:%v", localPort))
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.NoError(t, resp.Body.Close())
+
+				close(forwarder.stopC)
+				require.NoError(t, <-forwarderCh, "Forward ports exited with error")
+
+				impersonatingForwarder, err := tt.builder(impersonatingProxyClientConfig, kubePortForwardArgs{
+					ports:        []string{fmt.Sprintf("%v:80", localPort)},
+					podName:      testPod,
+					podNamespace: testNamespace,
+				})
+				require.NoError(t, err)
+
+				// This request should be denied
+				err = impersonatingForwarder.ForwardPorts()
+				require.Error(t, err)
+			},
+		)
+	}
 }
 
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
@@ -1345,7 +1370,9 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			Kubernetes: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.K8s: {Enabled: true},
+			},
 		},
 	})
 
@@ -1786,7 +1813,6 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		err = ws.Close()
 		require.NoError(t, err)
 	})
-
 }
 
 type ReaderWithDeadline interface {
@@ -1943,6 +1969,27 @@ type kubePortForwarder struct {
 	*portforward.PortForwarder
 	stopC  chan struct{}
 	readyC chan struct{}
+}
+
+func newPortForwarderSPDYOverWebsocket(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubePortForwarder, error) {
+	u, err := url.Parse(kubeConfig.Host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u.Scheme = "https"
+	u.Path = fmt.Sprintf("/api/v1/namespaces/%v/pods/%v/portforward", args.podNamespace, args.podName)
+
+	tunnelingDialer, err := portforward.NewSPDYOverWebsocketDialer(u, kubeConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stopC, readyC := make(chan struct{}), make(chan struct{})
+	fwd, err := portforward.New(tunnelingDialer, args.ports, stopC, readyC, nil, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &kubePortForwarder{PortForwarder: fwd, stopC: stopC, readyC: readyC}, nil
 }
 
 func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubePortForwarder, error) {

@@ -23,6 +23,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"sync"
 
@@ -131,8 +132,9 @@ func (c *Config) CheckAndSetDefaults() error {
 // Server is an application server. It authenticates requests from the web
 // proxy and forwards th to internal applications.
 type Server struct {
-	c   *Config
-	log *logrus.Entry
+	c         *Config
+	legacyLog *logrus.Entry
+	log       *slog.Logger
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
@@ -199,9 +201,10 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	s := &Server{
 		c: c,
 		// TODO(greedy52) replace with slog from Config.Logger.
-		log: logrus.WithFields(logrus.Fields{
+		legacyLog: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.ComponentApp,
 		}),
+		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
@@ -231,7 +234,7 @@ func (s *Server) startApp(ctx context.Context, app types.Application) error {
 	if err := s.startHeartbeat(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Started %v.", app)
+	s.log.DebugContext(ctx, "App started.", "app", app)
 	return nil
 }
 
@@ -241,7 +244,7 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Stopped app %q.", name)
+	s.log.DebugContext(ctx, "App stopped.", "app", name)
 	return nil
 }
 
@@ -272,7 +275,7 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
 		Labels: app.GetDynamicLabels(),
-		Log:    s.log,
+		// TODO: pass s.log through after it's been converted to slog
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,44 +335,40 @@ func (s *Server) stopHeartbeat(name string) error {
 
 // getServerInfoFunc returns function that the heartbeater uses to report the
 // provided application to the auth server.
-func (s *Server) getServerInfoFunc(app types.Application) func() *types.AppServerV3 {
-	return func() *types.AppServerV3 {
+func (s *Server) getServerInfoFunc(app types.Application) func(context.Context) (*types.AppServerV3, error) {
+	return func(context.Context) (*types.AppServerV3, error) {
 		return s.getServerInfo(app)
 	}
 }
 
 // getServerInfo returns up-to-date app resource.
-func (s *Server) getServerInfo(app types.Application) *types.AppServerV3 {
+func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	server, err := types.NewAppServerV3(types.Metadata{
+		Name:    copy.GetName(),
+		Expires: &expires,
+	}, types.AppServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: s.c.Hostname,
+		HostID:   s.c.HostID,
+		Rotation: s.getRotationState(),
+		App:      copy,
+		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
+	})
 
-	return &types.AppServerV3{
-		Kind:    types.KindAppServer,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:    copy.GetName(),
-			Expires: &expires,
-		},
-		Spec: types.AppServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: s.c.Hostname,
-			HostID:   s.c.HostID,
-			Rotation: s.getRotationState(),
-			App:      copy,
-			ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
-		},
-	}
+	return server, trace.Wrap(err)
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
 func (s *Server) getRotationState() types.Rotation {
 	rotation, err := s.c.GetRotation(types.RoleApp)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
+		s.log.WarnContext(s.closeContext, "Failed to get rotation state.", "error", err)
 	}
 	if rotation != nil {
 		return *rotation
@@ -465,6 +464,16 @@ func (s *Server) close(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(100)
 
+	sender, ok := s.c.InventoryHandle.GetSender()
+	if ok {
+		// Manual deletion per app is only required if the auth server
+		// doesn't support actively cleaning up app resources when the
+		// inventory control stream is terminated during shutdown.
+		if capabilities := sender.Hello().Capabilities; capabilities != nil {
+			shouldDeleteApps = shouldDeleteApps && !capabilities.AppCleanup
+		}
+	}
+
 	// Hold the READ lock while iterating the applications here to prevent
 	// deadlocking in flight heartbeats. The heartbeat announce acquires
 	// the lock to build the app resource to send. If the WRITE lock is
@@ -482,21 +491,21 @@ func (s *Server) close(ctx context.Context) error {
 		}
 
 		if heartbeat != nil {
-			log := s.log.WithField("app", name)
-			log.Debug("Stopping app")
+			log := s.log.With("app", name)
+			log.DebugContext(ctx, "Stopping app")
 			if err := heartbeat.Close(); err != nil {
-				log.WithError(err).Warn("Failed to stop app.")
+				log.WarnContext(ctx, "Failed to stop app.", "error", err)
 			} else {
-				log.Debug("Stopped app")
+				log.DebugContext(ctx, "Stopped app")
 			}
 
 			if shouldDeleteApps {
 				g.Go(func() error {
-					log.Debug("Deleting app")
+					log.DebugContext(ctx, "Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
-						log.WithError(err).Warn("Failed to delete app.")
+						log.WarnContext(ctx, "Failed to delete app.", "error", err)
 					} else {
-						log.Debug("Deleted app")
+						log.DebugContext(ctx, "Deleted app")
 					}
 					return nil
 				})
@@ -506,7 +515,7 @@ func (s *Server) close(ctx context.Context) error {
 	s.mu.RUnlock()
 
 	if err := g.Wait(); err != nil {
-		s.log.WithError(err).Warn("Deleting all apps failed")
+		s.log.WarnContext(ctx, "Deleting all apps failed", "error", err)
 	}
 
 	s.mu.Lock()

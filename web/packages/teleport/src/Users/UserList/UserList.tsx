@@ -17,10 +17,11 @@
  */
 
 import React from 'react';
-import Table, { Cell, LabelCell } from 'design/DataTable';
+import { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { User, UserOrigin } from 'teleport/services/user';
+import { ClientSearcheableTableWithQueryParamSupport } from 'teleport/components/ClientSearcheableTableWithQueryParamSupport';
 
 export default function UserList({
   users = [],
@@ -30,7 +31,7 @@ export default function UserList({
   onReset,
 }: Props) {
   return (
-    <Table
+    <ClientSearcheableTableWithQueryParamSupport
       data={users}
       columns={[
         {
@@ -80,7 +81,6 @@ export default function UserList({
         },
       ]}
       emptyText="No Users Found"
-      isSearchable
       pagination={{ pageSize }}
     />
   );

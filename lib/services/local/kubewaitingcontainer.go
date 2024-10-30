@@ -44,12 +44,13 @@ type KubeWaitingContainerService struct {
 // container service.
 func NewKubeWaitingContainerService(backend backend.Backend) (*KubeWaitingContainerService, error) {
 	svc, err := generic.NewServiceWrapper(
-		backend,
-		types.KindKubeWaitingContainer,
-		kubeWaitingContPrefix,
-		services.MarshalKubeWaitingContainer,
-		services.UnmarshalKubeWaitingContainer,
-	)
+		generic.ServiceWrapperConfig[*kubewaitingcontainerpb.KubernetesWaitingContainer]{
+			Backend:       backend,
+			ResourceKind:  types.KindKubeWaitingContainer,
+			BackendPrefix: kubeWaitingContPrefix,
+			MarshalFunc:   services.MarshalKubeWaitingContainer,
+			UnmarshalFunc: services.UnmarshalKubeWaitingContainer,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

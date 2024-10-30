@@ -17,7 +17,7 @@ BINARY = $(BUILDDIR)/teleport-event-handler
 
 GITREF ?= $(shell git describe --dirty --long --tags --match '$(VERSION)')
 ADDFLAGS ?=
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
+BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags "-w -s -X main.Gitref=$(GITREF) -X main.Version=$(VERSION)"
 CGOFLAG ?= CGO_ENABLED=0
 
 PASS ?= 1234
@@ -58,7 +58,7 @@ release: build
 	tar -czf $(RELEASE).tar.gz $(RELEASE_NAME)
 	rm -rf $(RELEASE_NAME)/
 	@echo "---> Created $(RELEASE).tar.gz."
-  
+
 
 .PHONY: clean
 clean:
@@ -96,7 +96,7 @@ configure: build
 
 .PHONY: fluentd
 fluentd:
-	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge 
+	docker run -p 8888:8888 -v $(LOCALDIR)tmp:/keys -v $(LOCALDIR)tmp/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
 
 .PHONY: example
 example: build

@@ -50,6 +50,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -76,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -171,6 +174,18 @@ type ForwarderConfig struct {
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 type ClusterFeaturesGetter func() proto.Features
+
+func (f ClusterFeaturesGetter) GetEntitlement(e entitlements.EntitlementKind) modules.EntitlementInfo {
+	al, ok := f().Entitlements[string(e)]
+	if !ok {
+		return modules.EntitlementInfo{}
+	}
+
+	return modules.EntitlementInfo{
+		Enabled: al.Enabled,
+		Limit:   al.Limit,
+	}
+}
 
 // CheckAndSetDefaults checks and sets default values
 func (f *ForwarderConfig) CheckAndSetDefaults() error {
@@ -491,7 +506,7 @@ const accessDeniedMsg = "[00] access denied"
 // authenticate function authenticates request
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	// If the cluster is not licensed for Kubernetes, return an error to the client.
-	if !f.cfg.ClusterFeatures().Kubernetes {
+	if !f.cfg.ClusterFeatures.GetEntitlement(entitlements.K8s).Enabled {
 		// If the cluster is not licensed for Kubernetes, return an error to the client.
 		return nil, trace.AccessDenied("Teleport cluster is not licensed for Kubernetes")
 	}
@@ -1112,14 +1127,14 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	result, err := utils.KubeResourceMatchesRegex(resource, denied, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1182,7 +1197,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			return trace.Wrap(err)
 		}
 
-		client := &websocketClientStreams{stream}
+		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
 		err = session.join(party, true /* emitSessionJoinEvent */)
@@ -1659,9 +1674,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			// When Teleport attaches the original session creator terminal streams to the
-			// session, we don't want to emit session.join event since it won't be required.
-			if err = session.join(party, false /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1794,10 +1807,14 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 // Go client uses SPDY while other clients still require WebSockets.
 // This function will run until the end of the execution of the request.
 func runPortForwarding(req portForwardRequest) error {
-	if wsstream.IsWebSocketRequest(req.httpRequest) {
+	switch {
+	case wsstream.IsWebSocketRequestWithTunnelingProtocol(req.httpRequest):
+		return trace.Wrap(runPortForwardingTunneledHTTPStreams(req))
+	case wsstream.IsWebSocketRequest(req.httpRequest):
 		return trace.Wrap(runPortForwardingWebSocket(req))
+	default:
+		return trace.Wrap(runPortForwardingHTTPStreams(req))
 	}
-	return trace.Wrap(runPortForwardingHTTPStreams(req))
 }
 
 const (
@@ -2150,6 +2167,7 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 		return nil, trace.Wrap(err)
 	}
 
+	req = createSPDYRequest(req, PortForwardProtocolV1Name)
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		sess:                  sess,
@@ -2173,6 +2191,27 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
+}
+
+// createSPDYRequest modifies the passed request to remove
+// WebSockets headers and add SPDY upgrade information, including
+// spdy protocols acceptable to the client.
+func createSPDYRequest(req *http.Request, spdyProtocols ...string) *http.Request {
+	clone := req.Clone(req.Context())
+	// Clean up the websocket headers from the http request.
+	clone.Header.Del(wsstream.WebSocketProtocolHeader)
+	clone.Header.Del("Sec-Websocket-Key")
+	clone.Header.Del("Sec-Websocket-Version")
+	clone.Header.Del(httpstream.HeaderUpgrade)
+	// Update the http request for an upstream SPDY upgrade.
+	clone.Method = "POST"
+	clone.Body = nil // Remove the request body which is unused.
+	clone.Header.Set(httpstream.HeaderUpgrade, httpstreamspdy.HeaderSpdy31)
+	clone.Header.Del(httpstream.HeaderProtocolVersion)
+	for i := range spdyProtocols {
+		clone.Header.Add(httpstream.HeaderProtocolVersion, spdyProtocols[i])
+	}
+	return clone
 }
 
 // clusterSession contains authenticated user session to the target cluster:
@@ -2216,7 +2255,7 @@ func (s *clusterSession) close() {
 	}
 }
 
-func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
+func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2231,10 +2270,18 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		s.connMonitorCancel(err)
 		return nil, trace.Wrap(err)
 	}
-
+	lockTargets := s.LockTargets()
+	// when the target is not a kubernetes_service instance, we don't need to lock it.
+	// the target could be a remote cluster or a local Kubernetes API server. In both cases,
+	// hostID is empty.
+	if hostID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{
+			ServerID: hostID,
+		})
+	}
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           s.parent.cfg.LockWatcher,
-		LockTargets:           s.LockTargets(),
+		LockTargets:           lockTargets,
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
 		Clock:                 s.parent.cfg.Clock,
@@ -2266,12 +2313,16 @@ func (s *clusterSession) getServerMetadata() apievents.ServerMetadata {
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dial(s.requestContext, network, addr))
+	var hostID string
+	conn, err := s.dial(s.requestContext, network, addr, withHostIDCollection(&hostID))
+	return s.monitorConn(conn, err, hostID)
 }
 
 func (s *clusterSession) DialWithContext(opts ...contextDialerOption) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return s.monitorConn(s.dial(ctx, network, addr, opts...))
+		var hostID string
+		conn, err := s.dial(ctx, network, addr, append(opts, withHostIDCollection(&hostID))...)
+		return s.monitorConn(conn, err, hostID)
 	}
 }
 

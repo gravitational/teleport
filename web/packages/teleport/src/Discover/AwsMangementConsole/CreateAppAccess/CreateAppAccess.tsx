@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Text, Flex, Link, Mark } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import { Danger } from 'design/Alert';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -31,7 +31,7 @@ import cfg from 'teleport/config';
 import { Container } from 'teleport/Discover/Shared/CommandBox';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
-import { ActionButtons, Header, Mark } from '../../Shared';
+import { ActionButtons, Header } from '../../Shared';
 
 import { AppCreatedDialog } from './AppCreatedDialog';
 
@@ -58,11 +58,11 @@ export function CreateAppAccess() {
     }
   });
 
-  const iamRoleName = splitAwsIamArn(
-    agentMeta.awsIntegration.spec.roleArn
-  ).arnResourceName;
+  const { awsAccountId: accountID, arnResourceName: iamRoleName } =
+    splitAwsIamArn(agentMeta.awsIntegration.spec.roleArn);
   const scriptUrl = cfg.getAwsIamConfigureScriptAppAccessUrl({
     iamRoleName,
+    accountID,
   });
 
   return (
@@ -125,7 +125,7 @@ export function CreateAppAccess() {
   );
 }
 
-const EditorWrapper = styled(Flex)`
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   flex-directions: column;
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;

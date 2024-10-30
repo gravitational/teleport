@@ -35,6 +35,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -1249,6 +1251,95 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			} else {
 				require.False(t, resolvable, "Expected error to be unresolvable with relogin")
 			}
+		})
+	}
+}
+
+type fakeResourceClient struct {
+	apiclient.GetResourcesClient
+
+	nodes []*types.ServerV2
+}
+
+func (f fakeResourceClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListResourcesResponse{Resources: out}, nil
+}
+
+func (f fakeResourceClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListUnifiedResourcesResponse{Resources: out}, nil
+}
+
+func TestGetTargetNodes(t *testing.T) {
+	tests := []struct {
+		name      string
+		options   SSHOptions
+		labels    map[string]string
+		search    []string
+		predicate string
+		host      string
+		port      int
+		clt       fakeResourceClient
+		expected  []TargetNode
+	}{
+		{
+			name: "options override",
+			options: SSHOptions{
+				HostAddress: "test:1234",
+			},
+			expected: []TargetNode{{Hostname: "test:1234", Addr: "test:1234"}},
+		},
+		{
+			name:     "explicit target",
+			host:     "test",
+			port:     1234,
+			expected: []TargetNode{{Hostname: "test", Addr: "test:1234"}},
+		},
+		{
+			name:     "labels",
+			labels:   map[string]string{"foo": "bar"},
+			expected: []TargetNode{{Hostname: "labels", Addr: "abcd:0"}},
+			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}}},
+		},
+		{
+			name:     "search",
+			search:   []string{"foo", "bar"},
+			expected: []TargetNode{{Hostname: "search", Addr: "abcd:0"}},
+			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}}},
+		},
+		{
+			name:      "predicate",
+			predicate: `resource.spec.hostname == "test"`,
+			expected:  []TargetNode{{Hostname: "predicate", Addr: "abcd:0"}},
+			clt:       fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clt := TeleportClient{
+				Config: Config{
+					Tracer:              tracing.NoopTracer(""),
+					Labels:              test.labels,
+					SearchKeywords:      test.search,
+					PredicateExpression: test.predicate,
+					Host:                test.host,
+					HostPort:            test.port,
+				},
+			}
+
+			match, err := clt.GetTargetNodes(context.Background(), test.clt, test.options)
+			require.NoError(t, err)
+			require.EqualValues(t, test.expected, match)
 		})
 	}
 }

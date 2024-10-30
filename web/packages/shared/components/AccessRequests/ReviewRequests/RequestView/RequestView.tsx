@@ -39,6 +39,8 @@ import {
 import { TeleportGearIcon } from 'design/SVGIcon';
 import Table from 'design/DataTable';
 
+import { LabelKind } from 'design/LabelState/LabelState';
+
 import { HoverTooltip } from 'shared/components/ToolTip';
 import { hasFinished, Attempt } from 'shared/hooks/useAsync';
 import cfg from 'shared/config';
@@ -272,11 +274,6 @@ export function RequestView({
             </Flex>
             {/* Second half of this box contains timestamp & comments*/}
             <TimelineCommentAndReviewsContainer
-              bg="levels.surface"
-              p={4}
-              pt={0}
-              borderBottomLeftRadius={2}
-              borderBottomRightRadius={2}
               style={{ position: 'relative' }}
             >
               <Timeline />
@@ -418,7 +415,7 @@ export function Timestamp({
       >
         {$icon}
       </Box>
-      <Box alignItems="baseline">
+      <Box>
         <b>{author}</b>{' '}
         {!isPromoted ? (
           assumeStartTime ? (
@@ -511,7 +508,7 @@ function Comment({
 
 function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   const $reviewers = reviewers.map((reviewer, index) => {
-    let kind = 'warning';
+    let kind: LabelKind = 'warning';
     if (reviewer.state === 'APPROVED' || reviewer.state === 'PROMOTED') {
       kind = 'success';
     } else if (reviewer.state === 'DENIED') {

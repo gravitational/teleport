@@ -1,0 +1,67 @@
+---
+title: Amazon Redshift Automatic User Provisioning
+description: Configure automatic user provisioning for Amazon Redshift.
+---
+
+(!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
+
+## Prerequisites
+
+- Teleport cluster v14.1.3 or higher with a configured [Amazon
+  Redshift](../enroll-aws-databases/postgres-redshift.mdx) database.
+- Ability to connect to and create user accounts in the target database.
+
+<Admonition type="note" title="Supported services">
+Automatic user provisioning is not compatible with Redshift Serverless.
+</Admonition>
+
+## Step 1/3. Configure database admin
+
+Teleport uses the same authentication mechanism (IAM authentication) when
+connecting as an admin user as for regular user connections.
+
+The admin user must have privileges within the database to create users and
+grant them privileges. The admin user must also have privileges to monitor user
+processes and role assignments:
+```
+CREATE USER "teleport-admin" WITH PASSWORD DISABLE;
+GRANT ROLE "sys:superuser" TO "teleport-admin";
+```
+
+Users created by Teleport will be assigned the `teleport-auto-user` role in the
+database, which will be created automatically if it doesn't exist.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/db-definition.mdx protocol="postgres" uri="redshift-cluster-1.abcdefghijklm.us-east-1.redshift.amazonaws.com:5439" !)
+
+## Step 2/3. Configure a Teleport role
+
+(!docs/pages/includes/database-access/auto-user-provisioning/common-teleport-role.mdx!)
+
+Users created within the database will:
+
+- Have the same username as the authenticated Teleport user.
+- Be assigned the `teleport-auto-user` role.
+- Be assigned all roles from the Teleport user's role set that match the database.
+  The role names must be valid and exist in the database.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/username-conflict.mdx!)
+
+## Step 3/3. Connect to the database
+
+(!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="pgAdmin"!)
+
+## Troubleshooting
+
+### Use your mapped remote username error
+
+(!docs/pages/includes/database-access/auto-user-provisioning/troubleshooting-remote-username.mdx!)
+
+(!docs/pages/includes/database-access/pg-cancel-request-limitation.mdx PIDQuery="SELECT pid,starttime,duration,trim(user_name) AS user,trim(query) AS query FROM stv_recents WHERE status = 'Running';"!)
+
+(!docs/pages/includes/database-access/psql-ssl-syscall-error.mdx!)
+
+## Next steps
+
+- Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
+- Learn about [role templating](../../../admin-guides/access-controls/guides/role-templates.mdx).
+- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

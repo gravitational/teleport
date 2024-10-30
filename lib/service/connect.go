@@ -19,6 +19,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -43,7 +44,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -406,7 +409,11 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 
 	if srv := process.getLocalAuth(); srv != nil {
 		clt = srv
-		remoteAddr = process.Config.AdvertiseIP
+		// auth server typically extracts remote addr from conn. since we're using the local auth
+		// directly we must supply a reasonable remote addr value. preferably the advertise IP, but
+		// otherwise localhost. this behavior must be kept consistent with the equivalent behavior
+		// in LocalRegister.
+		remoteAddr = cmp.Or(process.Config.AdvertiseIP, defaults.Localhost)
 	}
 
 	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
@@ -1135,7 +1142,10 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	}
 
 	// Set cluster features and return successfully with a working connector.
-	process.setClusterFeatures(pingResponse.GetServerFeatures())
+	// TODO(michellescripts) remove clone & compatibility check in v18
+	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
+	entitlements.BackfillFeatures(cloned)
+	process.setClusterFeatures(cloned)
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())
 
@@ -1240,6 +1250,19 @@ func (process *TeleportProcess) newClient(identity *state.Identity) (*authclient
 	return nil, nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
+func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) breaker.Config {
+	// Disable circuit breaking for proxies. A proxy often times forwards
+	// requests to auth on behalf of agents(during joining) or unauthenticated
+	// users(webapi/ping) and any errors that may be encountered during forwarded
+	// requests could trip the breaker eventhough auth is healthy. Since the number
+	// of agents in a cluster should far outnumber the proxies this shouldn't
+	// have much impact.
+	if role == types.RoleProxy || process.instanceRoleExpected(types.RoleProxy) {
+		return breaker.NoopBreakerConfig()
+	}
+	return servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig)
+}
+
 func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole) (*authclient.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
@@ -1257,7 +1280,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig),
+		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialTimeout:          process.Config.Testing.ClientTimeout,
 	})
 	if err != nil {
@@ -1304,7 +1327,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 			apiclient.LoadTLS(tlsConfig),
 		},
 		DialTimeout:          process.Config.Testing.ClientTimeout,
-		CircuitBreakerConfig: servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig),
+		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialOpts:             dialOpts,
 	}, cltParams...)
 	if err != nil {

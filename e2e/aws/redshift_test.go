@@ -37,7 +37,6 @@ import (
 )
 
 func testRedshiftServerless(t *testing.T) {
-	t.Skip("skipped until we fix the spacelift stack")
 	t.Parallel()
 	accessRole := mustGetEnv(t, rssAccessRoleARNEnv)
 	discoveryRole := mustGetEnv(t, rssDiscoveryRoleARNEnv)
@@ -90,6 +89,15 @@ func testRedshiftCluster(t *testing.T) {
 	waitForDatabases(t, cluster.Process, redshiftDBName)
 	db, err := cluster.Process.GetAuthServer().GetDatabase(ctx, redshiftDBName)
 	require.NoError(t, err)
+	// make sure the cloud tag is imported as a label and sets the admin
+	_ = mustGetDBAdmin(t, db)
+	// but then ignore the tag and use a randomized admin name with a randomized
+	// schema in its search_path to prevent tests from interfering with
+	// eachother.
+	labels := db.GetStaticLabels()
+	labels[types.DatabaseAdminLabel] = "test_admin_" + randASCII(t, 6)
+	cluster.Process.GetAuthServer().UpdateDatabase(ctx, db)
+	require.NoError(t, err)
 	adminUser := mustGetDBAdmin(t, db)
 
 	conn := connectAsRedshiftClusterAdmin(t, ctx, db.GetAWS().Redshift.ClusterID)
@@ -97,8 +105,13 @@ func testRedshiftCluster(t *testing.T) {
 
 	// create a new schema with tables that can only be accessed if the
 	// auto roles are granted by Teleport automatically.
-	testSchema := "test_" + randASCII(t, 4)
+	testSchema := "test_" + randASCII(t, 8)
 	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE SCHEMA %q", testSchema))
+	require.NoError(t, err)
+	// now the admin will install its procedures in the test schema.
+	_, err = conn.Exec(ctx, fmt.Sprintf(`ALTER USER %q SET SEARCH_PATH = %q`, adminUser.Name, testSchema))
+	require.NoError(t, err)
+	_, err = conn.Exec(ctx, fmt.Sprintf("GRANT USAGE,CREATE ON SCHEMA %q TO %q", testSchema, adminUser.Name))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		// users/roles can only be dropped after we drop the schema+table.
@@ -107,10 +120,11 @@ func testRedshiftCluster(t *testing.T) {
 		// actually created successfully.
 		for _, stmt := range []string{
 			fmt.Sprintf("DROP SCHEMA %q CASCADE", testSchema),
-			fmt.Sprintf("DROP ROLE %q", autoRole1),
-			fmt.Sprintf("DROP ROLE %q", autoRole2),
 			fmt.Sprintf("DROP USER IF EXISTS %q", autoUserKeep),
 			fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
+			fmt.Sprintf("DROP ROLE %q", autoRole1),
+			fmt.Sprintf("DROP ROLE %q", autoRole2),
+			fmt.Sprintf("DROP USER IF EXISTS %q", adminUser.Name),
 		} {
 			_, err := conn.Exec(ctx, stmt)
 			assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)

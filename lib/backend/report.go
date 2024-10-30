@@ -21,6 +21,7 @@ package backend
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math"
 	"slices"
 	"strings"
@@ -33,11 +34,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const reporterDefaultCacheSize = 1000
@@ -88,6 +91,8 @@ type Reporter struct {
 	// This will keep an upper limit on our memory usage while still always
 	// reporting the most active keys.
 	topRequestsCache *lru.Cache[topRequestsCacheKey, struct{}]
+
+	slowRangeLogLimiter *rate.Limiter
 }
 
 // NewReporter returns a new Reporter.
@@ -109,8 +114,9 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 	r := &Reporter{
-		ReporterConfig:   cfg,
-		topRequestsCache: cache,
+		ReporterConfig:      cfg,
+		topRequestsCache:    cache,
+		slowRangeLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 12),
 	}
 	return r, nil
 }
@@ -120,7 +126,7 @@ func (s *Reporter) GetName() string {
 }
 
 // GetRange returns query range
-func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
+func (s *Reporter) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	ctx, span := s.Tracer.Start(
 		ctx,
 		"backend/GetRange",
@@ -142,6 +148,12 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 		reads.WithLabelValues(s.Component).Add(float64(len(res.Items)))
 	}
 	s.trackRequest(types.OpGet, startKey, endKey)
+	end := s.Clock().Now()
+	if d := end.Sub(start); d > time.Second*3 {
+		if s.slowRangeLogLimiter.AllowN(end, 1) {
+			slog.WarnContext(ctx, "slow GetRange request", "start_key", string(startKey), "end_key", string(endKey), "limit", limit, "duration", logutils.StringerAttr(d))
+		}
+	}
 	return res, err
 }
 
@@ -256,7 +268,7 @@ func (s *Reporter) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error
 }
 
 // Get returns a single item or not found error
-func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
+func (s *Reporter) Get(ctx context.Context, key Key) (*Item, error) {
 	ctx, span := s.Tracer.Start(
 		ctx,
 		"backend/Get",
@@ -307,7 +319,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 }
 
 // Delete deletes item by key
-func (s *Reporter) Delete(ctx context.Context, key []byte) error {
+func (s *Reporter) Delete(ctx context.Context, key Key) error {
 	ctx, span := s.Tracer.Start(
 		ctx,
 		"backend/Delete",
@@ -334,7 +346,7 @@ func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 }
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.
-func (s *Reporter) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+func (s *Reporter) ConditionalDelete(ctx context.Context, key Key, revision string) error {
 	ctx, span := s.Tracer.Start(
 		ctx,
 		"backend/ConditionalDelete",
@@ -415,7 +427,7 @@ func (s *Reporter) AtomicWrite(ctx context.Context, condacts []ConditionalAction
 }
 
 // DeleteRange deletes range of items
-func (s *Reporter) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
+func (s *Reporter) DeleteRange(ctx context.Context, startKey, endKey Key) error {
 	ctx, span := s.Tracer.Start(
 		ctx,
 		"backend/DeleteRange",
@@ -509,7 +521,7 @@ type topRequestsCacheKey struct {
 }
 
 // trackRequests tracks top requests, endKey is supplied for ranges
-func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) {
+func (s *Reporter) trackRequest(opType types.OpType, key Key, endKey Key) {
 	if len(key) == 0 {
 		return
 	}
@@ -579,7 +591,7 @@ func buildKeyLabel(key string, sensitivePrefixes, singletonPrefixes []string, is
 	// if the first non-empty segment is a secret range and there are at least two non-empty
 	// segments, then the second non-empty segment should be masked.
 	if finalLen-realStart > 1 && slices.Contains(sensitivePrefixes, parts[realStart]) {
-		parts[realStart+1] = string(MaskKeyName(parts[realStart+1]))
+		parts[realStart+1] = MaskKeyName(parts[realStart+1])
 	}
 
 	return strings.Join(parts[:finalLen], string(Separator))

@@ -109,6 +109,8 @@ const renderIconCell = (type: RecordingType) => {
     Icon = Icons.Desktop;
   } else if (type === 'k8s') {
     Icon = Icons.Kubernetes;
+  } else if (type === 'database') {
+    Icon = Icons.Database;
   }
 
   return (

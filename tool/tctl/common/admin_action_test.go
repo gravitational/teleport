@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -169,6 +170,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 			},
 			"tctl bots rm": {
 				command:    fmt.Sprintf("bots rm %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
 				cliCommand: &tctl.BotsCommand{},
 				setup:      createBot,
 				cleanup:    deleteBot,
@@ -954,8 +961,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			OIDC: true,
-			SAML: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
+			},
 		},
 	})
 
@@ -1019,7 +1028,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		promptCfg.WebauthnSupported = true
+		return libmfa.NewCLIPromptV2(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	}
 
 	// Login as the admin user.

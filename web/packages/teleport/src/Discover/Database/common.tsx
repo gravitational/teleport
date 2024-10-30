@@ -17,11 +17,11 @@
  */
 
 import React from 'react';
-import { Box, Label as Pill, Text } from 'design';
+import { Box, Label as Pill, Text, Mark } from 'design';
 import * as Icons from 'design/Icon';
 
 import { ResourceLabel } from 'teleport/services/agents';
-import { LabelsCreater, Mark, TextIcon } from 'teleport/Discover/Shared';
+import { LabelsCreater, TextIcon } from 'teleport/Discover/Shared';
 import { Regions } from 'teleport/services/integrations';
 
 // serviceDeployedMethod is a flag to determine if user opted to

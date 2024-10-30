@@ -49,7 +49,7 @@ func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Const
 	})
 }
 
-// atomciWriteShim reimplements all single-write backend methods as calls to AtomicWrite.
+// AtomicWriteShim reimplements all single-write backend methods as calls to AtomicWrite.
 type AtomicWriteShim struct {
 	backend.Backend
 	sentinel []byte
@@ -182,7 +182,7 @@ func (a AtomicWriteShim) Update(ctx context.Context, i backend.Item) (*backend.L
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (a AtomicWriteShim) Delete(ctx context.Context, key []byte) error {
+func (a AtomicWriteShim) Delete(ctx context.Context, key backend.Key) error {
 	_, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{
@@ -226,7 +226,7 @@ func (a AtomicWriteShim) ConditionalUpdate(ctx context.Context, i backend.Item) 
 }
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.
-func (a AtomicWriteShim) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+func (a AtomicWriteShim) ConditionalDelete(ctx context.Context, key backend.Key, revision string) error {
 	_, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{

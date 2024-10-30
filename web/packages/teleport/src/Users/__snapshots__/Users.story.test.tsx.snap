@@ -243,15 +243,15 @@ exports[`success state 1`] = `
   align-items: center;
 }
 
-.c25 {
-  display: flex;
-  flex-wrap: wrap;
-}
-
 .c16 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+}
+
+.c25 {
+  display: flex;
+  flex-wrap: wrap;
 }
 
 .c5 {
@@ -465,11 +465,12 @@ exports[`success state 1`] = `
       <div
         class="c10"
       >
-        <div
+        <form
           class="c11"
         >
           <input
             class="c12"
+            name="searchValue"
             placeholder="Search..."
             value=""
           />
@@ -480,7 +481,7 @@ exports[`success state 1`] = `
               class="c14"
             />
           </div>
-        </div>
+        </form>
       </div>
       <div
         class="c15 c16"

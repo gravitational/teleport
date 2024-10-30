@@ -70,8 +70,8 @@ spec:
                       type: array
                     aws_role:
                       description: AWSRole is used for the EC2 join method and is
-                        the ARN of the AWS role that the auth server will assume in
-                        order to call the ec2 API.
+                        the ARN of the AWS role that the Auth Service will assume
+                        in order to call the ec2 API.
                       type: string
                   type: object
                 nullable: true
@@ -192,7 +192,7 @@ spec:
                       against host.  This value should be the hostname of the GHES
                       instance, and should not include the scheme or a path. The instance
                       must be accessible over HTTPS at this hostname and the certificate
-                      must be trusted by the Auth Server.
+                      must be trusted by the Auth Service.
                     type: string
                   enterprise_slug:
                     description: EnterpriseSlug allows the slug of a GitHub Enterprise
@@ -257,9 +257,9 @@ spec:
                     type: string
                 type: object
               join_method:
-                description: JoinMethod is the joining method required in order to
-                  use this token. Supported joining methods include "token", "ec2",
-                  and "iam".
+                description: 'JoinMethod is the joining method required in order to
+                  use this token. Supported joining methods include: azure, circleci,
+                  ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm'
                 type: string
               kubernetes:
                 description: Kubernetes allows the configuration of options specific
@@ -340,6 +340,51 @@ spec:
                 description: SuggestedLabels is a set of labels that resources should
                   set when using this token to enroll themselves in the cluster. Currently,
                   only node-join scripts create a configuration according to the suggestion.
+                type: object
+              terraform_cloud:
+                description: TerraformCloud allows the configuration of options specific
+                  to the "terraform_cloud" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        organization_id:
+                          type: string
+                        organization_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        run_phase:
+                          type: string
+                        workspace_id:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: Audience is the JWT audience as configured in the
+                      TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform
+                      Cloud. If unset, defaults to the Teleport cluster name. For
+                      example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is
+                      set in Terraform Cloud, this value should be `foo`. If the variable
+                      is set to match the cluster name, it does not need to be set
+                      here.
+                    type: string
+                  hostname:
+                    description: Hostname is the hostname of the Terraform Enterprise
+                      instance expected to issue JWTs allowed by this token. This
+                      may be unset for regular Terraform Cloud use, in which case
+                      it will be assumed to be `app.terraform.io`. Otherwise, it must
+                      both match the `iss` (issuer) field included in JWTs, and provide
+                      standard JWKS endpoints.
+                    type: string
                 type: object
               tpm:
                 description: TPM allows the configuration of options specific to the

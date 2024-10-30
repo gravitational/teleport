@@ -60,6 +60,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   Roles = 'User Roles',
+  JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
   EnrollNewResource = 'Enroll New Resource',
@@ -87,7 +88,7 @@ export enum NavTitle {
 
   // Clusters
   ManageClusters = 'Manage Clusters',
-  TrustedClusters = 'Trusted Clusters',
+  TrustedClusters = 'Trusted Root Clusters',
 
   // Account
   AccountSettings = 'Account Settings',
@@ -180,6 +181,7 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
+  tokens: boolean;
   accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;

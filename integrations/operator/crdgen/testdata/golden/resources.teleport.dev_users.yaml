@@ -53,6 +53,10 @@ spec:
                       description: ConnectorID is id of registered OIDC connector,
                         e.g. 'google-example.com'
                       type: string
+                    samlSingleLogoutUrl:
+                      description: SAMLSingleLogoutURL is the SAML Single log-out
+                        URL to initiate SAML SLO (single log-out), if applicable.
+                      type: string
                     username:
                       description: Username is username supplied by external identity
                         provider
@@ -67,6 +71,10 @@ spec:
                     connector_id:
                       description: ConnectorID is id of registered OIDC connector,
                         e.g. 'google-example.com'
+                      type: string
+                    samlSingleLogoutUrl:
+                      description: SAMLSingleLogoutURL is the SAML Single log-out
+                        URL to initiate SAML SLO (single log-out), if applicable.
                       type: string
                     username:
                       description: Username is username supplied by external identity
@@ -89,6 +97,10 @@ spec:
                       description: ConnectorID is id of registered OIDC connector,
                         e.g. 'google-example.com'
                       type: string
+                    samlSingleLogoutUrl:
+                      description: SAMLSingleLogoutURL is the SAML Single log-out
+                        URL to initiate SAML SLO (single log-out), if applicable.
+                      type: string
                     username:
                       description: Username is username supplied by external identity
                         provider
@@ -107,8 +119,12 @@ spec:
                 type: object
               trusted_device_ids:
                 description: TrustedDeviceIDs contains the IDs of trusted devices
-                  enrolled by the user. Managed by the Device Trust subsystem, avoid
-                  manual edits.
+                  enrolled by the user.  Note that SSO users are transient and thus
+                  may contain an empty TrustedDeviceIDs field, even though the user->device
+                  association exists under the Device Trust subsystem. Do not rely
+                  on this field to determine device associations or ownership, it
+                  exists for legacy/informative purposes only.  Managed by the Device
+                  Trust subsystem, avoid manual edits.
                 items:
                   type: string
                 nullable: true

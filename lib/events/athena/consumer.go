@@ -79,6 +79,7 @@ type consumer struct {
 	storeLocationBucket string
 	batchMaxItems       int
 	batchMaxInterval    time.Duration
+	consumerLockName    string
 
 	// perDateFileParquetWriter returns file writer per date.
 	// Added in config to allow testing.
@@ -157,11 +158,19 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		storeLocationBucket: cfg.locationS3Bucket,
 		batchMaxItems:       cfg.BatchMaxItems,
 		batchMaxInterval:    cfg.BatchMaxInterval,
+		consumerLockName:    cfg.ConsumerLockName,
 		collectConfig:       collectCfg,
 		sqsDeleter:          sqsClient,
 		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
-			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
+			// use uuidv7 to give approximate time order to files. this isn't strictly necessary
+			// but it assists in bulk event export roughly progressing in time order through a given
+			// day which is what folks tend to expect.
+			id, err := uuid.NewV7()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, id.String())
 			fw, err := awsutils.NewS3V2FileWriter(ctx, storerS3Client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
 				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
@@ -248,10 +257,14 @@ func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProces
 		case <-ctx.Done():
 			return
 		default:
+			lockName := []string{"athena", c.consumerLockName}
+			if c.consumerLockName == "" {
+				lockName = []string{"athena_lock"}
+			}
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					Backend:  c.backend,
-					LockName: "athena_lock",
+					Backend:            c.backend,
+					LockNameComponents: lockName,
 					// TTL is higher then batchMaxInterval because we want to optimize
 					// for low backend writes.
 					TTL: 5 * c.batchMaxInterval,

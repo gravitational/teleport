@@ -209,14 +209,12 @@ const LabelContainer = styled.div`
 `;
 
 const AddLabelContainer = styled.div`
-  background: ${props => props.theme.colors.sunken};
   border-radius: 4px;
   height: 100px;
   padding: 1rem;
 `;
 
 const AddLabelInput = styled.input`
-  background: ${props => props.theme.colors.sunken};
   border-radius: 52px;
   border: 1.5px solid ${({ theme }) => theme.colors.brand};
   color: ${({ theme }) => theme.colors.text.main};

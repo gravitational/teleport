@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -179,6 +180,10 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
 	cfg.SSH.DisableCreateHostUser = true
 
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
+
 	// Apply options
 	for _, fn := range options.ConfigFuncs {
 		fn(cfg)
@@ -252,6 +257,10 @@ func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecf
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, auth, cfg.Databases.Databases)
 	}
+
+	if cfg.Auth.Enabled && cfg.Apps.Enabled {
+		waitForApps(t, auth, cfg.Apps.Apps)
+	}
 }
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
@@ -286,6 +295,34 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			}
 		case <-ctx.Done():
 			t.Fatal("Databases not registered after 10s")
+		}
+	}
+}
+
+func waitForApps(t *testing.T, auth *service.TeleportProcess, apps []servicecfg.App) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-time.After(500 * time.Millisecond):
+			all, err := auth.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+
+			var registered int
+			for _, app := range apps {
+				for _, a := range all {
+					if a.GetName() == app.Name {
+						registered++
+						break
+					}
+				}
+			}
+
+			if registered == len(apps) {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatal("Apps not registered after 10s")
 		}
 	}
 }
@@ -417,6 +454,11 @@ func (p *cliModules) BuildType() string {
 	return "CLI"
 }
 
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+func (p *cliModules) LicenseExpiry() time.Time {
+	return time.Time{}
+}
+
 // IsEnterpriseBuild returns false for [cliModules].
 func (p *cliModules) IsEnterpriseBuild() bool {
 	return false
@@ -435,9 +477,11 @@ func (p *cliModules) PrintVersion() {
 // Features returns supported features
 func (p *cliModules) Features() modules.Features {
 	return modules.Features{
-		Kubernetes:              true,
-		DB:                      true,
-		App:                     true,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.K8s: {Enabled: true},
+			entitlements.DB:  {Enabled: true},
+			entitlements.App: {Enabled: true},
+		},
 		AdvancedAccessWorkflows: true,
 		AccessControls:          true,
 	}

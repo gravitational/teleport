@@ -396,7 +396,7 @@ func (e *Engine) authorizeRPCRequest(ctx context.Context, targetID, procedure st
 
 	args, err := rpcRequestToStruct(req)
 	if err != nil {
-		e.Log.WithError(err).Debug("failed to convert Spanner RPC args to audit event info")
+		e.Log.DebugContext(e.Context, "failed to convert Spanner RPC args to audit event info", "error", err)
 		if authzErr == nil {
 			// if there is no access error, but we can't fully audit what they
 			// are doing, then report an access denied error in the audit log

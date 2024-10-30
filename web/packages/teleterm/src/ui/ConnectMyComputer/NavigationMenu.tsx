@@ -204,7 +204,7 @@ const StyledButton = styled(Button)`
   height: ${props => props.theme.space[5]}px;
 `;
 
-const StyledStatus = styled(Box)`
+const StyledStatus = styled(Box)<{ status: IndicatorStatus }>`
   position: absolute;
   top: -4px;
   right: -4px;

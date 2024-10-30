@@ -67,7 +67,7 @@ func (e *Engine) SendError(sErr error) {
 	if utils.IsOKNetworkError(sErr) || sErr == nil {
 		return
 	}
-	e.Log.Debugf("Cassandra connection error: %v.", sErr)
+	e.Log.DebugContext(e.Context, "Cassandra connection error.", "error", sErr)
 	// Errors from Cassandra engine can be sent to the client only if handshake is triggered.
 	if e.handshakeTriggered {
 		return
@@ -75,7 +75,7 @@ func (e *Engine) SendError(sErr error) {
 
 	eh := failedHandshake{error: sErr}
 	if err := eh.handshake(e.clientConn, nil); err != nil {
-		e.Log.Warnf("Cassandra handshake error: %v.", sErr)
+		e.Log.WarnContext(e.Context, "Cassandra handshake error.", "error", sErr)
 	}
 }
 
@@ -249,7 +249,7 @@ func (e *Engine) processPacket(packet *protocol.Packet) error {
 	case *message.Revise:
 		// Revise message is support by DSE (DataStax Enterprise) only.
 		// Skip audit for this message.
-		e.Log.WithField("message", msg).Debug("Skip audit for revise message.")
+		e.Log.DebugContext(e.Context, "Skip audit for revise message.", "message", msg)
 	default:
 		return trace.BadParameter("received a message with unexpected type %T", body.Message)
 	}

@@ -37,11 +37,14 @@ const (
 	AWSOIDCService_CreateEICE_FullMethodName            = "/teleport.integration.v1.AWSOIDCService/CreateEICE"
 	AWSOIDCService_ListDatabases_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/ListDatabases"
 	AWSOIDCService_ListSecurityGroups_FullMethodName    = "/teleport.integration.v1.AWSOIDCService/ListSecurityGroups"
+	AWSOIDCService_ListSubnets_FullMethodName           = "/teleport.integration.v1.AWSOIDCService/ListSubnets"
+	AWSOIDCService_ListVPCs_FullMethodName              = "/teleport.integration.v1.AWSOIDCService/ListVPCs"
 	AWSOIDCService_DeployDatabaseService_FullMethodName = "/teleport.integration.v1.AWSOIDCService/DeployDatabaseService"
 	AWSOIDCService_DeployService_FullMethodName         = "/teleport.integration.v1.AWSOIDCService/DeployService"
 	AWSOIDCService_EnrollEKSClusters_FullMethodName     = "/teleport.integration.v1.AWSOIDCService/EnrollEKSClusters"
 	AWSOIDCService_ListEC2_FullMethodName               = "/teleport.integration.v1.AWSOIDCService/ListEC2"
 	AWSOIDCService_ListEKSClusters_FullMethodName       = "/teleport.integration.v1.AWSOIDCService/ListEKSClusters"
+	AWSOIDCService_Ping_FullMethodName                  = "/teleport.integration.v1.AWSOIDCService/Ping"
 )
 
 // AWSOIDCServiceClient is the client API for AWSOIDCService service.
@@ -66,6 +69,14 @@ type AWSOIDCServiceClient interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
 	ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error)
+	// ListSubnets returns a list of AWS VPC subnets.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html
+	ListSubnets(ctx context.Context, in *ListSubnetsRequest, opts ...grpc.CallOption) (*ListSubnetsResponse, error)
+	// ListVPCs returns a list of AWS VPCs.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVpcs.html
+	ListVPCs(ctx context.Context, in *ListVPCsRequest, opts ...grpc.CallOption) (*ListVPCsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(ctx context.Context, in *DeployDatabaseServiceRequest, opts ...grpc.CallOption) (*DeployDatabaseServiceResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
@@ -81,6 +92,11 @@ type AWSOIDCServiceClient interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(ctx context.Context, in *ListEKSClustersRequest, opts ...grpc.CallOption) (*ListEKSClustersResponse, error)
+	// Ping does an health check for the integration.
+	// Returns the caller identity.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 }
 
 type aWSOIDCServiceClient struct {
@@ -121,6 +137,24 @@ func (c *aWSOIDCServiceClient) ListDatabases(ctx context.Context, in *ListDataba
 func (c *aWSOIDCServiceClient) ListSecurityGroups(ctx context.Context, in *ListSecurityGroupsRequest, opts ...grpc.CallOption) (*ListSecurityGroupsResponse, error) {
 	out := new(ListSecurityGroupsResponse)
 	err := c.cc.Invoke(ctx, AWSOIDCService_ListSecurityGroups_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aWSOIDCServiceClient) ListSubnets(ctx context.Context, in *ListSubnetsRequest, opts ...grpc.CallOption) (*ListSubnetsResponse, error) {
+	out := new(ListSubnetsResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListSubnets_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aWSOIDCServiceClient) ListVPCs(ctx context.Context, in *ListVPCsRequest, opts ...grpc.CallOption) (*ListVPCsResponse, error) {
+	out := new(ListVPCsResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_ListVPCs_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +206,15 @@ func (c *aWSOIDCServiceClient) ListEKSClusters(ctx context.Context, in *ListEKSC
 	return out, nil
 }
 
+func (c *aWSOIDCServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
+	out := new(PingResponse)
+	err := c.cc.Invoke(ctx, AWSOIDCService_Ping_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AWSOIDCServiceServer is the server API for AWSOIDCService service.
 // All implementations must embed UnimplementedAWSOIDCServiceServer
 // for forward compatibility
@@ -194,6 +237,14 @@ type AWSOIDCServiceServer interface {
 	// It uses the following API:
 	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
 	ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error)
+	// ListSubnets returns a list of AWS VPC subnets.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html
+	ListSubnets(context.Context, *ListSubnetsRequest) (*ListSubnetsResponse, error)
+	// ListVPCs returns a list of AWS VPCs.
+	// It uses the following API:
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVpcs.html
+	ListVPCs(context.Context, *ListVPCsRequest) (*ListVPCsResponse, error)
 	// DeployDatabaseService deploys a Database Services to Amazon ECS.
 	DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error)
 	// DeployService deploys an ECS Service to Amazon ECS.
@@ -209,6 +260,11 @@ type AWSOIDCServiceServer interface {
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
 	// https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
 	ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error)
+	// Ping does an health check for the integration.
+	// Returns the caller identity.
+	// It uses the following APIs:
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	mustEmbedUnimplementedAWSOIDCServiceServer()
 }
 
@@ -228,6 +284,12 @@ func (UnimplementedAWSOIDCServiceServer) ListDatabases(context.Context, *ListDat
 func (UnimplementedAWSOIDCServiceServer) ListSecurityGroups(context.Context, *ListSecurityGroupsRequest) (*ListSecurityGroupsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListSecurityGroups not implemented")
 }
+func (UnimplementedAWSOIDCServiceServer) ListSubnets(context.Context, *ListSubnetsRequest) (*ListSubnetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSubnets not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) ListVPCs(context.Context, *ListVPCsRequest) (*ListVPCsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListVPCs not implemented")
+}
 func (UnimplementedAWSOIDCServiceServer) DeployDatabaseService(context.Context, *DeployDatabaseServiceRequest) (*DeployDatabaseServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeployDatabaseService not implemented")
 }
@@ -242,6 +304,9 @@ func (UnimplementedAWSOIDCServiceServer) ListEC2(context.Context, *ListEC2Reques
 }
 func (UnimplementedAWSOIDCServiceServer) ListEKSClusters(context.Context, *ListEKSClustersRequest) (*ListEKSClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListEKSClusters not implemented")
+}
+func (UnimplementedAWSOIDCServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedAWSOIDCServiceServer) mustEmbedUnimplementedAWSOIDCServiceServer() {}
 
@@ -324,6 +389,42 @@ func _AWSOIDCService_ListSecurityGroups_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AWSOIDCServiceServer).ListSecurityGroups(ctx, req.(*ListSecurityGroupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AWSOIDCService_ListSubnets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSubnetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListSubnets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListSubnets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListSubnets(ctx, req.(*ListSubnetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AWSOIDCService_ListVPCs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVPCsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).ListVPCs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_ListVPCs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).ListVPCs(ctx, req.(*ListVPCsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -418,6 +519,24 @@ func _AWSOIDCService_ListEKSClusters_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AWSOIDCService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AWSOIDCServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AWSOIDCService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AWSOIDCServiceServer).Ping(ctx, req.(*PingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AWSOIDCService_ServiceDesc is the grpc.ServiceDesc for AWSOIDCService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -442,6 +561,14 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AWSOIDCService_ListSecurityGroups_Handler,
 		},
 		{
+			MethodName: "ListSubnets",
+			Handler:    _AWSOIDCService_ListSubnets_Handler,
+		},
+		{
+			MethodName: "ListVPCs",
+			Handler:    _AWSOIDCService_ListVPCs_Handler,
+		},
+		{
 			MethodName: "DeployDatabaseService",
 			Handler:    _AWSOIDCService_DeployDatabaseService_Handler,
 		},
@@ -460,6 +587,10 @@ var AWSOIDCService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListEKSClusters",
 			Handler:    _AWSOIDCService_ListEKSClusters_Handler,
+		},
+		{
+			MethodName: "Ping",
+			Handler:    _AWSOIDCService_Ping_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

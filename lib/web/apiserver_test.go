@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -94,6 +95,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
@@ -114,12 +116,12 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -134,11 +136,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
-	"github.com/gravitational/teleport/lib/web/ui"
+	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -480,7 +483,11 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
-		ProxySettings:                   &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   s.server.Auth(),
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(proxySessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -911,7 +918,7 @@ func TestWebSessionsCRUD(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
 
-	var clusters []ui.Cluster
+	var clusters []webui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
 
 	// now delete session
@@ -1117,9 +1124,9 @@ func TestWebSessionsBadInput(t *testing.T) {
 }
 
 type clusterNodesGetResponse struct {
-	Items      []ui.Server `json:"items"`
-	StartKey   string      `json:"startKey"`
-	TotalCount int         `json:"totalCount"`
+	Items      []webui.Server `json:"items"`
+	StartKey   string         `json:"startKey"`
+	TotalCount int            `json:"totalCount"`
 }
 
 func TestClusterNodesGet(t *testing.T) {
@@ -1155,7 +1162,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 2)
 	require.Equal(t, 2, res.TotalCount)
-	require.ElementsMatch(t, res.Items, []ui.Server{
+	require.ElementsMatch(t, res.Items, []webui.Server{
 		{
 			Kind:        types.KindNode,
 			SubKind:     types.SubKindTeleportNode,
@@ -1196,9 +1203,9 @@ func TestUserGroupsGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
-		Items      []ui.UserGroup `json:"items"`
-		StartKey   string         `json:"startKey"`
-		TotalCount int            `json:"totalCount"`
+		Items      []webui.UserGroup `json:"items"`
+		StartKey   string            `json:"startKey"`
+		TotalCount int               `json:"totalCount"`
 	}
 
 	// add a user group
@@ -1243,11 +1250,11 @@ func TestUserGroupsGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
 	require.Equal(t, 1, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.UserGroup{{
+	require.ElementsMatch(t, resp.Items, []webui.UserGroup{{
 		Name:        "ug1",
 		Description: ug.GetMetadata().Description,
 		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
-		Applications: []ui.ApplicationAndFriendlyName{
+		Applications: []webui.ApplicationAndFriendlyName{
 			{Name: "appnameonly", FriendlyName: ""},
 		},
 	}})
@@ -1423,7 +1430,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	listResp := struct {
-		Items []ui.App `json:"Items"`
+		Items []webui.App `json:"Items"`
 	}{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &listResp))
 	require.Len(t, listResp.Items, 1)
@@ -2652,7 +2659,7 @@ func TestLogin(t *testing.T) {
 	re, err := clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
 
-	var clusters []ui.Cluster
+	var clusters []webui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
 
 	// in absence of session cookie or bearer auth the same request fill fail
@@ -2824,15 +2831,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"    # shellcheck disable=SC2050\n"+
-				"    if [ \"true\" = \"true\" ]; then\n"+
-				"      # automatic upgrades\n",
-			)
-			require.Contains(t, responseString, ""+
-				"  TELEPORT_PACKAGE=\"teleport-ent\"\n"+
-				"  TELEPORT_UPDATER_PACKAGE=\"teleport-ent-updater\"\n",
-			)
+			require.Contains(t, responseString, "--auto-upgrade=true")
+			require.Contains(t, responseString, "--teleport-package=teleport-ent")
 		})
 
 		t.Run("default-agentless-installer", func(t *testing.T) {
@@ -2961,15 +2961,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.NotContains(t, responseString, "stable/cloud")
 			require.Contains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"    # shellcheck disable=SC2050\n"+
-				"    if [ \"false\" = \"true\" ]; then\n"+
-				"      # automatic upgrades\n",
-			)
-			require.Contains(t, responseString, ""+
-				"  TELEPORT_PACKAGE=\"teleport\"\n"+
-				"  TELEPORT_UPDATER_PACKAGE=\"teleport-updater\"\n",
-			)
+			require.Contains(t, responseString, "--auto-upgrade=false")
+			require.Contains(t, responseString, "--teleport-package=teleport ")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -3061,6 +3054,38 @@ func TestMultipleConnectors(t *testing.T) {
 
 	// make sure the connector we get back is "foo"
 	require.Equal(t, "foo", out.Auth.OIDC.Name)
+}
+
+func TestPingSSHDialTimeout(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	// hit the ping endpoint to get the ssh dial timeout
+	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	var out webclient.PingResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, apidefaults.DefaultIOTimeout, out.Proxy.SSH.DialTimeout)
+
+	// Update the timeout
+	cnc, err := s.server.Auth().GetClusterNetworkingConfig(s.ctx)
+	require.NoError(t, err)
+
+	cnc.SetSSHDialTimeout(time.Minute)
+	cnc, err = s.server.Auth().UpsertClusterNetworkingConfig(s.ctx, cnc)
+	require.NoError(t, err)
+
+	// hit the ping endpoint again to validate that updated values are returned
+	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
+
 }
 
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
@@ -3282,7 +3307,7 @@ func TestGetClusterDetails(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, site)
 
-	cluster, err := ui.GetClusterDetails(s.ctx, site)
+	cluster, err := webui.GetClusterDetails(s.ctx, site)
 	require.NoError(t, err)
 	require.Equal(t, s.server.ClusterName(), cluster.Name)
 	require.Equal(t, teleport.Version, cluster.ProxyVersion)
@@ -3640,6 +3665,7 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 
 // TestCheckAccessToRegisteredResource_AccessDenied tests that access denied error
 // is ignored.
+// TODO(kiosion): DELETE in 18.0
 func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3682,6 +3708,7 @@ func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	require.False(t, resp.HasResource)
 }
 
+// TODO(kiosion): DELETE in 18.0
 func TestCheckAccessToRegisteredResource(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3999,8 +4026,8 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
 
 	type testResponse struct {
-		Items      []ui.Database `json:"items"`
-		TotalCount int           `json:"totalCount"`
+		Items      []webui.Database `json:"items"`
+		TotalCount int              `json:"totalCount"`
 	}
 
 	// add db
@@ -4033,7 +4060,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
-	require.ElementsMatch(t, resp.Items, []ui.Database{{
+	require.ElementsMatch(t, resp.Items, []webui.Database{{
 		Kind:     types.KindDatabase,
 		Name:     "dbdb",
 		Type:     types.DatabaseTypeSelfHosted,
@@ -4050,8 +4077,8 @@ func TestClusterDatabasesGet_WithRole(t *testing.T) {
 	proxy := env.proxies[0]
 
 	type testResponse struct {
-		Items      []ui.Database `json:"items"`
-		TotalCount int           `json:"totalCount"`
+		Items      []webui.Database `json:"items"`
+		TotalCount int              `json:"totalCount"`
 	}
 
 	// Register databases.
@@ -4159,20 +4186,20 @@ func TestClusterKubesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	type testResponse struct {
-		Items      []ui.KubeCluster `json:"items"`
-		TotalCount int              `json:"totalCount"`
+		Items      []webui.KubeCluster `json:"items"`
+		TotalCount int                 `json:"totalCount"`
 	}
 
 	tt := []struct {
 		name             string
 		user             string
 		extraRoles       services.RoleSet
-		expectedResponse []ui.KubeCluster
+		expectedResponse []webui.KubeCluster
 	}{
 		{
 			name: "user with no extra roles",
 			user: "test-user@example.com",
-			expectedResponse: []ui.KubeCluster{
+			expectedResponse: []webui.KubeCluster{
 				{
 					Name:       "test-kube1",
 					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -4191,7 +4218,7 @@ func TestClusterKubesGet(t *testing.T) {
 			name:       "user with extra roles",
 			user:       "test-user2@example.com",
 			extraRoles: services.NewRoleSet(extraRole),
-			expectedResponse: []ui.KubeCluster{
+			expectedResponse: []webui.KubeCluster{
 				{
 					Name:       "test-kube1",
 					Labels:     []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -4224,7 +4251,7 @@ func TestClusterKubesGet(t *testing.T) {
 	}
 }
 
-func TestClusterKubePodsGet(t *testing.T) {
+func TestClusterKubeResourcesGet(t *testing.T) {
 	t.Parallel()
 	kubeClusterName := "kube_cluster"
 
@@ -4243,6 +4270,10 @@ func TestClusterKubePodsGet(t *testing.T) {
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 					},
+					{
+						Kind: types.KindKubeNamespace,
+						Name: types.Wildcard,
+					},
 				},
 			},
 		})
@@ -4254,19 +4285,23 @@ func TestClusterKubePodsGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	type testResponse struct {
-		Items      []ui.KubeResource `json:"items"`
-		TotalCount int               `json:"totalCount"`
+		Items      []webui.KubeResource `json:"items"`
+		TotalCount int                  `json:"totalCount"`
 	}
 
 	tt := []struct {
 		name             string
 		user             string
-		expectedResponse []ui.KubeResource
+		kind             string
+		kubeCluster      string
+		expectedResponse []webui.KubeResource
+		wantErr          bool
 	}{
 		{
-			name: "get pods from gRPC server",
-			user: "test-user@example.com",
-			expectedResponse: []ui.KubeResource{
+			name:        "get pods from gRPC server",
+			kind:        types.KindKubePod,
+			kubeCluster: kubeClusterName,
+			expectedResponse: []webui.KubeResource{
 				{
 					Kind:        types.KindKubePod,
 					Name:        "test-pod",
@@ -4283,6 +4318,38 @@ func TestClusterKubePodsGet(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "get namespaces",
+			kind:        types.KindKubeNamespace,
+			kubeCluster: kubeClusterName,
+			expectedResponse: []webui.KubeResource{
+				{
+					Kind:        types.KindKubeNamespace,
+					Name:        "default",
+					Namespace:   "",
+					Labels:      []ui.Label{{Name: "app", Value: "test"}},
+					KubeCluster: kubeClusterName,
+				},
+			},
+		},
+		{
+			name:        "missing kind",
+			kind:        "",
+			kubeCluster: kubeClusterName,
+			wantErr:     true,
+		},
+		{
+			name:        "invalid kind",
+			kind:        "invalid-kind",
+			kubeCluster: kubeClusterName,
+			wantErr:     true,
+		},
+		{
+			name:        "missing kube cluster",
+			kind:        types.KindKubeNamespace,
+			kubeCluster: "",
+			wantErr:     true,
+		},
 	}
 	proxy := env.proxies[0]
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -4292,22 +4359,27 @@ func TestClusterKubePodsGet(t *testing.T) {
 	addr := utils.MustParseAddr(listener.Addr().String())
 	proxy.handler.handler.cfg.ProxyWebAddr = *addr
 
+	user := "test-user@example.com"
+	pack := proxy.authPack(t, user, roleWithFullAccess(user))
+
 	for _, tc := range tt {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			pack := proxy.authPack(t, tc.user, roleWithFullAccess(tc.user))
-
-			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "pods")
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
 			params := url.Values{}
-			params.Add("kubeCluster", kubeClusterName)
+			params.Add("kubeCluster", tc.kubeCluster)
+			params.Add("kind", tc.kind)
 			re, err := pack.clt.Get(context.Background(), endpoint, params)
-			require.NoError(t, err)
 
-			resp := testResponse{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.Len(t, resp.Items, 2)
-			require.Equal(t, 2, resp.TotalCount)
-			require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+			if tc.wantErr {
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+				resp := testResponse{}
+				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+				require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+			}
+
 		})
 	}
 }
@@ -4325,8 +4397,8 @@ func TestClusterAppsGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
-		Items      []ui.App `json:"items"`
-		TotalCount int      `json:"totalCount"`
+		Items      []webui.App `json:"items"`
+		TotalCount int         `json:"totalCount"`
 	}
 
 	// add a user group
@@ -4384,7 +4456,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.App{{
+	require.ElementsMatch(t, resp.Items, []webui.App{{
 		Kind:        types.KindApp,
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
@@ -4394,7 +4466,7 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
-		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
+		UserGroups:  []webui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
 		Kind:       types.KindApp,
 		Name:       "app2",
@@ -4412,7 +4484,9 @@ func TestClusterAppsGet(t *testing.T) {
 func TestApplicationAccessDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			App: false,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: false},
+			},
 		},
 	})
 
@@ -4521,9 +4595,10 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Empty(t, collectAppSessions(context.Background()))
 }
 
-func TestGetWebConfig(t *testing.T) {
+func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	handler := env.proxies[0].handler.handler
 
 	// Set auth preference with passwordless.
 	const MOTD = "Welcome to cluster, your activity will be recorded."
@@ -4554,6 +4629,11 @@ func TestGetWebConfig(t *testing.T) {
 	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
 
+	// start the feature watcher so the web config gets new features
+	go handler.startFeatureWatcher()
+	<-handler.featureWatcherReady // await until the watcher is ready
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
+
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
 			SecondFactor: constants.SecondFactorOptional,
@@ -4570,12 +4650,48 @@ func TestGetWebConfig(t *testing.T) {
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
 		},
-		CanJoinSessions:    true,
-		ProxyClusterName:   env.server.ClusterName(),
-		IsCloud:            false,
-		AutomaticUpgrades:  false,
-		JoinActiveSessions: true,
-		Edition:            modules.BuildOSS, // testBuildType is empty
+		CanJoinSessions:           true,
+		ProxyClusterName:          env.server.ClusterName(),
+		IsCloud:                   false,
+		AutomaticUpgrades:         false,
+		JoinActiveSessions:        true,
+		Edition:                   modules.BuildOSS, // testBuildType is empty
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
+		Entitlements: map[string]webclient.EntitlementInfo{
+			string(entitlements.AccessLists):            {Enabled: false},
+			string(entitlements.AccessMonitoring):       {Enabled: false},
+			string(entitlements.AccessRequests):         {Enabled: false},
+			string(entitlements.App):                    {Enabled: true},
+			string(entitlements.CloudAuditLogRetention): {Enabled: false},
+			string(entitlements.DB):                     {Enabled: true},
+			string(entitlements.Desktop):                {Enabled: true},
+			string(entitlements.DeviceTrust):            {Enabled: false},
+			string(entitlements.ExternalAuditStorage):   {Enabled: false},
+			string(entitlements.FeatureHiding):          {Enabled: false},
+			string(entitlements.HSM):                    {Enabled: false},
+			string(entitlements.Identity):               {Enabled: false},
+			string(entitlements.JoinActiveSessions):     {Enabled: true},
+			string(entitlements.K8s):                    {Enabled: true},
+			string(entitlements.MobileDeviceManagement): {Enabled: false},
+			string(entitlements.OIDC):                   {Enabled: false},
+			string(entitlements.OktaSCIM):               {Enabled: false},
+			string(entitlements.OktaUserSync):           {Enabled: false},
+			string(entitlements.Policy):                 {Enabled: false},
+			string(entitlements.SAML):                   {Enabled: false},
+			string(entitlements.SessionLocks):           {Enabled: false},
+			string(entitlements.UpsellAlert):            {Enabled: false},
+			string(entitlements.UsageReporting):         {Enabled: false},
+		},
+		TunnelPublicAddress:            "",
+		RecoveryCodesEnabled:           false,
+		UI:                             webclient.UIConfig{},
+		IsDashboard:                    false,
+		IsUsageBasedBilling:            false,
+		AutomaticUpgradesTargetVersion: "",
+		CustomTheme:                    "",
+		Questionnaire:                  false,
+		IsStripeManaged:                false,
+		PremiumSupport:                 false,
 	}
 
 	// Make a request.
@@ -4599,8 +4715,14 @@ func TestGetWebConfig(t *testing.T) {
 			Cloud:               true,
 			IsUsageBasedBilling: true,
 			AutomaticUpgrades:   true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB:          {Enabled: true, Limit: 22},
+				entitlements.DeviceTrust: {Enabled: true, Limit: 33},
+				entitlements.Desktop:     {Enabled: true, Limit: 44},
+			},
 		},
 	})
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	require.NoError(t, err)
 	// This version is too high and MUST NOT be used
@@ -4611,7 +4733,7 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	}
 	require.NoError(t, channels.CheckAndSetDefaults())
-	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
+	handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
@@ -4619,15 +4741,26 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 	expectedCfg.JoinActiveSessions = false
 	expectedCfg.Edition = "" // testBuildType is empty
+	expectedCfg.TrustedDevices = true
+	expectedCfg.Entitlements[string(entitlements.App)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
+	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
+	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
+	expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
-	// request and verify enabled features are enabled.
-	re, err = clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+	// request and verify enabled features are eventually enabled.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		assert.Empty(t, diff)
+
+	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
 	// cluster config
@@ -4638,6 +4771,10 @@ func TestGetWebConfig(t *testing.T) {
 	}
 	env.proxies[0].client = mockClient
 	expectedCfg.AutomaticUpgrades = false
+	expectedCfg.TrustedDevices = false
+	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
 	modules.SetTestModules(t, &modules.TestModules{
@@ -4646,36 +4783,44 @@ func TestGetWebConfig(t *testing.T) {
 			IsUsageBasedBilling: false,
 		},
 	})
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	// request and verify again
-	re, err = clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		assert.Empty(t, diff)
+
+	}, time.Second*5, time.Millisecond*50)
 }
 
-func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
+func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	handler := env.proxies[0].handler.handler
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			ProductType:                modules.ProductTypeTeam,
-			IdentityGovernanceSecurity: true,
-			AccessList: modules.AccessListFeature{
-				CreateLimit: 5,
-			},
-			AccessMonitoring: modules.AccessMonitoringFeature{
-				MaxReportRangeLimit: 10,
-			},
+			ProductType:         modules.ProductTypeTeam,
 			IsUsageBasedBilling: true,
 			IsStripeManaged:     true,
 			Questionnaire:       true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity:         {Enabled: true},
+				entitlements.AccessLists:      {Enabled: true, Limit: 5},
+				entitlements.AccessMonitoring: {Enabled: true, Limit: 10},
+			},
 		},
 	})
+	// start the feature watcher so the web config gets new features
+	go handler.startFeatureWatcher()
+	<-handler.featureWatcherReady // await until the watcher is ready
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
@@ -4690,27 +4835,56 @@ func TestGetWebConfig_IGSFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:              true,
-		IsIGSEnabled:        true,
-		IsStripeManaged:     true,
-		Questionnaire:       true,
-		IsUsageBasedBilling: true,
+		IsTeam:                    false,
+		IsIGSEnabled:              true,
+		IsStripeManaged:           true,
+		Questionnaire:             true,
+		IsUsageBasedBilling:       true,
+		PlayableDatabaseProtocols: player.SupportedDatabaseProtocols,
+		Entitlements: map[string]webclient.EntitlementInfo{
+			string(entitlements.AccessLists):            {Enabled: true, Limit: 5},
+			string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 10},
+			string(entitlements.AccessRequests):         {Enabled: false},
+			string(entitlements.App):                    {Enabled: false},
+			string(entitlements.CloudAuditLogRetention): {Enabled: false},
+			string(entitlements.DB):                     {Enabled: false},
+			string(entitlements.Desktop):                {Enabled: false},
+			string(entitlements.DeviceTrust):            {Enabled: false},
+			string(entitlements.ExternalAuditStorage):   {Enabled: false},
+			string(entitlements.FeatureHiding):          {Enabled: false},
+			string(entitlements.HSM):                    {Enabled: false},
+			string(entitlements.Identity):               {Enabled: true},
+			string(entitlements.JoinActiveSessions):     {Enabled: false},
+			string(entitlements.K8s):                    {Enabled: false},
+			string(entitlements.MobileDeviceManagement): {Enabled: false},
+			string(entitlements.OIDC):                   {Enabled: false},
+			string(entitlements.OktaSCIM):               {Enabled: false},
+			string(entitlements.OktaUserSync):           {Enabled: false},
+			string(entitlements.Policy):                 {Enabled: false},
+			string(entitlements.SAML):                   {Enabled: false},
+			string(entitlements.SessionLocks):           {Enabled: false},
+			string(entitlements.UpsellAlert):            {Enabled: false},
+			string(entitlements.UsageReporting):         {Enabled: false},
+		},
 	}
 
-	// Make a request.
 	clt := env.proxies[0].newClient(t)
-	endpoint := clt.Endpoint("web", "config.js")
-	re, err := clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Make a request.
+		endpoint := clt.Endpoint("web", "config.js")
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+		// Response is type application/javascript, we need to strip off the variable name
+		// and the semicolon at the end, then we are left with json like object.
+		var cfg webclient.WebConfig
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		assert.Empty(t, diff)
+	}, time.Second*5, time.Millisecond*50)
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {
@@ -4894,7 +5068,7 @@ func TestGetMFADevicesWithAuth(t *testing.T) {
 	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	var devices []ui.MFADevice
+	var devices []webui.MFADevice
 	err = json.Unmarshal(re.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
@@ -4937,7 +5111,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	res, err := clt.Get(ctx, getDevicesEndpoint, url.Values{})
 	require.NoError(t, err)
 
-	var devices []ui.MFADevice
+	var devices []webui.MFADevice
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
 	require.Len(t, devices, 1)
@@ -5777,7 +5951,7 @@ func TestChangeUserAuthentication_WithPrivacyPolicyEnabledError(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	var apiRes ui.ChangedUserAuthn
+	var apiRes webui.ChangedUserAuthn
 	require.NoError(t, json.Unmarshal(httpRes.Bytes(), &apiRes))
 	require.Len(t, apiRes.Recovery.Codes, 3)
 	require.NotEmpty(t, apiRes.Recovery.Created)
@@ -6014,8 +6188,8 @@ func TestClusterDesktopsGet(t *testing.T) {
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
 	type testResponse struct {
-		Items      []ui.Desktop `json:"items"`
-		TotalCount int          `json:"totalCount"`
+		Items      []webui.Desktop `json:"items"`
+		TotalCount int             `json:"totalCount"`
 	}
 
 	// Add a few desktops.
@@ -6046,7 +6220,7 @@ func TestClusterDesktopsGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+	require.ElementsMatch(t, resp.Items, []webui.Desktop{{
 		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop1",
@@ -6183,7 +6357,7 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 
-	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
+	var receivedConnectionDiagnostic webui.ConnectionDiagnostic
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
 
 	require.True(t, receivedConnectionDiagnostic.Success)
@@ -6496,7 +6670,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
 
-			var connectionDiagnostic ui.ConnectionDiagnostic
+			var connectionDiagnostic webui.ConnectionDiagnostic
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 
 			gotFailedTraces := 0
@@ -6566,7 +6740,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 
-	var connectionDiagnostic ui.ConnectionDiagnostic
+	var connectionDiagnostic webui.ConnectionDiagnostic
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 	require.True(t, connectionDiagnostic.Success)
 }
@@ -6985,7 +7159,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
 
-			var connectionDiagnostic ui.ConnectionDiagnostic
+			var connectionDiagnostic webui.ConnectionDiagnostic
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 			gotFailedTraces := 0
 			expectedFailedTraces := 0
@@ -7058,7 +7232,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
 
-	var connectionDiagnostic ui.ConnectionDiagnostic
+	var connectionDiagnostic webui.ConnectionDiagnostic
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
 	require.True(t, connectionDiagnostic.Success)
 }
@@ -7090,7 +7264,7 @@ func TestCreateDatabase(t *testing.T) {
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
 
 	// Create an initial database to table test a duplicate creation
-	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createOrOverwriteDatabaseRequest{
 		Name:     "duplicatedb",
 		Protocol: "mysql",
 		URI:      "someuri:3306",
@@ -7099,13 +7273,13 @@ func TestCreateDatabase(t *testing.T) {
 
 	for _, tt := range []struct {
 		name           string
-		req            createDatabaseRequest
+		req            createOrOverwriteDatabaseRequest
 		expectedStatus int
 		errAssert      require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7121,7 +7295,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "valid with labels",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "dbwithlabels",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7141,7 +7315,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty name",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7153,7 +7327,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty protocol",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "emptyprotocol",
 				Protocol: "",
 				URI:      "someuri:3306",
@@ -7165,7 +7339,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty uri",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "emptyuri",
 				Protocol: "mysql",
 				URI:      "",
@@ -7177,7 +7351,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "missing port",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "missingport",
 				Protocol: "mysql",
 				URI:      "someuri",
@@ -7189,7 +7363,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "duplicatedb",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "duplicatedb",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7228,9 +7402,9 @@ func TestCreateDatabase(t *testing.T) {
 
 		// Check response value:
 		if tt.expectedStatus == http.StatusOK {
-			result := ui.Database{}
+			result := webui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
-			expected := ui.Database{
+			expected := webui.Database{
 				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
@@ -7243,6 +7417,79 @@ func TestCreateDatabase(t *testing.T) {
 			}
 			require.Equal(t, expected, result)
 		}
+	}
+}
+
+func TestOverwriteDatabase(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user", nil /* roles */)
+
+	initDb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+		},
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().CreateDatabase(context.Background(), initDb)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		req            createOrOverwriteDatabaseRequest
+		verifyResponse func(*testing.T, *roundtrip.Response, createOrOverwriteDatabaseRequest, error)
+	}{
+		{
+			name: "overwrite",
+			req: createOrOverwriteDatabaseRequest{
+				Name:      initDb.GetName(),
+				Overwrite: true,
+				URI:       "some-other-uri:3306",
+				Protocol:  "postgres",
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req createOrOverwriteDatabaseRequest, err error) {
+				require.NoError(t, err)
+
+				var gotDb webui.Database
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &gotDb))
+				require.Equal(t, req.URI, gotDb.URI)
+				require.Equal(t, req.Protocol, gotDb.Protocol)
+				require.Empty(t, req.AWSRDS)
+				require.Equal(t, initDb.GetName(), gotDb.Name)
+
+				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
+				require.NoError(t, err)
+				require.Equal(t, webui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+			},
+		},
+		{
+			name: "overwrite error: database does not exist",
+			req: createOrOverwriteDatabaseRequest{
+				Name:      "this-db-does-not-exist",
+				URI:       "some-uri",
+				Protocol:  "mysql",
+				Overwrite: true,
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req createOrOverwriteDatabaseRequest, err error) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+			resp, err := pack.clt.PostJSON(context.Background(), endpoint, test.req)
+
+			test.verifyResponse(t, resp, test.req, err)
+		})
 	}
 }
 
@@ -7271,7 +7518,7 @@ func TestUpdateDatabase_Errors(t *testing.T) {
 
 	// Create database
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
-	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createOrOverwriteDatabaseRequest{
 		Name:     databaseName,
 		Protocol: "mysql",
 		URI:      "someuri:3306",
@@ -7374,7 +7621,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 
 	// Create a database.
 	dbProtocol := "mysql"
-	database, err := getNewDatabaseResource(createDatabaseRequest{
+	database, err := getNewDatabaseResource(createOrOverwriteDatabaseRequest{
 		Name:     databaseName,
 		Protocol: dbProtocol,
 		URI:      "someuri:3306",
@@ -7388,7 +7635,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		req            updateDatabaseRequest
-		expectedFields ui.Database
+		expectedFields webui.Database
 		expectedAWSRDS awsRDS
 	}{
 		{
@@ -7396,7 +7643,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: &fakeValidTLSCert,
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7411,7 +7658,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 			req: updateDatabaseRequest{
 				URI: "something-else:3306",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7434,7 +7681,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				AccountID:  "123123123123",
 				ResourceID: "db-1234",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7442,7 +7689,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{requiredOriginLabel},
 				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
-				AWS: &ui.AWS{
+				AWS: &webui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
 						AccountID: "123123123123",
@@ -7463,7 +7710,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				AccountID:  "123123123123",
 				ResourceID: "db-1234",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7471,7 +7718,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
 				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
-				AWS: &ui.AWS{
+				AWS: &webui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
 						AccountID: "123123123123",
@@ -7496,7 +7743,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				AccountID:  "000000000000",
 				ResourceID: "db-0000",
 			},
-			expectedFields: ui.Database{
+			expectedFields: webui.Database{
 				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -7504,7 +7751,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
 				URI:      "alpaca.cgi8.us-east-1.rds.amazonaws.com:3306",
-				AWS: &ui.AWS{
+				AWS: &webui.AWS{
 					AWS: types.AWS{
 						Region:    "us-east-1",
 						AccountID: "000000000000",
@@ -7521,7 +7768,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
 			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
 			require.NoError(t, err)
-			var dbResp ui.Database
+			var dbResp webui.Database
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &dbResp))
 			require.Equal(t, tt.expectedFields, dbResp)
 
@@ -7542,6 +7789,10 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 
 type authProviderMock struct {
 	server types.ServerV2
+}
+
+func (mock authProviderMock) ListUnifiedResources(ctx context.Context, req *authproto.ListUnifiedResourcesRequest) (*authproto.ListUnifiedResourcesResponse, error) {
+	return nil, nil
 }
 
 func (mock authProviderMock) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
@@ -7588,7 +7839,7 @@ func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time
 	timeoutCh := time.After(timeout)
 
 	var prev string
-	out := make([]byte, int64(len(substr)*2))
+	out := make([]byte, int64(len(substr)*3))
 	for {
 		select {
 		case <-timeoutCh:
@@ -8110,7 +8361,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   client,
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(sessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -8405,22 +8660,6 @@ func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
 	require.NoError(t, waitForOutput(term, "teleport"))
 }
 
-type mockProxySettings struct {
-	mockedGetProxySettings func(ctx context.Context) (*webclient.ProxySettings, error)
-}
-
-func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
-	if mock.mockedGetProxySettings != nil {
-		return mock.mockedGetProxySettings(ctx)
-	}
-	return &webclient.ProxySettings{}, nil
-}
-
-// GetOpenAIAPIKey returns a dummy OpenAI API key.
-func (mock *mockProxySettings) GetOpenAIAPIKey() string {
-	return "test-key"
-}
-
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
 // access request after it has been consumed and the web session has been renewed.
 func TestUserContextWithAccessRequest(t *testing.T) {
@@ -8479,7 +8718,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Process the JSON response of the request.
-	var userContext ui.UserContext
+	var userContext webui.UserContext
 	err = json.Unmarshal(response.Bytes(), &userContext)
 	require.NoError(t, err)
 
@@ -8855,7 +9094,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Clock:         clockwork.NewRealClock(),
 			ClusterFeatures: func() authproto.Features {
 				return authproto.Features{
-					Kubernetes: true,
+					Entitlements: map[string]*authproto.EntitlementInfo{
+						string(entitlements.K8s): {Enabled: true},
+					},
 				}
 			},
 		},
@@ -9141,7 +9382,7 @@ func TestForwardingTraces(t *testing.T) {
 			recorder := httptest.NewRecorder()
 
 			// use the handler directly because there is no easy way to pipe in our tracing
-			// data using the pack client in a format that would match the ui.
+			// data using the pack client in a format that would match the webui.
 			_, err := p.handler.handler.traces(recorder, tt.req(t), nil, nil)
 
 			// if traces weren't uploaded perform the assertion
@@ -9202,7 +9443,7 @@ func TestLogout(t *testing.T) {
 	// ensure the client is authenticated
 	re, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	require.NoError(t, err)
-	var clusters []ui.Cluster
+	var clusters []webui.Cluster
 	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
 	require.Len(t, clusters, 1)
 
@@ -9245,74 +9486,6 @@ func TestLogout(t *testing.T) {
 	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
-}
-
-// TestSAMlSessionClearedOnLogout tests if SAML IdP session is cleared on logout.
-func TestSAMlSessionClearedOnLogout(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 2)
-
-	const user = "llama"
-	const samlSessionID = "saml_session_id"
-
-	// create logged in session
-	pack := env.proxies[0].authPack(t, user, nil /* roles */)
-
-	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
-	// by the SAML IdP and the code to do that is on teleport.e.
-	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
-		SessionID:   samlSessionID,
-		Username:    pack.user,
-		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},
-	})
-	require.NoError(t, err)
-	// add SAML session session cookie to authenticated client pack.
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	setSAMLCookie := &http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    samlSessionID,
-		MaxAge:   int(time.Second) * 5,
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/",
-	}
-	jar.SetCookies(&env.proxies[0].webURL, append(pack.cookies, setSAMLCookie))
-	pack2 := env.proxies[0].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
-
-	samlSession, err := env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, user, samlSession.GetUser())
-	require.Equal(t, samlSessionID, samlSession.GetSAMLSession().ID)
-
-	// logout from web. The saml session needs to be deleted and the proxy should
-	// respond with SAML session cookie with empty value.
-	resp, err := pack2.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
-	require.NoError(t, err)
-	require.True(t, hasEmptySAMLSessionCookieValue(resp.Cookies()))
-	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.ErrorContains(t, err, `key "/saml_idp/sessions/saml_session_id" is not found`)
-}
-
-func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
-	samlCookieString := (&http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-	}).String()
-	for _, cookie := range cookies {
-		if cookie.String() == samlCookieString {
-			return true
-		}
-	}
-	return false
 }
 
 // initGRPCServer creates a gRPC server serving on the provided listener.
@@ -9385,35 +9558,59 @@ type fakeKubeService struct {
 }
 
 func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
-	return &kubeproto.ListKubernetesResourcesResponse{
-		Resources: []*types.KubernetesResourceV1{
-			{
-				Kind: types.KindKubePod,
-				Metadata: types.Metadata{
-					Name: "test-pod",
-					Labels: map[string]string{
-						"app": "test",
+	switch req.GetResourceType() {
+	case types.KindKubePod:
+		{
+			return &kubeproto.ListKubernetesResourcesResponse{
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: types.KindKubePod,
+						Metadata: types.Metadata{
+							Name: "test-pod",
+							Labels: map[string]string{
+								"app": "test",
+							},
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "default",
+						},
+					},
+					{
+						Kind: types.KindKubePod,
+						Metadata: types.Metadata{
+							Name: "test-pod2",
+							Labels: map[string]string{
+								"app": "test2",
+							},
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "default",
+						},
 					},
 				},
-				Spec: types.KubernetesResourceSpecV1{
-					Namespace: "default",
-				},
-			},
-			{
-				Kind: types.KindKubePod,
-				Metadata: types.Metadata{
-					Name: "test-pod2",
-					Labels: map[string]string{
-						"app": "test2",
+				TotalCount: 2,
+			}, nil
+		}
+	case types.KindKubeNamespace:
+		{
+			return &kubeproto.ListKubernetesResourcesResponse{
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: types.KindNamespace,
+						Metadata: types.Metadata{
+							Name: "default",
+							Labels: map[string]string{
+								"app": "test",
+							},
+						},
 					},
 				},
-				Spec: types.KubernetesResourceSpecV1{
-					Namespace: "default",
-				},
-			},
-		},
-		TotalCount: 2,
-	}, nil
+				TotalCount: 1,
+			}, nil
+		}
+	default:
+		return nil, trace.BadParameter("kubernetes resource kind %q is not mocked", req.GetResourceType())
+	}
 }
 
 func TestWebSocketAuthenticateRequest(t *testing.T) {
@@ -9604,7 +9801,7 @@ func TestGetKubeExecClusterData(t *testing.T) {
 // create multiple SessionContext for a user+session. Since only one SessionContext
 // is stored in the sessionCache all previous SessionContext and their underlying
 // auth client get closed, which results in an ugly and unfriendly
-// `grpc: the client connection is closing` error banner on the web UI.
+// `grpc: the client connection is closing` error banner on the web webui.
 func TestSimultaneousAuthenticateRequest(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
@@ -9732,7 +9929,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."), "waiting for peer to enter session")
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to enter session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            s.authPack(t, "bar", moderatorRole.GetName()),
@@ -9850,7 +10047,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."), "waiting for peer to start session")
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to start session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            moderator,
@@ -10064,11 +10261,11 @@ func TestGithubConnector(t *testing.T) {
 	})
 	require.NoError(t, err, "creating initial connector resource")
 
-	createPayload := func(connector types.GithubConnector) ui.ResourceItem {
+	createPayload := func(connector types.GithubConnector) webui.ResourceItem {
 		raw, err := services.MarshalGithubConnector(connector, services.PreserveRevision())
 		require.NoError(t, err, "marshaling connector")
 
-		return ui.ResourceItem{
+		return webui.ResourceItem{
 			Kind:    types.KindGithubConnector,
 			Name:    connector.GetName(),
 			Content: string(raw),
@@ -10076,7 +10273,7 @@ func TestGithubConnector(t *testing.T) {
 	}
 
 	unmarshalResponse := func(resp []byte) types.GithubConnector {
-		var item ui.ResourceItem
+		var item webui.ResourceItem
 		require.NoError(t, json.Unmarshal(resp, &item), "response from server contained an invalid resource item")
 
 		var conn types.GithubConnectorV3
@@ -10138,7 +10335,7 @@ func TestGithubConnector(t *testing.T) {
 	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "github"), nil)
 	assert.NoError(t, err, "unexpected error listing github connectors")
 
-	var item []ui.ResourceItem
+	var item []webui.ResourceItem
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &item), "invalid resource item received")
 
 	assert.Empty(t, item)
@@ -10389,4 +10586,491 @@ func TestUnstartedServerShutdown(t *testing.T) {
 
 	// Shutdown the server before starting it shouldn't panic.
 	require.NoError(t, srv.Shutdown(context.Background()))
+}
+
+func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
+	tests := []struct {
+		name            string
+		config          *webclient.WebConfig
+		clusterFeatures authproto.Features
+		expected        *webclient.WebConfig
+	}{
+		{
+			name:   "sets entitlements",
+			config: &webclient.WebConfig{},
+			clusterFeatures: authproto.Features{
+				AccessControls: false,
+				AccessGraph:    false,
+				AccessList: &clientproto.AccessListFeature{
+					CreateLimit: 10,
+				},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+					Enabled:             false,
+					MaxReportRangeLimit: 20,
+				},
+				AccessMonitoringConfigured: false,
+				AccessRequests: &clientproto.AccessRequestsFeature{
+					MonthlyRequestLimit: 30,
+				},
+				AdvancedAccessWorkflows: false,
+				App:                     false,
+				Assist:                  false,
+				AutomaticUpgrades:       false,
+				Cloud:                   false,
+				CustomTheme:             "theme",
+				DB:                      false,
+				Desktop:                 false,
+				DeviceTrust: &clientproto.DeviceTrustFeature{
+					Enabled:           false,
+					DevicesUsageLimit: 40,
+				},
+				ExternalAuditStorage:   false,
+				FeatureHiding:          false,
+				HSM:                    false,
+				IdentityGovernance:     false,
+				IsStripeManaged:        false,
+				IsUsageBased:           false,
+				JoinActiveSessions:     false,
+				Kubernetes:             false,
+				MobileDeviceManagement: false,
+				OIDC:                   false,
+				Plugins:                false,
+				Policy:                 nil,
+				ProductType:            0,
+				Questionnaire:          false,
+				RecoveryCodes:          false,
+				SAML:                   false,
+				SupportType:            0,
+				// since present, becomes source of truth  for feature enablement
+				Entitlements: map[string]*authproto.EntitlementInfo{
+					string(entitlements.AccessLists):            {Enabled: true, Limit: 99},
+					string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 99},
+					string(entitlements.AccessRequests):         {Enabled: true, Limit: 99},
+					string(entitlements.App):                    {Enabled: true, Limit: 99},
+					string(entitlements.CloudAuditLogRetention): {Enabled: true, Limit: 99},
+					string(entitlements.DB):                     {Enabled: true, Limit: 99},
+					string(entitlements.Desktop):                {Enabled: true, Limit: 99},
+					string(entitlements.DeviceTrust):            {Enabled: true, Limit: 99},
+					string(entitlements.ExternalAuditStorage):   {Enabled: true, Limit: 99},
+					string(entitlements.FeatureHiding):          {Enabled: true, Limit: 99},
+					string(entitlements.HSM):                    {Enabled: true, Limit: 99},
+					string(entitlements.Identity):               {Enabled: true, Limit: 99},
+					string(entitlements.JoinActiveSessions):     {Enabled: true, Limit: 99},
+					string(entitlements.K8s):                    {Enabled: true, Limit: 99},
+					string(entitlements.MobileDeviceManagement): {Enabled: true, Limit: 99},
+					string(entitlements.OIDC):                   {Enabled: true, Limit: 99},
+					string(entitlements.OktaSCIM):               {Enabled: true, Limit: 99},
+					string(entitlements.OktaUserSync):           {Enabled: true, Limit: 99},
+					string(entitlements.Policy):                 {Enabled: true, Limit: 99},
+					string(entitlements.SAML):                   {Enabled: true, Limit: 99},
+					string(entitlements.SessionLocks):           {Enabled: true, Limit: 99},
+					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
+					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
+				},
+			},
+			expected: &webclient.WebConfig{
+				Auth:                           webclient.WebConfigAuthSettings{},
+				AutomaticUpgrades:              false,
+				AutomaticUpgradesTargetVersion: "",
+				CanJoinSessions:                false,
+				CustomTheme:                    "",
+				Edition:                        "",
+				IsCloud:                        false,
+				IsDashboard:                    false,
+				IsStripeManaged:                false,
+				IsTeam:                         false,
+				IsUsageBasedBilling:            false,
+				PlayableDatabaseProtocols:      nil,
+				PremiumSupport:                 false,
+				ProxyClusterName:               "",
+				Questionnaire:                  false,
+				RecoveryCodesEnabled:           false,
+				TunnelPublicAddress:            "",
+				UI:                             webclient.UIConfig{},
+				// set by the equivalent entitlement value
+				AccessRequests:           true,
+				ExternalAuditStorage:     true,
+				HideInaccessibleFeatures: true,
+				IsIGSEnabled:             true,
+				IsPolicyEnabled:          true,
+				JoinActiveSessions:       true,
+				MobileDeviceManagement:   true,
+				OIDC:                     true,
+				SAML:                     true,
+				TrustedDevices:           true,
+				FeatureLimits: webclient.FeatureLimits{
+					AccessListCreateLimit:               99,
+					AccessMonitoringMaxReportRangeLimit: 99,
+					AccessRequestMonthlyRequestLimit:    99,
+				},
+				Entitlements: map[string]webclient.EntitlementInfo{
+					string(entitlements.AccessLists):            {Enabled: true, Limit: 99},
+					string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 99},
+					string(entitlements.AccessRequests):         {Enabled: true, Limit: 99},
+					string(entitlements.App):                    {Enabled: true, Limit: 99},
+					string(entitlements.CloudAuditLogRetention): {Enabled: true, Limit: 99},
+					string(entitlements.DB):                     {Enabled: true, Limit: 99},
+					string(entitlements.Desktop):                {Enabled: true, Limit: 99},
+					string(entitlements.DeviceTrust):            {Enabled: true, Limit: 99},
+					string(entitlements.ExternalAuditStorage):   {Enabled: true, Limit: 99},
+					string(entitlements.FeatureHiding):          {Enabled: true, Limit: 99},
+					string(entitlements.HSM):                    {Enabled: true, Limit: 99},
+					string(entitlements.Identity):               {Enabled: true, Limit: 99},
+					string(entitlements.JoinActiveSessions):     {Enabled: true, Limit: 99},
+					string(entitlements.K8s):                    {Enabled: true, Limit: 99},
+					string(entitlements.MobileDeviceManagement): {Enabled: true, Limit: 99},
+					string(entitlements.OIDC):                   {Enabled: true, Limit: 99},
+					string(entitlements.OktaSCIM):               {Enabled: true, Limit: 99},
+					string(entitlements.OktaUserSync):           {Enabled: true, Limit: 99},
+					string(entitlements.Policy):                 {Enabled: true, Limit: 99},
+					string(entitlements.SAML):                   {Enabled: true, Limit: 99},
+					string(entitlements.SessionLocks):           {Enabled: true, Limit: 99},
+					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
+					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
+				},
+			},
+		},
+		{
+			name:   "sets legacy features when no entitlements are present (Identity true)",
+			config: &webclient.WebConfig{},
+			clusterFeatures: authproto.Features{
+				AccessControls:             false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+				AdvancedAccessWorkflows:    false,
+				App:                        false,
+				Assist:                     false,
+				AutomaticUpgrades:          false,
+				Cloud:                      false,
+				CustomTheme:                "",
+				DB:                         false,
+				Desktop:                    false,
+				HSM:                        false,
+				IsStripeManaged:            false,
+				IsUsageBased:               false,
+				Kubernetes:                 false,
+				Plugins:                    false,
+				ProductType:                0,
+				Questionnaire:              false,
+				RecoveryCodes:              false,
+				SupportType:                0,
+				// not present
+				Entitlements: nil,
+				// will set equivalent entitlement values
+				ExternalAuditStorage:   true,
+				FeatureHiding:          true,
+				IdentityGovernance:     true,
+				JoinActiveSessions:     true,
+				MobileDeviceManagement: true,
+				OIDC:                   true,
+				SAML:                   true,
+				AccessRequests: &clientproto.AccessRequestsFeature{
+					MonthlyRequestLimit: 88,
+				},
+				AccessList: &clientproto.AccessListFeature{
+					CreateLimit: 88,
+				},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+					Enabled:             true,
+					MaxReportRangeLimit: 88,
+				},
+				DeviceTrust: &clientproto.DeviceTrustFeature{
+					Enabled:           true,
+					DevicesUsageLimit: 88,
+				},
+				Policy: &clientproto.PolicyFeature{
+					Enabled: true,
+				},
+			},
+			expected: &webclient.WebConfig{
+				Auth:                           webclient.WebConfigAuthSettings{},
+				AutomaticUpgrades:              false,
+				AutomaticUpgradesTargetVersion: "",
+				CanJoinSessions:                false,
+				CustomTheme:                    "",
+				Edition:                        "",
+				IsCloud:                        false,
+				IsDashboard:                    false,
+				IsStripeManaged:                false,
+				IsTeam:                         false,
+				IsUsageBasedBilling:            false,
+				PlayableDatabaseProtocols:      nil,
+				PremiumSupport:                 false,
+				ProxyClusterName:               "",
+				Questionnaire:                  false,
+				RecoveryCodesEnabled:           false,
+				TunnelPublicAddress:            "",
+				UI:                             webclient.UIConfig{},
+				// set to legacy feature
+				AccessRequests:           true,
+				ExternalAuditStorage:     true,
+				HideInaccessibleFeatures: true,
+				IsIGSEnabled:             true,
+				IsPolicyEnabled:          true,
+				JoinActiveSessions:       true,
+				MobileDeviceManagement:   true,
+				OIDC:                     true,
+				SAML:                     true,
+				TrustedDevices:           true,
+				FeatureLimits: webclient.FeatureLimits{
+					AccessListCreateLimit:               88,
+					AccessMonitoringMaxReportRangeLimit: 88,
+					AccessRequestMonthlyRequestLimit:    88,
+				},
+				Entitlements: map[string]webclient.EntitlementInfo{
+					// no equivalent legacy feature; defaults to false
+					string(entitlements.App):                    {Enabled: false},
+					string(entitlements.CloudAuditLogRetention): {Enabled: false},
+					string(entitlements.DB):                     {Enabled: false},
+					string(entitlements.Desktop):                {Enabled: false},
+					string(entitlements.HSM):                    {Enabled: false},
+					string(entitlements.K8s):                    {Enabled: false},
+					string(entitlements.UpsellAlert):            {Enabled: false},
+					string(entitlements.UsageReporting):         {Enabled: false},
+
+					// set to equivalent legacy feature
+					string(entitlements.ExternalAuditStorage):   {Enabled: true},
+					string(entitlements.FeatureHiding):          {Enabled: true},
+					string(entitlements.Identity):               {Enabled: true},
+					string(entitlements.JoinActiveSessions):     {Enabled: true},
+					string(entitlements.MobileDeviceManagement): {Enabled: true},
+					string(entitlements.OIDC):                   {Enabled: true},
+					string(entitlements.Policy):                 {Enabled: true},
+					string(entitlements.SAML):                   {Enabled: true},
+					// set to legacy feature "IsIGSEnabled"; true so set true and clear limits
+					string(entitlements.AccessLists):      {Enabled: true},
+					string(entitlements.AccessMonitoring): {Enabled: true},
+					string(entitlements.AccessRequests):   {Enabled: true},
+					string(entitlements.DeviceTrust):      {Enabled: true},
+					string(entitlements.OktaSCIM):         {Enabled: true},
+					string(entitlements.OktaUserSync):     {Enabled: true},
+					string(entitlements.SessionLocks):     {Enabled: true},
+				},
+			},
+		},
+		{
+			name:   "sets legacy features when no entitlements are present (Identity false)",
+			config: &webclient.WebConfig{},
+			clusterFeatures: authproto.Features{
+				AccessControls:             false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+				AdvancedAccessWorkflows:    false,
+				App:                        false,
+				Assist:                     false,
+				AutomaticUpgrades:          false,
+				Cloud:                      false,
+				CustomTheme:                "",
+				DB:                         false,
+				Desktop:                    false,
+				HSM:                        false,
+				IsStripeManaged:            false,
+				IsUsageBased:               false,
+				Kubernetes:                 false,
+				Plugins:                    false,
+				ProductType:                0,
+				Questionnaire:              false,
+				RecoveryCodes:              false,
+				SupportType:                0,
+				// not present
+				Entitlements: nil,
+				// will set equivalent entitlement values
+				ExternalAuditStorage:   true,
+				FeatureHiding:          true,
+				IdentityGovernance:     false,
+				JoinActiveSessions:     true,
+				MobileDeviceManagement: true,
+				OIDC:                   true,
+				SAML:                   true,
+				AccessRequests: &clientproto.AccessRequestsFeature{
+					MonthlyRequestLimit: 88,
+				},
+				AccessList: &clientproto.AccessListFeature{
+					CreateLimit: 88,
+				},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+					Enabled:             true,
+					MaxReportRangeLimit: 88,
+				},
+				DeviceTrust: &clientproto.DeviceTrustFeature{
+					Enabled:           true,
+					DevicesUsageLimit: 88,
+				},
+				Policy: &clientproto.PolicyFeature{
+					Enabled: true,
+				},
+			},
+			expected: &webclient.WebConfig{
+				Auth:                           webclient.WebConfigAuthSettings{},
+				AutomaticUpgrades:              false,
+				AutomaticUpgradesTargetVersion: "",
+				CanJoinSessions:                false,
+				CustomTheme:                    "",
+				Edition:                        "",
+				IsCloud:                        false,
+				IsDashboard:                    false,
+				IsStripeManaged:                false,
+				IsTeam:                         false,
+				IsUsageBasedBilling:            false,
+				PlayableDatabaseProtocols:      nil,
+				PremiumSupport:                 false,
+				ProxyClusterName:               "",
+				Questionnaire:                  false,
+				RecoveryCodesEnabled:           false,
+				TunnelPublicAddress:            "",
+				UI:                             webclient.UIConfig{},
+				// set to legacy feature
+				AccessRequests:           true,
+				ExternalAuditStorage:     true,
+				HideInaccessibleFeatures: true,
+				IsIGSEnabled:             false,
+				IsPolicyEnabled:          true,
+				JoinActiveSessions:       true,
+				MobileDeviceManagement:   true,
+				OIDC:                     true,
+				SAML:                     true,
+				TrustedDevices:           true,
+				FeatureLimits: webclient.FeatureLimits{
+					AccessListCreateLimit:               88,
+					AccessMonitoringMaxReportRangeLimit: 88,
+					AccessRequestMonthlyRequestLimit:    88,
+				},
+				Entitlements: map[string]webclient.EntitlementInfo{
+					// no equivalent legacy feature; defaults to false
+					string(entitlements.App):                    {Enabled: false},
+					string(entitlements.CloudAuditLogRetention): {Enabled: false},
+					string(entitlements.DB):                     {Enabled: false},
+					string(entitlements.Desktop):                {Enabled: false},
+					string(entitlements.HSM):                    {Enabled: false},
+					string(entitlements.K8s):                    {Enabled: false},
+					string(entitlements.UpsellAlert):            {Enabled: false},
+					string(entitlements.UsageReporting):         {Enabled: false},
+
+					// set to equivalent legacy feature
+					string(entitlements.ExternalAuditStorage):   {Enabled: true},
+					string(entitlements.FeatureHiding):          {Enabled: true},
+					string(entitlements.Identity):               {Enabled: false},
+					string(entitlements.JoinActiveSessions):     {Enabled: true},
+					string(entitlements.MobileDeviceManagement): {Enabled: true},
+					string(entitlements.OIDC):                   {Enabled: true},
+					string(entitlements.Policy):                 {Enabled: true},
+					string(entitlements.SAML):                   {Enabled: true},
+					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
+					string(entitlements.AccessLists):      {Enabled: true, Limit: 88},
+					string(entitlements.AccessMonitoring): {Enabled: true, Limit: 88},
+					string(entitlements.AccessRequests):   {Enabled: true, Limit: 88},
+					string(entitlements.DeviceTrust):      {Enabled: true, Limit: 88},
+					string(entitlements.OktaSCIM):         {Enabled: false},
+					string(entitlements.OktaUserSync):     {Enabled: false},
+					string(entitlements.SessionLocks):     {Enabled: false},
+				},
+			},
+		},
+		{
+			name: "retains non-feature field values",
+			config: &webclient.WebConfig{
+				Auth: webclient.WebConfigAuthSettings{
+					LocalAuthEnabled:  true,
+					AllowPasswordless: true,
+					MOTD:              "some-message",
+				},
+				PlayableDatabaseProtocols: []string{"play-able"},
+				UI: webclient.UIConfig{
+					ScrollbackLines: 10,
+					ShowResources:   "foo",
+				},
+				Edition:                        "edition",
+				TunnelPublicAddress:            "0000",
+				AutomaticUpgradesTargetVersion: "99",
+				CustomTheme:                    "theme",
+				CanJoinSessions:                true,
+				IsCloud:                        true,
+				RecoveryCodesEnabled:           true,
+				IsDashboard:                    true,
+				IsUsageBasedBilling:            true,
+				AutomaticUpgrades:              true,
+				Questionnaire:                  true,
+				IsStripeManaged:                true,
+				PremiumSupport:                 true,
+			},
+			clusterFeatures: authproto.Features{
+				DeviceTrust:      &clientproto.DeviceTrustFeature{},
+				AccessRequests:   &clientproto.AccessRequestsFeature{},
+				AccessList:       &clientproto.AccessListFeature{},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{},
+				Policy:           &clientproto.PolicyFeature{},
+			},
+			expected: &webclient.WebConfig{
+				Auth: webclient.WebConfigAuthSettings{
+					LocalAuthEnabled:  true,
+					AllowPasswordless: true,
+					MOTD:              "some-message",
+				},
+				PlayableDatabaseProtocols: []string{"play-able"},
+				UI: webclient.UIConfig{
+					ScrollbackLines: 10,
+					ShowResources:   "foo",
+				},
+				Edition:                        "edition",
+				TunnelPublicAddress:            "0000",
+				AutomaticUpgradesTargetVersion: "99",
+				CustomTheme:                    "theme",
+				CanJoinSessions:                true,
+				IsCloud:                        true,
+				RecoveryCodesEnabled:           true,
+				IsDashboard:                    true,
+				IsUsageBasedBilling:            true,
+				AutomaticUpgrades:              true,
+				Questionnaire:                  true,
+				IsStripeManaged:                true,
+				PremiumSupport:                 true,
+				// Default; not under test
+				ProxyClusterName:         "",
+				FeatureLimits:            webclient.FeatureLimits{},
+				IsTeam:                   false,
+				HideInaccessibleFeatures: false,
+				IsIGSEnabled:             false,
+				IsPolicyEnabled:          false,
+				ExternalAuditStorage:     false,
+				JoinActiveSessions:       false,
+				AccessRequests:           false,
+				TrustedDevices:           false,
+				OIDC:                     false,
+				SAML:                     false,
+				MobileDeviceManagement:   false,
+				Entitlements: map[string]webclient.EntitlementInfo{
+					string(entitlements.AccessLists):            {Enabled: true}, // AccessLists had no previous behavior from an enablement perspective; so we default to true
+					string(entitlements.AccessMonitoring):       {Enabled: false},
+					string(entitlements.AccessRequests):         {Enabled: false},
+					string(entitlements.App):                    {Enabled: false},
+					string(entitlements.CloudAuditLogRetention): {Enabled: false},
+					string(entitlements.DB):                     {Enabled: false},
+					string(entitlements.Desktop):                {Enabled: false},
+					string(entitlements.DeviceTrust):            {Enabled: false},
+					string(entitlements.ExternalAuditStorage):   {Enabled: false},
+					string(entitlements.FeatureHiding):          {Enabled: false},
+					string(entitlements.HSM):                    {Enabled: false},
+					string(entitlements.Identity):               {Enabled: false},
+					string(entitlements.JoinActiveSessions):     {Enabled: false},
+					string(entitlements.K8s):                    {Enabled: false},
+					string(entitlements.MobileDeviceManagement): {Enabled: false},
+					string(entitlements.OIDC):                   {Enabled: false},
+					string(entitlements.OktaSCIM):               {Enabled: false},
+					string(entitlements.OktaUserSync):           {Enabled: false},
+					string(entitlements.Policy):                 {Enabled: false},
+					string(entitlements.SAML):                   {Enabled: false},
+					string(entitlements.SessionLocks):           {Enabled: false},
+					string(entitlements.UpsellAlert):            {Enabled: false},
+					string(entitlements.UsageReporting):         {Enabled: false},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setEntitlementsWithLegacyLogic(tt.config, tt.clusterFeatures)
+
+			assert.Equal(t, tt.expected, tt.config)
+		})
+	}
 }

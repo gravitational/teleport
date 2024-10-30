@@ -24,12 +24,10 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/signal"
 	"runtime"
 	"runtime/pprof"
 	runtimetrace "runtime/trace"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -195,6 +193,8 @@ func Run(args []string, stdout io.Writer) error {
 	tpmCommand := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCommand := tpmCommand.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
+	installSystemdCmdStr, installSystemdCmdFn := setupInstallSystemdCmd(app)
+
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -315,6 +315,8 @@ func Run(args []string, stdout io.Writer) error {
 		return onSSHProxyCommand(ctx, &cf)
 	case sshMultiplexProxyCmd.FullCommand():
 		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
+	case installSystemdCmdStr:
+		return installSystemdCmdFn(ctx, log, cf.ConfigPath, os.Executable, os.Stdout)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
@@ -523,33 +525,6 @@ func onStart(ctx context.Context, botConfig *config.BotConfig) error {
 
 	b := tbot.New(botConfig, log)
 	return trace.Wrap(b.Run(ctx))
-}
-
-// handleSignals handles incoming Unix signals.
-func handleSignals(
-	ctx context.Context,
-	log *slog.Logger,
-	cancel context.CancelFunc,
-	reloadCh chan<- struct{},
-) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
-
-	for sig := range signals {
-		switch sig {
-		case syscall.SIGINT:
-			log.InfoContext(ctx, "Received interrupt, triggering shutdown")
-			cancel()
-			return
-		case syscall.SIGHUP, syscall.SIGUSR1:
-			log.InfoContext(ctx, "Received reload signal, queueing reload")
-			select {
-			case reloadCh <- struct{}{}:
-			default:
-				log.WarnContext(ctx, "Unable to queue reload, reload already queued")
-			}
-		}
-	}
 }
 
 func setupLogger(debug bool, format string) error {

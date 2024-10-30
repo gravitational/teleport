@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { space } from 'design/system';
+import { space, SpaceProps } from 'design/system';
 import { ButtonBorder, Flex, Text, Box } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
 import { ChevronDown } from 'design/Icon';
@@ -200,7 +200,7 @@ const StyledMenuItem = styled(MenuItem)(
 `
 );
 
-const StyledInput = styled.input(
+const StyledInput = styled.input<SpaceProps>(
   ({ theme }) => `
   background: transparent;
   border: 1px solid ${theme.colors.text.muted};

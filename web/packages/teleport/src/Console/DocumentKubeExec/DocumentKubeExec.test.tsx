@@ -159,6 +159,5 @@ const baseSession: Session = {
   addr: '',
   participantModes: [],
   moderated: false,
-  isInteractive: true,
   command: '/bin/bash',
 };

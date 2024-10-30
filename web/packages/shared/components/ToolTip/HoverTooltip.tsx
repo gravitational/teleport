@@ -19,6 +19,7 @@
 import React, { PropsWithChildren, useState } from 'react';
 import styled from 'styled-components';
 import { Popover, Flex, Text } from 'design';
+import { JustifyContentProps, FlexBasisProps } from 'design/system';
 
 type OriginProps = {
   vertical: string;
@@ -32,6 +33,8 @@ export const HoverTooltip: React.FC<
     className?: string;
     anchorOrigin?: OriginProps;
     transformOrigin?: OriginProps;
+    justifyContentProps?: JustifyContentProps;
+    flexBasisProps?: FlexBasisProps;
   }>
 > = ({
   tipContent,
@@ -40,6 +43,8 @@ export const HoverTooltip: React.FC<
   className,
   anchorOrigin = { vertical: 'top', horizontal: 'center' },
   transformOrigin = { vertical: 'bottom', horizontal: 'center' },
+  justifyContentProps = {},
+  flexBasisProps = {},
 }) => {
   const [anchorEl, setAnchorEl] = useState<Element | undefined>();
   const open = Boolean(anchorEl);
@@ -77,6 +82,8 @@ export const HoverTooltip: React.FC<
       onMouseEnter={handlePopoverOpen}
       onMouseLeave={handlePopoverClose}
       className={className}
+      {...justifyContentProps}
+      {...flexBasisProps}
     >
       {children}
       <Popover

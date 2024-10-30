@@ -45,16 +45,28 @@ type UnmarshalFunc[T any] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.
 type ServiceConfig[T Resource] struct {
-	Backend       backend.Backend
-	ResourceKind  string
-	PageLimit     uint
+	// Backend used to persist the resource.
+	Backend backend.Backend
+	// ResourceKind is the friendly name of the resource.
+	ResourceKind string
+	// PageLimit
+	PageLimit uint
+	// BackendPrefix used when constructing the [backend.Item.Key].
 	BackendPrefix string
-	MarshalFunc   MarshalFunc[T]
+	// MarshlFunc converts the resource to bytes for persistence.
+	MarshalFunc MarshalFunc[T]
+	// UnmarshalFunc converts the bytes read from the backend to the resource.
 	UnmarshalFunc UnmarshalFunc[T]
+	// ValidateFunc optionally validates the resource prior to persisting it. Any errors
+	// returned from the validation function will prevent writes to the backend.
+	ValidateFunc func(T) error
 	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
 	// If set to 0, the default interval of 250ms will be used.
 	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
 	RunWhileLockedRetryInterval time.Duration
+	// KeyFunc optionally allows resource to have a custom key. If not provided the
+	// name of the resource will be used.
+	KeyFunc func(T) string
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -79,6 +91,14 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 		return trace.BadParameter("unmarshal func is missing")
 	}
 
+	if c.ValidateFunc == nil {
+		c.ValidateFunc = func(t T) error { return nil }
+	}
+
+	if c.KeyFunc == nil {
+		c.KeyFunc = func(t T) string { return t.GetName() }
+	}
+
 	return nil
 }
 
@@ -90,7 +110,9 @@ type Service[T Resource] struct {
 	backendPrefix               string
 	marshalFunc                 MarshalFunc[T]
 	unmarshalFunc               UnmarshalFunc[T]
+	validateFunc                func(T) error
 	runWhileLockedRetryInterval time.Duration
+	keyFunc                     func(T) string
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -107,7 +129,9 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 		backendPrefix:               cfg.BackendPrefix,
 		marshalFunc:                 cfg.MarshalFunc,
 		unmarshalFunc:               cfg.UnmarshalFunc,
+		validateFunc:                cfg.ValidateFunc,
 		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		keyFunc:                     cfg.KeyFunc,
 	}, nil
 }
 
@@ -118,12 +142,15 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 	}
 
 	return &Service[T]{
-		backend:       s.backend,
-		resourceKind:  s.resourceKind,
-		pageLimit:     s.pageLimit,
-		backendPrefix: strings.Join(append([]string{s.backendPrefix}, parts...), string(backend.Separator)),
-		marshalFunc:   s.marshalFunc,
-		unmarshalFunc: s.unmarshalFunc,
+		backend:                     s.backend,
+		resourceKind:                s.resourceKind,
+		pageLimit:                   s.pageLimit,
+		backendPrefix:               strings.Join(append([]string{s.backendPrefix}, parts...), string(backend.Separator)),
+		marshalFunc:                 s.marshalFunc,
+		unmarshalFunc:               s.unmarshalFunc,
+		validateFunc:                s.validateFunc,
+		runWhileLockedRetryInterval: s.runWhileLockedRetryInterval,
+		keyFunc:                     s.keyFunc,
 	}
 }
 
@@ -167,18 +194,18 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 
 // ListResources returns a paginated list of resources.
 func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
-	resources, next, err := s.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
-	var nextKey string
-	if next != nil {
-		nextKey = backend.GetPaginationKey(*next)
-	}
+	resources, _, nextKey, err := s.listResourcesReturnNextResourceWithKey(ctx, pageSize, pageToken)
 	return resources, nextKey, trace.Wrap(err)
 }
 
 // ListResourcesReturnNextResource returns a paginated list of resources. The next resource is returned, which allows consumers to construct
 // the next pagination key as appropriate.
 func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSize int, pageToken string) ([]T, *T, error) {
-	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	resources, next, _, err := s.listResourcesReturnNextResourceWithKey(ctx, pageSize, pageToken)
+	return resources, next, trace.Wrap(err)
+}
+func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context, pageSize int, pageToken string) ([]T, *T, string, error) {
+	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -191,31 +218,37 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	// no filter provided get the range directly
 	result, err := s.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 
 	out := make([]T, 0, len(result.Items))
+	var lastKey backend.Key
 	for _, item := range result.Items {
 		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, "", trace.Wrap(err)
 		}
 		out = append(out, resource)
+		lastKey = item.Key
 	}
 
-	var next *T
+	var (
+		next    *T
+		nextKey string
+	)
 	if len(out) > pageSize {
 		next = &out[pageSize]
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
+		nextKey = trimLastKey(lastKey.String(), s.backendPrefix)
 	}
 
-	return out, next, nil
+	return out, next, nextKey, nil
 }
 
 // ListResourcesWithFilter returns a paginated list of resources that match the given filter.
 func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
-	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -223,15 +256,14 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		pageSize = int(s.pageLimit)
 	}
 
-	limit := pageSize + 1
-
 	var resources []T
+	var lastKey backend.Key
 	if err := backend.IterateRange(
 		ctx,
 		s.backend,
 		rangeStart,
 		rangeEnd,
-		limit,
+		pageSize+1,
 		func(items []backend.Item) (stop bool, err error) {
 			for _, item := range items {
 				resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision), services.WithRevision(item.Revision))
@@ -239,20 +271,21 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 					return false, trace.Wrap(err)
 				}
 				if matcher(resource) {
+					lastKey = item.Key
 					resources = append(resources, resource)
-				}
-				if len(resources) == pageSize {
-					break
+					if len(resources) >= pageSize+1 {
+						return true, nil
+					}
 				}
 			}
-			return limit == len(resources), nil
+			return false, nil
 		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	var nextKey string
 	if len(resources) > pageSize {
-		nextKey = backend.GetPaginationKey(resources[pageSize])
+		nextKey = trimLastKey(lastKey.String(), s.backendPrefix)
 		// Truncate the last item that was used to determine next row existence.
 		resources = resources[:pageSize]
 	}
@@ -278,7 +311,11 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 // CreateResource creates a new resource.
 func (s *Service[T]) CreateResource(ctx context.Context, resource T) (T, error) {
 	var t T
-	item, err := s.MakeBackendItem(resource, resource.GetName())
+	if err := s.validateFunc(resource); err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	item, err := s.MakeBackendItem(resource, s.keyFunc(resource))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -298,7 +335,12 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T) (T, error) 
 // UpdateResource updates an existing resource.
 func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
 	var t T
-	item, err := s.MakeBackendItem(resource, resource.GetName())
+
+	if err := s.validateFunc(resource); err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	item, err := s.MakeBackendItem(resource, s.keyFunc(resource))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -318,7 +360,12 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T) (T, error) 
 // ConditionalUpdateResource updates an existing resource if revision matches.
 func (s *Service[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
 	var t T
-	item, err := s.MakeBackendItem(resource, resource.GetName())
+
+	if err := s.validateFunc(resource); err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	item, err := s.MakeBackendItem(resource, s.keyFunc(resource))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -338,7 +385,12 @@ func (s *Service[T]) ConditionalUpdateResource(ctx context.Context, resource T) 
 // UpsertResource upserts a resource.
 func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	var t T
-	item, err := s.MakeBackendItem(resource, resource.GetName())
+
+	if err := s.validateFunc(resource); err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	item, err := s.MakeBackendItem(resource, s.keyFunc(resource))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -387,8 +439,11 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 		return t, trace.Wrap(err)
 	}
 
-	err = modify(resource)
-	if err != nil {
+	if err := modify(resource); err != nil {
+		return t, trace.Wrap(err)
+	}
+
+	if err := s.validateFunc(resource); err != nil {
 		return t, trace.Wrap(err)
 	}
 
@@ -436,21 +491,31 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 }
 
 // MakeKey will make a key for the service given a name.
-func (s *Service[T]) MakeKey(name string) []byte {
-	return backend.Key(s.backendPrefix, name)
+func (s *Service[T]) MakeKey(name string) backend.Key {
+	return backend.NewKey(s.backendPrefix, name)
 }
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
-func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
+func (s *Service[T]) RunWhileLocked(ctx context.Context, lockNameComponents []string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
 	return trace.Wrap(backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:       s.backend,
-				LockName:      lockName,
-				TTL:           ttl,
-				RetryInterval: s.runWhileLockedRetryInterval,
+				Backend:            s.backend,
+				LockNameComponents: lockNameComponents,
+				TTL:                ttl,
+				RetryInterval:      s.runWhileLockedRetryInterval,
 			},
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)
 		}))
+}
+
+func trimLastKey(lastKey, prefix string) string {
+	if !strings.HasSuffix(prefix, string(backend.Separator)) {
+		prefix += string(backend.Separator)
+	}
+	if !strings.HasPrefix(prefix, string(backend.Separator)) {
+		prefix = string(backend.Separator) + prefix
+	}
+	return strings.TrimPrefix(lastKey, prefix)
 }

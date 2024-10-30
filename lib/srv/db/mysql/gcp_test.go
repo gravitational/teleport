@@ -20,6 +20,7 @@ package mysql
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -155,7 +156,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 				AuthClient: authClient,
 				Context:    ctx,
 				Clock:      clockwork.NewRealClock(),
-				Log:        logrus.StandardLogger(),
+				Log:        slog.Default(),
 			}).(*Engine)
 
 			databaseUser, password, err := engine.getGCPUserAndPassword(ctx, sessionCtx, test.mockGCPClient)

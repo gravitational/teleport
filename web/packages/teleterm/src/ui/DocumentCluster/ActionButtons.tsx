@@ -249,14 +249,14 @@ function AppButton(props: {
         onClick={props.onLaunchUrl}
         as="a"
         textTransform="none"
-        title="Log in to the app in the browser"
+        title="Log in to the SAML application in the browser"
         href={getSamlAppSsoUrl({
           app: props.app,
           rootCluster: props.rootCluster,
         })}
         target="_blank"
       >
-        Login
+        Log In
       </ButtonBorder>
     );
   }

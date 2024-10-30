@@ -31,7 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
@@ -45,7 +45,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -242,8 +244,17 @@ type CLIConf struct {
 	DatabaseRoles string
 	// AppName specifies proxied application name.
 	AppName string
-	// Interactive, when set to true, launches remote command with the terminal attached
+	// Interactive sessions will allocate a PTY and create interactive "shell"
+	// sessions.
 	Interactive bool
+	// NonInteractive sessions will not allocate a PTY and create
+	// non-interactive "exec" sessions. This variable is needed due to
+	// limitations in kingpin (lack of an inverse short flag) which forces
+	// the registration of both flags.
+	NonInteractive bool
+	// ShowVersion is an OpenSSH compatibility flag that prints out the version
+	// of tsh. Useful for users that alias ssh to "tsh ssh".
+	ShowVersion bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
 	// Namespace is used to select cluster namespace
@@ -548,6 +559,11 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// Relogin determines if a login attempt should be made in the event of command failures. This
+	// allows users with potentially stale credentials preventing access to gain the required access
+	// without having to manually run tsh login and the failed command again.
+	Relogin bool
 }
 
 // Stdout returns the stdout writer.
@@ -596,7 +612,7 @@ func Main() {
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
-	switch path.Base(os.Args[0]) {
+	switch filepath.Base(os.Args[0]) {
 	case "ssh":
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
@@ -770,7 +786,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
-	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required").StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -794,6 +810,20 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off)").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	// The following flags are OpenSSH compatibility flags. They are used for
+	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
+	// implemented. From "man 1 ssh":
+	//
+	// * "-V Display the version number and exit."
+	// * "-T Disable pseudo-terminal allocation."
+	ssh.Flag(uuid.New().String(), "").Short('T').Hidden().BoolVar(&cf.NonInteractive)
+	ssh.Flag(uuid.New().String(), "").Short('V').Hidden().BoolVar(&cf.ShowVersion)
+
+	resolve := app.Command("resolve", "Resolves an SSH host.")
+	resolve.Arg("host", "Remote hostname to resolve").Required().StringVar(&cf.UserHost)
+	resolve.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	resolve.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -815,19 +845,23 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
+	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	azure.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 
 	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
 	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	gcloud.Alias("gcp")
 
 	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
 	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gsutil.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -871,6 +905,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxySSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	proxySSH.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
@@ -969,9 +1004,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
+	play.Flag("skip-idle-time", "Quickly skip over idle time, applicable when streaming SSH or Kubernetes sessions.").BoolVar(&cf.NoWait)
 	play.Flag("format", defaults.FormatFlagDescription(
-		teleport.PTY, teleport.JSON, teleport.YAML,
-	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
+		teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text,
+	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text)
 	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
@@ -1168,6 +1204,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	kube := newKubeCommand(app)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
+	// SCAN subcommands.
+	scan := newScanCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -1193,6 +1231,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	vnetCmd := newVnetCommand(app)
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
+	vnetDaemonCmd := newVnetDaemonCommand(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1345,6 +1384,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
+	case resolve.FullCommand():
+		err = onResolve(&cf)
+		// If quiet was specified for this command and
+		// an error occurred, exit with a non-zero exit
+		// code without emitting any other messaging.
+		// In this case, the command was likely invoked
+		// via a Match exec block from an SSH config and
+		// if no matches were found, we should not add
+		// additional spam to stderr.
+		if err != nil && cf.Quiet {
+			err = trace.Wrap(&common.ExitCodeError{Code: 1})
+		}
 	case latencySSH.FullCommand():
 		err = onSSHLatency(&cf)
 	case benchSSH.FullCommand():
@@ -1426,9 +1477,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case login.FullCommand():
 		err = onLogin(&cf)
 	case logout.FullCommand():
-		if err := refuseArgs(logout.FullCommand(), args); err != nil {
-			return trace.Wrap(err)
-		}
 		err = onLogout(&cf)
 	case show.FullCommand():
 		err = onShow(&cf)
@@ -1465,7 +1513,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.exec.run(&cf)
 	case kube.join.FullCommand():
 		err = kube.join.run(&cf)
-
+	case scan.keys.FullCommand():
+		err = scan.keys.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf)
 	case proxyDB.FullCommand():
@@ -1560,6 +1609,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetCmd.run(&cf)
 	case vnetAdminSetupCmd.FullCommand():
 		err = vnetAdminSetupCmd.run(&cf)
+	case vnetDaemonCmd.FullCommand():
+		err = vnetDaemonCmd.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1880,6 +1931,11 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
+			profile, profiles, err = cf.FullProfileStatus()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Print status to show information of the logged in user.
 			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -2093,7 +2149,6 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		// Load profile for the requested proxy/user.
 		profile, err := tc.ProfileStatus()
 		if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
@@ -2135,7 +2190,6 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
 		if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
 			return trace.Wrap(err)
@@ -2162,6 +2216,28 @@ func onLogout(cf *CLIConf) error {
 			}
 		}
 
+		err = forEachProfileParallel(cf, func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error {
+			if !profile.SAMLSingleLogoutEnabled {
+				return nil
+			}
+			clt, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer clt.Close()
+			sloURL, err := tc.GetSAMLSingleLogoutURL(ctx, clt, profile)
+			if err != nil {
+				return trace.WrapWithMessage(err, "failed to retrieve SAML single logout URL.")
+			}
+			if sloURL == "" {
+				return trace.WrapWithMessage(err, "SAML single logout is enabled, but no single logout URL is available.")
+			}
+			return trace.Wrap(tc.SAMLSingleLogout(ctx, sloURL))
+		})
+		if err != nil {
+			fmt.Printf("We were unable to log you out of your SAML identity provider: %v", err)
+		}
+
 		// Remove all keys from disk and the running agent.
 		err = tc.LogoutAll()
 		if err != nil {
@@ -2169,9 +2245,10 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		fmt.Printf("Logged out all users from all proxies.\n")
-	default:
-		fmt.Printf("Specify --proxy and --user to remove keys for specific user ")
-		fmt.Printf("from a proxy or neither to log out all users from all proxies.\n")
+	case proxyHost != "" && cf.Username == "":
+		fmt.Printf("Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+	case proxyHost == "" && cf.Username != "":
+		fmt.Printf("Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
 	}
 	return nil
 }
@@ -2502,6 +2579,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3203,21 +3281,48 @@ func serializeSessions(sessions []types.SessionTracker, format string, w io.Writ
 }
 
 func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "Hostname", "Address", "Login", "Command"})
+	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "User", "Target", "Address"})
 	for _, s := range sessions {
 		table.AddRow([]string{
 			s.GetSessionID(),
 			string(s.GetSessionKind()),
-			s.GetCreated().Format(time.RFC3339),
-			s.GetHostname(),
-			s.GetAddress(),
-			s.GetLogin(),
-			strings.Join(s.GetCommand(), " "),
+			humanize.Time(s.GetCreated()),
+			s.GetHostUser(),
+			target(s),
+			address(s),
 		})
 	}
 
 	tableOutput := table.AsBuffer().String()
 	fmt.Fprintln(output, tableOutput)
+}
+
+func address(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.KubernetesSessionKind:
+		// address isn't populated in the session tracker for kube sessions,
+		// so we display the command the exec session is running
+		return strings.Join(s.GetCommand(), " ")
+	default:
+		return s.GetAddress()
+	}
+}
+
+func target(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.SSHSessionKind:
+		return s.GetLogin() + "@" + s.GetHostname()
+	case types.KubernetesSessionKind:
+		return s.GetHostname() + "@" + s.GetKubeCluster()
+	case types.AppSessionKind:
+		return s.GetAppName()
+	case types.DatabaseSessionKind:
+		return s.GetDatabaseName()
+	case types.WindowsDesktopSessionKind:
+		return s.GetLogin() + "@" + s.GetDesktopName()
+	default:
+		return s.GetHostname()
+	}
 }
 
 type clusterInfo struct {
@@ -3525,8 +3630,122 @@ func runLocalCommand(hostLogin string, command []string) error {
 	return cmd.Run()
 }
 
+// onResolve executes `tsh resolve`, a command that
+// attempts to resolve a single host from a provided
+// hostname. The host information provided may be
+// interpolated by proxy templates and converted
+// from a hostname into a fuzzy search, or predicate query.
+// Errors are returned if unable to connect to the cluster,
+// no matching hosts were found, or multiple matching hosts
+// were found. This is primarily meant to be used as a command
+// for a match exec block in an SSH config.
+func onResolve(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindNode},
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+		UseSearchAsRoles:    tc.UseSearchAsRoles,
+		SortBy:              types.SortBy{Field: types.ResourceKind},
+		// Limit to 2 so we can check for an ambiguous result
+		Limit: 2,
+	}
+
+	// If no search criteria were explicitly provided, then match exclusively
+	// on the hostname of the server. Otherwise, this would end up listing
+	// the first two servers that the user has access to and yield unexpected results.
+	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
+		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+	}
+
+	// Only enable the re-authentication behavior if not invoked with `-q`. When
+	// in quiet mode, this command is likely being invoked via ssh and
+	// the login prompt will not be able to be presented to users anyway.
+	executor := client.RetryWithRelogin
+	if cf.Quiet {
+		executor = func(ctx context.Context, teleportClient *client.TeleportClient, f func() error, option ...client.RetryWithReloginOption) error {
+			return f()
+		}
+	}
+
+	var page []*types.EnrichedResource
+	if err := executor(cf.Context, tc, func() error {
+		clt, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		defer clt.Close()
+
+		page, _, err = apiclient.GetUnifiedResourcePage(cf.Context, clt.AuthClient, &req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch len(page) {
+	case 1:
+	case 0:
+		return trace.NotFound("no matching hosts found")
+	default:
+		return trace.BadParameter("multiple matching hosts found")
+	}
+
+	if cf.Quiet {
+		return nil
+	}
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.Text, "":
+		printNodesAsText(cf.Stdout(), []types.Server{page[0].ResourceWithLabels.(types.Server)}, true)
+	case teleport.JSON:
+		utils.WriteJSON(cf.Stdout(), page[0].ResourceWithLabels)
+	case teleport.YAML:
+		utils.WriteYAML(cf.Stdout(), page[0].ResourceWithLabels)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+
+	return nil
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
+	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
+	// the version and exit.
+	if cf.ShowVersion {
+		modules.GetModules().PrintVersion()
+		return nil
+	}
+
+	// If "tsh ssh" is invoked with the "-t" or "-T" flag, manually validate
+	// "-t" and "-T" flags for "tsh ssh" due to the lack of inverse short flags
+	// in kingpin.
+	if cf.Interactive && cf.NonInteractive {
+		return trace.BadParameter("either -t or -T can be specified, not both")
+	}
+	if cf.NonInteractive {
+		cf.Interactive = false
+	}
+
+	// If "tsh ssh" is invoked the user must specify some host to connect to.
+	// In the past, this was handled by making "UserHost" required in kingpin.
+	// However, to support "tsh ssh -V" this was no longer possible. This
+	// property is how enforced in this function.
+	if cf.UserHost == "" {
+		return trace.BadParameter("required argument '[user@]host' not provided")
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3536,15 +3755,19 @@ func onSSH(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-
+		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
-		})
+		}
+		if !cf.Relogin {
+			err = sshFunc()
+		} else {
+			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
+		}
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
@@ -4319,19 +4542,6 @@ func parseCertificateCompatibilityFlag(compatibility string, certificateFormat s
 	}
 }
 
-// refuseArgs helper makes sure that 'args' (list of CLI arguments)
-// does not contain anything other than command
-func refuseArgs(command string, args []string) error {
-	for _, arg := range args {
-		if arg == command || strings.HasPrefix(arg, "-") {
-			continue
-		} else {
-			return trace.BadParameter("unexpected argument: %s", arg)
-		}
-	}
-	return nil
-}
-
 // flattenIdentity reads an identity file and flattens it into a tsh profile on disk.
 func flattenIdentity(cf *CLIConf) error {
 	// Save the identity file path for later
@@ -4413,7 +4623,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", cluster)
 	}
-	fmt.Printf("  Roles:              %v\n", strings.Join(p.Roles, ", "))
+	fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
 	if debug {
 		var count int
 		for k, v := range p.Traits {
@@ -4469,6 +4679,35 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	}
 
 	fmt.Printf("\n")
+}
+
+func isOktaRole(role string) bool {
+	return strings.Contains(role, teleport.OktaReviewerRoleContext) || strings.Contains(role, teleport.OktaAccessRoleContext)
+}
+
+func rolesToString(debug bool, roles []string) string {
+	sort.Strings(roles)
+	var nonOktaRoles, oktaRoles []string
+	for _, role := range roles {
+		if isOktaRole(role) {
+			oktaRoles = append(oktaRoles, role)
+		} else {
+			nonOktaRoles = append(nonOktaRoles, role)
+		}
+	}
+	if len(oktaRoles) == 0 {
+		return strings.Join(nonOktaRoles, ", ")
+	}
+
+	squashRolesThreshold := 9
+
+	if !debug && len(nonOktaRoles)+len(oktaRoles) > squashRolesThreshold {
+		oktaRolesText := fmt.Sprintf("and %v more Okta access list roles ...", len(oktaRoles))
+		return strings.Join(append(nonOktaRoles, oktaRolesText), ", ")
+	}
+	// Keep okta roles at the end of list.
+	out := append(nonOktaRoles, oktaRoles...)
+	return strings.Join(out, ", ")
 }
 
 // printLoginInformation displays the provided profile information to the user.
@@ -5136,10 +5375,10 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 func setEnvFlags(cf *CLIConf) {
 	// these can only be set with env vars.
 	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
+		cf.HomePath = filepath.Clean(homeDir)
 	}
 	if configPath := os.Getenv(globalTshConfigEnvVar); configPath != "" {
-		cf.GlobalTshConfigPath = path.Clean(configPath)
+		cf.GlobalTshConfigPath = filepath.Clean(configPath)
 	}
 
 	// prioritize CLI input for the rest.

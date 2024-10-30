@@ -67,6 +67,10 @@ export function Notification({
   const { clusterId } = useStickyClusterId();
 
   const content = ctx.notificationContentFactory(notification);
+  // If there is no notification content because it is an unsupported kind, don't render anything.
+  if (!content) {
+    return null;
+  }
 
   const [markAsClickedAttempt, markAsClicked] = useAsync(() =>
     ctx.notificationService
@@ -104,9 +108,29 @@ export function Notification({
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
 
-  // If the notification is unsupported or hidden, or if the view is "Unread" and the notification has been read,
-  // it should not be shown.
-  if (!content || (view === 'Unread' && notification.clicked)) {
+  // If the view is "Unread" and the notification has been read, it should not be shown.
+  if (view === 'Unread' && notification.clicked) {
+    // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
+    // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
+    if (content.kind == 'text') {
+      return (
+        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
+          <DialogHeader>
+            <DialogTitle>{content.title}</DialogTitle>
+          </DialogHeader>
+          <DialogContent>{content.textContent}</DialogContent>
+          <DialogFooter>
+            <ButtonSecondary
+              onClick={() => setShowTextContentDialog(false)}
+              size="small"
+              className={IGNORE_CLICK_CLASSNAME}
+            >
+              Close
+            </ButtonSecondary>
+          </DialogFooter>
+        </Dialog>
+      );
+    }
     return null;
   }
 
@@ -129,12 +153,15 @@ export function Notification({
 
   const formattedDate = formatDate(notification.createdDate);
 
-  function onNotificationClick(e: React.MouseEvent<HTMLElement>) {
+  function onNotificationClick(
+    e: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+  ) {
     // Prevents this from being triggered when the user is just clicking away from
     // an open "mark as read/hide this notification" menu popover.
     if (e.currentTarget.contains(e.target as HTMLElement)) {
       if (content.kind === 'text') {
         setShowTextContentDialog(true);
+        onMarkAsClicked();
         return;
       }
       onMarkAsClicked();
@@ -153,6 +180,10 @@ export function Notification({
         clicked={isClicked}
         onClick={onNotificationClick}
         className="notification"
+        tabIndex={0}
+        onKeyUp={e =>
+          (e.key === 'Enter' || e.key === ' ') && onNotificationClick(e)
+        }
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>
@@ -250,7 +281,7 @@ function formatDate(date: Date) {
   return `${distance} ago`;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ clicked?: boolean }>`
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -347,7 +378,7 @@ function getIconColors(
   }
 }
 
-const MainIconContainer = styled.div`
+const MainIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,7 +397,7 @@ const MainIconContainer = styled.div`
     getIconColors(props.theme, props.type).secondary};
 `;
 
-const AccentIconContainer = styled.div`
+const AccentIconContainer = styled.div<{ type: NotificationContent['type'] }>`
   height: 18px;
   width: 18px;
   display: flex;

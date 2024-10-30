@@ -17,7 +17,7 @@
  */
 
 import React, { Suspense, useState, useEffect } from 'react';
-import { Box, ButtonSecondary, Text } from 'design';
+import { Box, ButtonSecondary, Text, Mark } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 
@@ -54,7 +54,6 @@ import {
   DiscoverLabel,
   Header,
   HeaderSubtitle,
-  Mark,
   ResourceKind,
   TextIcon,
   useShowHint,

@@ -30,6 +30,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -44,6 +45,7 @@ import (
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	apiremotecommand "k8s.io/apimachinery/pkg/util/remotecommand"
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
 	"k8s.io/client-go/tools/remotecommand"
 
@@ -116,10 +118,26 @@ func WithExecError(status metav1.Status) Option {
 	}
 }
 
+// WithVersion sets the version of the server
+func WithVersion(version *apimachineryversion.Info) Option {
+	return func(s *KubeMockServer) {
+		s.version = version
+	}
+}
+
 type deletedResource struct {
 	requestID string
 	kind      string
 }
+
+// KubeExecRequests keeps track of the number of exec requests
+type KubeExecRequests struct {
+	// SPDY is the number of SPDY exec requests
+	SPDY atomic.Int32
+	// Websocket is the number of Websocket exec requests
+	Websocket atomic.Int32
+}
+
 type KubeMockServer struct {
 	router           *httprouter.Router
 	log              *log.Entry
@@ -132,6 +150,8 @@ type KubeMockServer struct {
 	getPodError      *metav1.Status
 	execPodError     *metav1.Status
 	mu               sync.Mutex
+	version          *apimachineryversion.Info
+	KubeExecRequests
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -146,6 +166,10 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 		router:           httprouter.New(),
 		log:              log.NewEntry(log.New()),
 		deletedResources: make(map[deletedResource][]string),
+		version: &apimachineryversion.Info{
+			Major: "1",
+			Minor: "20",
+		},
 	}
 
 	for _, o := range opts {
@@ -190,6 +214,8 @@ func (s *KubeMockServer) setup() {
 	s.router.GET("/apis/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
 	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.getTeleportRole))
 	s.router.DELETE("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.deleteTeleportRole))
+
+	s.router.GET("/version", s.withWriter(s.versionEndpoint))
 
 	for _, endpoint := range []string{"/api", "/api/:ver", "/apis", "/apis/resources.teleport.dev/v6"} {
 		s.router.GET(endpoint, s.withWriter(s.discoveryEndpoint))
@@ -238,6 +264,12 @@ func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr erro
 }
 
 func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+	if wsstream.IsWebSocketRequest(req) {
+		s.KubeExecRequests.Websocket.Add(1)
+	} else {
+		s.KubeExecRequests.SPDY.Add(1)
+	}
+
 	q := req.URL.Query()
 	if s.execPodError != nil {
 		s.writeResponseError(w, nil, s.execPodError)
@@ -777,4 +809,11 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 			return trace.BadParameter("request has been canceled")
 		}
 	}
+}
+
+func (s *KubeMockServer) versionEndpoint(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (resp any, err error) {
+	if s.version == nil {
+		return nil, trace.BadParameter("version not set")
+	}
+	return s.version, nil
 }

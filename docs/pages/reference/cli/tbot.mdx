@@ -171,7 +171,7 @@ Note that this decreases security:
  - Your connection to the database will be unencrypted until it reaches the
    `tbot` proxy running on `localhost`.
 
-Refer to the [database guide](../../machine-id/access-guides/databases.mdx) for more information on
+Refer to the [database guide](../../enroll-resources/machine-id/access-guides/databases.mdx) for more information on
 using database proxies.
 
 ### Flags
@@ -244,13 +244,27 @@ $ tbot start \
   </TabItem>
 </Tabs>
 
-## tbot tpm identify
+## tbot install systemd
 
-Output identifying information related to the TPM (Trusted Platform Module)
-detected on the system.
+Generates and installs a systemd unit file for a specific tbot configuration.
 
 ### Flags
 
-| Flag                 | Description                        |
-|----------------------|------------------------------------|
-| `-d/--debug`         | Enable verbose logging to stderr.  |
+| Flag                  | Description                                                                                                                      |
+|-----------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `-d/--debug`          | Enable verbose logging to stderr.                                                                                                |
+| `-c/--config`         | Path to a configuration file.                                                                                                    |
+| `--write `            | Write the systemd unit file. If not specified, this command runs in a dry-run mode that outputs the generated content to stdout. |
+| `--systemd-directory` | Path to the directory that the systemd unit file should be written. Defaults to '/etc/systemd/system'.                           |
+| `--force`             | Overwrite existing systemd unit file if present.                                                                                 |
+| `--name`              | Name for the systemd unit. Defaults to 'tbot'.                                                                                   |
+| `--user`              | The user that the service should run as. Defaults to 'teleport'.                                                                 |
+| `--group`             | The group that the service should run as. Defaults to 'teleport'.                                                                |
+
+### Examples
+
+```code
+$ tbot install systemd \
+   --config=/etc/tbot.yaml \
+   ---write
+```

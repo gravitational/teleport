@@ -279,6 +279,41 @@ export const AnotherSessionActive = () => (
   <DesktopSession {...props} showAnotherSessionActiveDialog={true} />
 );
 
+export const ClipboardSharingDisabledRbac = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'success' }}
+    tdpConnection={{ status: 'success' }}
+    wsConnection={{ status: 'open' }}
+    clipboardSharingState={{ browserSupported: true, allowedByAcl: false }}
+  />
+);
+
+export const ClipboardSharingDisabledIncompatibleBrowser = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'success' }}
+    tdpConnection={{ status: 'success' }}
+    wsConnection={{ status: 'open' }}
+    clipboardSharingState={{ browserSupported: false, allowedByAcl: true }}
+  />
+);
+
+export const ClipboardSharingDisabledBrowserPermissions = () => (
+  <DesktopSession
+    {...props}
+    fetchAttempt={{ status: 'success' }}
+    tdpConnection={{ status: 'success' }}
+    wsConnection={{ status: 'open' }}
+    clipboardSharingState={{
+      browserSupported: true,
+      allowedByAcl: true,
+      readState: 'granted',
+      writeState: 'denied',
+    }}
+  />
+);
+
 export const Warnings = () => {
   const client = fakeClient();
   client.connect = async () => {

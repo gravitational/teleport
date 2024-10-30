@@ -93,7 +93,7 @@ func (e *Engine) SendError(err error) {
 	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
 		return
 	}
-	e.Log.WithError(err).Error("DynamoDB connection error")
+	e.Log.ErrorContext(e.Context, "DynamoDB connection error", "error", err)
 
 	// try to convert to a trace err if we can.
 	code := trace.ErrorToCode(err)
@@ -102,7 +102,7 @@ func (e *Engine) SendError(err error) {
 		Message: err.Error(),
 	})
 	if err != nil {
-		e.Log.WithError(err).Error("failed to marshal error response")
+		e.Log.ErrorContext(e.Context, "failed to marshal error response", "error", err)
 		return
 	}
 	response := &http.Response{
@@ -121,7 +121,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.WithError(err).Error("failed to send error response to DynamoDB client")
+		e.Log.ErrorContext(e.Context, "failed to send error response to DynamoDB client", "error", err)
 		return
 	}
 }
@@ -267,7 +267,7 @@ func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode uint32
 	// so it's ok if body is nil here.
 	body, err := libaws.UnmarshalRequestBody(req)
 	if err != nil {
-		e.Log.WithError(err).Warn("Failed to read request body as JSON, omitting the body from the audit event.")
+		e.Log.WarnContext(e.Context, "Failed to read request body as JSON, omitting the body from the audit event.", "error", err)
 	}
 	// get the API target from the request header, according to the API request format documentation:
 	// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.LowLevelAPI.html#Programming.LowLevelAPI.RequestFormat

@@ -42,6 +42,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -111,6 +113,10 @@ const (
 	// AbandonedUploadPollingRate defines how often to check for
 	// abandoned uploads which need to be completed.
 	AbandonedUploadPollingRate = apidefaults.SessionTrackerTTL / 6
+
+	// UploadCompleterGracePeriod is the default period after which an upload's
+	// session tracker will be checked to see if it's an abandoned upload.
+	UploadCompleterGracePeriod = 24 * time.Hour
 )
 
 var (
@@ -950,6 +956,22 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
+func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	l.log.Debugf("ExportUnstructuredEvents(%v, %v, %v)", req.Date, req.Chunk, req.Cursor)
+	if l.ExternalLog != nil {
+		return l.ExternalLog.ExportUnstructuredEvents(ctx, req)
+	}
+	return l.localLog.ExportUnstructuredEvents(ctx, req)
+}
+
+func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	l.log.Debugf("GetEventExportChunks(%v)", req.Date)
+	if l.ExternalLog != nil {
+		return l.ExternalLog.GetEventExportChunks(ctx, req)
+	}
+	return l.localLog.GetEventExportChunks(ctx, req)
+}
+
 // StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	l.log.WithField("session_id", string(sessionID)).Debug("StreamSessionEvents()")
@@ -994,7 +1016,6 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 
 	go func() {
 		defer rawSession.Close()
-
 		// this shouldn't be necessary as the position should be already 0 (Download
 		// takes an io.WriterAt), but it's better to be safe than sorry
 		if _, err := rawSession.Seek(0, io.SeekStart); err != nil {

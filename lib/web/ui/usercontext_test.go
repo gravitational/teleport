@@ -68,6 +68,25 @@ func TestNewUserContext(t *testing.T) {
 	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true, false)
 	require.NoError(t, err)
 	require.Equal(t, authSSO, userContext.AuthType)
+
+	// test sso auth type for users with the CreatedBy.Connector field set.
+	// Eg users import from okta do not have any <IdP>Identities, so the CreatedBy.Connector must be checked.
+	userCreatedExternally := &types.UserV2{
+		Metadata: types.Metadata{
+			Name: "root",
+		},
+		Status: types.UserStatusV2{
+			PasswordState: types.PasswordState_PASSWORD_STATE_SET,
+		},
+		Spec: types.UserSpecV2{
+			CreatedBy: types.CreatedBy{
+				Connector: &types.ConnectorRef{},
+			},
+		},
+	}
+	userContext, err = NewUserContext(userCreatedExternally, roleSet, proto.Features{}, true, false)
+	require.NoError(t, err)
+	require.Equal(t, authSSO, userContext.AuthType)
 }
 
 func TestNewUserContextCloud(t *testing.T) {

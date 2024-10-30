@@ -21,12 +21,6 @@ exports[`active sessions CTA 1`] = `
   box-sizing: border-box;
 }
 
-.c31 {
-  box-sizing: border-box;
-  width: 80px;
-  text-align: center;
-}
-
 .c21 {
   box-sizing: border-box;
   margin-bottom: 4px;
@@ -36,6 +30,12 @@ exports[`active sessions CTA 1`] = `
 .c23 {
   box-sizing: border-box;
   margin-right: 8px;
+}
+
+.c31 {
+  box-sizing: border-box;
+  width: 80px;
+  text-align: center;
 }
 
 .c10 {
@@ -484,7 +484,7 @@ exports[`active sessions CTA 1`] = `
       <a
         class="c10"
         height="36px"
-        href="https://goteleport.com/r/upgrade-team?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
+        href="https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
         kind="primary"
         rel="noreferrer"
         style="text-transform: none;"
@@ -522,11 +522,12 @@ exports[`active sessions CTA 1`] = `
     <div
       class="c16"
     >
-      <div
+      <form
         class="c17"
       >
         <input
           class="c18"
+          name="searchValue"
           placeholder="Search..."
           value=""
         />
@@ -537,7 +538,7 @@ exports[`active sessions CTA 1`] = `
             class="c20"
           />
         </div>
-      </div>
+      </form>
     </div>
     <div
       class="c21 c22"
@@ -1185,10 +1186,8 @@ exports[`loaded 1`] = `
   margin-bottom: 24px;
 }
 
-.c27 {
+.c19 {
   box-sizing: border-box;
-  width: 80px;
-  text-align: center;
 }
 
 .c15 {
@@ -1202,8 +1201,10 @@ exports[`loaded 1`] = `
   margin-right: 8px;
 }
 
-.c19 {
+.c27 {
   box-sizing: border-box;
+  width: 80px;
+  text-align: center;
 }
 
 .c28 {
@@ -1595,11 +1596,12 @@ exports[`loaded 1`] = `
     <div
       class="c10"
     >
-      <div
+      <form
         class="c11"
       >
         <input
           class="c12"
+          name="searchValue"
           placeholder="Search..."
           value=""
         />
@@ -1610,7 +1612,7 @@ exports[`loaded 1`] = `
             class="c14"
           />
         </div>
-      </div>
+      </form>
     </div>
     <div
       class="c15 c16"
@@ -2258,10 +2260,8 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   margin-bottom: 24px;
 }
 
-.c27 {
+.c19 {
   box-sizing: border-box;
-  width: 80px;
-  text-align: center;
 }
 
 .c15 {
@@ -2275,8 +2275,10 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
   margin-right: 8px;
 }
 
-.c19 {
+.c27 {
   box-sizing: border-box;
+  width: 80px;
+  text-align: center;
 }
 
 .c28 {
@@ -2668,11 +2670,12 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
     <div
       class="c10"
     >
-      <div
+      <form
         class="c11"
       >
         <input
           class="c12"
+          name="searchValue"
           placeholder="Search..."
           value=""
         />
@@ -2683,7 +2686,7 @@ exports[`moderated sessions CTA for non-enterprise 1`] = `
             class="c14"
           />
         </div>
-      </div>
+      </form>
     </div>
     <div
       class="c15 c16"

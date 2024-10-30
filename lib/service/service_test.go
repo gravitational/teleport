@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -194,8 +195,8 @@ func TestDynamicClientReuse(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
@@ -477,8 +478,10 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud:                true,
-			ExternalAuditStorage: true,
+			Cloud: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.ExternalAuditStorage: {Enabled: true},
+			},
 		},
 	})
 
@@ -535,6 +538,16 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				v, ok := alog.(*athena.Log)
 				require.True(t, ok, "invalid logger type, got %T", v)
+			},
+		},
+		{
+			name:          "valid athena config with disabled consumer",
+			uris:          []string{sampleAthenaURI + "&consumerDisabled=true"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+				require.True(t, v.IsConsumerDisabled(), "consumer is not disabled")
 			},
 		},
 		{
@@ -1206,7 +1219,7 @@ func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lea
 }
 
 // Get returns a single item or not found error
-func (f *fakeKubeBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (f *fakeKubeBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	return f.getData, f.getErr
 }
 
@@ -1294,7 +1307,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 
 	// Insecure gRPC server.
-	insecureGRPC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	insecureGRPC, err := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	require.NoError(t, err)
 	t.Cleanup(insecureGRPC.GracefulStop)
 
 	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
@@ -1771,12 +1785,16 @@ func TestInitDatabaseService(t *testing.T) {
 
 			cfg := servicecfg.MakeDefaultConfig()
 			cfg.DataDir = t.TempDir()
+			cfg.DebugService = servicecfg.DebugConfig{
+				Enabled: false,
+			}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Hostname = "default.example.com"
 			cfg.Auth.Enabled = true
 			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 			cfg.Proxy.Enabled = true
 			cfg.Proxy.DisableWebInterface = true
 			cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}

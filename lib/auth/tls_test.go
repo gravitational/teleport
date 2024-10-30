@@ -1348,7 +1348,7 @@ func TestGetCurrentUser(t *testing.T) {
 		Spec: types.UserSpecV2{
 			Roles: []string{"user:user1"},
 		},
-	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}, currentUser, cmpopts.IgnoreFields(types.Metadata{}, "Revision"), cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice")))
 }
 
 func TestGetCurrentUserRoles(t *testing.T) {
@@ -1403,8 +1403,8 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
-		PresenceS: clt,
-		Clock:     clockwork.NewFakeClock(),
+		TrustS: clt,
+		Clock:  clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(t)
 }
@@ -4102,7 +4102,7 @@ func TestEvents(t *testing.T) {
 		LocalConfigS:  testSrv.Auth(),
 		EventsS:       clt,
 		PresenceS:     testSrv.Auth(),
-		CAS:           testSrv.Auth(),
+		TrustS:        testSrv.Auth(),
 		ProvisioningS: clt,
 		Access:        clt,
 		UsersS:        clt,
@@ -4356,6 +4356,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-creator",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4384,6 +4388,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-creator",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-creator",
@@ -4507,6 +4515,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
 					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*******",
+						UpdatedBy: "token-upserter",
+					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
 						UserKind: eventtypes.UserKind_USER_KIND_HUMAN,
@@ -4535,6 +4547,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "*****************luster",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
@@ -4566,6 +4582,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					Metadata: eventtypes.Metadata{
 						Type: events.ProvisionTokenCreateEvent,
 						Code: events.ProvisionTokenCreateCode,
+					},
+					ResourceMetadata: eventtypes.ResourceMetadata{
+						Name:      "**************",
+						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
 						User:     "token-upserter",
@@ -4637,12 +4657,12 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	t.Run("no tokens", func(t *testing.T) {
+	t.Run("no extra tokens", func(t *testing.T) {
 		client, err := testSrv.NewClient(TestUser(privilegedUser.GetName()))
 		require.NoError(t, err)
 		toks, err := client.GetTokens(ctx)
 		require.NoError(t, err)
-		require.Empty(t, toks)
+		require.Len(t, toks, 1) // only a single static token exists
 	})
 
 	// Create tokens to then assert are returned

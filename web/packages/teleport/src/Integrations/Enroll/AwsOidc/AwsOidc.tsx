@@ -20,15 +20,7 @@ import React, { useEffect, useState } from 'react';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import { useLocation } from 'react-router';
 import styled from 'styled-components';
-import {
-  Box,
-  ButtonSecondary,
-  Text,
-  Link,
-  Flex,
-  ButtonPrimary,
-  ButtonText,
-} from 'design';
+import { Box, ButtonSecondary, Text, Link, Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
@@ -42,8 +34,10 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 import { Header } from 'teleport/Discover/Shared';
+import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
   Integration,
@@ -53,26 +47,16 @@ import {
 import cfg from 'teleport/config';
 
 import { FinishDialog } from './FinishDialog';
-import { S3BucketConfiguration } from './S3BucketConfiguration';
-import {
-  getDefaultS3BucketName,
-  requiredPrefixName,
-  validPrefixNameToolTipContent,
-} from './Shared/utils';
-import { S3BucketWarningBanner } from './S3BucketWarningBanner';
 
 export function AwsOidc() {
   const [integrationName, setIntegrationName] = useState('');
   const [roleArn, setRoleArn] = useState('');
   const [roleName, setRoleName] = useState('');
   const [scriptUrl, setScriptUrl] = useState('');
-  const [s3Bucket, setS3Bucket] = useState(() => getDefaultS3BucketName());
-  const [s3Prefix, setS3Prefix] = useState('');
-  const [showS3BucketWarning, setShowS3BucketWarning] = useState(false);
-  const [confirmedS3BucketWarning, setConfirmedS3BucketWarning] =
-    useState(false);
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
   const { attempt, run } = useAttempt('');
+
+  const { clusterId } = useStickyClusterId();
 
   const location = useLocation<DiscoverUrlLocationState>();
 
@@ -80,8 +64,6 @@ export function AwsOidc() {
     id: crypto.randomUUID(),
     kind: IntegrationEnrollKind.AwsOidc,
   });
-
-  const requiresS3BucketWarning = !s3Bucket && !s3Prefix;
 
   useEffect(() => {
     // If a user came from the discover wizard,
@@ -107,8 +89,6 @@ export function AwsOidc() {
           subKind: IntegrationKind.AwsOidc,
           awsoidc: {
             roleArn,
-            issuerS3Bucket: s3Bucket,
-            issuerS3Prefix: s3Prefix,
           },
         })
         .then(res => {
@@ -139,8 +119,6 @@ export function AwsOidc() {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName,
       roleName,
-      s3Bucket,
-      s3Prefix,
     });
 
     setScriptUrl(newScriptUrl);
@@ -173,6 +151,28 @@ export function AwsOidc() {
           AWS RDS
         </RouteLink>{' '}
         instances during resource enrollment.
+        <Box mt={3}>
+          AWS Resources created by the integration are tagged so that you can
+          search and export them using the{' '}
+          <Link target="_blank" href={AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK}>
+            AWS Resource Groups / Tag Editor
+          </Link>
+          . The following tags are applied:
+          <TextSelectCopyMulti
+            bash={false}
+            lines={[
+              {
+                text:
+                  `teleport.dev/cluster: ` +
+                  clusterId +
+                  `\n` +
+                  `teleport.dev/origin: integration_awsoidc\n` +
+                  `teleport.dev/integration: ` +
+                  integrationName,
+              },
+            ]}
+          />
+        </Box>
       </Box>
 
       <Validation>
@@ -182,23 +182,12 @@ export function AwsOidc() {
               <Text bold>Step 1</Text>
               <Box width="600px">
                 <FieldInput
-                  rule={requiredPrefixName(true)}
                   autoFocus={true}
                   value={integrationName}
                   label="Give this AWS integration a name"
                   placeholder="Integration Name"
                   onChange={e => setIntegrationName(e.target.value)}
                   disabled={!!scriptUrl}
-                  onBlur={() => {
-                    // s3Bucket by default is defined.
-                    // If empty user intentionally cleared it.
-                    if (!integrationName || (!s3Bucket && !s3Prefix)) return;
-                    // Help come up with a default prefix name for user.
-                    if (!s3Prefix) {
-                      setS3Prefix(`${integrationName}-oidc-idp`);
-                    }
-                  }}
-                  toolTipContent={validPrefixNameToolTipContent('Integration')}
                 />
                 <FieldInput
                   rule={requiredIamRoleName}
@@ -208,43 +197,12 @@ export function AwsOidc() {
                   onChange={e => setRoleName(e.target.value)}
                   disabled={!!scriptUrl}
                 />
-                <S3BucketConfiguration
-                  s3Bucket={s3Bucket}
-                  setS3Bucket={setS3Bucket}
-                  s3Prefix={s3Prefix}
-                  setS3Prefix={setS3Prefix}
-                  disabled={!!scriptUrl}
-                />
               </Box>
-              {confirmedS3BucketWarning && (
-                <Box>
-                  <ButtonText
-                    pl={0}
-                    gap={2}
-                    onClick={() => setShowS3BucketWarning(true)}
-                    alignItems="center"
-                  >
-                    <Icons.Warning size="small" color="warning.main" />
-                    <Text fontSize={1}>Click to view S3 Bucket Warning</Text>
-                  </ButtonText>
-                </Box>
-              )}
-              {showS3BucketWarning ? (
-                <S3BucketWarningBanner
-                  onClose={() => setShowS3BucketWarning(false)}
-                  onContinue={() => {
-                    setShowS3BucketWarning(false);
-                    setConfirmedS3BucketWarning(true);
-                    generateAwsOidcConfigIdpScript(validator);
-                  }}
-                  reviewing={confirmedS3BucketWarning}
-                />
-              ) : scriptUrl ? (
+              {scriptUrl ? (
                 <ButtonSecondary
                   mb={3}
                   onClick={() => {
                     setScriptUrl('');
-                    setConfirmedS3BucketWarning(false);
                   }}
                 >
                   Edit
@@ -252,13 +210,7 @@ export function AwsOidc() {
               ) : (
                 <ButtonSecondary
                   mb={3}
-                  onClick={() => {
-                    if (requiresS3BucketWarning) {
-                      setShowS3BucketWarning(true);
-                    } else {
-                      generateAwsOidcConfigIdpScript(validator);
-                    }
-                  }}
+                  onClick={() => generateAwsOidcConfigIdpScript(validator)}
                 >
                   Generate Command
                 </ButtonSecondary>

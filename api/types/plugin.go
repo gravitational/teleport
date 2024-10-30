@@ -41,6 +41,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeDiscord,
 	PluginTypeEntraID,
 	PluginTypeSCIM,
+	PluginTypeDatadog,
 }
 
 const (
@@ -62,7 +63,7 @@ const (
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
 	PluginTypePagerDuty = "pagerduty"
-	// PluginTypeMattermost is the PagerDuty access plugin
+	// PluginTypeMattermost is the Mattermost access plugin
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
@@ -72,6 +73,8 @@ const (
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+	// PluginTypeDatadog indicates the Datadog Incident Management plugin
+	PluginTypeDatadog = "datadog"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -116,6 +119,8 @@ type PluginStatus interface {
 	GetErrorMessage() string
 	GetLastSyncTime() time.Time
 	GetGitlab() *PluginGitlabStatusV1
+	GetEntraId() *PluginEntraIDStatusV1
+	GetOkta() *PluginOktaStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -313,12 +318,32 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+		// backfill the credentials source if it's not set.
+		if settings.EntraId.SyncSettings.CredentialsSource == EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN {
+			settings.EntraId.SyncSettings.CredentialsSource = EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC
+		}
+
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
 		}
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_Datadog:
+		if settings.Datadog == nil {
+			return trace.BadParameter("missing Datadog settings")
+		}
+		if err := settings.Datadog.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Datadog Incident Management plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
 		}
 	default:
 		return nil
@@ -482,6 +507,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
+	case *PluginSpecV1_Datadog:
+		return PluginTypeDatadog
 
 	default:
 		return PluginTypeUnknown
@@ -656,6 +683,16 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("saml_connector_name must be set")
 	}
 
+	return nil
+}
+
+func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
+	}
 	return nil
 }
 

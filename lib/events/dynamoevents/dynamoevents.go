@@ -48,6 +48,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -426,11 +428,11 @@ func isAWSValidationError(err error) bool {
 }
 
 func trimEventSize(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
-	m, ok := event.(messageSizeTrimmer)
-	if !ok {
-		return nil, false
+	trimmedEvent := event.TrimToMaxSize(maxItemSize)
+	if trimmedEvent.Size() >= maxItemSize {
+		return trimmedEvent, false
 	}
-	return m.TrimToMaxSize(maxItemSize), true
+	return trimmedEvent, true
 }
 
 // putAuditEventContextKey represents context keys of putAuditEvent.
@@ -507,10 +509,6 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	}
 
 	return input, nil
-}
-
-type messageSizeTrimmer interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 func (l *Log) setExpiry(e *event) {
@@ -594,6 +592,14 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Ti
 	return eventArr, lastKey, nil
 }
 
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+}
+
 // ByTimeAndIndex sorts events by time
 // and if there are several session events with the same session by event index.
 type byTimeAndIndex []apievents.AuditEvent
@@ -653,7 +659,9 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 
 	if startKey != "" {
 		if createdAt, err := GetCreatedAtFromStartKey(startKey); err == nil {
-			if fromUTC.After(createdAt) {
+			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
+			// that are not present in the cursor.
+			if fromUTC.Unix() > createdAt.Unix() {
 				// if fromUTC is after than the cursor, we changed the window and need to reset the cursor.
 				// This is a guard check when iterating over the events using sliding window
 				// and the previous cursor no longer fits the new window.
@@ -780,7 +788,7 @@ func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
 		return time.Time{}, errors.New("createdAt is invalid")
 	}
 
-	return time.Unix(e.CreatedAt, 0), nil
+	return time.Unix(e.CreatedAt, 0).UTC(), nil
 }
 
 func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
@@ -824,7 +832,7 @@ func getSubPageCheckpoint(e *event) (string, error) {
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
+	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
 		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
 		expr, err := fromWhereExpr(req.Cond, &params)
@@ -1154,12 +1162,6 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		// Because this may break on non page boundaries an additional
 		// checkpoint is needed for sub-page breaks.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			hf := false
-			if hasLeftFun != nil {
-				hf = hasLeftFun()
-			}
-			l.hasLeft = hf || len(l.checkpoint.Iterator) != 0
-
 			key, err := getSubPageCheckpoint(&e)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
@@ -1168,12 +1170,17 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 
 			// We need to reset the iterator so we get the previous page again.
 			l.checkpoint.Iterator = oldIterator
+
+			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
+			// current date and old iterator, so we must set it to true independently of the hasLeftFun or
+			// the new iterator being empty.
+			l.hasLeft = true
+
 			return out, true, nil
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
 		l.left--
-
 		if l.left == 0 {
 			hf := false
 			if hasLeftFun != nil {
@@ -1244,6 +1251,18 @@ dateLoop:
 			}
 			values = append(values, result...)
 			if limitReached {
+				// If we've reached the limit, we need to determine whether there are more events to fetch from the current date
+				// or if we need to move the cursor to the next date.
+				// To do this, we check if the iterator is empty and if the EventKey is empty.
+				// DynamoDB returns an empty iterator if all events from the current date have been consumed.
+				// We need to check if the EventKey is empty because it indicates that we left the page midway
+				// due to reaching the maximum response size. In this case, we need to resume the query
+				// from the same date and the request's iterator to fetch the remainder of the page.
+				// If the input iterator is empty but the EventKey is not, we need to resume the query from the same date
+				// and we shouldn't move to the next date.
+				if i < len(l.dates)-1 && len(l.checkpoint.Iterator) == 0 && l.checkpoint.EventKey == "" {
+					l.checkpoint.Date = l.dates[i+1]
+				}
 				return values, nil
 			}
 			if len(l.checkpoint.Iterator) == 0 {

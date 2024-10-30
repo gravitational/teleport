@@ -491,7 +491,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait until we've found the session in the audit log
 			getSession := func(site authclient.ClientI) (types.SessionTracker, error) {
-				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				timeout, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 				defer cancel()
 				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
 				if err != nil {
@@ -519,7 +519,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			select {
 			case err := <-endC:
 				require.NoError(t, err)
-			case <-time.After(10 * time.Second):
+			case <-time.After(15 * time.Second):
 				t.Fatalf("%s: Timeout waiting for session to finish.", tt.comment)
 			}
 
@@ -1250,7 +1250,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 					return
 				}
 				sessionID = trackers[0].GetSessionID()
-			}, time.Second*5, time.Millisecond*100)
+			}, time.Second*15, time.Millisecond*100)
 
 			// Send stuff to the session.
 			term.Type("echo Hello\n\r")
@@ -1264,7 +1264,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 
 			// Wait for the session to terminate without error.
 			term.Type("exit\n\r")
-			require.NoError(t, waitForError(errCh, 5*time.Second))
+			require.NoError(t, waitForError(errCh, 15*time.Second))
 
 			// Wait for the session recording to be uploaded and available
 			var uploaded bool
@@ -1284,7 +1284,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				events, err := authSrv.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, events)
-			}, 5*time.Second, 200*time.Millisecond)
+			}, 15*time.Second, 200*time.Millisecond)
 		})
 	}
 }
@@ -1896,7 +1896,7 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 			select {
 			case err := <-sshErr:
 				require.NoError(t, err)
-			case <-time.After(5 * time.Second):
+			case <-time.After(15 * time.Second):
 				require.FailNow(t, "failed to shutdown ssh session")
 			}
 
@@ -4790,7 +4790,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 
 						// Reading the display may fail if the session is not fully initialized
 						// and the write to stdin is swallowed.
-						var display string
+						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
 							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
@@ -4799,7 +4799,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 							assert.Eventually(t, func() bool {
 								output, err := os.ReadFile(tmpFile.Name())
 								if err == nil && len(output) != 0 {
-									display = strings.TrimSpace(string(output))
+									display <- strings.TrimSpace(string(output))
 									return true
 								}
 								return false
@@ -4807,7 +4807,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						}, 10*time.Second, time.Second)
 
 						// Make a new connection to the XServer proxy to confirm that forwarding is working.
-						serverDisplay, err := x11.ParseDisplay(display)
+						serverDisplay, err := x11.ParseDisplay(<-display)
 						require.NoError(t, err)
 
 						conn, err := serverDisplay.Dial()
@@ -4907,6 +4907,13 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			server.SetSubKind(types.SubKindOpenSSHNode)
 			_, err = clt.UpsertNode(context.Background(), server)
 			require.NoError(t, err)
+
+			// Wait for the node to be visible before continuing.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				found, err := clt.GetNodes(context.Background(), defaults.Namespace)
+				assert.NoError(t, err)
+				assert.Len(t, found, 2)
+			}, 10*time.Second, 100*time.Millisecond)
 
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 
@@ -6195,7 +6202,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	teleport := suite.NewTeleportWithConfig(t, nil, nil, makeConfig())
 	defer teleport.StopAll()
 
-	// Create and start a reversetunnel node.
+	// Create and start a node.
 	nodeConfig := func() *servicecfg.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"
@@ -6207,8 +6214,20 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 
 		return tconf
 	}
-	_, err := teleport.StartReverseTunnelNode(nodeConfig())
+	_, err := teleport.StartNode(nodeConfig())
 	require.NoError(t, err)
+
+	slowPrintCommand := func(s string) []string {
+		cmd := make([]string, 0)
+		for i, char := range strings.Split(s, "") {
+			if i != 0 {
+				cmd = append(cmd, "&&")
+			}
+			cmd = append(cmd, "echo", "-n", char, "&&", "sleep", "0.05")
+		}
+
+		return cmd
+	}
 
 	// test label patterns that match both nodes, and each
 	// node individually.
@@ -6219,10 +6238,11 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 		expectLines []string
 	}{
 		{
-			desc:        "Both",
-			command:     []string{"echo", "two"},
+			desc: "Both",
+			// Print slowly so we can confirm that the output isn't interleaved.
+			command:     slowPrintCommand("abcd1234"),
 			labels:      map[string]string{"spam": "eggs"},
-			expectLines: []string{"[server-01] two", "[server-02] two"},
+			expectLines: []string{"[server-01] abcd1234", "[server-02] abcd1234"},
 		},
 		{
 			desc:        "Worker only",
@@ -8548,7 +8568,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				select {
 				case err := <-errChan:
 					require.NoError(t, err)
-				case <-time.After(5 * time.Second):
+				case <-time.After(15 * time.Second):
 					t.Fatal("timeout waiting for session to exit")
 				}
 				require.Contains(t, term.AllOutput(), "hi")
@@ -8580,7 +8600,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 					if !authRunning {
 						require.Empty(t, term.AllOutput())
 					}
-				case <-time.After(5 * time.Second):
+				case <-time.After(15 * time.Second):
 					t.Fatal("timeout waiting for session to exit")
 				}
 			},

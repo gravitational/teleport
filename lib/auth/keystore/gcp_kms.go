@@ -99,6 +99,10 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *servicecfg.GCPKMSConfig, opts *
 	}, nil
 }
 
+func (a *gcpKMSKeyStore) name() string {
+	return storeGCP
+}
+
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (g *gcpKMSKeyStore) keyTypeDescription() string {
@@ -343,16 +347,26 @@ func (s *kmsSigner) Public() crypto.PublicKey {
 }
 
 func (s *kmsSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	requestDigest := &kmspb.Digest{}
+	var (
+		requestDigest *kmspb.Digest
+		data          []byte
+	)
 	switch opts.HashFunc() {
 	case crypto.SHA256:
-		requestDigest.Digest = &kmspb.Digest_Sha256{
-			Sha256: digest,
+		requestDigest = &kmspb.Digest{
+			Digest: &kmspb.Digest_Sha256{
+				Sha256: digest,
+			},
 		}
 	case crypto.SHA512:
-		requestDigest.Digest = &kmspb.Digest_Sha512{
-			Sha512: digest,
+		requestDigest = &kmspb.Digest{
+			Digest: &kmspb.Digest_Sha512{
+				Sha512: digest,
+			},
 		}
+	case crypto.Hash(0):
+		// Ed25519 uses no hash and sends the full raw data.
+		data = digest
 	default:
 		return nil, trace.BadParameter("unsupported hash func for GCP KMS signer: %v", opts.HashFunc())
 	}
@@ -360,6 +374,7 @@ func (s *kmsSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) 
 	resp, err := doGCPRequest(s.ctx, s.g, s.g.kmsClient.AsymmetricSign, &kmspb.AsymmetricSignRequest{
 		Name:   s.keyID.keyVersionName,
 		Digest: requestDigest,
+		Data:   data,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "error while attempting GCP KMS signing operation")

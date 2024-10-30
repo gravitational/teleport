@@ -48,6 +48,11 @@ const (
 	ClusterConfigService_ResetAuthPreference_FullMethodName           = "/teleport.clusterconfig.v1.ClusterConfigService/ResetAuthPreference"
 	ClusterConfigService_GetClusterAuditConfig_FullMethodName         = "/teleport.clusterconfig.v1.ClusterConfigService/GetClusterAuditConfig"
 	ClusterConfigService_GetClusterAccessGraphConfig_FullMethodName   = "/teleport.clusterconfig.v1.ClusterConfigService/GetClusterAccessGraphConfig"
+	ClusterConfigService_GetAccessGraphSettings_FullMethodName        = "/teleport.clusterconfig.v1.ClusterConfigService/GetAccessGraphSettings"
+	ClusterConfigService_CreateAccessGraphSettings_FullMethodName     = "/teleport.clusterconfig.v1.ClusterConfigService/CreateAccessGraphSettings"
+	ClusterConfigService_UpdateAccessGraphSettings_FullMethodName     = "/teleport.clusterconfig.v1.ClusterConfigService/UpdateAccessGraphSettings"
+	ClusterConfigService_UpsertAccessGraphSettings_FullMethodName     = "/teleport.clusterconfig.v1.ClusterConfigService/UpsertAccessGraphSettings"
+	ClusterConfigService_ResetAccessGraphSettings_FullMethodName      = "/teleport.clusterconfig.v1.ClusterConfigService/ResetAccessGraphSettings"
 )
 
 // ClusterConfigServiceClient is the client API for ClusterConfigService service.
@@ -80,8 +85,18 @@ type ClusterConfigServiceClient interface {
 	ResetAuthPreference(ctx context.Context, in *ResetAuthPreferenceRequest, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
 	// GetClusterAuditConfig retrieves the active cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, in *GetClusterAuditConfigRequest, opts ...grpc.CallOption) (*types.ClusterAuditConfigV2, error)
-	// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
 	GetClusterAccessGraphConfig(ctx context.Context, in *GetClusterAccessGraphConfigRequest, opts ...grpc.CallOption) (*GetClusterAccessGraphConfigResponse, error)
+	// GetAccessGraphSettings updates the cluster Access Graph configuration.
+	GetAccessGraphSettings(ctx context.Context, in *GetAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error)
+	// CreateAccessGraphSettings creates the cluster Access Graph configuration.
+	CreateAccessGraphSettings(ctx context.Context, in *CreateAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error)
+	// UpdateAccessGraphSettings updates the cluster Access Graph configuration.
+	UpdateAccessGraphSettings(ctx context.Context, in *UpdateAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error)
+	// UpsertAccessGraphSettings overwrites the active cluster Access Graph configuration.
+	UpsertAccessGraphSettings(ctx context.Context, in *UpsertAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error)
+	// ResetAccessGraphSettings restores the active cluster Access Graph to default settings.
+	ResetAccessGraphSettings(ctx context.Context, in *ResetAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error)
 }
 
 type clusterConfigServiceClient struct {
@@ -218,6 +233,51 @@ func (c *clusterConfigServiceClient) GetClusterAccessGraphConfig(ctx context.Con
 	return out, nil
 }
 
+func (c *clusterConfigServiceClient) GetAccessGraphSettings(ctx context.Context, in *GetAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error) {
+	out := new(AccessGraphSettings)
+	err := c.cc.Invoke(ctx, ClusterConfigService_GetAccessGraphSettings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) CreateAccessGraphSettings(ctx context.Context, in *CreateAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error) {
+	out := new(AccessGraphSettings)
+	err := c.cc.Invoke(ctx, ClusterConfigService_CreateAccessGraphSettings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) UpdateAccessGraphSettings(ctx context.Context, in *UpdateAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error) {
+	out := new(AccessGraphSettings)
+	err := c.cc.Invoke(ctx, ClusterConfigService_UpdateAccessGraphSettings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) UpsertAccessGraphSettings(ctx context.Context, in *UpsertAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error) {
+	out := new(AccessGraphSettings)
+	err := c.cc.Invoke(ctx, ClusterConfigService_UpsertAccessGraphSettings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterConfigServiceClient) ResetAccessGraphSettings(ctx context.Context, in *ResetAccessGraphSettingsRequest, opts ...grpc.CallOption) (*AccessGraphSettings, error) {
+	out := new(AccessGraphSettings)
+	err := c.cc.Invoke(ctx, ClusterConfigService_ResetAccessGraphSettings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClusterConfigServiceServer is the server API for ClusterConfigService service.
 // All implementations must embed UnimplementedClusterConfigServiceServer
 // for forward compatibility
@@ -248,8 +308,18 @@ type ClusterConfigServiceServer interface {
 	ResetAuthPreference(context.Context, *ResetAuthPreferenceRequest) (*types.AuthPreferenceV2, error)
 	// GetClusterAuditConfig retrieves the active cluster audit configuration.
 	GetClusterAuditConfig(context.Context, *GetClusterAuditConfigRequest) (*types.ClusterAuditConfigV2, error)
-	// GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
+	// GetClusterAccessGraphConfig retrieves the cluster Access Graph configuration from Auth server.
 	GetClusterAccessGraphConfig(context.Context, *GetClusterAccessGraphConfigRequest) (*GetClusterAccessGraphConfigResponse, error)
+	// GetAccessGraphSettings updates the cluster Access Graph configuration.
+	GetAccessGraphSettings(context.Context, *GetAccessGraphSettingsRequest) (*AccessGraphSettings, error)
+	// CreateAccessGraphSettings creates the cluster Access Graph configuration.
+	CreateAccessGraphSettings(context.Context, *CreateAccessGraphSettingsRequest) (*AccessGraphSettings, error)
+	// UpdateAccessGraphSettings updates the cluster Access Graph configuration.
+	UpdateAccessGraphSettings(context.Context, *UpdateAccessGraphSettingsRequest) (*AccessGraphSettings, error)
+	// UpsertAccessGraphSettings overwrites the active cluster Access Graph configuration.
+	UpsertAccessGraphSettings(context.Context, *UpsertAccessGraphSettingsRequest) (*AccessGraphSettings, error)
+	// ResetAccessGraphSettings restores the active cluster Access Graph to default settings.
+	ResetAccessGraphSettings(context.Context, *ResetAccessGraphSettingsRequest) (*AccessGraphSettings, error)
 	mustEmbedUnimplementedClusterConfigServiceServer()
 }
 
@@ -298,6 +368,21 @@ func (UnimplementedClusterConfigServiceServer) GetClusterAuditConfig(context.Con
 }
 func (UnimplementedClusterConfigServiceServer) GetClusterAccessGraphConfig(context.Context, *GetClusterAccessGraphConfigRequest) (*GetClusterAccessGraphConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClusterAccessGraphConfig not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) GetAccessGraphSettings(context.Context, *GetAccessGraphSettingsRequest) (*AccessGraphSettings, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccessGraphSettings not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) CreateAccessGraphSettings(context.Context, *CreateAccessGraphSettingsRequest) (*AccessGraphSettings, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessGraphSettings not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) UpdateAccessGraphSettings(context.Context, *UpdateAccessGraphSettingsRequest) (*AccessGraphSettings, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccessGraphSettings not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) UpsertAccessGraphSettings(context.Context, *UpsertAccessGraphSettingsRequest) (*AccessGraphSettings, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessGraphSettings not implemented")
+}
+func (UnimplementedClusterConfigServiceServer) ResetAccessGraphSettings(context.Context, *ResetAccessGraphSettingsRequest) (*AccessGraphSettings, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetAccessGraphSettings not implemented")
 }
 func (UnimplementedClusterConfigServiceServer) mustEmbedUnimplementedClusterConfigServiceServer() {}
 
@@ -564,6 +649,96 @@ func _ClusterConfigService_GetClusterAccessGraphConfig_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClusterConfigService_GetAccessGraphSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccessGraphSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).GetAccessGraphSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_GetAccessGraphSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).GetAccessGraphSettings(ctx, req.(*GetAccessGraphSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_CreateAccessGraphSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAccessGraphSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).CreateAccessGraphSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_CreateAccessGraphSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).CreateAccessGraphSettings(ctx, req.(*CreateAccessGraphSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_UpdateAccessGraphSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAccessGraphSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).UpdateAccessGraphSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_UpdateAccessGraphSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).UpdateAccessGraphSettings(ctx, req.(*UpdateAccessGraphSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_UpsertAccessGraphSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertAccessGraphSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).UpsertAccessGraphSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_UpsertAccessGraphSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).UpsertAccessGraphSettings(ctx, req.(*UpsertAccessGraphSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClusterConfigService_ResetAccessGraphSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetAccessGraphSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterConfigServiceServer).ResetAccessGraphSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClusterConfigService_ResetAccessGraphSettings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterConfigServiceServer).ResetAccessGraphSettings(ctx, req.(*ResetAccessGraphSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClusterConfigService_ServiceDesc is the grpc.ServiceDesc for ClusterConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -626,6 +801,26 @@ var ClusterConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetClusterAccessGraphConfig",
 			Handler:    _ClusterConfigService_GetClusterAccessGraphConfig_Handler,
+		},
+		{
+			MethodName: "GetAccessGraphSettings",
+			Handler:    _ClusterConfigService_GetAccessGraphSettings_Handler,
+		},
+		{
+			MethodName: "CreateAccessGraphSettings",
+			Handler:    _ClusterConfigService_CreateAccessGraphSettings_Handler,
+		},
+		{
+			MethodName: "UpdateAccessGraphSettings",
+			Handler:    _ClusterConfigService_UpdateAccessGraphSettings_Handler,
+		},
+		{
+			MethodName: "UpsertAccessGraphSettings",
+			Handler:    _ClusterConfigService_UpsertAccessGraphSettings_Handler,
+		},
+		{
+			MethodName: "ResetAccessGraphSettings",
+			Handler:    _ClusterConfigService_ResetAccessGraphSettings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

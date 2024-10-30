@@ -29,9 +29,11 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -47,7 +49,9 @@ func (process *TeleportProcess) initKubernetes() {
 		if conn == nil {
 			return trace.Wrap(err)
 		}
-		if !process.GetClusterFeatures().Kubernetes {
+		features := process.GetClusterFeatures()
+		k8s := modules.GetProtoEntitlement(&features, entitlements.K8s)
+		if !k8s.Enabled {
 			logger.WarnContext(process.ExitContext(), "Warning: Kubernetes service not initialized because Teleport Auth Server is not licensed for Kubernetes Access. Please contact the cluster administrator to enable it.")
 			return nil
 		}
@@ -152,7 +156,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if len(cfg.Kube.DynamicLabels) != 0 {
 		dynLabels, err = labels.NewDynamic(process.ExitContext(), &labels.DynamicConfig{
 			Labels: cfg.Kube.DynamicLabels,
-			Log:    process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)

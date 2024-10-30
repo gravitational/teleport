@@ -75,6 +75,7 @@ export enum IntegrationEnrollKind {
   MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
   EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
+  DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
 }
 
 // These constants should match the constant defined in backend found in:
@@ -90,6 +91,7 @@ export enum DiscoverEvent {
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
   EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
   EC2DeployEICE = 'tp.ui.discover.deployEICE',
+  CreateApplicationServer = 'tp.ui.discover.createAppServer',
   CreateNode = 'tp.ui.discover.createNode',
   CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
   KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
@@ -258,6 +260,7 @@ export enum CtaEvent {
   CTA_EXTERNAL_AUDIT_STORAGE = 10,
   CTA_OKTA_USER_SYNC = 11,
   CTA_ENTRA_ID = 12,
+  CTA_OKTA_SCIM = 13,
 }
 
 export enum Feature {

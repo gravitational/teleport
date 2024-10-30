@@ -43,7 +43,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		Log:                 s.logrusLogger,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -53,13 +53,13 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			select {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Error("Failed to reconcile.")
+					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
 				}
 				if s.cfg.OnReconcile != nil {
 					s.cfg.OnReconcile(s.getProxiedDatabases())
 				}
 			case <-ctx.Done():
-				s.log.Debug("Reconciler done.")
+				s.log.DebugContext(ctx, "Reconciler done.")
 				return
 			}
 		}
@@ -71,14 +71,14 @@ func (s *Server) startReconciler(ctx context.Context) error {
 // registers/unregisters the proxied databases accordingly.
 func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWatcher, error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
-		s.log.Debug("Not starting database resource watcher.")
+		s.log.DebugContext(ctx, "Not starting database resource watcher.")
 		return nil, nil
 	}
-	s.log.Debug("Starting database resource watcher.")
+	s.log.DebugContext(ctx, "Starting database resource watcher.")
 	watcher, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Log:       s.log,
+			Log:       s.logrusLogger,
 			Client:    s.cfg.AccessPoint,
 		},
 	})
@@ -86,7 +86,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 		return nil, trace.Wrap(err)
 	}
 	go func() {
-		defer s.log.Debug("Database resource watcher done.")
+		defer s.log.DebugContext(ctx, "Database resource watcher done.")
 		defer watcher.Close()
 		for {
 			select {
@@ -119,7 +119,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 
 	allFetchers := append(awsFetchers, azureFetchers...)
 	if len(allFetchers) == 0 {
-		s.log.Debugf("Not starting cloud database watcher: %v.", err)
+		s.log.DebugContext(ctx, "Not starting cloud database watcher.", "error", err)
 		return nil
 	}
 
@@ -133,7 +133,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	}
 	go watcher.Start()
 	go func() {
-		defer s.log.Debug("Cloud database watcher done.")
+		defer s.log.DebugContext(ctx, "Cloud database watcher done.")
 		for {
 			select {
 			case resources := <-watcher.ResourcesC():
@@ -141,7 +141,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 				if err == nil {
 					s.monitoredDatabases.setCloud(databases)
 				} else {
-					s.log.WithError(err).Warnf("Failed to convert resources to databases.")
+					s.log.WarnContext(ctx, "Failed to convert resources to databases.", "error", err)
 				}
 				select {
 				case s.reconcileCh <- struct{}{}:

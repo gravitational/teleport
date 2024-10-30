@@ -82,12 +82,24 @@ actions menu or press `` Ctrl+Shift+` ``.
 
 Any tsh command executed within the tab targets the current cluster. Teleport Connect accomplishes
 this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER` for the session.
-Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
+Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
-When using [trusted clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
+When using [trusted clusters](../admin-guides/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
+
+### Changing the terminal shell
+
+By default, Teleport Connect launches the user shell on macOS/Linux and PowerShell on Windows.
+To switch to a different shell, right-click on a terminal tab (either a local terminal or a Kubernetes session).
+From the menu, choose a predefined shell (on Windows) or provide the path to a custom shell.
+
+The selected shell will be used only for that tab unless you choose to set it as the default.
+![Changing the terminal shell in Teleport Connect on Windows](../../img/use-teleport/connect-shell-switcher@2x.png)
+
+The configuration is stored under `terminal.shell` and `terminal.customShell` config properties.
+For more details, refer to the [Configuration](#configuration) section.
 
 ## Connecting to a Kubernetes cluster
 
@@ -141,7 +153,7 @@ with that command executed.
 Teleport Connect supports launching applications in the browser, as well as creating
 authenticated tunnels for web and TCP applications.
 
-When it comes to [cloud APIs secured with Application Access](../application-access/cloud-apis.mdx),
+When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis.mdx),
 Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
 be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
@@ -244,12 +256,12 @@ the lifecycle of the agent.
 {/* The permission to read and update users is needed during setup but not for regular usage,
 that's why it's not listed in the partial. */}
 - Permissions to read and update user objects in the backend (verbs `read` and `update` for [the
-  `user` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
+  `user` resource](../reference/access-controls/roles.mdx)).
 - Permissions to read, update, and create roles in the backend (verbs `read`, `update`, and `create`
-  for [the `role` resource](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources)).
+  for [the `role` resource](../reference/access-controls/roles.mdx)).
 
 The agent runs as the current system user, not as root. Some features are thus not available, such
-as logging in as other system users or [host user creation](../server-access/guides/host-user-creation.mdx).
+as logging in as other system users or [host user creation](../enroll-resources/server-access/guides/host-user-creation.mdx).
 
 ### Setup and usage
 
@@ -361,7 +373,7 @@ INFO [AUTH]      Attempting registration via proxy server. auth/register.go:279
 ERRO [PROC:1]    Can not join the cluster as node, the token expired or not found. Regenerate the token and try again. pid:54364.1 service/connect.go:106
 ```
 
-During the setup, Connect My Computer creates [a join token](../agents/join-services-to-your-cluster/join-token.mdx)
+During the setup, Connect My Computer creates [a join token](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx)
 that is valid for up to five minutes. If the logs say that the token has expired, it most likely
 means that the initial attempt to join the cluster has failed and you started another one after more
 than five minutes.
@@ -380,7 +392,7 @@ the agent was successfully configured.
 If you wish to prevent cluster users from using Connect My Computer, make sure they don't have
 permissions to create new join tokens. This is controlled by the `create` verb for the `token`
 resource. Either deny this permission explicitly or do not grant it in the first place. See [Access
-Controls Reference Documentation](../access-controls/reference.mdx#rbac-for-dynamic-teleport-resources) for more
+Controls Reference Documentation](../reference/access-controls/roles.mdx) for more
 details. Denying this permission will hide the icon in the top bar.
 
 Users who already set up agents will still be able to manage those agents, even after the denying
@@ -389,7 +401,7 @@ a user set up an agent and then lock the user out of removing the agent.
 
 To instantly revoke access to agents that have already joined the cluster, look for nodes labeled
 with the `teleport.dev/connect-my-computer/owner` label and then [place
-locks](../access-controls/guides/locking.mdx) on those nodes.
+locks](../admin-guides/access-controls/guides/locking.mdx) on those nodes.
 
 ```code
 $ tctl nodes ls -v --query='labels["teleport.dev/connect-my-computer/owner"] != ""'
@@ -445,19 +457,29 @@ Below is the list of the supported config properties.
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.                                       |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                                                              |
-| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                                                                |
+| `terminal.fontSize`           | `15`                                                                                                                 | Font size for the terminal.                                                                                |
+| `terminal.windowsBackend` | `auto` | `auto` uses modern [ConPTY](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available. |
+| `terminal.shell` | Default user shell on macOS/Linux, `pwsh.exe`/`powershell.exe` on Windows | A default terminal shell. Can be set to `custom` to take the shell path from `terminal.customShell`. It is best to configure it through UI (right click on a terminal tab > Default Shell). |
+| `terminal.customShell` |  | Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…). |
+| `terminal.rightClick`         | `menu` on macOS/Linux<br/>`copyPaste` on Windows | `paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.                                                         |
+| `terminal.copyOnSelect`       | `false` | Automatically copies selected text to the clipboard.                                                                                                                                                                      |
 | `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)).                                     |
 | `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                                                                  |
 | `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+Shift+W` on Windows/Linux                                                             | Shortcut to close a tab.                                                                                   |
 | `keymap.newTab`               | `Command+T` on macOS<br/>`Ctrl+Shift+T` on Windows/Linux                                                             | Shortcut to open a new tab.                                                                                |
 | `keymap.newTerminalTab`       | `` Control+Shift+` `` on macOS<br/>`` Ctrl+Shift+` `` on Windows/Linux                                               | Shortcut to open a new terminal tab.                                                                       |
+| `keymap.terminalCopy`         | `Command+C` on macOS<br/>`Ctrl+Shift+C` on Windows/Linux                                                             | Shortcut to copy text in the terminal.                                                                     |
+| `keymap.terminalPaste`        | `Command+V` on macOS<br/>`Ctrl+Shift+V` on Windows/Linux                                                             | Shortcut to paste text in the terminal.                                                                    |
 | `keymap.previousTab`          | `Control+Shift+Tab` on macOS<br/>`Ctrl+Shift+Tab` on Windows/Linux                                                   | Shortcut to go to the previous tab.                                                                        |
 | `keymap.nextTab`              | `Control+Tab` on macOS<br/>`Ctrl+Tab` on Windows/Linux                                                               | Shortcut to go to the next tab.                                                                            |
 | `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+Shift+P` on Windows/Linux                                                             | Shortcut to open the connection list.                                                                      |
 | `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+Shift+E` on Windows/Linux                                                             | Shortcut to open the cluster selector.                                                                     |
 | `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+Shift+I` on Windows/Linux                                                             | Shortcut to open the profile selector.                                                                     |
 | `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+Shift+K` on Windows/Linux                                                             | Shortcut to open the search bar.                                                                           |
-| `headless.skipConfirm`        | false                                                                                                                | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+| `headless.skipConfirm`        | `false`                                                                                                              | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
+| `ssh.noResume`                | `false`                                                                                                              | Disables SSH connection resumption.                                                                        |
+| `ssh.forwardAgent`            | `true`                                                                                                               | Enables agent forwarding.                                                                                  |
+| `sshAgent.addKeysToAgent`     | `auto`                                                                                                               | Controls how keys are added to a local SSH agent. "auto" adds the keys only if the agent supports SSH certificates, "no" never attempts to add them, "yes" always attempts to add them, "only" always attempts to add the keys to the agent but it does not save them on disk. |
 
 <Admonition
   type="note"
@@ -590,7 +612,7 @@ see them only after you restart the app.
 
 You can open Teleport Connect in insecure mode, which skips TLS certificate verification when
 talking to a Teleport Proxy Service. This is useful in [test environments with self-signed
-certificates](../management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
+certificates](../admin-guides/management/admin/self-signed-certs.mdx) or for demo purposes. We do not recommend
 using this mode in production.
 
 <Tabs>
@@ -622,7 +644,7 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 <Tabs>
 <TabItem label="macOS">
 
-Remove Teleport Connect for MacOS from the Applications directory with this command:
+Remove Teleport Connect for macOS from the Applications directory with this command:
 
 ```code
 $ sudo rm -rf /Applications/Teleport\ Connect.app
@@ -665,4 +687,3 @@ Installs based on a tarball should remove the
 
 </TabItem>
 </Tabs>
-

@@ -37,6 +37,8 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -123,6 +125,12 @@ type Config struct {
 	BatchMaxItems int
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
+	// ConsumerLockName defines a name of a SQS consumer lock (optional).
+	// If provided, it will be prefixed with "athena/" to avoid accidental
+	// collision with existing locks.
+	ConsumerLockName string
+	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
+	ConsumerDisabled bool
 
 	// Clock is a clock interface, used in tests.
 	Clock clockwork.Clock
@@ -415,6 +423,16 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.BatchMaxInterval = dur
 	}
+	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
+		cfg.ConsumerLockName = consumerLockName
+	}
+	if val := url.Query().Get("consumerDisabled"); val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("invalid consumerDisabled value: %v", err)
+		}
+		cfg.ConsumerDisabled = boolVal
+	}
 
 	return nil
 }
@@ -469,6 +487,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		database:                     cfg.Database,
 		workgroup:                    cfg.Workgroup,
 		queryResultsS3:               cfg.QueryResultsS3,
+		locationS3Prefix:             cfg.locationS3Prefix,
+		locationS3Bucket:             cfg.locationS3Bucket,
 		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
 		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
 		awsCfg:                       cfg.StorerQuerierAWSConfig,
@@ -480,20 +500,23 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
-
-	consumer, err := newConsumer(cfg, consumerCancel)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	l := &Log{
-		publisher:      newPublisherFromAthenaConfig(cfg),
-		querier:        querier,
-		consumerCloser: consumer,
+		publisher: newPublisherFromAthenaConfig(cfg),
+		querier:   querier,
 	}
 
-	go consumer.run(consumerCtx)
+	if !cfg.ConsumerDisabled {
+		consumerCtx, consumerCancel := context.WithCancel(ctx)
+
+		consumer, err := newConsumer(cfg, consumerCancel)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		l.consumerCloser = consumer
+
+		go consumer.run(consumerCtx)
+	}
 
 	return l, nil
 }
@@ -507,12 +530,24 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	return l.querier.SearchEvents(ctx, req)
 }
 
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return l.querier.ExportUnstructuredEvents(ctx, req)
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return l.querier.GetEventExportChunks(ctx, req)
+}
+
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return l.querier.SearchSessionEvents(ctx, req)
 }
 
 func (l *Log) Close() error {
 	return trace.Wrap(l.consumerCloser.Close())
+}
+
+func (l *Log) IsConsumerDisabled() bool {
+	return l.consumerCloser == nil
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")
@@ -643,8 +678,4 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 		m.consumerAgeOfOldestProcessedMessage,
 		m.consumerNumberOfErrorsFromSQSCollect,
 	))
-}
-
-type trimmableEvent interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }

@@ -51,6 +51,7 @@ const (
 	alertGraceDuration = alertGraceHours * time.Hour
 	alertName          = "reporting-failed"
 	alertLink          = "https://goteleport.com/support/"
+	alertLinkText      = "Contact Support"
 )
 
 const (
@@ -204,6 +205,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
 			types.WithAlertLabel(types.AlertLink, alertLink),
+			types.WithAlertLabel(types.AlertLinkText, alertLinkText),
 		)
 		if err != nil {
 			c.Log.WithError(err).Errorf("Failed to create cluster alert %v.", alertName)

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -56,7 +57,9 @@ func TestMain(m *testing.M) {
 	modules.SetModules(&modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
-			HSM: true,
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.HSM: {Enabled: true},
+			},
 		},
 	})
 
@@ -674,7 +677,10 @@ func TestHSMRevert(t *testing.T) {
 	clock.Advance(2 * defaults.HighResPollingPeriod)
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		alerts, err = auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Empty(t, alerts)
+
+		// Keep advancing the clock to make sure the rotation ticker gets fired
+		clock.Advance(2 * defaults.HighResPollingPeriod)
 	}, 5*time.Second, 100*time.Millisecond)
 }

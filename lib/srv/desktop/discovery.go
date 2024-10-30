@@ -262,6 +262,10 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 	labels[types.DiscoveryLabelWindowsDomain] = s.cfg.Domain
 	s.applyLabelsFromLDAP(entry, labels)
 
+	if os, ok := labels[types.DiscoveryLabelWindowsOS]; ok && strings.Contains(os, "linux") {
+		return nil, trace.BadParameter("LDAP entry looks like a Linux host")
+	}
+
 	addrs, err := s.lookupDesktop(ctx, hostname)
 	if err != nil || len(addrs) == 0 {
 		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)

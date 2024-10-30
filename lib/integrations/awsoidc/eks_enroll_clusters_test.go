@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -90,14 +91,20 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 	testEKSClusters := []eksTypes.Cluster{
 		{
-			Name:                 aws.String("EKS1"),
+			Name: aws.String("EKS1"),
+			ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+				EndpointPublicAccess: true,
+			},
 			Arn:                  aws.String(clustersBaseArn + "1"),
 			Tags:                 map[string]string{"label1": "value1"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
 		},
 		{
-			Name:                 aws.String("EKS2"),
+			Name: aws.String("EKS2"),
+			ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+				EndpointPublicAccess: true,
+			},
 			Arn:                  aws.String(clustersBaseArn + "2"),
 			Tags:                 map[string]string{"label2": "value2"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
@@ -131,9 +138,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 		return clt
 	}
 	baseRequest := EnrollEKSClustersRequest{
-		Region:             "us-east-1",
-		AgentVersion:       "1.2.3",
-		EnableAppDiscovery: true,
+		Region:              "us-east-1",
+		AgentVersion:        "1.2.3",
+		EnableAppDiscovery:  true,
+		IntegrationName:     "my-integration",
+		TeleportClusterName: "my-teleport-cluster",
 	}
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -230,6 +239,62 @@ func TestEnrollEKSClusters(t *testing.T) {
 			},
 		},
 		{
+			name:         "private cluster in cloud is not enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name: aws.String("EKS3"),
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: false,
+					},
+					Arn:                  aws.String(clustersBaseArn + "3"),
+					Tags:                 map[string]string{"label3": "value3"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+				},
+			},
+			request: EnrollEKSClustersRequest{
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IsCloud:             true,
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
+			},
+			requestClusterNames: []string{"EKS3"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.ErrorContains(t, response.Results[0].Error,
+					`can't enroll "EKS3" because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`)
+			},
+		},
+		{
+			name:         "private cluster not in cloud is enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name: aws.String("EKS3"),
+					ResourcesVpcConfig: &eksTypes.VpcConfigResponse{
+						EndpointPublicAccess: false,
+					},
+					Arn:                  aws.String(clustersBaseArn + "3"),
+					Tags:                 map[string]string{"label3": "value3"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+				},
+			},
+			request: EnrollEKSClustersRequest{
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
+			},
+			requestClusterNames: []string{"EKS3"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.NoError(t, response.Results[0].Error)
+			},
+		},
+		{
 			name: "cluster with already present agent is not enrolled",
 			enrollClient: func(t *testing.T, clusters []eksTypes.Cluster) EnrollEKSCLusterClient {
 				clt := baseClient(t, clusters)
@@ -302,8 +367,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 		mockClt, ok := client.(*mockEnrollEKSClusterClient)
 		require.True(t, ok)
 		createCalled, deleteCalled := false, false
+		createTags := make(map[string]string)
 		mockClt.createAccessEntry = func(ctx context.Context, input *eks.CreateAccessEntryInput, f ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
 			createCalled = true
+			createTags = maps.Clone(input.Tags)
 			return nil, nil
 		}
 		mockClt.deleteAccessEntry = func(ctx context.Context, input *eks.DeleteAccessEntryInput, f ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error) {
@@ -317,6 +384,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
 		require.True(t, createCalled)
+		require.Equal(t, map[string]string{
+			"teleport.dev/cluster":     "my-teleport-cluster",
+			"teleport.dev/integration": "my-integration",
+			"teleport.dev/origin":      "integration_awsoidc",
+		}, createTags)
 		require.True(t, deleteCalled)
 	})
 }

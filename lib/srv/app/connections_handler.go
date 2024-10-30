@@ -225,7 +225,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 
 	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{
-		Logger: cfg.Logger.With(teleport.ComponentKey, appazure.ComponentKey),
+		Log: cfg.Logger.With(teleport.ComponentKey, appazure.ComponentKey),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -384,25 +384,9 @@ func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		newAudit: func(ctx context.Context, sessionID string) (common.Audit, error) {
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed.
-			rec, err := c.newSessionRecorder(c.closeContext, c.sessionStartTime(ctx), sessionID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			audit, err := common.NewAudit(common.AuditConfig{
-				Emitter:  c.cfg.Emitter,
-				Recorder: rec,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return audit, nil
-		},
-		hostID: c.cfg.HostID,
-		log:    c.log,
+		emitter: c.cfg.Emitter,
+		hostID:  c.cfg.HostID,
+		log:     c.log,
 	}, nil
 }
 
@@ -771,6 +755,9 @@ func (c *ConnectionsHandler) deleteConnAuth(conn net.Conn) {
 // for Teleport application proxy servers.
 func CopyAndConfigureTLS(log logrus.FieldLogger, client authclient.AccessCache, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
+	if log == nil {
+		log = logrus.StandardLogger()
+	}
 
 	// Require clients to present a certificate
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert

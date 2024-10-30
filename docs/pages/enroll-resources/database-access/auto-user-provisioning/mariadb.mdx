@@ -1,0 +1,166 @@
+---
+title: MariaDB Automatic User Provisioning 
+description: Configure automatic user provisioning for MariaDB.
+---
+
+(!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
+
+## Prerequisites
+
+- Teleport cluster v14.1.3 or higher with a configured [self-hosted
+  MariaDB](../enroll-self-hosted-databases/mysql-self-hosted.mdx) or [RDS MariaDB](../enroll-aws-databases/rds.mdx)
+  database.
+- Ability to connect to and create user accounts in the target database.
+
+<Admonition type="note" title="Supported versions">
+Automatic user provisioning is not compatible with MariaDB versions lower than
+10.3.3 or 10.2.11.
+</Admonition>
+
+## Step 1/3. Configure database admin
+
+(!docs/pages/includes/database-access/auto-user-provisioning/configure-admin.mdx!)
+
+Teleport uses the same authentication mechanism when connecting as an admin
+user as for regular user connections: X.509 for self-hosted databases and AWS
+IAM for RDS.
+
+The admin user must have privileges within the database to create users and
+grant them privileges. The admin user must also have privileges to monitor user
+processes and role assignments.
+
+In addition, a schema is required for the admin user to log into by default.
+This schema is also used to store custom user attributes and stored procedures.
+
+<Tabs>
+<TabItem label="RDS MariaDB">
+The RDS MariaDB admin user must use `AWSAuthenticationPlugin` to allow IAM
+authentication:
+```sql
+CREATE USER 'teleport-admin' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+GRANT PROCESS, CREATE USER ON *.* TO 'teleport-admin';
+GRANT SELECT ON mysql.roles_mapping TO 'teleport-admin';
+GRANT UPDATE ON mysql.* TO 'teleport-admin'; -- For SET DEFAULT ROLE FOR
+GRANT SELECT ON *.* TO 'teleport-admin'; -- Required when using best_effort_drop mode for checking if users own resources before dropping them.
+
+CREATE DATABASE IF NOT EXISTS `teleport`;
+GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
+```
+
+Note that Teleport uses `teleport` as the name of the default schema but the
+name is configurable in the Teleport database definition. Replace the database
+name in the last two lines if you wish to use another database name.
+
+<Admonition type="warning" title ="Role Admin">
+In order for the admin user to grant a role to a database user, they must be
+the "Admin" of the role.
+
+One way to achieve this is to create roles as the admin user, which
+automatically designates the admin user as "Admin" of those roles.
+
+Alternatively, you can assign the admin user as the "Admin" of existing roles:
+```sql
+UPDATE mysql.roles_mapping SET User ='teleport-admin' WHERE Admin_option='Y' AND Role='role1';
+FLUSH PRIVILEGES;
+```
+
+Replace `role1` with the name of the role that will be granted to
+auto-provisioned users.
+</Admonition>
+
+</TabItem>
+
+<TabItem label="Self-hosted MariaDB">
+The self-hosted MariaDB admin user must have X.509 authentication configured:
+```sql
+CREATE USER 'teleport-admin' REQUIRE SUBJECT '/CN=teleport-admin';
+GRANT PROCESS, CREATE USER ON *.* TO 'teleport-admin';
+GRANT SELECT ON mysql.roles_mapping TO 'teleport-admin';
+GRANT UPDATE ON mysql.* TO 'teleport-admin'; -- For SET DEFAULT ROLE FOR
+GRANT SELECT ON *.* TO 'teleport-admin'; -- Required when using best_effort_drop mode for checking if users own resources before dropping them.
+
+CREATE DATABASE IF NOT EXISTS `teleport`;
+GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
+```
+
+Note that Teleport uses `teleport` as the name of the default schema but the
+name is configurable in the Teleport database definition. Replace the database
+name in the last two lines if you wish to use another database name.
+
+<Admonition type="warning" title ="Role Admin">
+In order for the admin user to grant a role to a database user, they must be
+the "Admin" of the role.
+
+One way to achieve this is to use the `WITH ADMIN` option when creating roles:
+```sql
+CREATE ROLE role1 WITH ADMIN 'teleport-admin';
+```
+
+Alternatively, you can assign the admin user as the "Admin" of existing roles:
+```sql
+UPDATE mysql.roles_mapping SET User ='teleport-admin' WHERE Admin_option='Y' AND Role='role1';
+FLUSH PRIVILEGES;
+```
+
+Replace `role1` with the name of the role that will be granted to
+auto-provisioned users.
+</Admonition>
+
+</TabItem>
+</Tabs>
+
+Users created by Teleport will be assigned the `teleport-auto-user` role in the
+database, which will be created automatically if it doesn't exist.
+
+During a MariaDB session, only one role is allowed to be active at a time.
+Teleport creates an all-in-one role `tp-role-<user>` and assigns it to the
+created user. The true roles are then assigned to this all-in-one role and the
+all-in-one role is set as the default role.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/db-definition-default-dbname.mdx protocol="mysql" uri="localhost:3306" !)
+
+## Step 2/3. Configure a Teleport role
+
+(!docs/pages/includes/database-access/auto-user-provisioning/common-teleport-role.mdx!)
+
+Users created within the database will:
+
+- Be assigned the `teleport-auto-user` role.
+- Be assigned all roles from the Teleport user's role set that match the database.
+  The role names must be valid and exist in the database. The admin user must
+  be the "Admin" of these roles. See "Role Admin" section above for more
+  details.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/username-hash.mdx database="MariaDB" limit="80" !)
+
+<Details title="Tracking the name mapping">
+The original Teleport username will be saved as user attributes in the
+`user_attributes` table in the default database.
+
+Database admins can search a particular Teleport username by:
+```sql
+SELECT * FROM teleport.user_attributes WHERE JSON_VALUE(Attributes,"$.user") = "teleport-user-name";
+```
+
+In addition, the "hashed" in-database name will be set as `db_user` for
+database queries in the Teleport Audit Logs, when the Teleport username is over
+80 characters.
+</Details>
+
+(!docs/pages/includes/database-access/auto-user-provisioning/username-conflict.mdx!)
+
+## Step 3/3. Connect to the database
+
+(!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MySQL Workbench"!)
+
+## Troubleshooting
+
+### Use your mapped remote username error
+
+(!docs/pages/includes/database-access/auto-user-provisioning/troubleshooting-remote-username.mdx!)
+
+## Next steps
+
+- Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
+- Learn about [role templating](../../../admin-guides/access-controls/guides/role-templates.mdx).
+- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

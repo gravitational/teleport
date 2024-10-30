@@ -62,7 +62,7 @@ type joinServiceClient interface {
 // server. On the Auth Server, this is passed to auth.ServerWithRoles and
 // through to auth.Server to be handled.
 type JoinServiceGRPCServer struct {
-	*proto.UnimplementedJoinServiceServer
+	proto.UnimplementedJoinServiceServer
 
 	joinServiceClient joinServiceClient
 	clock             clockwork.Clock
@@ -133,6 +133,7 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(srv proto.JoinService_Reg
 		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		setBotParameters(ctx, req.RegisterUsingTokenRequest)
 
 		return req, nil
 	})
@@ -204,6 +205,38 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 	return nil
 }
 
+// setBotParameters extracts a bot instance ID from either the incoming request
+// or the context identity.
+func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest) {
+	user, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return
+	}
+
+	ident := user.GetIdentity()
+	if checkForProxyRole(ident) {
+		// The request is coming from the proxy, so we can trust whatever
+		// parameter value it does (or doesn't) provide
+		return
+	}
+
+	if ident.BotInstanceID != "" {
+		// Trust the instance ID from the incoming identity: bots will
+		// attempt to provide it on renewal, assuming it's still valid.
+		logrus.WithFields(logrus.Fields{
+			"bot_name":        ident.BotName,
+			"bot_instance_id": ident.BotInstanceID,
+		}).Info("bot is rejoining")
+		req.BotInstanceID = ident.BotInstanceID
+	} else {
+		// Clear any other value from the request: the value must come from a
+		// trusted source, i.e. another proxy or certificate field.
+		req.BotInstanceID = ""
+	}
+
+	req.BotGeneration = int32(ident.Generation)
+}
+
 func (s *JoinServiceGRPCServer) registerUsingAzureMethod(srv proto.JoinService_RegisterUsingAzureMethodServer) error {
 	ctx := srv.Context()
 	certs, err := s.joinServiceClient.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
@@ -221,6 +254,7 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(srv proto.JoinService_R
 		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		setBotParameters(ctx, req.RegisterUsingTokenRequest)
 
 		return req, nil
 	})
@@ -297,6 +331,8 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 	if err := setClientRemoteAddr(ctx, initReq.JoinRequest); err != nil {
 		return trace.Wrap(err, "setting client address")
 	}
+
+	setBotParameters(ctx, initReq.JoinRequest)
 
 	certs, err := s.joinServiceClient.RegisterUsingTPMMethod(
 		ctx,

@@ -18,17 +18,16 @@ package vnet
 
 import (
 	"context"
-	"log/slog"
 	"net"
-	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/clientcache"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 type osConfig struct {
@@ -42,19 +41,21 @@ type osConfig struct {
 
 type osConfigurator struct {
 	clientStore        *client.Store
+	clientCache        *clientcache.Cache
 	clusterConfigCache *ClusterConfigCache
-	tunName            string
-	tunIPv6            string
-	dnsAddr            string
-	homePath           string
-	tunIPv4            string
+	// daemonClientCred are the credentials of the process that contacted the daemon.
+	daemonClientCred daemon.ClientCred
+	tunName          string
+	tunIPv6          string
+	dnsAddr          string
+	homePath         string
+	tunIPv4          string
 }
 
-func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, error) {
-	homePath := os.Getenv(types.HomeEnvVar)
+func newOSConfigurator(tunName, ipv6Prefix, dnsAddr, homePath string, daemonClientCred daemon.ClientCred) (*osConfigurator, error) {
 	if homePath == "" {
 		// This runs as root so we need to be configured with the user's home path.
-		return nil, trace.BadParameter("%s must be set", types.HomeEnvVar)
+		return nil, trace.BadParameter("homePath must be passed from unprivileged process")
 	}
 
 	// ipv6Prefix always looks like "fdxx:xxxx:xxxx::"
@@ -62,71 +63,61 @@ func newOSConfigurator(tunName, ipv6Prefix, dnsAddr string) (*osConfigurator, er
 	tunIPv6 := ipv6Prefix + "1"
 
 	configurator := &osConfigurator{
-		tunName:     tunName,
-		tunIPv6:     tunIPv6,
-		dnsAddr:     dnsAddr,
-		homePath:    homePath,
-		clientStore: client.NewFSClientStore(homePath),
+		tunName:          tunName,
+		tunIPv6:          tunIPv6,
+		dnsAddr:          dnsAddr,
+		homePath:         homePath,
+		clientStore:      client.NewFSClientStore(homePath),
+		daemonClientCred: daemonClientCred,
 	}
 	configurator.clusterConfigCache = NewClusterConfigCache(clockwork.NewRealClock())
+
+	clientCache, err := clientcache.New(clientcache.Config{
+		NewClientFunc: configurator.getClient,
+		RetryWithReloginFunc: func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
+			// osConfigurator is ran from a root process, so there's no way for it to relogin.
+			// Instead, osConfigurator depends on the user performing a relogin from another process.
+			return trace.Wrap(fn())
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	configurator.clientCache = clientCache
 
 	return configurator, nil
 }
 
+func (c *osConfigurator) close() error {
+	return trace.Wrap(c.clientCache.Clear())
+}
+
+// updateOSConfiguration reads tsh profiles out of [c.homePath]. For each profile, it reads the VNet
+// config of the root cluster and of each leaf cluster. Then it proceeds to update the OS based on
+// information from that config.
+//
+// For the duration of reading data from clusters, it drops the root privileges, only to regain them
+// before configuring the OS.
 func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	var dnsZones []string
 	var cidrRanges []string
 
-	profileNames, err := profile.ListProfileNames(c.homePath)
-	if err != nil {
-		return trace.Wrap(err, "listing user profiles")
-	}
-	for _, profileName := range profileNames {
-		rootClient, err := c.getClusterClient(ctx, profileName, "" /*leafClusterName*/)
+	// Drop privileges to ensure that the user who spawned the daemon client has privileges necessary
+	// to access c.homePath that it sent when starting the daemon.
+	// Otherwise a client could make the daemon read a profile out of any directory.
+	if err := c.doWithDroppedRootPrivileges(ctx, func() error {
+		profileNames, err := profile.ListProfileNames(c.homePath)
 		if err != nil {
-			slog.WarnContext(ctx,
-				"Failed to create root cluster client, profile may be expired, not configuring VNet for this cluster",
-				"profile", profileName, "error", err)
-			continue
+			return trace.Wrap(err, "listing user profiles")
 		}
-		clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, rootClient)
-		if err != nil {
-			slog.WarnContext(ctx,
-				"Failed to load VNet configuration, profile may be expired, not configuring VNet for this cluster",
-				"profile", profileName, "error", err)
-			continue
+		for _, profileName := range profileNames {
+			profileDNSZones, profileCIDRRanges := c.getDNSZonesAndCIDRRangesForProfile(ctx, profileName)
+			dnsZones = append(dnsZones, profileDNSZones...)
+			cidrRanges = append(cidrRanges, profileCIDRRanges...)
 		}
-
-		dnsZones = append(dnsZones, clusterConfig.DNSZones...)
-		cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
-
-		leafClusters, err := getLeafClusters(ctx, rootClient)
-		if err != nil {
-			slog.WarnContext(ctx,
-				"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
-				"profile", profileName, "error", err)
-			continue
-		}
-		for _, leafClusterName := range leafClusters {
-			clusterClient, err := c.getClusterClient(ctx, profileName, leafClusterName)
-			if err != nil {
-				slog.WarnContext(ctx,
-					"Failed to create leaf cluster client, not configuring VNet for this cluster",
-					"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
-				continue
-			}
-
-			clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
-			if err != nil {
-				slog.WarnContext(ctx,
-					"Failed to load VNet configuration, not configuring VNet for this cluster",
-					"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
-				continue
-			}
-
-			dnsZones = append(dnsZones, clusterConfig.DNSZones...)
-			cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
-		}
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
 	}
 
 	dnsZones = utils.Deduplicate(dnsZones)
@@ -140,7 +131,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		}
 	}
 
-	err = configureOS(ctx, &osConfig{
+	err := configureOS(ctx, &osConfig{
 		tunName:    c.tunName,
 		tunIPv6:    c.tunIPv6,
 		tunIPv4:    c.tunIPv4,
@@ -149,6 +140,81 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 		cidrRanges: cidrRanges,
 	})
 	return trace.Wrap(err, "configuring OS")
+}
+
+// getDNSZonesAndCIDRRangesForProfile returns DNS zones and CIDR ranges for the root cluster and its
+// leaf clusters.
+//
+// It's important for this function to return any data it manages to collect. For example, if it
+// manages to grab DNS zones and CIDR ranges of the root cluster but it fails to list leaf clusters,
+// it should still return the zones and ranges of the root cluster. Hence the use of named return
+// values.
+func (c *osConfigurator) getDNSZonesAndCIDRRangesForProfile(ctx context.Context, profileName string) (dnsZones []string, cidrRanges []string) {
+	shouldClearCacheForRoot := true
+	defer func() {
+		if shouldClearCacheForRoot {
+			if err := c.clientCache.ClearForRoot(profileName); err != nil {
+				log.ErrorContext(ctx, "Error while clearing client cache", "profile", profileName, "error", err)
+			}
+		}
+	}()
+
+	rootClient, err := c.clientCache.Get(ctx, profileName, "" /*leafClusterName*/)
+	if err != nil {
+		log.WarnContext(ctx,
+			"Failed to get root cluster client from cache, profile may be expired, not configuring VNet for this cluster",
+			"profile", profileName, "error", err)
+
+		return
+	}
+	clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, rootClient)
+	if err != nil {
+		log.WarnContext(ctx,
+			"Failed to load VNet configuration, profile may be expired, not configuring VNet for this cluster",
+			"profile", profileName, "error", err)
+
+		return
+	}
+
+	dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+	cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
+
+	leafClusters, err := getLeafClusters(ctx, rootClient)
+	if err != nil {
+		log.WarnContext(ctx,
+			"Failed to list leaf clusters, profile may be expired, not configuring VNet for leaf clusters of this cluster",
+			"profile", profileName, "error", err)
+
+		return
+	}
+
+	// getLeafClusters was the last call using the root client. Do not clear cache if any call to
+	// a leaf cluster fails – it might fail because of a problem with the leaf cluster, not because of
+	// an expired cert.
+	shouldClearCacheForRoot = false
+
+	for _, leafClusterName := range leafClusters {
+		clusterClient, err := c.clientCache.Get(ctx, profileName, leafClusterName)
+		if err != nil {
+			log.WarnContext(ctx,
+				"Failed to create leaf cluster client, not configuring VNet for this cluster",
+				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			continue
+		}
+
+		clusterConfig, err := c.clusterConfigCache.GetClusterConfig(ctx, clusterClient)
+		if err != nil {
+			log.WarnContext(ctx,
+				"Failed to load VNet configuration, not configuring VNet for this cluster",
+				"profile", profileName, "leaf_cluster", leafClusterName, "error", err)
+			continue
+		}
+
+		dnsZones = append(dnsZones, clusterConfig.DNSZones...)
+		cidrRanges = append(cidrRanges, clusterConfig.IPv4CIDRRange)
+	}
+
+	return
 }
 
 func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
@@ -174,7 +240,7 @@ func (c *osConfigurator) setTunIPv4FromCIDR(cidrRange string) error {
 	return nil
 }
 
-func (c *osConfigurator) getClusterClient(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error) {
+func (c *osConfigurator) getClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
 	// This runs in the root process, so obviously we don't have access to the client cache in the user
 	// process. This loads cluster profiles and credentials from TELEPORT_HOME.
 	clientConfig := &client.Config{
@@ -187,14 +253,5 @@ func (c *osConfigurator) getClusterClient(ctx context.Context, profileName, leaf
 		clientConfig.SiteName = leafClusterName
 	}
 	tc, err := client.NewClient(clientConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating new teleport client")
-	}
-
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "connecting to cluster")
-	}
-
-	return clt, nil
+	return tc, trace.Wrap(err)
 }

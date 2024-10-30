@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"os"
@@ -62,9 +63,9 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -209,7 +210,7 @@ type Server struct {
 	// creation
 	createHostUser bool
 
-	storage *local.PresenceService
+	storage services.PresenceInternal
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
@@ -301,7 +302,8 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 // GetCreateHostUser determines whether users should be created on the
 // host automatically
 func (s *Server) GetCreateHostUser() bool {
-	return s.createHostUser
+	// we shouldn't allow creating host users on a proxy server
+	return !s.proxyMode && s.createHostUser
 }
 
 // GetHostUsers returns the HostUsers instance being used to manage
@@ -313,6 +315,11 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 // GetHostSudoers returns the HostSudoers instance being used to manage
 // sudoers file provisioning
 func (s *Server) GetHostSudoers() srv.HostSudoers {
+	// we shouldn't allow modifying sudoers on a proxy server
+	if s.proxyMode {
+		return nil
+	}
+
 	if s.sudoers == nil {
 		return &srv.HostSudoersNotImplemented{}
 	}
@@ -614,7 +621,7 @@ func SetCreateHostUser(createUser bool) ServerOption {
 }
 
 // SetStoragePresenceService configures host user creation on a server
-func SetStoragePresenceService(service *local.PresenceService) ServerOption {
+func SetStoragePresenceService(service services.PresenceInternal) ServerOption {
 	return func(s *Server) error {
 		s.storage = service
 		return nil
@@ -850,6 +857,12 @@ func New(
 	}
 	s.srv = server
 
+	if !s.proxyMode {
+		if err := s.startAuthorizedKeysManager(ctx, auth); err != nil {
+			log.WithError(err).Infof("Failed to start authorized keys manager.")
+		}
+	}
+
 	var heartbeatMode srv.HeartbeatMode
 	if s.proxyMode {
 		heartbeatMode = srv.HeartbeatModeProxy
@@ -902,6 +915,31 @@ func (s *Server) tunnelWithAccessChecker(ctx *srv.ServerContext) (reversetunnelc
 	}
 
 	return reversetunnelclient.NewTunnelWithRoles(s.proxyTun, clusterName.GetClusterName(), ctx.Identity.AccessChecker, s.proxyAccessPoint), nil
+}
+
+// startAuthorizedKeysManager starts the authorized keys manager.
+func (s *Server) startAuthorizedKeysManager(ctx context.Context, auth authclient.ClientI) error {
+	authorizedKeysWatcher, err := authorizedkeysreporter.NewWatcher(
+		ctx,
+		authorizedkeysreporter.WatcherConfig{
+			Client: auth,
+			Logger: slog.Default(),
+			HostID: s.uuid,
+			Clock:  s.clock,
+		},
+	)
+	if errors.Is(err, authorizedkeysreporter.ErrUnsupportedPlatform) {
+		return nil
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := authorizedKeysWatcher.Run(ctx); err != nil {
+			s.Warningf("Failed to start authorized keys watcher: %v", err)
+		}
+	}()
+	return nil
 }
 
 // Context returns server shutdown context
@@ -1057,7 +1095,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 	return srv
 }
 
-func (s *Server) getServerInfo() *types.ServerV2 {
+func (s *Server) getServerInfo(context.Context) (*types.ServerV2, error) {
 	server := s.getBasicInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -1072,11 +1110,11 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPeerAddr(s.peerAddr)
-	return server
+	return server, nil
 }
 
 func (s *Server) getServerResource() (types.Resource, error) {
-	return s.getServerInfo(), nil
+	return s.getServerInfo(s.ctx)
 }
 
 // getDirectTCPIPForwarder sets up a connection-level subprocess that handles forwarding connections. Subsequent
@@ -1400,16 +1438,41 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 }
 
 // HandleNewConn is called by sshutils.Server once for each new incoming connection,
-// prior to handling any channels or requests.  Currently this callback's only
-// function is to apply session control restrictions.
+// prior to handling any channels or requests.
 func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionContext) (context.Context, error) {
 	identityContext, err := s.authHandlers.CreateIdentityContext(ccx.ServerConn)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
+	// Apply session control restrictions.
 	ctx, err = s.sessionController.AcquireSessionContext(ctx, identityContext, ccx.ServerConn.LocalAddr().String(), ccx.ServerConn.RemoteAddr().String(), ccx)
-	return ctx, trace.Wrap(err)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+
+	// Create host user.
+	created, userCloser, err := s.termHandlers.SessionRegistry.UpsertHostUser(identityContext)
+	if err != nil {
+		log.Warnf("error while creating host users: %s", err)
+	}
+
+	// Indicate that the user was created by Teleport.
+	ccx.UserCreatedByTeleport = created
+	if userCloser != nil {
+		ccx.AddCloser(userCloser)
+	}
+
+	sudoersCloser, err := s.termHandlers.SessionRegistry.WriteSudoersFile(identityContext)
+	if err != nil {
+		log.Warnf("error while writing sudoers: %s", err)
+	}
+
+	if sudoersCloser != nil {
+		ccx.AddCloser(sudoersCloser)
+	}
+
+	return ctx, nil
 }
 
 // HandleNewChan is called when new channel is opened
@@ -1850,22 +1913,10 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 	switch req.Type {
 	case sshutils.ExecRequest:
-		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
-		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
-			return trace.Wrap(err)
-		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case constants.InitiateFileTransfer:
 		return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
@@ -1892,14 +1943,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
-		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			s.Logger.Warn(err)
-			return nil
-		}
-		if err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(serverContext); err != nil {
-			s.Logger.Warn(err)
-			return nil
-		}
 
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue

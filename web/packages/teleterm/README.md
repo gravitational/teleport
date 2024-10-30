@@ -28,8 +28,8 @@ Next, we're going to build the Electron app.
 
 ```bash
 cd teleport
-yarn install
-yarn build-term && CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn package-term
+pnpm install
+pnpm build-term && CONNECT_TSH_BIN_PATH=$PWD/build/tsh pnpm package-term
 ```
 
 The resulting package can be found at `web/packages/teleterm/build/release`.
@@ -41,18 +41,18 @@ process](#build-process) section.
 
 ```sh
 cd teleport
-yarn install && make build/tsh
+pnpm install && make build/tsh
 ```
 
 To launch `teleterm` in development mode:
 
 ```sh
 cd teleport
-yarn start-term
+pnpm start-term
 
 # By default, the dev version assumes that the tsh binary is at build/tsh.
 # You can provide a different absolute path to a tsh binary though the CONNECT_TSH_BIN_PATH env var.
-CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn start-term
+CONNECT_TSH_BIN_PATH=$PWD/build/tsh pnpm start-term
 ```
 
 For a quick restart which restarts the Electron app and the tsh daemon, press `F6` while the
@@ -92,7 +92,7 @@ Resulting files can be found in `sharedProcess/api/protogen`.
 
 ## Build process
 
-`yarn package-term` is responsible for packaging the app code for distribution.
+`pnpm package-term` is responsible for packaging the app code for distribution.
 
 On all platforms, with the exception of production builds on macOS, the `CONNECT_TSH_BIN_PATH` env
 var is used to provide the path to the tsh binary that will be included in the package.
@@ -118,7 +118,7 @@ To make a fully-fledged build on macOS with Touch ID support, you need two thing
 - a signed version of tsh.app
 - an Apple Developer ID certificate in your Keychain
 
-When running `yarn package-term`, you need to provide these environment variables:
+When running `pnpm package-term`, you need to provide these environment variables:
 
 - `APPLE_USERNAME`
 - `APPLE_PASSWORD`

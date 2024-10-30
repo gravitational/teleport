@@ -6,6 +6,6 @@ Host *.example.com
     HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
     IdentityFile none
     IdentityAgent '/opt/machine-id/agent.sock'    
-    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p'
+    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p|example.com'
     ProxyUseFDPass yes
 # End generated Teleport configuration

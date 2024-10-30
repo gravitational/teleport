@@ -37,10 +37,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -261,6 +263,26 @@ func TestAppCommands(t *testing.T) {
 								assert.Equal(t, http.StatusOK, resp.StatusCode)
 								assert.Equal(t, app.name, resp.Header.Get("Server"))
 
+								// Verify that the app.session.start event was emitted.
+								if app.cluster == "root" {
+									require.EventuallyWithT(t, func(t *assert.CollectT) {
+										now := time.Now()
+										ctx := context.Background()
+										es, _, err := rootAuthServer.SearchEvents(ctx, events.SearchEventsRequest{
+											From:       now.Add(-time.Hour),
+											To:         now.Add(time.Hour),
+											Order:      types.EventOrderDescending,
+											EventTypes: []string{events.AppSessionStartEvent},
+										})
+										assert.NoError(t, err)
+
+										for _, e := range es {
+											assert.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
+											return
+										}
+										t.Errorf("failed to find AppSessionStartCode event (0/%d events matched)", len(es))
+									}, 5*time.Second, 500*time.Millisecond)
+								}
 								// app logout.
 								err = Run(ctx, []string{
 									"app",

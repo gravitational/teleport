@@ -42,7 +42,7 @@ type Props = {
   Icon: (any) => JSX.Element;
 };
 
-const StyledTab = styled(Text)`
+const StyledTab = styled(Text)<{ active?: boolean }>`
   align-items: center;
   display: flex;
   padding: 4px 8px;
