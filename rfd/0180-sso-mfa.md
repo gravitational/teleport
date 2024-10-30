@@ -398,24 +398,21 @@ MFA method opens up the possibility of poorly configured auth connectors being
 vulnerable to attacks ranging from internal users avoiding safe MFA checks to
 attackers with a compromised IdP gaining keys to the castle.
 
-#### Strict Guidelines
+#### IdP Configuration assumptions
+
+The security of SSO as an MFA method depends on Teleport and the IdP being
+properly configured for MFA checks. The exact technical details of these MFA
+checks depend on the IdP being used and how it handles MFA. It's also possible
+that an Admin could configure the IdP to offload the MFA checks to an external
+service provider. Therefore Teleport will not make any specific assumptions
+about how MFA is being handled by the IdP. It is up to the IdP admins to 
+guarantee the security of the IdP-side MFA flow.
+
+##### Strict Guidelines
 
 SSO as an MFA method will be opt-in. Administrators will be instructed through
 the docs to only enable MFA for an auth connector if the IdP provider has strict
 checks itself (e.g. Administered Webauthn devices, Trusted devices).
-
-Teleport has no way to confirm whether a registered IdP connector follows the
-guidelines, but it will display a warning to admins who attempt to enable it.
-
-```console
-> tctl edit connector/okta
-### sets `spec.mfa.enabled=yes`
-
-Warning: Allowing this IdP provider to be used as an MFA method may reduce the
-security of enforced MFA checks for critical security features. This option
-should not be enabled unless the IdP provider has strict MFA and/or Device trust
-enforcement itself. Continue? (y/N):
-```
 
 Additionally, forced re-authentication will be the default setting. Even if a
 connector is enabled for MFA without actual strict IdP MFA checks, the user will
@@ -443,8 +440,22 @@ invariant, device trust must be enforced within the SSO MFA check.
 
 SSO MFA challenges will adhere to [RFD 155](https://github.com/gravitational/teleport/blob/master/rfd/0155-scoped-webauthn-credentials.md)
 by supporting MFA challenge scopes and optionally allowing reuse for specific
-scopes (Admin MFA). When reuse is not requested/allowed, the SSO MFA token will
-be validated once and then discarded immediately to prevent reuse.
+scopes (Admin MFA).
+
+##### Replay Prevention
+
+When reuse is not requested/allowed, the SSO MFA token will be validated once
+and then discarded immediately to prevent replay attacks.
+
+#### Phishing Prevention
+
+Just as SSO login can be prone to phishing attacks, so can the SSO MFA flow.
+Therefore it is important that IdP administrators adhere to the [strict guidelines](#strict-guidelines)
+to configure phishing-resistant MFA checks IdP-side. 
+
+This depends on the IdP in use. For example, Okta supports a phishing resistant
+(phr) oidc acr value that would require Fido2/WebAuthn authentication to
+satisfy the requirement.
 
 ### Implementation
 
