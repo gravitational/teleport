@@ -18,6 +18,7 @@ package mfa
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -31,7 +32,20 @@ type Ceremony struct {
 	CreateAuthenticateChallenge CreateAuthenticateChallengeFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
+	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
+	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge.
+	SSOMFACeremonyConstructor SSOMFACeremonyConstructor
 }
+
+// SSOMFACeremony is an SSO MFA ceremony.
+type SSOMFACeremony interface {
+	GetClientCallbackURL() string
+	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	Close()
+}
+
+// SSOMFACeremonyConstructor constructs a new SSO MFA ceremony.
+type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
@@ -53,6 +67,19 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.BadParameter("mfa challenge scope must be specified")
 	}
 
+	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
+	// request to request an SSO challenge in addition to other challenges.
+	if c.SSOMFACeremonyConstructor != nil {
+		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to handle SSO MFA ceremony")
+		}
+		defer ssoMFACeremony.Close()
+
+		req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+		promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
+	}
+
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)
 	if err != nil {
 		// CreateAuthenticateChallenge returns a bad parameter error when the client
@@ -72,6 +99,12 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 
 	if c.PromptConstructor == nil {
 		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
+	}
+
+	// Set challenge extensions in the prompt, if present, but set it first so the
+	// caller can still override it.
+	if req != nil && req.ChallengeExtensions != nil {
+		promptOpts = slices.Insert(promptOpts, 0, WithPromptChallengeExtensions(req.ChallengeExtensions))
 	}
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)

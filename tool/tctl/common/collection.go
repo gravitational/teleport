@@ -1616,6 +1616,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsGitlab                    = "gitlab"
 		settingsEntraID                   = "entra_id"
 		settingsDatadogIncidentManagement = "datadog_incident_management"
+		settingsEmailAccessPlugin         = "email_access_plugin"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1685,6 +1686,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
+		case settingsEmailAccessPlugin:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
