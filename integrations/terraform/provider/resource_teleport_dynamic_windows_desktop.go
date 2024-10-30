@@ -90,7 +90,7 @@ func (r resourceTeleportDynamicWindowsDesktop) Create(ctx context.Context, req t
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("DynamicWindowsDesktop exists in Teleport. Either remove it (tctl rm dynamic_windows_desktop/%v)"+
-				" or import it to the existing state (terraform import teleport_desktop.%v %v)", id, id, id)
+				" or import it to the existing state (terraform import teleport_dynamic_windows_desktop.%v %v)", id, id, id)
 
 			resp.Diagnostics.Append(diagFromErr("DynamicWindowsDesktop exists in Teleport", trace.Errorf(existErr)))
 			return
