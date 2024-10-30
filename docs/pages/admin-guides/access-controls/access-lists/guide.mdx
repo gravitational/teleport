@@ -13,7 +13,6 @@ This guide will help you:
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A running Teleport cluster.
 - A user with the preset `editor` role, which will have permissions to create Access Lists.
 
 ## Step 1/4. Setting up the Application Service on the cluster for testing
@@ -68,7 +67,7 @@ not be able to manage the list, though they will still be reflected as an owner.
 
 Under "Members" select `requester` as a required role, then add your test user to the access list. Similar to
 the owner requirements, this will ensure that any member of the list must have the `requester` role in order to
-be granted the access described in this list. If the user loses this role later, they will no be granted the
+be granted the access described in this list. If the user loses this role later, they will not be granted the
 roles or traits described in the access list.
 
 ![Add a member](../../../../img/access-controls/access-lists/add-member.png)
@@ -82,4 +81,5 @@ the cluster, and should be able to interact with it as expected.
 
 ## Next Steps
 
-- Familiarize yourself with the CLI tooling available for managing access lists in the [reference](../../../reference/access-controls/access-lists.mdx).
+- Familiarize yourself with the CLI tooling available for managing Access Lists in the [reference](../../../reference/access-controls/access-lists.mdx).
+- Learn how to work with nested Access Lists in the [nested Access Lists guide](./nested-access-lists.mdx).
