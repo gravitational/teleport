@@ -34,6 +34,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/mfa"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -275,7 +276,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 					Username:      samlUser.GetName(),
 					ConnectorID:   samlConnector.GetName(),
 					ConnectorType: samlConnector.GetKind(),
-					ChallengeExtensions: &services.ChallengeExtensions{
+					ChallengeExtensions: &mfa.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
 				}, sd)
@@ -314,7 +315,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 					Username:      oidcUser.GetName(),
 					ConnectorID:   oidcConnector.GetName(),
 					ConnectorType: oidcConnector.GetKind(),
-					ChallengeExtensions: &services.ChallengeExtensions{
+					ChallengeExtensions: &mfa.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
 				}, sd)
@@ -480,7 +481,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      "wrong-user",
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -504,7 +505,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -528,7 +529,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 			},
@@ -551,7 +552,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -575,7 +576,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
@@ -601,7 +602,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      noMFASAMLUser.GetName(),
 				ConnectorID:   noMFASAMLConnector.GetName(),
 				ConnectorType: noMFASAMLConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -625,7 +626,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      standardUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -649,7 +650,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
@@ -679,7 +680,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &services.ChallengeExtensions{
+				ChallengeExtensions: &mfa.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},

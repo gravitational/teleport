@@ -27,7 +27,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/lib/auth/mfa"
 )
 
 // CredentialAssertion is the payload sent to authenticators to initiate login.
@@ -405,14 +405,7 @@ type SessionData struct {
 	// An empty value is treated equivalently to "discouraged".
 	UserVerification string `json:"userVerification,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
-	ChallengeExtensions *ChallengeExtensions `json:"challenge_extensions,omitempty"`
-}
-
-// ChallengeExtensions is a json struct for [mfav1.ChallengeExtensions].
-type ChallengeExtensions struct {
-	Scope                       mfav1.ChallengeScope      `json:"scope,omitempty"`
-	AllowReuse                  mfav1.ChallengeAllowReuse `json:"allow_reuse,omitempty"`
-	UserVerificationRequirement string                    `json:"user_verification_requirement,omitempty"`
+	ChallengeExtensions *mfa.ChallengeExtensions `json:"challenge_extensions,omitempty"`
 }
 
 // SessionDataFromProtocol converts a [webauthn.SessionData] struct to an
