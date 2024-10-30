@@ -40,7 +40,7 @@ const OidcNote = () => (
     <br />
     <b>Instance ARN:</b> arn:aws:sso:::instance/ssoins-8004ee88884dd26a
     <br />
-    <b>Intgration name:</b> new
+    <b>Integration name:</b> new
     <br />
     <b>Role ARN:</b> arn:aws:iam::026090554232:role/new
     <br />
