@@ -196,6 +196,31 @@ func (s *Service) UpdateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	return updatedDesktop, nil
 }
 
+// UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates one if it doesn't exist.
+func (s *Service) UpsertDynamicWindowsDesktop(ctx context.Context, req *dynamicwindowspb.UpsertDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error) {
+	auth, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	d, err := s.backend.UpsertDynamicWindowsDesktop(ctx, req.Desktop)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updatedDesktop, ok := d.(*types.DynamicWindowsDesktopV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", d)
+	}
+
+	return updatedDesktop, nil
+}
+
 // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
 func (s *Service) DeleteDynamicWindowsDesktop(ctx context.Context, req *dynamicwindowspb.DeleteDynamicWindowsDesktopRequest) (*emptypb.Empty, error) {
 	auth, err := s.authorizer.Authorize(ctx)
