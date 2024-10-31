@@ -237,7 +237,7 @@ export function Account({
                   }
                   description="Provide secondary authentication when signing in
                     with a password. Unlike passkeys, multi-factor methods do
-                    not enable passwordless sign-in. Multi-factor methods are usable for required multi-factor authentication checks for sessions."
+                    not enable passwordless sign-in."
                   icon={<Icon.ShieldCheck />}
                   showIndicator={fetchDevicesAttempt.status === 'processing'}
                   actions={
@@ -388,7 +388,8 @@ function PasskeysHeader({
       }
       description="Enable secure passwordless sign-in using
                 fingerprint or facial recognition, a one-time code, or
-                a device password. Passkeys are usable for required multi-factor authentication checks for sessions."
+                a device password. Passkeys are usable for
+                multi-factor authentication checks."
       icon={<Icon.Key />}
       showIndicator={fetchDevicesAttempt.status === 'processing'}
       actions={button}
