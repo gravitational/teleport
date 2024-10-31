@@ -227,7 +227,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   <div
     class="c2"
   >
-    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+    Teleport can integrate into most, if not all, of your infrastructure. Search for what resource you want to add.
   </div>
   <div
     class="c3"
@@ -937,7 +937,7 @@ exports[`render with all access 1`] = `
   <div
     class="c2"
   >
-    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+    Teleport can integrate into most, if not all, of your infrastructure. Search for what resource you want to add.
   </div>
   <div
     class="c3"
@@ -2978,7 +2978,7 @@ exports[`render with no access 1`] = `
   <div
     class="c2"
   >
-    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+    Teleport can integrate into most, if not all, of your infrastructure. Search for what resource you want to add.
   </div>
   <div
     class="c3"
@@ -5201,7 +5201,7 @@ exports[`render with partial access 1`] = `
   <div
     class="c2"
   >
-    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+    Teleport can integrate into most, if not all, of your infrastructure. Search for what resource you want to add.
   </div>
   <div
     class="c3"
