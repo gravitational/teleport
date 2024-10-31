@@ -266,7 +266,7 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
 	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI)
-	clusterClient.SSOSSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+	clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
 
 	return cluster, clusterClient, nil
 }
@@ -1104,7 +1104,6 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
 		return trace.Wrap(err)
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
