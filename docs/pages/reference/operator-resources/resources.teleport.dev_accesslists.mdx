@@ -83,6 +83,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |description|string|description is the plaintext description of the owner and why they are an owner.|
 |ineligible_status|string or integer|ineligible_status describes if this owner is eligible or not and if not, describes how they're lacking eligibility. Can be either the string or the integer representation of each option.|
+|membership_kind|string or integer|membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`. Can be either the string or the integer representation of each option.|
 |name|string|name is the username of the owner.|
 
 ### spec.ownership_requires

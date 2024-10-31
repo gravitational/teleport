@@ -1593,7 +1593,7 @@ func (h *Handler) automaticUpdateSettings(ctx context.Context) webclient.AutoUpd
 	}
 
 	return webclient.AutoUpdateSettings{
-		ToolsMode:                getToolsMode(autoUpdateConfig),
+		ToolsAutoUpdate:          getToolsAutoUpdate(autoUpdateConfig),
 		ToolsVersion:             getToolsVersion(autoUpdateVersion),
 		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 		AgentVersion:             getAgentVersion(autoUpdateVersion),
@@ -5154,15 +5154,15 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	return etag, nil
 }
 
-func getToolsMode(config *autoupdatepb.AutoUpdateConfig) string {
+func getToolsAutoUpdate(config *autoupdatepb.AutoUpdateConfig) bool {
 	// If we can't get the AU config or if AUs are not configured, we default to "disabled".
 	// This ensures we fail open and don't accidentally update agents if something is going wrong.
 	// If we want to enable AUs by default, it would be better to create a default "autoupdate_config" resource
 	// than changing this logic.
-	if config.GetSpec().GetTools() == nil {
-		return autoupdate.ToolsUpdateModeDisabled
+	if config.GetSpec().GetTools() != nil {
+		return config.GetSpec().GetTools().GetMode() == autoupdate.ToolsUpdateModeEnabled
 	}
-	return config.GetSpec().GetTools().GetMode()
+	return false
 }
 
 func getToolsVersion(version *autoupdatepb.AutoUpdateVersion) string {

@@ -36,6 +36,7 @@ export const KeysEnum = {
   USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED:
     'grv_users_not_equal_to_mau_acknowledged',
   LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
+  RECENT_HISTORY: 'grv_teleport_sidenav_recent_history',
 
   // TODO(bl-nero): Remove once the new role editor is in acceptable state.
   USE_NEW_ROLE_EDITOR: 'grv_teleport_use_new_role_editor',

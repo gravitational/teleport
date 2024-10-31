@@ -306,7 +306,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			name: "resources not defined",
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
-				ToolsMode:                autoupdate.ToolsUpdateModeDisabled,
+				ToolsAutoUpdate:          false,
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
@@ -320,7 +320,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:                autoupdate.ToolsUpdateModeEnabled,
+				ToolsAutoUpdate:          true,
 				ToolsVersion:             api.Version,
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
@@ -346,7 +346,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			},
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
-				ToolsMode:                autoupdate.ToolsUpdateModeDisabled,
+				ToolsAutoUpdate:          false,
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          true,
 				AgentVersion:             "1.2.4",
@@ -371,7 +371,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			},
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
-				ToolsMode:                autoupdate.ToolsUpdateModeDisabled,
+				ToolsAutoUpdate:          false,
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             "1.2.4",
@@ -384,7 +384,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
-				ToolsMode:                autoupdate.ToolsUpdateModeDisabled,
+				ToolsAutoUpdate:          false,
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
@@ -400,7 +400,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			},
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             "1.2.3",
-				ToolsMode:                autoupdate.ToolsUpdateModeDisabled,
+				ToolsAutoUpdate:          false,
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
@@ -420,7 +420,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:                autoupdate.ToolsUpdateModeEnabled,
+				ToolsAutoUpdate:          true,
 				ToolsVersion:             "1.2.3",
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,
@@ -440,7 +440,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:                autoupdate.ToolsUpdateModeDisabled,
+				ToolsAutoUpdate:          false,
 				ToolsVersion:             "3.2.1",
 				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
 				AgentAutoUpdate:          false,

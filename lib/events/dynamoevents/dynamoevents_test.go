@@ -315,15 +315,28 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 		assert.Len(t, result, 1)
 	}, 10*time.Second, 500*time.Millisecond)
 
-	appReqEvent := &apievents.AppSessionRequest{
-		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now().UTC(),
-			Type: events.AppSessionRequestEvent,
+	appReqEvent := &testAuditEvent{
+		AppSessionRequest: apievents.AppSessionRequest{
+			Metadata: apievents.Metadata{
+				Time: tt.suite.Clock.Now().UTC(),
+				Type: events.AppSessionRequestEvent,
+			},
+			Path: strings.Repeat("A", maxItemSize),
 		},
-		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
 	require.ErrorContains(t, err, "ValidationException: Item size has exceeded the maximum allowed size")
+}
+
+// testAuditEvent wraps an existing AuditEvent, but overrides
+// the TrimToMaxSize to be a noop so that functionality can
+// be tested if an event exceeds the size limits.
+type testAuditEvent struct {
+	apievents.AppSessionRequest
+}
+
+func (t *testAuditEvent) TrimToMaxSize(maxSizeBytes int) apievents.AuditEvent {
+	return t
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
