@@ -11,6 +11,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -84,7 +85,10 @@ func TestEntraIDService(t *testing.T) {
 	require.NoError(t, err)
 
 	tenantID := uuid.NewString()
-	defaultOwners := []accesslist.Owner{{Name: "admin"}, {Name: "reviewer"}}
+	defaultOwners := []accesslist.Owner{
+		{Name: "admin", MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()},
+		{Name: "reviewer", MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()},
+	}
 	const ssoConnectorID = "my-sso-connector"
 
 	// Set up data

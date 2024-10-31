@@ -357,11 +357,13 @@ func TestService_GetAccessList(t *testing.T) {
 			Name:             ownerUser,
 			Description:      "owner user",
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+			MembershipKind:   accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
 		},
 		{
 			Name:             ownerUser2,
 			Description:      "owner user 2",
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+			MembershipKind:   accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
 		},
 	}
 
@@ -379,6 +381,7 @@ func TestService_GetAccessList(t *testing.T) {
 			Name:             ownerUser,
 			Description:      "owner user",
 			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS)],
+			MembershipKind:   accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
 		},
 	}
 
@@ -537,11 +540,13 @@ func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 			Name:             ownerUser,
 			Description:      "OK existing user",
 			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE)],
+			MembershipKind:   accesslist.MembershipKindUser,
 		},
 		{
 			Name:             member1,
 			Description:      "NOK ownermemship_requires does not match",
 			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS)],
+			MembershipKind:   accesslist.MembershipKindUser,
 		},
 	}
 
@@ -553,11 +558,13 @@ func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
 			Name:             ownerUser,
 			Description:      "OK existing user",
 			IneligibleStatus: "",
+			MembershipKind:   accesslist.MembershipKindUser,
 		},
 		{
 			Name:             member1,
 			Description:      "NOK ownermemship_requires does not match",
 			IneligibleStatus: "",
+			MembershipKind:   accesslist.MembershipKindUser,
 		},
 	}, mustFromProto(t, createdAccessList).GetOwners(), cmpOpts...))
 
@@ -592,6 +599,7 @@ func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
 			Reason:           "expired",
 			AddedBy:          testUser,
 			IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED)],
+			MembershipKind:   accesslist.MembershipKindUser,
 		},
 	)
 	require.NoError(t, err)
@@ -2837,6 +2845,7 @@ func newAccessListMemberWithIneligibleReason(t *testing.T, accessListName, membe
 
 	member := newAccessListMember(t, accessListName, memberName, clock)
 	member.Spec.IneligibleStatus = ineligibleReason
+	member.Spec.MembershipKind = accesslist.MembershipKindUser
 
 	return member
 }
