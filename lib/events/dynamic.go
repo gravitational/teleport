@@ -448,6 +448,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 	case SFTPSummaryEvent:
 		e = &events.SFTPSummary{}
+
+	case AutoUpdateConfigCreateEvent:
+		e = &events.AutoUpdateConfigCreate{}
+	case AutoUpdateConfigUpdateEvent:
+		e = &events.AutoUpdateConfigUpdate{}
+	case AutoUpdateConfigDeleteEvent:
+		e = &events.AutoUpdateConfigDelete{}
+
+	case AutoUpdateVersionCreateEvent:
+		e = &events.AutoUpdateVersionCreate{}
+	case AutoUpdateVersionUpdateEvent:
+		e = &events.AutoUpdateVersionUpdate{}
+	case AutoUpdateVersionDeleteEvent:
+		e = &events.AutoUpdateVersionDelete{}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}

@@ -359,8 +359,8 @@ type ProxySettings struct {
 type AutoUpdateSettings struct {
 	// ToolsVersion defines the version of {tsh, tctl} for client auto update.
 	ToolsVersion string `json:"tools_version"`
-	// ToolsMode defines mode client auto update feature `enabled|disabled`.
-	ToolsMode string `json:"tools_mode"`
+	// ToolsAutoUpdate indicates if the requesting tools client should be updated.
+	ToolsAutoUpdate bool `json:"tools_auto_update"`
 	// AgentVersion defines the version of teleport that agents enrolled into autoupdates should run.
 	AgentVersion string `json:"agent_version"`
 	// AgentAutoUpdate indicates if the requesting agent should attempt to update now.

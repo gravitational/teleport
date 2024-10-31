@@ -186,9 +186,10 @@ func replacePkg(toolsDir string, archivePath string, extractDir string, execName
 		// swap operations. This ensures that the "com.apple.macl" extended
 		// attribute is set and macOS will not send a SIGKILL to the process
 		// if multiple processes are trying to operate on it.
-		command := exec.Command(path, "version", "--client")
+		command := exec.Command(path, "version")
+		command.Env = []string{"TELEPORT_TOOLS_VERSION=off"}
 		if err := command.Run(); err != nil {
-			return trace.Wrap(err)
+			return trace.WrapWithMessage(err, "failed to validate binary")
 		}
 
 		// Due to macOS applications not being a single binary (they are a
