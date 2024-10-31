@@ -145,7 +145,7 @@ func teleportPackageURLs(baseURL, toolsVersion string) ([]packageURL, error) {
 		m := modules.GetModules()
 		var b strings.Builder
 		b.WriteString(baseURL + "/teleport-")
-		if m.IsEnterpriseBuild() || m.IsBoringBinary() {
+		if m.BuildType() == modules.BuildEnterprise || m.IsBoringBinary() {
 			b.WriteString("ent-")
 		}
 		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
