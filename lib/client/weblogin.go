@@ -658,7 +658,8 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
+		cfg := libmfa.NewPromptConfig(login.ProxyAddr)
+		promptMFA = libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{PromptConfig: *cfg})
 	}
 
 	respPB, err := promptMFA.Run(ctx, chal)
@@ -856,7 +857,8 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 
 	promptMFA := login.PromptMFA
 	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
+		cfg := libmfa.NewPromptConfig(login.ProxyAddr)
+		promptMFA = libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{PromptConfig: *cfg})
 	}
 
 	respPB, err := promptMFA.Run(ctx, chal)
