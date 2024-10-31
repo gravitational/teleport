@@ -27,7 +27,7 @@ export const Cycle = ({
   },
 }: CycleProps) => {
   const theme = useTheme();
-  const mauCalibrationPeriod =
+  const calibrationPeriod =
     hasCloudAnonymizationKey &&
     salesforceIdUpdatedAt < cycleEnd &&
     salesforceIdUpdatedAt > cycleStart;
@@ -36,24 +36,26 @@ export const Cycle = ({
     {
       name: 'Active Users',
       total: mau.cycleCount,
-      percentage: mauCalibrationPeriod
+      percentage: calibrationPeriod
         ? 100
         : ~~Math.round((mau.cycleCount / mau.maximum) * 100),
       percentageMax: mau.maximum,
       hardMax: mau.maximum,
       hasFreeTier: false,
       info: 'Any unique human or machine user, local or SSO username or email with recorded activity during a month.',
-      calibrating: mauCalibrationPeriod,
+      calibrating: calibrationPeriod,
     },
     {
       name: 'Teleport Protected Resources',
       total: tpr.cycleCount,
-      percentage: ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
+      percentage: calibrationPeriod
+        ? 100
+        : ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
       percentageMax: tpr.maximum,
       hardMax: tpr.maximum,
       hasFreeTier: false,
       info: 'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.',
-      calibrating: false, // never in a calibration state
+      calibrating: calibrationPeriod,
     },
   ];
 
@@ -75,15 +77,15 @@ export const Cycle = ({
           <UsageBar key={u.name} usage={u} />
         ))}
       </Flex>
-      {mauCalibrationPeriod && (
+      {calibrationPeriod && (
         <Text
           typography="body2"
           color={theme.colors.text.slightlyMuted}
           style={{ fontStyle: 'italic' }}
         >
           A change to your account requires a calibration period in order to
-          accurately count Active Users. This should resolve itself with the
-          start of your next billing cycle.
+          accurately count Active Users and Teleport Protected Resources. This
+          should resolve itself with the start of your next billing cycle.
         </Text>
       )}
     </UsageGroup>

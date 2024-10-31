@@ -144,10 +144,10 @@ describe('cycle', () => {
 
     render(<Cycle {...props} />);
 
-    expect(screen.getByText('Calibrating...')).toBeInTheDocument();
+    expect(screen.getAllByText('Calibrating...')).toHaveLength(2);
     expect(
       screen.getByText(
-        'A change to your account requires a calibration period in order to accurately count Active Users. This should resolve itself with the start of your next billing cycle.'
+        'A change to your account requires a calibration period in order to accurately count Active Users and Teleport Protected Resources. This should resolve itself with the start of your next billing cycle.'
       )
     ).toBeInTheDocument();
   });
