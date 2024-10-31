@@ -134,7 +134,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                         onClick={() => download(clusterId, item.name)}
                       >
                         Download app.zip
-		      </MenuItem>
+                      </MenuItem>
                     )}
                     <MenuItem onClick={() => props.onDeletePlugin(item)}>
                       Delete...

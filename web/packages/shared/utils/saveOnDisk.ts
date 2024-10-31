@@ -29,8 +29,8 @@ export function saveOnDisk(
 ): void {
   const a = document.createElement('a');
 
- const blob =
-   content instanceof Blob ? content : new Blob([content], { type: fileType });
+  const blob =
+    content instanceof Blob ? content : new Blob([content], { type: fileType });
   a.href = window.URL.createObjectURL(blob);
   a.download = filename;
   document.body.appendChild(a);
