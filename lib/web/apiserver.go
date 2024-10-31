@@ -127,10 +127,6 @@ const (
 	// Example values:
 	// - github-actions-ssh: indicates that the resource was added via the Bot GitHub Actions SSH flow
 	webUIFlowLabelKey = "teleport.internal/ui-flow"
-	// IncludedResourceModeAll describes that only requestable resources should be returned.
-	IncludedResourceModeRequestable = "requestable"
-	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
-	IncludedResourceModeAll = "all"
 	// DefaultFeatureWatchInterval is the default time in which the feature watcher
 	// should ping the auth server to check for updated features
 	DefaultFeatureWatchInterval = time.Minute * 5
@@ -1172,12 +1168,20 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	features := h.GetClusterFeatures()
-	entitlement := modules.GetProtoEntitlement(&features, entitlements.AccessMonitoring)
-	// ensure entitlement is set & feature is configured
-	accessMonitoringEnabled := entitlement.Enabled && features.GetAccessMonitoringConfigured()
+	pingResp, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessMonitoringEnabled := pingResp.GetServerFeatures().GetAccessMonitoring().GetEnabled()
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), features, desktopRecordingEnabled, accessMonitoringEnabled)
+	// DELETE IN 16.0
+	// If ServerFeatures.AccessMonitoring is nil, then that means the response came from a older auth
+	// where ServerFeatures.AccessMonitoring field does not exist.
+	if pingResp.GetServerFeatures().GetAccessMonitoring() == nil {
+		accessMonitoringEnabled = pingResp.ServerFeatures != nil && pingResp.ServerFeatures.GetIdentityGovernance()
+	}
+
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), *pingResp.ServerFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
