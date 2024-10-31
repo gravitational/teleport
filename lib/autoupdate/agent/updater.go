@@ -504,7 +504,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion s
 		u.Log.InfoContext(ctx, "Target version successfully validated.", targetVersionKey, targetVersion)
 	}
 	if v := cfg.Status.BackupVersion; v != "" {
-		u.Log.InfoContext(ctx, "Backup version set.", "backupVersion", v)
+		u.Log.InfoContext(ctx, "Backup version set.", backupVersionKey, v)
 	}
 
 	// Check if manual cleanup might be needed.
