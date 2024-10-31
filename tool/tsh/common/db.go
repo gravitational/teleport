@@ -1857,6 +1857,12 @@ const (
 	dbFormatYAML = "yaml"
 )
 
+const (
+	// dbConnectRequireReasonTunnelFlag is the reason used in local proxy
+	// requirement calculation when --tunnel flag is specified.
+	dbConnectRequireReasonTunnelFlag = "--tunnel flag is specified"
+)
+
 var (
 	// dbCmdUnsupportedTemplate is the error message printed when some
 	// database subcommands are not supported.
@@ -1914,8 +1920,4 @@ Hint: use '{{ .listCommand }} -v' or '{{ .listCommand }} --format=[json|yaml]' t
 Hint: try selecting the {{ .kind }} with a more specific name (ex: {{ .command }} {{ .example }}).
 Hint: try selecting the {{ .kind }} with additional --labels or --query predicate.
 `))
-
-	// dbConnectRequireReasonTunnelFlag is the reason used in local proxy
-	// requirement calculation when --tunnel flag is specified.
-	dbConnectRequireReasonTunnelFlag = "--tunnel flag is specified"
 )
