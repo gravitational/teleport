@@ -50,7 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: 'gravitational/docs'
+          repository: 'gravitational/docs-website'
           path: 'docs'
 
       # Cache node_modules. Unlike the example in the actions/cache repo, this
@@ -80,30 +80,36 @@ jobs:
         # use for the live docs site in that we only test a single version of
         # the content.
         #
-        # To do this, we replace the three submodules we use for building the
-        # live docs site with a single submodule, pointing to the
-        # gravitational/teleport branch we are linting.
-        #
+        # To do this, we delete the three submodules we use for building the
+        # live docs site and copy a gravitational/teleport clone into the
+        # content directory.
+        # 
         # The docs engine expects a config.json file at the root of the
         # gravitational/docs clone that associates directories with git
         # submodules. By default, these directories represent versioned branches
         # of gravitational/teleport. We override this in order to build only a
         # single version of the docs.
+        #
+        # We also replace data fetched from Sanity CMS with hardcoded JSON
+        # objects to remove the need to authenticate with Sanity. Each includes
+        # the minimal set of data required for docs builds to succeed.
         run: |
           echo "" > .gitmodules
           rm -rf content/*
           cd content
           # Rather than using a submodule, copy the teleport source into the
           # content directory.
-          cp -r $GITHUB_WORKSPACE/teleport $GITHUB_WORKSPACE/docs/content
+          cp -r $GITHUB_WORKSPACE/teleport $GITHUB_WORKSPACE/docs/content/current
           cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"teleport\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          jq -nr --arg version $BRANCH '{"versions": [{"name": $version,"branch": $version, "deprecated": false, "latest": true, "current": true }]}' > config.json
           cat <<< "$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json)" > package.json
-          yarn build-node
+          cat <<< "$(jq '.scripts."prepare-sanity-data" = "echo Using pre-populated Sanity data"' package.json)" > package.json
+          echo "{}" > data/events.json
+          echo '{"bannerButtons":{"second":{"title":"LOG IN","url":"https://teleport.sh"},"first":{"title":"Support","url":"https://goteleport.com/support/"}},"navbarData":{"rightSide":{},"logo":"/favicon.svg","menu":[]}}' > data/navbar.json
 
       - name: Check spelling
         working-directory: 'docs'
-        run: yarn spellcheck content/teleport
+        run: yarn spellcheck content/current
 
       - name: Lint docs formatting
         working-directory: 'docs'
