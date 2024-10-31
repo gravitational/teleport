@@ -115,6 +115,8 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	stderr.Flush()
 	stdout.Flush()
 	code := cmd.ProcessState.ExitCode()
+
+	// treat out-of-range code as an error with OS executing command, not as intentional 255
 	if code == 255 {
 		code = -1
 	}
@@ -150,7 +152,7 @@ func (w *lineLogger) Write(p []byte) (n int, err error) {
 
 	// Newline found, log line
 	w.log.Log(w.ctx, w.level, w.last.String()) //nolint:sloglint // msg cannot be constant
-	n += w.last.Len() + 1
+	n += 1
 	w.last.Reset()
 
 	// Log lines that are already newline-terminated
