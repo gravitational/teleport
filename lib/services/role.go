@@ -78,6 +78,8 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
 	types.NewRule(types.KindSPIFFEFederation, RO()),
+	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
+	types.NewRule(types.KindIdentityCenterAccount, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources

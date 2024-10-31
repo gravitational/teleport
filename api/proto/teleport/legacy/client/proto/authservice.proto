@@ -2832,10 +2832,6 @@ service AuthService {
   // ListAccessRequests gets access requests with pagination and sorting.
   rpc ListAccessRequests(ListAccessRequestsRequest) returns (ListAccessRequestsResponse);
 
-  // CreateAccessRequest creates a new access request.
-  // Deprecated: use CreateAccessRequestV2 instead.
-  // DELETE IN v15.0.0.
-  rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
   // CreateAccessRequestV2 creates a new access request.
   rpc CreateAccessRequestV2(types.AccessRequestV3) returns (types.AccessRequestV3);
   // DeleteAccessRequest deletes an access request.
@@ -3043,10 +3039,6 @@ service AuthService {
 
   // GetRole retrieves a role described by the given request.
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
-  // GetRole retrieves all roles.
-  //
-  // DELETE IN 17.0
-  rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
   // CreateRole creates a new role.

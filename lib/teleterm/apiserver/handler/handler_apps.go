@@ -18,13 +18,13 @@ package handler
 
 import (
 	"context"
-	"sort"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // GetApps gets apps with filters and returns paginated results
@@ -77,14 +77,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		})
 	}
 
-	apiLabels := APILabels{}
-	for name, value := range app.GetAllLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-	sort.Sort(apiLabels)
+	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels()))
 
 	return &api.App{
 		Uri:          clusterApp.URI.String(),
@@ -103,14 +96,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 
 func newSAMLIdPServiceProviderAPIApp(clusterApp clusters.SAMLIdPServiceProvider) *api.App {
 	provider := clusterApp.Provider
-	apiLabels := APILabels{}
-	for name, value := range provider.GetAllLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-	sort.Sort(apiLabels)
+	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(provider.GetAllLabels()))
 
 	// Keep in sync with lib/web/ui/app.go.
 	return &api.App{

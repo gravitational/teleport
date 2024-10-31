@@ -28,7 +28,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -52,15 +51,11 @@ const (
 type ReporterConfig struct {
 	// Backend is the backend used to store reports. Required
 	Backend backend.Backend
-	// Log is the logger used for logging.
-	// TODO(tross): Delete once e has been converted
-	Log logrus.FieldLogger
 	// Logger is the used for emitting log messages.
 	Logger *slog.Logger
 	// Clock is the clock used for timestamping reports and deciding when to
 	// persist them to the backend. Optional, defaults to the real clock.
 	Clock clockwork.Clock
-
 	// ClusterName is the ClusterName resource for the current cluster, used for
 	// anonymization and to report the cluster name itself. Required.
 	ClusterName types.ClusterName

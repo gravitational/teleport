@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -253,9 +254,21 @@ func TryRun(commands []CLICommand, args []string) error {
 	proxyAddr := resp.ProxyPublicAddr
 	client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
-		return libmfa.NewCLIPromptV2(&libmfa.CLIPromptConfig{
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
 			PromptConfig: *promptCfg,
 		})
+	})
+	client.SetSSOMFACeremonyConstructor(func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+		rdConfig := sso.RedirectorConfig{
+			ProxyAddr: proxyAddr,
+		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return sso.NewCLIMFACeremony(rd), nil
 	})
 
 	// execute whatever is selected:
