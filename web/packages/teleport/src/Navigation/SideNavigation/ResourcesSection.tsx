@@ -201,7 +201,7 @@ function getResourcesSubsections({
     },
     {
       title: 'Desktops',
-      icon: Icons.Database,
+      icon: Icons.Desktop,
       route: desktopsOnlyRoute,
       searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
       category: NavigationCategory.Resources,

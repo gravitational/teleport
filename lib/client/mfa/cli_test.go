@@ -54,7 +54,8 @@ func TestCLIPrompt(t *testing.T) {
 			expectStdOut: "",
 			challenge:    &proto.MFAAuthenticateChallenge{},
 			expectResp:   &proto.MFAAuthenticateResponse{},
-		}, {
+		},
+		{
 			name:         "OK webauthn",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -65,7 +66,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK otp",
 			expectStdOut: "Enter an OTP code from a device:\n",
 			stdin:        "123456",
@@ -79,7 +81,8 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK sso",
 			expectStdOut: "", // sso stdout is handled internally in the SSO ceremony, which is mocked in this test.
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -93,7 +96,8 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK prefer otp when specified",
 			expectStdOut: "Enter an OTP code from a device:\n",
 			stdin:        "123456",
@@ -112,7 +116,8 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK prefer sso when specified",
 			expectStdOut: "",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -131,7 +136,8 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK prefer webauthn with authenticator attachment requested",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -163,7 +169,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name: "OK prefer webauthn+otp over sso",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
@@ -182,7 +189,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name: "OK prefer sso over otp",
 			expectStdOut: "" +
 				"Available MFA methods [SSO, OTP]. Continuing with SSO.\n" +
@@ -199,7 +207,8 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name: "OK prefer webauthn over otp when stdin hijack disallowed",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, OTP]. Continuing with WEBAUTHN.\n" +
@@ -214,7 +223,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name: "OK webauthn or otp with stdin hijack allowed, choose webauthn",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
@@ -233,7 +243,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name: "OK webauthn or otp with stdin hijack allowed, choose otp",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
@@ -255,28 +266,32 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "NOK no webauthn response",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 			},
 			expectErr: context.DeadlineExceeded,
-		}, {
+		},
+		{
 			name:         "NOK no sso response",
 			expectStdOut: "",
 			challenge: &proto.MFAAuthenticateChallenge{
 				SSOChallenge: &proto.SSOChallenge{},
 			},
 			expectErr: context.DeadlineExceeded,
-		}, {
+		},
+		{
 			name:         "NOK no otp response",
 			expectStdOut: "Enter an OTP code from a device:\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				TOTP: &proto.TOTPChallenge{},
 			},
 			expectErr: context.DeadlineExceeded,
-		}, {
+		},
+		{
 			name:         "NOK no webauthn or otp response",
 			expectStdOut: "Tap any security key or enter a code from a OTP device\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -447,7 +462,7 @@ Enter your security key PIN:
 				tc.modifyPromptConfig(cliPromptConfig)
 			}
 
-			resp, err := mfa.NewCLIPromptV2(cliPromptConfig).Run(ctx, tc.challenge)
+			resp, err := mfa.NewCLIPrompt(cliPromptConfig).Run(ctx, tc.challenge)
 			if tc.expectErr != nil {
 				require.ErrorIs(t, err, tc.expectErr)
 			} else {

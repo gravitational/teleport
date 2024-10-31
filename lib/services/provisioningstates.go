@@ -33,12 +33,16 @@ type DownstreamID string
 // disambiguated by a DownstreamID when queried or updated.
 type ProvisioningStateID string
 
-// DownstreamProvisioningStates defines an interface for managing principal
-// provisioning state records scoped by a target downstream receiver.
-type DownstreamProvisioningStates interface {
+type DownstreamProvisioningStateGetter interface {
 	// GetProvisioningState fetches a single provisioning state record for a given
 	// downstream and principal,
 	GetProvisioningState(context.Context, DownstreamID, ProvisioningStateID) (*provisioningv1.PrincipalState, error)
+}
+
+// DownstreamProvisioningStates defines an interface for managing principal
+// provisioning state records scoped by a target downstream receiver.
+type DownstreamProvisioningStates interface {
+	DownstreamProvisioningStateGetter
 
 	// ListProvisioningStates lists all provisioning state records for a given
 	// downstream receiver.
