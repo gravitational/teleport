@@ -270,7 +270,7 @@ func NewService(cfg ServiceConfig) (svc *Service, err error) {
 	return svc, nil
 }
 
-// Runs the provisioning service, blocking until it exits
+// Run the provisioning service, blocking until it exits
 func (svc *Service) Run(ctx context.Context) (err error) {
 	svc.log.DebugContext(ctx, "Entering provisioning service")
 	defer svc.log.DebugContext(ctx, "Exiting provisioning service")

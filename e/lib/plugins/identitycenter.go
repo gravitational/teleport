@@ -3,17 +3,13 @@ package plugins
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/provisioning"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
-	"github.com/gravitational/teleport/lib/services"
-)
-
-const (
-	IdentityCenterDownstreamID = services.DownstreamID("identitycenter")
 )
 
 // awsICInstanceFactory creates a new instance of the AWS Identity Center Plugin.
@@ -48,23 +44,44 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		instanceARN, err := arn.Parse(settings.Arn)
+		if err != nil {
+			return trace.Wrap(err, "malformed IC Instance ARN")
+		}
+		// TODO(tcsc): replace with real implementation
+		tokenFactory := func(_ context.Context, integration string) (string, error) {
+			return "", trace.NotImplemented("Integration token generator not yet implemented")
+		}
 
-		svc, err := provisioning.NewService(provisioning.ServiceConfig{
-			SCIMClient:       scimClient,
-			DownstreamID:     IdentityCenterDownstreamID,
-			UsersCache:       authServer.Cache,
-			AccessListsCache: authServer.Cache,
-			Locks:            authServer.Services,
-			StateSvc:         authServer.Services,
-			StateSvcCache:    authServer.Cache,
-			EventsClient:     deps.client,
-			Logger:           logger,
+		svc, err := identitycenter.NewService(identitycenter.ServiceConfig{
+			Provisioning: identitycenter.ProvisioningConfig{
+				SCIMClient:          scimClient,
+				StateSvc:            authServer.Services,
+				UsersSvcCache:       authServer.Cache,
+				AccessListsSvcCache: authServer.Cache,
+				LocksSvc:            authServer.Services,
+			},
+			AWS: identitycenter.AWSConfig{
+				InstanceARN:         instanceARN,
+				Region:              settings.Region,
+				IntegrationName:     settings.IntegrationName,
+				IntegrationsService: authServer.Services,
+				TokenFactoryFn:      tokenFactory,
+			},
+			UsersSvc:              authServer.Services,
+			AccessListsSvc:        authServer.Services,
+			AccessRequestsSvc:     authServer.Services,
+			Clock:                 authServer.GetClock(),
+			EventsClient:          deps.client,
+			IdentityCenterDataSvc: authServer.Services,
+			Log:                   logger,
+			RolesSvc:              authServer.Services,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		logger.DebugContext(deps.lifetime, "Running Identity Center service...")
+		logger.DebugContext(deps.lifetime, "Running AWS IC service.")
 		if err := svc.Run(deps.lifetime); err != nil {
 			logger.ErrorContext(deps.lifetime, "Identity Center Service exited with error",
 				"error", err)
