@@ -525,3 +525,11 @@ type AWSOIDCPingResponse struct {
 	// UserID is the unique identifier of the calling entity.
 	UserID string `json:"userId"`
 }
+
+// AWSOIDCPingRequest contains ping request fields.
+type AWSOIDCPingRequest struct {
+	// RoleARN is optional, and used for cases such as
+	// pinging to check validity before upserting an
+	// AWS OIDC integration.
+	RoleARN string `json:"roleArn,omitempty"`
+}

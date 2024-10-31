@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
@@ -313,7 +314,7 @@ type Server struct {
 	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]srv.HeartbeatI
 	// watcher monitors changes to database resources.
-	watcher *services.DatabaseWatcher
+	watcher *services.GenericWatcher[types.Database, readonly.Database]
 	// proxiedDatabases contains databases this server currently is proxying.
 	// Proxied databases are reconciled against monitoredDatabases below.
 	proxiedDatabases map[string]types.Database

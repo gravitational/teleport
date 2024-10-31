@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestReporter(t *testing.T) {
@@ -67,12 +68,15 @@ func TestReporter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	require.NoError(t, err)
+
 	r, err := NewReporter(ctx, ReporterConfig{
-		Backend:          bk,
-		Clock:            clk,
-		ClusterName:      clusterName,
-		HostID:           uuid.NewString(),
-		AnonymizationKey: "0123456789abcdef",
+		Backend:     bk,
+		Clock:       clk,
+		ClusterName: clusterName,
+		HostID:      uuid.NewString(),
+		Anonymizer:  anonymizer,
 	})
 	require.NoError(t, err)
 

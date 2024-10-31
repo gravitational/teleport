@@ -85,9 +85,25 @@ func (c *Client) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.
 	}
 }
 
+func (c *Client) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
+	switch desktop := desktop.(type) {
+	case *types.DynamicWindowsDesktopV1:
+		desktop, err := c.grpcClient.UpsertDynamicWindowsDesktop(ctx, &dynamicwindows.UpsertDynamicWindowsDesktopRequest{
+			Desktop: desktop,
+		})
+		return desktop, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("unknown desktop type: %T", desktop)
+	}
+}
+
 func (c *Client) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteDynamicWindowsDesktop(ctx, &dynamicwindows.DeleteDynamicWindowsDesktopRequest{
 		Name: name,
 	})
 	return trace.Wrap(err)
+}
+
+func (c *Client) DeleteAllDynamicWindowsDesktops(ctx context.Context) error {
+	return trace.NotImplemented("DeleteAllDynamicWindowsDesktops is not supported in the gRPC client")
 }

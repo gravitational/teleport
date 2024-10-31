@@ -48,6 +48,9 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	webApp := &msgraph.WebApplication{}
 	webApp.RedirectURIs = &uris
 	app.Web = webApp
+	securityGroups := new(string)
+	*securityGroups = "SecurityGroup"
+	app.GroupMembershipClaims = securityGroups
 
 	err = graphClient.UpdateApplication(ctx, appObjectID, app)
 

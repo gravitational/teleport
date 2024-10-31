@@ -2441,6 +2441,78 @@ func TestCheckRuleAccess(t *testing.T) {
 	}
 }
 
+func TestDefaultImplicitRules(t *testing.T) {
+	type check struct {
+		hasAccess bool
+		verb      string
+		namespace string
+		rule      string
+		context   testContext
+	}
+	testCases := []struct {
+		name   string
+		role   types.Role
+		checks []check
+	}{
+		{
+			name: "KindIdentityCenterAccount with NewPresetAccessRole",
+			role: NewPresetAccessRole(),
+			checks: []check{
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+		{
+			name: "KindIdentityCenterAccount with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
+			role: newRole(func(r *types.RoleV6) {}),
+			checks: []check{
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+		{
+			name: "KindSAMLIdPServiceProvider with NewPresetAccessRole",
+			role: NewPresetAccessRole(),
+			checks: []check{
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+		{
+			name: "KindSAMLIdPServiceProvider with a custom role that does not explicitly target read and list verbs for KindSAMLIdPServiceProvider",
+			role: newRole(func(r *types.RoleV6) {}),
+			checks: []check{
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		roleSet := NewRoleSet(tc.role)
+		for _, check := range tc.checks {
+			result := roleSet.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
+			if check.hasAccess {
+				require.NoError(t, result)
+			} else {
+				require.True(t, trace.IsAccessDenied(result))
+			}
+
+		}
+	}
+}
+
 func TestMFAVerificationInterval(t *testing.T) {
 	testCases := []struct {
 		name        string

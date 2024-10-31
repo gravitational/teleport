@@ -24,6 +24,7 @@ import {
   requiredRoleArn,
   requiredEmailLike,
   requiredIamRoleName,
+  requiredPort,
 } from './rules';
 
 describe('requiredField', () => {
@@ -136,5 +137,19 @@ describe('requiredEmailLike', () => {
     expect(requiredEmailLike(email)()).toEqual(
       expect.objectContaining(expected)
     );
+  });
+});
+
+describe('requiredPort', () => {
+  const errMsg = 'Port required [1-65535]';
+  test.each`
+    port       | expected
+    ${''}      | ${{ valid: false, message: errMsg }}
+    ${'alice'} | ${{ valid: false, message: errMsg }}
+    ${'99999'} | ${{ valid: false, message: errMsg }}
+    ${'1'}     | ${{ valid: true }}
+    ${'65535'} | ${{ valid: true }}
+  `('port: $port', ({ port, expected }) => {
+    expect(requiredPort(port)()).toEqual(expected);
   });
 });

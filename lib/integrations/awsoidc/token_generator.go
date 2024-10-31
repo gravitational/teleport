@@ -59,6 +59,8 @@ type KeyStoreManager interface {
 // GenerateAWSOIDCTokenRequest contains the required elements to generate an AWS OIDC Token (JWT).
 type GenerateAWSOIDCTokenRequest struct {
 	// Integration is the AWS OIDC Integration name.
+	// This field is only used to obtain custom Issuers (those stored at S3 buckets).
+	// If empty, the default issuer for the cluster (its public endpoint URL) will be used.
 	Integration string
 	// Username is the JWT Username (on behalf of claim)
 	Username string
@@ -70,9 +72,6 @@ type GenerateAWSOIDCTokenRequest struct {
 
 // CheckAndSetDefaults checks the request params.
 func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
-	if g.Integration == "" {
-		return trace.BadParameter("integration missing")
-	}
 	if g.Username == "" {
 		return trace.BadParameter("username missing")
 	}
@@ -86,7 +85,28 @@ func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-func issuerForIntegration(ctx context.Context, integration types.Integration, cacheClt Cache) (string, error) {
+// IssuerForIntegration returns the issuer for a given integration.
+// Returns the default Issuer (oidc.IssuerForCluster) if integrationName is empty.
+// All calls should be replaced with oidc.IssuerForCluster when IssuerS3URI is removed (it is currently deprecated).
+func issuerForIntegration(ctx context.Context, cacheClt Cache, integrationName string) (string, error) {
+	if integrationName == "" {
+		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
+		return issuer, trace.Wrap(err)
+	}
+
+	integration, err := cacheClt.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
+	}
+
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
+	}
+
 	issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
 	if issuerS3URI == "" {
 		issuer, err := oidc.IssuerForCluster(ctx, cacheClt, "")
@@ -107,20 +127,7 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 		return "", trace.Wrap(err)
 	}
 
-	integration, err := cacheClt.GetIntegration(ctx, req.Integration)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
-	}
-
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
-	}
-
-	issuer, err := issuerForIntegration(ctx, integration, cacheClt)
+	issuer, err := issuerForIntegration(ctx, cacheClt, req.Integration)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
