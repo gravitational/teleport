@@ -761,6 +761,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_UserTaskDelete{
 			UserTaskDelete: e,
 		}
+	case *SFTPSummary:
+		out.Event = &OneOf_SFTPSummary{
+			SFTPSummary: e,
+		}
 	case *AutoUpdateConfigCreate:
 		out.Event = &OneOf_AutoUpdateConfigCreate{
 			AutoUpdateConfigCreate: e,

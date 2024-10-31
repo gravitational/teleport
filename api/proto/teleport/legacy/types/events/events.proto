@@ -1892,6 +1892,54 @@ message SFTP {
   string Error = 12 [(gogoproto.jsontag) = "error,omitempty"];
 }
 
+// SFTPSummary is emitted at the end of an SFTP transfer
+message SFTPSummary {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // FileTransferStats contains statistics about transferred files
+  repeated FileTransferStat FileTransferStats = 6 [(gogoproto.jsontag) = "file_transfer_stats"];
+}
+
+// FileTransferStat is statistics about a transferred file
+message FileTransferStat {
+  string Path = 1 [(gogoproto.jsontag) = "path"];
+  uint64 BytesRead = 2 [(gogoproto.jsontag) = "bytes_read"];
+  uint64 BytesWritten = 3 [(gogoproto.jsontag) = "bytes_written"];
+}
+
 // Subsystem is emitted when a user requests a new subsystem.
 message Subsystem {
   // Metadata is a common event metadata
@@ -4615,6 +4663,7 @@ message OneOf {
     events.UserTaskCreate UserTaskCreate = 188;
     events.UserTaskUpdate UserTaskUpdate = 189;
     events.UserTaskDelete UserTaskDelete = 190;
+    events.SFTPSummary SFTPSummary = 191;
   }
 }
 

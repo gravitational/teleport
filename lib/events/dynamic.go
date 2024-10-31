@@ -446,6 +446,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case UserTaskDeleteEvent:
 		e = &events.UserTaskDelete{}
 
+	case SFTPSummaryEvent:
+		e = &events.SFTPSummary{}
+
 	case AutoUpdateConfigCreateEvent:
 		e = &events.AutoUpdateConfigCreate{}
 	case AutoUpdateConfigUpdateEvent:

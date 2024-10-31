@@ -235,6 +235,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	UserTaskCreateEvent:                         &apievents.UserTaskCreate{},
 	UserTaskUpdateEvent:                         &apievents.UserTaskUpdate{},
 	UserTaskDeleteEvent:                         &apievents.UserTaskDelete{},
+	SFTPSummaryEvent:                            &apievents.SFTPSummary{},
 	AutoUpdateConfigCreateEvent:                 &apievents.AutoUpdateConfigCreate{},
 	AutoUpdateConfigUpdateEvent:                 &apievents.AutoUpdateConfigUpdate{},
 	AutoUpdateConfigDeleteEvent:                 &apievents.AutoUpdateConfigDelete{},
