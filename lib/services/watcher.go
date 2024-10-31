@@ -839,9 +839,9 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 			}
 
 			key := g.ResourceKey(resource)
-			current := g.current[key]
+			current, exists := g.current[key]
 			g.current[key] = resource
-			updated = g.ResourceDiffer(current, resource)
+			updated = !exists || g.ResourceDiffer(current, resource)
 		default:
 			g.Logger.WarnContext(ctx, "Skipping unsupported event type", "event_type", event.Type)
 		}
