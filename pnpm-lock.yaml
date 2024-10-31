@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@bundled-es-modules/cookie>cookie': 0.7.1
+
 pnpmfileChecksum: w7xzadmfdycxsdgkkk3qgpkydu
 
 importers:
@@ -3401,10 +3404,6 @@ packages:
 
   cookie-signature@1.0.6:
     resolution: {integrity: sha512-QADzlaHc8icV8I7vbaJXJwod9HWYp8uCqf1xa4OfNu1T7JVxQIrUgOWtHdNDtPiywmFbiS12VjotIXLrKM3orQ==}
-
-  cookie@0.5.0:
-    resolution: {integrity: sha512-YZ3GUyn/o8gfKJlnlX7g7xq4gyO6OSuhGPKaaGssGB2qgDUS0gPgtTvoyZLTt9Ab6dC4hfc9dV5arkvc/OCmrw==}
-    engines: {node: '>= 0.6'}
 
   cookie@0.7.1:
     resolution: {integrity: sha512-6DnInpx7SJ2AK3+CTUE/ZM0vWTUboZCegxhC2xiIydHR9jNuTAASBrfEpHhiGOZw/nX51bHt6YQl8jsGo4y/0w==}
@@ -7821,7 +7820,7 @@ snapshots:
 
   '@bundled-es-modules/cookie@2.0.0':
     dependencies:
-      cookie: 0.5.0
+      cookie: 0.7.1
 
   '@bundled-es-modules/statuses@1.0.1':
     dependencies:
@@ -10535,8 +10534,6 @@ snapshots:
   convert-source-map@2.0.0: {}
 
   cookie-signature@1.0.6: {}
-
-  cookie@0.5.0: {}
 
   cookie@0.7.1: {}
 
