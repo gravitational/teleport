@@ -48,7 +48,7 @@ type Client interface {
 	//  * ListGroups return an empty member list.
 	//  * At this time, the ListGroups API is only capable of returning up to 50 results.
 	ListGroups(ctx context.Context, queryOptions ...QueryOption) (*ListGroupResponse, error)
-	// UpdateGroup updates a group on the SCIM server.
+	// ReplaceGroupName replace the group display name.
 	ReplaceGroupName(ctc context.Context, group *Group) error
 	// ReplaceGroupMembers updates the members of a group.
 	ReplaceGroupMembers(ctx context.Context, id string, members []*GroupMember) error
@@ -287,7 +287,7 @@ func (c *client) DeleteGroup(ctx context.Context, id string) error {
 	return trace.Wrap(c.deleteResource(ctx, "Groups", id))
 }
 
-// UpdateGroup updates a group on the SCIM server.
+// ReplaceGroupName updates a group on the SCIM server.
 func (c *client) ReplaceGroupName(ctx context.Context, group *Group) error {
 	u, err := c.endpointURL("Groups", group.ID)
 	if err != nil {

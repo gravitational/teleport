@@ -20,7 +20,6 @@ func TestSCIMSDKClient(t *testing.T) {
 	if os.Getenv(awsScimTokenEnv) == "" || os.Getenv(awsScimEndpointEnv) == "" {
 		t.Skipf("Skipping integration test, set %s and %s", awsScimTokenEnv, awsScimEndpointEnv)
 	}
-
 	ctx := context.Background()
 	cfg := &Config{
 		Endpoint: os.Getenv(awsScimEndpointEnv),
@@ -30,8 +29,11 @@ func TestSCIMSDKClient(t *testing.T) {
 	cli, err := New(cfg)
 	require.NoError(t, err)
 
-	require.NoError(t, cli.Ping(ctx))
+	testSCIMIntegration(t, ctx, cli)
+}
 
+func testSCIMIntegration(t *testing.T, ctx context.Context, cli Client) {
+	require.NoError(t, cli.Ping(ctx))
 	usersToCreate := []*User{
 		{
 			UserName:    "richard",
@@ -123,6 +125,7 @@ func TestSCIMSDKClient(t *testing.T) {
 
 	err = cli.ReplaceGroupMembers(ctx, testGroup.ID, members)
 	require.NoError(t, err)
+
 }
 
 func mkUserGenerator() func() *User {
