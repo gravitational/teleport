@@ -120,7 +120,9 @@ type Profile struct {
 	// SSHDialTimeout is the timeout value that should be used for SSH connections.
 	SSHDialTimeout time.Duration `yaml:"ssh_dial_timeout,omitempty"`
 
-	// SSOHostname is the hostname of the SSO provider used to log in.
+	// SSOHostname is the hostname of the SSO provider used to log in. Clients can check this value,
+	// along with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
+	// Connect in the proxy host allow list.
 	SSOHostname string `yaml:"sso_hostname,omitempty"`
 }
 
