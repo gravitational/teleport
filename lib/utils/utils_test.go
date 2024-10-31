@@ -400,6 +400,11 @@ func TestValidateNodeHostname(t *testing.T) {
 			hostname: "9b61981f-d5c3-491d-8e58-be500db71d54",
 			assert:   require.NoError,
 		},
+		{
+			name:     "uuid with domain name",
+			hostname: "9b61981f-d5c3-491d-8e58-be500db71d54.example.com",
+			assert:   require.NoError,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
