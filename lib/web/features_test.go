@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
@@ -58,7 +57,6 @@ func TestFeaturesWatcher(t *testing.T) {
 
 	mockClient := &mockedFeatureGetter{features: proto.Features{
 		Kubernetes:     true,
-		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}}
 
@@ -85,51 +83,39 @@ func TestFeaturesWatcher(t *testing.T) {
 	// values matching the client's response
 	features := proto.Features{
 		Kubernetes:     true,
-		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.BackfillFeatures(&features)
 	expected := utils.CloneProtoMsg(&features)
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
 	// update values once again and check if the features are properly updated
 	features = proto.Features{
 		Kubernetes:     false,
-		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.BackfillFeatures(&features)
 	mockClient.setFeatures(features)
 	expected = utils.CloneProtoMsg(&features)
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
-	// test updating entitlements
+	// test updating features
 	features = proto.Features{
-		Kubernetes: true,
-		Entitlements: map[string]*proto.EntitlementInfo{
-			string(entitlements.ExternalAuditStorage):   {Enabled: true},
-			string(entitlements.AccessLists):            {Enabled: true},
-			string(entitlements.AccessMonitoring):       {Enabled: true},
-			string(entitlements.App):                    {Enabled: true},
-			string(entitlements.CloudAuditLogRetention): {Enabled: true},
-		},
-		AccessRequests: &proto.AccessRequestsFeature{},
+		Kubernetes:           true,
+		ExternalAuditStorage: true,
+		AccessList:           &proto.AccessListFeature{CreateLimit: 10},
+		AccessMonitoring:     &proto.AccessMonitoringFeature{},
+		App:                  true,
+		AccessRequests:       &proto.AccessRequestsFeature{},
 	}
-	entitlements.BackfillFeatures(&features)
 	mockClient.setFeatures(features)
 
 	expected = &proto.Features{
-		Kubernetes: true,
-		Entitlements: map[string]*proto.EntitlementInfo{
-			string(entitlements.ExternalAuditStorage):   {Enabled: true},
-			string(entitlements.AccessLists):            {Enabled: true},
-			string(entitlements.AccessMonitoring):       {Enabled: true},
-			string(entitlements.App):                    {Enabled: true},
-			string(entitlements.CloudAuditLogRetention): {Enabled: true},
-		},
-		AccessRequests: &proto.AccessRequestsFeature{},
+		Kubernetes:           true,
+		ExternalAuditStorage: true,
+		AccessList:           &proto.AccessListFeature{CreateLimit: 10},
+		AccessMonitoring:     &proto.AccessMonitoringFeature{},
+		App:                  true,
+		AccessRequests:       &proto.AccessRequestsFeature{},
 	}
-	entitlements.BackfillFeatures(expected)
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
 	// stop watcher and ensure it stops updating features
@@ -138,10 +124,8 @@ func TestFeaturesWatcher(t *testing.T) {
 		Kubernetes:     !features.Kubernetes,
 		App:            !features.App,
 		DB:             true,
-		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.BackfillFeatures(&features)
 	mockClient.setFeatures(features)
 	notExpected := utils.CloneProtoMsg(&features)
 	// assert the handler never get these last features as the watcher is stopped
