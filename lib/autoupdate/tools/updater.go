@@ -180,7 +180,7 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		Context:   ctx,
 		ProxyAddr: proxyAddr,
 		Pool:      certPool,
-		Timeout:   30 * time.Second,
+		Timeout:   10 * time.Second,
 		Insecure:  insecure,
 	})
 	if err != nil {
