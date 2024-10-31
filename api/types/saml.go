@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -522,5 +523,100 @@ func (r *SAMLAuthRequest) Check() error {
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
 	}
+	return nil
+}
+
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalYAML() (interface{}, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	if err := unmarshal(&val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalJSON() ([]byte, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalJSON(data []byte) error {
+	var val any
+	if err := json.Unmarshal(data, &val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+func (s *SAMLForceAuthn) encode() (string, error) {
+	switch *s {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		return "", nil
+	case SAMLForceAuthn_FORCE_AUTHN_NO:
+		return "no", nil
+	case SAMLForceAuthn_FORCE_AUTHN_YES:
+		return "yes", nil
+	default:
+		return "", trace.BadParameter("SAMLForceAuthn invalid value %v", *s)
+	}
+}
+
+func (s *SAMLForceAuthn) decode(val any) error {
+	switch v := val.(type) {
+	case string:
+		// try parsing as a boolean
+		switch strings.ToLower(v) {
+		case "":
+			*s = SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED
+		case "yes", "yeah", "y", "true", "1", "on":
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		case "no", "nope", "n", "false", "0", "off":
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		default:
+			return trace.BadParameter("SAMLForceAuthn invalid value %v", val)
+		}
+	case bool:
+		if v {
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		} else {
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		}
+	case int32:
+		return trace.Wrap(s.setFromEnum(v))
+	case int64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("SAMLForceAuthn invalid type %T", val)
+	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (s *SAMLForceAuthn) setFromEnum(val int32) error {
+	if _, ok := SAMLForceAuthn_name[val]; !ok {
+		return trace.BadParameter("invalid SAMLForceAuthn enum %v", val)
+	}
+	*s = SAMLForceAuthn(val)
 	return nil
 }

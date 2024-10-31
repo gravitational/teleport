@@ -182,8 +182,15 @@ func TestDynamicWindowsService_UpdateDynamicDesktop(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
+	t.Run("revision doesn't match", func(t *testing.T) {
+		want := newDynamicDesktop(t, "example1")
+		_, err := service.CreateDynamicWindowsDesktop(ctx, want.Copy())
+		require.NoError(t, err)
+		_, err = service.UpdateDynamicWindowsDesktop(ctx, want)
+		require.Error(t, err)
+	})
 	t.Run("ok", func(t *testing.T) {
-		want := newDynamicDesktop(t, "example")
+		want := newDynamicDesktop(t, "example2")
 		created, err := service.CreateDynamicWindowsDesktop(ctx, want.Copy())
 		require.NoError(t, err)
 		updated, err := service.UpdateDynamicWindowsDesktop(ctx, created.Copy())
