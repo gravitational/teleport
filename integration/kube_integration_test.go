@@ -656,7 +656,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 	auxRole, err := types.NewRole("aux-kube", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{username},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
@@ -935,7 +935,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubernetesLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
-			// Note that main cluster can pass it's kubernetes groups
+			// Note that main cluster can pass its kubernetes groups
 			// to the remote cluster, and remote cluster
 			// can choose to use them by using special variable
 			KubeGroups: auxKubeGroups,
