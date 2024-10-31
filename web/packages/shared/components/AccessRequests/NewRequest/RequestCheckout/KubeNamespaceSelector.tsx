@@ -34,13 +34,11 @@ export function KubeNamespaceSelector({
   kubeClusterItem,
   fetchKubeNamespaces,
   savedResourceItems,
-  toggleResource,
   bulkToggleKubeResources,
 }: {
   kubeClusterItem: PendingListItem;
   fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
   savedResourceItems: PendingListItem[];
-  toggleResource: (resource: PendingListItem) => void;
   bulkToggleKubeResources: (
     resources: PendingKubeResourceItem[],
     resource: PendingListItem
@@ -83,13 +81,18 @@ export function KubeNamespaceSelector({
         );
         return;
       case 'remove-value':
-        toggleResource({
-          kind: 'namespace',
-          id: kubeClusterItem.id,
-          subResourceName: actionMeta.removedValue.value,
-          clusterName: kubeClusterItem.clusterName,
-          name: actionMeta.removedValue.value,
-        });
+        bulkToggleKubeResources(
+          [
+            {
+              kind: 'namespace',
+              id: kubeClusterItem.id,
+              subResourceName: actionMeta.removedValue.value,
+              clusterName: kubeClusterItem.clusterName,
+              name: actionMeta.removedValue.value,
+            },
+          ],
+          kubeClusterItem
+        );
         return;
     }
   }
