@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"github.com/prometheus/client_golang/prometheus"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
