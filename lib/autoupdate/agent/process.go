@@ -116,7 +116,7 @@ func (s SystemdService) systemctl(ctx context.Context, errLevel slog.Level, args
 	stdout.Flush()
 	code := cmd.ProcessState.ExitCode()
 
-	// treat out-of-range code as an error with OS executing command, not as intentional 255
+	// Treat out-of-range code as an error with OS executing the command, not as an intentionally returned 255.
 	if code == 255 {
 		code = -1
 	}
