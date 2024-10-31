@@ -1254,30 +1254,6 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	return nil
 }
 
-func (a *Server) periodicSyncUpgradeWindowStartHour() {
-	checkInterval := interval.New(interval.Config{
-		Duration:      time.Minute * 3,
-		FirstDuration: utils.FullJitter(time.Second * 30),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer checkInterval.Stop()
-
-	for {
-		select {
-		case <-checkInterval.Next():
-			if err := a.syncUpgradeWindowStartHour(a.closeCtx); err != nil {
-				if a.closeCtx.Err() == nil {
-					// we run this periodic at a fairly high frequency, so errors are just
-					// logged but otherwise ignored.
-					log.Warnf("Failed to sync upgrade window start hour: %v", err)
-				}
-			}
-		case <-a.closeCtx.Done():
-			return
-		}
-	}
-}
-
 // periodicIntervalKey is used to uniquely identify the subintervals registered with
 // the interval.MultiInterval instance that we use for managing periodics operations.
 
@@ -1478,7 +1454,7 @@ func (a *Server) runPeriodicOperations() {
 			case dynamicLabelsCheckKey:
 				go a.syncDynamicLabelsAlert(a.closeCtx)
 			case upgradeWindowCheckKey:
-				go a.periodicSyncUpgradeWindowStartHour()
+				go a.syncUpgradeWindowStartHour(a.closeCtx)
 			case roleCountKey:
 				go a.tallyRoles(a.closeCtx)
 			}
