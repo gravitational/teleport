@@ -2,7 +2,8 @@ package scimsdk
 
 // GroupMember holds a single group member
 type GroupMember struct {
-	// ExternalID is the external ID of the member
+	// ExternalID is the downstream system's ID for the list member.
+	// TODO: rename to ID, as in SCIM terms this is the ID, not the ExternalID.
 	ExternalID string `json:"value,omitempty"`
 	// Display is the display name of the member
 	Display string `json:"display,omitempty"`

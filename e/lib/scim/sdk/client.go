@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 
 	"github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
@@ -49,9 +48,10 @@ type Client interface {
 	//  * ListGroups return an empty member list.
 	//  * At this time, the ListGroups API is only capable of returning up to 50 results.
 	ListGroups(ctx context.Context, queryOptions ...QueryOption) (*ListGroupResponse, error)
+	// UpdateGroup updates a group on the SCIM server.
+	ReplaceGroupName(ctc context.Context, group *Group) error
 	// ReplaceGroupMembers updates the members of a group.
 	ReplaceGroupMembers(ctx context.Context, id string, members []*GroupMember) error
-
 	// GetGroupByDisplayName returns a group by display name.
 	GetGroupByDisplayName(ctx context.Context, displayName string) (*Group, error)
 	// GetUserByUserName returns a user by username.
@@ -226,6 +226,7 @@ func (c *client) UpdateUser(ctx context.Context, user *User) (*User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	payload, err := json.Marshal(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -287,33 +288,44 @@ func (c *client) DeleteGroup(ctx context.Context, id string) error {
 }
 
 // UpdateGroup updates a group on the SCIM server.
-func (c *client) UpdateGroup(ctx context.Context, group *Group) (*Group, error) {
-	u, err := c.endpointURL("Group", group.ID)
+func (c *client) ReplaceGroupName(ctx context.Context, group *Group) error {
+	u, err := c.endpointURL("Groups", group.ID)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	payload, err := json.Marshal(group)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	resp, err := c.do(ctx, u, http.MethodPut, bytes.NewReader(payload))
+	// AWS only supports patch operations on groups, so we have to patch the
+	// values we want to change rather than do the more obvious PUT.
+
+	patch := PatchOperations{
+		Schemas: []string{PatchOpSchema},
+		Operations: []PatchOp{
+			{
+				Operation: OpReplace,
+				Path:      "displayName",
+				Value:     group.DisplayName,
+			},
+		},
+	}
+
+	payload, err := json.Marshal(patch)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
+	}
+
+	resp, err := c.do(ctx, u, http.MethodPatch, bytes.NewReader(payload))
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
 	switch resp.StatusCode {
-	case http.StatusOK, http.StatusCreated:
+	case http.StatusOK, http.StatusNoContent:
 	default:
-		return nil, decoreError(resp)
+		return decoreError(resp)
 	}
 
-	var out Group
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &out, nil
+	return nil
 }
 
 // ReplaceGroupMembers replaces the members of a group.
@@ -335,14 +347,17 @@ func (c *client) ReplaceGroupMembers(ctx context.Context, id string, members []*
 	// Beware the odd post-loop condition test here. We need to go through this
 	// *loop at least once* to handle the case where `groupMembers` is empty,
 	// and we need to delete all users in the downstream group.
-	for membersChunk := range slices.Chunk(members, c.maxPageSize) {
+	for ok := true; ok; ok = len(members) > 0 {
+		var membersPage []*GroupMember
+		membersPage, members = takePage(members, c.maxPageSize)
+
 		res := PatchOperations{
 			Schemas: []string{PatchOpSchema},
 			Operations: []PatchOp{
 				{
 					Operation: patchOp,
 					Path:      "members",
-					Value:     membersChunk,
+					Value:     membersPage,
 				},
 			},
 		}
@@ -481,4 +496,11 @@ func (c *client) do(ctx context.Context, u *url.URL, httpMethod string, r io.Rea
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
+}
+
+func takePage[S ~[]T, T any](src S, pageSize int) (S, S) {
+	if len(src) <= pageSize {
+		return src, nil
+	}
+	return src[:pageSize], src[pageSize:]
 }

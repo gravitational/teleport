@@ -7,12 +7,23 @@ import (
 	"reflect"
 	"time"
 
+	scimSchema "github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+)
+
+const (
+	// ResourceTypeUser indicates that an SCIM resource is a user, as per RFC 7643
+	ResourceTypeUser = "User"
+
+	// ResourceTypeGroup indicates that an SCIM resource is a group, as per RFC 7643
+	ResourceTypeGroup = "Group"
 )
 
 // UnmarshalResourceHeader parses a JSON stream into a valid SCIM resource object.
@@ -209,4 +220,102 @@ func MarshalResource(res *scimpb.Resource) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// UserActiveState indicates whether a user is considered "active" or not, as
+// per RFC7643, section 4.4.1. The interpretation of "active" is loosely defined
+// and varies between SCIM servers (for example, Okta uses the "active" field
+// to indicate that it is taking over provisioning for an existing in the
+// downstream service), but in general indicates whether a user should be
+// enabled or disabled.
+type UserActiveState bool
+
+const (
+	// UserActive indicates that the user should be enabled in the target
+	// system
+	UserActive UserActiveState = true
+
+	// UserInactive indicates that the user should be enabled in the target
+	// system
+	UserInactive UserActiveState = false
+)
+
+type userOption func(*User)
+
+func WithUserID(id string) userOption {
+	return func(u *User) {
+		u.ID = id
+	}
+}
+
+func WithActiveState(state UserActiveState) userOption {
+	return func(u *User) {
+		u.Active = bool(state)
+	}
+}
+
+// ToUser generates a SCIM user resource from the supplied Teleport User
+func ToUser(user types.User, options ...userOption) *User {
+	// TODO(tcsc): Work out how to synthesize sensible values for required
+	//             attributes. I'm envisioning having some kind of config that
+	//             maps Teleport User traits to SCIM user-schema attributes,
+	//             possibly with fallback through multiple options.
+	//
+	//             This current implementation passes specific attributes from Okta
+	//             through tp AWS, as this is the initial use case, but users will
+	//             not always be sourced from Okta, and a more general solution
+	//             is required.
+	u := &User{
+		Schemas: []string{scimSchema.UserSchema},
+		Meta: &Metadata{
+			ResourceType: ResourceTypeUser,
+		},
+		ExternalID:  user.GetName(),
+		UserName:    user.GetName(),
+		DisplayName: traitOrDefault(user, "okta/displayName", user.GetName()),
+		Active:      true,
+		Name: &Name{
+			GivenName:  traitOrDefault(user, "okta/givenName", "-"),
+			FamilyName: traitOrDefault(user, "okta/familyName", "-"),
+		},
+	}
+	for _, opt := range options {
+		opt(u)
+	}
+	return u
+}
+
+// traitOrDefault returns the first defined value for the given trait, or the
+// supplied default if the requested trait is mission or empty
+func traitOrDefault(user types.User, trait string, defaultValue string) string {
+	values, ok := user.GetTraits()[trait]
+	if !ok || len(values) == 0 {
+		return defaultValue
+	}
+
+	return values[0]
+}
+
+type groupOption func(*Group)
+
+func WithGroupID(id string) groupOption {
+	return func(grp *Group) {
+		grp.ID = id
+	}
+}
+
+// ToGroup generates a SCIM group resource from the supplied Teleport Access
+// List. Note that the returned Group dows not include a member list.
+func ToGroup(acl *accesslist.AccessList, options ...groupOption) *Group {
+	g := &Group{
+		Meta: &Metadata{
+			ResourceType: ResourceTypeGroup,
+		},
+		Schemas:     []string{scimSchema.GroupSchema},
+		DisplayName: acl.Spec.Title,
+	}
+	for _, opt := range options {
+		opt(g)
+	}
+	return g
 }

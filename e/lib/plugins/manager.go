@@ -64,18 +64,19 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]instanceFactory{
-			types.PluginTypeDiscord:    discordInstanceFactory,
-			types.PluginTypeOkta:       oktaInstanceFactory,
-			types.PluginTypeSlack:      slackInstanceFactory,
-			types.PluginTypeOpsgenie:   opsgenieInstanceFactory,
-			types.PluginTypeServiceNow: serviceNowInstanceFactory,
-			types.PluginTypePagerDuty:  pagerDutyInstanceFactory,
-			types.PluginTypeJamf:       jamfInstanceFactory,
-			types.PluginTypeJira:       jiraInstanceFactory,
-			types.PluginTypeMattermost: mattermostInstanceFactory,
-			types.PluginTypeGitlab:     gitlabInstanceFactory,
-			types.PluginTypeEntraID:    entraIDInstanceFactory,
-			types.PluginTypeDatadog:    datadogInstanceFactory,
+			types.PluginTypeDiscord:           discordInstanceFactory,
+			types.PluginTypeOkta:              oktaInstanceFactory,
+			types.PluginTypeSlack:             slackInstanceFactory,
+			types.PluginTypeOpsgenie:          opsgenieInstanceFactory,
+			types.PluginTypeServiceNow:        serviceNowInstanceFactory,
+			types.PluginTypePagerDuty:         pagerDutyInstanceFactory,
+			types.PluginTypeJamf:              jamfInstanceFactory,
+			types.PluginTypeJira:              jiraInstanceFactory,
+			types.PluginTypeMattermost:        mattermostInstanceFactory,
+			types.PluginTypeGitlab:            gitlabInstanceFactory,
+			types.PluginTypeEntraID:           entraIDInstanceFactory,
+			types.PluginTypeDatadog:           datadogInstanceFactory,
+			types.PluginTypeAWSIdentityCenter: awsIdentityCenterInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {
