@@ -234,12 +234,6 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.3
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3
-	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.3
-)
-
-require (
 	cel.dev/expr v0.16.0 // indirect
 	cloud.google.com/go v0.115.1 // indirect
 	cloud.google.com/go/auth v0.9.4 // indirect
