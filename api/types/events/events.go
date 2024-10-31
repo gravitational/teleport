@@ -2328,3 +2328,27 @@ func (m *SFTPSummary) TrimToMaxSize(maxSize int) AuditEvent {
 
 	return out
 }
+
+func (m *AutoUpdateConfigCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateConfigUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateConfigDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateVersionCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateVersionUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *AutoUpdateVersionDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
