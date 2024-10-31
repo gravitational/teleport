@@ -760,6 +760,31 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_UserTaskDelete{
 			UserTaskDelete: e,
 		}
+	case *AutoUpdateConfigCreate:
+		out.Event = &OneOf_AutoUpdateConfigCreate{
+			AutoUpdateConfigCreate: e,
+		}
+	case *AutoUpdateConfigUpdate:
+		out.Event = &OneOf_AutoUpdateConfigUpdate{
+			AutoUpdateConfigUpdate: e,
+		}
+	case *AutoUpdateConfigDelete:
+		out.Event = &OneOf_AutoUpdateConfigDelete{
+			AutoUpdateConfigDelete: e,
+		}
+
+	case *AutoUpdateVersionCreate:
+		out.Event = &OneOf_AutoUpdateVersionCreate{
+			AutoUpdateVersionCreate: e,
+		}
+	case *AutoUpdateVersionUpdate:
+		out.Event = &OneOf_AutoUpdateVersionUpdate{
+			AutoUpdateVersionUpdate: e,
+		}
+	case *AutoUpdateVersionDelete:
+		out.Event = &OneOf_AutoUpdateVersionDelete{
+			AutoUpdateVersionDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}
