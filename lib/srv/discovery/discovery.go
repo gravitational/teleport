@@ -946,7 +946,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 
 			continue
 		}
-		// Only validate the hostname of new nodes to ensure existing EICE nodes that existed
+		// Only validate the hostname of new nodes to ensure existing nodes that existed
 		// before hostname validation was checked are unaffected
 		if len(existingNodes) == 0 {
 			err := utils.ValidateNodeHostname(eiceNode.GetHostname())

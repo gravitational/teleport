@@ -348,6 +348,13 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	if n := server.GetNamespace(); n != apidefaults.Namespace {
 		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
+	if err := utils.ValidateNodeHostname(server.GetHostname()); err != nil {
+		s.log.Warnf(
+			`Node %q is configured with an invalid hostname. Future versions of Teleport will evict nodes with invalid hostnames.
+Please update this hostname to a hostname only consisting of alphanumeric characters and the symbols '.' and '-'.`,
+			server.GetHostname(),
+		)
+	}
 
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
