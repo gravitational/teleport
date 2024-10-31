@@ -61,7 +61,16 @@ export const ReAuthenticate: FC<{
 
   const availableMfaTypes = makeAvailableMfaTypes(req);
 
-  const [selectedMfaType, setSelectedMfaType] = useState(availableMfaTypes[0]);
+  const [selectedMfaType, setSelectedMfaType] = useState<AvailableMfaType>(
+    availableMfaTypes[0]
+  );
+
+  // If SSO is the default value, open the redirect window
+  // instead of waiting for the user to select SSO.
+  if (selectedMfaType.value === 'sso') {
+    props.onSsoContinue(req.sso.redirectUrl);
+  }
+
   const [otpToken, setOtpToken] = useState('');
 
   const { clusterUri } = req;
@@ -125,11 +134,9 @@ export const ReAuthenticate: FC<{
                       label="Two-factor Type"
                       value={selectedMfaType}
                       options={availableMfaTypes}
-                      onChange={option => {
-                        const value = (option as Option<string, string>)
-                          .value as MfaType;
-                        setSelectedMfaType(option);
-                        if (value === 'sso') {
+                      onChange={mfaType => {
+                        setSelectedMfaType(mfaType);
+                        if (mfaType.value === 'sso') {
                           props.onSsoContinue(req.sso.redirectUrl);
                         }
                       }}

@@ -128,7 +128,7 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		}
 
 		// Fire SSO goroutine.
-		if promptWebauthn {
+		if promptSSO {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
