@@ -263,7 +263,6 @@ export function RequestCheckout<T extends PendingListItem>({
               <KubeNamespaceSelector
                 kubeClusterItem={item}
                 savedResourceItems={pendingAccessRequests}
-                toggleResource={toggleResource}
                 fetchKubeNamespaces={fetchKubeNamespaces}
                 bulkToggleKubeResources={bulkToggleKubeResources}
               />
