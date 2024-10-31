@@ -497,11 +497,15 @@ func (u UserV2) GetGCPServiceAccounts() []string {
 
 // GetUserType indicates if the User was created by an SSO Provider or locally.
 func (u UserV2) GetUserType() UserType {
-	if u.GetCreatedBy().Connector == nil {
-		return UserTypeLocal
+	if u.GetCreatedBy().Connector != nil ||
+		len(u.GetOIDCIdentities()) > 0 ||
+		len(u.GetGithubIdentities()) > 0 ||
+		len(u.GetSAMLIdentities()) > 0 {
+
+		return UserTypeSSO
 	}
 
-	return UserTypeSSO
+	return UserTypeLocal
 }
 
 // IsBot returns true if the user is a bot.

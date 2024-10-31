@@ -749,6 +749,7 @@ enum ClipboardFormat {
 /// Sent as a reply to the format list PDU - used to indicate whether
 /// the format list PDU was processed succesfully.
 #[derive(Debug)]
+#[allow(dead_code)]
 struct FormatListResponsePDU {
     // empty, the only information needed is the flags in the header
 }

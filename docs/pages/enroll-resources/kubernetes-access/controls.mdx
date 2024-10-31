@@ -336,14 +336,6 @@ Below is a Kubernetes `ClusterRole` that grants the minimum set of permissions
 to enable impersonation, and a `ClusterRoleBinding` that grants these
 permissions to a service account.
 
-<Notice type="tip">
-
-There is usually no need to define these resources manually. The [manual
-methods](./register-clusters.mdx) and [automatic methods](./discovery.mdx) for
-registering Kubernetes clusters with Teleport include steps for setting up the
-Kubernetes RBAC resources that Teleport needs to allow access to clusters.
-
-</Notice>
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
