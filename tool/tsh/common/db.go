@@ -760,7 +760,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
-	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase)
+	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase, cf.LocalProxyTunnel)
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1678,8 +1678,13 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 	return &out
 }
 
-func getDBConnectLocalProxyRequirement(ctx context.Context, tc *client.TeleportClient, route tlsca.RouteToDatabase) *dbLocalProxyRequirement {
+func getDBConnectLocalProxyRequirement(ctx context.Context, tc *client.TeleportClient, route tlsca.RouteToDatabase, tunnelFlag bool) *dbLocalProxyRequirement {
 	r := getDBLocalProxyRequirement(tc, route)
+	// Forces local proxy tunnel when --tunnel is on.
+	if !r.tunnel && tunnelFlag {
+		r.addLocalProxyWithTunnel(dbConnectRequireReasonTunnelFlag)
+	}
+	// Forces local proxy when cluster has TLS routing enabled.
 	if !r.localProxy && tc.TLSRoutingEnabled {
 		r.addLocalProxy(formatTLSRoutingReason(tc.SiteName))
 	}
@@ -1912,4 +1917,8 @@ Hint: use '{{ .listCommand }} -v' or '{{ .listCommand }} --format=[json|yaml]' t
 Hint: try selecting the {{ .kind }} with a more specific name (ex: {{ .command }} {{ .example }}).
 Hint: try selecting the {{ .kind }} with additional --labels or --query predicate.
 `))
+
+	// dbConnectRequireReasonTunnelFlag is the reason used in local proxy
+	// requirement calculation when --tunnel flag is specified.
+	dbConnectRequireReasonTunnelFlag = "--tunnel flag is specified"
 )
