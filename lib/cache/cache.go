@@ -44,6 +44,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -3543,4 +3544,17 @@ func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.Ac
 		return clone, nil
 	}
 	return rg.reader.GetAccessGraphSettings(ctx)
+}
+
+func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.provisioningStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetProvisioningState(ctx, downstream, id)
 }
