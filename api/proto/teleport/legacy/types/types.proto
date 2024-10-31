@@ -6256,7 +6256,7 @@ message PluginSpecV1 {
     // Settings for the Email Access Request plugin
     PluginEmailSettings email = 17;
     // Settings for the Microsoft Teams plugin
-    PluginMSTeamsSettings msTeams = 18;
+    PluginMSTeamsSettings msteams = 18;
   }
 
   // generation contains a unique ID that should:
@@ -6639,14 +6639,16 @@ message SMTPSpec {
 // PluginMSTeamsSettings defines the settings for a Microsoft Teams integration plugin
 message PluginMSTeamsSettings {
   option (gogoproto.equal) = true;
-  // AppId is the Microsoft application ID (uuid, for bots must be underlying app id, not bot's id).
+  // AppId is the Microsoft application ID (uuid, for Azure bots must be underlying app id, not bot's id).
   string app_id = 1;
   // TenantId is the Microsoft tenant ID.
   string tenant_id = 2;
   // TeamsAppId is the Microsoft teams application ID.
   string teams_app_id = 3;
-  // Region bot framework api AP region.
+  // Region to be used by the Microsoft Graph API client.
   string region = 4;
+  // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+  string default_recipient = 5;
 }
 
 message PluginBootstrapCredentialsV1 {
