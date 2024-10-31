@@ -1,4 +1,20 @@
-package credentials
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package credprovider
 
 import (
 	"context"
@@ -7,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -27,7 +44,10 @@ func CreateAWSConfigForIntegration(ctx context.Context, config Config) (*aws.Con
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	credCache, err := newAWSCredCache(ctx, config, cacheAWSConfig)
+	if config.STSClient == nil {
+		config.STSClient = sts.NewFromConfig(*cacheAWSConfig)
+	}
+	credCache, err := newAWSCredCache(ctx, config, config.STSClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -53,6 +73,8 @@ type Config struct {
 	IntegrationGetter integrationGetter
 	// AWSOIDCTokenGenerator is used to generate OIDC tokens for the AWS integration.
 	AWSOIDCTokenGenerator tokenGenerator
+	// STSClient is the AWS Security Token Service client.
+	STSClient stscreds.AssumeRoleWithWebIdentityAPIClient
 	// Logger is the logger to use for logging.
 	Logger *slog.Logger
 	// Clock is the clock to use for timekeeping.
@@ -92,7 +114,7 @@ func (c *Config) checkAndSetDefaults() error {
 	return nil
 }
 
-func newAWSCredCache(ctx context.Context, cfg Config, awsConfig *aws.Config) (*CredentialsCache, error) {
+func newAWSCredCache(ctx context.Context, cfg Config, stsClient stscreds.AssumeRoleWithWebIdentityAPIClient) (*CredentialsCache, error) {
 	integration, err := cfg.IntegrationGetter.GetIntegration(ctx, cfg.IntegrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,12 +125,12 @@ func newAWSCredCache(ctx context.Context, cfg Config, awsConfig *aws.Config) (*C
 	}
 
 	credCache, err := NewCredentialsCache(
-		cfg.IntegrationName,
-		roleARN,
-		&CredentialsCacheOptions{
-			Log:       cfg.Logger,
-			Clock:     cfg.Clock,
-			STSClient: sts.NewFromConfig(*awsConfig),
+		CredentialsCacheOptions{
+			Log:         cfg.Logger,
+			Clock:       cfg.Clock,
+			STSClient:   stsClient,
+			RoleARN:     roleARN,
+			Integration: cfg.IntegrationName,
 		},
 	)
 	if err != nil {
