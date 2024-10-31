@@ -115,12 +115,11 @@ func Run(args []string) error {
 		Short('t').Envar(templateEnvVar).StringVar(&ccfg.URLTemplate)
 	enableCmd.Flag("force-version", "Force the provided version instead of querying it from the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
+	// TODO(sclevine): add force-fips and force-enterprise as hidden flags
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
-	updateCmd.Flag("force-version", "Use the provided version instead of querying it from the Teleport cluster.").
-		Short('f').Envar(updateVersionEnvVar).Hidden().StringVar(&ccfg.ForceVersion)
 
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
