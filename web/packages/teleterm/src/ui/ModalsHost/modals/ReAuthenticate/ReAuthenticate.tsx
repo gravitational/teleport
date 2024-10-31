@@ -50,7 +50,6 @@ import { routing } from 'teleterm/ui/uri';
 import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
 
 type MfaType = 'webauthn' | 'totp' | 'sso';
-type AvailableMfaTypes = Option<MfaType, string>[];
 
 export const ReAuthenticate: FC<{
   promptMfaRequest: PromptMFARequest;
@@ -191,8 +190,10 @@ export const ReAuthenticate: FC<{
   );
 };
 
-function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaTypes {
-  let availableMfaTypes: AvailableMfaTypes = [];
+type AvailableMfaType = Option<MfaType, string>;
+
+function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
+  let availableMfaTypes: AvailableMfaType[] = [];
   const totp = { value: 'totp' as MfaType, label: 'Authenticator App' };
   const webauthn = { value: 'webauthn' as MfaType, label: 'Hardware Key' };
 

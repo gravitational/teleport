@@ -53,7 +53,7 @@ type CreateGatewayParams struct {
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	c.clusterClient.MFAPromptConstructor = params.MFAPromptConstructor
-	c.clusterClient.SSOSSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+	c.clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
 
 	switch {
 	case params.TargetURI.IsDB():
