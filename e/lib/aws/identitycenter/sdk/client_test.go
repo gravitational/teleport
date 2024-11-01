@@ -12,8 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/stretchr/testify/require"
-
-	_ "github.com/gravitational/teleport/lib/backend/lite"
 )
 
 func TestClientConnection(t *testing.T) {

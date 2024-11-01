@@ -57,6 +57,8 @@ type Group struct {
 	DisplayName string
 	// ID is the group ID.
 	ID string
+	// IdentityStoreID is the identity store ID of a group.
+	IdentityStoreID string
 }
 
 // GroupWithAssignment represents Identity Center group with
@@ -80,4 +82,13 @@ type GroupWithMembers struct {
 type GroupMember struct {
 	// MemberID is an ID of a member assigned to a group.
 	MemberID string
+}
+
+// UserWithAssignment represents Identity Center user with
+// permission assignment.
+type UserWithAssignment struct {
+	*User
+	// Assignments is a list of account name and permission set
+	// assigned to a group.
+	Assignments []*Assigment
 }

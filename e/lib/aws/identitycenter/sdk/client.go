@@ -30,6 +30,8 @@ type Client interface {
 	ListGroupsWithMembers(ctx context.Context) ([]*GroupWithMembers, error)
 	// ListGroupsWithAccountAndPermAssignment lists Identity Center groups with assigned accounts and permission sets.
 	ListGroupsWithAccountAndPermAssignment(ctx context.Context) ([]*GroupWithAssignment, error)
+	// ListUsersWithAccountAndPermAssignment lists Identity Center users with assigned accounts and permission sets.
+	ListUsersWithAccountAndPermAssignment(ctx context.Context) ([]*UserWithAssignment, error)
 	// ListUsers lists all available users in the Identity Center.
 	ListUsers(ctx context.Context) ([]*User, error)
 	// ListUserAssignments lists account assignment for a user.
@@ -149,8 +151,9 @@ func (c *client) ListGroups(ctx context.Context) ([]*Group, error) {
 		}
 		for _, v := range groups.Groups {
 			out = append(out, &Group{
-				ID:          aws.ToString(v.GroupId),
-				DisplayName: aws.ToString(v.DisplayName),
+				ID:              aws.ToString(v.GroupId),
+				DisplayName:     aws.ToString(v.DisplayName),
+				IdentityStoreID: aws.ToString(v.IdentityStoreId),
 			})
 		}
 		nextToken = groups.NextToken
@@ -177,6 +180,27 @@ func (c *client) ListGroupsWithAccountAndPermAssignment(ctx context.Context) ([]
 
 		out = append(out, &GroupWithAssignment{
 			Group:       g,
+			Assignments: assignments,
+		})
+	}
+	return out, nil
+}
+
+// ListUsersWithAccountAndPermAssignment lists Identity Center users with assigned accounts and permission sets.
+func (c *client) ListUsersWithAccountAndPermAssignment(ctx context.Context) ([]*UserWithAssignment, error) {
+	users, err := c.ListUsers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]*UserWithAssignment, 0, len(users))
+	for _, v := range users {
+		assignments, err := c.ListUserAssignments(ctx, v.ID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, &UserWithAssignment{
+			User:        v,
 			Assignments: assignments,
 		})
 	}
