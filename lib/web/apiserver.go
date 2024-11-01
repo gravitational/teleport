@@ -2897,11 +2897,9 @@ func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	isCloud := pingResp.GetServerFeatures().Cloud
-
 	return getClusterInfoResponse{
 		Cluster: *clusterDetails,
-		IsCloud: isCloud,
+		IsCloud: pingResp.GetServerFeatures().Cloud,
 	}, nil
 }
 
