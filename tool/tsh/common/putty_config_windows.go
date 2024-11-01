@@ -49,6 +49,8 @@ const puttyDwordProxyLogToTerm = `00000002` // only until session starts
 const puttyPermitRSASHA1 = `00000000`
 const puttyPermitRSASHA256 = `00000001`
 const puttyPermitRSASHA512 = `00000001`
+const puttyAuthGSSAPI = `00000000`
+const puttyAuthGSSAPIKEX = `00000000`
 
 // despite the strings/ints in struct, these are stored in the registry as DWORDs
 type puttyRegistrySessionDwords struct {
@@ -57,6 +59,8 @@ type puttyRegistrySessionDwords struct {
 	ProxyPort      int    // dword
 	ProxyMethod    string // dword
 	ProxyLogToTerm string // dword
+	AuthGSSAPI     string // dword
+	AuthGSSAPIKEX  string // dword
 }
 
 type puttyRegistrySessionStrings struct {
@@ -90,6 +94,8 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 		ProxyPort:      puttyDefaultProxyPort,
 		ProxyMethod:    puttyDwordProxyMethod,
 		ProxyLogToTerm: puttyDwordProxyLogToTerm,
+		AuthGSSAPI:     puttyAuthGSSAPI,
+		AuthGSSAPIKEX:  puttyAuthGSSAPIKEX,
 	}
 
 	sessionStrings := puttyRegistrySessionStrings{
@@ -125,6 +131,12 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 		return trace.Wrap(err)
 	}
 	if err := registry.WriteDword(pk, "ProxyLogToTerm", sessionDwords.ProxyLogToTerm); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := registry.WriteDword(pk, "AuthGSSAPI", sessionDwords.AuthGSSAPI); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := registry.WriteDword(pk, "AuthGSSAPIKEX", sessionDwords.AuthGSSAPIKEX); err != nil {
 		return trace.Wrap(err)
 	}
 
