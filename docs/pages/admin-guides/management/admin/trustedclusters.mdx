@@ -700,13 +700,17 @@ Reference](../../../reference/access-controls/roles.mdx).
 
 ### Update role mappings
 
-You can update role mappings for a trusted cluster resource by modifying the `role_map` 
-field in the `trusted_cluster.yaml` resource configuration file. After you update the 
-resource configuration file, you can update the trusted cluster by signing in to the 
-leaf cluster and running the following command:
+Modifications to the role mappings for a trusted cluster resource
+require deleting and re-creating the trust relationship. See
+[remove a trusted leaf cluster](#remove-a-trusted-leaf-cluster) to remove the trust relationship.
+
+After removing you can update the `role_map` within the `trusted_cluster.yaml` 
+resource configuration file on the leaf cluster. Confirm the token value is still
+valid which may have expired. Run this command to re-create the trust relationship
+with the new role mapping:
 
 ```code
-$ tctl create --force trusted_cluster.yaml
+$ tctl create trusted_cluster.yaml
 ```
 
 ### Role mapping and cluster-level labels
