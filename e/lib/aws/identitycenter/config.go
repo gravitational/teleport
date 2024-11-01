@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -62,7 +62,7 @@ type AWSConfig struct {
 	// IntegrationsService is the service used to list integrations.
 	IntegrationsService IntegrationsLister
 	// TokenFactoryFn is the function used to generate OIDC tokens.
-	TokenFactoryFn awsoidc.GenerateOIDCTokenFn
+	TokenFactoryFn credprovider.GenerateOIDCTokenFn
 }
 
 func (cfg *AWSConfig) CheckAndSetDefaults() error {
