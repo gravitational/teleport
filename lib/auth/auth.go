@@ -1458,6 +1458,7 @@ func (a *Server) runPeriodicOperations() {
 				}()
 			case heartbeatCheckKey:
 				go func() {
+					var invalidNodeHostnames []string
 					req := &proto.ListUnifiedResourcesRequest{Kinds: []string{types.KindNode}, SortBy: types.SortBy{Field: types.ResourceKind}}
 
 					for {
@@ -1467,9 +1468,14 @@ func (a *Server) runPeriodicOperations() {
 								if !ok {
 									return false, nil
 								}
+
 								if services.NodeHasMissedKeepAlives(srv) {
 									missedKeepAliveCount++
 								}
+								if err := utils.ValidateNodeHostname(srv.GetHostname()); err != nil {
+									invalidNodeHostnames = append(invalidNodeHostnames, srv.GetHostname())
+								}
+
 								return false, nil
 							},
 							req,
@@ -1487,6 +1493,52 @@ func (a *Server) runPeriodicOperations() {
 
 					// Update prometheus gauge
 					heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
+
+					// Send a notification that nodes with invalid hostames have been found
+					// to users that can update nodes
+					var msgBuilder strings.Builder
+					msgBuilder.WriteString(`Nodes have been found that are configured with an invalid hostname. Future versions of Teleport will change the hostname of nodes with invalid hostnames.
+Please update these hostnames to hostnames only consisting of alphanumeric characters and the symbols '.' and '-'.
+The nodes that contain invalid hostnames are as follows: `)
+					for i, hostname := range invalidNodeHostnames {
+						msgBuilder.WriteString(strconv.Quote(hostname))
+						if i != len(invalidNodeHostnames)-1 {
+							msgBuilder.WriteString(", ")
+						}
+					}
+
+					notif := &notificationsv1.GlobalNotification{
+						Spec: &notificationsv1.GlobalNotificationSpec{
+							Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+								ByPermissions: &notificationsv1.ByPermissions{
+									RoleConditions: []*types.RoleConditions{
+										{
+											Rules: []types.Rule{
+												{
+													Resources: []string{types.KindNode},
+													Verbs:     []string{types.VerbUpdate},
+												},
+											},
+										},
+									},
+								},
+							},
+							Notification: &notificationsv1.Notification{
+								SubKind: types.NotificationDefaultWarningSubKind,
+								Metadata: &headerv1.Metadata{
+									Labels: map[string]string{
+										types.NotificationTitleLabel:       "Found nodes with invalid hostnames",
+										types.NotificationTextContentLabel: msgBuilder.String(),
+									},
+								},
+								Spec: &notificationsv1.NotificationSpec{},
+							},
+						},
+					}
+					_, err := a.CreateGlobalNotification(a.closeCtx, notif)
+					if err != nil {
+						log.Errorf("Failed to send a global notification about nodes with invalid hostnames: %v", err)
+					}
 				}()
 			case metricsKey:
 				go a.updateAgentMetrics()

@@ -350,7 +350,7 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}
 	if err := utils.ValidateNodeHostname(server.GetHostname()); err != nil {
 		s.log.Warnf(
-			`Node %q is configured with an invalid hostname. Future versions of Teleport will evict nodes with invalid hostnames.
+			`Node %q is configured with an invalid hostname. Future versions of Teleport will change the hostname of nodes with invalid hostnames.
 Please update this hostname to a hostname only consisting of alphanumeric characters and the symbols '.' and '-'.`,
 			server.GetHostname(),
 		)
