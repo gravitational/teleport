@@ -6463,23 +6463,17 @@ func TestGetSAMLIdPServiceProvider(t *testing.T) {
 		errAssertion require.ErrorAssertionFunc
 	}{
 		{
-			name:      "without VerbRead but a matching app_labels",
+			name:      "with deny VerbRead but a matching app_labels",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, errReadVerbDenied)
-			},
-		},
-
-		{
-			name:      "with allow VerbRead and deny VerbRead",
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbRead),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbRead),
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errReadVerbDenied)
 			},
 		},
 		{
-			name: "without any permissions",
+			name:      "with allow VerbRead and deny VerbRead",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbRead),
+			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbRead),
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errReadVerbDenied)
 			},
@@ -6538,24 +6532,17 @@ func TestListSAMLIdPServiceProvider(t *testing.T) {
 		errAssertion require.ErrorAssertionFunc
 	}{
 		{
-			name:      "without VerbList but a matching app_labels",
+			name:      "With deny VerbList but a matching app_labels",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, errListVerbDenied)
-			},
-		},
-
-		{
-			name:      "with allow VerbList and deny VerbList",
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbList),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbList),
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errListVerbDenied)
 			},
 		},
-
 		{
-			name: "without any permissions",
+			name:      "with allow VerbList and deny VerbList",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbList),
+			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbList),
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errListVerbDenied)
 			},
