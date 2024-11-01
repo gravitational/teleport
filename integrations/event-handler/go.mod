@@ -3,7 +3,7 @@ module github.com/gravitational/teleport/integrations/event-handler
 go 1.23.2
 
 require (
-	github.com/alecthomas/kong v1.2.1
+	github.com/alecthomas/kong v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0
@@ -15,7 +15,7 @@ require (
 	github.com/peterbourgon/diskv/v3 v3.0.1
 	github.com/sethvargo/go-limiter v1.0.0
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/time v0.6.0
+	golang.org/x/time v0.7.0
 	google.golang.org/protobuf v1.35.1
 )
 
