@@ -143,7 +143,7 @@ export function KubeNamespaceSelector({
   return (
     <Box width="100%" mb={-3}>
       <StyledSelect
-        label={`Namespaces:`}
+        label={`Namespaces`}
         inputId={kubeClusterItem.id}
         width="100%"
         placeholder="Start typing a namespace and press enter"
