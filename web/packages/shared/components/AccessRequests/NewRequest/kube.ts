@@ -45,14 +45,12 @@ export function isKubeClusterWithNamespaces(
 }
 
 /**
- * Parses error messsage (in an expected format) to see if
- * in the message it's a type of request.kubernetes_resources
- * related error, then check if namespace or kube_cluster is mentioned
- * in the "allowed kinds" portion of the error message.
+ * Parses error message (in an expected format returned from the backend) to see if
+ * the message is a type of request.kubernetes_resources related error:
+ * https://github.com/gravitational/teleport/blob/master/lib/services/access_request.go#L2050
  *
- * The web UI currently only supports selecting namespaces or kube_cluster
- * for kube related resources, anything else we have to help direct
- * user to another tool that does support it.
+ * If error matches, it then checks if namespace or kube_cluster is mentioned
+ * in the "allowed kinds" portion of the error message.
  */
 export function checkSupportForKubeResources(requestRoleAttempt: Attempt) {
   let requestKubeResourceSupported = true;
