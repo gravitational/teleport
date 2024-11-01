@@ -33,8 +33,8 @@ podMonitor:
   enabled: true
 extraArgs:
   - --debug
-image: "public.ecr.aws/gravitational/teleport-distroless-debug"
-enterpriseImage: "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
+image: "public.ecr.aws/gravitational-staging/teleport-distroless-debug"
+enterpriseImage: "public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug"
 auth:
   teleportConfig:
     kubernetes_service:
