@@ -19,11 +19,32 @@ work with Teleport.
 
 ### Get connection information
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+Get information about the host and port where your database is available so you
+can configure your GUI client to access the database.
 
-<Tabs>
-<TabItem label="Authenticated Proxy">
+#### Using a local proxy server
+
+Use the `tsh proxy db` command to start a local TLS proxy your GUI database
+client will be connecting to. This command requires that you use Teleport
+Enterprise (Cloud) or, if self-hosting Teleport, have enabled [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx) mode.
+
+Run a command similar to the following::
+
+```code
+$ tsh proxy db <database-name>
+Started DB proxy on 127.0.0.1:61740
+
+Use following credentials to connect to the <database-name> proxy:
+  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
+```
+
+Use the displayed local proxy host/port and credentials paths when configuring
+your GUI client below. When entering the hostname, use `localhost` rather than
+`127.0.0.1`.
+
 Starting the local database proxy with the `--tunnel` flag will create an
 authenticated tunnel that you can use to connect to your database instances.
 You won't need to configure any credentials when connecting to this tunnel.
@@ -46,30 +67,11 @@ $ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database
 Now, you can connect to the address the proxy command returns. In our example it
 is `127.0.0.1:62652`.
 
-</TabItem>
-<TabItem label="TLS routing">
-If you're using Teleport in [TLS routing](../admin-guides/management/operations/tls-routing.mdx)
-mode where each database protocol is multiplexed on the same web proxy port, use
-the following command to start a local TLS proxy your GUI database client will
-be connecting to:
+#### Using a remote host and port
 
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-</TabItem>
-<TabItem label="Separate ports">
-If you're not using TLS routing, run the following command to see the database
-connection information:
+If you are self-hosting Teleport and not using [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx), run the
+following command to see the database connection information:
 
 ```code
 # View configuration for the database you're logged in to.
@@ -94,32 +96,6 @@ Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise Cloud">
-
-Use the following command to start a local TLS proxy your GUI database client
-will be connecting to:
-
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-
-</TabItem>
-
-</Tabs>
 
 ## MongoDB Compass
 
