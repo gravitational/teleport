@@ -50,13 +50,18 @@ export function UnifiedResourcesE() {
     setAddedResources,
     bulkToggleResources,
   } = useNewRequest(ctx);
-  const { clearAttempt, createAttempt, numAddedResources, ...requestCheckout } =
-    useRequestCheckout({
-      ctx,
-      selectedResource: 'resource',
-      addedResources,
-      reset: clearAddedResources,
-    });
+  const {
+    clearAttempt,
+    createAttempt,
+    numAddedResources,
+    cancelCheckout,
+    ...requestCheckout
+  } = useRequestCheckout({
+    ctx,
+    selectedResource: 'resource',
+    addedResources,
+    reset: clearAddedResources,
+  });
   const showCheckout =
     numAddedResources > 0 || createAttempt.status === 'success';
 
@@ -183,7 +188,7 @@ export function UnifiedResourcesE() {
               toggleResource={({ kind, id, name }) =>
                 addOrRemoveResource(kind, id, name)
               }
-              reset={clearAddedResources}
+              reset={cancelCheckout}
               onClose={clearAttempt}
               isResourceRequest={true} // only resource requests happen from this page
               Header={() => (

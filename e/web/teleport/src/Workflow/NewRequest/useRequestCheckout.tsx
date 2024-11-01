@@ -29,7 +29,7 @@ export function useRequestCheckout({
   ctx,
   selectedResource,
   addedResources,
-  reset,
+  reset: clearAddedResources,
 }: Props) {
   const isResourceRequest = selectedResource !== 'role';
   const { clusterId } = useStickyClusterId();
@@ -54,6 +54,7 @@ export function useRequestCheckout({
     startTime,
     onStartTimeChange,
     onDryRunChange,
+    reset: resetSpecifiableFields,
   } = useSpecifiableFields();
 
   // Format data suitable for table listing.
@@ -159,7 +160,8 @@ export function useRequestCheckout({
       .then(() => {
         createAttempt.setAttempt({ status: 'success' });
         setNumRequestedResources(numAddedResources);
-        reset();
+        clearAddedResources();
+        resetSpecifiableFields();
       })
       .catch((err: Error) => {
         createAttempt.setAttempt({
@@ -217,6 +219,12 @@ export function useRequestCheckout({
     return namespaces.items.map(i => i.name);
   }
 
+  function cancelCheckout() {
+    clearAddedResources();
+    resetSpecifiableFields();
+    clearAttempt();
+  }
+
   return {
     createAttempt: createAttempt.attempt,
     fetchResourceRequestRolesAttempt: fetchResourceRequestRolesAttempt.attempt,
@@ -242,6 +250,7 @@ export function useRequestCheckout({
     numAddedResources,
     startTime,
     onStartTimeChange,
+    cancelCheckout,
   };
 }
 

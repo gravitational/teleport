@@ -49,6 +49,7 @@ export const RequestCheckout = forwardRef<
       {...state}
       {...props}
       SuccessComponent={SuccessActionComponent}
+      reset={state.cancelCheckout}
     />
   );
 });

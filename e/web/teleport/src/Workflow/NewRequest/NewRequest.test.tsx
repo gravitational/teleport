@@ -45,7 +45,7 @@ beforeEach(() => {
 
   jest
     .spyOn(ctx.workflowService, 'fetchResourceRequestRoles')
-    .mockResolvedValueOnce(['access']);
+    .mockResolvedValue(['access', 'editor', 'auditor']);
 
   jest
     .spyOn(ctx.workflowService, 'createAccessRequest')
@@ -366,11 +366,11 @@ test('created requests specifiable fields are respected on checkout (not overwri
 
   // Select a resource.
   await screen.findAllByText('node1-addr');
-  const addButtons = screen.queryAllByText(/request access/i);
+  let addButtons = screen.queryAllByText(/request access/i);
   await userEvent.click(addButtons[0]);
 
   // Go to checkout.
-  const proceedToRequest = screen.getByText('Proceed to Request');
+  let proceedToRequest = screen.getByText('Proceed to Request');
   await userEvent.click(proceedToRequest);
   expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
   await screen.findAllByText('node1-addr');
@@ -390,6 +390,10 @@ test('created requests specifiable fields are respected on checkout (not overwri
     'bob{enter}'
   );
   await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+
+  // Remove some request roles.
+  await userEvent.click(screen.getByText(/auditor/i));
+  await userEvent.click(screen.getByText(/editor/i));
 
   // Add a new reviewer.
   await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
@@ -421,7 +425,49 @@ test('created requests specifiable fields are respected on checkout (not overwri
     roles: ['access'],
     suggestedReviewers: ['cat', 'george washington', 'alpaca-reviewer'],
   });
-}, 8000);
+
+  await screen.findByText(/make another request/i);
+
+  // Go back to selecting resources to test that previous
+  // specifiable fields have been cleared.
+  jest.clearAllMocks();
+  await userEvent.click(
+    screen.getByRole('button', { name: /make another request/i })
+  );
+  // Select a resource.
+  await screen.findAllByText('node1-addr');
+  addButtons = screen.queryAllByText(/request access/i);
+  await userEvent.click(addButtons[0]);
+
+  // Go to checkout.
+  proceedToRequest = screen.getByText('Proceed to Request');
+  await userEvent.click(proceedToRequest);
+  expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
+  await screen.findAllByText('node1-addr');
+
+  await userEvent.click(
+    screen.getByRole('button', { name: /submit request/i })
+  );
+
+  expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith({
+    assumeStartTime: null,
+    dryRun: undefined,
+    maxDuration: new Date('2024-02-17T02:51:00.000Z'),
+    reason: 'some reason',
+    requestTTL: new Date('2024-02-17T02:51:00.000Z'),
+    resourceIds: [
+      {
+        clusterName: 'localhost',
+        kind: 'node',
+        name: '1',
+        subResourceName: '',
+      },
+    ],
+    // These fields gotten reset after the first create.
+    roles: ['access', 'editor', 'auditor'],
+    suggestedReviewers: ['bob', 'cat', 'george washington'],
+  });
+}, 20000);
 
 const defaultUserInfo = {
   cluster: {
