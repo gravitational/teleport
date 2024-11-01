@@ -188,7 +188,7 @@ type KeystoreConfig struct {
 	// GCPKMS holds configuration parameters specific to GCP KMS keystores.
 	GCPKMS GCPKMSConfig
 	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
-	AWSKMS AWSKMSConfig
+	AWSKMS *AWSKMSConfig
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -207,7 +207,7 @@ func (cfg *KeystoreConfig) CheckAndSetDefaults() error {
 		}
 		count++
 	}
-	if !utils.IsEmpty(cfg.AWSKMS) {
+	if cfg.AWSKMS != nil {
 		if err := cfg.AWSKMS.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating aws_kms config")
 		}

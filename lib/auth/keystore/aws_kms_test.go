@@ -58,7 +58,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 	const pageSize int = 4
 	fakeKMS := newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", pageSize)
 	cfg := servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
 			AWSAccount: "123456789012",
 			AWSRegion:  "us-west-2",
 		},
@@ -128,7 +128,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 func TestAWSKMS_WrongAccount(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	cfg := &servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
 			AWSAccount: "111111111111",
 			AWSRegion:  "us-west-2",
 		},
@@ -159,7 +159,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		pageLimit: 1000,
 	}
 	cfg := &servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
+		AWSKMS: &servicecfg.AWSKMSConfig{
 			AWSAccount: "111111111111",
 			AWSRegion:  "us-west-2",
 		},
@@ -260,7 +260,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := servicecfg.KeystoreConfig{
-				AWSKMS: servicecfg.AWSKMSConfig{
+				AWSKMS: &servicecfg.AWSKMSConfig{
 					AWSAccount: "123456789012",
 					AWSRegion:  "us-west-2",
 					MultiRegion: struct{ Enabled bool }{

@@ -2583,7 +2583,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		// based on the FIPS and HSM settings, and any already persisted auth preference.
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
-			UsingHSMOrKMS: !utils.IsEmpty(cfg.Auth.KeyStore),
+			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
 			Cloud:         modules.GetModules().Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)
