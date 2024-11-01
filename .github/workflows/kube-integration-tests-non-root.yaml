@@ -89,6 +89,15 @@ jobs:
           cp -r $HOME/.kube /home/
           chown -R ci:ci /home/.kube
 
+      - name: Build Alpine image with webserver
+        run: |
+          sha256sum -c fixtures/alpine/alpine-3.20.3.amd64.sum
+          docker load -i ./fixtures/alpine/alpine-3.20.3.amd64.tar
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./fixtures/alpine/webserver ./fixtures/alpine/webserver.go
+          docker build -t alpine-webserver:v1 -f ./fixtures/alpine/Dockerfile ./fixtures/alpine/
+          kind load docker-image alpine-webserver:v1
+          rm -f ./fixtures/alpine/webserver
+
       - name: Run tests
         timeout-minutes: 40
         run: |
