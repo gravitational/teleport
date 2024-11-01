@@ -1029,6 +1029,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
