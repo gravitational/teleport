@@ -42,12 +42,14 @@ func TestLineLogger(t *testing.T) {
 		v string
 		n int
 	}{
+		{v: "", n: 0},
 		{v: "a", n: 1},
 		{v: "b\n", n: 2},
 		{v: "c\nd", n: 3},
 		{v: "e\nf\ng", n: 5},
 		{v: "h", n: 1},
 		{v: "", n: 0},
+		{v: "\n", n: 1},
 		{v: "i\n", n: 2},
 		{v: "j", n: 1},
 	} {
@@ -55,9 +57,9 @@ func TestLineLogger(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, e.n, n)
 	}
-	require.Equal(t, "msg=ab\nmsg=c\nmsg=de\nmsg=f\nmsg=ghi\n", out.String())
+	require.Equal(t, "msg=ab\nmsg=c\nmsg=de\nmsg=f\nmsg=gh\nmsg=i\n", out.String())
 	ll.Flush()
-	require.Equal(t, "msg=ab\nmsg=c\nmsg=de\nmsg=f\nmsg=ghi\nmsg=j\n", out.String())
+	require.Equal(t, "msg=ab\nmsg=c\nmsg=de\nmsg=f\nmsg=gh\nmsg=i\nmsg=j\n", out.String())
 }
 
 func msgOnly(_ []string, a slog.Attr) slog.Attr {
