@@ -112,6 +112,7 @@ type ClusterInformationProps = {
   style?: React.CSSProperties;
   attempt: Attempt<ClusterInfo>;
 } & BoxProps;
+
 export function ClusterInformation({
   cluster,
   style,
