@@ -445,6 +445,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UserTaskUpdate{}
 	case UserTaskDeleteEvent:
 		e = &events.UserTaskDelete{}
+
+	case SFTPSummaryEvent:
+		e = &events.SFTPSummary{}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}
