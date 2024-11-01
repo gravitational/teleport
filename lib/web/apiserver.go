@@ -2882,7 +2882,7 @@ type getClusterInfoResponse struct {
 //	{"name": "localhost","lastConnected": "RFC3339 time","status": "online","publicURL": "localhost:3080","authVersion": "17.0.0-dev","proxyVersion": "17.0.0-dev", "isCloud": true}
 func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
-	c, err := ui.GetClusterDetails(ctx, site)
+	clusterDetails, err := ui.GetClusterDetails(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2900,7 +2900,7 @@ func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httpr
 	isCloud := pingResp.GetServerFeatures().Cloud
 
 	return getClusterInfoResponse{
-		Cluster: *c,
+		Cluster: *clusterDetails,
 		IsCloud: isCloud,
 	}, nil
 }
