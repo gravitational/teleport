@@ -16,21 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
+import { useParams } from 'react-router';
 
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
 import Text, { H2 } from 'design/Text';
 import { Indicator } from 'design/Indicator';
-
 import Box, { BoxProps } from 'design/Box';
-
-import { useParams } from 'react-router';
 
 import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
 
@@ -49,22 +47,25 @@ import { ClusterInfo } from 'teleport/services/clusters';
 
 export function ManageCluster() {
   const [cluster, setCluster] = useState<ClusterInfo>(null);
-  const { attempt, run } = useAttempt();
   const ctx = useTeleport();
 
   const { clusterId } = useParams<{
     clusterId: string;
   }>();
 
-  useEffect(() => {
-    function init() {
-      run(() =>
-        ctx.clusterService.fetchClusterDetails(clusterId).then(setCluster)
-      );
-    }
+  const [attempt, run] = useAsync(
+    useCallback(async () => {
+      const res = await ctx.clusterService.fetchClusterDetails(clusterId);
+      setCluster(res);
+      return res;
+    }, [clusterId, ctx.clusterService])
+  );
 
-    init();
-  }, [clusterId, run, ctx.clusterService]);
+  useEffect(() => {
+    if (!attempt.status && clusterId) {
+      run();
+    }
+  }, [attempt.status, run, clusterId]);
 
   useNoMinWidth();
 
@@ -109,7 +110,7 @@ export function ManageClusterHeader({ clusterId }: { clusterId: string }) {
 type ClusterInformationProps = {
   cluster?: ClusterInfo;
   style?: React.CSSProperties;
-  attempt: Attempt;
+  attempt: Attempt<ClusterInfo>;
 } & BoxProps;
 export function ClusterInformation({
   cluster,
@@ -129,8 +130,8 @@ export function ClusterInformation({
         </Flex>
       </Row>
       <Row>
-        {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
-        {attempt.status !== 'failed' && (
+        {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
+        {attempt.status !== 'error' && (
           <>
             <DataItem
               title="Cluster Name"

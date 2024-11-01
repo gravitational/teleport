@@ -44,7 +44,6 @@ function renderElement(element, ctx) {
 describe('test ManageCluster component', () => {
   beforeEach(() => {
     jest.resetAllMocks();
-    jest.spyOn(console, 'error').mockImplementation();
   });
 
   test('fetches cluster information on load', async () => {
