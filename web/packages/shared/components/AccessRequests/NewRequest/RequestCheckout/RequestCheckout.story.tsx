@@ -152,15 +152,27 @@ export const FailedResourceRequest = () => (
   </MemoryRouter>
 );
 
-export const FailedUnsupportedKubeResourceKind = () => (
+export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
   <MemoryRouter>
     <RequestCheckoutWithSlider
       {...baseProps}
       isResourceRequest={true}
       fetchResourceRequestRolesAttempt={{
         status: 'failed',
-        statusText:
-          'Your Teleport roles request_mode field restricts you from requesting kinds [kube_cluster] for Kubernetes cluster "pumpkin-kube-cluster". Allowed kinds: [pod secret]',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment], test-role-2: [pod secret configmap service serviceaccount kube_node persistentvolume persistentvolumeclaim deployment replicaset statefulset daemonset clusterrole kube_role clusterrolebinding rolebinding cronjob job certificatesigningrequest ingress]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment]`,
       }}
     />
   </MemoryRouter>

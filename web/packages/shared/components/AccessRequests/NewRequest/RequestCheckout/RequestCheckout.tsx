@@ -33,7 +33,6 @@ import {
   Link as ExternalLink,
   Subtitle2,
   Text,
-  Mark,
 } from 'design';
 import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
@@ -42,16 +41,17 @@ import { Danger } from 'design/Alert';
 
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import { listToSentence, pluralize } from 'shared/utils/text';
+import { pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
 import {
-  checkForUnsupportedKubeRequestModes,
+  checkSupportForKubeResources,
   isKubeClusterWithNamespaces,
   type KubeNamespaceRequest,
 } from '../kube';
@@ -181,15 +181,10 @@ export function RequestCheckout<T extends PendingListItem>({
     });
   }
 
-  const {
-    affectedKubeClusterName,
-    unsupportedKubeRequestModes,
-    requiresNamespaceSelect,
-  } = checkForUnsupportedKubeRequestModes(fetchResourceRequestRolesAttempt);
-
-  const hasUnsupportedKubeRequestModes = !!unsupportedKubeRequestModes;
-  const showRequestRoleErrBanner =
-    !hasUnsupportedKubeRequestModes && !requiresNamespaceSelect;
+  const { requestKubeResourceSupported, isRequestKubeResourceError } =
+    checkSupportForKubeResources(fetchResourceRequestRolesAttempt);
+  const hasUnsupporteKubeResourceKinds =
+    !requestKubeResourceSupported && isRequestKubeResourceError;
 
   const isInvalidRoleSelection =
     resourceRequestRoles.length > 0 &&
@@ -201,8 +196,7 @@ export function RequestCheckout<T extends PendingListItem>({
     createAttempt.status === 'processing' ||
     isInvalidRoleSelection ||
     (fetchResourceRequestRolesAttempt.status === 'failed' &&
-      hasUnsupportedKubeRequestModes) ||
-    requiresNamespaceSelect ||
+      hasUnsupporteKubeResourceKinds) ||
     fetchResourceRequestRolesAttempt.status === 'processing';
 
   const cancelBtnDisabled =
@@ -259,13 +253,8 @@ export function RequestCheckout<T extends PendingListItem>({
               <KubeNamespaceSelector
                 kubeClusterItem={item}
                 savedResourceItems={pendingAccessRequests}
-                toggleResource={toggleResource}
                 fetchKubeNamespaces={fetchKubeNamespaces}
                 bulkToggleKubeResources={bulkToggleKubeResources}
-                namespaceRequired={
-                  requiresNamespaceSelect &&
-                  affectedKubeClusterName.includes(item.id)
-                }
               />
             </Flex>
           </Flex>
@@ -278,21 +267,31 @@ export function RequestCheckout<T extends PendingListItem>({
     <Validation>
       {({ validator }) => (
         <>
-          {showRequestRoleErrBanner &&
+          {!isRequestKubeResourceError &&
+            createAttempt.status !== 'failed' &&
             fetchResourceRequestRolesAttempt.status === 'failed' && (
               <Alert
                 kind="danger"
                 children={fetchResourceRequestRolesAttempt.statusText}
               />
             )}
-          {hasUnsupportedKubeRequestModes && (
+          {hasUnsupporteKubeResourceKinds && (
             <Alert kind="danger">
+              <HoverTooltip
+                position="left"
+                tipContent={
+                  fetchResourceRequestRolesAttempt.statusText.length > 248
+                    ? fetchResourceRequestRolesAttempt.statusText
+                    : null
+                }
+              >
+                <ShortenedText mb={2}>
+                  {fetchResourceRequestRolesAttempt.statusText}
+                </ShortenedText>
+              </HoverTooltip>
               <Text mb={2}>
-                You can only request Kubernetes resource{' '}
-                {pluralize(unsupportedKubeRequestModes.length, 'kind')}{' '}
-                <Mark>{listToSentence(unsupportedKubeRequestModes)}</Mark> for
-                cluster <Mark>{affectedKubeClusterName}</Mark>. Requesting those
-                resource kinds is currently only supported through the{' '}
+                The listed allowed kinds are currently only supported through
+                the{' '}
                 <ExternalLink
                   target="_blank"
                   href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
@@ -306,14 +305,14 @@ export function RequestCheckout<T extends PendingListItem>({
                 >
                   tsh request search
                 </ExternalLink>{' '}
-                command that will help you construct the request.
+                that will help you construct the request.
               </Text>
-              <Box width="360px">
+              <Box width="325px">
                 Example:
                 <TextSelectCopyMulti
                   lines={[
                     {
-                      text: `tsh request search --kind=${unsupportedKubeRequestModes[0]} --kube-cluster=${affectedKubeClusterName} --all-kube-namespaces`,
+                      text: `tsh request search --kind=ALLOWED_KIND --kube-cluster=CLUSTER_NAME --all-kube-namespaces`,
                     },
                   ]}
                 />
@@ -825,6 +824,12 @@ const StyledTable = styled(Table)`
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
 ` as typeof Table;
+
+const ShortenedText = styled(Text)`
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+`;
 
 export type RequestCheckoutWithSliderProps<
   T extends PendingListItem = PendingListItem,
