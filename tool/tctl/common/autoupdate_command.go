@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/coreos/go-semver/semver"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // versionResponse is structure for formatting the autoupdate version response.
@@ -51,7 +49,6 @@ type AutoUpdateCommand struct {
 
 	configureCmd *kingpin.CmdClause
 	getCmd       *kingpin.CmdClause
-	watchCmd     *kingpin.CmdClause
 
 	mode               string
 	toolsTargetVersion string
@@ -76,9 +73,6 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 	c.getCmd = clientToolsCmd.Command("get", "Receive tools auto update target version.")
 	c.getCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
 
-	c.watchCmd = clientToolsCmd.Command("watch", "Start monitoring auto update target version updates.")
-	c.watchCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
-
 	if c.stdout == nil {
 		c.stdout = os.Stdout
 	}
@@ -91,8 +85,6 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *auth
 		err = c.Upsert(ctx, client)
 	case c.getCmd.FullCommand():
 		err = c.Get(ctx, client)
-	case c.watchCmd.FullCommand():
-		err = c.Watch(ctx, client)
 	default:
 		return false, nil
 	}
@@ -168,41 +160,6 @@ func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) 
 	}
 
 	return nil
-}
-
-// Watch launch the watcher of the tools auto update target version updates to pull the version
-// every minute.
-func (c *AutoUpdateCommand) Watch(ctx context.Context, client *authclient.Client) error {
-	var current semver.Version
-	ticker := interval.New(interval.Config{
-		Duration: time.Minute,
-	})
-	defer ticker.Stop()
-
-	for {
-		response, err := c.get(ctx, client)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if response.TargetVersion != "" {
-			semVersion, err := semver.NewVersion(response.TargetVersion)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if !semVersion.Equal(current) {
-				if err := utils.WriteJSON(c.stdout, response); err != nil {
-					return trace.Wrap(err)
-				}
-				current = *semVersion
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.Next():
-		}
-	}
 }
 
 func (c *AutoUpdateCommand) get(ctx context.Context, client *authclient.Client) (*versionResponse, error) {
