@@ -267,7 +267,8 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] `tsh ssh -X root@node xeyes`
   - [ ] Test untrusted vs trusted forwarding
     - [ ] `tsh ssh -Y server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should print "Hello World"
-    - [ ] `tsh ssh -X server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should fail with "BadAccess" X error
+    - [ ] (Linux) `tsh ssh -X server01 "echo Hello World | xclip -sel c && xclip -sel c -o"` should fail with "BadAccess" X error
+      - This test doesn't work with XQuartz as it doesn't seem to enable the X Security Extension.
 
 ### User accounting
 
