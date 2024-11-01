@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.0.0-dev
+VERSION=17.0.0-alpha.2
 
 DOCKER_IMAGE ?= teleport
 
@@ -364,7 +364,7 @@ $(BUILDDIR)/tctl:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tctl without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 # Appending new conditional settings for community build type
@@ -819,10 +819,6 @@ $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
-
-RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
-$(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
-	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -1822,11 +1818,13 @@ changelog:
 # does not match version set it will fail to create a release. If tag doesn't exist it
 # will also fail to create a release.
 #
-# For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
+# For more information on release notes generation see: 
+#   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
+RELEASE_NOTES_GEN = github.com/gravitational/shared-workflows/tools/release-notes@latest
 .PHONY: create-github-release
 create-github-release: LATEST = false
 create-github-release: GITHUB_RELEASE_LABELS = ""
-create-github-release: $(RELEASE_NOTES_GEN)
+create-github-release:
 	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \

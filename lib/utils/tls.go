@@ -43,6 +43,11 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 		config.CipherSuites = cipherSuites
 	}
 
+	// pre-v17 Teleport uses a client ticket cache, which doesn't play well with
+	// verification (both client- and server-side) when using dynamic
+	// credentials and CAs (in v17+ Teleport)
+	config.SessionTicketsDisabled = true
+
 	config.MinVersion = tls.VersionTLS12
 }
 

@@ -73,7 +73,11 @@ func (s *DynamicWindowsDesktopService) CreateDynamicWindowsDesktop(ctx context.C
 
 // UpdateDynamicWindowsDesktop updates a dynamic Windows desktop resource.
 func (s *DynamicWindowsDesktopService) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
-	d, err := s.service.UpdateResource(ctx, desktop)
+	// ConditionalUpdateResource can return invalid revision instead of not found, so we'll check if resource exists first
+	if _, err := s.service.GetResource(ctx, desktop.GetName()); trace.IsNotFound(err) {
+		return nil, err
+	}
+	d, err := s.service.ConditionalUpdateResource(ctx, desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
