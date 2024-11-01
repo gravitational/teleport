@@ -59,7 +59,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.49.3
 	github.com/aws/aws-sdk-go-v2/service/glue v1.99.2
 	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.3
 	github.com/aws/aws-sdk-go-v2/service/kms v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.85.2
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.47.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3
@@ -67,6 +69,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.32.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.35.3
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.54.3
+	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.3
 	github.com/aws/aws-sdk-go-v2/service/sts v1.31.3
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/aws/smithy-go v1.22.0
