@@ -202,7 +202,7 @@ jobs:
         env:
           PENDING_BUCKET: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
         run: |
-          aws s3 cp . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --recursive --no-progress
+          aws s3 sync . "s3://$PENDING_BUCKET/teleport-plugins/tag/$VERSION/" --no-progress
 
   # Container artifacts
   build-docker-images:
