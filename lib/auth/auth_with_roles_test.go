@@ -9108,3 +9108,49 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 		})
 	}
 }
+
+// TestUpsertInvalidNodeHostname tests that creating a node with
+// an invalid hostname results in an error.
+func TestUpsertInvalidNodeHostname(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
+	rules := []types.Rule{
+		{
+			Resources: []string{types.KindNode},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+		},
+	}
+	user, _, err := CreateUserAndRole(srv.AuthServer, "test-user", nil, rules)
+	require.NoError(t, err)
+
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestUser(user.GetName()).I))
+	require.NoError(t, err, trace.DebugReport(err))
+	s := &ServerWithRoles{
+		authServer: srv.AuthServer,
+		alog:       srv.AuditLog,
+		context:    *authContext,
+	}
+
+	name := uuid.NewString()
+	node, err := types.NewServerWithLabels(
+		name,
+		types.KindNode,
+		types.ServerSpecV2{
+			Hostname: "my amazing incredible spectacular node",
+		},
+		map[string]string{"name": name},
+	)
+	require.NoError(t, err)
+
+	_, err = s.UpsertNode(ctx, node)
+	require.ErrorContains(t, err, "Invalid hostname")
+
+	nodev2 := node.(*types.ServerV2)
+	nodev2.Spec.Hostname = "valid-hostname"
+
+	_, err = s.UpsertNode(ctx, node)
+	require.NoError(t, err)
+}
