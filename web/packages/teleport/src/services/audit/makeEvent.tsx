@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import styled from 'styled-components';
+import Box from 'design/Box';
 import { formatDistanceStrict } from 'date-fns';
 import { pluralize } from 'shared/utils/text';
 import * as Icons from 'design/Icon';
@@ -583,9 +585,9 @@ export const formatters: Formatters = {
     desc: 'Local Login',
     format: ({ user }) => `Local user [${user}] successfully logged in`,
     render: ({ user }) => (
-      <>
+      <Box>
         Local user <User user={user} /> successfully logged in
-      </>
+      </Box>
     ),
   },
   [eventCodes.USER_LOCAL_LOGINFAILURE]: {
@@ -648,9 +650,9 @@ export const formatters: Formatters = {
     render: ({ user }) => {
       if (user) {
         return (
-          <>
+          <Box>
             <User user={user} /> requested an MFA authentication challenge
-          </>
+          </Box>
         );
       } else {
         return <>Passwordless user requested an MFA authentication challenge</>;
@@ -662,10 +664,9 @@ export const formatters: Formatters = {
     desc: 'MFA Authentication Success',
     format: ({ user }) => `User [${user}] completed MFA authentication`,
     render: ({ user }) => (
-      <>
-        <Icons.User {...iconProps} size="small" />
-        <b>{user}</b> completed MFA authentication
-      </>
+      <Box>
+        <User user={user} /> completed MFA authentication
+      </Box>
     ),
   },
   [eventCodes.VALIDATE_MFA_AUTH_RESPONSEFAILURE]: {
@@ -1323,10 +1324,9 @@ export const formatters: Formatters = {
     render: ({ cert_type, identity: { user } }) => {
       if (cert_type === 'user') {
         return (
-          <>
-            User certificate issued for
-            <User user={user} />
-          </>
+          <Box>
+            User certificate issued for <User user={user} />
+          </Box>
         );
       }
       return (
@@ -1901,19 +1901,20 @@ export const formatters: Formatters = {
   },
 };
 
-const iconProps = {
-  m: 1,
-  verticalAlign: 'middle',
-};
-
-function User({ user }) {
+function User({ user }: { user: string }) {
   return (
-    <>
-      <Icons.User {...iconProps} size="small" />
+    <InlineFlex>
+      <Icons.User size="small" />
       <b>{user}</b>
-    </>
+    </InlineFlex>
   );
 }
+
+const InlineFlex = styled.div`
+  display: inline-flex;
+  vertical-align: top;
+  gap: ${p => p.theme.space[1]}px;
+`;
 
 const unknownFormatter = {
   desc: 'Unknown',
