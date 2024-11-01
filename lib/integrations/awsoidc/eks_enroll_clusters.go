@@ -337,7 +337,10 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 
 	// When clusters are using CONFIG_MAP, API is not acessible and thus Teleport can't install the Teleport's Helm chart.
 	// You can read more about the Authentication Modes here: https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
-	allowedAuthModes := []eksTypes.AuthenticationMode{"API", "API_AND_CONFIG_MAP"}
+	allowedAuthModes := []eksTypes.AuthenticationMode{
+		eksTypes.AuthenticationModeApi,
+		eksTypes.AuthenticationModeApiAndConfigMap,
+	}
 	if !slices.Contains(allowedAuthModes, eksCluster.AccessConfig.AuthenticationMode) {
 		return "", trace.BadParameter("can't enroll %q because its access config's authentication mode is %q, only %v are supported", clusterName, eksCluster.AccessConfig.AuthenticationMode, allowedAuthModes)
 	}
