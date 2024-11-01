@@ -617,8 +617,7 @@ const (
 //
 // The URL's are formed this way to help isolate the path params reserved for the app
 // launchers route, where order and existence of previous params matter for this route.
-func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req launcherURLParams) string {
-	addr := hostname
+func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launcherURLParams) string {
 	if req.requiresAppRedirect {
 		addr = req.publicAddr
 	}
