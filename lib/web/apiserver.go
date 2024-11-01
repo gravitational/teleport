@@ -2868,7 +2868,7 @@ func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprout
 	return out, nil
 }
 
-type GetClusterInfoResponse struct {
+type getClusterInfoResponse struct {
 	ui.Cluster
 	IsCloud bool `json:"isCloud"`
 }
@@ -2899,7 +2899,7 @@ func (h *Handler) getClusterInfo(w http.ResponseWriter, r *http.Request, p httpr
 
 	isCloud := pingResp.GetServerFeatures().Cloud
 
-	return GetClusterInfoResponse{
+	return getClusterInfoResponse{
 		Cluster: *c,
 		IsCloud: isCloud,
 	}, nil
