@@ -317,6 +317,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.PUT("/enterprise/plugins/cleanup/:type", h.WithAuth(p.pluginCleanup))
 	h.POST("/enterprise/pluginconfig/okta/groups", h.WithAuth(p.getOktaGroups))
 	h.POST("/enterprise/pluginconfig/okta/apps", h.WithAuth(p.getOktaApps))
+	h.POST("/enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets", h.WithAuth(p.awsICPluginAccountsWithAssignedPermSets))
+	h.POST("/enterprise/pluginconfig/aws-ic/preview/groups-with-assignments", h.WithAuth(p.awsICPluginGroupsWithAccountAndPermAssigment))
+	h.POST("/enterprise/pluginconfig/aws-ic/preview/permission-sets", h.WithAuth(p.awsICPluginListPermissionSets))
 
 	// get status info for a given plugin. The schema of the resulting object
 	// may vary with the given plugin

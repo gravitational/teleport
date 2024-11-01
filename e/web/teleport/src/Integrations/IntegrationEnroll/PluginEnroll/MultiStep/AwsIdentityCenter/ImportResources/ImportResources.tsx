@@ -385,36 +385,31 @@ export function useImportResources({
   arn: string;
   region: string;
 }) {
-  const [fetchAccountsAttempt, runFetchAccounts] = useAsync(
-    async (resourceType: string) => {
-      return await pluginsService.getAwsIcAccounts({
-        integrationName,
-        arn,
-        region,
-        resourceType,
-      });
-    }
-  );
+  const [fetchAccountsAttempt, runFetchAccounts] = useAsync(async () => {
+    return await pluginsService.getAwsIcAccounts({
+      integrationName,
+      arn,
+      region,
+    });
+  });
 
   const [
     fetchGroupsWithPermAssignmentsAttempt,
     runFetchGroupsWithPermAssignments,
-  ] = useAsync(async (resourceType: string) => {
+  ] = useAsync(async () => {
     return await pluginsService.getAwsIcGroupsWithPermissionAssignments({
       integrationName,
       arn,
       region,
-      resourceType,
     });
   });
 
   const [fetchPermissionSetsAttempt, runFetchPermissionSets] = useAsync(
-    async (resourceType: string) => {
+    async () => {
       return await pluginsService.getAwsIcPermissionSets({
         integrationName,
         arn,
         region,
-        resourceType,
       });
     }
   );
@@ -423,17 +418,17 @@ export function useImportResources({
     switch (resourceType) {
       case 'accounts':
         if (fetchAccountsAttempt.status === '') {
-          runFetchAccounts(resourceType);
+          runFetchAccounts();
         }
         break;
       case 'groupsWithAssignments':
         if (fetchGroupsWithPermAssignmentsAttempt.status === '') {
-          runFetchGroupsWithPermAssignments(resourceType);
+          runFetchGroupsWithPermAssignments();
         }
         break;
       case 'permissionSets':
         if (fetchPermissionSetsAttempt.status === '') {
-          runFetchPermissionSets(resourceType);
+          runFetchPermissionSets();
         }
         break;
       default:

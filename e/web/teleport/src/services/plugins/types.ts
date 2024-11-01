@@ -216,7 +216,7 @@ export type AwsIcAccounts = {
  * assignments.
  */
 export type AwsIcGroupsWithAssignment = {
-  groupname: string;
+  name: string;
   assignments: AwsIcPermissionAssignments[];
 };
 

@@ -9,16 +9,20 @@ import (
 
 	crewjamsamlsp "github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/samlsp"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	awsicui "github.com/gravitational/teleport/e/lib/web/ui/awsic"
 	samlidpui "github.com/gravitational/teleport/e/lib/web/ui/samlidp"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -376,4 +380,94 @@ To manually remove the service provider, run the command: 'tctl rm saml_idp_serv
 		))
 	}
 	return nil
+}
+
+// awsICPluginIdentityCenterClient creates a new Identity Center SDK client.
+func awsICPluginIdentityCenterClient(ctx context.Context, req awsicui.FetchICResourceRequest, authClient authclient.ClientI) (icsdk.Client, error) {
+	awsConfig, err := credprovider.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+		Region:                req.Region,
+		IntegrationName:       req.IntegrationName,
+		IntegrationGetter:     authClient,
+		AWSOIDCTokenGenerator: authClient,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return icsdk.New(icsdk.Config{
+		AWSConfig:   awsConfig,
+		InstanceARN: req.Arn,
+	})
+}
+
+// awsICPluginListPermissionSets lists Identity Center permissions sets.
+func (p *Plugin) awsICPluginListPermissionSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	var req awsicui.FetchICResourceRequest
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	icClient, err := awsICPluginIdentityCenterClient(r.Context(), req, p.GetProxyClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	permSet, err := icClient.ListPermissionSets(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return awsicui.PermissionSets(permSet), nil
+}
+
+// awsICPluginAccountsWithAssignedPermSets lists Identity Center accounts with assigned permission sets.
+func (p *Plugin) awsICPluginAccountsWithAssignedPermSets(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	var req awsicui.FetchICResourceRequest
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	icClient, err := awsICPluginIdentityCenterClient(r.Context(), req, p.GetProxyClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accountWithPermSetARNs, err := icClient.ListAccountsWithAssignedPermissionSetARNs(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	psermSets, err := icClient.ListPermissionSets(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return awsicui.AccountWithPermissionSets(accountWithPermSetARNs, icsdk.ToPermissionSetMap(psermSets)), nil
+}
+
+// awsICPluginGroupsWithAssigment lists Identity Center groups with assigned accounts and permission sets.
+func (p *Plugin) awsICPluginGroupsWithAccountAndPermAssigment(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	var req awsicui.FetchICResourceRequest
+	defer r.Body.Close()
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	icClient, err := awsICPluginIdentityCenterClient(r.Context(), req, p.GetProxyClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	groupWithAssignments, err := icClient.ListGroupsWithAccountAndPermAssignment(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	psermSets, err := icClient.ListPermissionSets(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accounts, err := icClient.ListAccounts(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return awsicui.GroupAccountAndPermAssigments(groupWithAssignments, icsdk.ToAccountMap(accounts), icsdk.ToPermissionSetMap(psermSets)), nil
 }

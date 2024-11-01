@@ -146,7 +146,7 @@ export function GroupsWithAssigmentTable({
       data={userGroups}
       columns={[
         {
-          key: 'groupname',
+          key: 'name',
           headerText: 'Group',
         },
         {

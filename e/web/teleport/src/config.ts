@@ -150,8 +150,12 @@ const cfg = {
       '/webapi/scripts/integrations/configure/azureoidc.sh?authConnectorName=:authConnectorName',
 
     awsIdentityCenter: {
-      previewResourcesByType:
-        '/v1/enterprise/pluginconfig/aws-ic/preview-resources',
+      previewAccountWithPermSets:
+        '/v1/enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets',
+      previewGroupWithAssignment:
+        '/v1/enterprise/pluginconfig/aws-ic/preview/groups-with-assignments',
+      previewPermissionSets:
+        '/v1/enterprise/pluginconfig/aws-ic/preview/permission-sets',
     },
   },
 
@@ -373,8 +377,16 @@ const cfg = {
     );
   },
 
-  getAwsIcPluginResourcePreviewUrl() {
-    return generatePath(cfg.api.awsIdentityCenter.previewResourcesByType);
+  getAwsIcPluginPreviewAccountWithPermSetsUrl() {
+    return generatePath(cfg.api.awsIdentityCenter.previewAccountWithPermSets);
+  },
+
+  getAwsIcPluginPreviewGroupsWithAssignmentUrl() {
+    return generatePath(cfg.api.awsIdentityCenter.previewGroupWithAssignment);
+  },
+
+  getAwsIcPluginPreviewPermissionSetsUrl() {
+    return generatePath(cfg.api.awsIdentityCenter.previewPermissionSets);
   },
 
   init(json: object) {

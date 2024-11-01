@@ -116,7 +116,7 @@ export const accounts: AwsIcAccounts[] = [
 
 export const groupsWithPermissionAssignment: AwsIcGroupsWithAssignment[] = [
   {
-    groupname: 'group1',
+    name: 'group1',
     assignments: [
       {
         accountName: 'dev-account',
@@ -125,11 +125,11 @@ export const groupsWithPermissionAssignment: AwsIcGroupsWithAssignment[] = [
     ],
   },
   {
-    groupname: 'group2',
+    name: 'group2',
     assignments: [{ accountName: 'dev-account', permissionSetName: 'DevOps' }],
   },
   {
-    groupname: 'group3',
+    name: 'group3',
     assignments: [
       {
         accountName: 'stage-account',

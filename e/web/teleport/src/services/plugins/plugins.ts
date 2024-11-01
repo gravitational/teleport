@@ -75,19 +75,19 @@ export const pluginsService = {
   getAwsIcAccounts(
     params: fetchAwsIcResourceRequest
   ): Promise<AwsIcAccounts[]> {
-    return api.post(cfg.getAwsIcPluginResourcePreviewUrl(), params);
+    return api.post(cfg.getAwsIcPluginPreviewAccountWithPermSetsUrl(), params);
   },
 
   getAwsIcGroupsWithPermissionAssignments(
     params: fetchAwsIcResourceRequest
   ): Promise<AwsIcGroupsWithAssignment[]> {
-    return api.post(cfg.getAwsIcPluginResourcePreviewUrl(), params);
+    return api.post(cfg.getAwsIcPluginPreviewGroupsWithAssignmentUrl(), params);
   },
 
   getAwsIcPermissionSets(
     params: fetchAwsIcResourceRequest
   ): Promise<AwsIcPermissionSets[]> {
-    return api.post(cfg.getAwsIcPluginResourcePreviewUrl(), params);
+    return api.post(cfg.getAwsIcPluginPreviewPermissionSetsUrl(), params);
   },
 };
 
@@ -95,7 +95,6 @@ type fetchAwsIcResourceRequest = {
   integrationName: string;
   arn: string;
   region: string;
-  resourceType: string;
 };
 
 export function makePlugins(json: any): Plugin[] {
