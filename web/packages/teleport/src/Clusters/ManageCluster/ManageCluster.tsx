@@ -29,11 +29,10 @@ import * as Icons from 'design/Icon';
 import Text, { H2 } from 'design/Text';
 import { Indicator } from 'design/Indicator';
 import Box, { BoxProps } from 'design/Box';
-
-import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
-
 import { ShimmerBox } from 'design/ShimmerBox';
 import { Alert } from 'design/Alert';
+
+import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
 
 import {
   FeatureBox,
@@ -45,6 +44,10 @@ import cfg from 'teleport/config';
 import { useNoMinWidth } from 'teleport/Main';
 import { ClusterInfo } from 'teleport/services/clusters';
 
+/**
+ * OSS Cluster Management page.
+ * @returns JSX.Element
+ */
 export function ManageCluster() {
   const [cluster, setCluster] = useState<ClusterInfo>(null);
   const ctx = useTeleport();
