@@ -4,6 +4,11 @@ set -euo pipefail
 
 source vars.env
 
+if [[ "$TELEPORT_BACKEND" != "dynamo" ]]; then
+  exit 0
+fi
+
+
 dynamo_policy="$STATE_DIR/dynamo-iam-policy"
 
 s3_policy="$STATE_DIR/s3-iam-policy"
