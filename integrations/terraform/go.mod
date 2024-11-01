@@ -93,17 +93,20 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.49.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/glue v1.99.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.20 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.20 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kms v1.36.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rds v1.85.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.54.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.23.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.27.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.31.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.32.3 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
 	github.com/beevik/etree v1.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
