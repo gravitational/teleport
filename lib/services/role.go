@@ -3247,19 +3247,17 @@ func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) 
 		}
 	}
 	for _, role := range set {
+		if slices.ContainsFunc(allowFilters, func(filter SearchAsRolesOption) bool {
+			return !filter(role)
+		}) {
+			// Don't consider this base role if it's filtered out.
+			continue
+		}
 		for _, a := range role.GetSearchAsRoles(types.Allow) {
-			filterResult := true
-			if len(allowFilters) > 0 {
-				for _, filter := range allowFilters {
-					if !filter(role) {
-						filterResult = false
-						break
-					}
-				}
+			if _, isDenied := denied[a]; isDenied {
+				continue
 			}
-			if _, ok := denied[a]; !ok && filterResult {
-				allowed = append(allowed, a)
-			}
+			allowed = append(allowed, a)
 		}
 	}
 	return apiutils.Deduplicate(allowed)
