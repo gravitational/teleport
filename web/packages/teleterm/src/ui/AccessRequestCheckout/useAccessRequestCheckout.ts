@@ -77,6 +77,7 @@ export default function useAccessRequestCheckout() {
     onDryRunChange,
     startTime,
     onStartTimeChange,
+    reset: resetSpecifiableFields,
   } = useSpecifiableFields();
 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -371,6 +372,7 @@ export default function useAccessRequestCheckout() {
   }
 
   function reset() {
+    resetSpecifiableFields();
     if (workspaceAccessRequest) {
       return workspaceAccessRequest.clearPendingAccessRequest();
     }
