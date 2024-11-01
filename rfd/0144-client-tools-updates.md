@@ -192,20 +192,11 @@ to this cluster.
 #### Self-managed client tools updates
 
 Cluster administrators that want to self-manage client tools updates will be
-able to get and watch for changes to client tools versions which can then be
+able to get changes to client tools versions which can then be
 used to trigger other integrations (using MDM software like Jamf) to update the
 installed version of client tools on endpoints.
 
-By defining the `proxy` flag, we can use the watch command without logging in.
-
-```
-$ tctl autoupdate client-tools watch --proxy proxy.example.com
-{"target_version": "1.0.0"}
-{"target_version": "1.0.1"}
-{"target_version": "2.0.0"}
-
-[...]
-```
+By defining the `proxy` flag, we can use the get command without logging in.
 
 ```
 $ tctl autoupdate client-tools get --proxy proxy.example.com
@@ -247,7 +238,7 @@ spec:
   [...]
 ```
 ```
-$ tctl autoupdate client-tools update --set-mode=disabled
+$ tctl autoupdate client-tools configure --set-mode=disabled
 Automatic updates configuration has been updated.
 ```
 
@@ -263,7 +254,7 @@ spec:
     target_version: X.Y.Z
 ```
 ```
-$ tctl autoupdate client-tools update --set-target-version=1.0.1
+$ tctl autoupdate client-tools configure --set-target-version=1.0.1
 Automatic updates configuration has been updated.
 ```
 
