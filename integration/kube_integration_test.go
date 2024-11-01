@@ -1928,6 +1928,11 @@ func newNamespace(name string) *v1.Namespace {
 	}
 }
 
+// localPodImage is a container image that is used for testing
+// It's a docker image that runs a simple web server
+// that listens on port 80 and returns "Hello, World!" on GET /
+// This image is vendored in the Teleport repository in the
+// fixtures/alpine directory. Check the Dockerfile there for details.
 const localPodImage = "alpine-webserver:v1"
 
 func newPod(ns, name string) *v1.Pod {
