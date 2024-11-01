@@ -904,7 +904,7 @@ func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, clie
 			if !rc.force {
 				return trace.AlreadyExists("application %q already exists", wd.GetName())
 			}
-			if _, err := dynamicDesktopClient.UpdateDynamicWindowsDesktop(ctx, wd); err != nil {
+			if _, err := dynamicDesktopClient.UpsertDynamicWindowsDesktop(ctx, wd); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Printf("dynamic windows desktop %q has been updated\n", wd.GetName())

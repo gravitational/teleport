@@ -56,6 +56,11 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs:  []string{types.VerbUpdate},
 		},
 		{
+			name:          "UpsertDynamicWindowsDesktop",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+		},
+		{
 			name:          "DeleteDynamicWindowsDesktop",
 			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
 			allowedVerbs:  []string{types.VerbDelete},
@@ -157,6 +162,10 @@ func callMethod(service *Service, method string) error {
 						Addr: "test",
 					})
 				case *dynamicwindowsv1.UpdateDynamicWindowsDesktopRequest:
+					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
+						Addr: "test",
+					})
+				case *dynamicwindowsv1.UpsertDynamicWindowsDesktopRequest:
 					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
 						Addr: "test",
 					})
