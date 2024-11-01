@@ -66,7 +66,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, &aws_sync.Resources{})
 
 		if err := push(stream, upsert, toDel); err != nil {
-			s.Log.WithError(err).Error("Error pushing empty resources to TAGs")
+			s.Log.ErrorContext(ctx, "Error pushing empty resources to TAGs", "error", err)
 		}
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
@@ -109,7 +109,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	// Aggregate all errors into a single error.
 	err := trace.NewAggregate(errs...)
 	if err != nil {
-		s.Log.WithError(err).Error("Error polling TAGs")
+		s.Log.ErrorContext(ctx, "Error polling TAGs", "error", err)
 	}
 	result := aws_sync.MergeResources(results...)
 	// Merge all results into a single result
@@ -122,7 +122,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	}
 
 	if pushErr != nil {
-		s.Log.WithError(pushErr).Error("Error pushing TAGs")
+		s.Log.ErrorContext(ctx, "Error pushing TAGs", "error", pushErr)
 		return nil
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
@@ -135,7 +135,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 			},
 		},
 	}); err != nil {
-		s.Log.WithError(err).Error("Error submitting usage event")
+		s.Log.ErrorContext(ctx, "Error submitting usage event", "error", err)
 	}
 
 	return nil
@@ -315,7 +315,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).Warn("error cleaning up semaphore")
+			s.Log.WarnContext(ctx, "Error cleaning up semaphore", "error", err)
 		}
 	}()
 
@@ -336,12 +336,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 
 	stream, err := client.AWSEventsStream(ctx)
 	if err != nil {
-		s.Log.WithError(err).Error("Failed to get access graph service stream")
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
 		return trace.Wrap(err)
 	}
 	header, err := stream.Header()
 	if err != nil {
-		s.Log.WithError(err).Error("Failed to get access graph service stream header")
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream header", "error", err)
 		return trace.Wrap(err)
 	}
 	const (
@@ -361,7 +361,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		defer wg.Done()
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
-			s.Log.Info("access graph service connection was closed")
+			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
 	}()
 
@@ -418,7 +418,7 @@ func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate,
 func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error {
 	fetchers, err := s.accessGraphFetchersFromMatchers(ctx, cfg.Matchers, "" /* discoveryConfigName */)
 	if err != nil {
-		s.Log.WithError(err).Error("Error initializing access graph fetchers")
+		s.Log.ErrorContext(ctx, "Error initializing access graph fetchers", "error", err)
 	}
 	s.staticTAGSyncFetchers = fetchers
 
@@ -431,7 +431,7 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.Debug("No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return
@@ -442,10 +442,10 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 				}
 				// reset the currentTAGResources to force a full sync
 				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
-					s.Log.Warn("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
-					s.Log.Warnf("Error initializing and watching access graph: %v", err)
+					s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
 				}
 
 				select {
