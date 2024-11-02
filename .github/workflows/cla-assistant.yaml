@@ -42,7 +42,7 @@ jobs:
           remote-organization-name: gravitational
           remote-repository-name: cla-signatures
           path-to-signatures: 'version1_signatures.json'
-          path-to-document: 'https://gist.github.com/reedloden/ff88ab33dbd53843d6dfb1ad8af4098f'
+          path-to-document: 'https://github.com/gravitational/teleport/blob/master/CLA.md'
           # branch should not be protected
           branch: 'main'
           allowlist: gravitational,*[bot]
