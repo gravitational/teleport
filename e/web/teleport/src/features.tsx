@@ -40,8 +40,8 @@ import { SSOConfirm } from 'e-teleport/SSOConfirm/SSOConfirm';
 import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
 import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
-
-import { CreateAccessList } from './AccessListManagement/CreateAccessList';
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { CreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessList';
 
 import type {
   FeatureFlags,
@@ -304,7 +304,11 @@ class FeatureNewAccessList implements TeleportFeature {
     title: NavTitle.NewAccessList,
     path: cfg.routes.accessListNew,
     exact: true,
-    component: CreateAccessList,
+    component: () => (
+      <AccessListManagementContextProvider>
+        <CreateAccessList />
+      </AccessListManagementContextProvider>
+    ),
   };
 
   // Hide if this is a self-hosted dashboard tenant

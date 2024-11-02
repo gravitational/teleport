@@ -1,5 +1,6 @@
 import {
   AccessListMember,
+  AccessListMemberKind,
   IneligibleStatus,
 } from 'e-teleport/services/accessmanagement';
 import { getIneligibleReason } from 'e-teleport/services/accessmanagement/accessmanagement';
@@ -22,6 +23,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   {
     id: '2',
@@ -42,6 +44,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   {
     id: '3',
@@ -62,6 +65,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   {
     id: '4',
@@ -82,6 +86,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   {
     id: '5',
@@ -102,6 +107,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   {
     id: '6',
@@ -122,6 +128,7 @@ export const mockAccessLists: AccessListWithModifiedGrants[] = [
     ownershipRequires: {} as any,
     owners: [],
     needsReviewBy: null,
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
 ];
 
@@ -132,6 +139,7 @@ export const mockMembers: AccessListMember[] = [
     expires: new Date('October 02, 2023'),
     addedBy: 'admin',
     ineligibleReason: '',
+    membershipKind: AccessListMemberKind.User,
   },
   {
     name: 'bob@example.com',
@@ -139,6 +147,7 @@ export const mockMembers: AccessListMember[] = [
     expires: new Date('November 12, 2023'),
     addedBy: 'admin',
     ineligibleReason: '',
+    membershipKind: AccessListMemberKind.User,
   },
   {
     name: 'betty.lou@example.com',
@@ -146,6 +155,7 @@ export const mockMembers: AccessListMember[] = [
     expires: new Date('November 12, 2023'),
     addedBy: 'admin',
     ineligibleReason: '',
+    membershipKind: AccessListMemberKind.User,
   },
   {
     name: 'ernie@example.com',
@@ -153,6 +163,7 @@ export const mockMembers: AccessListMember[] = [
     expires: new Date('November 12, 2023'),
     addedBy: 'admin',
     ineligibleReason: getIneligibleReason(IneligibleStatus.MissingRequirements),
+    membershipKind: AccessListMemberKind.User,
   },
   {
     name: 'jane@example.com',
@@ -160,6 +171,7 @@ export const mockMembers: AccessListMember[] = [
     expires: new Date('November 12, 2023'),
     addedBy: 'admin',
     ineligibleReason: '',
+    membershipKind: AccessListMemberKind.User,
   },
   {
     name: 'sherlock@example.com',
@@ -167,5 +179,6 @@ export const mockMembers: AccessListMember[] = [
     expires: new Date('November 12, 2023'),
     addedBy: 'admin',
     ineligibleReason: getIneligibleReason(IneligibleStatus.UserNotExist),
+    membershipKind: AccessListMemberKind.User,
   },
 ];

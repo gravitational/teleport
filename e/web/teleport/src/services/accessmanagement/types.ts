@@ -32,6 +32,12 @@ export enum ReviewDayOfMonth {
   LastDayOfMonth = 'last',
 }
 
+export enum AccessListMemberKind {
+  Unspecified = 'MEMBERSHIP_KIND_UNSPECIFIED',
+  User = 'MEMBERSHIP_KIND_USER',
+  List = 'MEMBERSHIP_KIND_LIST',
+}
+
 export type AccessList = {
   id: string;
   title: string; // friendly name of id
@@ -52,11 +58,15 @@ export type AccessList = {
   // Only owners and admins can view members.
   // Users who are members of this list will always get a 0 returned.
   membersCount?: number | undefined;
+  // memberListsCount is the number of lists that are members of this access list.
+  memberListCount?: number | undefined;
   // ownershipRequires describes the requirements for a user to be an owner of the access list.
   // For ownership of an access list to be effective, the user must meet the requirements of
   // ownershipRequires and must be in the owners list.
   ownershipRequires: AccessListRequires;
   owners: AccessListOwner[];
+  // inheritedMemberGrants is the list of member grants by inheritance from parent access lists.
+  inheritedMemberGrants: AccessListGrant;
 };
 
 // A user must match both roles and traits to
@@ -80,6 +90,8 @@ export type AccessListMember = {
   // ineligibleReason is a description on why this member
   // no longer meets requirements as defined in membershipRequires.
   ineligibleReason?: string;
+
+  membershipKind: AccessListMemberKind;
 };
 
 export type AccessListOwner = {
@@ -91,6 +103,8 @@ export type AccessListOwner = {
   // ineligibleReason is a description on why this owner
   // no longer meets requirements as defined in ownershipRequires.
   ineligibleReason?: string;
+
+  membershipKind: AccessListMemberKind;
 };
 
 type AccessListAuditRecurrence = {
@@ -112,12 +126,18 @@ export type AccessListGrant = {
   traits: AllUserTraits;
 };
 
-export type OwnerRequest = Omit<AccessListOwner, 'ineligibleReason'>;
+export type OwnerRequest = Omit<
+  AccessListOwner,
+  'ineligibleReason' | 'membershipKind'
+> & {
+  membership_kind: AccessListMemberKind;
+};
 export type MemberRequest = Omit<
   AccessListMember,
-  'addedBy' | 'ineligibleReason'
+  'addedBy' | 'ineligibleReason' | 'membershipKind'
 > & {
   added_by: string;
+  membership_kind: AccessListMemberKind;
 };
 
 export type UpsertAccessListRequest = {

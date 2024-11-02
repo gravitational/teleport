@@ -211,7 +211,7 @@ func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context,
 }
 
 func (p *enterpriseModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
-	accessListGetter modules.AccessListGetter, requestID string,
+	accessListGetter modules.AccessListAndMembersGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	return accessrequest.GetSuggestedAccessLists(ctx, identity, clt, accessListGetter, requestID)
 }

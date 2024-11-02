@@ -1,12 +1,18 @@
-import React from 'react';
-import { Box } from 'design';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, Box, H2 } from 'design';
 import { Option } from 'shared/components/Select';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { H2 } from 'design';
+import {
+  fetchAndProcessSelectedRoles,
+  rolesContainDenyRules,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 
 import { TraitLabel, TraitsCreator } from '../Traits';
 
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
+
+import type { Role } from 'teleport/services/resources';
 
 type Props = {
   grant: Grant;
@@ -30,6 +36,31 @@ export const GrantSection = ({
   title,
   isOptional = false,
 }: Props) => {
+  const processedRolesFetchAttempt = useAttempt('');
+  const [processedRoles, setProcessedRoles] = useState<Role[]>([]);
+
+  useEffect(() => {
+    if (processedRolesFetchAttempt.attempt.status === 'processing') {
+      return;
+    }
+    if (!grant?.rolesToGrant?.length) {
+      setProcessedRoles([]);
+      return;
+    }
+
+    fetchAndProcessSelectedRoles(
+      processedRolesFetchAttempt,
+      grant?.rolesToGrant
+    )
+      .then(setProcessedRoles)
+      .catch(() => setProcessedRoles([]));
+  }, [grant?.rolesToGrant]);
+
+  const selectedRolesContainDenyRules = useMemo(
+    () => rolesContainDenyRules(processedRoles),
+    [processedRoles]
+  );
+
   return (
     <>
       <H2 mb={2}>{title}</H2>
@@ -43,6 +74,9 @@ export const GrantSection = ({
         editKind="Grants"
         optional={grant.traitsToGrant.length > 0 || isOptional}
       />
+      {selectedRolesContainDenyRules && (
+        <Alert kind="warning" children={selectedRolesContainDenyRules} />
+      )}
       <Box mb={3}>
         <TraitsCreator
           kind="Grants"

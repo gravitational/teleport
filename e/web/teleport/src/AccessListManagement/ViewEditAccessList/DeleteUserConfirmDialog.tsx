@@ -14,10 +14,11 @@ import {
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 
-import { AccessListModified } from './ViewEditAccessList';
+import { AccessListModified } from './Shared';
 
 type Base = {
   username: string;
+  displayName?: string | undefined;
   onClose(): void;
   accessList: AccessListModified;
   updateAccessList(accessList: AccessList): void;
@@ -33,6 +34,7 @@ type PropForOwner = Base & {
 export function DeleteUserConfirmDialog({
   kind,
   username,
+  displayName,
   onClose,
   accessList,
   updateAccessList,
@@ -77,7 +79,7 @@ export function DeleteUserConfirmDialog({
         <P1>
           Are you sure you want to delete {kind}{' '}
           <Text as="span" bold color="text.main">
-            {username}
+            {displayName || username}
           </Text>{' '}
           ?
         </P1>

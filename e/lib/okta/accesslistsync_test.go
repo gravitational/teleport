@@ -850,6 +850,10 @@ func newAccessList(t *testing.T, name, title string, ownerGrantRoles, grantRoles
 		Owners: owners,
 	})
 	require.NoError(t, err)
+	accessList.Status = accesslist.Status{
+		OwnerOf:  []string{},
+		MemberOf: []string{},
+	}
 
 	return accessList
 }

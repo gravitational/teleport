@@ -9,7 +9,7 @@ import (
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/accesslists"
 )
 
 func (p *provisioner) provisionAccessList(
@@ -140,18 +140,17 @@ func (p *provisioner) validateListMembers(
 			return nil, trace.Wrap(err)
 		}
 
-		// Create an identity for testing membership to access lists.
-		identity := tlsca.Identity{
-			Username: user.GetName(),
-			Groups:   user.GetRoles(),
-			Traits:   user.GetTraits(),
-			UserType: user.GetUserType(),
-		}
-
 		// Assert that the user is not only a recorded member , but also
-		// currently meets all of the access list membership requirements
-		if err := p.membershipChecker.IsAccessListMember(ctx, identity, acl); err != nil {
-			log.WarnContext(ctx, "user does not meet access list requirements")
+		// currently meets all the Access List membership requirements
+		if membershipKind, _ := accesslists.IsAccessListMember(
+			ctx,
+			user,
+			acl,
+			p.accessListSvc,
+			p.locksSvc,
+			p.clock,
+		); membershipKind == accesslists.MembershipOrOwnershipTypeNone {
+			log.WarnContext(ctx, "user does not meet Access List requirements")
 			continue
 		}
 

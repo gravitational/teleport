@@ -17,7 +17,7 @@ import {
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 
-import { AccessListModified } from '../ViewEditAccessList';
+import { AccessListModified } from '../Shared';
 
 export function EditTitle({
   onClose,

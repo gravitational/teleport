@@ -13,6 +13,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -23,6 +24,10 @@ type userDataGetter interface {
 	modules.RoleGetter
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// GetAccessList returns the specified access list resource.
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// GetAccessLists returns a list of all access lists.
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 }
 
 type AccessListLister interface {
@@ -31,7 +36,7 @@ type AccessListLister interface {
 
 // GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.
 func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
-	accessListGetter modules.AccessListGetter, requestID string,
+	accessListGetter modules.AccessListAndMembersGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	accessRequests, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{ID: requestID})
 	if err != nil {
@@ -67,7 +72,7 @@ func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt 
 	cursor := 0
 	for _, accessList := range accessLists {
 		// Reviewer must be the owner of the access list to be able to approve it.
-		err := canModifyAccessList(clt, identity, reviewer, accessList)
+		err := canModifyAccessList(ctx, clt, reviewer, accessList, accessListGetter)
 		switch {
 		case err == nil:
 			// write the access list to it's potentially new position
@@ -82,20 +87,18 @@ func GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt 
 	}
 
 	ranked := ScoreRelevance(accessRequest, accessLists[:cursor])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	return ranked, nil
 }
 
-func canModifyAccessList(clt modules.RoleGetter, reviewerIdentity *tlsca.Identity, reviewer types.User, accessList *accesslist.AccessList) error {
+func canModifyAccessList(ctx context.Context, clt modules.RoleGetter, reviewer types.User, accessList *accesslist.AccessList, accessListGetter modules.AccessListAndMembersGetter) error {
 	// if owner, then can list and modify
-	err := services.IsAccessListOwner(*reviewerIdentity, accessList)
-	switch {
-	case err == nil:
+	ownershipType, err := accesslists.IsAccessListOwner(ctx, reviewer, accessList, accessListGetter, nil, clockwork.NewRealClock())
+	// Owner is inherited or explicit
+	if ownershipType != accesslists.MembershipOrOwnershipTypeNone {
 		return nil
-	case !trace.IsAccessDenied(err):
+	}
+	if !trace.IsAccessDenied(err) {
 		return trace.Wrap(err)
 	}
 
@@ -169,26 +172,20 @@ type suggestionValidator struct {
 }
 
 func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *accesslist.AccessList) (bool, error) {
-	requesterIdentity := tlsca.Identity{
-		Username: v.requester.GetName(),
-		Groups:   v.requester.GetRoles(),
-		Traits:   v.requester.GetTraits(),
-	}
-
-	// If the user is already a member, or he doesn't meet the requirements to be assigned to the access list
+	// If the user is already a member, or doesn't meet the requirements to be assigned to the access list,
 	// then the access list is not a valid suggestion.
-	err := services.IsAccessListMember(ctx, requesterIdentity, v.clock, list, v.dataGetter)
-	switch {
-	case trace.IsNotFound(err):
-		// If the user is not a member, then the access list may be a valid suggestion.
-	case err != nil:
-		return false, trace.Wrap(err)
-	default:
+	membershipType, err := accesslists.IsAccessListMember(ctx, v.requester, list, v.dataGetter, nil, v.clock)
+	if err != nil {
+		if !trace.IsAccessDenied(err) {
+			return false, trace.Wrap(err)
+		}
+	}
+	// If the user is not a member, then the access list may be a valid suggestion.
+	if membershipType != accesslists.MembershipOrOwnershipTypeNone {
 		return false, nil
 	}
-
 	// Access lists not assignable to the user are irrelevant.
-	if !services.UserMeetsRequirements(requesterIdentity, list.GetMembershipRequires()) {
+	if !accesslists.UserMeetsRequirements(v.requester, list.GetMembershipRequires()) {
 		return false, nil
 	}
 
@@ -276,50 +273,26 @@ func GenerateAccessRequestPromotions(ctx context.Context, resourceGetter modules
 		clock:              clockwork.NewRealClock(),
 	}
 
-	if err := forEachAccessList(ctx, resourceGetter, func(accessList *accesslist.AccessList) error {
+	allAccessLists, err := resourceGetter.GetAccessLists(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, accessList := range allAccessLists {
 		valid, err := validator.isValidSuggestion(ctx, accessList)
 		if err != nil {
 			slog.Log(ctx, logutils.TraceLevel, "failed to validate access list suggestion", "error", err)
-			return nil
+			continue
 		}
 
 		if !valid {
-			return nil
+			continue
 		}
 
 		allowedPromotions.Promotions = append(allowedPromotions.Promotions, &types.AccessRequestAllowedPromotion{
 			AccessListName: accessList.GetName(),
 		})
-
-		return nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	return allowedPromotions, nil
-}
-
-func forEachAccessList(ctx context.Context, accessListGetter AccessListLister, process func(accessList *accesslist.AccessList) error) error {
-	var nextToken string
-
-	for {
-		accessLists, token, err := accessListGetter.ListAccessLists(ctx, 0 /* default value */, nextToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, accessList := range accessLists {
-			if err := process(accessList); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if token == "" {
-			break
-		}
-
-		nextToken = token
-	}
-
-	return nil
 }

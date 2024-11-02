@@ -24,7 +24,7 @@ import {
   getReviewFrequencyOption,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 
-import { AccessListModified } from '../ViewEditAccessList';
+import { AccessListModified } from '../Shared';
 
 type Props = {
   onClose(): void;

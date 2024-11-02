@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -75,6 +76,91 @@ func TestBasicAssigmentFlow(t *testing.T) {
 		`acl`, `users`, `add`, oktaInfra.Groups[0].Id, oktaInfra.Users[2].login(),
 	})
 	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[2].Id, oktaInfra.Groups[0].Id)
+}
+
+// TestNestedAclAssignment tests the assignment and sync of nested access lists.
+// It ensures that members from nested access lists are flattened and added to the root access list in Okta,
+// and that on reconciliation during sync, the nested lists are not flattened on the Teleport side.
+func TestNestedAclAssignment(t *testing.T) {
+	ctx := context.Background()
+
+	oktaInfra := createOktaSetup(t, ctx, newMockOktaAPIClient(), withAppsGroupsUsersCount(1, 2, 7))
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[2].Id)
+	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[3].Id)
+	defaultOwner := oktaInfra.Users[0]
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+	)
+
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	tclCmd := &tctlCommand{
+		DataDir:  sut.DataDir,
+		Listener: sut.AuthListenerAddr,
+	}
+
+	tclCmd.run(t, []string{
+		`plugins`, `install`, `okta`,
+		`--org`, "https://trial-1234567.okta.com",
+		`--saml-connector`, `okta`,
+		`--group-filter=*`,
+		`--app-filter=*`,
+		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
+		fmt.Sprintf("--owner=%s", defaultOwner.login()),
+	})
+
+	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100))
+	waitForOktaFirstOktaAssignment(t, sut)
+	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), defaultOwner)
+
+	oktaSyncedList, err := authServer.GetAccessList(ctx, oktaInfra.Groups[0].Id)
+	require.NoError(t, err)
+	teleportList0 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-0", []string{defaultOwner.login()}, accesslist.Grants{Roles: []string{"access"}}, []string{oktaInfra.Users[4].login()})
+	teleportList1 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-1", []string{defaultOwner.login()}, accesslist.Grants{Roles: []string{"editor"}}, []string{oktaInfra.Users[5].login()})
+	teleportList2 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-2", []string{defaultOwner.login()}, accesslist.Grants{Roles: []string{"reviewer"}}, []string{oktaInfra.Users[6].login()})
+
+	// teleport list 1 and 2 are nested within teleport list 0
+	nestedTeleportList1, err := authServer.AccessLists.UpsertAccessListMember(ctx, mustCreateMember(t, teleportList0.GetName(), teleportList1.GetName(), accesslist.MembershipKindList))
+	require.NoError(t, err)
+	nestedTeleportList2, err := authServer.AccessLists.UpsertAccessListMember(ctx, mustCreateMember(t, teleportList0.GetName(), teleportList2.GetName(), accesslist.MembershipKindList))
+	require.NoError(t, err)
+
+	// teleport list 0 is nested within okta-created list
+	nestedTeleportList0, err := authServer.AccessLists.UpsertAccessListMember(ctx, mustCreateMember(t, oktaSyncedList.GetName(), teleportList0.GetName(), accesslist.MembershipKindList))
+	require.NoError(t, err)
+
+	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100))
+
+	// members from nested lists should be flattened + added to root in okta
+	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[4].Id, oktaInfra.Groups[0].Id)
+	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[5].Id, oktaInfra.Groups[0].Id)
+	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[6].Id, oktaInfra.Groups[0].Id)
+
+	// ensure membership on Teleport side isn't flattened after sync w/ okta
+	assertAccessListMembers(t, ctx, sut, oktaInfra.Groups[0].Id, []string{
+		// from root list
+		oktaInfra.Users[1].login(),
+		oktaInfra.Users[2].login(),
+		oktaInfra.Users[3].login(),
+		// nested list members
+		nestedTeleportList0.GetName(),
+	})
+
+	// nested lists should contain their members
+	assertAccessListMembers(t, ctx, sut, nestedTeleportList0.GetName(), []string{
+		oktaInfra.Users[4].login(),
+		nestedTeleportList1.GetName(),
+		nestedTeleportList2.GetName(),
+	})
+	assertAccessListMembers(t, ctx, sut, nestedTeleportList1.GetName(), []string{
+		oktaInfra.Users[5].login(),
+	})
+	assertAccessListMembers(t, ctx, sut, nestedTeleportList2.GetName(), []string{
+		oktaInfra.Users[6].login(),
+	})
 }
 
 // TestAccessRequest tests the access request flow. That tests the access request flow for the apps groups imported
@@ -190,4 +276,65 @@ func TestAccessRequest(t *testing.T) {
 			assertResourcesByDesc(t, want, apps)
 		}, time.Second*10, time.Millisecond*100)
 	})
+}
+
+func assertAccessListMembers(t *testing.T, ctx context.Context, sut *common.SUT, accessListName string, want []string) {
+	got, _, err := sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, accessListName, 0, "")
+	require.NoError(t, err)
+
+	var wantMembers []*accesslist.AccessListMember
+	for _, name := range want {
+		wantMembers = append(wantMembers, &accesslist.AccessListMember{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: name}}})
+	}
+
+	assertResourcesByName(t, wantMembers, got)
+}
+
+func createAccessListWithMembers(t *testing.T, ctx context.Context, sut *common.SUT, name string, owners []string, grants accesslist.Grants, members []string) *accesslist.AccessList {
+	var accessListOwners []accesslist.Owner
+	for _, owner := range owners {
+		accessListOwners = append(accessListOwners, accesslist.Owner{
+			Name:             owner,
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+			MembershipKind:   accesslist.MembershipKindUser,
+		})
+	}
+	accessList, err := accesslist.NewAccessList(header.Metadata{
+		Name: name,
+	}, accesslist.Spec{
+		Title:  name,
+		Owners: accessListOwners,
+		Grants: grants,
+		Audit:  accesslist.Audit{NextAuditDate: sut.Clock.Now()},
+	})
+	require.NoError(t, err)
+
+	var accessListMembers []*accesslist.AccessListMember
+	for _, member := range members {
+		accessListMembers = append(accessListMembers, mustCreateMember(t, accessList.GetName(), member, accesslist.MembershipKindUser))
+	}
+
+	_, _, err = sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListWithMembers(ctx, accessList, accessListMembers)
+	require.NoError(t, err)
+
+	return accessList
+}
+
+func mustCreateMember(t *testing.T, aclName, memberName string, memberType string) *accesslist.AccessListMember {
+	clock := clockwork.NewRealClock()
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: memberName,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList:     aclName,
+			Name:           memberName,
+			Joined:         clock.Now(),
+			AddedBy:        "added by",
+			Expires:        clock.Now().Add(time.Hour * 24).UTC(),
+			MembershipKind: memberType,
+		},
+	)
+	require.NoError(t, err)
+	return member
 }

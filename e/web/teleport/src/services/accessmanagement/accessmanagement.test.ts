@@ -8,6 +8,7 @@ import {
 } from './accessmanagement';
 import {
   AccessList,
+  AccessListMemberKind,
   IneligibleStatus,
   ReviewDayOfMonth,
   ReviewFrequency,
@@ -31,11 +32,16 @@ test('fetch access lists, empty responses does not throw error', async () => {
       owners: [],
       members: [],
       membersCount: undefined,
+      memberListCount: undefined,
       grants: {
         roles: [],
         traits: {},
       },
       ownerGrants: {
+        roles: [],
+        traits: {},
+      },
+      inheritedMemberGrants: {
         roles: [],
         traits: {},
       },
@@ -70,9 +76,11 @@ test('fetch an access list, empty response does not throw error', async () => {
     description: '',
     grants: { roles: [], traits: {} },
     ownerGrants: { roles: [], traits: {} },
+    inheritedMemberGrants: { roles: [], traits: {} },
     id: '',
     members: [],
     membersCount: undefined,
+    memberListCount: undefined,
     membershipRequires: { roles: [], traits: {} },
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
@@ -102,6 +110,7 @@ test('fetch an access list', async () => {
         },
       },
       membersCount: 1234,
+      memberListCount: 0,
       spec: {
         title: 'some title',
         description: 'some description',
@@ -133,6 +142,7 @@ test('fetch an access list', async () => {
             name: 'lisa',
             description: 'some description',
             ineligible_status: IneligibleStatus.UserNotExist,
+            membership_kind: AccessListMemberKind.User,
           },
         ],
       },
@@ -144,6 +154,7 @@ test('fetch an access list', async () => {
           reason: 'some reason',
           added_by: 'llama',
           ineligible_status: IneligibleStatus.UserNotExist,
+          membership_kind: AccessListMemberKind.User,
         },
       ],
     },
@@ -170,11 +181,16 @@ test('fetch an access list', async () => {
       roles: ['admin'],
       traits: { fruit: ['pro'] },
     },
+    inheritedMemberGrants: {
+      roles: [],
+      traits: {},
+    },
     membershipRequires: {
       roles: ['intern'],
       traits: { fruit: ['banana'] },
     },
     membersCount: 1234,
+    memberListCount: 0,
     members: [
       {
         name: 'george',
@@ -183,6 +199,7 @@ test('fetch an access list', async () => {
         reason: 'some reason',
         addedBy: 'llama',
         ineligibleReason: 'User does not exist',
+        membershipKind: AccessListMemberKind.User,
       },
     ],
     ownershipRequires: {
@@ -194,6 +211,7 @@ test('fetch an access list', async () => {
         name: 'lisa',
         description: 'some description',
         ineligibleReason: 'User does not exist',
+        membershipKind: AccessListMemberKind.User,
       },
     ],
   });
@@ -231,6 +249,7 @@ describe('update an access list', () => {
         reason: 'some reason',
         addedBy: 'llama',
         ineligibleReason: 'some member ineligible reason',
+        membershipKind: AccessListMemberKind.User,
       },
     ],
     ownershipRequires: {
@@ -242,8 +261,10 @@ describe('update an access list', () => {
         name: 'lisa',
         description: 'some description',
         ineligibleReason: 'some owner ineligible reason',
+        membershipKind: AccessListMemberKind.User,
       },
     ],
+    inheritedMemberGrants: { roles: [], traits: {} },
   };
 
   const madeForAccessListUpdate: UpsertAccessListRequest = {
@@ -277,6 +298,7 @@ describe('update an access list', () => {
         expires: new Date('2023-08-24T17:48:15.78579Z'),
         reason: 'some reason',
         added_by: 'llama',
+        membership_kind: AccessListMemberKind.User,
       },
     ],
     ownership_requires: {
@@ -287,6 +309,7 @@ describe('update an access list', () => {
       {
         name: 'lisa',
         description: 'some description',
+        membership_kind: AccessListMemberKind.User,
       },
     ],
   };
@@ -374,6 +397,7 @@ describe('update an access list', () => {
             reason: '',
             addedBy: 'diff',
             ineligibleReason: 'some reason',
+            membershipKind: AccessListMemberKind.User,
           },
         ],
       },
@@ -386,6 +410,7 @@ describe('update an access list', () => {
             expires: new Date('2023-08-24T17:48:15.78579Z'),
             reason: '',
             added_by: 'diff',
+            membership_kind: AccessListMemberKind.User,
           },
         ],
       },
@@ -397,6 +422,7 @@ describe('update an access list', () => {
           {
             name: 'diff1',
             description: 'diff description',
+            membershipKind: AccessListMemberKind.User,
           },
         ],
       },
@@ -406,6 +432,7 @@ describe('update an access list', () => {
           {
             name: 'diff1',
             description: 'diff description',
+            membership_kind: AccessListMemberKind.User,
           },
         ],
       },
@@ -460,6 +487,7 @@ describe('update an access list', () => {
           {
             name: 'diff1',
             description: 'diff description',
+            membershipKind: AccessListMemberKind.User,
           },
         ],
       },
@@ -480,6 +508,7 @@ describe('update an access list', () => {
           {
             name: 'diff1',
             description: 'diff description',
+            membership_kind: AccessListMemberKind.User,
           },
         ],
       },

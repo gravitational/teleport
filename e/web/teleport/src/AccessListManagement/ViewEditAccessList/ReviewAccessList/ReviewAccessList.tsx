@@ -3,27 +3,27 @@ import { useHistory } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Option } from 'shared/components/Select';
 import {
-  Box,
   Alert,
-  Flex,
-  ButtonSecondary,
+  Box,
   ButtonIcon,
   ButtonPrimary,
+  ButtonSecondary,
+  Flex,
   H1,
+  H2,
 } from 'design';
 import { Cross } from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 import { FeatureBox } from 'teleport/components/Layout';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 
-import { H2 } from 'design';
-
 import {
-  accessManagementService,
-  AccessListMember,
-  ReviewAccessListRequest,
-  AccessListRequires,
   AccessList,
+  AccessListMember,
+  AccessListMemberKind,
+  AccessListRequires,
+  accessManagementService,
+  ReviewAccessListRequest,
 } from 'e-teleport/services/accessmanagement';
 import cfg from 'e-teleport/config';
 import {
@@ -32,7 +32,7 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 
 import { convertTraitLabelsToAllUserTraits } from '../../Traits';
-import { AccessListModified } from '../ViewEditAccessList';
+
 import { RoleAndTraitLabels } from '../Shared';
 
 import {
@@ -43,6 +43,8 @@ import { ReviewMembers } from './ReviewMembers';
 import { Summary } from './Summary';
 import { EditedRecurrence, ReviewStep } from './Shared';
 import { getMembersDeleted } from './utils';
+
+import type { AccessListModified } from '../Shared';
 
 export const views = [
   {
@@ -89,9 +91,9 @@ export function ReviewAccessList({
     }
   );
 
-  const [editedMembers, setEditedMembers] = useState<AccessListMember[]>(
-    accessList.members
-  );
+  const [editedMembers, setEditedMembers] = useState<
+    AccessListModified['members'][number][]
+  >(accessList.members);
   const [editedMembershipRequires, setEditedMembershipRequires] =
     useState<MembershipRequires>(accessList.membershipRequires);
 
@@ -122,7 +124,17 @@ export function ReviewAccessList({
           const reviewedAccessList: AccessList = accessList;
           reviewedAccessList.audit.nextDate = nextAuditDate;
           reviewedAccessList.members = editedMembers;
-          reviewedAccessList.membersCount = editedMembers.length;
+
+          const [newMembersCount, newMemberListCount] = editedMembers.reduce(
+            (acc, m) => [
+              acc[0] + (m.membershipKind === AccessListMemberKind.List ? 0 : 1),
+              acc[1] + (m.membershipKind === AccessListMemberKind.List ? 1 : 0),
+            ],
+            [0, 0]
+          );
+          reviewedAccessList.membersCount = newMembersCount;
+          reviewedAccessList.memberListCount = newMemberListCount;
+
           if (review.auditRecurrence) {
             reviewedAccessList.audit.recurrence = review.auditRecurrence;
           }

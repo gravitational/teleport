@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import Validation, { Validator } from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
@@ -14,24 +14,30 @@ import useTeleport from 'teleport/useTeleport';
 
 import {
   AccessList,
+  AccessListMember,
+  AccessListMemberKind,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit';
 
-import { UserOption } from '../../Shared/Shared';
 import {
+  convertAccessListsToUserOptions,
+  EnrollingNestedListsAlert,
   filterExistingUsersAndConvertToOption,
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
-} from '../Shared';
-import { AccessListModified } from '../ViewEditAccessList';
+} from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+
+import type { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import type { MemberSelection, UserOption } from '../../Shared/Shared';
 
 type Props = {
   onClose(): void;
   userOptions: UserOption[];
-  updateAccessList(accessList: AccessList): void;
+  updateAccessList(accessList: AccessList, members?: AccessListMember[]): void;
   accessList: AccessListModified;
+  accessLists: AccessList[];
 };
 
 export function EnrollNewMembers({
@@ -39,14 +45,19 @@ export function EnrollNewMembers({
   accessList,
   userOptions,
   updateAccessList,
+  accessLists,
 }: Props) {
-  const { membershipRequires, members: existingMembers } = accessList;
+  const { id, membershipRequires, members: existingMembers } = accessList;
   const ctx = useTeleport();
 
   const { attempt, setAttempt } = useAttempt('');
 
-  const [eligibleUsers, setEligibleUsers] = useState<Option[]>([]);
-  const [selectedMembers, setSelectedMembers] = useState<Option[]>([]);
+  const [eligibleUsers, setEligibleUsers] = useState<Option<MemberSelection>[]>(
+    []
+  );
+  const [selectedMembers, setSelectedMembers] = useState<
+    Option<MemberSelection>[]
+  >([]);
   const [reason, setReason] = useState('');
   const [expires, setExpires] = useState<Date>();
 
@@ -55,7 +66,7 @@ export function EnrollNewMembers({
   const [duplicatedMembers, setDuplicatedMembers] = useState<string[]>([]);
 
   useEffect(() => {
-    let filteredMembers: Option[] = [];
+    let filteredMembers: Option<MemberSelection>[] = [];
 
     // If no required traits or roles are defined,
     // Then all users are allowed to be added, except
@@ -76,8 +87,19 @@ export function EnrollNewMembers({
       );
     }
 
+    filteredMembers = filteredMembers.concat(
+      convertAccessListsToUserOptions(id, accessLists, existingMembers)
+    );
     setEligibleUsers(filteredMembers);
   }, []);
+
+  const selectedMembersContainAccessLists = useMemo(
+    () =>
+      selectedMembers.some(
+        m => m.value?.membershipKind === AccessListMemberKind.List
+      ),
+    [selectedMembers]
+  );
 
   function handleOnCreate(validator: Validator) {
     setDuplicatedMembers([]);
@@ -98,25 +120,42 @@ export function EnrollNewMembers({
     // since we are unmounting this after a successful
     // update.
     setAttempt({ status: 'processing' });
+
+    const currentUsername = ctx.storeUser.getUsername();
+
+    const membersToUse = [
+      ...existingMembers,
+      ...newUsers.map(newUser => {
+        const name =
+          typeof newUser.value === 'object' && 'name' in newUser.value
+            ? newUser.value.name
+            : newUser.value;
+        const membershipKind =
+          typeof newUser.value === 'object' && 'membershipKind' in newUser.value
+            ? newUser.value.membershipKind
+            : AccessListMemberKind.User;
+
+        return {
+          name,
+          joined: new Date(),
+          reason,
+          addedBy: currentUsername,
+          // Lists' expiration date is not checked on the backend
+          expires:
+            membershipKind !== AccessListMemberKind.List ? expires : undefined,
+          membershipKind,
+        } satisfies AccessListMember;
+      }),
+    ];
+
     accessManagementService
       .updateAccessList({
         original: accessList,
-        req: {
-          members: [
-            ...existingMembers,
-            ...newUsers.map(m => ({
-              name: m.value,
-              joined: new Date(),
-              reason,
-              addedBy: ctx.storeUser.getUsername(),
-              expires,
-            })),
-          ],
-        },
+        req: { members: membersToUse },
       })
       .then(resp => {
         onClose();
-        updateAccessList(resp);
+        updateAccessList(resp, membersToUse);
       })
       .catch((e: Error) => {
         setAttempt({ status: 'failed', statusText: e.message });
@@ -136,7 +175,7 @@ export function EnrollNewMembers({
           open={true}
         >
           <DialogHeader>
-            <DialogTitle>Enroll New Members</DialogTitle>
+            <DialogTitle>Enroll New Members or Access Lists</DialogTitle>
           </DialogHeader>
           <DialogContent>
             {attempt.status === 'failed' && (
@@ -156,10 +195,16 @@ export function EnrollNewMembers({
               isDisabled={attempt.status === 'processing'}
               onChange={vals => setSelectedMembers(vals || [])}
               options={eligibleUsers}
-              label="Add Members"
+              label="Add Members or Access Lists"
               requiredErrMsg="Members are required"
               noEligibleUsersFromNoAccess={userOptions.length === 0}
             />
+            {selectedMembersContainAccessLists && (
+              <EnrollingNestedListsAlert
+                kind="member"
+                listName={accessList.title}
+              />
+            )}
             <Box mb={4}>
               <CalendarDateSelect
                 date={expires}

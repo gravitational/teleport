@@ -11,6 +11,28 @@ import (
 )
 
 func TestReportCompliance(t *testing.T) {
+	aclSpec := accesslist.Spec{
+		Owners: []accesslist.Owner{
+			{Name: ownerUser, Description: "owner user", MembershipKind: accesslist.MembershipKindUser},
+			{Name: ownerUser2, Description: "owner user 2", MembershipKind: accesslist.MembershipKindUser},
+			{Name: testUserDenyWhere, Description: "deny where user", MembershipKind: accesslist.MembershipKindUser},
+			{Name: testUserDenyAll, Description: "deny where user", MembershipKind: accesslist.MembershipKindUser},
+		},
+		MembershipRequires: accesslist.Requires{
+			Roles: []string{"mrole1", "mrole2"},
+			Traits: map[string][]string{
+				"mtrait1": {"mvalue1", "mvalue2"},
+				"mtrait2": {"mvalue3", "mvalue4"},
+			},
+		},
+		OwnershipRequires: accesslist.Requires{
+			Roles: []string{"orole1", "orole2"},
+			Traits: map[string][]string{
+				"otrait1": {"ovalue1", "ovalue2"},
+				"otrait2": {"ovalue3", "ovalue4"},
+			},
+		},
+	}
 	tests := []struct {
 		name                          string
 		accessLists                   []*accesslist.AccessList
@@ -24,11 +46,11 @@ func TestReportCompliance(t *testing.T) {
 		{
 			name: "all in compliance",
 			accessLists: []*accesslist.AccessList{
-				newAccessListWithNextAuditDate(t, "1", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "2", time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "3", time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "4", time.Date(2023, 4, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "5", time.Date(2023, 5, 1, 0, 0, 0, 0, time.UTC)),
+				newAccessListWithPartialSpec(t, "1", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "2", time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "3", time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "4", time.Date(2023, 4, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "5", time.Date(2023, 5, 1, 0, 0, 0, 0, time.UTC), aclSpec),
 			},
 			currentTime:              time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC),
 			expectedTotalAccessLists: 5,
@@ -36,11 +58,11 @@ func TestReportCompliance(t *testing.T) {
 		{
 			name: "some not in compliance",
 			accessLists: []*accesslist.AccessList{
-				newAccessListWithNextAuditDate(t, "1", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "2", time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "3", time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "4", time.Date(2023, 4, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "5", time.Date(2023, 5, 1, 0, 0, 0, 0, time.UTC)),
+				newAccessListWithPartialSpec(t, "1", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "2", time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "3", time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "4", time.Date(2023, 4, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "5", time.Date(2023, 5, 1, 0, 0, 0, 0, time.UTC), aclSpec),
 			},
 			currentTime:                   time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
 			expectedTotalAccessLists:      5,
@@ -49,11 +71,11 @@ func TestReportCompliance(t *testing.T) {
 		{
 			name: "all not in compliance",
 			accessLists: []*accesslist.AccessList{
-				newAccessListWithNextAuditDate(t, "1", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "2", time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "3", time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "4", time.Date(2023, 4, 1, 0, 0, 0, 0, time.UTC)),
-				newAccessListWithNextAuditDate(t, "5", time.Date(2023, 5, 1, 0, 0, 0, 0, time.UTC)),
+				newAccessListWithPartialSpec(t, "1", time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "2", time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "3", time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "4", time.Date(2023, 4, 1, 0, 0, 0, 0, time.UTC), aclSpec),
+				newAccessListWithPartialSpec(t, "5", time.Date(2023, 5, 1, 0, 0, 0, 0, time.UTC), aclSpec),
 			},
 			currentTime:                   time.Date(2023, 5, 15, 0, 0, 0, 0, time.UTC),
 			expectedTotalAccessLists:      5,

@@ -34,10 +34,15 @@ type AccessListUpdater interface {
 
 // Cache is a cache of resources.
 type Cache interface {
+	GetAccessListMember(ctx context.Context, accessList string, name string) (*accesslist.AccessListMember, error)
+	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error)
+	CountAccessListMembers(ctx context.Context, accessList string) (uint32, uint32, error)
 }
 
 // NewIneligibleStatusReconciler creates a new IneligibleStatusReconciler.
@@ -218,6 +223,10 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 	for _, accessList := range accessLists {
 		var toUpdate bool
 		for i, owner := range accessList.Spec.Owners {
+			if owner.MembershipKind == accesslist.MembershipKindList {
+				// we don't need to check the ineligibility status of owner lists
+				continue
+			}
 			ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
 				userLookup: usersMap,
 				username:   owner.Name,
@@ -264,6 +273,10 @@ func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, n
 
 		var toUpdate []*accesslist.AccessListMember
 		for _, member := range accessListsMembers {
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				// we don't need to check the ineligibility status of member lists
+				continue
+			}
 			accessList, ok := accessListsMap[member.Spec.AccessList]
 			if !ok {
 				r.logger.WarnContext(ctx, "Access list not found", "access_list", member.Spec.AccessList)

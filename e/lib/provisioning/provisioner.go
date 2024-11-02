@@ -38,7 +38,6 @@ type provisioner struct {
 	externalIDCache     ExternalIDGetter
 	usersSvc            UsersService
 	accessListSvc       AccessListsService
-	membershipChecker   *services.AccessListMembershipChecker
 	locksSvc            services.LockGetter
 	clock               clockwork.Clock
 	scimClient          scimsdk.Client
@@ -99,21 +98,15 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	membershipChecker := services.NewAccessListMembershipChecker(
-		cfg.clock,
-		cfg.accessListsSvc,
-		cfg.locksSvc)
-
 	p := &provisioner{
-		log:               cfg.log,
-		clock:             cfg.clock,
-		stateSvc:          cfg.stateSvc,
-		usersSvc:          cfg.usersSvc,
-		accessListSvc:     cfg.accessListsSvc,
-		locksSvc:          cfg.locksSvc,
-		membershipChecker: membershipChecker,
-		scimClient:        cfg.scimClient,
-		maxConcurrency:    cfg.maxConcurrency,
+		log:            cfg.log,
+		clock:          cfg.clock,
+		stateSvc:       cfg.stateSvc,
+		usersSvc:       cfg.usersSvc,
+		accessListSvc:  cfg.accessListsSvc,
+		locksSvc:       cfg.locksSvc,
+		scimClient:     cfg.scimClient,
+		maxConcurrency: cfg.maxConcurrency,
 	}
 
 	// TODO(tcsc): query the /Resources SCIM end point and unpack into here

@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Flex, Text, Box, ButtonText, ButtonSecondary, H2 } from 'design';
 import Table, { StyledPanel } from 'design/DataTable';
 import { UsersTriple, Add, ArrowRight } from 'design/Icon';
-import { HoverTooltip } from 'shared/components/ToolTip';
-import { PagedTableProps } from 'design/DataTable/types';
+import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
 import InputSearch from 'design/DataTable/InputSearch';
 import { StyledTable } from 'design/DataTable/StyledTable';
 import { ClientSidePager } from 'design/DataTable/Pager';
@@ -11,18 +10,24 @@ import { getPagerPosition } from 'design/DataTable/Table';
 import { useClientSidePager } from 'design/DataTable/Pager/ClientSidePager/useClientSidePager';
 
 import {
-  AccessList,
   AccessListMember,
+  AccessListMemberKind,
 } from 'e-teleport/services/accessmanagement';
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
+import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 
-import { UserOption } from '../../Shared/Shared';
+import { NestedListLink } from '../../Shared/Shared';
 
 import { CustomCell, UserRevokeButtonCell } from '../Shared';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
-import { AccessListModified } from '../ViewEditAccessList';
 
 import { EnrollNewMembers } from './EnrollNewMembers';
+
+import type { PagedTableProps } from 'design/DataTable/types';
+import type { AccessListModified } from '../Shared';
+import type { UserOption } from '../../Shared/Shared';
+import type { AccessList } from 'e-teleport/services/accessmanagement';
+import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 
 const genericNoAccessMsg = 'You do not have access to edit members';
 
@@ -31,15 +36,19 @@ export function MembersList({
   userOptions,
   canEditMembers,
   updateAccessList,
+  accessLists,
 }: {
   userOptions: UserOption[];
   canEditMembers: boolean;
-  updateAccessList(accessList: AccessList): void;
+  updateAccessList(accessList: AccessList, members?: AccessListMember[]): void;
   accessList: AccessListModified;
+  accessLists: AccessListWithModifiedGrants[];
 }) {
   const { members } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
-  const [deleteMember, setDeleteMember] = useState<AccessListMember>();
+  const [deleteMember, setDeleteMember] =
+    useState<(typeof accessList)['members'][number]>();
+
   return (
     <>
       <Box>
@@ -57,7 +66,7 @@ export function MembersList({
             mr={0}
           >
             <Add size={16} mr={2} />
-            Enroll New Members
+            Enroll New Members or Access Lists
           </ButtonText>
         </Flex>
       </Box>
@@ -72,6 +81,7 @@ export function MembersList({
           accessList={accessList}
           userOptions={userOptions}
           updateAccessList={updateAccessList}
+          accessLists={accessLists}
         />
       )}
       {deleteMember && (
@@ -79,8 +89,18 @@ export function MembersList({
           onClose={() => setDeleteMember(null)}
           kind="Member"
           username={deleteMember.name}
+          displayName={
+            deleteMember.membershipKind === AccessListMemberKind.List
+              ? deleteMember.title
+              : undefined
+          }
           accessList={accessList}
-          updateAccessList={updateAccessList}
+          updateAccessList={l =>
+            updateAccessList(
+              l,
+              members.filter(m => m !== deleteMember)
+            )
+          }
         />
       )}
     </>
@@ -95,26 +115,84 @@ export const AccessListMemberTable = ({
   hideReasonCol = false,
   isReviewing = false,
 }: {
-  members: AccessListMember[];
+  members: AccessListModified['members'];
   canEditMembers: boolean;
-  onDeleteMember?(m: AccessListMember): void;
+  onDeleteMember?(m: AccessListModified['members'][number]): void;
   hideIneligibleReason?: boolean;
   hideReasonCol?: boolean;
   isReviewing?: boolean;
 }) => {
+  const onClickNestedList = useOnClickNestedList();
+
   return (
     <Table
       data={members}
       columns={[
         {
+          key: 'membershipKind',
+          isSortable: true,
+          headerText: 'Type',
+          onSort: (a, b) => {
+            if (a?.membershipKind === b?.membershipKind) {
+              return 0;
+            }
+            return a?.membershipKind === AccessListMemberKind.List ? -1 : 1;
+          },
+          render: ({ membershipKind, ineligibleReason }) => (
+            <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
+              {membershipKind === AccessListMemberKind.List
+                ? 'Access List'
+                : 'User'}
+            </CustomCell>
+          ),
+        },
+        {
           key: 'name',
           headerText: 'Name',
           isSortable: true,
-          render: ({ name, ineligibleReason }) => (
-            <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
-              {name}
-            </CustomCell>
-          ),
+          render: ({ name, ineligibleReason, title, ...rest }) => {
+            if (rest.membershipKind === AccessListMemberKind.List) {
+              return (
+                <CustomCell
+                  disabled={false}
+                  title={
+                    hideIneligibleReason || rest.accessListExists
+                      ? `View list '${title}'`
+                      : ''
+                  }
+                >
+                  <NestedListLink
+                    title={
+                      hideIneligibleReason || rest.accessListExists
+                        ? `View list '${title}'`
+                        : ''
+                    }
+                    onClick={() => onClickNestedList(name)}
+                    disabled={!hideIneligibleReason && !rest.accessListExists}
+                  >
+                    {title}
+                    {!hideIneligibleReason && !rest.accessListExists && (
+                      <ToolTipInfo
+                        kind="warning"
+                        children={`Insufficient permissions to view list '${title}'`}
+                        css={`
+                          margin-left: 5px;
+                        `}
+                      />
+                    )}
+                  </NestedListLink>
+                </CustomCell>
+              );
+            }
+
+            return (
+              <CustomCell
+                disabled={!hideIneligibleReason && !!ineligibleReason}
+              >
+                {name}
+              </CustomCell>
+            );
+          },
         },
         {
           key: 'addedBy',
@@ -163,9 +241,11 @@ export const AccessListMemberTable = ({
           key: 'expires',
           headerText: 'Expires',
           isSortable: true,
-          render: ({ expires, ineligibleReason }) => (
+          render: ({ expires, ineligibleReason, membershipKind }) => (
             <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
-              {getFormattedDate(expires)}
+              {membershipKind === AccessListMemberKind.List
+                ? ''
+                : getFormattedDate(expires)}
             </CustomCell>
           ),
         },
@@ -191,6 +271,7 @@ export const AccessListMemberTable = ({
         pagerPosition: isReviewing ? 'both' : 'top',
         CustomTable: isReviewing ? CustomTable : undefined,
       }}
+      initialSort={{ key: 'name', dir: 'ASC' }}
     />
   );
 };

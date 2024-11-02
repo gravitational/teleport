@@ -43,8 +43,9 @@ func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httpro
 
 		for _, accessList := range page {
 			accessLists = append(accessLists, &ui.AccessList{
-				AccessList:   accessList,
-				MembersCount: accessList.Status.MemberCount,
+				AccessList:      accessList,
+				MembersCount:    accessList.Status.MemberCount,
+				MemberListCount: accessList.Status.MemberListCount,
 			})
 		}
 
@@ -85,10 +86,18 @@ func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params ht
 		membersSpec = append(membersSpec, member.Spec)
 	}
 
+	inheritedGrants, err := accessListClient.GetInheritedGrants(r.Context(), accessListId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return ui.AccessListResponse{
 		AccessList: &ui.AccessList{
-			AccessList: accessList,
-			Members:    membersSpec,
+			AccessList:            accessList,
+			Members:               membersSpec,
+			MembersCount:          accessList.Status.MemberCount,
+			MemberListCount:       accessList.Status.MemberListCount,
+			InheritedMemberGrants: *inheritedGrants,
 		},
 	}, nil
 }
@@ -248,12 +257,13 @@ func memberToAccessListMember(accessListName string, member accesslist.AccessLis
 			},
 		},
 		Spec: accesslist.AccessListMemberSpec{
-			AccessList: accessListName,
-			Name:       member.Name,
-			Joined:     member.Joined,
-			Expires:    member.Expires,
-			Reason:     member.Reason,
-			AddedBy:    member.AddedBy,
+			AccessList:     accessListName,
+			Name:           member.Name,
+			Joined:         member.Joined,
+			Expires:        member.Expires,
+			Reason:         member.Reason,
+			AddedBy:        member.AddedBy,
+			MembershipKind: member.MembershipKind,
 		},
 	}
 }

@@ -1,8 +1,7 @@
-import React, { useEffect, useState, FormEvent } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLocation, useHistory } from 'react-router';
 import styled from 'styled-components';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { Box, Indicator, Alert, Flex, Button } from 'design';
 import { Notification } from 'shared/components/Notification';
 import {
@@ -10,29 +9,29 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { ApiError } from 'teleport/services/api/parseError';
 import {
   decodeUrlQueryParam,
   encodeUrlQueryParams,
 } from 'teleport/components/hooks/useUrlFiltering';
-import { compareByString } from 'teleport/lib/util';
 import { ShieldCheck } from 'design/Icon';
 
-import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 import useTeleport from 'e-teleport/useTeleportE';
-import {
-  accessManagementService,
-  AccessList,
-  AccessListGrant,
-} from 'e-teleport/services/accessmanagement';
+
 import cfg from 'e-teleport/config';
+import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { updateAccessListsCache } from 'e-teleport/AccessListManagement/Shared/Shared';
 
 import { NoAccessState } from '../NoAccessState';
 import { FeatureLimitBlurb } from '../Shared/FeatureLimitReached';
-import { makeTraitLabel } from '../Traits';
 
 import { EmptyState } from './EmptyState/EmptyState';
 import { AccessCard } from './AccessCard';
+
+import type { Dispatch, SetStateAction, FormEvent } from 'react';
+import type {
+  AccessList,
+  AccessListGrant,
+} from 'e-teleport/services/accessmanagement';
 
 export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
   grants: AccessListGrant & { traitList: string[] };
@@ -42,18 +41,23 @@ export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
 
 export function AccessLists() {
   const ctx = useTeleport();
+  const { attempt, accessLists, processAccessLists } =
+    useAccessListManagementContext();
+
   const history = useHistory();
   const location = useLocation<{
     createdList?: AccessList;
     reviewedAccessList?: AccessList;
     deletedAccessListId?: string;
+    previousPaths?: string[];
   }>();
   const searchParams = new URLSearchParams(location.search);
+  const [searchValue, setSearchValue] = useState(
+    decodeUrlQueryParam(searchParams.get('search') || '')
+  );
 
   const perm = ctx.storeUser.getAccessListAccess();
   const canUpsertAsAdmin = perm.create && perm.edit;
-
-  const { attempt, setAttempt } = useAttempt('processing');
 
   const [notificationItem, setNotificationItem] = useState(() => {
     if (location.state?.reviewedAccessList) {
@@ -65,245 +69,32 @@ export function AccessLists() {
       );
     }
   });
-  const [accesses, setAccesses] = useState<AccessListWithModifiedGrants[]>([]);
-  const [searchValue, setSearchValue] = useState(
-    decodeUrlQueryParam(searchParams.get('search') || '')
-  );
 
   useEffect(() => {
-    setAttempt({ status: 'processing' });
-    accessManagementService
-      .fetchAccessLists()
-      .then(fetchedLists => {
-        setAttempt({ status: 'success' });
-
-        // If a location state was set, user came to this view from
-        // either creating, deleting, or reviewing an access list.
-        // Because of caching, the list from backend won't be updated
-        // right way, so we manually update the list here.
-        const { createdList, reviewedAccessList, deletedAccessListId } =
-          location.state || {};
-        if (createdList) {
-          const foundList = fetchedLists.find(l => l.id === createdList.id);
-          if (!foundList) {
-            fetchedLists.push(createdList);
-          }
-        }
-        if (deletedAccessListId) {
-          fetchedLists = fetchedLists.filter(l => l.id !== deletedAccessListId);
-        }
-        if (reviewedAccessList) {
-          const foundIndex = fetchedLists.findIndex(
-            l => l.id === reviewedAccessList.id
-          );
-          if (
-            foundIndex > -1 &&
-            fetchedLists[foundIndex].audit.nextDate !=
-              reviewedAccessList.audit.nextDate
-          ) {
-            fetchedLists[foundIndex] = reviewedAccessList;
-          }
-        }
-
-        // Clear loc state afterwards but preserving query.
-        history.replace({
-          state: {},
-          pathname: location.pathname,
-          search: location.search,
-        });
-
-        // Update notifications for access lists.
-        ctx.storeNotifications.setNotificationsForAccessListsRequiringReview(
-          fetchedLists,
-          ctx.storeUser.state
-        );
-
-        // Process traits.
-        const todayDate = new Date();
-        const updatedAccessLists = fetchedLists.map(r => {
-          const memberTraitList = [];
-          const memberTraitKeys = Object.keys(r.grants.traits);
-          if (memberTraitKeys.length > 0) {
-            memberTraitKeys.forEach(key => {
-              memberTraitList.push(makeTraitLabel(key, r.grants.traits[key]));
-            });
-          }
-          const ownerTraitList = [];
-          const ownerTraitKeys = Object.keys(r.ownerGrants.traits);
-          if (ownerTraitKeys.length > 0) {
-            ownerTraitKeys.forEach(key => {
-              ownerTraitList.push(
-                makeTraitLabel(key, r.ownerGrants.traits[key])
-              );
-            });
-          }
-          return {
-            ...r,
-            grants: { ...r.grants, traitList: memberTraitList.sort() },
-            ownerGrants: { ...r.ownerGrants, traitList: ownerTraitList.sort() },
-            needsReviewBy: accessListRequiresReview({
-              todayDate,
-              reviewDate: r.audit.nextDate,
-            })
-              ? r.audit.nextDate
-              : null,
-          };
-        });
-        // Sort ascending by display title.
-        updatedAccessLists.sort((a, b) =>
-          compareByString(
-            a.title.toLocaleLowerCase(),
-            b.title.toLocaleLowerCase()
-          )
-        );
-
-        // Sort by required reviews by date.
-        const noReviewsRequired = updatedAccessLists.filter(
-          l => !l.needsReviewBy
-        );
-        const requiresReviewSortedByDate = updatedAccessLists
-          .filter(l => l.needsReviewBy)
-          .sort(
-            (a, b) => a.audit.nextDate.getTime() - b.audit.nextDate.getTime()
-          );
-
-        setAccesses([...requiresReviewSortedByDate, ...noReviewsRequired]);
-      })
-      .catch((e: Error) => {
-        if (e instanceof ApiError) {
-          // If error is of type "access denied",
-          // then the user is neither a member or owner of access lists
-          // or have access_list rbac (aka admin).
-          if (e.response.status === 403) {
-            setAttempt({ status: '' });
-            return;
-          }
-        }
-        setAttempt({ status: 'failed', statusText: e.message });
-      });
-
-    // Static data fetched on init.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // filterAccessLists currently only searchs through access lists
-  // "title" and "description".
-  function filterAccessLists() {
-    if (!searchValue) {
-      return accesses;
+    if (
+      !(
+        location.state?.createdList ||
+        location.state?.reviewedAccessList ||
+        location.state?.deletedAccessListId
+      )
+    ) {
+      return;
     }
-    // Split the search string into separate words
-    // so we can search for each category regardless of order.
-    const splitted = searchValue.split(' ').map(s => s.toLowerCase());
-    const foundResources = accesses.filter(r => {
-      const title = r.title.toLowerCase();
-      const titleMatch = splitted.every(s => title.includes(s));
-      if (titleMatch) {
-        return true;
-      }
 
-      const description = r.description.toLowerCase();
-      const descriptionMatch = splitted.every(s => description.includes(s));
-      if (descriptionMatch) {
-        return true;
-      }
-
-      const strRoles = r.grants.roles.join('').toLowerCase();
-      const rolesMatch = splitted.every(s => strRoles.includes(s));
-      if (rolesMatch) {
-        return true;
-      }
-
-      if (searchValue.toLowerCase().includes('okta') && r.isOkta) {
-        return true;
-      }
-    });
-    return foundResources;
-  }
-
-  function handleOnClickViewAccessList(accessListId: string) {
-    history.push(cfg.getAccessListManagementRoute(accessListId), {
-      previousPath: encodeUrlQueryParams({
-        pathname: location.pathname,
-        searchString: searchValue,
-      }),
-    });
-  }
-
-  function handleOnSubmitSearch(e: FormEvent<HTMLFormElement>) {
-    const { searchValue } = e.target as typeof e.target & {
-      searchValue: { value: string };
-    };
-
-    e.preventDefault(); // prevent form default
-    history.replace(
-      encodeUrlQueryParams({
-        pathname: location.pathname,
-        searchString: searchValue.value,
-      })
+    processAccessLists(lists =>
+      updateAccessListsCache(lists, location.state, history)
     );
-    setSearchValue(searchValue.value);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
-  const filteredAccesses = filterAccessLists();
+  const showCreateBtn =
+    attempt.attempt.status === 'success'
+      ? !!accessLists.length
+      : attempt.attempt.status !== 'processing';
+  const showFeatureHeader =
+    attempt.attempt.status === 'success' ? !!accessLists.length : true;
+  const noPermToCreate = !canUpsertAsAdmin && attempt.attempt.status === '';
 
-  let MainContent: React.ReactElement;
-  let showCreateBtn = true;
-  let showFeatureHeader = true;
-  if (attempt.status === '') {
-    MainContent = <NoAccessState />;
-  } else if (attempt.status === 'processing') {
-    showCreateBtn = false;
-    MainContent = (
-      <Box textAlign="center" m={10}>
-        <Indicator />
-      </Box>
-    );
-  } else if (attempt.status === 'failed') {
-    MainContent = <Alert children={attempt.statusText} />;
-  } else if (attempt.status === 'success' && accesses.length === 0) {
-    MainContent = (
-      <>
-        <EmptyState />
-        {cfg.oss.entitlements.AccessLists.limit !== 0 && (
-          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
-        )}
-      </>
-    );
-    showCreateBtn = false;
-    showFeatureHeader = false;
-  } else {
-    MainContent = (
-      <>
-        <Box width="600px" mb={4}>
-          <InputWrapper onSubmit={handleOnSubmitSearch}>
-            <StyledInput
-              placeholder="Search by title or description"
-              max={100}
-              defaultValue={searchValue}
-              name="searchValue"
-            />
-          </InputWrapper>
-        </Box>
-        <AccessListContainer>
-          {filteredAccesses.length > 0
-            ? filteredAccesses.map(a => (
-                <AccessCard
-                  accessList={a}
-                  key={a.id}
-                  onClick={() => handleOnClickViewAccessList(a.id)}
-                />
-              ))
-            : 'No Access Lists Found'}
-        </AccessListContainer>
-        {cfg.oss.entitlements.AccessLists.limit !== 0 && (
-          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
-        )}
-      </>
-    );
-  }
-
-  const noPermToCreate = !canUpsertAsAdmin && attempt.status === '';
   return (
     <FeatureBox css={{ position: 'relative' }}>
       {showFeatureHeader && (
@@ -318,7 +109,9 @@ export function AccessLists() {
                   ? `Only Teleport administrators can create new Access Lists`
                   : ''
               }
-              disabled={noPermToCreate || attempt.status === 'processing'}
+              disabled={
+                noPermToCreate || attempt.attempt.status === 'processing'
+              }
               width="240px"
               as={Link}
               to={cfg.routes.accessListNew}
@@ -328,10 +121,172 @@ export function AccessLists() {
           )}
         </FeatureHeader>
       )}
-      <Box>{MainContent}</Box>
+      <Box>
+        <MainContent
+          attempt={attempt.attempt}
+          accessLists={accessLists}
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+      </Box>
       {notificationItem}
     </FeatureBox>
   );
+}
+
+const MainContent = ({
+  attempt,
+  accessLists,
+  searchValue,
+  setSearchValue,
+}: {
+  attempt: ReturnType<
+    typeof useAccessListManagementContext
+  >['attempt']['attempt'];
+  accessLists: ReturnType<typeof useAccessListManagementContext>['accessLists'];
+  searchValue: string;
+  setSearchValue: Dispatch<SetStateAction<string>>;
+}) => {
+  const history = useHistory();
+
+  if (attempt.status === '') {
+    return <NoAccessState />;
+  }
+  if (attempt.status === 'processing') {
+    return (
+      <Box textAlign="center" m={10}>
+        <Indicator />
+      </Box>
+    );
+  }
+  if (attempt.status === 'failed') {
+    return <Alert children={attempt.statusText} />;
+  }
+  if (attempt.status !== 'success') {
+    return null;
+  }
+  if (accessLists.length === 0) {
+    return (
+      <>
+        <EmptyState />
+        {cfg.oss.entitlements.AccessLists.limit !== 0 && (
+          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
+        )}
+      </>
+    );
+  }
+
+  const filteredAccesses = filterAccessLists(accessLists, searchValue);
+
+  return (
+    <>
+      <Box width="600px" mb={4}>
+        <InputWrapper
+          onSubmit={e => handleOnSubmitSearch(e, history, setSearchValue)}
+        >
+          <StyledInput
+            placeholder="Search by title or description"
+            max={100}
+            defaultValue={searchValue}
+            name="searchValue"
+          />
+        </InputWrapper>
+      </Box>
+      <AccessListContainer>
+        {filteredAccesses.length > 0
+          ? filteredAccesses.map(a => (
+              <AccessCard
+                accessList={a}
+                key={a.id}
+                onClick={() =>
+                  handleOnClickViewAccessList(history, searchValue, a.id)
+                }
+              />
+            ))
+          : 'No Access Lists Found'}
+      </AccessListContainer>
+      {cfg.oss.entitlements.AccessLists.limit !== 0 && (
+        <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
+      )}
+    </>
+  );
+};
+
+const handleOnClickViewAccessList = (
+  history: ReturnType<typeof useHistory>,
+  searchValue: string,
+  accessListId: string
+) => {
+  history.push(cfg.getAccessListManagementRoute(accessListId), {
+    previousPaths: [
+      encodeUrlQueryParams({
+        pathname: location.pathname,
+        searchString: searchValue,
+      }),
+    ],
+  });
+};
+
+const handleOnSubmitSearch = (
+  e: FormEvent<HTMLFormElement>,
+  history: ReturnType<typeof useHistory>,
+  setSearchValue: Dispatch<SetStateAction<string>>
+) => {
+  const { searchValue } = e.target as typeof e.target & {
+    searchValue: { value: string };
+  };
+
+  e.preventDefault();
+  history.replace(
+    encodeUrlQueryParams({
+      pathname: location.pathname,
+      searchString: searchValue.value,
+    })
+  );
+  setSearchValue(searchValue.value);
+};
+
+// filterAccessLists currently only searches through access lists
+// "title" and "description".
+function filterAccessLists(
+  lists: ReturnType<typeof useAccessListManagementContext>['accessLists'],
+  searchValue: string
+) {
+  if (!searchValue?.trim()) {
+    return lists;
+  }
+  // Split the search string into separate words
+  // so we can search for each category regardless of order.
+  const split = searchValue.split(' ').map(s => s.toLowerCase());
+  return lists.filter(r => {
+    const title = r.title.toLowerCase();
+    const titleMatch = split.every(s => title.includes(s));
+    if (titleMatch) {
+      return true;
+    }
+
+    const description = r.description.toLowerCase();
+    const descriptionMatch = split.every(s => description.includes(s));
+    if (descriptionMatch) {
+      return true;
+    }
+
+    const owners = r.owners.map(o => o.name.toLowerCase());
+    const ownerMatch = split.every(s => owners.includes(s));
+    if (ownerMatch) {
+      return true;
+    }
+
+    const strRoles = r.grants.roles.join('').toLowerCase();
+    const rolesMatch = split.every(s => strRoles.includes(s));
+    if (rolesMatch) {
+      return true;
+    }
+
+    if (searchValue.toLowerCase().includes('okta') && r.isOkta) {
+      return true;
+    }
+  });
 }
 
 const NotificationContainer = styled.div`

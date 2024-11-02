@@ -17,6 +17,11 @@ type AccessList struct {
 	// to list members (eg: a user can read access list that
 	// they are a member of but not other members).
 	MembersCount *uint32 `json:"membersCount"`
+	// MemberListCount is the number of members of list type in the access list.
+	MemberListCount *uint32 `json:"memberListCount"`
+
+	// InheritedMemberGrants is a list of inherited member grants from nested access lists.
+	InheritedMemberGrants accesslist.Grants `json:"inherited_member_grants"`
 }
 
 // AccessListResponse is a UI representation of an access list response.

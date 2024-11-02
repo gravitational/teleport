@@ -1,4 +1,5 @@
 import {
+  AccessListMemberKind,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
@@ -8,7 +9,10 @@ import {
   getReviewFrequencyOption,
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 
-import { AccessListModified } from '../ViewEditAccessList';
+import {
+  AccessListModified,
+  AccessListWithNestedOwnersMembersTitles,
+} from '../Shared';
 
 import { getEditedAccessListFields } from './ReviewAccessList';
 
@@ -133,30 +137,38 @@ test('getEditedAccessListFields: one of each field edited: membership roles and 
 const deleteMembers = [
   {
     name: 'donkey',
+    title: 'donkey',
     joined: new Date(),
     addedBy: 'some-owner',
+    membershipKind: AccessListMemberKind.User,
   },
   {
     name: 'shrek',
+    title: 'shrek',
     joined: new Date(),
     addedBy: 'fiona',
+    membershipKind: AccessListMemberKind.User,
   },
-];
+] satisfies AccessListWithNestedOwnersMembersTitles['members'];
 
 const keepMembers = [
   {
     name: 'alpaca',
+    title: 'alpaca',
     joined: new Date(),
     addedBy: 'lisa',
     ineligibleReason: 'should not show up',
+    membershipKind: AccessListMemberKind.User,
   },
   {
     name: 'llama',
+    title: 'llama',
     joined: new Date(),
     addedBy: 'lisa',
     ineligibleReason: 'should not show up',
+    membershipKind: AccessListMemberKind.User,
   },
-];
+] satisfies AccessListWithNestedOwnersMembersTitles['members'];
 
 const mockAccessList: AccessListModified = {
   id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',
@@ -188,7 +200,14 @@ const mockAccessList: AccessListModified = {
     traits: { holiday: ['christmas'] },
     ...convertToTraitConvenience({ holiday: ['christmas'] }),
   },
-  owners: [{ name: 'some-owner' }],
+  owners: [
+    {
+      name: 'some-owner',
+      title: 'some-owner',
+      membershipKind: AccessListMemberKind.User,
+    },
+  ],
   members: [...keepMembers, ...deleteMembers],
   requiresReview: true,
+  inheritedMemberGrants: { roles: [], traits: {} },
 };

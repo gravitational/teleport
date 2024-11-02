@@ -16,11 +16,13 @@ import { DeleteMemberWarning } from '../DeleteUserConfirmDialog';
 import { List } from './Shared';
 import { getMembersDeleted } from './utils';
 
+import type { AccessListWithNestedOwnersMembersTitles } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+
 export type Grant = Omit<TraitConvenience, 'traitList'> &
   Omit<AccessListGrant, 'traits'>;
 
 type Props = {
-  editedMembers: AccessListMember[];
+  editedMembers: AccessListWithNestedOwnersMembersTitles['members'];
   onDeleteMember(member: AccessListMember): void;
   originalMembers: AccessListMember[];
   isOkta: boolean;

@@ -1,13 +1,15 @@
 import React, { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
+import { getAcl } from 'teleport/mocks/contexts';
 
 import { StoryObj } from '@storybook/react';
 
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 
 import { CreateAccessList } from './CreateAccessList';
 
@@ -36,6 +38,12 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
+        http.get(cfg.oss.getListRolesUrl(), () => {
+          return HttpResponse.json([]);
+        }),
+        http.get(cfg.oss.api.usersPath, () => {
+          return HttpResponse.json([]);
+        }),
         http.get(cfg.getAccessManagementListUrl(), () => {
           return HttpResponse.json(
             {
@@ -148,11 +156,15 @@ export const LoadedReachedLimit: StoryObj = {
 };
 
 const Provider = props => {
-  const ctx = createTeleportContext({ customAcl: props.customAcl });
+  const ctx = createTeleportContextE({ customAcl: props.customAcl });
 
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>{props.children}</ContextProvider>
+      <ContextProvider ctx={ctx}>
+        <AccessListManagementContextProvider>
+          {props.children}
+        </AccessListManagementContextProvider>
+      </ContextProvider>
     </MemoryRouter>
   );
 };

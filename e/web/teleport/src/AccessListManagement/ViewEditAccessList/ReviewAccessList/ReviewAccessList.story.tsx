@@ -5,14 +5,16 @@ import { MemoryRouter } from 'react-router';
 import { Option } from 'shared/components/Select';
 
 import {
+  AccessListMemberKind,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
 
 import { convertToTraitConvenience } from '../../Traits';
-import { AccessListModified } from '../ViewEditAccessList';
 
 import { ReviewAccessList } from './ReviewAccessList';
+
+import type { AccessListModified } from '../Shared';
 
 export default {
   title: 'TeleportE/AccessLists/Review',
@@ -113,32 +115,47 @@ const mockAccessListFull: AccessListModified = {
     traits: { holiday: ['christmas'] },
     ...convertToTraitConvenience({ holiday: ['christmas'] }),
   },
-  owners: [{ name: 'some-owner' }],
+  owners: [
+    {
+      name: 'some-owner',
+      title: 'owner',
+      membershipKind: AccessListMemberKind.User,
+    },
+  ],
   members: [
     {
       name: 'alpaca',
+      title: 'alpaca',
       joined: new Date(),
       addedBy: 'lisa',
       ineligibleReason: 'should not show up',
+      membershipKind: AccessListMemberKind.User,
     },
     {
       name: 'llama',
+      title: 'llama',
       joined: new Date(),
       addedBy: 'lisa',
       ineligibleReason: 'should not show up',
+      membershipKind: AccessListMemberKind.User,
     },
     {
       name: 'donkey',
+      title: 'donkey',
       joined: new Date(),
       addedBy: 'some-owner',
+      membershipKind: AccessListMemberKind.User,
     },
     {
       name: 'shrek',
+      title: 'shrek',
       joined: new Date(),
       addedBy: 'fiona',
+      membershipKind: AccessListMemberKind.User,
     },
   ],
   requiresReview: true,
+  inheritedMemberGrants: { roles: [], traits: {} },
 };
 
 const mockAccessListSparse: AccessListModified = {
@@ -163,6 +180,7 @@ const mockAccessListSparse: AccessListModified = {
     traitList: [],
   },
   requiresReview: true,
+  inheritedMemberGrants: { roles: [], traits: {} },
 };
 
 const mockRoleOptions: Option[] = [

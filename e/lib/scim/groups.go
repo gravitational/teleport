@@ -434,18 +434,45 @@ func (gh *groupHandler) loadAccessList(ctx context.Context, shim providerShim, i
 }
 
 func (gh *groupHandler) loadAccessListMembers(ctx context.Context, acl *accesslist.AccessList) ([]*accesslist.AccessListMember, error) {
+	return gh.loadAccessListMembersRecurse(ctx, acl.GetName(), 0)
+}
+
+func (gh *groupHandler) loadAccessListMembersRecurse(ctx context.Context, accessListName string, depth int32) ([]*accesslist.AccessListMember, error) {
+	if depth > accesslist.MaxAllowedDepth {
+		return nil, nil
+	}
+
 	nextPage := ""
 	var err error
 	members := []*accesslist.AccessListMember{}
+
 	for {
 		var page []*accesslist.AccessListMember
-
-		page, nextPage, err = gh.accessLists.ListAccessListMembers(ctx, acl.GetName(), 0, nextPage)
+		page, nextPage, err = gh.accessLists.ListAccessListMembers(ctx, accessListName, 0, nextPage)
 		if err != nil {
 			return nil, trace.Wrap(err, "enumerating access list members")
 		}
 
-		members = append(members, page...)
+		for _, member := range page {
+			// recursively fetch members if the member is of type list
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				nestedList, err := gh.accessLists.GetAccessList(ctx, member.GetName())
+				if err != nil {
+					return nil, trace.Wrap(err, "loading nested list")
+				}
+				nestedMembers, err := gh.loadAccessListMembersRecurse(ctx, nestedList.GetName(), depth+1)
+				if err != nil {
+					return nil, trace.Wrap(err, "loading members of nested list")
+				}
+				// don't append nil slices if depth is exceeded
+				if nestedMembers != nil {
+					members = append(members, nestedMembers...)
+				}
+			} else {
+				members = append(members, member)
+			}
+		}
+
 		if nextPage == "" {
 			break
 		}

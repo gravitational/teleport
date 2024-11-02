@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import Dialog, {
@@ -14,7 +14,11 @@ import {
   AccessList,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
-import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
+import {
+  EditKind,
+  fetchAndProcessSelectedRoles,
+  rolesContainDenyRules,
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 import { EligibilityOrGrantRolesFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import {
   TraitConvenience,
@@ -23,7 +27,8 @@ import {
   convertTraitLabelsToAllUserTraits,
 } from 'e-teleport/AccessListManagement/Traits';
 
-import { AccessListModified } from '../ViewEditAccessList';
+import type { AccessListModified } from '../Shared';
+import type { Role } from 'teleport/services/resources';
 
 type Props = {
   onClose(): void;
@@ -57,6 +62,8 @@ export function EditEligibilityOrGrantRoles({
     trait.traitLabels
   );
   const [selectedRoles, setSelectedRoles] = useState<Option[]>([]);
+  const processedRolesFetchAttempt = useAttempt('');
+  const [processedRoles, setProcessedRoles] = useState<Role[]>([]);
 
   useEffect(() => {
     let selectedRoles = existingRoles.map(r => ({
@@ -66,6 +73,28 @@ export function EditEligibilityOrGrantRoles({
 
     setSelectedRoles(selectedRoles);
   }, []);
+
+  useEffect(() => {
+    if (
+      !['Grants', 'OwnerGrants'].includes(editKind) ||
+      processedRolesFetchAttempt.attempt.status === 'processing'
+    ) {
+      return;
+    }
+    if (!selectedRoles?.length) {
+      setProcessedRoles([]);
+      return;
+    }
+
+    fetchAndProcessSelectedRoles(processedRolesFetchAttempt, selectedRoles)
+      .then(setProcessedRoles)
+      .catch(() => setProcessedRoles([]));
+  }, [selectedRoles]);
+
+  const selectedRolesContainDenyRules = useMemo(
+    () => rolesContainDenyRules(processedRoles),
+    [processedRoles]
+  );
 
   function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {
@@ -132,9 +161,11 @@ export function EditEligibilityOrGrantRoles({
             <DialogTitle>{dialogTitle}</DialogTitle>
           </DialogHeader>
           <DialogContent>
-            {attempt.status === 'failed' && (
+            {attempt.status === 'failed' ? (
               <Alert kind="danger" children={attempt.statusText} />
-            )}
+            ) : selectedRolesContainDenyRules ? (
+              <Alert kind="warning" children={selectedRolesContainDenyRules} />
+            ) : null}
             <EligibilityOrGrantRolesFieldSelectAndCreate
               loadOptions={fetchRoleOptions}
               isDisabled={attempt.status === 'processing'}

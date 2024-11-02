@@ -12,6 +12,8 @@ import { http, HttpResponse } from 'msw';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import cfg from 'e-teleport/config';
 
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+
 import { AccessLists } from './AccessLists';
 
 const defaultIsEnterprise = cfg.oss.isEnterprise;
@@ -180,7 +182,11 @@ const Provider = props => {
 
   return (
     <MemoryRouter>
-      <ContextProvider ctx={ctx}>{props.children}</ContextProvider>
+      <ContextProvider ctx={ctx}>
+        <AccessListManagementContextProvider>
+          {props.children}
+        </AccessListManagementContextProvider>
+      </ContextProvider>
     </MemoryRouter>
   );
 };

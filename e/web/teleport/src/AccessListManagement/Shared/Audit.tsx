@@ -133,11 +133,17 @@ export const CalendarDateSelect = ({
       <CalendarInput
         hasError={hasError}
         onClick={() => setShowDatePicker(true)}
+        onKeyUp={e => {
+          if (e.key === 'Enter') {
+            setShowDatePicker(!showDatePicker);
+          }
+        }}
         alignItems="center"
         justifyContent="space-between"
         px={2}
         borderRadius={2}
         dateSelected={Boolean(date)}
+        tabIndex={0}
       >
         <Box>{validDate ? displayDate(date) : 'Select a Date'}</Box>
         <CalendarIcon />
@@ -156,6 +162,8 @@ export const CalendarDateSelect = ({
   );
 };
 
+// TODO(kiosion): Should be an HTMLButtonElement instead of a div,
+// this is not currently accessible.
 const CalendarInput = styled(Flex)<{
   dateSelected?: boolean;
   hasError?: boolean;
@@ -164,9 +172,16 @@ const CalendarInput = styled(Flex)<{
   height: 40px;
   border: 1px solid ${p => p.theme.colors.text.muted};
   cursor: pointer;
-  &:hover {
+
+  &:hover,
+  &:focus-visible {
     background-color: ${p => p.theme.colors.spotBackground[0]};
     border: 1px solid ${p => p.theme.colors.text.slightlyMuted};
+  }
+
+  &:focus-visible {
+    border: 1px solid ${p => p.theme.colors.brand};
+    outline: none;
   }
 
   ${({ hasError, theme }) => {

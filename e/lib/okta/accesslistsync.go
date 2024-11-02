@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -199,6 +200,10 @@ type accessListSync struct {
 	access      services.Access
 	accessLists services.AccessLists
 
+	oktaUsers       map[userName]oktaUserID
+	oktaUserMapping map[oktaUserID]userName
+	oktaUsersMu     sync.Mutex
+
 	// getters to retrieve the synchronized apps and groups to import.
 	appsGetter   func() map[string]types.Application
 	groupsGetter func() map[string]types.UserGroup
@@ -358,6 +363,36 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	return trace.NewAggregate(alErr, memberErr, roleErr)
 }
 
+// loadOktaUsers will load the Okta users and build a reverse mapping from user IDs to usernames,
+// if not already loaded. Caller requires a lock on oktaUsersMu.
+func (a *accessListSync) loadOktaUsers(ctx context.Context) error {
+	// Check if Okta users are already loaded.
+	if a.oktaUsers != nil && a.oktaUserMapping != nil {
+		return nil
+	}
+	a.logger.InfoContext(ctx, "Loading Okta users")
+
+	oktaUsers, err := a.client.ListUsers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	a.oktaUsers = oktaUsers
+
+	// Build reverse mapping from user IDs to usernames.
+	a.oktaUserMapping = make(map[oktaUserID]userName, len(oktaUsers))
+	for name, id := range oktaUsers {
+		a.oktaUserMapping[id] = name
+	}
+
+	return nil
+}
+
+// clearLoadedOktaUsers will clear the loaded Okta users and user mapping. Caller requires a lock on oktaUsersMu.
+func (a *accessListSync) clearLoadedOktaUsers() {
+	a.oktaUsers = nil
+	a.oktaUserMapping = nil
+}
+
 // startSync will start the access list synchronizer.
 func (a *accessListSync) startSync(ctx context.Context) {
 	a.logger.InfoContext(ctx, "Starting Okta access list synchronizer")
@@ -411,55 +446,43 @@ func (a *accessListSync) startSync(ctx context.Context) {
 // refreshCurrentImports will seed the current import maps with what's currently reflected
 // in the backend.
 func (a *accessListSync) refreshCurrentImports(ctx context.Context) error {
+	a.oktaUsersMu.Lock()
+	defer a.oktaUsersMu.Unlock()
+
+	// Load Okta users if not already loaded.
+	if err := a.loadOktaUsers(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Make sure we only refresh imports that we should be reconciling.
 	match := MatchByLabels[types.Resource](a.orgURL)
 
+	// Get all access lists.
+	allAccessLists, err := a.accessLists.GetAccessLists(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Get new matching access lists.
-	accessLists := map[string]*accesslist.AccessList{}
-	var nextToken string
-	for {
-		var page []*accesslist.AccessList
-		var err error
-		page, nextToken, err = a.accessLists.ListAccessLists(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			// If we get access denied here, it's possible that there are no current imports. We'll
-			// Try to keep going and synchronize.
-			if trace.IsAccessDenied(err) {
-				break
-			}
-			return trace.Wrap(err)
-		}
-
-		for _, accessList := range page {
-			if match(accessList) {
-				accessLists[accessList.GetName()] = accessList
-			}
-		}
-
-		if nextToken == "" {
-			break
+	matchingAccessLists := make(map[string]*accesslist.AccessList)
+	for _, accessList := range allAccessLists {
+		if match(accessList) {
+			matchingAccessLists[accessList.GetName()] = accessList
 		}
 	}
 
 	// Using those access lists, get the related access list members.
 	accessListMembers := map[string]*accesslist.AccessListMember{}
-	for _, accessList := range accessLists {
-		for {
-			var page []*accesslist.AccessListMember
-			var err error
-			page, nextToken, err = a.accessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* page size */, nextToken)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+	for _, accessList := range matchingAccessLists {
+		members, err := a.getAndProcessMembers(ctx, accessList.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-			for _, member := range page {
-				if match(member) {
-					accessListMembers[memberMapKey(member)] = member
-				}
-			}
-
-			if nextToken == "" {
-				break
+		// Match and store the members after fetching all recursively
+		for _, member := range members {
+			if match(member) {
+				accessListMembers[memberMapKey(member)] = member
 			}
 		}
 	}
@@ -478,11 +501,57 @@ func (a *accessListSync) refreshCurrentImports(ctx context.Context) error {
 	}
 
 	// Refresh the currently known resources.
-	a.importAccessLists.Set(accessLists)
+	a.importAccessLists.Set(matchingAccessLists)
 	a.importAccessListMembers.Set(accessListMembers)
 	a.importRoles.Set(roles)
 
 	return nil
+}
+
+func (a *accessListSync) getAndProcessMembers(ctx context.Context, accessListName string) ([]*accesslist.AccessListMember, error) {
+	allMembers, err := accesslists.GetMembersFor(ctx, accessListName, a.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Use a map to deduplicate members.
+	memberMap := make(map[string]*accesslist.AccessListMember)
+	for _, member := range allMembers {
+		a.processMember(member, accessListName)
+		key := memberMapKey(member)
+		if _, exists := memberMap[key]; !exists {
+			memberMap[key] = member
+		}
+	}
+	members := make([]*accesslist.AccessListMember, 0, len(memberMap))
+	for _, member := range memberMap {
+		members = append(members, member)
+	}
+
+	return members, nil
+}
+
+func (a *accessListSync) processMember(member *accesslist.AccessListMember, accessListName string) {
+	// Check if the member exists in Okta users
+	if a.oktaUsers != nil {
+		// If the member exists in oktaUsers and has no origin set, artificially set it.
+		// This avoids upserting the member to the root access list on reconciliation.
+		if _, ok := a.oktaUsers[userName(member.Spec.Name)]; ok {
+			if _, labelOk := member.Metadata.Labels[types.OriginLabel]; !labelOk {
+				if member.Metadata.Labels == nil {
+					member.Metadata.Labels = map[string]string{}
+				}
+				member.Metadata.Labels[types.OriginLabel] = types.OriginOkta
+				member.Metadata.Labels[eteleport.OktaOrgURLLabel] = a.orgURL
+			}
+		}
+	}
+
+	// If the member is from a nested list, set Spec.AccessList to the root list.
+	// This avoids the member being added as a duplicate to the root list.
+	if member.Spec.AccessList != accessListName {
+		member.Spec.AccessList = accessListName
+	}
 }
 
 // clearNewImports will clear all of the existing newImport maps.
@@ -525,15 +594,14 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 		a.convertAccessListMetadata(convertContext, importCh)
 	}()
 
-	userNameToIDMapping, err := a.client.ListUsers(ctx)
-	if err != nil {
+	a.oktaUsersMu.Lock()
+	defer a.oktaUsersMu.Unlock()
+
+	// Load Okta users if not already loaded.
+	if err := a.loadOktaUsers(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	// We need the opposite relation for this sync.
-	userMapping := make(map[oktaUserID]userName, len(userNameToIDMapping))
-	for k, v := range userNameToIDMapping {
-		userMapping[v] = k
-	}
+	userMapping := a.oktaUserMapping
 
 	appMapping := map[string]types.Application{}
 	for _, app := range apps {
@@ -561,7 +629,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	})
 
 	// Wait for the importing to finish and for all the existing metadata to be processed.
-	err = eg.Wait()
+	err := eg.Wait()
 	close(importCh)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Access List import will be skipped due Okta API error", "error", err)
@@ -581,6 +649,9 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 	reconcileErr := a.reconcileAll(ctx)
 
 	a.emitAccessListSyncEvent(ctx, reconcileErr)
+
+	// Clear the cached Okta users so we have an up-to-date list next cycle.
+	a.clearLoadedOktaUsers()
 
 	return trace.Wrap(reconcileErr)
 }
@@ -967,10 +1038,11 @@ func (a *accessListSync) metadataToImportResources(irMetadata importResourceMeta
 			Name:   string(memberName),
 			Labels: labels,
 		}, accesslist.AccessListMemberSpec{
-			AccessList: accessList.GetName(),
-			Name:       string(memberName),
-			Joined:     a.clock.Now(),
-			AddedBy:    ImporterName,
+			AccessList:     accessList.GetName(),
+			Name:           string(memberName),
+			Joined:         a.clock.Now(),
+			AddedBy:        ImporterName,
+			MembershipKind: accesslist.MembershipKindUser,
 		})
 		if err != nil {
 			return nil, nil, nil, trace.Wrap(err)

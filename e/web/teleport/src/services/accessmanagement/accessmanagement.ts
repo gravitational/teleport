@@ -23,9 +23,9 @@ export const accessManagementService = {
       .get(cfg.getAccessListSuggestionsUrl(accessRequestId))
       .then(resp => makeAccessLists(resp.accessLists));
   },
-  fetchAccessLists(): Promise<AccessList[]> {
+  fetchAccessLists(abortSignal?: AbortSignal): Promise<AccessList[]> {
     return api
-      .get(cfg.getAccessManagementListUrl())
+      .get(cfg.getAccessManagementListUrl(), abortSignal)
       .then(resp => makeAccessLists(resp.accessLists));
   },
   fetchAccessList(accessListId: string): Promise<AccessList> {
@@ -115,6 +115,7 @@ export const accessManagementService = {
             expires: m.expires,
             reason: m.reason,
             added_by: m.addedBy,
+            membership_kind: m.membershipKind,
           }))
         : original.members.map(m => ({
             name: m.name,
@@ -122,15 +123,18 @@ export const accessManagementService = {
             expires: m.expires,
             reason: m.reason,
             added_by: m.addedBy,
+            membership_kind: m.membershipKind,
           })),
       owners: req.owners
         ? req.owners.map(o => ({
             name: o.name,
             description: o.description,
+            membership_kind: o.membershipKind,
           }))
         : original.owners.map(o => ({
             name: o.name,
             description: o.description,
+            membership_kind: o.membershipKind,
           })),
       membership_requires: req.membershipRequires
         ? {
@@ -177,6 +181,7 @@ function makeAccessList(json: any): AccessList {
     owners: makeOwners(spec.owners),
     members: makeMembers(json?.members),
     membersCount: json?.membersCount,
+    memberListCount: json?.memberListCount,
     grants: {
       roles: spec.grants?.roles?.sort() || [],
       traits: makeTraits(spec.grants?.traits),
@@ -201,6 +206,10 @@ function makeAccessList(json: any): AccessList {
     membershipRequires: {
       roles: spec.membership_requires?.roles?.sort() || [],
       traits: spec.membership_requires?.traits || {},
+    },
+    inheritedMemberGrants: {
+      roles: json?.inherited_member_grants?.roles || [],
+      traits: makeTraits(json?.inherited_member_grants?.traits),
     },
   };
 }
@@ -230,6 +239,7 @@ function makeMembers(json: any): AccessListMember[] {
       joined: new Date(m.joined),
       expires: new Date(m.expires),
       ineligibleReason: getIneligibleReason(m.ineligible_status),
+      membershipKind: m.membership_kind,
     };
   });
 }
@@ -243,6 +253,7 @@ function makeOwners(json: any): AccessListOwner[] {
       name: o.name,
       description: o.description,
       ineligibleReason: getIneligibleReason(o.ineligible_status),
+      membershipKind: o.membership_kind,
     };
   });
 }

@@ -6,10 +6,36 @@ import {
   FieldSelectCreatableAsync,
 } from 'shared/components/FieldSelect/FieldSelectCreatable';
 
+import styled from 'styled-components';
+
+import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
+
 import {
-  EditKind,
-  HybridUserOption,
-} from 'e-teleport/AccessListManagement/Shared/Shared';
+  ReactSelectAccessListMultiValue,
+  ReactSelectAccessListOption,
+} from '../Shared/Shared';
+
+import type { AccessList } from 'e-teleport/services/accessmanagement';
+import type { EditKind, HybridUserOption } from '../Shared/Shared';
+
+export function convertAccessListsToUserOptions(
+  acls: AccessList[],
+  existingUsers: HybridUserOption[]
+) {
+  return acls
+    .filter(l => existingUsers.every(m => m.value.name !== l.id))
+    .map(
+      x =>
+        ({
+          label: x.title,
+          value: {
+            name: x.id,
+            membershipKind: AccessListMemberKind.List,
+            roles: [],
+          },
+        }) satisfies HybridUserOption
+    );
+}
 
 export function EligibilityOrGrantRolesFieldSelectAndCreate({
   loadOptions,
@@ -56,7 +82,21 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
   );
 }
 
-export function EligibleUsersFieldSelectAndCreate<T = HybridUserOption>({
+// Used for consistent spacing between selected items and the container border
+// when line-wrapping occurs.
+const FieldSelectCreatableWrapper = styled.div`
+  display: contents;
+
+  .react-select__value-container {
+    margin: ${p => p.theme.space[1]}px 0;
+  }
+  .react-select__input-container {
+    margin: 0;
+    padding: 0 calc(${p => p.theme.space[1]}px / 2);
+  }
+`;
+
+export function EligibleUsersFieldSelectAndCreate<T extends HybridUserOption>({
   selected,
   isDisabled,
   onChange,
@@ -80,23 +120,30 @@ export function EligibleUsersFieldSelectAndCreate<T = HybridUserOption>({
   // If a user had no access to list users,
   // then we can't calculate eligible users.
   if (noEligibleUsersFromNoAccess) {
-    noOptionsMsg = 'Start typing a username and press enter';
+    noOptionsMsg =
+      'Start typing a username or an Access List name and press enter';
   }
   return (
-    <FieldSelectCreatable
-      label={label}
-      value={selected}
-      rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
-      menuPosition="fixed"
-      autoFocus={autoFocus}
-      classNamePrefix="react-select"
-      placeholder="Start typing a username and press enter"
-      isMulti={true}
-      isClearable={true}
-      isDisabled={isDisabled}
-      onChange={onChange}
-      options={options}
-      noOptionsMessage={() => noOptionsMsg}
-    />
+    <FieldSelectCreatableWrapper>
+      <FieldSelectCreatable
+        label={label}
+        value={selected}
+        rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
+        menuPosition="fixed"
+        autoFocus={autoFocus}
+        classNamePrefix="react-select"
+        placeholder="Start typing a username or an Access List name and press enter"
+        isMulti={true}
+        isClearable={true}
+        isDisabled={isDisabled}
+        onChange={onChange}
+        options={options}
+        noOptionsMessage={() => noOptionsMsg}
+        components={{
+          Option: ReactSelectAccessListOption,
+          MultiValue: ReactSelectAccessListMultiValue,
+        }}
+      />
+    </FieldSelectCreatableWrapper>
   );
 }

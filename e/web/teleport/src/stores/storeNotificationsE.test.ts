@@ -3,6 +3,7 @@ import { Access, makeUserContext } from 'teleport/services/user';
 
 import {
   AccessList,
+  AccessListMemberKind,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
@@ -221,13 +222,14 @@ const dueToday: AccessList = {
   grants: { roles: [], traits: {} },
   ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
-  owners: [{ name: 'alpaca' }],
+  owners: [{ name: 'alpaca', membershipKind: AccessListMemberKind.User }],
+  inheritedMemberGrants: { roles: [], traits: {} },
 };
 
 const dueTodayButNotAnOwner: AccessList = {
   ...dueToday,
   id: 'due-today-but-not-an-owner',
-  owners: [{ name: 'random' }],
+  owners: [{ name: 'random', membershipKind: AccessListMemberKind.User }],
 };
 
 const pastDue: AccessList = {
@@ -243,7 +245,8 @@ const pastDue: AccessList = {
   grants: { roles: [], traits: {} },
   ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
-  owners: [{ name: 'apple' }],
+  owners: [{ name: 'apple', membershipKind: AccessListMemberKind.User }],
+  inheritedMemberGrants: { roles: [], traits: {} },
 };
 
 const dueInOneWeek: AccessList = {
@@ -259,7 +262,11 @@ const dueInOneWeek: AccessList = {
   grants: { roles: [], traits: {} },
   ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
-  owners: [{ name: 'alpaca' }, { name: 'llama' }],
+  owners: [
+    { name: 'alpaca', membershipKind: AccessListMemberKind.User },
+    { name: 'llama', membershipKind: AccessListMemberKind.User },
+  ],
+  inheritedMemberGrants: { roles: [], traits: {} },
 };
 
 const dueInTwoWeeks: AccessList = {
@@ -275,7 +282,11 @@ const dueInTwoWeeks: AccessList = {
   grants: { roles: [], traits: {} },
   ownerGrants: { roles: [], traits: {} },
   ownershipRequires: { roles: [], traits: {} },
-  owners: [{ name: 'alpaca' }, { name: 'llama' }],
+  owners: [
+    { name: 'alpaca', membershipKind: AccessListMemberKind.User },
+    { name: 'llama', membershipKind: AccessListMemberKind.User },
+  ],
+  inheritedMemberGrants: { roles: [], traits: {} },
 };
 
 const mocks: AccessList[] = [
@@ -293,7 +304,11 @@ const mocks: AccessList[] = [
     grants: { roles: [], traits: {} },
     ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
-    owners: [{ name: 'alpaca' }, { name: 'llama' }],
+    owners: [
+      { name: 'alpaca', membershipKind: AccessListMemberKind.User },
+      { name: 'llama', membershipKind: AccessListMemberKind.User },
+    ],
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   dueToday,
   pastDue,
@@ -311,6 +326,7 @@ const mocks: AccessList[] = [
     ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
     owners: [],
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   dueInOneWeek,
 ];
@@ -330,7 +346,8 @@ const mocksForLlama: AccessList[] = [
     grants: { roles: [], traits: {} },
     ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
-    owners: [{ name: 'llama' }],
+    owners: [{ name: 'llama', membershipKind: AccessListMemberKind.User }],
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   dueInTwoWeeks,
   {
@@ -346,7 +363,8 @@ const mocksForLlama: AccessList[] = [
     grants: { roles: [], traits: {} },
     ownerGrants: { roles: [], traits: {} },
     ownershipRequires: { roles: [], traits: {} },
-    owners: [{ name: 'llama' }],
+    owners: [{ name: 'llama', membershipKind: AccessListMemberKind.User }],
+    inheritedMemberGrants: { roles: [], traits: {} },
   },
   dueInOneWeek,
 ];

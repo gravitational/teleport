@@ -2,7 +2,9 @@ import React from 'react';
 import { format } from 'date-fns';
 import styled from 'styled-components';
 import { Flex, Box, Text } from 'design';
-import { User } from 'design/Icon';
+import { User, UserList } from 'design/Icon';
+
+import { pluralize } from 'shared/utils/text';
 
 import { HoverTooltip } from 'shared/components/ToolTip';
 
@@ -27,6 +29,7 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
     title,
     description,
     membersCount,
+    memberListCount,
     grants,
     needsReviewBy,
     isOkta,
@@ -66,19 +69,31 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
       </Box>
       <Flex>
         {canViewMembers && (
-          <Flex
-            alignItems="center"
-            title={`${membersCount} members in this list`}
-            mr={2}
-          >
-            <User size={16} />
-            <Text ml={1}>{membersCount}</Text>
+          <Flex alignItems="center" gap={2} mr={2}>
+            <Flex
+              alignItems="center"
+              title={`${memberListCount} Access ${pluralize(memberListCount, 'List')} in this list`}
+            >
+              <UserList size={16} />
+              <Text ml={1} typography="body4">
+                {memberListCount || '0'}
+              </Text>
+            </Flex>
+            <Flex
+              alignItems="center"
+              title={`${membersCount} ${pluralize(membersCount, 'member')} in this list`}
+            >
+              <User size={16} />
+              <Text ml={1} typography="body4">
+                {membersCount}
+              </Text>
+            </Flex>
           </Flex>
         )}
         <Flex>
           {renderRolesAndTraits({
-            roles: grants.roles,
-            traits: grants.traitList,
+            roles: grants.roles || [],
+            traits: grants.traitList || [],
           })}
         </Flex>
       </Flex>

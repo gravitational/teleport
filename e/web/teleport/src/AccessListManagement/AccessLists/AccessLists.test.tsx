@@ -11,18 +11,20 @@ import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   AccessList,
+  AccessListMemberKind,
   accessManagementService,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
 import TeleportEContext from 'e-teleport/teleportContextE';
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 
 import { AccessLists } from './AccessLists';
 
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListEntitlement = cfg.entitlements.AccessLists;
 
-describe('upsell links', () => {
+describe('access list management upsell links', () => {
   const ctx = createTeleportContextE();
 
   beforeEach(() => {
@@ -91,6 +93,25 @@ describe('upsell links', () => {
     const link = screen.getByText(/contact sales/i);
     expect(link).toHaveAttribute('href', expect.stringMatching(/upgrade-igs/i));
   });
+});
+
+describe('access list management caching', () => {
+  const ctx = createTeleportContextE();
+
+  beforeEach(() => {
+    cfg.isEnterprise = true;
+
+    jest
+      .spyOn(accessManagementService, 'fetchAccessLists')
+      .mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
+
+    cfg.isEnterprise = defaultIsEnterpriseFlag;
+    cfg.entitlements.AccessLists = defaultAccessListEntitlement;
+  });
 
   test('if router state contains newly created access list, it is added to the items list', async () => {
     ecfg.oss.entitlements.AccessLists = {
@@ -109,7 +130,9 @@ describe('upsell links', () => {
     render(
       <Router history={history}>
         <ContextProvider ctx={ctx}>
-          <AccessLists />
+          <AccessListManagementContextProvider>
+            <AccessLists />
+          </AccessListManagementContextProvider>
         </ContextProvider>
       </Router>
     );
@@ -135,7 +158,9 @@ describe('upsell links', () => {
     render(
       <Router history={history}>
         <ContextProvider ctx={ctx}>
-          <AccessLists />
+          <AccessListManagementContextProvider>
+            <AccessLists />
+          </AccessListManagementContextProvider>
         </ContextProvider>
       </Router>
     );
@@ -161,7 +186,9 @@ describe('upsell links', () => {
     render(
       <Router history={history}>
         <ContextProvider ctx={ctx}>
-          <AccessLists />
+          <AccessListManagementContextProvider>
+            <AccessLists />
+          </AccessListManagementContextProvider>
         </ContextProvider>
       </Router>
     );
@@ -189,7 +216,9 @@ describe('upsell links', () => {
     const { unmount } = render(
       <Router history={createMemoryHistory()}>
         <ContextProvider ctx={ctx}>
-          <AccessLists />
+          <AccessListManagementContextProvider>
+            <AccessLists />
+          </AccessListManagementContextProvider>
         </ContextProvider>
       </Router>
     );
@@ -220,7 +249,9 @@ describe('upsell links', () => {
     render(
       <Router history={history}>
         <ContextProvider ctx={ctx}>
-          <AccessLists />
+          <AccessListManagementContextProvider>
+            <AccessLists />
+          </AccessListManagementContextProvider>
         </ContextProvider>
       </Router>
     );
@@ -248,7 +279,9 @@ describe('upsell links', () => {
     render(
       <Router history={history}>
         <ContextProvider ctx={ctx}>
-          <AccessLists />
+          <AccessListManagementContextProvider>
+            <AccessLists />
+          </AccessListManagementContextProvider>
         </ContextProvider>
       </Router>
     );
@@ -262,7 +295,9 @@ function renderComponent(ctx: TeleportEContext) {
   return render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <AccessLists />
+        <AccessListManagementContextProvider>
+          <AccessLists />
+        </AccessListManagementContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );
@@ -272,9 +307,17 @@ const mockAccessListApple: AccessList = {
   id: 'id-apple',
   title: 'apple',
   description: '',
-  owners: [{ name: 'lisa', description: '', ineligibleReason: '' }],
+  owners: [
+    {
+      name: 'lisa',
+      description: '',
+      ineligibleReason: '',
+      membershipKind: AccessListMemberKind.User,
+    },
+  ],
   members: [],
   membersCount: 0,
+  memberListCount: 0,
   grants: { roles: ['access'], traits: {} },
   ownerGrants: { roles: [], traits: {} },
   audit: {
@@ -286,15 +329,24 @@ const mockAccessListApple: AccessList = {
   },
   ownershipRequires: { roles: [], traits: {} },
   membershipRequires: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {} },
 };
 
 const mockAccessListBanana: AccessList = {
   id: 'id-banana',
   title: 'banana',
   description: '',
-  owners: [{ name: 'lisa', description: '', ineligibleReason: '' }],
+  owners: [
+    {
+      name: 'lisa',
+      description: '',
+      ineligibleReason: '',
+      membershipKind: AccessListMemberKind.User,
+    },
+  ],
   members: [],
   membersCount: 0,
+  memberListCount: 0,
   grants: { roles: ['access'], traits: {} },
   ownerGrants: { roles: [], traits: {} },
   audit: {
@@ -306,4 +358,5 @@ const mockAccessListBanana: AccessList = {
   },
   ownershipRequires: { roles: [], traits: {} },
   membershipRequires: { roles: [], traits: {} },
+  inheritedMemberGrants: { roles: [], traits: {} },
 };

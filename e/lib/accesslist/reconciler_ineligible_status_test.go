@@ -18,12 +18,12 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 	a3 := newAccessList(t, "3", c.clock)
 	a4 := newAccessList(t, "4", c.clock)
 
-	a1m1 := newAccessListMember(t, a1.GetName(), member1, c.clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), member2, c.clock)
-	a1m3 := newAccessListMember(t, a1.GetName(), member3, c.clock)
-	a2m1 := newAccessListMember(t, a2.GetName(), member1, c.clock)
-	a3m1 := newAccessListMember(t, a3.GetName(), member1, c.clock)
-	a3m2 := newAccessListMember(t, a3.GetName(), member2, c.clock)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, accesslist.MembershipKindUser, c.clock)
+	a1m3 := newAccessListMember(t, a1.GetName(), member3, accesslist.MembershipKindUser, c.clock)
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a1m3, a2m1, a3m1, a3m2})

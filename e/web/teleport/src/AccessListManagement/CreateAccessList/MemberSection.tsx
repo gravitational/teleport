@@ -1,12 +1,10 @@
 import React from 'react';
-import { Box, Text, Flex } from 'design';
+import { Box, Text, Flex, H2 } from 'design';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits } from 'teleport/services/user';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { H2 } from 'design';
-
-import { HybridUserOption, UserOption } from '../Shared/Shared';
+import { HybridUserOption } from '../Shared/Shared';
 import {
   TraitLabel,
   TraitsCreator,
@@ -28,7 +26,7 @@ type Props = {
 
 export type Members = {
   selectedRolesRequired: Option[];
-  eligibleMembers: UserOption[];
+  eligibleMembers: HybridUserOption[];
   selectedMembers: HybridUserOption[];
   traitLabels: TraitLabel[];
   traitLookup: AllUserTraits;

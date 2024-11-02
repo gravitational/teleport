@@ -1,4 +1,9 @@
 import {
+  AccessListMember,
+  AccessListMemberKind,
+} from 'e-teleport/services/accessmanagement';
+
+import {
   getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
 } from './Shared';
@@ -35,9 +40,18 @@ describe('getEligibleUsersForAddingNewUsers', () => {
       ],
       existingUser: [],
       output: [
-        { value: 'test2', label: 'test2' },
-        { value: 'test4', label: 'test4' },
-        { value: 'test5', label: 'test5' },
+        {
+          value: { name: 'test2', membershipKind: AccessListMemberKind.User },
+          label: 'test2',
+        },
+        {
+          value: { name: 'test4', membershipKind: AccessListMemberKind.User },
+          label: 'test4',
+        },
+        {
+          value: { name: 'test5', membershipKind: AccessListMemberKind.User },
+          label: 'test5',
+        },
       ],
     },
     {
@@ -51,7 +65,12 @@ describe('getEligibleUsersForAddingNewUsers', () => {
         { value: { name: 'test5', roles: ['admin'] }, label: '' },
       ],
       existingUser: [{ name: 'test2' }, { name: 'test5' }],
-      output: [{ value: 'test4', label: 'test4' }],
+      output: [
+        {
+          value: { name: 'test4', membershipKind: AccessListMemberKind.User },
+          label: 'test4',
+        },
+      ],
     },
     {
       case: 'no eligible users',
@@ -120,10 +139,22 @@ describe('getEligibleUsersForAddingNewUsers', () => {
       ],
       existingUser: [],
       output: [
-        { value: 'test4', label: 'test4' },
-        { value: 'test6', label: 'test6' },
-        { value: 'test7', label: 'test7' },
-        { value: 'test9', label: 'test9' },
+        {
+          value: { name: 'test4', membershipKind: AccessListMemberKind.User },
+          label: 'test4',
+        },
+        {
+          value: { name: 'test6', membershipKind: AccessListMemberKind.User },
+          label: 'test6',
+        },
+        {
+          value: { name: 'test7', membershipKind: AccessListMemberKind.User },
+          label: 'test7',
+        },
+        {
+          value: { name: 'test9', membershipKind: AccessListMemberKind.User },
+          label: 'test9',
+        },
       ],
     },
   ].forEach(tc => {
@@ -160,8 +191,14 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
       output: {
         duplicateUsers: [],
         newUsers: [
-          { value: 'test', label: '' },
-          { value: 'test1', label: '' },
+          {
+            value: { name: 'test', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
+          {
+            value: { name: 'test1', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
         ],
       },
     },
@@ -188,9 +225,18 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
       output: {
         duplicateUsers: ['test', 'test3', 'test4'],
         newUsers: [
-          { value: 'test1', label: '' },
-          { value: 'test2', label: '' },
-          { value: 'test5', label: '' },
+          {
+            value: { name: 'test1', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
+          {
+            value: { name: 'test2', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
+          {
+            value: { name: 'test5', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
         ],
       },
     },
@@ -205,9 +251,18 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
       output: {
         duplicateUsers: [],
         newUsers: [
-          { value: 'test3', label: '' },
-          { value: 'test4', label: '' },
-          { value: 'test5', label: '' },
+          {
+            value: { name: 'test3', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
+          {
+            value: { name: 'test4', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
+          {
+            value: { name: 'test5', membershipKind: AccessListMemberKind.User },
+            label: '',
+          },
         ],
       },
     },
@@ -227,8 +282,11 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
   ].forEach(tc => {
     test(`case: ${tc.case}`, () => {
       const obj = getNewAndExistingUsersForAddingNewUsers(
-        tc.existingUsers,
-        tc.selectedUsers
+        tc.existingUsers as AccessListMember[],
+        tc.selectedUsers.map(m => ({
+          label: m.label,
+          value: { name: m.value, membershipKind: AccessListMemberKind.User },
+        }))
       );
       expect(obj).toStrictEqual(tc.output);
     });

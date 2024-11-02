@@ -11,6 +11,8 @@ import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 import TeleportEContext from 'e-teleport/teleportContextE';
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { mockAccessLists } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/fixtures';
 
 import {
   CreateAccessList,
@@ -27,10 +29,9 @@ describe('upsell links', () => {
   beforeEach(() => {
     cfg.isEnterprise = true;
 
-    // Response doesn't matter, just that we have one element in array.
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
-      .mockResolvedValue([{} as any]);
+      .mockResolvedValue([mockAccessLists[0]]);
 
     jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
     jest.spyOn(ResourceService.prototype, 'fetchRoles').mockResolvedValue({
@@ -98,7 +99,9 @@ function renderComponent(ctx: TeleportEContext) {
   return render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <CreateAccessList />
+        <AccessListManagementContextProvider>
+          <CreateAccessList />
+        </AccessListManagementContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );

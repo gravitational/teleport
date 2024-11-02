@@ -6,6 +6,7 @@ import { pluralize } from 'shared/utils/text';
 import { H2 } from 'design';
 
 import { AccessListMember } from 'e-teleport/services/accessmanagement';
+
 import {
   ReviewDayOfMonthOption,
   ReviewFrequencyOption,
@@ -13,7 +14,10 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 
 import { AccessListMemberTable } from '../Members/MembersList';
-import { RoleAndTraitLabels } from '../Shared';
+import {
+  AccessListWithNestedOwnersMembersTitles,
+  RoleAndTraitLabels,
+} from '../Shared';
 
 import { MembershipRequires } from './ReviewMembershipRequires';
 import { EditButton, EditedRecurrence, List, ReviewStep } from './Shared';
@@ -34,7 +38,7 @@ export function Summary({
   isOwner: boolean;
   setReviewStep(r: ReviewStep): void;
   editedMembershipRequires: MembershipRequires;
-  editedMembers: AccessListMember[];
+  editedMembers: AccessListWithNestedOwnersMembersTitles['members'];
   disabled: boolean;
   editedRecurrence: EditedRecurrence;
   setEditedRecurrence(e: EditedRecurrence): void;
