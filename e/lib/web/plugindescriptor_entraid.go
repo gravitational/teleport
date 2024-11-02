@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -15,6 +16,7 @@ import (
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -36,6 +38,12 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 		return nil, trace.Wrap(err)
 	}
 
+	proxyPublicAddr, err := oidc.IssuerFromPublicAddress(p.h.PublicProxyAddr(), "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyPublicAddr = strings.TrimRight(proxyPublicAddr, "/")
+
 	// TAG cache file is submitted only when Access Graph integration was requested by the user.
 	tagCache, err := readTAGCache(r)
 	if err != nil && !errors.Is(err, errNoTAGCache) {
@@ -49,15 +57,14 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 	}
 
 	saml, err := types.NewSAMLConnector(inputs.authConnectorName, types.SAMLConnectorSpecV2{
-		AssertionConsumerService: p.h.PublicProxyAddr() + "/v1/webapi/saml/acs/" + inputs.authConnectorName,
+		AssertionConsumerService: proxyPublicAddr + "/v1/webapi/saml/acs/" + inputs.authConnectorName,
 		AllowIDPInitiated:        true,
-		// AttributesToRoles is required, but Entra ID does not by have a default group (like Okta's "Everyone"),
-		// so we add a dummy claim that will never be fulfilled with the default configuration instead,
-		// and expect the user to modify it per their requirements.
+		// AttributesToRoles is required, but Entra ID does not have a default group (like Okta's "Everyone"),
+		// so we add a dummy claim that will always be fulfilled and map them to the "requester" role.
 		AttributesToRoles: []types.AttributeMapping{
 			{
-				Name:  "https://example.com/my_attribute",
-				Value: "my_value",
+				Name:  "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
+				Value: "*",
 				Roles: []string{"requester"},
 			},
 		},

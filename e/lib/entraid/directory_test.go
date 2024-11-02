@@ -2,6 +2,7 @@ package entraid
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -74,6 +75,13 @@ func TestEntraIDService(t *testing.T) {
 			},
 		},
 	})
+
+	sortTraits := func(u types.User) {
+		for _, v := range u.GetTraits() {
+			sort.Strings(v)
+		}
+	}
+
 	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	backend, err := memory.New(memory.Config{})
@@ -84,17 +92,55 @@ func TestEntraIDService(t *testing.T) {
 	require.NoError(t, err)
 
 	tenantID := uuid.NewString()
+
+	samlService, err := local.NewIdentityServiceV2(backend)
+	require.NoError(t, err)
+
+	aliceID := uuid.NewString()
+	bobID := uuid.NewString()
+	eveID := uuid.NewString()
+	daveID := uuid.NewString()
+	michaelID := uuid.NewString()
+	carolID := uuid.NewString()
+	teamAID := uuid.NewString()
+	subgroupID := uuid.NewString()
+
 	defaultOwners := []accesslist.Owner{
 		{Name: "admin", MembershipKind: accesslist.MembershipKindUser},
 		{Name: "reviewer", MembershipKind: accesslist.MembershipKindUser},
 	}
+
 	const ssoConnectorID = "my-sso-connector"
+	connector, err := types.NewSAMLConnector(
+		ssoConnectorID,
+		types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "http://localhost:65535/acs", // not called
+			Issuer:                   "test",
+			SSO:                      "https://localhost:65535/sso", // not called
+			AttributesToRoles: []types.AttributeMapping{
+				{Name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", Value: teamAID, Roles: []string{"access"}},
+				{Name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", Value: subgroupID, Roles: []string{"editor"}},
+			},
+		})
+	require.NoError(t, err)
+	_, err = samlService.CreateSAMLConnector(ctx, connector)
+	require.NoError(t, err)
+
+	userMemberships := groupMembershipMap{
+		aliceID: groupMembershipInfo{
+			groupIds:   []string{teamAID},
+			groupNames: []string{"Team A"},
+		},
+		bobID: groupMembershipInfo{
+			groupIds:   []string{teamAID, subgroupID},
+			groupNames: []string{"Team A", "foo"},
+		},
+	}
 
 	// Set up data
 	graphClient := newFakeGraphClient()
 
 	// Alice does not exist in Teleport, but exists in Entra
-	aliceID := uuid.NewString()
 	aliceUPN := "alice@example.com"
 	aliceEntra := &msgraph.User{}
 	aliceEntra.ID = &aliceID
@@ -104,56 +150,56 @@ func TestEntraIDService(t *testing.T) {
 	graphClient.users = append(graphClient.users, aliceEntra)
 
 	// Team A does not exist in Teleport, but exists in entra. Alice is a member
-	teamAID := uuid.NewString()
 	teamAEntra := &msgraph.Group{}
 	teamAEntra.ID = &teamAID
 	teamAEntra.DisplayName = to.Ptr("Team A")
 	graphClient.groups = append(graphClient.groups, teamAEntra)
 	graphClient.groupMembers[teamAID] = []msgraph.GroupMember{aliceEntra}
 
-	// Team A contains an unconvertable member.
-	// It should be gracefully ignored.
-	subgroup := &msgraph.Group{}
-	subgroupID := "foo"
-	subgroup.ID = &subgroupID
-	graphClient.groupMembers[teamAID] = append(graphClient.groupMembers[teamAID], subgroup)
-
 	// Bob exists in both Entra and Teleport, should stay unchanged
-	bobID := uuid.NewString()
 	bobUPN := "bob@example.com"
 	bobEntra := &msgraph.User{}
 	bobEntra.ID = &bobID
 	bobEntra.UserPrincipalName = &bobUPN
 	graphClient.users = append(graphClient.users, bobEntra)
 
-	bobTeleport, err := convertUser(bobEntra, tenantID, ssoConnectorID)
+	bobTeleport, err := convertUser(bobEntra, tenantID, ssoConnectorID, userMemberships)
 	require.NoError(t, err)
+	bobTeleport.SetRoles([]string{"access", "editor"})
+	sortTraits(bobTeleport)
 	bobTeleport, err = identitySvc.CreateUser(ctx, bobTeleport)
 	require.NoError(t, err)
 
+	// Team A contains an unconvertable member.
+	// It should be gracefully ignored.
+	subgroup := &msgraph.Group{}
+	subgroup.ID = &subgroupID
+	subgroup.DisplayName = to.Ptr("foo")
+	graphClient.groups = append(graphClient.groups, subgroup)
+	graphClient.groupMembers[teamAID] = append(graphClient.groupMembers[teamAID], subgroup)
+	graphClient.groupMembers[subgroupID] = append(graphClient.groupMembers[subgroupID], bobEntra)
+
 	// Michael is a guest user in Entra, should be imported as a local user
-	michaelID := uuid.NewString()
 	michaelUPN := "michael_someothercompany.io#EXT#@example.com"
 	michaelEntra := &msgraph.User{}
 	michaelEntra.ID = &michaelID
 	michaelEntra.UserPrincipalName = &michaelUPN
 	graphClient.users = append(graphClient.users, michaelEntra)
 
-	michaelTeleport, err := convertUser(michaelEntra, tenantID, ssoConnectorID)
+	michaelTeleport, err := convertUser(michaelEntra, tenantID, ssoConnectorID, userMemberships)
 	require.NoError(t, err)
 	michaelTeleport, err = identitySvc.CreateUser(ctx, michaelTeleport)
 	require.NoError(t, err)
 	require.Equal(t, "michael@someothercompany.io", michaelTeleport.GetName())
 
 	// Carol exists in both, but was recently unassigned from Team C in Entra
-	carolID := uuid.NewString()
 	carolUPN := "carol@example.com"
 	carolEntra := &msgraph.User{}
 	carolEntra.ID = &carolID
 	carolEntra.UserPrincipalName = &carolUPN
 	graphClient.users = append(graphClient.users, carolEntra)
 
-	carolTeleport, err := convertUser(carolEntra, tenantID, ssoConnectorID)
+	carolTeleport, err := convertUser(carolEntra, tenantID, ssoConnectorID, userMemberships)
 	require.NoError(t, err)
 	carolTeleport, err = identitySvc.CreateUser(ctx, carolTeleport)
 	require.NoError(t, err)
@@ -166,6 +212,7 @@ func TestEntraIDService(t *testing.T) {
 	graphClient.groups = append(graphClient.groups, teamCEntra)
 
 	teamCTeleport, err := convertGroup(teamCEntra, tenantID, defaultOwners)
+	teamCTeleport.Spec.Grants.Roles = []string{"access"}
 	require.NoError(t, err)
 
 	carolTeamCTeleportMember, err := convertGroupMember(ctx, carolEntra, teamCTeleport, userMap(carolTeleport))
@@ -174,19 +221,17 @@ func TestEntraIDService(t *testing.T) {
 	require.NoError(t, err)
 
 	// Dave exists in Teleport, but was removed from Entra
-	daveID := uuid.NewString()
 	daveUPN := "dave@example.com"
 	daveEntra := &msgraph.User{}
 	daveEntra.ID = &daveID
 	daveEntra.UserPrincipalName = &daveUPN
 
-	daveTeleport, err := convertUser(daveEntra, tenantID, ssoConnectorID)
+	daveTeleport, err := convertUser(daveEntra, tenantID, ssoConnectorID, userMemberships)
 	require.NoError(t, err)
 	_, err = identitySvc.CreateUser(ctx, daveTeleport)
 	require.NoError(t, err)
 
 	// Eve has a local account in Teleport, should not get overwritten by her imported Entra account
-	eveID := uuid.NewString()
 	eveUPN := "eve@example.com"
 	eveEntra := &msgraph.User{}
 	eveEntra.ID = &eveID
@@ -236,6 +281,7 @@ func TestEntraIDService(t *testing.T) {
 		defaultOwners:  defaultOwners,
 		ssoConnectorID: ssoConnectorID,
 		tenantID:       tenantID,
+		samlService:    samlService,
 	}
 	err = r.Reconcile(ctx)
 	require.NoError(t, err)
@@ -249,6 +295,13 @@ func TestEntraIDService(t *testing.T) {
 		require.Equal(t, aliceSAMAccountName, aliceTeleport.GetAllLabels()[types.EntraSAMAccountNameLabel])
 		require.NotNil(t, aliceTeleport.GetCreatedBy().Connector)
 		require.Equal(t, ssoConnectorID, aliceTeleport.GetCreatedBy().Connector.ID)
+		require.Equal(t, []string{"access"}, aliceTeleport.GetRoles())
+		require.Equal(t, map[string][]string{
+			"http://schemas.microsoft.com/ws/2008/06/identity/claims/groups": {
+				teamAID,
+			},
+			"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name": {"alice@example.com"},
+		}, aliceTeleport.GetTraits())
 
 		teamATeleportExpected, err := convertGroup(teamAEntra, tenantID, defaultOwners)
 		require.NoError(t, err)
@@ -282,6 +335,10 @@ func TestEntraIDService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, pageToken, "Team C access list should have no members")
 		require.Empty(t, teamCMembers)
+
+		teamCTeleportNew, err := alSvc.GetAccessList(ctx, teamCTeleport.GetName())
+		require.NoError(t, err)
+		require.Equal(t, []string{"access"}, teamCTeleportNew.GetGrants().Roles)
 	})
 
 	t.Run("dave was removed", func(t *testing.T) {

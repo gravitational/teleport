@@ -3,6 +3,7 @@ package entraid
 import (
 	"context"
 	"log/slog"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -19,14 +20,29 @@ import (
 
 type entraUniqueID string
 
-func (r *DirectoryReconciler) reconcileUsers(ctx context.Context) (map[entraUniqueID]types.User, error) {
+func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
+	groupsMap map[string]*msgraph.Group,
+	groupMembersMap map[string][]msgraph.GroupMember,
+) (map[entraUniqueID]types.User, error) {
 	teleportUsers, err := listTeleportUsers(ctx, r.userSvc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	entraUsers, err := listEntraUsers(ctx, r.graphClient, r.tenantID, r.ssoConnectorID)
+
+	userMemberships := buildUserMemberships(groupsMap, groupMembersMap)
+	entraUsers, err := r.listEntraUsers(ctx, userMemberships)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	connector, err := r.samlService.GetSAMLConnector(ctx, r.ssoConnectorID, false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get SAML connector")
+	}
+
+	for _, entraUser := range entraUsers {
+		_, roles := services.TraitsToRoles(connector.GetTraitMappings(), entraUser.GetTraits())
+		entraUser.SetRoles(roles)
 	}
 
 	for _, src := range teleportUsers {
@@ -106,10 +122,10 @@ func listTeleportUsers(ctx context.Context, svc userAccessPoint) (map[string]typ
 	return result, nil
 }
 
-func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID string, ssoConnectorID string) (map[string]types.User, error) {
+func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMemberships groupMembershipMap) (map[string]types.User, error) {
 	result := map[string]types.User{}
-	err := graphClient.IterateUsers(ctx, func(u *msgraph.User) bool {
-		user, err := convertUser(u, tenantID, ssoConnectorID)
+	err := r.graphClient.IterateUsers(ctx, func(u *msgraph.User) bool {
+		user, err := convertUser(u, r.tenantID, r.ssoConnectorID, usersMemberships)
 		if err == nil {
 			result[user.GetName()] = user
 		} else {
@@ -121,7 +137,7 @@ func listEntraUsers(ctx context.Context, graphClient graphClient, tenantID strin
 	return result, trace.Wrap(err)
 }
 
-func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string) (types.User, error) {
+func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap) (types.User, error) {
 	upn := in.UserPrincipalName
 	if upn == nil {
 		return nil, trace.BadParameter("expected Entra ID user to have a UPN")
@@ -177,6 +193,23 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string) (type
 		},
 	})
 
+	const (
+		entraIDSAMLClaimName   = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
+		entraIDSAMLClaimEmail  = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+		entraIDSAMLClaimGroups = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+	)
+	traits := map[string][]string{
+		entraIDSAMLClaimName: {*username},
+	}
+	if in.Mail != nil {
+		traits[entraIDSAMLClaimEmail] = []string{*in.Mail}
+	}
+	if groups := usersMemberships[*in.ID].groupIds; len(groups) > 0 {
+		sort.Strings(groups)
+		traits[entraIDSAMLClaimGroups] = groups
+	}
+	out.SetTraits(traits)
+
 	return out, trace.Wrap(err)
 }
 
@@ -186,4 +219,35 @@ func preserveUserMetadata(dst, src types.User) {
 	dst.SetRevision(src.GetRevision())
 	dst.SetCreatedBy(src.GetCreatedBy())
 	dst.SetWeakestDevice(src.GetWeakestDevice())
+}
+
+type groupMembershipInfo struct {
+	groupIds   []string
+	groupNames []string
+}
+
+type groupMembershipMap map[string]groupMembershipInfo
+
+func buildUserMemberships(groupsMap map[string]*msgraph.Group, groupMembersMap map[string][]msgraph.GroupMember) groupMembershipMap {
+	unwindedGroupMemberships := unwindGroupMembership(groupsMap, groupMembersMap)
+	result := map[string]groupMembershipInfo{}
+	for groupID, members := range groupMembersMap {
+		for _, member := range members {
+			if user, ok := member.(*msgraph.User); ok {
+				var displayNames []string
+				for _, membershipGroup := range unwindedGroupMemberships[groupID] {
+					group, ok := groupsMap[membershipGroup]
+					if !ok || group.DisplayName == nil {
+						continue
+					}
+					displayNames = append(displayNames, *group.DisplayName)
+				}
+				result[*user.ID] = groupMembershipInfo{
+					groupIds:   unwindedGroupMemberships[groupID],
+					groupNames: displayNames,
+				}
+			}
+		}
+	}
+	return result
 }

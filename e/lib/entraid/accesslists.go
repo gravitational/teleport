@@ -16,19 +16,28 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/utils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context, usersByEntraID map[entraUniqueID]types.User) error {
+func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
+	usersByEntraID map[entraUniqueID]types.User,
+	groupsMap map[string]*msgraph.Group,
+	groupMembersMap map[string][]msgraph.GroupMember) error {
 	teleportAccessLists, err := listTeleportAccessLists(ctx, r.accessListSvc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	entraAccessLists, err := listEntraAccessLists(ctx, r.graphClient, r.tenantID, r.defaultOwners)
-	if err != nil {
-		return trace.Wrap(err)
+	entraAccessLists := convertEntraAccessLists(ctx, groupsMap, r.tenantID, r.defaultOwners)
+
+	for name, dst := range entraAccessLists {
+		src, ok := teleportAccessLists[name]
+		if !ok {
+			continue
+		}
+		preserveAccessListMetadata(dst, src)
 	}
 
 	alReconciler, err := services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessList]{
@@ -61,7 +70,7 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context, usersByE
 		return trace.Wrap(err)
 	}
 
-	entraMembers, err := listEntraAccessListMembers(ctx, r.graphClient, usersByEntraID, entraAccessLists)
+	entraMembers, err := convertEntraAccessListMembers(ctx, usersByEntraID, entraAccessLists, groupMembersMap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -134,19 +143,18 @@ func listTeleportAccessLists(ctx context.Context, svc accessListAccessPoint) (ma
 	return result, nil
 }
 
-func listEntraAccessLists(ctx context.Context, graphClient graphClient, tenantID string, defaultOwners []accesslist.Owner) (map[string]*accesslist.AccessList, error) {
+func convertEntraAccessLists(ctx context.Context, groupsMap map[string]*msgraph.Group, tenantID string, defaultOwners []accesslist.Owner) map[string]*accesslist.AccessList {
 	result := map[string]*accesslist.AccessList{}
-	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
+	for _, g := range groupsMap {
 		al, err := convertGroup(g, tenantID, defaultOwners)
 		if err == nil {
 			result[al.GetName()] = al
 		} else {
 			slog.ErrorContext(ctx, "failed to convert Entra ID group to Teleport access list", "error", err)
 		}
-		return true
-	})
+	}
 
-	return result, trace.Wrap(err)
+	return result
 }
 
 func listTeleportAccessListMembers(ctx context.Context, svc accessListAccessPoint, als []*accesslist.AccessList) (map[string]*accesslist.AccessListMember, error) {
@@ -176,7 +184,10 @@ func listTeleportAccessListMembers(ctx context.Context, svc accessListAccessPoin
 }
 
 // NB: this enriches Access Lists passed in `als` with their child Access Lists.
-func listEntraAccessListMembers(ctx context.Context, graphClient graphClient, entraUsersByID map[entraUniqueID]types.User, als map[string]*accesslist.AccessList) (map[string]*accesslist.AccessListMember, error) {
+func convertEntraAccessListMembers(ctx context.Context, entraUsersByID map[entraUniqueID]types.User,
+	als map[string]*accesslist.AccessList,
+	groupMembersMap map[string][]msgraph.GroupMember,
+) (map[string]*accesslist.AccessListMember, error) {
 	result := map[string]*accesslist.AccessListMember{}
 	// TODO(justinas): look into batching this if possible.
 	for _, al := range als {
@@ -184,7 +195,7 @@ func listEntraAccessListMembers(ctx context.Context, graphClient graphClient, en
 		if !ok {
 			return nil, trace.BadParameter("access list %v missing Entra ID unique ID label", al.GetName())
 		}
-		err := graphClient.IterateGroupMembers(ctx, id, func(member msgraph.GroupMember) bool {
+		for _, member := range groupMembersMap[id] {
 			alm, err := convertGroupMember(ctx, member, al, entraUsersByID)
 			if err != nil {
 				var id string
@@ -192,17 +203,13 @@ func listEntraAccessListMembers(ctx context.Context, graphClient graphClient, en
 					id = *member.GetID()
 				}
 				slog.WarnContext(ctx, "error while converting group member", "member", id, "error", err)
-				return false
+				continue
 			}
 			if alm == nil {
 				slog.WarnContext(ctx, "unsupported group member, skipping")
-				return true
+				continue
 			}
 			result[memberMapKey(alm)] = alm
-			return true
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
 		}
 	}
 	return result, nil
@@ -312,4 +319,113 @@ func preserveAccessListMemberMetadata(dst, src *accesslist.AccessListMember) {
 
 func memberMapKey(member *accesslist.AccessListMember) string {
 	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
+}
+
+func listEntraGroups(ctx context.Context, graphClient graphClient) (map[string]*msgraph.Group, error) {
+	result := map[string]*msgraph.Group{}
+	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
+		result[*g.ID] = g
+		return true
+	})
+	return result, trace.Wrap(err)
+}
+
+func listEntraGroupsMembers(ctx context.Context, graphClient graphClient, groups map[string]*msgraph.Group) (map[string][]msgraph.GroupMember, error) {
+	result := map[string][]msgraph.GroupMember{}
+	for id, group := range groups {
+		var members []msgraph.GroupMember
+		err := graphClient.IterateGroupMembers(ctx, *group.ID, func(member msgraph.GroupMember) bool {
+			members = append(members, member)
+			return true
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result[id] = members
+	}
+	return result, nil
+}
+
+func unwindGroupMembership(groups map[string]*msgraph.Group, groupMembers map[string][]msgraph.GroupMember) map[string][]string {
+	// result map to hold the membership paths for each group.
+	result := make(map[string][]string)
+	// visited tracks groups in the current path to avoid cycles.
+	visited := make(map[string]bool)
+
+	var collectPaths func(groupID string) []string
+	collectPaths = func(groupID string) []string {
+		// if the path for this group is already computed, return it.
+		if path, exists := result[groupID]; exists {
+			return path
+		}
+
+		// if the group is already visited in the current path, it means there is a cycle.
+		if visited[groupID] {
+			return []string{groupID} // Break the cycle by not proceeding further in this branch
+		}
+
+		visited[groupID] = true
+
+		// path always starts with the current group.
+		path := []string{groupID}
+
+		// Traverse each member of the group.
+		for _, member := range groupMembers[groupID] {
+			if nestedGroup, ok := member.(*msgraph.Group); ok {
+				// Skip Office 365 groups, we only care about security groups.
+				if nestedGroup.IsOffice365Group() {
+					continue
+				}
+				// recursively collect the path for nested groups.
+				nestedPath := collectPaths(*nestedGroup.ID)
+				path = append(path, nestedPath...)
+			}
+		}
+
+		// store the computed path in result to avoid redundant calculations
+		result[groupID] = path
+
+		// unmark this group as visited after recursion completes
+		visited[groupID] = false
+		return path
+	}
+
+	// Collect the membership paths for each group.
+	for groupID, group := range groups {
+		// Skip Office 365 groups, we only care about security groups.
+		if group.IsOffice365Group() {
+			continue
+		}
+		collectPaths(groupID)
+	}
+
+	// Convert the result to a map where each group ID maps to a list of group IDs
+	// that a user member of that group is automatically a member of.
+	groupToMembership := make(map[string][]string)
+	for childGroup, v := range result {
+		for _, parentGroup := range v {
+			groupToMembership[parentGroup] = append(groupToMembership[parentGroup], childGroup)
+		}
+	}
+	for k, v := range groupToMembership {
+		groupToMembership[k] = utils.Deduplicate(v)
+	}
+	return groupToMembership
+}
+
+func preserveAccessListMetadata(dst, src *accesslist.AccessList) {
+	dst.Status = src.Status
+	dst.Metadata.Revision = src.Metadata.Revision
+	dst.Spec.Audit = src.Spec.Audit
+	dst.Spec.Description = src.Spec.Description
+
+	dst.Spec.Grants.Roles = src.Spec.Grants.Roles
+	for k, v := range src.Spec.Grants.Traits {
+		dstVal, ok := dst.Spec.Grants.Traits[k]
+		if !ok {
+			dst.Spec.Grants.Traits[k] = v
+			continue
+		}
+		dst.Spec.Grants.Traits[k] = utils.Deduplicate(append(dstVal, v...))
+	}
 }

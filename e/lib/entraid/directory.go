@@ -28,12 +28,17 @@ type accessListAccessPoint interface {
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
 }
 
+type samlService interface {
+	GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error)
+}
+
 // DirectoryReconciler uses the Microsoft Graph API
 // to synchronize Entra ID users and groups into the Teleport cluster
 // as users and access lists.
 type DirectoryReconciler struct {
 	graphClient   graphClient
 	userSvc       userAccessPoint
+	samlService   samlService
 	accessListSvc accessListAccessPoint
 
 	// defaultOwners specifies the default owners for access lists synchronized from Entra ID.
@@ -60,6 +65,8 @@ type DirectoryReconcilerConfig struct {
 	UserSvc userAccessPoint
 	// AccessListSvc is the service used to read and modify Teleport access lists.
 	AccessListSvc accessListAccessPoint
+	// SAMLSvc is the service used to read SAML connectors.
+	SAMLSvc samlService
 
 	// DefaultOwners specifies the default owners for access lists synchronized from Entra ID.
 	DefaultOwners []accesslist.Owner
@@ -90,6 +97,10 @@ func (cfg *DirectoryReconcilerConfig) Validate() error {
 		return trace.BadParameter("TenantID is required")
 	}
 
+	if cfg.SAMLSvc == nil {
+		return trace.BadParameter("SAMLSvc is required")
+	}
+
 	return nil
 }
 
@@ -105,17 +116,27 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 		accessListSvc: cfg.AccessListSvc,
 		defaultOwners: cfg.DefaultOwners,
 		tenantID:      cfg.TenantID,
+		samlService:   cfg.SAMLSvc,
 	}, nil
 }
 
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
 func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
-	usersByEntraID, err := r.reconcileUsers(ctx)
+	groupsMap, err := listEntraGroups(ctx, r.graphClient)
+	if err != nil {
+		return trace.Wrap(err, "failed to list Entra ID groups")
+	}
+
+	groupMembersMap, err := listEntraGroupsMembers(ctx, r.graphClient, groupsMap)
+	if err != nil {
+		return trace.Wrap(err, "failed to list Entra ID group members")
+	}
+	usersByEntraID, err := r.reconcileUsers(ctx, groupsMap, groupMembersMap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := r.reconcileAccessLists(ctx, usersByEntraID); err != nil {
+	if err := r.reconcileAccessLists(ctx, usersByEntraID, groupsMap, groupMembersMap); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
