@@ -54,7 +54,9 @@ func TestClientConnection(t *testing.T) {
 	require.ElementsMatch(t, users, uResp)
 }
 
-type mockAWSClient struct{}
+type mockAWSClient struct {
+	ssoadmin.Client
+}
 
 func (mockAWSClient) ListAccounts(ctx context.Context, params *organizations.ListAccountsInput, optFns ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
 	return &organizations.ListAccountsOutput{

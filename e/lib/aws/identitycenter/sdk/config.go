@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // Config defines configuration parameters for AWS Identity Center SDK client.
@@ -17,6 +18,8 @@ type Config struct {
 	AWSConfig *aws.Config
 	// InstanceARN is Identity Center instance ARN.
 	InstanceARN string
+	// Clock is the clock used for time-related operations.
+	Clock clockwork.Clock
 }
 
 func (c *Config) checkAndSetDefault() error {
@@ -28,6 +31,9 @@ func (c *Config) checkAndSetDefault() error {
 	}
 	if c.AWSConfig == nil {
 		return trace.BadParameter("AWS config is required")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -50,6 +56,12 @@ type ssoAdminClient interface {
 	DescribeInstance(ctx context.Context, params *ssoadmin.DescribeInstanceInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.DescribeInstanceOutput, error)
 	// DescribePermissionSet returns detailed information of a permission set.
 	DescribePermissionSet(ctx context.Context, params *ssoadmin.DescribePermissionSetInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.DescribePermissionSetOutput, error)
+	// CreateAccountAssignment creates an account assignment.
+	CreateAccountAssignment(ctx context.Context, params *ssoadmin.CreateAccountAssignmentInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.CreateAccountAssignmentOutput, error)
+	// DescribeAccountAssignmentCreationStatus returns the status of an account assignment creation.
+	DescribeAccountAssignmentCreationStatus(ctx context.Context, params *ssoadmin.DescribeAccountAssignmentCreationStatusInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.DescribeAccountAssignmentCreationStatusOutput, error)
+	// DeleteAccountAssignment deletes an account assignment.
+	DeleteAccountAssignment(ctx context.Context, params *ssoadmin.DeleteAccountAssignmentInput, optFns ...func(*ssoadmin.Options)) (*ssoadmin.DeleteAccountAssignmentOutput, error)
 }
 
 // identityStoreClient satisfies aws-sdk-go-v2 identitystore.Client.

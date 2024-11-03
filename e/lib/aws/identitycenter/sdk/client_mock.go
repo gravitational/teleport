@@ -3,6 +3,9 @@ package sdk
 import (
 	"context"
 	"sync"
+
+	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/gravitational/trace"
 )
 
 // NewClientMock creates and returns a new instance of ClientMock.
@@ -218,4 +221,72 @@ func (c *ClientMock) ListGroupsAssignments(ctx context.Context, groupID string) 
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 	return c.GroupAssignments[groupID], nil
+}
+
+// WaitForAccountAssignmentResult waits until the account assignment reaches a terminal state.
+func (c *ClientMock) WaitForAccountAssignmentResult(ctx context.Context, requestID string) error {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	return nil
+}
+
+// CreateAccountAssignment adds a new assignment based on the request parameters.
+func (c *ClientMock) CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	switch req.PrincipalType {
+	case ssoadmintypes.PrincipalTypeUser:
+		c.UserAssignments[req.PrincipalID] = append(c.UserAssignments[req.PrincipalID], &Assigment{
+			AccountID:        req.AccountID,
+			PermissionSetARN: req.PermissionSetARN,
+		})
+	case ssoadmintypes.PrincipalTypeGroup:
+		c.GroupAssignments[req.PrincipalID] = append(c.GroupAssignments[req.PrincipalID], &Assigment{
+			AccountID:        req.AccountID,
+			PermissionSetARN: req.PermissionSetARN,
+		})
+	default:
+		return nil, trace.BadParameter("unsupported principal type")
+	}
+
+	return &AccountAssignmentResponse{
+		RequestID: "mockRequestID",
+		Status:    ssoadmintypes.StatusValuesSucceeded,
+	}, nil
+}
+
+// DeleteAccountAssignment removes an assignment for the specified user.
+func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	var principalAssignments map[string][]*Assigment
+	var curr map[string][]*Assigment
+	switch req.PrincipalTarget {
+	case ssoadmintypes.PrincipalTypeUser:
+		principalAssignments = c.UserAssignments
+		curr = c.UserAssignments
+	case ssoadmintypes.PrincipalTypeGroup:
+		principalAssignments = c.GroupAssignments
+		curr = c.GroupAssignments
+	default:
+		return nil, trace.BadParameter("unsupported principal target type %T", req.PrincipalTarget)
+	}
+
+	assignments, ok := principalAssignments[req.PrincipalID]
+	if !ok {
+		return nil, trace.BadParameter("assignment not found")
+	}
+
+	for i, assignment := range assignments {
+		if assignment.PermissionSetARN == req.PermissionSetARN && assignment.AccountID == req.AccountID {
+			curr[req.PrincipalID] = append(assignments[:i], assignments[i+1:]...)
+			return &AccountAssignmentResponse{
+				RequestID: "mockRequestID",
+				Status:    ssoadmintypes.StatusValuesSucceeded,
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("assignment not found")
 }

@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
@@ -38,6 +39,14 @@ type Client interface {
 	ListUserAssignments(ctx context.Context, userID string) ([]*Assigment, error)
 	// ListGroupsAssignments lists account assignment for a user group.
 	ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assigment, error)
+
+	// WaitForAccountAssignmentResult waits until the account assignment creation reaches a terminal state
+	// by tracking the status of the account assignment operation using the request ID.
+	WaitForAccountAssignmentResult(ctx context.Context, requestID string) error
+	// DeleteAccountAssignment deletes an account assignment for a user.
+	DeleteAccountAssignment(ctx context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error)
+	// CreateAccountAssignment creates an account assignment for a user.
+	CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error)
 }
 
 // New creates a new AWS Identity Center SDK client.
@@ -389,4 +398,109 @@ func (c *client) listAssigment(ctx context.Context, principalID string, principa
 		}
 	}
 	return out, nil
+}
+
+// AccountAssignmentResponse represents the response of an account assignment operation.
+type AccountAssignmentResponse struct {
+	// RequestID is the ID of the request that allows to track the status of the account assignment operation.
+	RequestID string
+	// Status is the status of the account assignment operation.
+	Status ssoadmintypes.StatusValues
+	// FailureReason is the reason of the failure if the account assignment operation failed.
+	FailureReason string
+}
+
+// CreateAccountAssignmentRequest represents the request to create an account assignment.
+type CreateAccountAssignmentRequest struct {
+	// PrincipalID is the ID of the principal AWS IC Group or User.
+	PrincipalID string
+	// PermissionSetARN is the ARN of the permission set.
+	PermissionSetARN string
+	// PrincipalType is the type of the principal.
+	PrincipalType ssoadmintypes.PrincipalType
+	// AccountID is the ID of the AWS account.
+	AccountID string
+}
+
+// CreateAccountAssignment creates an account assigment between account/permission set and a principal User or Group.
+func (c *client) CreateAccountAssignment(ctx context.Context, req *CreateAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
+	resp, err := c.ssoAdminClient.CreateAccountAssignment(ctx, &ssoadmin.CreateAccountAssignmentInput{
+		InstanceArn:      aws.String(c.InstanceARN),
+		PrincipalId:      aws.String(req.PrincipalID),
+		PermissionSetArn: aws.String(req.PermissionSetARN),
+		TargetId:         aws.String(req.AccountID),
+		TargetType:       ssoadmintypes.TargetTypeAwsAccount,
+		PrincipalType:    req.PrincipalType,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if resp.AccountAssignmentCreationStatus == nil {
+		return nil, trace.BadParameter("missing account assignment creation status")
+	}
+	return &AccountAssignmentResponse{
+		Status:        resp.AccountAssignmentCreationStatus.Status,
+		FailureReason: aws.ToString(resp.AccountAssignmentCreationStatus.FailureReason),
+		RequestID:     aws.ToString(resp.AccountAssignmentCreationStatus.RequestId),
+	}, nil
+}
+
+// DeleteAccountAssignmentRequest represents the request to delete an account assignment.
+type DeleteAccountAssignmentRequest struct {
+	// PrincipalID is the ID of the principal AWS IC Group or User.
+	PrincipalID string
+	// PermissionSetARN is the ARN of the permission set.
+	PermissionSetARN string
+	// PrincipalTarget is the type of the principal.
+	PrincipalTarget ssoadmintypes.PrincipalType
+	// AccountID is the ID of the AWS account.
+	AccountID string
+}
+
+// DeleteAccountAssignment deletes an account assignment for groups and users .
+func (c *client) DeleteAccountAssignment(ctx context.Context, req *DeleteAccountAssignmentRequest) (*AccountAssignmentResponse, error) {
+	resp, err := c.ssoAdminClient.DeleteAccountAssignment(ctx, &ssoadmin.DeleteAccountAssignmentInput{
+		InstanceArn:      aws.String(c.InstanceARN),
+		PermissionSetArn: aws.String(req.PermissionSetARN),
+		TargetId:         aws.String(req.AccountID),
+		TargetType:       ssoadmintypes.TargetTypeAwsAccount,
+		PrincipalType:    req.PrincipalTarget,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if resp.AccountAssignmentDeletionStatus == nil {
+		return nil, trace.BadParameter("account assignment deletion status is missing")
+	}
+	return &AccountAssignmentResponse{
+		Status:        resp.AccountAssignmentDeletionStatus.Status,
+		FailureReason: aws.ToString(resp.AccountAssignmentDeletionStatus.FailureReason),
+		RequestID:     aws.ToString(resp.AccountAssignmentDeletionStatus.RequestId),
+	}, nil
+}
+
+// WaitForAccountAssignmentResult waits until the account assignment creation reaches a terminal state
+func (c *client) WaitForAccountAssignmentResult(ctx context.Context, requestID string) error {
+	for {
+		resp, err := c.ssoAdminClient.DescribeAccountAssignmentCreationStatus(ctx, &ssoadmin.DescribeAccountAssignmentCreationStatusInput{
+			InstanceArn:                        aws.String(c.InstanceARN),
+			AccountAssignmentCreationRequestId: aws.String(requestID),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if resp.AccountAssignmentCreationStatus == nil {
+			return trace.BadParameter("missing account assignment creation status")
+		}
+		status := resp.AccountAssignmentCreationStatus.Status
+		if status != ssoadmintypes.StatusValuesInProgress {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-c.Clock.After(2 * time.Second):
+			continue
+		}
+	}
 }
