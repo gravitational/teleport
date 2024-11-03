@@ -6,6 +6,7 @@ import (
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"slices"
 )
 
 func (a *azureFetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.AzureUser, error) {
@@ -26,15 +27,20 @@ func (a *azureFetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.Az
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	groups, err := cli.ListGroups(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identities := slices.Concat(users, groups)
 
 	// Return the users as protobuf messages
-	pbUsers := make([]*accessgraphv1alpha.AzureUser, 0, len(users))
-	for _, user := range users {
+	pbUsers := make([]*accessgraphv1alpha.AzureUser, 0, len(identities))
+	for _, identity := range identities {
 		pbUser := &accessgraphv1alpha.AzureUser{
-			Id:             user.ID,
+			Id:             identity.ID,
 			SubscriptionId: a.GetSubscriptionID(),
 			LastSyncTime:   timestamppb.Now(),
-			DisplayName:    user.Name,
+			DisplayName:    identity.Name,
 		}
 		pbUsers = append(pbUsers, pbUser)
 	}

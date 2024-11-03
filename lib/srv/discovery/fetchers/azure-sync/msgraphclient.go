@@ -118,6 +118,28 @@ func (c *GraphClient) ListUsers(ctx context.Context) ([]User, error) {
 	return users, nil
 }
 
+func (c *GraphClient) ListGroups(ctx context.Context) ([]User, error) {
+	g := &genericGraphResponse{}
+	request := request{
+		Method:   http.MethodGet,
+		Path:     "groups",
+		Response: &g,
+		Err:      &graphError{},
+	}
+	err := c.request(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	var users []User
+	err = json.NewDecoder(bytes.NewReader(g.Value)).Decode(&users)
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
 // buildURL builds the request URL
 func (c *GraphClient) buildURL(request request) (string, error) {
 	u, err := url.Parse(c.baseURL)
