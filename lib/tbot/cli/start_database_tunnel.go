@@ -41,7 +41,7 @@ type DatabaseTunnelCommand struct {
 
 // NewDatabaseTunnelCommand creates a command supporting `tbot start database-tunnel`
 func NewDatabaseTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *DatabaseTunnelCommand {
-	cmd := parentCmd.Command("database-tunnel", "Start a database tunnel listener").Alias("db-tunnel")
+	cmd := parentCmd.Command("database-tunnel", "Start a database tunnel listener.").Alias("db-tunnel")
 
 	c := &DatabaseTunnelCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
