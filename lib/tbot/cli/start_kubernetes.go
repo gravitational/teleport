@@ -41,7 +41,7 @@ type KubernetesCommand struct {
 // NewKubernetesCommand initializes the command and flags for kubernetes outputs
 // and returns a struct to contain the parse result.
 func NewKubernetesCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *KubernetesCommand {
-	cmd := parentCmd.Command("kubernetes", "Starts with a kubernetes output").Alias("k8s")
+	cmd := parentCmd.Command("kubernetes", "Starts with a kubernetes output.").Alias("k8s")
 
 	c := &KubernetesCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
