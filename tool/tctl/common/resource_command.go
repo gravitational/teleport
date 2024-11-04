@@ -717,6 +717,14 @@ func (rc *ResourceCommand) updateAuthPreference(ctx context.Context, client *aut
 		return trace.Wrap(err)
 	}
 
+	storedAuthPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedAuthPref, "cluster auth preference", rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if _, err := client.UpdateAuthPreference(ctx, newAuthPref); err != nil {
 		return trace.Wrap(err)
 	}
@@ -750,6 +758,14 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 func (rc *ResourceCommand) updateClusterNetworkingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetConfig, err := services.UnmarshalClusterNetworkingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedNetConfig, err := client.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedNetConfig, "cluster networking configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -808,6 +824,14 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 func (rc *ResourceCommand) updateSessionRecordingConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	storedRecConfig, err := client.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUpdateResourceWithOrigin(storedRecConfig, "session recording configuration", rc.confirm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3246,10 +3270,15 @@ func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc s
 	if exists := (storedRes.Origin() != types.OriginDefaults); exists && !force {
 		return trace.AlreadyExists("non-default %s already exists", resDesc)
 	}
-	if managedByStatic := (storedRes.Origin() == types.OriginConfigFile); managedByStatic && !confirm {
+	return checkUpdateResourceWithOrigin(storedRes, resDesc, confirm)
+}
+
+func checkUpdateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, confirm bool) error {
+	managedByStatic := storedRes.Origin() == types.OriginConfigFile
+	if managedByStatic && !confirm {
 		return trace.BadParameter(`The %s resource is managed by static configuration. We recommend removing configuration from teleport.yaml, restarting the servers and trying this command again.
 
-If you would still like to proceed, re-run the command with both --force and --confirm flags.`, resDesc)
+If you would still like to proceed, re-run the command with the --confirm flag.`, resDesc)
 	}
 	return nil
 }
