@@ -19,27 +19,27 @@ By creating and assigning roles, administrators can enforce security policies, m
 
 Users are entities that can authenticate and interact with the resources within a Teleport cluster. These users can have different levels of access depending on the roles assigned to them. 
 
-Teleport supports both internal users and external users, which differ mainly in how they authenticate and how they are managed.
+Teleport supports both local (internal) users and SSO (external) users, which differ mainly in how they authenticate and how they are managed.
 
-### Internal users
+### Local users
 
-Internal users are created and managed directly within the Teleport cluster itself. Local users can be created via the CLI (tctl users add), by applying a user resource manifest (tctl create -f user.yaml) or 
+Local users are created and managed directly within the Teleport cluster itself. Local users can be created via the CLI (tctl users add), by applying a user resource manifest (tctl create -f user.yaml) or 
 via the web UI. Their roles and traits can be modified directly in Teleport.
 
-Internal users can authenticate using credentials managed within Teleport, such as:
+Local users can authenticate using credentials managed within Teleport, such as:
 - Username and password
 - Multi-factor authentication (MFA), such as TOTP (time-based one-time passwords)
 
-Internal users are assigned roles that define what resources they can access and what actions they can perform within the cluster. They are typically used for small to mid-size deployments where user management 
-is handled directly in Teleport without relying on external identity providers.
+Local users are assigned roles that define what resources they can access and what actions they can perform within the cluster. They are typically used for small to mid-size deployments where user management 
+is handled directly in Teleport without relying on SSO identity providers.
 
-### External users
+### SSO users
 
-External users authenticate using external Identity Providers (IdP), such as Okta, Google, GitHub, Microsoft Entra ID, or other SAML/OIDC providers. These users do not manage their passwords or credentials within Teleport itself. Instead, they authenticate using their external SSO credentials. For example, a user in the "admin" group in Okta can be mapped to the admin role in Teleport. 
+SSO users authenticate using SSO Identity Providers (IdP), such as Okta, Google, GitHub, Microsoft Entra ID, or other SAML/OIDC providers. These users do not manage their passwords or credentials within Teleport itself. Instead, they authenticate using their SSO credentials. For example, a user in the "admin" group in Okta can be mapped to the admin role in Teleport. 
 
-External users are useful for larger organizations or those that want to centralize identity management via an existing SSO provider. This is often preferred for enterprise environments where identity management is handled outside Teleport.
+SSO users are useful for larger organizations or those that want to centralize identity management via an existing SSO provider. This is often preferred for enterprise environments where identity management is handled outside Teleport.
 
-### Robots
+### Bot users
 
 Machine ID provides machines with an identity that can authenticate to the Teleport cluster. This identity is known as a robot. Robots are represented in Teleport by a user and a role resource and can be created via the tctl bots add command. Unlike human users, who use a password, MFA, or SSO, robot users join the cluster as Teleport services using a join method. They can still join even if local auth is disabled.
 
@@ -56,16 +56,16 @@ Some examples of roles include:
 Roles enforce Role-Based Access Control (RBAC), ensuring that users only have the permissions needed for their specific tasks. 
 See [Teleport Access Controls Reference](../../reference/access-controls/roles.mdx) for in-depth information about types of roles, options, and usage.
 
-## Understanding Teleport’s Resource Tagging and Matching
+## Understanding Teleport’s resource tagging and matching
 
 Before configuring RBAC, it’s essential to understand how Teleport tags and matches resources to users’ roles.
 
-- Resource Tagging: Teleport uses labels (key-value pairs) to tag resources like SSH nodes, databases, or Kubernetes clusters. For example, a server might have the label env: production.
-- Role Matching: A role in Teleport allows or denies access to resources based on matching these labels. For instance, if a user has a role that allows access to resources labeled env: staging, they will only access resources with that label.
+- Resource tagging: Teleport uses labels (key-value pairs) to tag resources like SSH nodes, databases, or Kubernetes clusters. For example, a server might have the label env: production.
+- Role matching: A role in Teleport allows or denies access to resources based on matching these labels. For instance, if a user has a role that allows access to resources labeled env: staging, they will only access resources with that label.
 
 You can use this labeling and matching logic to grant users specific access, ensuring they only interact with the resources they need.
 
-## Understanding Teleport’s YAML Configuration
+## Understanding Teleport’s YAML configuration
 
 Teleport’s roles are defined using YAML. Here’s a breakdown of a basic role configuration:
 
@@ -81,7 +81,7 @@ Teleport’s roles are defined using YAML. Here’s a breakdown of a basic role 
 
 ### Step 1/3
 
-Let’s set up a simple role that gives users access to staging servers for SSH access. Create a role definition file called staging-access.yaml with the following content:
+Let’s set up a sample role that gives users access to staging servers for SSH access. Create a role definition file called staging-access.yaml with the following content:
 
 ```yaml
 kind: role
@@ -120,19 +120,19 @@ $ tctl users add alice --roles=staging-access
 
 Alice can now log in to staging servers, but she will be blocked from production environments.
 
-## Add local users with preset roles
+## Add users with preset roles
 
-Teleport provides several preset roles:
+Teleport provides several preset roles, which can be used with SSO or local users:
 
 (!docs/pages/includes/preset-roles-table.mdx!)
 
-Invite the local user Alice as cluster `editor`:
+Invite Alice as cluster `editor`:
 
 ```code
 $ tctl users add alice --roles=editor
 ```
 
-Invite the local user Alice as cluster `editor` and `reviewer`:
+Invite Alice as cluster `editor` and `reviewer`:
 
 ```code
 $ tctl users add alice --roles=editor,reviewer
@@ -224,9 +224,112 @@ $ tctl get roles --format text
 
 (!docs/pages/includes/create-role-using-web.mdx!)
 
-Next, follow the instructions to set up an authentication connector that maps users within your SSO solution to Teleport roles. Follow the instructions to set up an authentication connector that maps users within your [SSO solution](../../admin-guides/access-controls/sso) to Teleport roles.
+Next, follow the instructions to set up an authentication connector that maps users within your SSO solution to Teleport roles. Follow the instructions 
+to set up an authentication connector that maps users within your [SSO solution](../../admin-guides/access-controls/sso/sso/) to Teleport roles.
+
+## Per-resource RBAC
+
+Per-resource RBAC is an access control system that enables you to define and enforce permissions at the individual resource level, 
+rather than just at the role level. A resource could be a specific database, server, Kubernetes pod, or application. 
+Instead of granting blanket permissions through roles alone (like "can access all databases"), per-resource RBAC lets you create 
+rules that combine both roles and resource-specific attributes (like "can access only production databases with the label `analytics`").
+
+Here's a concrete example to illustrate:
+
+Traditional RBAC might say: "Database Admins can access all databases". Per-resource RBAC can say: "Database Admins can access databases where:
+
+- Environment label = 'production'
+- Database type = 'postgres'
+- Database name matches 'analytics-*'
+- Access time is between 9 AM and 5 PM"
+
+This makes per-resource RBAC fundamentally different from traditional RBAC because permissions are evaluated using both the role and the resource's characteristics. 
+Access decisions can consider multiple attributes of individual resources; the same role can result in tiered permissions for different resources based on their properties. 
+This fine-grained access control capability is particularly useful in complex, multi-tenant environments where user groups have varying levels of access requirements.
+
+## Use cases
+
+- **Multi-tenant environments**
+
+In a multi-tenant setup, per-resource RBAC can ensure that each client or team has access only to their specific resources, preventing any accidental or intentional cross-tenant access.
+
+- **Compliance requirements**
+
+For industries with strict regulatory requirements (e.g., finance, healthcare), per-resource RBAC helps in implementing and demonstrating compliance with access control policies.
+
+- **Team management**
+
+For new team members or roles, per-resource RBAC facilitates a gradual increase in access privileges as users become more familiar with the systems and demonstrate need and competence.
+When working with SSO contractors, per-resource RBAC allows granting temporary, limited access to specific resources without exposing the entire infrastructure.
+
+- **DevOps workflows**
+
+In CI/CD pipelines, different stages may require different levels of access; per-resource RBAC can be used to grant just-in-time access for specific tasks in the pipeline.
+
+Let's look at some examples of how per-resource RBAC can be implemented:
+
+**SSH access control**
+
+```code
+kind: role
+version: v3
+metadata:
+ name: dev-team
+spec:
+ allow:
+    logins: ['ubuntu']
+    node_labels:
+      environment: ['dev', 'staging']
+    rules:
+      - resources: ['session']
+        verbs: ['read', 'list']
+```
+
+This role allows members of the dev team to SSH into nodes labeled as 'dev' or 'staging' environments, using the 'ubuntu' user account. 
+They can also read and list session information.
+
+**Kubernetes access control**
+
+```code
+kind: role
+version: v3
+metadata:
+  name: k8s-dev
+spec:
+  allow:
+    kubernetes_groups: ['system:developers']
+    kubernetes_resources:
+      - kind: pod
+        namespace: 'dev-*'
+        verbs: ['get', 'list', 'create', 'update', 'delete']
+      - kind: service
+        namespace: 'dev-*'
+        verbs: ['get', 'list']
+```
+
+This role grants developers access to manage pods in any namespace starting with 'dev-', while only allowing them to view services in those namespaces.
+
+**Database access control**
+
+```code
+kind: role
+version: v3
+metadata:
+  name: db-readonly
+spec:
+  allow:
+    db_labels:
+      environment: ['production']
+      type: ['postgres']
+    db_names: ['analytics', 'reporting']
+    db_users: ['readonly']
+```
+
+This role provides read-only access to production PostgreSQL databases named 'analytics' and 'reporting' using the 'readonly' database user.
 
 ## Best practices
+
+Keep these key principles in mind to maintain a secure environment:
 
 - **Regular audits**: 
 Periodically review and update RBAC policies to ensure they align with current organizational needs and security best practices.
