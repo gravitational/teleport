@@ -72,7 +72,7 @@ export const WithSso = () => (
         sso: {
           connectorId: '',
           connectorType: '',
-          displayName: '',
+          displayName: 'Example',
           redirectUrl: '',
         },
       }}
