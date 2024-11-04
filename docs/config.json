@@ -420,7 +420,7 @@
     },
     {
       "source": "/application-access/jwt/",
-      "destination": "/enroll-resources/application-access/jwt/",
+      "destination": "/enroll-resources/application-access/jwt/jwt/",
       "permanent": true
     },
     {
