@@ -3533,6 +3533,11 @@ func onSSH(cf *CLIConf) error {
 
 	tc.AllowHeadless = true
 
+	// Support calling `tsh ssh -- <command>` (with a double dash before the command)
+	if len(cf.RemoteCommand) > 0 && strings.TrimSpace(cf.RemoteCommand[0]) == "--" {
+		cf.RemoteCommand = cf.RemoteCommand[1:]
+	}
+
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
