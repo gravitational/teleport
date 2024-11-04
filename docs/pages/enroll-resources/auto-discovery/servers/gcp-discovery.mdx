@@ -246,6 +246,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "gcp-prod"
   gcp:
     - types: ["gce"]
       # The IDs of GCP projects that VMs can join from.

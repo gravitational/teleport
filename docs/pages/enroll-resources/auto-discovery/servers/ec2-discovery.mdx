@@ -133,6 +133,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "aws-prod"
   aws:
    - types: ["ec2"]
      regions: ["us-east-1","us-west-1"]
