@@ -77,35 +77,35 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.32.3 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.5 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.27.39 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.37 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.14 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.25 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.28.1 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.42 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.18 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.35 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/athena v1.46.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.179.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.26.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.46.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.49.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/glue v1.99.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.22 // indirect
+	github.com/aws/aws-sdk-go-v2/service/athena v1.48.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.187.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.27.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.49.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.51.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/glue v1.101.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/iam v1.37.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.20 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.4.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/kms v1.36.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/kms v1.37.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/rds v1.85.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.54.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.23.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rds v1.89.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.24.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.27.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.32.3 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
 	github.com/beevik/etree v1.4.1 // indirect
@@ -347,17 +347,17 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/mock v0.4.0 // indirect
-	golang.org/x/crypto v0.27.0 // indirect
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.29.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/term v0.24.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
-	golang.org/x/tools v0.24.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 	google.golang.org/api v0.197.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect

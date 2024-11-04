@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
 const (
@@ -159,13 +160,33 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 		for _, recipient := range rule.Spec.Notification.Recipients {
 			rec, err := amrh.fetchRecipientCallback(ctx, recipient)
 			if err != nil {
-				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access moniotring rule recipients")
+				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access monitoring rule recipients")
 				continue
 			}
 			recipientSet.Add(*rec)
 		}
 	}
 	return &recipientSet
+}
+
+// RawRecipientsFromAccessMonitoringRules returns the recipients that result from the Access Monitoring Rules being applied to the given Access Request without converting to the rich recipient type.
+func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) []string {
+	log := logger.Get(ctx)
+	recipientSet := stringset.New()
+	for _, rule := range amrh.getAccessMonitoringRules() {
+		match, err := MatchAccessRequest(rule.Spec.Condition, req)
+		if err != nil {
+			log.WithError(err).WithField("rule", rule.Metadata.Name).
+				Warn("Failed to parse access monitoring notification rule")
+		}
+		if !match {
+			continue
+		}
+		for _, recipient := range rule.Spec.Notification.Recipients {
+			recipientSet.Add(recipient)
+		}
+	}
+	return recipientSet.ToSlice()
 }
 
 func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
