@@ -574,7 +574,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
-	_, err = serviceClient.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: initial})
+	initial, err = serviceClient.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: initial})
 	require.NoError(t, err, "creating initial autoupdate config")
 
 	editor := func(name string) error {
@@ -616,7 +616,7 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
-	_, err = serviceClient.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: initial})
+	initial, err = serviceClient.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: initial})
 	require.NoError(t, err, "creating initial autoupdate version")
 
 	editor := func(name string) error {
