@@ -690,6 +690,8 @@ github.com/ClickHouse/clickhouse-go/v2 v2.29.0 h1:Dj1w59RssRyLgGHXtYaWU0eIM1pJsu
 github.com/ClickHouse/clickhouse-go/v2 v2.29.0/go.mod h1:bLookq6qZJ4Ush/6tOAnJGh1Sf3Sa/nQoMn71p7ZCUE=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
+github.com/DanielTitkov/go-adaptive-cards v0.2.2 h1:tBFExyvsbCcrBJEvPaV3FW4gcAkwQjXFKiKEBrE7Yuw=
+github.com/DanielTitkov/go-adaptive-cards v0.2.2/go.mod h1:RtCzt65p/zEos6+zhiCFQmiaHmro6M63l9NP7xXx/Lg=
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 h1:oVLqHXhnYtUwM89y9T1fXGaK9wTkXHgNp8/ZNMQzUxE=
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0/go.mod h1:dppbR7CwXD4pgtV9t3wD1812RaLDcBjtblcDF5f1vI0=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.1 h1:pB2F2JKCj1Znmp2rwxxt1J0Fg0wezTMgWYk5Mpbi1kg=
