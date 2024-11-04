@@ -18,7 +18,15 @@
 
 import React from 'react';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, Indicator, Box, H2, ButtonPrimary } from 'design';
+import {
+  ButtonIcon,
+  Text,
+  Indicator,
+  Box,
+  Flex,
+  H2,
+  ButtonPrimary,
+} from 'design';
 import * as Icons from 'design/Icon';
 import { DialogHeader, DialogContent } from 'design/Dialog';
 import { PrimaryAuthType } from 'shared/services';
@@ -26,6 +34,8 @@ import { PrimaryAuthType } from 'shared/services';
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+
+import { outermostPadding } from '../spacing';
 
 import LoginForm from './FormLogin';
 import useClusterLogin, { State, Props } from './useClusterLogin';
@@ -58,7 +68,7 @@ export function ClusterLoginPresentation({
 }: ClusterLoginPresentationProps) {
   return (
     <>
-      <DialogHeader px={4} pt={4} mb={0}>
+      <DialogHeader px={outermostPadding}>
         <H2>
           Log in to <b>{title}</b>
         </H2>
@@ -66,19 +76,32 @@ export function ClusterLoginPresentation({
           <Icons.Cross size="medium" />
         </ButtonIcon>
       </DialogHeader>
-      <DialogContent mb={0}>
-        {reason && <Reason reason={reason} />}
+      <DialogContent mb={0} gap={2}>
+        {reason && (
+          <Box px={outermostPadding}>
+            <Reason reason={reason} />
+          </Box>
+        )}
 
         {initAttempt.status === 'error' && (
-          <Box m={4}>
-            <Alerts.Danger details={initAttempt.statusText}>
+          <Flex
+            px={outermostPadding}
+            flexDirection="column"
+            alignItems="flex-start"
+            gap={3}
+          >
+            <Alerts.Danger
+              details={initAttempt.statusText}
+              margin={0}
+              width="100%"
+            >
               Unable to retrieve cluster auth preferences
             </Alerts.Danger>
             <ButtonPrimary onClick={init}>Retry</ButtonPrimary>
-          </Box>
+          </Flex>
         )}
         {initAttempt.status === 'processing' && (
-          <Box textAlign="center" m={4}>
+          <Box px={outermostPadding} textAlign="center">
             <Indicator delay="none" />
           </Box>
         )}
@@ -119,7 +142,7 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
   const $targetDesc = getTargetDesc(reason);
 
   return (
-    <Text px={4} pt={2} mb={0}>
+    <Text>
       You tried to connect to {$targetDesc} but your session has expired. Please
       log in to refresh the session.
     </Text>
