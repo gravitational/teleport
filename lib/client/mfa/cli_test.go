@@ -53,7 +53,8 @@ func TestCLIPrompt(t *testing.T) {
 			expectStdOut: "",
 			challenge:    &proto.MFAAuthenticateChallenge{},
 			expectResp:   &proto.MFAAuthenticateResponse{},
-		}, {
+		},
+		{
 			name:         "OK webauthn",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -64,7 +65,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK totp",
 			expectStdOut: "Enter an OTP code from a device:\n",
 			stdin:        "123456",
@@ -78,7 +80,8 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK webauthn or totp choose webauthn",
 			expectStdOut: "Tap any security key or enter a code from a OTP device\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -90,7 +93,8 @@ func TestCLIPrompt(t *testing.T) {
 					Webauthn: &webauthnpb.CredentialAssertionResponse{},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "OK webauthn or totp choose totp",
 			expectStdOut: "Tap any security key or enter a code from a OTP device\n",
 			stdin:        "123456",
@@ -105,21 +109,24 @@ func TestCLIPrompt(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:         "NOK no webauthn response",
 			expectStdOut: "Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
 			},
 			expectErr: context.DeadlineExceeded,
-		}, {
+		},
+		{
 			name:         "NOK no totp response",
 			expectStdOut: "Enter an OTP code from a device:\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				TOTP: &proto.TOTPChallenge{},
 			},
 			expectErr: context.DeadlineExceeded,
-		}, {
+		},
+		{
 			name:         "NOK no webauthn or totp response",
 			expectStdOut: "Tap any security key or enter a code from a OTP device\n",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -260,7 +267,7 @@ Enter your security key PIN:
 			buffer := make([]byte, 0, 100)
 			out := bytes.NewBuffer(buffer)
 
-			prompt := mfa.NewCLIPromptV2(&mfa.CLIPromptConfig{
+			prompt := mfa.NewCLIPrompt(&mfa.CLIPromptConfig{
 				PromptConfig:     *cfg,
 				Writer:           out,
 				AllowStdinHijack: true,
