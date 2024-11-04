@@ -97,10 +97,11 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 	}
 
 	tags := cfg.Tags
-	if len(tags) == 0 {
-		tags = map[string]string{
-			clusterTagKey: opts.ClusterName.GetClusterName(),
-		}
+	if tags == nil {
+		tags = make(map[string]string, 1)
+	}
+	if _, ok := tags[clusterTagKey]; !ok {
+		tags[clusterTagKey] = opts.ClusterName.GetClusterName()
 	}
 
 	clock := opts.clockworkOverride
