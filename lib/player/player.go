@@ -152,7 +152,7 @@ func New(cfg *Config) (*Player, error) {
 	}
 
 	p.speed.Store(float64(defaultPlaybackSpeed))
-	p.advanceTo.Store(normalPlayback.Milliseconds())
+	p.advanceTo.Store(int64(normalPlayback))
 
 	// start in a paused state
 	p.playPause <- make(chan struct{})
@@ -190,7 +190,7 @@ func (p *Player) stream() {
 	defer cancel()
 
 	eventsC, errC := p.streamer.StreamSessionEvents(ctx, p.sessionID, 0)
-	lastDelay := time.Duration(0)
+	var lastDelay time.Duration
 	for {
 		select {
 		case <-p.done:
@@ -222,7 +222,7 @@ func (p *Player) stream() {
 
 			currentDelay := getDelay(evt)
 			if currentDelay > 0 && currentDelay >= lastDelay {
-				switch adv := time.Duration(p.advanceTo.Load()) * time.Millisecond; {
+				switch adv := time.Duration(p.advanceTo.Load()); {
 				case adv >= currentDelay:
 					// no timing delay necessary, we are fast forwarding
 					break
@@ -230,12 +230,12 @@ func (p *Player) stream() {
 					// any negative value other than normalPlayback means
 					// we rewind (by restarting the stream and seeking forward
 					// to the rewind point)
-					p.advanceTo.Store(adv.Milliseconds() * -1)
+					p.advanceTo.Store(int64(adv) * -1)
 					go p.stream()
 					return
 				default:
 					if adv != normalPlayback {
-						p.advanceTo.Store(normalPlayback.Milliseconds())
+						p.advanceTo.Store(int64(normalPlayback))
 
 						// we're catching back up to real time, so the delay
 						// is calculated not from the last event but from the
@@ -263,7 +263,7 @@ func (p *Player) stream() {
 			//
 			// TODO: consider a select with a timeout to detect blocked readers?
 			p.emit <- evt
-			p.lastPlayed.Store(currentDelay.Milliseconds())
+			p.lastPlayed.Store(int64(currentDelay))
 		}
 	}
 }
@@ -315,10 +315,10 @@ func (p *Player) SetPos(d time.Duration) error {
 	if d == 0 {
 		d = 1 * time.Millisecond
 	}
-	if d.Milliseconds() < p.lastPlayed.Load() {
+	if d < time.Duration(p.lastPlayed.Load()) {
 		d = -1 * d
 	}
-	p.advanceTo.Store(d.Milliseconds())
+	p.advanceTo.Store(int64(d))
 
 	// try to wake up the player if it's waiting to emit an event
 	select {
@@ -461,8 +461,8 @@ func (p *Player) waitWhilePaused() error {
 
 // LastPlayed returns the time of the last played event,
 // expressed as milliseconds since the start of the session.
-func (p *Player) LastPlayed() int64 {
-	return p.lastPlayed.Load()
+func (p *Player) LastPlayed() time.Duration {
+	return time.Duration(p.lastPlayed.Load())
 }
 
 // translateEvent translates events if applicable and return if they should be
