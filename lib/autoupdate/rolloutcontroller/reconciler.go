@@ -78,7 +78,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 			}
 		}
 	}
-	return trace.CompareFailed("compare failed, tried %d times, last error: %w", tries, err)
+	return trace.CompareFailed("compare failed, tried %d times, last error: %s", tries, err)
 }
 
 // tryReconcile tries to reconcile the AutoUpdateAgentRollout singleton.
