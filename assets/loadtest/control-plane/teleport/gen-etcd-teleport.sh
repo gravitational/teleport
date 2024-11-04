@@ -28,7 +28,7 @@ highAvailability:
 
 authentication:
   type: local
-  secondFactor: "optional"
+  secondFactor: "webauthn"
   webauthn:
     rp_id: ${CLUSTER_NAME}.${ROUTE53_ZONE}
   connector_name: passwordless

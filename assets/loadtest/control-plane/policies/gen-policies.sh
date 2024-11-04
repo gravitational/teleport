@@ -4,7 +4,7 @@ set -euo pipefail
 
 source vars.env
 
-if [[ "$TELEPORT_BACKEND" != "dynamo" ]]; then
+if [[ "$TELEPORT_BACKEND" == "firestore" ]]; then
   exit 0
 fi
 
