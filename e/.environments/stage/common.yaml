@@ -1,0 +1,7 @@
+---
+ARTIFACT_DOWNLOAD_AWS_ROLE: arn:aws:iam::603330915152:role/tf-build-artifacts-download-gha-stage-teleport.e
+ARTIFACT_SOURCE_BUCKET: tp-603330915152-us-west-2-build-artifacts-stage
+ECR_PENDING_REPO_BASE: 603330915152.dkr.ecr.us-west-2.amazonaws.com/gravitational
+OCI_PENDING_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:603330915152:key/0e3a2564-1ac1-43e7-9317-a51fc9160b6d
+# This is needed at build time because the Helm charts need to know where the associated images will be
+OCI_PUBLIC_REPO_BASE: public.ecr.aws/gravitational-staging

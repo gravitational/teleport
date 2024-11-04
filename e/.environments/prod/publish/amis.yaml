@@ -1,0 +1,2 @@
+---
+AMI_PUBLISHING_ROLE_ARN: arn:aws:iam::146628656107:role/teleport-ami-promotion-gha

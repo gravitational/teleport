@@ -1,0 +1,4 @@
+---
+ECR_OCI_PENDING_PULL_ROLE_ARN: arn:aws:iam::146628656107:role/teleport-oci-download-gha
+ECR_OCI_PUSH_ROLE_ARN: arn:aws:iam::146628656107:role/teleport-oci-upload-gha
+OCI_PUBLIC_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:146628656107:key/763018cb-43b0-49f4-bfd2-b3a00336cfa7

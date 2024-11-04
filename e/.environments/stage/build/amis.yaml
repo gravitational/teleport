@@ -1,0 +1,3 @@
+---
+AMI_UPLOAD_AWS_ROLE: arn:aws:iam::603330915152:role/teleport-ami-tag-build-gha
+AMI_VPC_ID: vpc-05aa62270ce2f23ec

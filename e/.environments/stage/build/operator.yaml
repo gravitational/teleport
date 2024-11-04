@@ -1,0 +1,4 @@
+---
+# TODO use the same build process as all the other images
+BUILD_OPERATOR_OCI_AWS_ROLE: arn:aws:iam::603330915152:role/tf-build-operator-oci-gha
+OPERATOR_PENDING_ECR_REPO: 603330915152.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator

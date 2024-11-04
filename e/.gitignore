@@ -7,7 +7,6 @@ build-fips
 
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out
-build
 *.o#
 *.a
 *.so
@@ -37,3 +36,6 @@ tmp
 .swc
 
 bin
+
+# Environment values
+!.environments/**/build

@@ -1,0 +1,5 @@
+---
+RELEASE_SERVER_DOMAIN_NAME: cdn.teleport.dev
+RELCLI_TBOT_TOKEN: release-service-prod-gha
+RELCLI_TBOT_APP_NAME: releases-prod
+RELEASES_HOST: https://releases-prod.platform.teleport.sh

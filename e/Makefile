@@ -610,3 +610,9 @@ test-go-integration:
 			| tee $(TEST_LOG_DIR)/unit.json \
 			| gotestsum --raw-command -- cat; \
 	fi
+
+# All developers should run this upon cloning the repo. Unfortunately this
+# can't be done automatically with git.
+.PHONY: configure-git
+configure-git:
+	@./scripts/configure-git.sh

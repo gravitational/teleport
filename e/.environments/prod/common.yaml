@@ -1,0 +1,7 @@
+---
+ARTIFACT_DOWNLOAD_AWS_ROLE: arn:aws:iam::126027368216:role/tf-os-package-repo-tool-dronestorage-download-gha
+ARTIFACT_SOURCE_BUCKET: dronestorage.gravitational.io # This should be replaced with an artifact-storage module bucket in the teleport-prod AWS account - walt 2023-11
+ECR_PENDING_REPO_BASE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+OCI_PENDING_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:146628656107:key/f4939638-c2d8-4e4e-86da-5cbfd6b8de36
+# This is needed at build time because the Helm charts need to know where the associated images will be
+OCI_PUBLIC_REPO_BASE: public.ecr.aws/gravitational

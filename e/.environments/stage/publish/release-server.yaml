@@ -1,0 +1,5 @@
+---
+RELEASE_SERVER_DOMAIN_NAME: cdn.cloud.gravitational.io
+RELCLI_TBOT_TOKEN: release-service-staging-gha
+RELCLI_TBOT_APP_NAME: releases-staging
+RELEASES_HOST: https://releases-staging.platform.teleport.sh

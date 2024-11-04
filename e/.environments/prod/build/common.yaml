@@ -1,0 +1,5 @@
+---
+ARTIFACT_UPLOAD_AWS_ROLE: arn:aws:iam::126027368216:role/tf-os-package-repo-tool-dronestorage-upload-gha # Needs to be renamed to drop the OPRT nomenclature - walt 2023-11
+ECR_READ_ONLY_ROLE: arn:aws:iam::146628656107:role/tf-teleport-build-read-only-role-gha # We intentionally read production buildbox images to avoid constantly running stage builds or having prod/stage get out of sync - walt 2023-11
+# TODO stop using this for plugins smoke tests
+OCI_ECR_AWS_ROLE: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha

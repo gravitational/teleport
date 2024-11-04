@@ -5,3 +5,6 @@
 *_pb.ts linguist-generated
 *_pb.grpc-*.ts linguist-generated
 *_pb.client.ts linguist-generated
+
+# Show SOPS diffs (requires AWS auth)
+*.sops.yaml diff=sopsdiffer
