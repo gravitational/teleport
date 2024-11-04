@@ -284,9 +284,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 				assert.NotContains(t, keyID.arn, "mrk-")
 			}
 
-			awsKeyStore, ok := keyStore.backendForNewKeys.(*awsKMSKeystore)
-			require.True(t, ok)
-			tagsOut, err := awsKeyStore.kms.ListResourceTags(ctx, &kms.ListResourceTagsInput{KeyId: &keyID.arn})
+			tagsOut, err := fakeKMS.ListResourceTags(ctx, &kms.ListResourceTagsInput{KeyId: &keyID.arn})
 			require.NoError(t, err)
 			if len(tc.tags) == 0 {
 				tc.tags = map[string]string{
