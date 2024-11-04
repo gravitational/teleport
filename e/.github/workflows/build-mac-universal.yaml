@@ -136,11 +136,9 @@ jobs:
           cd "${DOWNLOAD_DIRECTORY}"
 
           # `aws s3 cp` occasionally segfaults on mac for unknown reasons. `aws s3 sync` seems to work better.
-          aws s3 sync "${S3_PREFIX}/teleport-v${TELEPORT_VERSION}-darwin-amd64-bin.tar.gz" .
-          aws s3 sync "${S3_PREFIX}/teleport-v${TELEPORT_VERSION}-darwin-arm64-bin.tar.gz" .
+          aws s3 sync "${S3_PREFIX}/" . --exclude "*" --include "teleport-v${TELEPORT_VERSION}*-darwin-*bin.tar.gz"
           if [[ "${RELEASE}" == enterprise ]]; then
-            aws s3 sync "${S3_PREFIX}/teleport-ent-v${TELEPORT_VERSION}-darwin-amd64-bin.tar.gz" .
-            aws s3 sync "${S3_PREFIX}/teleport-ent-v${TELEPORT_VERSION}-darwin-arm64-bin.tar.gz" .
+            aws s3 sync "${S3_PREFIX}/" . --exclude "*" --include "teleport-ent-v${TELEPORT_VERSION}*-darwin-*bin.tar.gz"
           fi
 
           ls -laht
