@@ -9,9 +9,7 @@ set -eu
 
 # only echoes the string if we are in GitHub Actions
 echo_gha() {
-  if [ -n "${GITHUB_ACTIONS+x}" ]; then
-    echo "$@"
-    fi
+  [ -n "${GITHUB_ACTIONS+x}" ] && echo "$@"
 }
 
 main() {
