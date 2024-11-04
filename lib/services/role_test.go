@@ -190,6 +190,40 @@ func TestRoleParse(t *testing.T) {
 			matchMessage: "KubernetesResource must include Namespace",
 		},
 		{
+			name: "validation error, invalid kubernetes_resources kind",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+						  "request": {
+							  "kubernetes_resources": [{"kind":"abcd"}]
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "invalid or unsupported",
+		},
+		{
+			name: "validation error, kubernetes_resources kind namespace not supported in v6",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+						  "request": {
+							  "kubernetes_resources": [{"kind":"namespace"}]
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "not supported in role version \"v6\"",
+		},
+		{
 			name: "validation error, missing podname in pod names",
 			in: `{
 					"kind": "role",
@@ -318,46 +352,52 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "full valid role v6",
 			in: `{
-					"kind": "role",
-					"version": "v6",
-					"metadata": {"name": "name1", "labels": {"a-b": "c"}},
-					"spec": {
-						"options": {
-							"cert_format": "standard",
-							"max_session_ttl": "20h",
-							"port_forwarding": true,
-							"client_idle_timeout": "17m",
-							"disconnect_expired_cert": "yes",
-							"enhanced_recording": ["command", "network"],
-							"desktop_clipboard": true,
-							"desktop_directory_sharing": true,
-							"ssh_file_copy" : false
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "name1", "labels": {"a-b": "c"}},
+				"spec": {
+					"options": {
+						"cert_format": "standard",
+						"max_session_ttl": "20h",
+						"port_forwarding": true,
+						"client_idle_timeout": "17m",
+						"disconnect_expired_cert": "yes",
+						"enhanced_recording": ["command", "network"],
+						"desktop_clipboard": true,
+						"desktop_directory_sharing": true,
+						"ssh_file_copy" : false
+					},
+					"allow": {
+					  "request": {
+						  "kubernetes_resources": [{"kind":"pod"}]
 						},
-						"allow": {
-							"node_labels": {"a": "b", "c-d": "e"},
-							"app_labels": {"a": "b", "c-d": "e"},
-							"group_labels": {"a": "b", "c-d": "e"},
-							"kubernetes_labels": {"a": "b", "c-d": "e"},
-							"db_labels": {"a": "b", "c-d": "e"},
-							"db_names": ["postgres"],
-							"db_users": ["postgres"],
-							"namespaces": ["default"],
-							"rules": [
-								{
-									"resources": ["role"],
-									"verbs": ["read", "list"],
-									"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-									"actions": [
-										"log(\"info\", \"log entry\")"
-									]
-								}
-							]
+						"node_labels": {"a": "b", "c-d": "e"},
+						"app_labels": {"a": "b", "c-d": "e"},
+						"group_labels": {"a": "b", "c-d": "e"},
+						"kubernetes_labels": {"a": "b", "c-d": "e"},
+						"db_labels": {"a": "b", "c-d": "e"},
+						"db_names": ["postgres"],
+						"db_users": ["postgres"],
+						"namespaces": ["default"],
+						"rules": [
+							{
+								"resources": ["role"],
+								"verbs": ["read", "list"],
+								"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+								"actions": [
+									"log(\"info\", \"log entry\")"
+								]
+							}
+						]
+					},
+					"deny": {
+					  "request": {
+						  "kubernetes_resources": [{"kind":"pod"}]
 						},
-						"deny": {
-							"logins": ["c"]
-						}
+						"logins": ["c"]
 					}
-				}`,
+				}
+			}`,
 			role: types.RoleV6{
 				Kind:    types.KindRole,
 				Version: types.V6,
@@ -409,10 +449,20 @@ func TestRoleParse(t *testing.T) {
 								},
 							},
 						},
+						Request: &types.AccessRequestConditions{
+							KubernetesResources: []types.RequestKubernetesResource{
+								{Kind: types.KindKubePod},
+							},
+						},
 					},
 					Deny: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
+						Request: &types.AccessRequestConditions{
+							KubernetesResources: []types.RequestKubernetesResource{
+								{Kind: types.KindKubePod},
+							},
+						},
 					},
 				},
 			},
