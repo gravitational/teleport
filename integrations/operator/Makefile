@@ -72,6 +72,9 @@ help: ## Display this help.
 
 ##@ Development
 
+.PHONY: crd ## Single command to generate anything CRD-related (only manifests for this branch)
+crd: crdgen
+
 .PHONY: crdgen
 crdgen: ## Generate CRDs
 	make -C crdgen
