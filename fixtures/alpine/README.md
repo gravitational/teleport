@@ -12,11 +12,12 @@ To download the new `alpine-minirootfs` image, follow the instructions:
 
 ```bash
 $ export ALPINE_VERSION=3.20.3
+$ export SHORT_VERSION=${ALPINE_VERSION%.*}
 
 # download alpine minirootfs and signature
-$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
-$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
-$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
+$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
+$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
+$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v$SHORT_VERSION/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
           
 ```
 
