@@ -399,7 +399,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -483,7 +483,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -525,7 +525,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>
@@ -1233,7 +1233,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -1569,7 +1569,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -1611,7 +1611,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>
@@ -3556,7 +3556,7 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -4829,7 +4829,7 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -4959,7 +4959,7 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>
@@ -5413,7 +5413,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            Debian 8+
+            Debian 11+
           </div>
         </div>
       </div>
@@ -5581,7 +5581,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            RHEL/CentOS 7+
+            RHEL 8+/CentOS Stream 9+
           </div>
         </div>
       </div>
@@ -5623,7 +5623,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            Ubuntu 14.04+
+            Ubuntu 18.04+
           </div>
         </div>
       </div>

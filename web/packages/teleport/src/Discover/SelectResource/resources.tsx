@@ -44,7 +44,7 @@ const baseServerKeywords = 'server node';
 const awsKeywords = 'aws amazon ';
 export const SERVERS: ResourceSpec[] = [
   {
-    name: 'Ubuntu 14.04+',
+    name: 'Ubuntu 18.04+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'ubuntu linux',
     icon: 'linux',
@@ -52,7 +52,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
-    name: 'Debian 8+',
+    name: 'Debian 11+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'debian linux',
     icon: 'linux',
@@ -60,7 +60,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.Linux,
   },
   {
-    name: 'RHEL/CentOS 7+',
+    name: 'RHEL 8+/CentOS Stream 9+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'rhel centos linux',
     icon: 'linux',
