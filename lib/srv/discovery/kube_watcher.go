@@ -120,7 +120,7 @@ func (s *Server) startKubeWatchers() error {
 }
 
 func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster) error {
-	s.Log.DebugContext(s.ctx, "Creating kube_cluster", "kube_cluster_name", kubeCluster.GetName())
+	s.Log.DebugContext(ctx, "Creating kube_cluster", "kube_cluster_name", kubeCluster.GetName())
 	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
 	// If the kube already exists but has an empty discovery group, update it.
 	if err != nil {

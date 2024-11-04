@@ -141,7 +141,7 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 		},
 	})
 	if err != nil {
-		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
+		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }

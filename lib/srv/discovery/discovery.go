@@ -257,8 +257,9 @@ kubernetes matchers are present.`)
 	c.LegacyLogger = c.LegacyLogger.WithField(teleport.ComponentKey, teleport.ComponentDiscovery)
 
 	if c.DiscoveryGroup == "" {
-		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
-			"Please set discovery_service.discovery_group according to the documentation: https://goteleport.com/docs/reference/config/#discovery-service")
+		const warningMessage = "discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
+			"Please set discovery_service.discovery_group according to the documentation: https://goteleport.com/docs/reference/config/#discovery-service"
+		c.Log.WarnContext(context.Background(), warningMessage)
 	}
 
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
@@ -1033,11 +1034,12 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 func (s *Server) logHandleInstancesErr(err error) {
 	var aErr awserr.Error
 	if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeInvalidInstanceId {
+		const errorMessage = "SSM SendCommand failed with ErrCodeInvalidInstanceId. " +
+			"Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. " +
+			"Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. " +
+			"See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details."
 		s.Log.ErrorContext(s.ctx,
-			"SSM SendCommand failed with ErrCodeInvalidInstanceId. "+
-				"Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. "+
-				"Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. "+
-				"See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details.",
+			errorMessage,
 			"error", err)
 	} else if trace.IsNotFound(err) {
 		s.Log.DebugContext(s.ctx, "All discovered EC2 instances are already part of the cluster")
