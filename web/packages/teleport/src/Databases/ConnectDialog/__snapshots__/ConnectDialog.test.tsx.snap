@@ -144,7 +144,6 @@ exports[`render dialog with instructions to connect to database 1`] = `
 
 .c18 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -494,7 +493,6 @@ exports[`render dialog with instructions to connect to database with requestId 1
 
 .c18 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;

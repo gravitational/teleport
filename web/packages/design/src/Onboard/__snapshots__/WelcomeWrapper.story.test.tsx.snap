@@ -35,7 +35,6 @@ exports[`wrapper 1`] = `
 
 .c13 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
