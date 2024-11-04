@@ -33,6 +33,7 @@ import { useSpecifiableFields } from 'shared/components/AccessRequests/NewReques
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import {
   PendingAccessRequest,
   extractResourceRequestProperties,
@@ -54,7 +55,7 @@ import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  useWorkspaceServiceState();
   ctx.clustersService.useState();
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
