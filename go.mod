@@ -43,37 +43,37 @@ require (
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/aws/aws-sdk-go-v2 v1.32.3
-	github.com/aws/aws-sdk-go-v2/config v1.27.39
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.37
-	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.8
-	github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue v1.14.24
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.14
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.25
-	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.32.3
-	github.com/aws/aws-sdk-go-v2/service/athena v1.46.2
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.35.3
-	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.23.3
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.179.2
-	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.26.3
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.46.3
-	github.com/aws/aws-sdk-go-v2/service/eks v1.49.3
-	github.com/aws/aws-sdk-go-v2/service/glue v1.99.2
-	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3
+	github.com/aws/aws-sdk-go-v2/config v1.28.1
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.42
+	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.15.13
+	github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue v1.14.48
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.18
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.35
+	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.33.3
+	github.com/aws/aws-sdk-go-v2/service/athena v1.48.1
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.24.3
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.187.0
+	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.27.3
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.49.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.51.1
+	github.com/aws/aws-sdk-go-v2/service/glue v1.101.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.27.3
-	github.com/aws/aws-sdk-go-v2/service/kms v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/kms v1.37.3
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.34.3
-	github.com/aws/aws-sdk-go-v2/service/rds v1.85.2
-	github.com/aws/aws-sdk-go-v2/service/redshift v1.47.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.63.3
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.33.3
-	github.com/aws/aws-sdk-go-v2/service/sns v1.32.3
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.35.3
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.54.3
+	github.com/aws/aws-sdk-go-v2/service/rds v1.89.0
+	github.com/aws/aws-sdk-go-v2/service/redshift v1.51.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.3
+	github.com/aws/aws-sdk-go-v2/service/sns v1.33.3
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.3
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.29.3
 	github.com/aws/aws-sdk-go-v2/service/sts v1.32.3
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/aws/smithy-go v1.22.0
-	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240918142057-e21b7a4e92d1
+	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20241029204838-fb9784500689
 	github.com/beevik/etree v1.4.1
 	github.com/buildkite/bintest/v3 v3.3.0
 	github.com/charmbracelet/bubbles v0.20.0
@@ -196,14 +196,14 @@ require (
 	go.opentelemetry.io/otel/trace v1.30.0
 	go.opentelemetry.io/proto/otlp v1.3.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.27.0
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
+	golang.org/x/crypto v0.28.0
+	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/net v0.29.0
+	golang.org/x/net v0.30.0
 	golang.org/x/oauth2 v0.23.0
 	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.25.0
-	golang.org/x/term v0.24.0
+	golang.org/x/sys v0.26.0
+	golang.org/x/term v0.25.0
 	golang.org/x/text v0.19.0
 	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
@@ -265,20 +265,20 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20230218143504-906a9b012302 // indirect
 	github.com/apache/arrow/go/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.5 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.33.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.25.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.22 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.36.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.27.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.20 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.9.19 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.4.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.10.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.23.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.27.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.24.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.3 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -528,7 +528,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/tools v0.24.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
