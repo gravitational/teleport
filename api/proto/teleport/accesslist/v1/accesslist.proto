@@ -64,6 +64,8 @@ message AccessListSpec {
   AccessListRequires ownership_requires = 5;
 
   // grants describes the access granted by membership to this Access List.
+  // This is a totally new comment
+  // And I forgot to run the generation commands.
   AccessListGrants grants = 6;
 
   // title is a plaintext short description of the Access List.
