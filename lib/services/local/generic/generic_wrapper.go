@@ -125,14 +125,16 @@ func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, e
 	return adapter.resource, trace.Wrap(err)
 }
 
-// UpdateResource updates an existing resource.
-func (s ServiceWrapper[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
+// UnconditionalUpdateResource updates an existing resource without checking the provided resource revision.
+// This is faster and cheaper than ConditionalUpdateResource but can cause data loss on concurrent writes.
+func (s ServiceWrapper[T]) UnconditionalUpdateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpdateResource(ctx, newResourceMetadataAdapter(resource))
 	return adapter.resource, trace.Wrap(err)
 }
 
 // ConditionalUpdateResource updates an existing resource if the provided
 // resource and the existing resource have matching revisions.
+// This is safer than UnconditionalUpdateResource but more expensive and might not suit high-load scenarios.
 func (s ServiceWrapper[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.ConditionalUpdateResource(ctx, newResourceMetadataAdapter(resource))
 	return adapter.resource, trace.Wrap(err)
