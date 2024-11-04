@@ -245,7 +245,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	}
 	if status != nil {
 		cluster.status = *status
-		cluster.SSOHostname = status.SSOHostname
+		cluster.SSOHost = status.SSOHost
 	}
 
 	return cluster, clusterClient, trace.Wrap(err)

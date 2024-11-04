@@ -91,7 +91,7 @@ export const makeRootCluster = (
   proxyVersion: '11.1.0',
   showResources: ShowResources.REQUESTABLE,
   profileStatusError: '',
-  ssoHostname: 'example.auth0.com',
+  ssoHost: 'example.auth0.com',
   ...props,
 });
 
@@ -108,7 +108,7 @@ export const makeLeafCluster = (
   proxyVersion: '',
   profileStatusError: '',
   showResources: ShowResources.UNSPECIFIED,
-  ssoHostname: 'example.auth0.com',
+  ssoHost: 'example.auth0.com',
   ...props,
 });
 

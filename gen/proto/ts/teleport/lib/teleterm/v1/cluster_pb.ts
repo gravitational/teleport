@@ -121,11 +121,11 @@ export interface Cluster {
      */
     profileStatusError: string;
     /**
-     * sso_hostname is the hostname of the SSO provider used to log in.
+     * sso_host is the host of the SSO provider used to log in.
      *
-     * @generated from protobuf field: string sso_hostname = 13;
+     * @generated from protobuf field: string sso_host = 13;
      */
-    ssoHostname: string;
+    ssoHost: string;
 }
 /**
  * LoggedInUser describes a logged-in user
@@ -384,7 +384,7 @@ class Cluster$Type extends MessageType<Cluster> {
             { no: 10, name: "proxy_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 11, name: "show_resources", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ShowResources", ShowResources, "SHOW_RESOURCES_"] },
             { no: 12, name: "profile_status_error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 13, name: "sso_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 13, name: "sso_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Cluster>): Cluster {
@@ -398,7 +398,7 @@ class Cluster$Type extends MessageType<Cluster> {
         message.proxyVersion = "";
         message.showResources = 0;
         message.profileStatusError = "";
-        message.ssoHostname = "";
+        message.ssoHost = "";
         if (value !== undefined)
             reflectionMergePartial<Cluster>(this, message, value);
         return message;
@@ -441,8 +441,8 @@ class Cluster$Type extends MessageType<Cluster> {
                 case /* string profile_status_error */ 12:
                     message.profileStatusError = reader.string();
                     break;
-                case /* string sso_hostname */ 13:
-                    message.ssoHostname = reader.string();
+                case /* string sso_host */ 13:
+                    message.ssoHost = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -489,9 +489,9 @@ class Cluster$Type extends MessageType<Cluster> {
         /* string profile_status_error = 12; */
         if (message.profileStatusError !== "")
             writer.tag(12, WireType.LengthDelimited).string(message.profileStatusError);
-        /* string sso_hostname = 13; */
-        if (message.ssoHostname !== "")
-            writer.tag(13, WireType.LengthDelimited).string(message.ssoHostname);
+        /* string sso_host = 13; */
+        if (message.ssoHost !== "")
+            writer.tag(13, WireType.LengthDelimited).string(message.ssoHost);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
