@@ -138,7 +138,7 @@ func (s *Server) getCurrentDatabases() map[string]types.Database {
 }
 
 func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) error {
-	s.Log.DebugContext(s.ctx, "Creating database", "database", database.GetName())
+	s.Log.DebugContext(ctx, "Creating database", "database", database.GetName())
 	err := s.AccessPoint.CreateDatabase(ctx, database)
 	// If the database already exists but has cloud origin and an empty
 	// discovery group, then update it.
@@ -169,12 +169,12 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, database, _ types.Database) error {
-	s.Log.DebugContext(s.ctx, "Updating database", "database", database.GetName())
+	s.Log.DebugContext(ctx, "Updating database", "database", database.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateDatabase(ctx, database))
 }
 
 func (s *Server) onDatabaseDelete(ctx context.Context, database types.Database) error {
-	s.Log.DebugContext(s.ctx, "Deleting database", "database", database.GetName())
+	s.Log.DebugContext(ctx, "Deleting database", "database", database.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteDatabase(ctx, database.GetName()))
 }
 
