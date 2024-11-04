@@ -183,10 +183,9 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	// If interrupted, close the file immediately to stop extracting.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go func() {
-		<-ctx.Done()
-		_ = f.Close()
-	}()
+	context.AfterFunc(ctx, func() {
+		_ = f.Close() // safe to close file multiple times
+	})
 	// Check integrity before decompression
 	if !bytes.Equal(newSum, pathSum) {
 		return trace.Errorf("mismatched checksum, download possibly corrupt")
