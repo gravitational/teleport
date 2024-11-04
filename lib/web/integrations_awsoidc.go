@@ -125,7 +125,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	}
 
 	teleportVersionTag := teleport.Version
-	if automaticUpgrades(h.ClusterFeatures) {
+	if automaticUpgrades(h.GetClusterFeatures()) {
 		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -178,7 +178,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 	}
 
 	teleportVersionTag := teleport.Version
-	if automaticUpgrades(h.ClusterFeatures) {
+	if automaticUpgrades(h.GetClusterFeatures()) {
 		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -480,7 +480,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.ClusterFeatures, h.cfg.AutomaticUpgradesChannels)
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), h.cfg.AutomaticUpgradesChannels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
