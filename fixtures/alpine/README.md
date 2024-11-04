@@ -6,7 +6,26 @@ The `alpine-webserver:v1` image is based on `alpine` `minirootfs`, but instead o
 
 The build process is specified in the `.github/workflows/kube-integration-tests-non-root.yaml` file.
 
-To avoid distributing Alpine Linux within the Teleport repository, we download it fresh from the Alpine CDN with each build. The download includes the minirootfs (3.3MB), along with the corresponding SHA-256 checksum and GPG signature files for verification.
+## Download
+
+To download the new `alpine-minirootfs` image, follow the instructions:
+
+Define the desired Alpine version:
+
+```bash
+$ export ALPINE_VERSION=3.20.3
+```
+
+Download the asset files: filesystem, signature and sha256.
+
+```bash
+
+# download alpine minirootfs and signature
+$ curl -fSsL -o ./fixtures/alpine/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
+$ curl -fSsL -o ./fixtures/alpine/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
+$ curl -fSsL -o ./fixtures/alpine/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256 https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
+          
+```
 
 ## Source Validation
 
