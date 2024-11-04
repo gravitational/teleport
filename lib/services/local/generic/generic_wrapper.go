@@ -126,7 +126,10 @@ func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, e
 }
 
 // UnconditionalUpdateResource updates an existing resource without checking the provided resource revision.
-// This is faster and cheaper than ConditionalUpdateResource but can cause data loss on concurrent writes.
+// Because UnconditionalUpdateResource can blindly overwrite an existing item, ConditionalUpdateResource should
+// be preferred.
+// See https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md#update-1 for more details
+// about the Update operation.
 func (s ServiceWrapper[T]) UnconditionalUpdateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpdateResource(ctx, newResourceMetadataAdapter(resource))
 	return adapter.resource, trace.Wrap(err)
@@ -134,7 +137,8 @@ func (s ServiceWrapper[T]) UnconditionalUpdateResource(ctx context.Context, reso
 
 // ConditionalUpdateResource updates an existing resource if the provided
 // resource and the existing resource have matching revisions.
-// This is safer than UnconditionalUpdateResource but more expensive and might not suit high-load scenarios.
+// See https://github.com/gravitational/teleport/blob/master/rfd/0126-backend-migrations.md#optimistic-locking for more
+// details about the conditional update.
 func (s ServiceWrapper[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.ConditionalUpdateResource(ctx, newResourceMetadataAdapter(resource))
 	return adapter.resource, trace.Wrap(err)
