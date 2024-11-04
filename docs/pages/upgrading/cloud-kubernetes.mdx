@@ -39,6 +39,7 @@ updating works. Automatic agent upgrades require:
   $ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.automatic_upgrades'
   true
   ```
+
 - At least one Teleport Enterprise agent deployed via the `teleport-kube-agent`
   Helm chart.
 
@@ -187,7 +188,7 @@ Run the following commands to upgrade Teleport agents running on Kubernetes.
 1. Update the Teleport Helm chart repository so you can install the latest
    version of the `teleport-kube-agent` chart:
 
-      (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
 1. Upgrade the Helm release:
 
