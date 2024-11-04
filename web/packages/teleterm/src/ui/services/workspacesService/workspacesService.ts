@@ -17,7 +17,6 @@
  */
 
 import { z } from 'zod';
-import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 import {
@@ -223,10 +222,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.state.rootClusterUri &&
       routing.belongsToProfile(this.state.rootClusterUri, resourceUri)
     );
-  }
-
-  useState() {
-    return useStore(this);
   }
 
   setState(nextState: (draftState: WorkspacesState) => WorkspacesState | void) {
