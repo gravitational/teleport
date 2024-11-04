@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 
 import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
@@ -63,11 +63,13 @@ export const ReAuthenticate: FC<{
     availableMfaTypes[0]
   );
 
-  // If SSO is the default value, open the redirect window
-  // instead of waiting for the user to select SSO.
-  if (selectedMfaType.value === 'sso') {
-    props.onSsoContinue(req.sso.redirectUrl);
-  }
+  useEffect(() => {
+    // If SSO is the default value, open the redirect window
+    // instead of waiting for the user to select SSO.
+    if (selectedMfaType.value === 'sso') {
+      props.onSsoContinue(req.sso.redirectUrl);
+    }
+  });
 
   const [otpToken, setOtpToken] = useState('');
 
@@ -134,9 +136,6 @@ export const ReAuthenticate: FC<{
                       options={availableMfaTypes}
                       onChange={mfaType => {
                         setSelectedMfaType(mfaType);
-                        if (mfaType.value === 'sso') {
-                          props.onSsoContinue(req.sso.redirectUrl);
-                        }
                       }}
                     />
                   )}
