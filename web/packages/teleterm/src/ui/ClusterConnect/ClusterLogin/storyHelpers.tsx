@@ -18,9 +18,6 @@
 
 import { FC, PropsWithChildren } from 'react';
 import Dialog from 'design/Dialog';
-import { Attempt } from 'shared/hooks/useAsync';
-
-import * as types from 'teleterm/ui/services/clusters/types';
 
 import { dialogCss } from '../spacing';
 
@@ -39,7 +36,8 @@ export function makeProps(): ClusterLoginPresentationProps {
     loginAttempt: {
       status: '',
       statusText: '',
-    } as Attempt<void>,
+      data: undefined,
+    },
     init: () => null,
     initAttempt: {
       status: 'success',
@@ -47,13 +45,12 @@ export function makeProps(): ClusterLoginPresentationProps {
       data: {
         localAuthEnabled: true,
         authProviders: [],
-        type: '',
         hasMessageOfTheDay: false,
         allowPasswordless: true,
         localConnectorName: '',
         authType: 'local',
-      } as types.AuthSettings,
-    } as const,
+      },
+    },
 
     loggedInUserName: null,
     onCloseDialog: () => null,
