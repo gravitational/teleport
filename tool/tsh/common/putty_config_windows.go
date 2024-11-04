@@ -44,6 +44,8 @@ const puttyProtocol = `ssh`
 
 // ints
 const puttyDefaultProxyPort = 0 // no need to set the proxy port as it's abstracted by `tsh proxy ssh`
+const puttyDwordAuthGSSAPI = 0
+const puttyDwordAauthGSSAPIKEX = 0
 
 // dwords
 const puttyDwordPresent = `00000001`
@@ -60,6 +62,8 @@ type puttyRegistrySessionDwords struct {
 	ProxyPort      int    // dword
 	ProxyMethod    string // dword
 	ProxyLogToTerm string // dword
+	AuthGSSAPI     int    // dword
+	AuthGSSAPIKEX  int    // dword
 }
 
 type puttyRegistrySessionStrings struct {
@@ -93,6 +97,8 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 		ProxyPort:      puttyDefaultProxyPort,
 		ProxyMethod:    puttyDwordProxyMethod,
 		ProxyLogToTerm: puttyDwordProxyLogToTerm,
+		AuthGSSAPI:     puttyDwordAuthGSSAPI,
+		AuthGSSAPIKEX:  puttyDwordAauthGSSAPIKEX,
 	}
 
 	sessionStrings := puttyRegistrySessionStrings{
