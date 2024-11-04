@@ -88,15 +88,19 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 // The caller must handle those error and retry the reconciliation.
 func (r *Reconciler) tryReconcile(ctx context.Context) error {
 	// get autoupdate_config
-	config, err := r.clt.GetAutoUpdateConfig(ctx)
-	if err != nil && !trace.IsNotFound(err) {
+	var config *autoupdate.AutoUpdateConfig
+	if c, err := r.clt.GetAutoUpdateConfig(ctx); err == nil {
+		config = c
+	} else if !trace.IsNotFound(err) {
 		return trace.Wrap(err, "getting autoupdate_config")
 	}
 
 	// get autoupdate_version
-	version, err := r.clt.GetAutoUpdateVersion(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err, "getting autoupdate_version")
+	var version *autoupdate.AutoUpdateVersion
+	if v, err := r.clt.GetAutoUpdateVersion(ctx); err == nil {
+		version = v
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err, "getting autoupdate version")
 	}
 
 	// get autoupdate_agent_rollout
