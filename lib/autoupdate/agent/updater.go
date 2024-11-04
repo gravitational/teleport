@@ -589,3 +589,9 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	}
 	return nil
 }
+
+// UseSystem
+// This function is idempotent.
+func (u *Updater) UseSystem(ctx context.Context) error {
+
+}

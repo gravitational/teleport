@@ -73,6 +73,10 @@ type LocalInstaller struct {
 	LinkBinDir string
 	// LinkServiceDir contains a symlink to the linked installation's systemd service.
 	LinkServiceDir string
+	// SystemBinDir
+	SystemBinDir string
+	// SystemServiceDir
+	SystemServiceDir string
 	// HTTP is an HTTP client for downloading Teleport.
 	HTTP *http.Client
 	// Log contains a logger.
@@ -483,6 +487,85 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	return revert, nil
 }
 
+// LinkSystemDefault links the system installation, but only in the case that
+// no installation of Teleport is already linked or partially linked.
+// See Installer interface for additional specs.
+func (li *LocalInstaller) LinkSystemDefault(ctx context.Context) error {
+	// ensure target directories exist before trying to create links
+	err := os.MkdirAll(li.LinkBinDir, 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// validate that we can link all system binaries before attempting linking
+
+	entries, err := os.ReadDir(li.SystemBinDir)
+	if err != nil {
+		return trace.Errorf("failed to find Teleport binary directory: %w", err)
+	}
+	var linked int
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		oldname := filepath.Join(li.SystemBinDir, entry.Name())
+		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		ok, err := hasNoOtherLink(oldname, newname)
+		if err != nil {
+			return trace.Errorf("error trying to read existing link %s: %w", newname, err)
+		}
+		if !ok {
+			return trace.Errorf("refusing to replace %s", newname)
+		}
+		linked++
+	}
+	// bail if no binaries can be linked
+	if linked == 0 {
+		return trace.Errorf("no binaries available to link")
+	}
+
+	// validate that we can link the systemd service file before attempting linking
+
+	oldname := filepath.Join(li.SystemServiceDir, servicePath)
+	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
+	ok, err := hasNoOtherLink(oldname, newname)
+	if err != nil {
+		return trace.Errorf("error trying to read existing link %s: %w", newname, err)
+	}
+	if !ok {
+		return trace.Errorf("refusing to replace %s", newname)
+	}
+
+	// create binary links
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		oldname := filepath.Join(li.SystemBinDir, entry.Name())
+		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		err = ensureLink(oldname, newname)
+		if err != nil {
+			return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
+		}
+
+	}
+
+	// create systemd service link
+
+	oldname = filepath.Join(li.SystemServiceDir, servicePath)
+	newname = filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
+	err = ensureLink(oldname, newname)
+	if err != nil {
+		return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
+	}
+	return nil
+}
+
 // tryLink attempts to create a symlink, atomically replacing an existing link if already present.
 // If a non-symlink file or directory exists in newname already, tryLink errors.
 func tryLink(oldname, newname string) (orig string, err error) {
@@ -506,6 +589,50 @@ func tryLink(oldname, newname string) (orig string, err error) {
 	return orig, nil
 }
 
+// tryLink attempts to create a symlink, atomically replacing an existing link if already present.
+// If a non-symlink file or directory exists in newname already, tryLink errors.
+func ensureLink(oldname, newname string) error {
+	orig, err := os.Readlink(newname)
+	if errors.Is(err, os.ErrInvalid) ||
+		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
+		// important: do not attempt to replace a non-linked install of Teleport
+		return trace.Errorf("refusing to replace file at %s", newname)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return trace.Wrap(err)
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		// guarantee failure if link already exists by using os.Symlink instead of renameio.Symlink.
+		err = os.Symlink(oldname, newname)
+		return trace.Wrap(err)
+	}
+	if orig != oldname {
+		return trace.Wrap(os.ErrExist)
+	}
+	return nil
+}
+
+// tryLink attempts to create a symlink, atomically replacing an existing link if already present.
+// If a non-symlink file or directory exists in newname already, tryLink errors.
+func hasNoOtherLink(oldname, newname string) (ok bool, err error) {
+	orig, err := os.Readlink(newname)
+	if errors.Is(err, os.ErrInvalid) ||
+		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
+		// important: do not attempt to replace a non-linked install of Teleport
+		return false, nil
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, trace.Wrap(err)
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if orig != oldname {
+		return false, nil
+	}
+	return true, nil
+}
+
 // versionDir returns the storage directory for a Teleport version.
 // versionDir will fail if the version cannot be used to construct the directory name.
 // For example, it ensures that ".." cannot be provided to return a system directory.
@@ -516,7 +643,7 @@ func (li *LocalInstaller) versionDir(version string) (string, error) {
 	}
 	versionDir := filepath.Join(installDir, version)
 	if filepath.Dir(versionDir) != filepath.Clean(installDir) {
-		return "", trace.Errorf("refusing to directory outside of version directory")
+		return "", trace.Errorf("refusing to link directory outside of version directory")
 	}
 	return versionDir, nil
 }
