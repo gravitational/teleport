@@ -36,7 +36,7 @@ type Props = PasswordlessLoginState & {
 export function PromptPasswordless(props: Props) {
   const { prompt } = props;
   return (
-    <Box minHeight="40px" p={4}>
+    <Box minHeight="40px">
       {prompt === 'credential' && <PromptCredential {...props} />}
       {(prompt === 'tap' || prompt === 'retap') && <PromptTouch {...props} />}
       {prompt === 'pin' && <PromptPin {...props} />}
