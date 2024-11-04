@@ -77,22 +77,23 @@ export function manageRootClusterProxyHostAllowList({
 
     allowList.clear();
     for (const rootCluster of rootClusters) {
-      if (!rootCluster.proxyHost) {
-        continue;
+      if (rootCluster.proxyHost) {
+        let browserProxyHost: string;
+        try {
+          browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
+          allowList.add(browserProxyHost);
+        } catch (error) {
+          logger.error(
+            'Ran into an error when converting proxy host to browser proxy host',
+            error
+          );
+        }
       }
 
-      let browserProxyHost: string;
-      try {
-        browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
-      } catch (error) {
-        logger.error(
-          'Ran into an error when converting proxy host to browser proxy host',
-          error
-        );
-        continue;
+      // Allow the SSO hostname for SSO login/mfa redirects.
+      if (rootCluster.ssoHost) {
+        allowList.add(rootCluster.ssoHost);
       }
-
-      allowList.add(browserProxyHost);
     }
   };
 

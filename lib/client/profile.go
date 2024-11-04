@@ -242,6 +242,9 @@ type ProfileStatus struct {
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
+
+	// SSOHost is the host of the SSO provider used to log in.
+	SSOHost string
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
@@ -255,6 +258,7 @@ type profileOptions struct {
 	KubeProxyAddr           string
 	IsVirtual               bool
 	SAMLSingleLogoutEnabled bool
+	SSOHost                 string
 }
 
 // profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
@@ -375,6 +379,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		IsVirtual:               opts.IsVirtual,
 		AllowedResourceIDs:      allowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
+		SSOHost:                 opts.SSOHost,
 	}, nil
 }
 

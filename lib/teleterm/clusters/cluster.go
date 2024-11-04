@@ -62,6 +62,8 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
+	// SSOHost is the host of the SSO provider used to log in.
+	SSOHost string
 }
 
 type ClusterWithDetails struct {

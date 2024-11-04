@@ -1307,8 +1307,9 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 	return webclient.AuthenticationSettings{
 		Type: constants.OIDC,
 		OIDC: &webclient.OIDCSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:      connector.GetName(),
+			Display:   connector.GetDisplay(),
+			IssuerURL: connector.GetIssuerURL(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1327,6 +1328,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			Name:                connector.GetName(),
 			Display:             connector.GetDisplay(),
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
+			SSO:                 connector.GetSSO(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
@@ -1342,8 +1344,9 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 	return webclient.AuthenticationSettings{
 		Type: constants.Github,
 		Github: &webclient.GithubSettings{
-			Name:    connector.GetName(),
-			Display: connector.GetDisplay(),
+			Name:        connector.GetName(),
+			Display:     connector.GetDisplay(),
+			EndpointURL: connector.GetEndpointURL(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
