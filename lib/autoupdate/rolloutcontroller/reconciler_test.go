@@ -305,7 +305,7 @@ func TestTryReconcile(t *testing.T) {
 
 			// Test execution: Running the reconciliation
 
-			reconciler := Reconciler{
+			reconciler := &Reconciler{
 				clt: client,
 				log: log,
 			}
@@ -373,7 +373,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := Reconciler{
+		reconciler := &Reconciler{
 			clt: client,
 			log: log,
 		}
@@ -395,7 +395,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := Reconciler{
+		reconciler := &Reconciler{
 			clt: client,
 			log: log,
 		}
@@ -419,7 +419,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := Reconciler{
+		reconciler := &Reconciler{
 			clt: client,
 			log: log,
 		}
@@ -459,7 +459,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := Reconciler{
+		reconciler := &Reconciler{
 			clt: client,
 			log: log,
 		}
@@ -497,7 +497,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := Reconciler{
+		reconciler := &Reconciler{
 			clt: client,
 			log: log,
 		}
@@ -521,7 +521,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := Reconciler{
+		reconciler := &Reconciler{
 			clt: client,
 			log: log,
 		}
@@ -551,7 +551,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		}
 
 		client := newMockClient(t, stubs)
-		reconciler := Reconciler{
+		reconciler := &Reconciler{
 			clt: client,
 			log: log,
 		}

@@ -32,6 +32,7 @@ const (
 	reconciliationTimeout = 30 * time.Second
 	defaultConfigMode     = update.AgentsUpdateModeEnabled
 	defaultStrategy       = update.AgentsStrategyHaltOnError
+	maxConflictRetry      = 3
 )
 
 // Reconciler reconciles the AutoUpdateAgentRollout singleton based on the content of the AutoUpdateVersion and
@@ -42,21 +43,27 @@ type Reconciler struct {
 	clt Client
 	log *slog.Logger
 
-	// lock ensures we only run one reconciliation at a time
-	lock sync.Mutex
+	// mutex ensures we only run one reconciliation at a time
+	mutex sync.Mutex
 }
 
 // Reconcile the AutoUpdateAgentRollout singleton. The reconciliation can fail because of a conflict (multiple auths
 // are racing), in this case we retry the reconciliation immediately.
-func (r Reconciler) Reconcile(ctx context.Context) error {
+func (r *Reconciler) Reconcile(ctx context.Context) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
 	ctx, cancel := context.WithTimeout(ctx, reconciliationTimeout)
 	defer cancel()
-	for {
+	tries := 0
+	var err error
+	for tries < maxConflictRetry {
+		tries++
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			err := r.tryReconcile(ctx)
+			err = r.tryReconcile(ctx)
 			switch {
 			case err == nil:
 				return nil
@@ -64,7 +71,6 @@ func (r Reconciler) Reconcile(ctx context.Context) error {
 				// The resource changed since we last saw it
 				// We must have raced against another auth
 				// Let's retry the reconciliation
-				// TODO: add a backoff to avoid a tight or infinite loop?
 				r.log.DebugContext(ctx, "retrying reconciliation", "error", err)
 			default:
 				// error is non-nil and non-retryable
@@ -72,6 +78,7 @@ func (r Reconciler) Reconcile(ctx context.Context) error {
 			}
 		}
 	}
+	return trace.CompareFailed("compare failed, tried %d times, last error: %w", tries, err)
 }
 
 // tryReconcile tries to reconcile the AutoUpdateAgentRollout singleton.
@@ -79,7 +86,7 @@ func (r Reconciler) Reconcile(ctx context.Context) error {
 // The creation/update/deletion can fail with a trace.CompareFailedError or trace.NotFoundError
 // if the resource change while we were computing it.
 // The caller must handle those error and retry the reconciliation.
-func (r Reconciler) tryReconcile(ctx context.Context) error {
+func (r *Reconciler) tryReconcile(ctx context.Context) error {
 	// get autoupdate_config
 	config, err := r.clt.GetAutoUpdateConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
@@ -158,7 +165,7 @@ func (r Reconciler) tryReconcile(ctx context.Context) error {
 	return trace.Wrap(err, "updating rollout")
 }
 
-func (r Reconciler) buildRolloutSpec(config *autoupdate.AutoUpdateConfigSpecAgents, version *autoupdate.AutoUpdateVersionSpecAgents) (*autoupdate.AutoUpdateAgentRolloutSpec, error) {
+func (r *Reconciler) buildRolloutSpec(config *autoupdate.AutoUpdateConfigSpecAgents, version *autoupdate.AutoUpdateVersionSpecAgents) (*autoupdate.AutoUpdateAgentRolloutSpec, error) {
 	// reconcile mode
 	mode, err := getMode(config.GetMode(), version.GetMode())
 	if err != nil {

@@ -21,9 +21,8 @@ package rolloutcontroller
 import (
 	"context"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/protoadapt"
+	"google.golang.org/protobuf/proto"
 	"testing"
 )
 
@@ -107,7 +106,7 @@ type callAnswer[T any] struct {
 // getHandler is used in a mock client to answer get resource requests during tests.
 // It takes a list of answers and errors and will return them when invoked.
 // If there are no stubs left it fails the test.
-type getHandler[T protoadapt.MessageV1] struct {
+type getHandler[T proto.Message] struct {
 	t       *testing.T
 	answers []callAnswer[T]
 }
@@ -122,7 +121,7 @@ func (h *getHandler[T]) handle(_ context.Context) (T, error) {
 
 	// We need to deep copy because the reconciler might do updates in place.
 	// We don't want the original resource to be edited as this would mess with other tests.
-	return utils.CloneProtoMsg(entry.result), entry.err
+	return proto.Clone(entry.result).(T), entry.err
 }
 
 // isEmpty returns true only if all stubs were consumed
@@ -131,9 +130,9 @@ func (h *getHandler[T]) isEmpty() bool {
 }
 
 // createUpdateHandler is used in a mock client to answer create or update resource requests during tests (any request whose arity is 2).
-// It first validates the input suing the passed validation function, then it returns the predefined answer and error.
+// It first validates the input using the provided validation function, then it returns the predefined answer and error.
 // If there are no stubs left it fails the test.
-type createUpdateHandler[T protoadapt.MessageV1] struct {
+type createUpdateHandler[T proto.Message] struct {
 	t       *testing.T
 	expect  []require.ValueAssertionFunc
 	answers []callAnswer[T]
@@ -155,7 +154,7 @@ func (h *createUpdateHandler[T]) handle(_ context.Context, object T) (T, error) 
 
 	// We need to deep copy because the reconciler might do updates in place.
 	// We don't want the original resource to be edited as this would mess with other tests.
-	return utils.CloneProtoMsg(entry.result), entry.err
+	return proto.Clone(entry.result).(T), entry.err
 }
 
 // isEmpty returns true only if all stubs were consumed
