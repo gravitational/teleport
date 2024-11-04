@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,26 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package ui
+package mfatypes
 
-import (
-	"testing"
+import mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types"
-)
-
-func TestTransformCommandLabels(t *testing.T) {
-	commandLabels := map[string]types.CommandLabel{
-		"label1": &types.CommandLabelV2{
-			Result: "value1",
-		},
-	}
-	labels := transformCommandLabels(commandLabels)
-	expected := map[string]string{
-		"label1": "value1",
-	}
-
-	require.Equal(t, expected, labels)
+// ChallengeExtensions is a json struct for [mfav1.ChallengeExtensions].
+type ChallengeExtensions struct {
+	Scope                       mfav1.ChallengeScope      `json:"scope"`
+	AllowReuse                  mfav1.ChallengeAllowReuse `json:"allow_reuse,omitempty"`
+	UserVerificationRequirement string                    `json:"user_verification_requirement,omitempty"`
 }

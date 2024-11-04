@@ -40,7 +40,7 @@ func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
 		return trace.Wrap(err)
 	}
 
-	destination, err := tshwrap.GetDestinationDirectory(botConfig)
+	destination, err := tshwrap.GetDestinationDirectory(dbCmd.DestinationDir, botConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}

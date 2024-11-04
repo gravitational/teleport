@@ -391,7 +391,7 @@ func (s *spiffeSDSHandler) generateResponse(
 		// Now we need to filter the SVIDs down to those requested by the
 		// client.
 		// There's a special case here, if they've requested the default SVID,
-		// we want to ensure that the first SVID is returned and it's name
+		// we want to ensure that the first SVID is returned and its name
 		// overrridden.
 
 		switch {

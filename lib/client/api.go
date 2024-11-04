@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -95,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/signal"
 )
 
 const (
@@ -359,6 +361,9 @@ type Config struct {
 	// Useful in constrained environments without access to USB or platform
 	// authenticators, such as remote hosts or virtual machines.
 	PreferOTP bool
+
+	// PreferSSO prefers SSO in favor of other MFA methods.
+	PreferSSO bool
 
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
@@ -697,6 +702,39 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
+	}
+
+	// The user has typed a command like `tsh ssh ...` without being logged in,
+	// if the running binary needs to be updated, update and re-exec.
+	//
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	//
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
+	toolsVersion, reExec, err := updater.CheckRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if reExec {
+		ctxUpdate, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
+		defer cancel()
+		// Download the version of client tools required by the cluster.
+		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			utils.FatalError(err)
+		}
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
+		}
 	}
 
 	if opt.afterLoginHook != nil {
@@ -2292,13 +2330,11 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				}
 				playing = !playing
 			case keyLeft, keyDown:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(max(current-skipDuration, 0)) // rewind
+				player.SetPos(max(player.LastPlayed()-skipDuration, 0)) // rewind
 				term.Clear()
 				term.SetCursorPos(1, 1)
 			case keyRight, keyUp:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(current + skipDuration) // advance forward
+				player.SetPos(player.LastPlayed() + skipDuration) // advance forward
 			}
 		}
 	}()
@@ -3043,6 +3079,8 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
 	authClientCfg.MFAPromptConstructor = tc.NewMFAPrompt
+	authClientCfg.SSOMFACeremonyConstructor = tc.NewSSOMFACeremony
+
 	authClient, err := authclient.NewClient(authClientCfg)
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
@@ -5062,9 +5100,10 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
-		InsecureAddressDiscovery: tc.InsecureSkipVerify,
-		MFAPromptConstructor:     tc.NewMFAPrompt,
+		ALPNConnUpgradeRequired:   tc.TLSRoutingConnUpgradeRequired,
+		InsecureAddressDiscovery:  tc.InsecureSkipVerify,
+		MFAPromptConstructor:      tc.NewMFAPrompt,
+		SSOMFACeremonyConstructor: tc.NewSSOMFACeremony,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -44,7 +44,7 @@ func newAccessListSpec(nextAudit time.Time) accesslist.Spec {
 	return accesslist.Spec{
 		Title:       "crane operation",
 		Description: "Access list that Gru uses to allow the minions to operate the crane.",
-		Owners:      []accesslist.Owner{{Name: "Gru", Description: "The super villain."}},
+		Owners:      []accesslist.Owner{{Name: "Gru", Description: "The super villain.", MembershipKind: accesslist.MembershipKindUser}},
 		Audit: accesslist.Audit{
 			Recurrence: accesslist.Recurrence{
 				Frequency:  accesslist.SixMonths,

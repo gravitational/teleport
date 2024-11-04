@@ -37,7 +37,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/integration/helpers/archive"
 )
 
 const (
@@ -133,9 +134,9 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 	for _, app := range []string{"tsh", "tctl"} {
 		output := filepath.Join(versionPath, app)
 		switch runtime.GOOS {
-		case "windows":
+		case constants.WindowsOS:
 			output = filepath.Join(versionPath, app+".exe")
-		case "darwin":
+		case constants.DarwinOS:
 			output = filepath.Join(versionPath, app+".app", "Contents", "MacOS", app)
 		}
 		if err := buildBinary(output, toolsDir, version, baseURL); err != nil {
@@ -143,15 +144,15 @@ func buildAndArchiveApps(ctx context.Context, path string, toolsDir string, vers
 		}
 	}
 	switch runtime.GOOS {
-	case "darwin":
+	case constants.DarwinOS:
 		archivePath := filepath.Join(path, fmt.Sprintf("teleport-%s.pkg", version))
-		return trace.Wrap(helpers.CompressDirToPkgFile(ctx, versionPath, archivePath, "com.example.pkgtest"))
-	case "windows":
+		return trace.Wrap(archive.CompressDirToPkgFile(ctx, versionPath, archivePath, "com.example.pkgtest"))
+	case constants.WindowsOS:
 		archivePath := filepath.Join(path, fmt.Sprintf("teleport-v%s-windows-amd64-bin.zip", version))
-		return trace.Wrap(helpers.CompressDirToZipFile(ctx, versionPath, archivePath))
+		return trace.Wrap(archive.CompressDirToZipFile(ctx, versionPath, archivePath))
 	default:
 		archivePath := filepath.Join(path, fmt.Sprintf("teleport-v%s-linux-%s-bin.tar.gz", version, runtime.GOARCH))
-		return trace.Wrap(helpers.CompressDirToTarGzFile(ctx, versionPath, archivePath))
+		return trace.Wrap(archive.CompressDirToTarGzFile(ctx, versionPath, archivePath))
 	}
 }
 

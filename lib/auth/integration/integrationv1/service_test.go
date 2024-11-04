@@ -281,6 +281,29 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: trace.IsBadParameter,
 		},
 		{
+			Name: "can't delete integration referenced by AWS Identity Center plugin",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+				require.NoError(t, localClient.CreatePlugin(ctx, newPlugin(t, igName)))
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				return err
+			},
+			Cleanup: func(t *testing.T, igName string) {
+				err := localClient.DeletePlugin(ctx, newPlugin(t, igName).GetName())
+				require.NoError(t, err)
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
 			Name: "access to delete integration",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
@@ -369,6 +392,8 @@ type localClient interface {
 	DeleteDraftExternalAuditStorage(ctx context.Context) error
 	PromoteToClusterExternalAuditStorage(ctx context.Context) error
 	DisableClusterExternalAuditStorage(ctx context.Context) error
+	CreatePlugin(ctx context.Context, plugin types.Plugin) error
+	DeletePlugin(ctx context.Context, name string) error
 }
 
 type testClient struct {
@@ -390,6 +415,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	userSvc, err := local.NewTestIdentityService(backend)
 	require.NoError(t, err)
 	easSvc := local.NewExternalAuditStorageService(backend)
+	pluginSvc := local.NewPluginsService(backend)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
@@ -455,11 +481,13 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		*local.IdentityService
 		*local.ExternalAuditStorageService
 		*local.IntegrationsService
+		*local.PluginsService
 	}{
 		AccessService:               roleSvc,
 		IdentityService:             userSvc,
 		ExternalAuditStorageService: easSvc,
 		IntegrationsService:         localResourceService,
+		PluginsService:              pluginSvc,
 	}, resourceSvc
 }
 
@@ -524,4 +552,29 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 	require.NoError(t, err)
 
 	return ca
+}
+
+func newPlugin(t *testing.T, integrationName string) *types.PluginV1 {
+	t.Helper()
+	return &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: types.PluginTypeAWSIdentityCenter,
+			Labels: map[string]string{
+				types.HostedPluginLabel: "true",
+			},
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_AwsIc{
+				AwsIc: &types.PluginAWSICSettings{
+					IntegrationName:         integrationName,
+					Region:                  "test-region",
+					Arn:                     "test-arn",
+					AccessListDefaultOwners: []string{"user1", "user2"},
+					ProvisioningSpec: &types.AWSICProvisioningSpec{
+						BaseUrl: "https://example.com",
+					},
+				},
+			},
+		},
+	}
 }

@@ -21,6 +21,7 @@ package resources_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -46,6 +47,7 @@ var oidcSpec = types.OIDCConnectorSpecV3{
 		Roles: []string{"roleA"},
 	}},
 	RedirectURLs: []string{"https://redirect"},
+	MaxAge:       &types.MaxAge{Value: types.Duration(time.Hour)},
 }
 
 type oidcTestingPrimitives struct {

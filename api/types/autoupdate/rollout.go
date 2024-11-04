@@ -26,7 +26,7 @@ import (
 
 // NewAutoUpdateAgentRollout creates a new auto update version resource.
 func NewAutoUpdateAgentRollout(spec *autoupdate.AutoUpdateAgentRolloutSpec) (*autoupdate.AutoUpdateAgentRollout, error) {
-	version := &autoupdate.AutoUpdateAgentRollout{
+	rollout := &autoupdate.AutoUpdateAgentRollout{
 		Kind:    types.KindAutoUpdateAgentRollout,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -34,11 +34,11 @@ func NewAutoUpdateAgentRollout(spec *autoupdate.AutoUpdateAgentRolloutSpec) (*au
 		},
 		Spec: spec,
 	}
-	if err := ValidateAutoUpdateAgentRollout(version); err != nil {
+	if err := ValidateAutoUpdateAgentRollout(rollout); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return version, nil
+	return rollout, nil
 }
 
 // ValidateAutoUpdateAgentRollout checks that required parameters are set

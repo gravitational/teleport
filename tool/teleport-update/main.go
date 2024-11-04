@@ -61,6 +61,8 @@ const (
 	versionsDirName = "versions"
 	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
 	lockFileName = ".lock"
+	// defaultLinkDir is the default location where Teleport binaries and services are linked.
+	defaultLinkDir = "/usr/local"
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -98,7 +100,7 @@ func Run(args []string) error {
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("link-dir", "Directory to create system symlinks to binaries and services.").
-		Default(filepath.Join("usr", "local")).Hidden().StringVar(&ccfg.LinkDir)
+		Default(defaultLinkDir).Hidden().StringVar(&ccfg.LinkDir)
 
 	app.HelpFlag.Short('h')
 

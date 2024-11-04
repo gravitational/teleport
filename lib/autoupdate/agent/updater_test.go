@@ -20,6 +20,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
@@ -129,10 +131,17 @@ func TestUpdater_Enable(t *testing.T) {
 		cfg        *UpdateConfig // nil -> file not present
 		userCfg    OverrideConfig
 		installErr error
+		flags      InstallFlags
+		syncErr    error
+		reloadErr  error
 
 		removedVersion    string
 		installedVersion  string
 		installedTemplate string
+		requestGroup      string
+		syncCalls         int
+		reloadCalls       int
+		revertCalls       int
 		errMatch          string
 	}{
 		{
@@ -148,8 +157,12 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "old-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: "https://example.com",
+			requestGroup:      "group",
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "config from user",
@@ -169,8 +182,11 @@ func TestUpdater_Enable(t *testing.T) {
 				URLTemplate:  "https://example.com/new",
 				ForceVersion: "new-version",
 			},
+
 			installedVersion:  "new-version",
 			installedTemplate: "https://example.com/new",
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "already enabled",
@@ -184,8 +200,11 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "old-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "insecure URL",
@@ -196,6 +215,7 @@ func TestUpdater_Enable(t *testing.T) {
 					URLTemplate: "http://example.com",
 				},
 			},
+
 			errMatch: "URL must use TLS",
 		},
 		{
@@ -208,7 +228,8 @@ func TestUpdater_Enable(t *testing.T) {
 				},
 			},
 			installErr: errors.New("install error"),
-			errMatch:   "install error",
+
+			errMatch: "install error",
 		},
 		{
 			name: "version already installed",
@@ -219,8 +240,11 @@ func TestUpdater_Enable(t *testing.T) {
 					ActiveVersion: "16.3.0",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       0,
 		},
 		{
 			name: "backup version removed on install",
@@ -232,9 +256,12 @@ func TestUpdater_Enable(t *testing.T) {
 					BackupVersion: "backup-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			removedVersion:    "backup-version",
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name: "backup version kept for validation",
@@ -246,19 +273,55 @@ func TestUpdater_Enable(t *testing.T) {
 					BackupVersion: "backup-version",
 				},
 			},
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
 			removedVersion:    "",
+			syncCalls:         1,
+			reloadCalls:       0,
 		},
 		{
-			name:              "config does not exist",
+			name: "config does not exist",
+
 			installedVersion:  "16.3.0",
 			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       1,
+		},
+		{
+			name:              "FIPS and Enterprise flags",
+			flags:             FlagEnterprise | FlagFIPS,
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			syncCalls:         1,
+			reloadCalls:       1,
 		},
 		{
 			name:     "invalid metadata",
 			cfg:      &UpdateConfig{},
 			errMatch: "invalid",
+		},
+		{
+			name:    "sync fails",
+			syncErr: errors.New("sync error"),
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			syncCalls:         2,
+			reloadCalls:       0,
+			revertCalls:       1,
+			errMatch:          "sync error",
+		},
+		{
+			name:      "reload fails",
+			reloadErr: errors.New("reload error"),
+
+			installedVersion:  "16.3.0",
+			installedTemplate: cdnURITemplate,
+			syncCalls:         2,
+			reloadCalls:       2,
+			revertCalls:       1,
+			errMatch:          "reload error",
 		},
 	}
 
@@ -276,9 +339,20 @@ func TestUpdater_Enable(t *testing.T) {
 				require.NoError(t, err)
 			}
 
+			var requestedGroup string
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// TODO(sclevine): add web API test including group verification
-				w.Write([]byte(`{}`))
+				requestedGroup = r.URL.Query().Get("group")
+				config := webclient.PingResponse{
+					AutoUpdate: webclient.AutoUpdateSettings{
+						AgentVersion: "16.3.0",
+					},
+				}
+				if tt.flags&FlagEnterprise != 0 {
+					config.Edition = "ent"
+				}
+				config.FIPS = tt.flags&FlagFIPS != 0
+				err := json.NewEncoder(w).Encode(config)
+				require.NoError(t, err)
 			}))
 			t.Cleanup(server.Close)
 
@@ -297,16 +371,22 @@ func TestUpdater_Enable(t *testing.T) {
 				installedTemplate string
 				linkedVersion     string
 				removedVersion    string
+				installedFlags    InstallFlags
+				revertCalls       int
 			)
 			updater.Installer = &testInstaller{
-				FuncInstall: func(_ context.Context, version, template string, _ InstallFlags) error {
+				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
 					installedVersion = version
 					installedTemplate = template
+					installedFlags = flags
 					return tt.installErr
 				},
-				FuncLink: func(_ context.Context, version string) error {
+				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
 					linkedVersion = version
-					return nil
+					return func(_ context.Context) bool {
+						revertCalls++
+						return true
+					}, nil
 				},
 				FuncList: func(_ context.Context) (versions []string, err error) {
 					return []string{"old"}, nil
@@ -314,6 +394,20 @@ func TestUpdater_Enable(t *testing.T) {
 				FuncRemove: func(_ context.Context, version string) error {
 					removedVersion = version
 					return nil
+				},
+			}
+			var (
+				syncCalls   int
+				reloadCalls int
+			)
+			updater.Process = &testProcess{
+				FuncSync: func(_ context.Context) error {
+					syncCalls++
+					return tt.syncErr
+				},
+				FuncReload: func(_ context.Context) error {
+					reloadCalls++
+					return tt.reloadErr
 				},
 			}
 
@@ -329,6 +423,11 @@ func TestUpdater_Enable(t *testing.T) {
 			require.Equal(t, tt.installedTemplate, installedTemplate)
 			require.Equal(t, tt.installedVersion, linkedVersion)
 			require.Equal(t, tt.removedVersion, removedVersion)
+			require.Equal(t, tt.flags, installedFlags)
+			require.Equal(t, tt.requestGroup, requestedGroup)
+			require.Equal(t, tt.syncCalls, syncCalls)
+			require.Equal(t, tt.reloadCalls, reloadCalls)
+			require.Equal(t, tt.revertCalls, revertCalls)
 
 			data, err := os.ReadFile(cfgPath)
 			require.NoError(t, err)
@@ -351,7 +450,7 @@ func blankTestAddr(s []byte) []byte {
 type testInstaller struct {
 	FuncInstall func(ctx context.Context, version, template string, flags InstallFlags) error
 	FuncRemove  func(ctx context.Context, version string) error
-	FuncLink    func(ctx context.Context, version string) error
+	FuncLink    func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
 	FuncList    func(ctx context.Context) (versions []string, err error)
 }
 
@@ -363,10 +462,23 @@ func (ti *testInstaller) Remove(ctx context.Context, version string) error {
 	return ti.FuncRemove(ctx, version)
 }
 
-func (ti *testInstaller) Link(ctx context.Context, version string) error {
+func (ti *testInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
 	return ti.FuncLink(ctx, version)
 }
 
 func (ti *testInstaller) List(ctx context.Context) (versions []string, err error) {
 	return ti.FuncList(ctx)
+}
+
+type testProcess struct {
+	FuncReload func(ctx context.Context) error
+	FuncSync   func(ctx context.Context) error
+}
+
+func (tp *testProcess) Reload(ctx context.Context) error {
+	return tp.FuncReload(ctx)
+}
+
+func (tp *testProcess) Sync(ctx context.Context) error {
+	return tp.FuncSync(ctx)
 }

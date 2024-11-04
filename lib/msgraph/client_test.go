@@ -412,3 +412,65 @@ func TestRetry(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+const listGroupsMembersPayload = `[
+    {
+      "@odata.type": "#microsoft.graph.user",
+      "id": "9f615773-8219-4a5e-9eb1-8e701324c683",
+      "mail": "alice@example.com"
+    },
+	{
+      "@odata.type": "#microsoft.graph.device",
+      "id": "1566d9a7-c652-44e7-a75e-665b77431435",
+      "mail": "device@example.com"
+    },
+	{
+      "@odata.type": "#microsoft.graph.group",
+      "id": "7db727c5-924a-4f6d-b1f0-d44e6cafa87c",
+      "displayName": "Test Group 1"
+    }
+  ]`
+
+func TestIterateGroupMembers(t *testing.T) {
+	t.Parallel()
+
+	var membersJSON []json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(listGroupsMembersPayload), &membersJSON))
+	mux := http.NewServeMux()
+	groupID := "fd5be192-6e51-4f54-bbdf-30407435ceb7"
+	mux.Handle("GET /groups/"+groupID+"/members", paginatedHandler(t, membersJSON))
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(func() { srv.Close() })
+
+	uri, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	client := &Client{
+		httpClient:    &http.Client{},
+		tokenProvider: &fakeTokenProvider{},
+		retryConfig:   retryConfig,
+		baseURL:       uri,
+		pageSize:      2, // smaller page size so we actually fetch multiple pages with our small test payload
+	}
+
+	var members []GroupMember
+	err = client.IterateGroupMembers(context.Background(), groupID, func(u GroupMember) bool {
+		members = append(members, u)
+		return true
+	})
+
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+	{
+		require.IsType(t, &User{}, members[0])
+		user := members[0].(*User)
+		require.Equal(t, "9f615773-8219-4a5e-9eb1-8e701324c683", *user.ID)
+		require.Equal(t, "alice@example.com", *user.Mail)
+	}
+	{
+		require.IsType(t, &Group{}, members[1])
+		group := members[1].(*Group)
+		require.Equal(t, "7db727c5-924a-4f6d-b1f0-d44e6cafa87c", *group.ID)
+		require.Equal(t, "Test Group 1", *group.DisplayName)
+	}
+}

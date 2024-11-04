@@ -12,6 +12,7 @@ A Teleport role manages access by having two lists of rules: `allow` rules and
 
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
+- Deny rules should be avoided on roles granted through Access Lists.
 
 You can use any of the following to manage Teleport roles and other dynamic
 resources:
@@ -571,7 +572,7 @@ attribute or OIDC claim called `trait`.
 
 You can specify an external trait in dot syntax if it begins with a letter and
 contains only letters, numbers, and underscores. Otherwise, you must use bracket
-syntax to specify a trait. 
+syntax to specify a trait.
 
 When using Azure AD or ADFS as your IdP, you must use bracket notation, as these
 IdPs assign attribute keys to URLs such as the following:

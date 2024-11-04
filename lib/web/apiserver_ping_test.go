@@ -305,48 +305,110 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		{
 			name: "resources not defined",
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion: api.Version,
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 		},
 		{
-			name: "enable auto update",
+			name: "enable tools auto update",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateModeEnabled,
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
-				ToolsVersion: api.Version,
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             api.Version,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 			cleanup: true,
 		},
 		{
-			name:    "no autoupdate tool config nor version",
+			name: "enable agent auto update, immediate schedule",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Agents: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+					Mode:     autoupdate.AgentsUpdateModeEnabled,
+					Strategy: autoupdate.AgentsStrategyHaltOnError,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Agents: &autoupdatev1pb.AutoUpdateVersionSpecAgents{
+					Mode:          autoupdate.AgentsUpdateModeEnabled,
+					StartVersion:  "1.2.3",
+					TargetVersion: "1.2.4",
+					Schedule:      autoupdate.AgentsScheduleImmediate,
+				},
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          true,
+				AgentVersion:             "1.2.4",
+			},
+			cleanup: true,
+		},
+		{
+			name: "version enable agent auto update, but config disables them",
+			config: &autoupdatev1pb.AutoUpdateConfigSpec{
+				Agents: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+					Mode:     autoupdate.AgentsUpdateModeDisabled,
+					Strategy: autoupdate.AgentsStrategyHaltOnError,
+				},
+			},
+			version: &autoupdatev1pb.AutoUpdateVersionSpec{
+				Agents: &autoupdatev1pb.AutoUpdateVersionSpecAgents{
+					Mode:          autoupdate.AgentsUpdateModeEnabled,
+					StartVersion:  "1.2.3",
+					TargetVersion: "1.2.4",
+					Schedule:      autoupdate.AgentsScheduleImmediate,
+				},
+			},
+			expected: webclient.AutoUpdateSettings{
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             "1.2.4",
+			},
+			cleanup: true,
+		},
+		{
+			name:    "empty config and version",
 			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion: api.Version,
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion:             api.Version,
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 			cleanup: true,
 		},
 		{
-			name: "set auto update version",
+			name: "set tools auto update version",
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
 				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3",
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsVersion: "1.2.3",
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
+				ToolsVersion:             "1.2.3",
+				ToolsAutoUpdate:          false,
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 			cleanup: true,
 		},
 		{
-			name: "enable auto update and set version",
+			name: "enable tools auto update and set version",
 			config: &autoupdatev1pb.AutoUpdateConfigSpec{
 				Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
 					Mode: autoupdate.ToolsUpdateModeEnabled,
@@ -358,8 +420,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:    autoupdate.ToolsUpdateModeEnabled,
-				ToolsVersion: "1.2.3",
+				ToolsAutoUpdate:          true,
+				ToolsVersion:             "1.2.3",
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 		},
 		{
@@ -375,8 +440,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				},
 			},
 			expected: webclient.AutoUpdateSettings{
-				ToolsMode:    autoupdate.ToolsUpdateModeDisabled,
-				ToolsVersion: "3.2.1",
+				ToolsAutoUpdate:          false,
+				ToolsVersion:             "3.2.1",
+				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
+				AgentAutoUpdate:          false,
+				AgentVersion:             api.Version,
 			},
 		},
 	}
@@ -393,6 +461,11 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				require.NoError(t, err)
 				_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
 				require.NoError(t, err)
+			}
+
+			// expire the fn cache to force the next answer to be fresh
+			for _, proxy := range env.proxies {
+				proxy.clock.Advance(2 * findEndpointCacheTTL)
 			}
 
 			resp, err := client.NewInsecureWebClient().Do(req)

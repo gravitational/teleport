@@ -4334,6 +4334,68 @@ func TestCleanupNotifications(t *testing.T) {
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
+func TestServer_GetAnonymizationKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		testModules *modules.TestModules
+		license     *license.License
+		want        string
+		errCheck    require.ErrorAssertionFunc
+	}{
+		{
+			name: "returns CloudAnonymizationKey if present",
+			testModules: &modules.TestModules{
+				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
+			},
+			license: &license.License{
+				AnonymizationKey: []byte("license-key"),
+			},
+			want:     "cloud-key",
+			errCheck: require.NoError,
+		},
+		{
+			name:        "Returns license AnonymizationKey if no Cloud Key is present",
+			testModules: &modules.TestModules{},
+			license: &license.License{
+				AnonymizationKey: []byte("license-key"),
+			},
+			want:     "license-key",
+			errCheck: require.NoError,
+		},
+		{
+			name:        "Returns clusterID if no cloud key nor license key is present",
+			testModules: &modules.TestModules{},
+			license:     &license.License{},
+			want:        "cluster-id",
+			errCheck:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+				Dir:       t.TempDir(),
+				Clock:     clockwork.NewFakeClock(),
+				ClusterID: "cluster-id",
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			testTLSServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
+
+			modules.SetTestModules(t, tt.testModules)
+
+			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
+
+			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(context.Background())
+			tt.errCheck(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func newUserNotificationWithExpiry(t *testing.T, username string, title string, expires *timestamppb.Timestamp) *notificationsv1.Notification {
 	t.Helper()
 
