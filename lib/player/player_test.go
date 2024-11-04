@@ -339,7 +339,7 @@ func TestSkipIdlePeriods(t *testing.T) {
 		// Consume events in an eventually loop to avoid firing the clock
 		// events before the timer is set.
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			clk.Advance(time.Duration(player.MaxIdleTimeMilliseconds) * time.Millisecond)
+			clk.Advance(player.MaxIdleTime)
 			select {
 			case evt := <-p.C():
 				assert.Equal(t, int64(i), evt.GetIndex())
