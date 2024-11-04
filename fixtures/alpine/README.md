@@ -14,9 +14,9 @@ To download the new `alpine-minirootfs` image, follow the instructions:
 $ export ALPINE_VERSION=3.20.3
 
 # download alpine minirootfs and signature
-$ curl -fSsL -o ./fixtures/alpine/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
-$ curl -fSsL -o ./fixtures/alpine/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
-$ curl -fSsL -o ./fixtures/alpine/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256 https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
+$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
+$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.asc
+$ curl -fSsLO https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz.sha256
           
 ```
 
