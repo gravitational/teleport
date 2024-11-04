@@ -17,12 +17,15 @@
  */
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { getResourceUri } from 'teleterm/ui/services/workspacesService';
+import {
+  getResourceUri,
+  useWorkspaceServiceState,
+} from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 
 export function useActiveDocumentClusterBreadcrumbs(): string {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  useWorkspaceServiceState();
   ctx.clustersService.useState();
 
   const activeDocument = ctx.workspacesService
