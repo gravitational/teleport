@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -40,7 +41,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		Logger:              s.log.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -50,12 +51,12 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			select {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
-					s.log.WithError(err).Error("Failed to reconcile.")
+					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
 				} else if s.c.OnReconcile != nil {
 					s.c.OnReconcile(s.getApps())
 				}
 			case <-ctx.Done():
-				s.log.Debug("Reconciler done.")
+				s.log.DebugContext(ctx, "Reconciler done.")
 				return
 			}
 		}
@@ -65,18 +66,19 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to application resources and
 // registers/unregisters the proxied applications accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher, error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application, readonly.Application], error) {
 	if len(s.c.ResourceMatchers) == 0 {
-		s.log.Debug("Not initializing application resource watcher.")
+		s.log.DebugContext(ctx, "Not initializing application resource watcher.")
 		return nil, nil
 	}
-	s.log.Debug("Initializing application resource watcher.")
+	s.log.DebugContext(ctx, "Initializing application resource watcher.")
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
-			Log:       s.log,
+			Logger:    s.log,
 			Client:    s.c.AccessPoint,
 		},
+		AppGetter: s.c.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -85,7 +87,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 		defer watcher.Close()
 		for {
 			select {
-			case apps := <-watcher.AppsC:
+			case apps := <-watcher.ResourcesC:
 				appsWithAddr := make(types.Apps, 0, len(apps))
 				for _, app := range apps {
 					appsWithAddr = append(appsWithAddr, s.guessPublicAddr(app))
@@ -97,7 +99,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher
 					return
 				}
 			case <-ctx.Done():
-				s.log.Debug("Application resource watcher done.")
+				s.log.DebugContext(ctx, "Application resource watcher done.")
 				return
 			}
 		}
@@ -115,7 +117,10 @@ func (s *Server) guessPublicAddr(app types.Application) types.Application {
 	if err == nil {
 		appCopy.Spec.PublicAddr = pubAddr
 	} else {
-		s.log.WithError(err).Errorf("Unable to find public address for app %q, leaving empty.", app.GetName())
+		s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
+			"app_name", app.GetName(),
+			"error", err,
+		)
 	}
 	return appCopy
 }

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthProviderType } from 'shared/services';
+
 import { EventMeta } from 'teleport/services/userEvent';
 
 import { IsMfaRequiredRequest, MfaChallengeScope } from './auth';
@@ -32,7 +34,20 @@ export type AuthnChallengeRequest = {
   userCred: UserCredentials;
 };
 
+export type SSOChallenge = {
+  channelId: string;
+  redirectUrl: string;
+  requestId: string;
+  device: {
+    connectorId: string;
+    connectorType: AuthProviderType;
+    displayName: string;
+  };
+};
+
 export type MfaAuthenticateChallenge = {
+  ssoChallenge: SSOChallenge;
+  totpChallenge: boolean;
   webauthnPublicKey: PublicKeyCredentialRequestOptions;
 };
 

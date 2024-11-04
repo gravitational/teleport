@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -87,7 +88,7 @@ func newLocalSite(srv *server, domainName string, authServers []string, opts ...
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.localAuthClient, srv.localAccessPoint)
+	certificateCache, err := newHostCertificateCache(srv.localAuthClient, srv.localAccessPoint, srv.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -180,7 +181,7 @@ func (s *localSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, err
 }
 
 // NodeWatcher returns a services.NodeWatcher for this cluster.
-func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
+func (s *localSite) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.srv.NodeWatcher, nil
 }
 
@@ -504,6 +505,11 @@ with the cluster.`
 		toAddr = params.To.String()
 	}
 
+	// Prefer providing the hostname over an address.
+	if params.TargetServer != nil {
+		toAddr = params.TargetServer.GetHostname()
+	}
+
 	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
 }
 
@@ -535,10 +541,9 @@ func (s *localSite) setupTunnelForOpenSSHEICENode(ctx context.Context, targetSer
 	}
 
 	openTunnelClt, err := awsoidc.NewOpenTunnelEC2Client(ctx, &awsoidc.AWSClientRequest{
-		IntegrationName: integration.GetName(),
-		Token:           token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          awsInfo.Region,
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsInfo.Region,
 	})
 	if err != nil {
 		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
@@ -600,7 +605,8 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		return newMetricConn(conn, dt, dialStart, s.srv.Clock), true, nil
 	}
 
-	if s.tryProxyPeering(params) {
+	peeringEnabled := s.tryProxyPeering(params)
+	if peeringEnabled {
 		s.log.Info("Dialing over peer proxy")
 		conn, peerErr = s.peerClient.DialNode(
 			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
@@ -610,20 +616,28 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 		}
 	}
 
-	err = trace.NewAggregate(tunnelErr, peerErr)
-	tunnelMsg := getTunnelErrorMessage(params, "reverse tunnel", err)
+	// If a connection via tunnel failed directly and via a remote peer,
+	// then update the tunnel message to indicate that tunnels were not
+	// found in either place. Avoid aggregating the local and peer errors
+	// to reduce duplicate data since this message makes its way back to
+	// users and can be confusing.
+	msg := "reverse tunnel"
+	if peeringEnabled {
+		msg = "local and peer reverse tunnels"
+	}
+	tunnelMsg := getTunnelErrorMessage(params, msg, tunnelErr)
 
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
 	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
 	}
 
 	skip, err := s.skipDirectDial(params)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	} else if skip {
-		return nil, false, trace.ConnectionProblem(err, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
 	}
 
 	// If no tunnel connection was found, dial to the target host.
@@ -725,7 +739,11 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
+			proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to get proxy set")
+			}
+			req.SetProxies(proxies)
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -750,9 +768,12 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			if firstHeartbeat {
 				// as soon as the agent connects and sends a first heartbeat
 				// send it the list of current proxies back
-				current := s.srv.proxyWatcher.GetCurrent()
-				if len(current) > 0 {
-					rconn.updateProxies(current)
+				proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+				if err != nil {
+					logger.WithError(err).Warn("Failed to get proxy set")
+				}
+				if len(proxies) > 0 {
+					rconn.updateProxies(proxies)
 				}
 				reverseSSHTunnels.WithLabelValues(rconn.tunnelType).Inc()
 				firstHeartbeat = false
@@ -921,7 +942,7 @@ func (s *localSite) periodicFunctions() {
 
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
-	missing := s.srv.NodeWatcher.GetNodes(s.srv.ctx, func(server services.Node) bool {
+	missing, err := s.srv.NodeWatcher.CurrentResourcesWithFilter(s.srv.ctx, func(server readonly.Server) bool {
 		// Skip over any servers that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//
@@ -953,6 +974,9 @@ func (s *localSite) sshTunnelStats() error {
 
 		return err != nil
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Update Prometheus metrics and also log if any tunnels are missing.
 	missingSSHTunnels.Set(float64(len(missing)))

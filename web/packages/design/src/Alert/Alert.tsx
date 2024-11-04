@@ -20,13 +20,16 @@ import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { style, color, ColorProps } from 'styled-system';
 
-import { space, SpaceProps, width, WidthProps } from 'design/system';
-import { Theme } from 'design/theme/themes/types';
-import * as Icon from 'design/Icon';
-import Flex from 'design/Flex';
-import { Text, Button, Box, ButtonIcon } from 'design';
 import { IconProps } from 'design/Icon/Icon';
-import { ButtonFill, ButtonIntent } from 'design/Button';
+
+import { space, SpaceProps, width, WidthProps } from '../system';
+import { Theme } from '../theme';
+import * as Icon from '../Icon';
+import Flex from '../Flex';
+import Text from '../Text';
+import Box from '../Box';
+import { ButtonFill, ButtonIntent, Button } from '../Button';
+import ButtonIcon from '../ButtonIcon';
 
 const linkColor = style({
   prop: 'linkColor',
@@ -44,66 +47,64 @@ type AlertKind =
   | 'outline-info'
   | 'outline-warn';
 
-const alertBorder = (props: ThemedAlertProps) => {
+const alertBorder = (
+  props: ThemedAlertProps
+): { borderColor: string; border?: string | number } => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
       return {
-        borderColor: theme.colors.interactive.solid.success.default.background,
+        borderColor: theme.colors.interactive.solid.success.default,
       };
     case 'danger':
     case 'outline-danger':
       return {
-        borderColor: theme.colors.interactive.solid.danger.default.background,
+        borderColor: theme.colors.interactive.solid.danger.default,
       };
     case 'info':
     case 'outline-info':
       return {
-        borderColor: theme.colors.interactive.solid.accent.default.background,
+        borderColor: theme.colors.interactive.solid.accent.default,
       };
     case 'warning':
     case 'outline-warn':
       return {
-        borderColor: theme.colors.interactive.solid.alert.default.background,
+        borderColor: theme.colors.interactive.solid.alert.default,
       };
     case 'neutral':
       return {
         border: theme.borders[1],
         borderColor: theme.colors.text.disabled,
       };
-    default:
-      kind satisfies never;
   }
 };
 
-const backgroundColor = (props: ThemedAlertProps) => {
+const backgroundColor = (props: ThemedAlertProps): { background: string } => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
       return {
-        background: theme.colors.interactive.tonal.success[0].background,
+        background: theme.colors.interactive.tonal.success[0],
       };
     case 'danger':
     case 'outline-danger':
       return {
-        background: theme.colors.interactive.tonal.danger[0].background,
+        background: theme.colors.interactive.tonal.danger[0],
       };
     case 'info':
     case 'outline-info':
       return {
-        background: theme.colors.interactive.tonal.informational[0].background,
+        background: theme.colors.interactive.tonal.informational[0],
       };
     case 'warning':
     case 'outline-warn':
       return {
-        background: theme.colors.interactive.tonal.alert[0].background,
+        background: theme.colors.interactive.tonal.alert[0],
       };
     case 'neutral':
       return {
-        background: theme.colors.interactive.tonal.neutral[0].background,
+        background: theme.colors.interactive.tonal.neutral[0],
       };
-    default:
-      kind satisfies never;
   }
 };
 
@@ -133,7 +134,7 @@ interface Props<K> {
 export interface Action {
   content: React.ReactNode;
   href?: string;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent) => void;
 }
 
 export interface AlertProps
@@ -144,9 +145,13 @@ export interface AlertProps
   linkColor?: string;
 }
 
-interface ThemedAlertProps extends AlertProps {
+interface ThemedAlertProps extends AlertPropsWithRequiredKind {
   theme: Theme;
 }
+
+type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] };
+
+type AlertPropsWithRequiredKind = WithRequired<AlertProps, 'kind'>;
 
 /**
  * Displays an in-page alert. Component's children are displayed as the alert
@@ -190,7 +195,15 @@ export const Alert = ({
         <IconContainer kind={kind}>
           <AlertIcon kind={kind} customIcon={icon} size={alertIconSize} />
         </IconContainer>
-        <Box flex="1">
+        <Box
+          flex="1"
+          css={`
+            // This preserves white spaces from Go errors (mainly in Teleport Connect).
+            // Thanks to it, each error line is nicely indented with tab,
+            //  instead od being treated as a one, long line.
+            white-space: pre-wrap;
+          `}
+        >
           <Text typography="h3">{children}</Text>
           {details}
         </Box>
@@ -208,7 +221,7 @@ export const Alert = ({
 };
 
 /** Renders a round border and allows background color customization. */
-const OuterContainer = styled.div<AlertProps>`
+const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
   box-sizing: border-box;
   margin: 0 0 24px 0;
 
@@ -217,17 +230,16 @@ const OuterContainer = styled.div<AlertProps>`
 
   ${space}
   ${width}
-  ${alertBorder}
-  ${color}
-
-  a {
+    ${alertBorder}
+    ${color}
+    a {
     color: ${({ theme }) => theme.colors.light};
     ${linkColor}
   }
 `;
 
 /** Renders a transparent color overlay. */
-const InnerContainer = styled.div<AlertProps>`
+const InnerContainer = styled.div<AlertPropsWithRequiredKind>`
   padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
@@ -243,7 +255,7 @@ const AlertIcon = ({
   ...otherProps
 }: {
   kind: AlertKind | BannerKind;
-  customIcon: React.ComponentType<IconProps>;
+  customIcon?: React.ComponentType<IconProps>;
 } & IconProps) => {
   const commonProps = { role: 'graphics-symbol', ...otherProps };
   if (CustomIcon) {
@@ -264,8 +276,6 @@ const AlertIcon = ({
     case 'neutral':
     case 'primary':
       return <Icon.Notification aria-label="Note" {...commonProps} />;
-    default:
-      kind satisfies never;
   }
 };
 
@@ -280,28 +290,28 @@ const iconContainerStyles = ({
     case 'success':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.success.default.background,
+        background: theme.colors.interactive.solid.success.default,
         padding: `${theme.space[2]}px`,
       };
     case 'danger':
     case 'outline-danger':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.danger.default.background,
+        background: theme.colors.interactive.solid.danger.default,
         padding: `${theme.space[2]}px`,
       };
     case 'info':
     case 'outline-info':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.accent.default.background,
+        background: theme.colors.interactive.solid.accent.default,
         padding: `${theme.space[2]}px`,
       };
     case 'warning':
     case 'outline-warn':
       return {
         color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.alert.default.background,
+        background: theme.colors.interactive.solid.alert.default,
         padding: `${theme.space[2]}px`,
       };
     case 'neutral':
@@ -309,8 +319,6 @@ const iconContainerStyles = ({
         color: theme.colors.text.main,
         background: 'none',
       };
-    default:
-      kind satisfies never;
   }
 };
 
@@ -481,9 +489,8 @@ const bannerColors = (theme: Theme, kind: BannerKind) => {
   switch (kind) {
     case 'primary':
       return {
-        backgroundColor: theme.colors.interactive.tonal.primary[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.primary.default.background,
+        backgroundColor: theme.colors.interactive.tonal.primary[2],
+        foregroundColor: theme.colors.interactive.solid.primary.default,
         iconColor: theme.colors.text.main,
       };
     case 'neutral':
@@ -494,34 +501,27 @@ const bannerColors = (theme: Theme, kind: BannerKind) => {
       };
     case 'danger':
       return {
-        backgroundColor: theme.colors.interactive.tonal.danger[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.danger.default.background,
-        iconColor: theme.colors.interactive.solid.danger.default.background,
+        backgroundColor: theme.colors.interactive.tonal.danger[2],
+        foregroundColor: theme.colors.interactive.solid.danger.default,
+        iconColor: theme.colors.interactive.solid.danger.default,
       };
     case 'warning':
       return {
-        backgroundColor: theme.colors.interactive.tonal.alert[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.alert.default.background,
-        iconColor: theme.colors.interactive.solid.alert.default.background,
+        backgroundColor: theme.colors.interactive.tonal.alert[2],
+        foregroundColor: theme.colors.interactive.solid.alert.default,
+        iconColor: theme.colors.interactive.solid.alert.default,
       };
     case 'info':
       return {
-        backgroundColor:
-          theme.colors.interactive.tonal.informational[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.accent.default.background,
-        iconColor: theme.colors.interactive.solid.accent.default.background,
+        backgroundColor: theme.colors.interactive.tonal.informational[2],
+        foregroundColor: theme.colors.interactive.solid.accent.default,
+        iconColor: theme.colors.interactive.solid.accent.default,
       };
     case 'success':
       return {
-        backgroundColor: theme.colors.interactive.tonal.success[2].background,
-        foregroundColor:
-          theme.colors.interactive.solid.success.default.background,
-        iconColor: theme.colors.interactive.solid.success.default.background,
+        backgroundColor: theme.colors.interactive.tonal.success[2],
+        foregroundColor: theme.colors.interactive.solid.success.default,
+        iconColor: theme.colors.interactive.solid.success.default,
       };
-    default:
-      kind satisfies never;
   }
 };

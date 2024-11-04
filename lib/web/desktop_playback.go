@@ -52,7 +52,7 @@ func (h *Handler) desktopPlaybackHandle(
 
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,
-		Log:       h.log,
+		Log:       h.logger,
 		SessionID: session.ID(sID),
 		Streamer:  clt,
 	})

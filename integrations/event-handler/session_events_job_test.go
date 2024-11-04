@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/peterbourgon/diskv/v3"
@@ -29,19 +30,16 @@ import (
 // if no events are found.
 func TestConsumeSessionNoEventsFound(t *testing.T) {
 	sessionID := "test"
-	j := &SessionEventsJob{
-		app: &App{
-			Config: &StartCmdConfig{},
-			EventWatcher: &TeleportEventsWatcher{
-				client: &mockClient{},
-			},
-			State: &State{
-				dv: diskv.New(diskv.Options{
-					BasePath: t.TempDir(),
-				}),
-			},
+	j := NewSessionEventsJob(&App{
+		Config: &StartCmdConfig{},
+		State: &State{
+			dv: diskv.New(diskv.Options{
+				BasePath: t.TempDir(),
+			}),
 		},
-	}
+		client: &mockClient{},
+		log:    slog.Default(),
+	})
 	_, err := j.consumeSession(context.Background(), session{ID: sessionID})
 	require.NoError(t, err)
 }

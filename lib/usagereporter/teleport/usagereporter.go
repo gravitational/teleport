@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -122,20 +122,12 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
-	if log == nil {
-		log = logrus.StandardLogger()
+func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterName, anonymizer utils.Anonymizer, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+	if anonymizer == nil {
+		return nil, trace.BadParameter("missing anonymizer")
 	}
 
-	if anonymizationKey == "" {
-		return nil, trace.BadParameter("anonymization key is required")
-	}
-	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,7 +135,7 @@ func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.Cluster
 	clock := clockwork.NewRealClock()
 
 	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1a.SubmitEventRequest]{
-		Log:           log,
+		Logger:        logger,
 		Submit:        submitter,
 		MinBatchSize:  usageReporterMinBatchSize,
 		MaxBatchSize:  usageReporterMaxBatchSize,

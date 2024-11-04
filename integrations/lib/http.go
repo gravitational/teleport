@@ -44,7 +44,7 @@ type TLSConfig struct {
 }
 
 // HTTPConfig stores configuration of an HTTP service
-// including it's public address, listen host and port,
+// including its public address, listen host and port,
 // TLS certificate and key path, and extra TLS configuration
 // options, represented as TLSConfig.
 type HTTPConfig struct {

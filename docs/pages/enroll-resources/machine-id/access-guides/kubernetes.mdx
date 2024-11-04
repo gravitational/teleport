@@ -23,7 +23,7 @@ used to access a Kubernetes cluster enrolled with your Teleport cluster.
   installation instructions.
 - `tbot` must already be installed and configured on the machine that will
   access Kubernetes clusters. For more information, see the
-  [deployment guides](../deployment.mdx).
+  [deployment guides](../deployment/deployment.mdx).
 - To demonstrate connecting to the Kubernetes cluster, the machine that will
   access Kubernetes clusters will need to have `kubectl` installed. See the
   [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
@@ -104,7 +104,7 @@ Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`
 with the name of the role you just created:
 
-```bash
+```code
 $ tctl bots update example --add-roles example-role
 ```
 

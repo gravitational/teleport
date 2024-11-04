@@ -26,6 +26,15 @@ import { ResourceKind } from '../Shared/ResourceKind';
 
 import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
 
+enum DatabaseGuideSection {
+  Aws = 'enroll-aws-databases',
+  Azure = 'enroll-azure-databases',
+  Gcp = 'enroll-google-cloud-databases',
+  Managed = 'enroll-managed-databases',
+  SelfHosted = 'enroll-self-hosted-databases',
+  Guides = 'guides',
+}
+
 const baseDatabaseKeywords = ['db', 'database', 'databases'];
 const awsKeywords = [...baseDatabaseKeywords, 'aws', 'amazon web services'];
 const gcpKeywords = [...baseDatabaseKeywords, 'gcp', 'google cloud platform'];
@@ -36,8 +45,8 @@ const selfhostedKeywords = [
 ];
 const azureKeywords = [...baseDatabaseKeywords, 'microsoft azure'];
 
-function getDbAccessDocLink(guide: string) {
-  return `https://goteleport.com/docs/database-access/guides/${guide}`;
+function getDbAccessDocLink(subsection: DatabaseGuideSection, guide: string) {
+  return `https://goteleport.com/docs/enroll-resources/database-access/${subsection}/${guide}`;
 }
 
 // DATABASES_UNGUIDED_DOC are documentations that is not specific
@@ -49,7 +58,10 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...awsKeywords, 'rds', 'proxy', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('rds-proxy-postgres'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Aws,
+      'rds-proxy-postgres'
+    ),
     // TODO(lisa): add a new usage event
     event: DiscoverEventResource.DatabaseDocRdsProxy,
   },
@@ -59,7 +71,10 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...awsKeywords, 'rds', 'proxy', 'sql server', 'sqlserver'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('rds-proxy-sqlserver'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Aws,
+      'rds-proxy-sqlserver'
+    ),
     // TODO(lisa): add a new usage event
     event: DiscoverEventResource.DatabaseDocRdsProxy,
   },
@@ -69,7 +84,10 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...awsKeywords, 'rds', 'proxy', 'mariadb', 'mysql'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('rds-proxy-mysql'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Aws,
+      'rds-proxy-mysql'
+    ),
     // TODO(lisa): add a new usage event
     event: DiscoverEventResource.DatabaseDocRdsProxy,
   },
@@ -79,7 +97,7 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'high availability', 'ha'],
     kind: ResourceKind.Database,
     icon: 'database',
-    unguidedLink: getDbAccessDocLink('ha'),
+    unguidedLink: getDbAccessDocLink(DatabaseGuideSection.Guides, 'ha'),
     event: DiscoverEventResource.DatabaseDocHighAvailability,
   },
   {
@@ -88,7 +106,10 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'dynamic registration'],
     kind: ResourceKind.Database,
     icon: 'database',
-    unguidedLink: getDbAccessDocLink('dynamic-registration'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Guides,
+      'dynamic-registration'
+    ),
     event: DiscoverEventResource.DatabaseDocDynamicRegistration,
   },
 ];
@@ -100,7 +121,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'dynamodb'],
     kind: ResourceKind.Database,
     icon: 'dynamo',
-    unguidedLink: getDbAccessDocLink('aws-dynamodb'),
+    unguidedLink: getDbAccessDocLink(DatabaseGuideSection.Aws, 'aws-dynamodb'),
     event: DiscoverEventResource.DatabaseDynamoDb,
   },
   {
@@ -109,7 +130,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'elasticache', 'memorydb', 'redis'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('redis-aws'),
+    unguidedLink: getDbAccessDocLink(DatabaseGuideSection.Aws, 'redis-aws'),
     event: DiscoverEventResource.DatabaseRedisElasticache,
   },
   {
@@ -121,7 +142,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'keyspaces', 'apache', 'cassandra'],
     kind: ResourceKind.Database,
     icon: 'aws',
-    unguidedLink: getDbAccessDocLink('aws-cassandra-keyspaces'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Aws,
+      'aws-cassandra-keyspaces'
+    ),
     event: DiscoverEventResource.DatabaseCassandraKeyspaces,
   },
   {
@@ -130,7 +154,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'redshift', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
-    unguidedLink: getDbAccessDocLink('postgres-redshift'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Aws,
+      'postgres-redshift'
+    ),
     event: DiscoverEventResource.DatabasePostgresRedshift,
   },
   {
@@ -139,7 +166,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...awsKeywords, 'redshift', 'serverless', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
-    unguidedLink: getDbAccessDocLink('redshift-serverless'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Aws,
+      'redshift-serverless'
+    ),
     event: DiscoverEventResource.DatabasePostgresRedshiftServerless,
   },
   {
@@ -148,7 +178,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...azureKeywords, 'cache', 'redis'],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-redis'),
+    unguidedLink: getDbAccessDocLink(DatabaseGuideSection.Azure, 'azure-redis'),
     event: DiscoverEventResource.DatabaseRedisAzureCache,
   },
   {
@@ -160,7 +190,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...azureKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Azure,
+      'azure-postgres-mysql'
+    ),
     event: DiscoverEventResource.DatabasePostgresAzure,
   },
   {
@@ -169,7 +202,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...azureKeywords, 'mysql'],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Azure,
+      'azure-postgres-mysql'
+    ),
     event: DiscoverEventResource.DatabaseMysqlAzure,
   },
   {
@@ -188,18 +224,22 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     ],
     kind: ResourceKind.Database,
     icon: 'azure',
-    unguidedLink: getDbAccessDocLink('azure-sql-server-ad'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Azure,
+      'azure-sql-server-ad'
+    ),
     event: DiscoverEventResource.DatabaseSqlServerAzure,
     platform: Platform.Windows,
   },
   {
     dbMeta: {
-      location: DatabaseLocation.Microsoft,
+      location: DatabaseLocation.Aws,
       engine: DatabaseEngine.SqlServer,
     },
-    name: 'SQL Server',
+    name: 'RDS SQL Server',
     keywords: [
-      ...baseDatabaseKeywords,
+      ...awsKeywords,
+      'rds',
       'microsoft',
       'active directory',
       'ad',
@@ -208,8 +248,8 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       'preview',
     ],
     kind: ResourceKind.Database,
-    icon: 'windows',
-    unguidedLink: getDbAccessDocLink('sql-server-ad'),
+    icon: 'aws',
+    unguidedLink: getDbAccessDocLink(DatabaseGuideSection.Aws, 'sql-server-ad'),
     event: DiscoverEventResource.DatabaseSqlServerMicrosoft,
     platform: Platform.Windows,
   },
@@ -219,7 +259,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...gcpKeywords, 'mysql'],
     kind: ResourceKind.Database,
     icon: 'googlecloud',
-    unguidedLink: getDbAccessDocLink('mysql-cloudsql'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Gcp,
+      'mysql-cloudsql'
+    ),
     event: DiscoverEventResource.DatabaseMysqlGcp,
   },
   {
@@ -228,7 +271,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...gcpKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'googlecloud',
-    unguidedLink: getDbAccessDocLink('postgres-cloudsql'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Gcp,
+      'postgres-cloudsql'
+    ),
     event: DiscoverEventResource.DatabasePostgresGcp,
   },
   {
@@ -240,7 +286,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'mongodb atlas'],
     kind: ResourceKind.Database,
     icon: 'mongo',
-    unguidedLink: getDbAccessDocLink('mongodb-atlas'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.Managed,
+      'mongodb-atlas'
+    ),
     event: DiscoverEventResource.DatabaseMongodbAtlas,
   },
   {
@@ -252,7 +301,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'cassandra scylladb'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('cassandra-self-hosted'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.SelfHosted,
+      'cassandra-self-hosted'
+    ),
     event: DiscoverEventResource.DatabaseCassandraSelfHosted,
   },
   {
@@ -264,7 +316,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'cockroachdb'],
     kind: ResourceKind.Database,
     icon: 'cockroach',
-    unguidedLink: getDbAccessDocLink('cockroachdb-self-hosted'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.SelfHosted,
+      'cockroachdb-self-hosted'
+    ),
     event: DiscoverEventResource.DatabaseCockroachDbSelfHosted,
   },
   {
@@ -276,7 +331,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'elasticsearch', 'es'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('elastic'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.SelfHosted,
+      'elastic'
+    ),
     event: DiscoverEventResource.DatabaseElasticSearchSelfHosted,
   },
   {
@@ -288,7 +346,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'mongodb'],
     kind: ResourceKind.Database,
     icon: 'mongo',
-    unguidedLink: getDbAccessDocLink('mongodb-self-hosted'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.SelfHosted,
+      'mongodb-self-hosted'
+    ),
     event: DiscoverEventResource.DatabaseMongodbSelfHosted,
   },
   {
@@ -300,7 +361,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'redis'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('redis'),
+    unguidedLink: getDbAccessDocLink(DatabaseGuideSection.SelfHosted, 'redis'),
     event: DiscoverEventResource.DatabaseRedisSelfHosted,
   },
   {
@@ -312,7 +373,10 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...selfhostedKeywords, 'redis cluster'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
-    unguidedLink: getDbAccessDocLink('redis-cluster'),
+    unguidedLink: getDbAccessDocLink(
+      DatabaseGuideSection.SelfHosted,
+      'redis-cluster'
+    ),
     event: DiscoverEventResource.DatabaseRedisClusterSelfHosted,
   },
   {
@@ -324,7 +388,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
     keywords: [...baseDatabaseKeywords, 'snowflake preview'],
     kind: ResourceKind.Database,
     icon: 'snowflake',
-    unguidedLink: getDbAccessDocLink('snowflake'),
+    unguidedLink: getDbAccessDocLink(DatabaseGuideSection.Managed, 'snowflake'),
     event: DiscoverEventResource.DatabaseSnowflake,
   },
 ];
@@ -346,8 +410,8 @@ export const DATABASES: ResourceSpec[] = [
       location: DatabaseLocation.Aws,
       engine: DatabaseEngine.AuroraPostgres,
     },
-    name: 'Aurora PostgreSQL',
-    keywords: [...awsKeywords, 'aurora postgresql'],
+    name: 'RDS Aurora PostgreSQL',
+    keywords: [...awsKeywords, 'rds aurora postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabasePostgresRds,
@@ -365,8 +429,8 @@ export const DATABASES: ResourceSpec[] = [
       location: DatabaseLocation.Aws,
       engine: DatabaseEngine.AuroraMysql,
     },
-    name: 'Aurora MySQL/MariaDB',
-    keywords: [...awsKeywords, 'aurora mysql mariadb'],
+    name: 'RDS Aurora MySQL',
+    keywords: [...awsKeywords, 'rds aurora mysql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabaseMysqlRds,

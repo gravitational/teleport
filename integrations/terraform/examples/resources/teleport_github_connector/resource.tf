@@ -3,6 +3,7 @@
 variable "github_secret" {}
 
 resource "teleport_github_connector" "github" {
+  version = "v3"
   # This section tells Terraform that role example must be created before the GitHub connector
   depends_on = [
     teleport_role.example

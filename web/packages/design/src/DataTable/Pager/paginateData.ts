@@ -16,11 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// paginateData breaks the data array up into chunks the length of pageSize
-export default function paginateData(
-  data = [],
-  pageSize = 10
-): Array<Array<any>> {
+/** Breaks the `data` array up into chunks the length of `pageSize`. */
+export default function paginateData<T>(data: T[] = [], pageSize = 10): T[][] {
   const pageCount = Math.ceil(data.length / pageSize);
   const pages = [];
 

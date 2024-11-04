@@ -915,6 +915,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindClusterMaintenanceConfig, services.RO()),
 				types.NewRule(types.KindAutoUpdateConfig, services.RO()),
 				types.NewRule(types.KindAutoUpdateVersion, services.RO()),
+				types.NewRule(types.KindAutoUpdateAgentRollout, services.RO()),
 				types.NewRule(types.KindIntegration, append(services.RO(), types.VerbUse)),
 				types.NewRule(types.KindAuditQuery, services.RO()),
 				types.NewRule(types.KindSecurityReport, services.RO()),
@@ -1175,6 +1176,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
+						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
 					},
 				},
 			})
@@ -1230,7 +1232,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RW()),
 						types.NewRule(types.KindSAML, services.ReadNoSecrets()),
-						// Okta can manage access lists and roles it creates.
+						types.NewRule(types.KindAccessList, services.RO()),
+						// Okta can read/write access lists and roles it creates.
 						{
 							Resources: []string{types.KindRole},
 							Verbs:     services.RW(),

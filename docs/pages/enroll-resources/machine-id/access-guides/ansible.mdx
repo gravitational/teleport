@@ -26,7 +26,7 @@ You will need the following tools to use Teleport with Ansible.
 
 - `tbot` must already be installed and configured on the machine that will
   run Ansible. For more information, see the
-  [deployment guides](../deployment.mdx).
+  [deployment guides](../deployment/deployment.mdx).
 
 - If you followed the above guide, note the `--destination-dir=/opt/machine-id`
   flag, which defines the directory where SSH certificates and OpenSSH configuration
@@ -78,7 +78,7 @@ Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`
 with the name of the role you just created:
 
-```bash
+```code
 $ tctl bots update example --add-roles example-role
 ```
 

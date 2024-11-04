@@ -26,19 +26,25 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 )
 
 func onProxyCommand(
-	ctx context.Context, botConfig *config.BotConfig, cf *config.CLIConf,
+	ctx context.Context, globalCfg *cli.GlobalArgs, proxyCmd *cli.ProxyCommand,
 ) error {
+	botConfig, err := cli.LoadConfigWithMutators(globalCfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	destination, err := tshwrap.GetDestinationDirectory(botConfig)
+	destination, err := tshwrap.GetDestinationDirectory(proxyCmd.DestinationDir, botConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -52,8 +58,8 @@ func onProxyCommand(
 
 	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
 	//  here as in `tbot db ...`.
-	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.ProxyServer}
-	args = append(args, cf.RemainingArgs...)
+	args := []string{"-i", identityPath, "proxy", "--proxy=" + proxyCmd.ProxyServer}
+	args = append(args, *proxyCmd.ProxyRemaining...)
 
 	// Pass through the debug flag, and prepend to satisfy argument ordering
 	// needs (`-d` must precede `proxy`).
@@ -63,7 +69,7 @@ func onProxyCommand(
 
 	// Handle a special case for `tbot proxy kube` where additional env vars
 	// need to be injected.
-	if slices.Contains(cf.RemainingArgs, "kube") {
+	if slices.Contains(*proxyCmd.ProxyRemaining, "kube") {
 		// `tsh kube proxy` uses teleport.EnvKubeConfig to determine the
 		// original kube config file.
 		env[teleport.EnvKubeConfig] = filepath.Join(
@@ -75,7 +81,7 @@ func onProxyCommand(
 			destination.Path, "kubeconfig-proxied.yaml",
 		)
 	}
-	if slices.Contains(cf.RemainingArgs, "ssh") {
+	if slices.Contains(*proxyCmd.ProxyRemaining, "ssh") {
 		log.WarnContext(ctx, "`tbot proxy ssh` is deprecated and will stop working in v17. See https://goteleport.com/docs/machine-id/reference/v16-upgrade-guide/")
 	}
 

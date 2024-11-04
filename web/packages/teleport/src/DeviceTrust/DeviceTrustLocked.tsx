@@ -23,9 +23,7 @@ import { Box, Flex, Link } from 'design';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
-import { Windows, Linux, Apple } from 'design/Icon';
-
-import { LockIcon } from 'design/SVGIcon';
+import { Windows, Linux, Apple, Lock } from 'design/Icon';
 
 import Table, { Cell } from 'design/DataTable';
 
@@ -68,7 +66,7 @@ export function DeviceTrustLocked() {
       </Box>
       <StyledMessageContainer>
         <Box p="3" borderRadius="50%">
-          <IconCircle Icon={LockIcon} size={64} />
+          <IconCircle Icon={Lock} size={64} />
         </Box>
         <P textAlign="justify">
           Device Trust enables trusted and authenticated device access. When

@@ -81,7 +81,7 @@ export const Empty = () => {
     <MemoryRouter>
       <RequestCheckoutWithSlider
         {...baseProps}
-        data={[]}
+        pendingAccessRequests={[]}
         selectedReviewers={selectedReviewers}
         setSelectedReviewers={setSelectedReviewers}
         maxDuration={maxDuration}
@@ -152,6 +152,32 @@ export const FailedResourceRequest = () => (
   </MemoryRouter>
 );
 
+export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment], test-role-2: [pod secret configmap service serviceaccount kube_node persistentvolume persistentvolumeclaim deployment replicaset statefulset daemonset clusterrole kube_role clusterrolebinding rolebinding cronjob job certificatesigningrequest ingress]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
 export const Success = () => (
   <MemoryRouter initialEntries={['']}>
     <RequestCheckoutWithSlider
@@ -164,6 +190,13 @@ export const Success = () => (
 );
 
 const baseProps: RequestCheckoutWithSliderProps = {
+  fetchKubeNamespaces: async () => [
+    'namespace1',
+    'namespace2',
+    'namespace3',
+    'namespace4',
+  ],
+  bulkToggleKubeResources: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
@@ -177,7 +210,7 @@ const baseProps: RequestCheckoutWithSliderProps = {
   ],
   setSelectedReviewers: () => null,
   createRequest: () => null,
-  data: [
+  pendingAccessRequests: [
     {
       kind: 'app',
       name: 'app-name',

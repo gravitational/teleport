@@ -190,6 +190,40 @@ func TestRoleParse(t *testing.T) {
 			matchMessage: "KubernetesResource must include Namespace",
 		},
 		{
+			name: "validation error, invalid kubernetes_resources kind",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+						  "request": {
+							  "kubernetes_resources": [{"kind":"abcd"}]
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "invalid or unsupported",
+		},
+		{
+			name: "validation error, kubernetes_resources kind namespace not supported in v6",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1"},
+					"spec": {
+						"allow": {
+						  "request": {
+							  "kubernetes_resources": [{"kind":"namespace"}]
+							}
+						}
+					}
+				}`,
+			error:        trace.BadParameter(""),
+			matchMessage: "not supported in role version \"v6\"",
+		},
+		{
 			name: "validation error, missing podname in pod names",
 			in: `{
 					"kind": "role",
@@ -318,46 +352,52 @@ func TestRoleParse(t *testing.T) {
 		{
 			name: "full valid role v6",
 			in: `{
-					"kind": "role",
-					"version": "v6",
-					"metadata": {"name": "name1", "labels": {"a-b": "c"}},
-					"spec": {
-						"options": {
-							"cert_format": "standard",
-							"max_session_ttl": "20h",
-							"port_forwarding": true,
-							"client_idle_timeout": "17m",
-							"disconnect_expired_cert": "yes",
-							"enhanced_recording": ["command", "network"],
-							"desktop_clipboard": true,
-							"desktop_directory_sharing": true,
-							"ssh_file_copy" : false
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "name1", "labels": {"a-b": "c"}},
+				"spec": {
+					"options": {
+						"cert_format": "standard",
+						"max_session_ttl": "20h",
+						"port_forwarding": true,
+						"client_idle_timeout": "17m",
+						"disconnect_expired_cert": "yes",
+						"enhanced_recording": ["command", "network"],
+						"desktop_clipboard": true,
+						"desktop_directory_sharing": true,
+						"ssh_file_copy" : false
+					},
+					"allow": {
+					  "request": {
+						  "kubernetes_resources": [{"kind":"pod"}]
 						},
-						"allow": {
-							"node_labels": {"a": "b", "c-d": "e"},
-							"app_labels": {"a": "b", "c-d": "e"},
-							"group_labels": {"a": "b", "c-d": "e"},
-							"kubernetes_labels": {"a": "b", "c-d": "e"},
-							"db_labels": {"a": "b", "c-d": "e"},
-							"db_names": ["postgres"],
-							"db_users": ["postgres"],
-							"namespaces": ["default"],
-							"rules": [
-								{
-									"resources": ["role"],
-									"verbs": ["read", "list"],
-									"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-									"actions": [
-										"log(\"info\", \"log entry\")"
-									]
-								}
-							]
+						"node_labels": {"a": "b", "c-d": "e"},
+						"app_labels": {"a": "b", "c-d": "e"},
+						"group_labels": {"a": "b", "c-d": "e"},
+						"kubernetes_labels": {"a": "b", "c-d": "e"},
+						"db_labels": {"a": "b", "c-d": "e"},
+						"db_names": ["postgres"],
+						"db_users": ["postgres"],
+						"namespaces": ["default"],
+						"rules": [
+							{
+								"resources": ["role"],
+								"verbs": ["read", "list"],
+								"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+								"actions": [
+									"log(\"info\", \"log entry\")"
+								]
+							}
+						]
+					},
+					"deny": {
+					  "request": {
+						  "kubernetes_resources": [{"kind":"pod"}]
 						},
-						"deny": {
-							"logins": ["c"]
-						}
+						"logins": ["c"]
 					}
-				}`,
+				}
+			}`,
 			role: types.RoleV6{
 				Kind:    types.KindRole,
 				Version: types.V6,
@@ -409,10 +449,20 @@ func TestRoleParse(t *testing.T) {
 								},
 							},
 						},
+						Request: &types.AccessRequestConditions{
+							KubernetesResources: []types.RequestKubernetesResource{
+								{Kind: types.KindKubePod},
+							},
+						},
 					},
 					Deny: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
+						Request: &types.AccessRequestConditions{
+							KubernetesResources: []types.RequestKubernetesResource{
+								{Kind: types.KindKubePod},
+							},
+						},
 					},
 				},
 			},
@@ -2437,6 +2487,78 @@ func TestCheckRuleAccess(t *testing.T) {
 			if check.matchBuffer != "" {
 				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
 			}
+		}
+	}
+}
+
+func TestDefaultImplicitRules(t *testing.T) {
+	type check struct {
+		hasAccess bool
+		verb      string
+		namespace string
+		rule      string
+		context   testContext
+	}
+	testCases := []struct {
+		name   string
+		role   types.Role
+		checks []check
+	}{
+		{
+			name: "KindIdentityCenterAccount with NewPresetAccessRole",
+			role: NewPresetAccessRole(),
+			checks: []check{
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+		{
+			name: "KindIdentityCenterAccount with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
+			role: newRole(func(r *types.RoleV6) {}),
+			checks: []check{
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenterAccount, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+		{
+			name: "KindSAMLIdPServiceProvider with NewPresetAccessRole",
+			role: NewPresetAccessRole(),
+			checks: []check{
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+		{
+			name: "KindSAMLIdPServiceProvider with a custom role that does not explicitly target read and list verbs for KindSAMLIdPServiceProvider",
+			role: newRole(func(r *types.RoleV6) {}),
+			checks: []check{
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		roleSet := NewRoleSet(tc.role)
+		for _, check := range tc.checks {
+			result := roleSet.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
+			if check.hasAccess {
+				require.NoError(t, result)
+			} else {
+				require.True(t, trace.IsAccessDenied(result))
+			}
+
 		}
 	}
 }

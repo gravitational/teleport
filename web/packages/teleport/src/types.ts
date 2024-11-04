@@ -25,6 +25,8 @@ import {
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 
+import { NavigationCategory as SideNavigationCategory } from './Navigation/SideNavigation/categories';
+
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
@@ -43,6 +45,8 @@ export interface TeleportFeatureNavigationItem {
    * in the "selected" state in the navigation
    */
   isSelected?: (clusterId: string, pathname: string) => boolean;
+  /** searchableTags is a list of strings by which this feature should be searchable in the nav search. */
+  searchableTags?: string[];
 }
 
 export enum NavTitle {
@@ -59,12 +63,14 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
-  Roles = 'User Roles',
+  Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
-  EnrollNewResource = 'Enroll New Resource',
-  EnrollNewIntegration = 'Enroll New Integration',
+  EnrollNewResource = 'Resource',
+  EnrollNewIntegration = 'Integration',
+  NewAccessList = 'Access List',
+  NewBot = 'Bot',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
@@ -82,7 +88,7 @@ export enum NavTitle {
   AuditLog = 'Audit Log',
 
   // Billing
-  BillingSummary = 'Summary',
+  BillingSummary = 'Billing Summary',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
@@ -106,6 +112,10 @@ export interface TeleportFeatureRoute {
 export interface TeleportFeature {
   parent?: new () => TeleportFeature | null;
   category?: NavigationCategory;
+  // TODO(rudream): Delete category field above and rename sideNavCategory field to category once old nav is removed.
+  sideNavCategory?: SideNavigationCategory;
+  /** standalone is whether this feature has no subsections */
+  standalone?: boolean;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.

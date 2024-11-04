@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestReporter(t *testing.T) {
@@ -68,13 +68,15 @@ func TestReporter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	anonymizer, err := utils.NewHMACAnonymizer("0123456789abcdef")
+	require.NoError(t, err)
+
 	r, err := NewReporter(ctx, ReporterConfig{
-		Backend:          bk,
-		Log:              logrus.StandardLogger(),
-		Clock:            clk,
-		ClusterName:      clusterName,
-		HostID:           uuid.NewString(),
-		AnonymizationKey: "0123456789abcdef",
+		Backend:     bk,
+		Clock:       clk,
+		ClusterName: clusterName,
+		HostID:      uuid.NewString(),
+		Anonymizer:  anonymizer,
 	})
 	require.NoError(t, err)
 

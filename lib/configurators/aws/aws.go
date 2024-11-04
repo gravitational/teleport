@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"slices"
 	"strings"
 
@@ -38,6 +40,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -316,6 +319,41 @@ type ssmClient interface {
 	CreateDocument(ctx context.Context, params *ssm.CreateDocumentInput, optFns ...func(*ssm.Options)) (*ssm.CreateDocumentOutput, error)
 }
 
+type localRegionGetter interface {
+	GetRegion(context.Context) (string, error)
+}
+
+func getLocalRegion(ctx context.Context, localRegionGetter localRegionGetter) (string, bool) {
+	if localRegionGetter == nil {
+		imdsClient, err := awsimds.NewInstanceMetadataClient(ctx)
+		if err != nil || !imdsClient.IsAvailable(ctx) {
+			return "", false
+		}
+		localRegionGetter = imdsClient
+	}
+
+	region, err := localRegionGetter.GetRegion(ctx)
+	if err != nil || region == "" {
+		return "", false
+	}
+	return region, true
+}
+
+func getFallbackRegion(ctx context.Context, w io.Writer, localRegionGetter localRegionGetter) string {
+	if localRegion, ok := getLocalRegion(ctx, localRegionGetter); ok {
+		fmt.Fprintf(w, "Using region %q from instance metadata.\n", localRegion)
+		return localRegion
+	}
+
+	// Fallback to us-east-1, which also supports fips.
+	fmt.Fprint(w, `
+Warning: No region found from the default AWS config or instance metadata. Defaulting to 'us-east-1'.
+To avoid seeing this warning, please provide a region in your AWS config or through the AWS_REGION environment variable.
+
+`)
+	return "us-east-1"
+}
+
 // CheckAndSetDefaults checks and set configuration default values.
 func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 	ctx := context.Background()
@@ -341,6 +379,10 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			)
 			if err != nil {
 				return trace.Wrap(err)
+			}
+
+			if cfg.Region == "" {
+				cfg.Region = getFallbackRegion(ctx, os.Stdout, nil)
 			}
 			c.awsCfg = &cfg
 		}

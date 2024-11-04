@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -567,8 +568,17 @@ func (c *authPrefCollection) resources() (r []types.Resource) {
 }
 
 func (c *authPrefCollection) writeText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
-	t.AddRow([]string{c.authPref.GetType(), string(c.authPref.GetSecondFactor())})
+	var secondFactorStrings []string
+	for _, sf := range c.authPref.GetSecondFactors() {
+		sfString, err := sf.Encode()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		secondFactorStrings = append(secondFactorStrings, sfString)
+	}
+
+	t := asciitable.MakeTable([]string{"Type", "Second Factors"})
+	t.AddRow([]string{c.authPref.GetType(), strings.Join(secondFactorStrings, ", ")})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -854,6 +864,35 @@ func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
 
 func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
 	return utils.WriteJSONArray(w, c.desktops)
+}
+
+type dynamicWindowsDesktopCollection struct {
+	desktops []types.DynamicWindowsDesktop
+}
+
+func (c *dynamicWindowsDesktopCollection) resources() (r []types.Resource) {
+	r = make([]types.Resource, 0, len(c.desktops))
+	for _, resource := range c.desktops {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *dynamicWindowsDesktopCollection) writeText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, d := range c.desktops {
+		labels := common.FormatLabels(d.GetAllLabels(), verbose)
+		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
+	}
+	headers := []string{"Name", "Address", "AD Domain", "Labels"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 type tokenCollection struct {
@@ -1577,6 +1616,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsGitlab                    = "gitlab"
 		settingsEntraID                   = "entra_id"
 		settingsDatadogIncidentManagement = "datadog_incident_management"
+		settingsEmailAccessPlugin         = "email_access_plugin"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1646,6 +1686,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
 		case settingsDatadogIncidentManagement:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
+		case settingsEmailAccessPlugin:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
@@ -1841,7 +1883,7 @@ func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error 
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Enabled"})
 	t.AddRow([]string{
 		c.config.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.config.GetSpec().GetToolsAutoupdate()),
+		fmt.Sprintf("%v", c.config.GetSpec().GetTools().GetMode()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -1859,8 +1901,37 @@ func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Version"})
 	t.AddRow([]string{
 		c.version.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.version.GetSpec().GetToolsVersion()),
+		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
 	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type accessMonitoringRuleCollection struct {
+	items []*accessmonitoringrulesv1pb.AccessMonitoringRule
+}
+
+func (c *accessMonitoringRuleCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+// writeText formats the user tasks into a table and writes them into w.
+// If verbose is disabled, labels column can be truncated to fit into the console.
+func (c *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, item := range c.items {
+		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{item.Metadata.GetName(), labels})
+	}
+	headers := []string{"Name", "Labels"}
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

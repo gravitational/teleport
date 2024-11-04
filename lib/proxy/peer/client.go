@@ -21,6 +21,7 @@ package peer
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"math/rand/v2"
 	"net"
 	"sync"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/quic-go/quic-go"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -51,6 +51,7 @@ import (
 // AccessPoint is the subset of the auth cache consumed by the [Client].
 type AccessPoint interface {
 	types.Events
+	services.ProxyGetter
 }
 
 // ClientConfig configures a Client instance.
@@ -72,7 +73,7 @@ type ClientConfig struct {
 	// TLSCipherSuites optionally contains a list of TLS ciphersuites to use.
 	TLSCipherSuites []uint16
 	// Log is the proxy client logger.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Clock is used to control connection monitoring ticker.
 	Clock clockwork.Clock
 	// GracefulShutdownTimout is used set the graceful shutdown
@@ -112,10 +113,10 @@ func noopConnShuffler() connShuffler {
 // checkAndSetDefaults checks and sets default values
 func (c *ClientConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = slog.Default()
 	}
 
-	c.Log = c.Log.WithField(
+	c.Log = c.Log.With(
 		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxyPeer),
 	)
@@ -414,14 +415,15 @@ func (c *Client) sync() {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.Component(teleport.ComponentProxyPeer),
 			Client:    c.config.AccessPoint,
-			Log:       c.config.Log,
+			Logger:    c.config.Log,
 		},
+		ProxyGetter: c.config.AccessPoint,
 		ProxyDiffer: func(old, new types.Server) bool {
 			return old.GetPeerAddr() != new.GetPeerAddr()
 		},
 	})
 	if err != nil {
-		c.config.Log.Errorf("Error initializing proxy peer watcher: %+v.", err)
+		c.config.Log.ErrorContext(c.ctx, "error initializing proxy peer watcher", "error", err)
 		return
 	}
 	defer proxyWatcher.Close()
@@ -429,14 +431,14 @@ func (c *Client) sync() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.config.Log.Debug("Stopping peer proxy sync: context done.")
+			c.config.Log.DebugContext(c.ctx, "stopping peer proxy sync: context done")
 			return
 		case <-proxyWatcher.Done():
-			c.config.Log.Debug("Stopping peer proxy sync: proxy watcher done.")
+			c.config.Log.DebugContext(c.ctx, "stopping peer proxy sync: proxy watcher done")
 			return
-		case proxies := <-proxyWatcher.ProxiesC:
+		case proxies := <-proxyWatcher.ResourcesC:
 			if err := c.updateConnections(proxies); err != nil {
-				c.config.Log.Errorf("Error syncing peer proxies: %+v.", err)
+				c.config.Log.ErrorContext(c.ctx, "error syncing peer proxies", "error", err)
 			}
 		}
 	}
@@ -487,7 +489,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
-			c.config.Log.Debugf("Error dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
+			c.config.Log.DebugContext(c.ctx, "error dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}
@@ -688,7 +690,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
-			c.config.Log.Debugf("Error direct dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
+			c.config.Log.DebugContext(c.ctx, "error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}

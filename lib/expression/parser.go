@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -83,24 +84,24 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				}),
 			"email.local": typical.UnaryFunction[evaluationEnv](
 				func(emails Set) (Set, error) {
-					locals, err := parse.EmailLocal(emails.items())
+					locals, err := parse.EmailLocal(emails.Elements())
 					if err != nil {
-						return nil, trace.Wrap(err)
+						return Set{}, trace.Wrap(err)
 					}
 					return NewSet(locals...), nil
 				}),
 			"regexp.replace": typical.TernaryFunction[evaluationEnv](
 				func(inputs Set, match string, replacement string) (Set, error) {
-					replaced, err := parse.RegexpReplace(inputs.items(), match, replacement)
+					replaced, err := parse.RegexpReplace(inputs.Elements(), match, replacement)
 					if err != nil {
-						return nil, trace.Wrap(err)
+						return Set{}, trace.Wrap(err)
 					}
 					return NewSet(replaced...), nil
 				}),
 			"strings.split": typical.BinaryFunction[evaluationEnv](
 				func(inputs Set, sep string) (Set, error) {
 					var outputs []string
-					for input := range inputs {
+					for input := range inputs.Set {
 						outputs = append(outputs, strings.Split(input, sep)...)
 					}
 					return NewSet(outputs...), nil
@@ -130,8 +131,8 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
 				func(s1, s2 Set) (bool, error) {
-					for _, v := range s2.items() {
-						if s1.contains(v) {
+					for v := range s2.Set {
+						if s1.Contains(v) {
 							return true, nil
 						}
 					}
@@ -139,17 +140,17 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				}),
 			"is_empty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
-					return len(s) == 0, nil
+					return len(s.Set) == 0, nil
 				}),
 		},
 		Methods: map[string]typical.Function{
 			"add": typical.BinaryVariadicFunction[evaluationEnv](
 				func(s Set, values ...string) (Set, error) {
-					return s.add(values...), nil
+					return Set{s.Clone().Add(values...)}, nil
 				}),
 			"contains": typical.BinaryFunction[evaluationEnv](
 				func(s Set, str string) (bool, error) {
-					return s.contains(str), nil
+					return s.Contains(str), nil
 				}),
 			"put": typical.TernaryFunction[evaluationEnv](
 				func(d Dict, key string, value Set) (Dict, error) {
@@ -184,8 +185,8 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				}),
 			"contains_any": typical.BinaryFunction[evaluationEnv](
 				func(s1, s2 Set) (bool, error) {
-					for _, v := range s2.items() {
-						if s1.contains(v) {
+					for v := range s2.Set {
+						if s1.Contains(v) {
 							return true, nil
 						}
 					}
@@ -193,7 +194,7 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 				}),
 			"isempty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
-					return len(s) == 0, nil
+					return len(s.Set) == 0, nil
 				}),
 		},
 	}
@@ -220,7 +221,7 @@ func traitsMapResultToSet(result any, expr string) (Set, error) {
 	case Set:
 		return v, nil
 	default:
-		return nil, trace.BadParameter("traits_map expression must evaluate to type string or set, the following expression evaluates to %T: %q", result, expr)
+		return Set{}, trace.BadParameter("traits_map expression must evaluate to type string or set, the following expression evaluates to %T: %q", result, expr)
 	}
 }
 
@@ -228,7 +229,7 @@ func traitsMapResultToSet(result any, expr string) (Set, error) {
 func StringSliceMapFromDict(d Dict) map[string][]string {
 	m := make(map[string][]string, len(d))
 	for key, s := range d {
-		m[key] = s.items()
+		m[key] = s.Elements()
 	}
 	return m
 }
@@ -248,7 +249,7 @@ func StringTransform(name string, input any, f func(string) string) (any, error)
 	case string:
 		return f(typedInput), nil
 	case Set:
-		return typedInput.transform(f), nil
+		return Set{utils.SetTransform(typedInput.Set, f)}, nil
 	default:
 		return nil, trace.BadParameter("failed to evaluate argument to %s: expected string or set, got value of type %T", name, input)
 	}

@@ -20,15 +20,16 @@
 package player
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"log/slog"
 	"math"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
@@ -42,7 +43,7 @@ import (
 type Player struct {
 	// read only config fields
 	clock        clockwork.Clock
-	log          logrus.FieldLogger
+	log          *slog.Logger
 	sessionID    session.ID
 	streamer     Streamer
 	skipIdleTime bool
@@ -113,7 +114,7 @@ type sessionPrintTranslator interface {
 // Config configures a session player.
 type Config struct {
 	Clock        clockwork.Clock
-	Log          logrus.FieldLogger
+	Log          *slog.Logger
 	SessionID    session.ID
 	Streamer     Streamer
 	SkipIdleTime bool
@@ -133,10 +134,10 @@ func New(cfg *Config) (*Player, error) {
 		clk = clockwork.NewRealClock()
 	}
 
-	var log logrus.FieldLogger = cfg.Log
-	if log == nil {
-		log = logrus.New().WithField(teleport.ComponentKey, "player")
-	}
+	log := cmp.Or(
+		cfg.Log,
+		slog.With(teleport.ComponentKey, "player"),
+	)
 
 	p := &Player{
 		clock:        clk,
@@ -196,19 +197,19 @@ func (p *Player) stream() {
 			close(p.emit)
 			return
 		case err := <-errC:
-			p.log.Warn(err)
+			p.log.WarnContext(ctx, "Event streamer encountered error", "error", err)
 			p.err = err
 			close(p.emit)
 			return
 		case evt := <-eventsC:
 			if evt == nil {
-				p.log.Debugf("reached end of playback for session %v", p.sessionID)
+				p.log.DebugContext(ctx, "Reached end of playback for session", "session_id", p.sessionID)
 				close(p.emit)
 				return
 			}
 
 			if err := p.waitWhilePaused(); err != nil {
-				p.log.Warn(err)
+				p.log.WarnContext(ctx, "Encountered error in pause state", "error", err)
 				close(p.emit)
 				return
 			}
@@ -244,7 +245,7 @@ func (p *Player) stream() {
 
 					switch err := p.applyDelay(lastDelay, currentDelay); {
 					case errors.Is(err, errSeekWhilePaused):
-						p.log.Debug("seeked during pause, will restart stream")
+						p.log.DebugContext(ctx, "Seeked during pause, will restart stream")
 						go p.stream()
 						return
 					case err != nil:

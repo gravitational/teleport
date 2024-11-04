@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
@@ -336,25 +335,6 @@ func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	return &re, nil
 }
 
-// RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via CreateToken/UpsertToken.
-func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &certs, nil
-}
-
 type upsertTunnelConnectionRawReq struct {
 	TunnelConnection json.RawMessage `json:"tunnel_connection"`
 }
@@ -638,6 +618,8 @@ type OIDCAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
@@ -658,6 +640,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
+		MFAToken: rawResponse.MFAToken,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -707,6 +690,8 @@ type SAMLAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// TLSCert is TLS certificate authority certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
@@ -729,6 +714,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
+		MFAToken: rawResponse.MFAToken,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)

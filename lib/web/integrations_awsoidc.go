@@ -620,11 +620,6 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := sctx.GetIdentity()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -632,10 +627,11 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 
 	servers := make([]ui.Server, 0, len(listResp.Servers))
 	for _, s := range listResp.Servers {
-		logins, err := calculateSSHLogins(identity, accessChecker, s, nil)
+		logins, err := accessChecker.GetAllowedLoginsForResource(s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		slices.Sort(logins)
 
 		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins, false /* requiresRequest */))
 	}
@@ -1114,6 +1110,13 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
+	policyPreset := queryParams.Get("policyPreset")
+	if err := awsoidc.ValidatePolicyPreset(awsoidc.PolicyPreset(policyPreset)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if policyPreset != "" {
+		argsList = append(argsList, fmt.Sprintf("--policy-preset=%s", shsprintf.EscapeDefaultContext(policyPreset)))
+	}
 
 	// We have two set up modes:
 	// - use the Proxy HTTP endpoint as Identity Provider
@@ -1129,7 +1132,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 
 	switch {
 	case s3Bucket == "" && s3Prefix == "":
-		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1144,7 +1147,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		}
 		s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
 
-		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
+		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1431,6 +1434,7 @@ func getServiceURLs(dbServices []types.DatabaseService, accountID, region, telep
 }
 
 // awsOIDCPing performs an health check for the integration.
+// If ARN is present in the request body, that's the ARN that will be used instead of using the one stored in the integration.
 // Returns meta information: account id and assumed the ARN for the IAM Role.
 func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
@@ -1440,6 +1444,11 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
+	var req ui.AWSOIDCPingRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1447,6 +1456,7 @@ func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprout
 
 	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{
 		Integration: integrationName,
+		RoleArn:     req.RoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
