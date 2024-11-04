@@ -133,7 +133,10 @@ func (s *ApplicationTunnelService) buildLocalProxyConfig(ctx context.Context) (l
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
+	proxyAddr, err := proxyPing.tlsRoutingProxyPublicAddr()
+	if err != nil {
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "getting proxy address")
+	}
 
 	s.log.DebugContext(ctx, "Issuing initial certificate for local proxy.")
 	appCert, app, err := s.issueCert(ctx, roles)

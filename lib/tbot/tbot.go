@@ -527,7 +527,8 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	ctx, span := tracer.Start(ctx, "Bot/preRunChecks")
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	switch _, addrKind := b.cfg.Address(); addrKind {
+	_, addrKind := b.cfg.Address()
+	switch addrKind {
 	case config.AddressKindUnspecified:
 		return nil, trace.BadParameter(
 			"either a proxy or auth address must be set using --proxy, --auth-server or configuration",
@@ -535,6 +536,9 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	case config.AddressKindAuth:
 		// TODO(noah): DELETE IN V17.0.0
 		b.log.WarnContext(ctx, "We recently introduced the ability to explicitly configure the address of the Teleport Proxy using --proxy-server. We recommend switching to this if you currently provide the address of the Proxy to --auth-server.")
+	}
+	if shouldIgnoreProxyPingAddr() && addrKind != config.AddressKindProxy {
+		return nil, trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
 	}
 
 	// Ensure they have provided a join method.
@@ -702,10 +706,10 @@ type proxyPingCache struct {
 	log           *slog.Logger
 
 	mu          sync.RWMutex
-	cachedValue *webclient.PingResponse
+	cachedValue *proxyPingResponse
 }
 
-func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, error) {
+func (p *proxyPingCache) ping(ctx context.Context) (*proxyPingResponse, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.cachedValue != nil {
@@ -739,9 +743,43 @@ func (p *proxyPingCache) ping(ctx context.Context) (*webclient.PingResponse, err
 		return nil, trace.Wrap(err)
 	}
 	p.log.DebugContext(ctx, "Successfully pinged proxy.", "pong", res)
-	p.cachedValue = res
+	p.cachedValue = &proxyPingResponse{
+		PingResponse:        res,
+		configuredProxyAddr: p.botCfg.ProxyServer,
+	}
 
 	return p.cachedValue, nil
+}
+
+type proxyPingResponse struct {
+	*webclient.PingResponse
+	configuredProxyAddr string
+}
+
+// shouldIgnoreProxyAddrEnv is an environment variable which can be set to
+// force `tbot` to prefer using the proxy address explicitly provided by the
+// user over the one fetched from the proxy ping. This is only intended to work
+// in cases where TLS routing is enabled, and is intended to support cases where
+// the Proxy is accessible from multiple addresses, and the one included in the
+// ProxyPing is incorrect.
+const shouldIgnoreProxyAddrEnv = "TBOT_IGNORE_PROXY_PING_ADDR"
+
+// tlsRoutingProxyPublicAddr returns the public address of the proxy which
+// should be used for TLS-routed connections. It takes into account the
+// TBOT_IGNORE_PROXY_PING_ADDR env var which can be used to force the use of
+// the proxy address explicitly provided by the user rather than that included
+// in the ProxyPing.
+func (p *proxyPingResponse) tlsRoutingProxyPublicAddr() (string, error) {
+	if os.Getenv(shouldIgnoreProxyAddrEnv) == "1" {
+		if p.configuredProxyAddr == "" {
+			return "", trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR set but no explicit proxy address configured")
+		}
+		if !p.Proxy.TLSRoutingEnabled {
+			return "", trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR set but proxy does not have TLS routing enabled")
+		}
+		return p.configuredProxyAddr, nil
+	}
+	return p.Proxy.SSH.SSHPublicAddr, nil
 }
 
 type alpnProxyConnUpgradeRequiredCache struct {
