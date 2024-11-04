@@ -5,7 +5,7 @@
 # When running on GitHub actions, the script will also create an error in the PR and
 # collapse the diff to improve readability.
 
-set -euo pipefail
+set -eu
 
 KIND="$1"
 GENERATE_COMMAND="$2"
