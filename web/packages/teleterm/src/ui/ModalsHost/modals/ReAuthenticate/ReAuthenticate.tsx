@@ -49,8 +49,6 @@ import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/Pr
 import { routing } from 'teleterm/ui/uri';
 import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
 
-type MfaType = 'webauthn' | 'totp' | 'sso';
-
 export const ReAuthenticate: FC<{
   promptMfaRequest: PromptMFARequest;
   onCancel: () => void;
@@ -197,12 +195,14 @@ export const ReAuthenticate: FC<{
   );
 };
 
+type MfaType = 'webauthn' | 'totp' | 'sso';
 type AvailableMfaType = Option<MfaType, string>;
+
+const totp = { value: 'totp' as MfaType, label: 'Authenticator App' };
+const webauthn = { value: 'webauthn' as MfaType, label: 'Hardware Key' };
 
 function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
   let availableMfaTypes: AvailableMfaType[] = [];
-  const totp = { value: 'totp' as MfaType, label: 'Authenticator App' };
-  const webauthn = { value: 'webauthn' as MfaType, label: 'Hardware Key' };
 
   if (req.webauthn) {
     availableMfaTypes.push(webauthn);
