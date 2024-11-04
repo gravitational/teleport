@@ -21,10 +21,11 @@ package common
 import (
 	"bytes"
 	"context"
+	"testing"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,7 +68,7 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "1.2.3", version.Spec.Tools.TargetVersion)
 
-	getBuf, err := runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "get"})
+	getBuf, err := runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "get", "--format=json"})
 	require.NoError(t, err)
 	response := mustDecodeJSON[versionResponse](t, getBuf)
 	assert.Equal(t, "1.2.3", response.TargetVersion)

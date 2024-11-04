@@ -28,6 +28,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
@@ -53,6 +54,7 @@ type AutoUpdateCommand struct {
 	mode               string
 	toolsTargetVersion string
 	proxy              string
+	format             string
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -72,6 +74,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 
 	c.getCmd = clientToolsCmd.Command("get", "Receive tools auto update target version.")
 	c.getCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
+	c.getCmd.Flag("format", "Output format: 'yaml' or 'json'").Default(teleport.YAML).StringVar(&c.format)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -82,7 +85,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.configureCmd.FullCommand():
-		err = c.Upsert(ctx, client)
+		err = c.Configure(ctx, client)
 	case c.getCmd.FullCommand():
 		err = c.Get(ctx, client)
 	default:
@@ -91,56 +94,17 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *auth
 	return true, trace.Wrap(err)
 }
 
-// Upsert works with AutoUpdateConfig and AutoUpdateVersion resources to create or update.
-func (c *AutoUpdateCommand) Upsert(ctx context.Context, client *authclient.Client) error {
+// Configure works with AutoUpdateConfig and AutoUpdateVersion resources to create or update.
+func (c *AutoUpdateCommand) Configure(ctx context.Context, client *authclient.Client) error {
 	if c.mode != "" {
-		config, err := client.GetAutoUpdateConfig(ctx)
-		if trace.IsNotFound(err) {
-			if config, err = autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{}); err != nil {
-				return trace.Wrap(err)
-			}
-		} else if err != nil {
+		if err := c.configureAutoUpdateConfig(ctx, client); err != nil {
 			return trace.Wrap(err)
-		}
-		switch c.mode {
-		case "on":
-			c.mode = autoupdate.ToolsUpdateModeEnabled
-		case "off":
-			c.mode = autoupdate.ToolsUpdateModeDisabled
-		}
-		if config.Spec.Tools == nil {
-			config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{}
-		}
-		if config.Spec.Tools.Mode != c.mode {
-			config.Spec.Tools.Mode = c.mode
-			if _, err := client.UpsertAutoUpdateConfig(ctx, config); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Fprint(c.stdout, "autoupdate_config has been upserted\n")
 		}
 	}
 
 	if c.toolsTargetVersion != "" {
-		if _, err := semver.NewVersion(c.toolsTargetVersion); err != nil {
-			return trace.WrapWithMessage(err, "not semantic version")
-		}
-		version, err := client.GetAutoUpdateVersion(ctx)
-		if trace.IsNotFound(err) {
-			if version, err = autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{}); err != nil {
-				return trace.Wrap(err)
-			}
-		} else if err != nil {
+		if err := c.configureAutoUpdateVersion(ctx, client); err != nil {
 			return trace.Wrap(err)
-		}
-		if version.Spec.Tools == nil {
-			version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{}
-		}
-		if version.Spec.Tools.TargetVersion != c.toolsTargetVersion {
-			version.Spec.Tools.TargetVersion = c.toolsTargetVersion
-			if _, err := client.UpsertAutoUpdateVersion(ctx, version); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Fprint(c.stdout, "autoupdate_version has been upserted\n")
 		}
 	}
 
@@ -155,10 +119,90 @@ func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) 
 		return trace.Wrap(err)
 	}
 
-	if err := utils.WriteJSON(c.stdout, response); err != nil {
-		return trace.Wrap(err)
+	switch c.format {
+	case teleport.JSON:
+		if err := utils.WriteJSON(c.stdout, response); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.YAML:
+		if err := utils.WriteYAML(c.stdout, response); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unsupported output format %s, supported values are %s and %s", c.format, teleport.JSON, teleport.YAML)
 	}
 
+	return nil
+}
+
+func (c *AutoUpdateCommand) configureAutoUpdateConfig(ctx context.Context, client *authclient.Client) error {
+	configExists := true
+	config, err := client.GetAutoUpdateConfig(ctx)
+	if trace.IsNotFound(err) {
+		configExists = false
+		if config, err = autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	switch c.mode {
+	case "on":
+		c.mode = autoupdate.ToolsUpdateModeEnabled
+	case "off":
+		c.mode = autoupdate.ToolsUpdateModeDisabled
+	}
+	if config.Spec.Tools == nil {
+		config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{}
+	}
+	if config.Spec.Tools.Mode != c.mode {
+		config.Spec.Tools.Mode = c.mode
+		if configExists {
+			if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprint(c.stdout, "autoupdate_config has been updated\n")
+		} else {
+			if _, err := client.CreateAutoUpdateConfig(ctx, config); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprint(c.stdout, "autoupdate_config has been created\n")
+		}
+	}
+	return nil
+}
+
+func (c *AutoUpdateCommand) configureAutoUpdateVersion(ctx context.Context, client *authclient.Client) error {
+	if _, err := semver.NewVersion(c.toolsTargetVersion); err != nil {
+		return trace.WrapWithMessage(err, "not semantic version")
+	}
+	versionExists := true
+	version, err := client.GetAutoUpdateVersion(ctx)
+	if trace.IsNotFound(err) {
+		versionExists = false
+		if version, err = autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	if version.Spec.Tools == nil {
+		version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{}
+	}
+	if version.Spec.Tools.TargetVersion != c.toolsTargetVersion {
+		version.Spec.Tools.TargetVersion = c.toolsTargetVersion
+		if versionExists {
+			if _, err := client.UpsertAutoUpdateVersion(ctx, version); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprint(c.stdout, "autoupdate_version has been updated\n")
+		} else {
+			if _, err := client.CreateAutoUpdateVersion(ctx, version); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprint(c.stdout, "autoupdate_version has been created\n")
+		}
+	}
 	return nil
 }
 
