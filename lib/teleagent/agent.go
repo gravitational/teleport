@@ -143,6 +143,7 @@ func (a *AgentServer) Serve() error {
 		// separate goroutine.
 		go func() {
 			defer instance.Close()
+			//nolint:staticcheck // SA4023. ServeAgent always returns a non-nil error. This is fine.
 			if err := agent.ServeAgent(instance, conn); err != nil {
 				if !errors.Is(err, io.EOF) {
 					log.Error(err)
