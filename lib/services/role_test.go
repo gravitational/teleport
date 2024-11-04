@@ -4541,6 +4541,91 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 	}
 }
 
+func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *testing.T) {
+	newRole := func(
+		allowRoles []string,
+		denyRoles []string,
+		allowedResources []types.RequestKubernetesResource,
+		deniedResources []types.RequestKubernetesResource,
+	) *types.RoleV6 {
+		return &types.RoleV6{
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles:       allowRoles,
+						KubernetesResources: allowedResources,
+					},
+				},
+				Deny: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles:       denyRoles,
+						KubernetesResources: deniedResources,
+					},
+				},
+			},
+		}
+	}
+
+	roleWithNamespace := newRole([]string{"sar1"}, nil, []types.RequestKubernetesResource{{Kind: types.KindNamespace}}, []types.RequestKubernetesResource{})
+	roleWithSecret := newRole([]string{"sar2"}, nil, []types.RequestKubernetesResource{{Kind: types.KindKubeSecret}}, []types.RequestKubernetesResource{})
+	roleWithNoConfigure := newRole([]string{"sar3"}, nil, nil, nil)
+	roleWithDenyRole := newRole([]string{"sar4", "sar5", "sar6", "sar7"}, []string{"sar4", "sar6"}, []types.RequestKubernetesResource{{Kind: types.KindNamespace}, {Kind: types.KindKubePod}}, []types.RequestKubernetesResource{{Kind: types.KindKubePod}})
+	roleWithDenyWildcard := newRole([]string{"sar10"}, nil, []types.RequestKubernetesResource{{Kind: types.KindNamespace}}, []types.RequestKubernetesResource{{Kind: types.Wildcard}})
+	roleWithAllowWildcard := newRole([]string{"sar4", "sar5"}, nil, []types.RequestKubernetesResource{{Kind: types.Wildcard}}, nil)
+
+	tt := []struct {
+		name                 string
+		roleSet              RoleSet
+		requestType          string
+		expectedAllowedRoles []string
+	}{
+		{
+			name:                 "single match",
+			roleSet:              NewRoleSet(roleWithNamespace, roleWithSecret),
+			requestType:          types.KindKubeSecret,
+			expectedAllowedRoles: []string{"sar2"},
+		},
+		{
+			name:                 "multi match",
+			roleSet:              NewRoleSet(roleWithNamespace, roleWithNoConfigure),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{"sar1", "sar3"},
+		},
+		{
+			name:                 "wildcard allow",
+			roleSet:              NewRoleSet(roleWithAllowWildcard, roleWithNamespace),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{"sar1", "sar4", "sar5"},
+		},
+		{
+			name:                 "wildcard deny",
+			roleSet:              NewRoleSet(roleWithAllowWildcard, roleWithDenyWildcard),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{},
+		},
+		{
+			name:                 "wildcard deny with unconfigured allow",
+			roleSet:              NewRoleSet(roleWithNoConfigure, roleWithDenyWildcard),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{},
+		},
+		{
+			name:                 "with deny role",
+			roleSet:              NewRoleSet(roleWithDenyRole, roleWithNamespace),
+			requestType:          types.KindNamespace,
+			expectedAllowedRoles: []string{"sar5", "sar7", "sar1"},
+		},
+	}
+	for _, tc := range tt {
+		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
+		t.Run(tc.name, func(t *testing.T) {
+
+			allowedRoles := accessChecker.GetAllowedSearchAsRolesForKubeResourceKind(tc.requestType)
+			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
+		})
+	}
+}
+
 // mustMakeTestServer creates a server with labels and an empty spec.
 // It panics in case of an error. Used only for testing
 func mustMakeTestServer(labels map[string]string) types.Server {
