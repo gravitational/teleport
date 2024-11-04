@@ -620,7 +620,12 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 			return newMFAPrompt(stream, channelID)
 		},
 		SSOMFACeremonyConstructor: func(ctx context.Context) (mfa.SSOMFACeremony, error) {
-			channelID = uuid.NewString()
+			id, err := uuid.NewRandom()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			channelID = id.String()
+
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {
 				return nil, trace.Wrap(err)
