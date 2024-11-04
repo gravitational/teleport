@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -239,7 +238,7 @@ type alpnTester interface {
 func renderSSHConfig(
 	ctx context.Context,
 	log *slog.Logger,
-	proxyPing *webclient.PingResponse,
+	proxyPing *proxyPingResponse,
 	clusterNames []string,
 	dest bot.Destination,
 	certAuthGetter certAuthGetter,
@@ -255,7 +254,11 @@ func renderSSHConfig(
 
 	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
 	if proxyPing.Proxy.TLSRoutingEnabled {
-
+		var err error
+		proxyAddr, err = proxyPing.tlsRoutingProxyPublicAddr()
+		if err != nil {
+			return trace.Wrap(err, "determining tls routing address")
+		}
 	}
 
 	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
@@ -315,7 +318,7 @@ func renderSSHConfig(
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
 		connUpgradeRequired, err = alpnTester.isUpgradeRequired(
-			ctx, proxyPing.Proxy.SSH.PublicAddr, botCfg.Insecure,
+			ctx, proxyAddr, botCfg.Insecure,
 		)
 		if err != nil {
 			return trace.Wrap(err, "determining if ALPN upgrade is required")
