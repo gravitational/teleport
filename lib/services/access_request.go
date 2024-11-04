@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -1682,14 +1681,14 @@ func (m *RequestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds
 		return requestedRoles, nil
 	}
 
-	goodRoles := make(map[string]struct{})
+	goodRolesLookup := make(map[string]struct{})
 	mappedRequestedRolesToAllowedKinds := make(map[string][]string)
 	for _, requestedRoleName := range requestedRoles {
 		allowedKinds, deniedKinds := getKubeResourceKinds(m.kubernetesResource.allow[requestedRoleName]), getKubeResourceKinds(m.kubernetesResource.deny)
 
 		// Any resource is allowed.
 		if len(allowedKinds) == 0 && len(deniedKinds) == 0 {
-			goodRoles[requestedRoleName] = struct{}{}
+			goodRolesLookup[requestedRoleName] = struct{}{}
 			continue
 		}
 
@@ -1715,11 +1714,16 @@ func (m *RequestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds
 		}
 
 		if !roleIsDenied {
-			goodRoles[requestedRoleName] = struct{}{}
+			goodRolesLookup[requestedRoleName] = struct{}{}
 		}
 	}
 
-	return slices.Collect(maps.Keys(goodRoles)), mappedRequestedRolesToAllowedKinds
+	goodRoles := make([]string, 0, len(goodRolesLookup))
+	for key := range goodRolesLookup {
+		goodRoles = append(goodRoles, key)
+	}
+
+	return goodRoles, mappedRequestedRolesToAllowedKinds
 }
 
 // thresholdCollector is a helper that assembles the Thresholds array for a request.
@@ -2217,14 +2221,19 @@ func getKubeResourceKinds(kubernetesResources []types.RequestKubernetesResource)
 // getAllowedKubeResourceKinds returns only the allowed kinds that were not in the
 // denied list.
 func getAllowedKubeResourceKinds(allowedKinds []string, deniedKinds []string) []string {
-	allowed := make(map[string]struct{}, len(allowedKinds))
+	allowedLookup := make(map[string]struct{}, len(allowedKinds))
 	for _, kind := range allowedKinds {
-		allowed[kind] = struct{}{}
+		allowedLookup[kind] = struct{}{}
 	}
 	for _, kind := range deniedKinds {
-		delete(allowed, kind)
+		delete(allowedLookup, kind)
 	}
-	return slices.Collect(maps.Keys(allowed))
+
+	allowed := make([]string, 0, len(allowedLookup))
+	for key := range allowedLookup {
+		allowed = append(allowed, key)
+	}
+	return allowed
 }
 
 func (m *RequestValidator) roleAllowsResource(
