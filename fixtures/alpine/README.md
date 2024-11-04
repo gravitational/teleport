@@ -10,15 +10,8 @@ The build process is specified in the `.github/workflows/kube-integration-tests-
 
 To download the new `alpine-minirootfs` image, follow the instructions:
 
-Define the desired Alpine version:
-
 ```bash
 $ export ALPINE_VERSION=3.20.3
-```
-
-Download the asset files: filesystem, signature and sha256.
-
-```bash
 
 # download alpine minirootfs and signature
 $ curl -fSsL -o ./fixtures/alpine/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz
