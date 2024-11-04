@@ -91,8 +91,8 @@ export function manageRootClusterProxyHostAllowList({
       }
 
       // Allow the SSO hostname for SSO login/mfa redirects.
-      if (rootCluster.ssoHostname) {
-        allowList.add(rootCluster.ssoHostname);
+      if (rootCluster.ssoHost) {
+        allowList.add(rootCluster.ssoHost);
       }
     }
   };

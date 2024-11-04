@@ -520,8 +520,8 @@ type Config struct {
 	// If nil touchid.HasCredentials is used.
 	HasTouchIDCredentialsFunc func(rpID, user string) bool
 
-	// SSOHostname is the hostname of the SSO provider used to log in.
-	SSOHostname string
+	// SSOHost is the host of the SSO provider used to log in.
+	SSOHost string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -853,7 +853,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.PIVSlot = profile.PIVSlot
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
-	c.SSOHostname = profile.SSOHostname
+	c.SSOHost = profile.SSOHost
 
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
@@ -905,7 +905,7 @@ func (c *Config) Profile() *profile.Profile {
 		PIVSlot:                       c.PIVSlot,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
-		SSOHostname:                   c.SSOHostname,
+		SSOHost:                       c.SSOHost,
 	}
 }
 
@@ -4578,7 +4578,7 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 		return trace.Wrap(err)
 	}
 	if ssoURL != nil {
-		tc.SSOHostname = ssoURL.Hostname()
+		tc.SSOHost = ssoURL.Host
 	}
 
 	return nil
