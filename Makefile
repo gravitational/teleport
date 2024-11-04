@@ -1543,7 +1543,7 @@ derive:
 .PHONY: derive-up-to-date
 derive-up-to-date: must-start-clean/host derive
 	@if ! git diff --quiet; then \
-		./build.assets/tooling/cmd/please-run.sh "derived functions" "make derive"; \
+		./build.assets/please-run.sh "derived functions" "make derive"; \
 		exit 1; \
 	fi
 
@@ -1578,14 +1578,15 @@ endif
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
 	@if ! git diff --quiet; then \
-		./build.assets/tooling/cmd/please-run.sh "protos gRPC" "make grpc"; \
+		./build.assets/please-run.sh "protos gRPC" "make grpc"; \
 		exit 1; \
 	fi
 
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
-		./build.assets/tooling/cmd/please-run.sh "protos gRPC" "make grpc"; \
+		echo 'This must be run from a repo with no unstaged commits.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1594,12 +1595,12 @@ must-start-clean/host:
 crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
 	@if ! git diff --quiet; then \
-		./build.assets/tooling/cmd/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
+		./build.assets/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
 		exit 1; \
 	fi
 	$(MAKE) -C integrations/operator crd-docs
 	@if ! git diff --quiet; then \
-		./build.assets/tooling/cmd/please-run.sh "operator CRD docs" "make -C integrations/operator crd"; \
+		./build.assets/please-run.sh "operator CRD docs" "make -C integrations/operator crd"; \
 		exit 1; \
 	fi
 
@@ -1608,7 +1609,7 @@ crds-up-to-date: must-start-clean/host
 terraform-resources-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/terraform docs
 	@if ! git diff --quiet; then \
-		./build.assets/tooling/cmd/please-run.sh "TF provider docs" "make -C integrations/terraform docs"; \
+		./build.assets/please-run.sh "TF provider docs" "make -C integrations/terraform docs"; \
 		exit 1; \
 	fi
 
