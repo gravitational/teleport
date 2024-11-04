@@ -29,8 +29,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.4.1
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
-	github.com/ClickHouse/ch-go v0.62.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.29.0
+	github.com/ClickHouse/ch-go v0.63.1
+	github.com/ClickHouse/clickhouse-go/v2 v2.30.0
 	github.com/DanielTitkov/go-adaptive-cards v0.2.2
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -38,7 +38,7 @@ require (
 	github.com/ThalesIgnite/crypto11 v1.2.5
 	github.com/alecthomas/kingpin/v2 v2.4.0 // replaced
 	github.com/alicebob/miniredis/v2 v2.33.0
-	github.com/andybalholm/brotli v1.1.0
+	github.com/andybalholm/brotli v1.1.1
 	github.com/aquasecurity/libbpfgo v0.5.1-libbpf-1.2
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.55.5
@@ -308,7 +308,7 @@ require (
 	github.com/di-wu/parser v0.3.0 // indirect
 	github.com/di-wu/xsd-datetime v1.0.0 // indirect
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
-	github.com/dmarkham/enumer v1.5.9 // indirect
+	github.com/dmarkham/enumer v1.5.10 // indirect
 	github.com/docker/cli v27.1.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v27.3.0+incompatible // indirect
@@ -382,7 +382,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
-	github.com/hashicorp/go-version v1.6.0 // indirect
+	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
@@ -405,7 +405,7 @@ require (
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
