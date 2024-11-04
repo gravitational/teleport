@@ -285,11 +285,10 @@ exports[`failed state 1`] = `
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
   margin: 0px;
-  color: #FFFFFF;
 }
 
 .c20 {
@@ -902,15 +901,14 @@ exports[`failed state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <div
@@ -1749,11 +1747,10 @@ exports[`loaded state 1`] = `
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 18px;
-  line-height: 32px;
+  line-height: 24px;
   margin: 0px;
-  color: #FFFFFF;
 }
 
 .c17 {
@@ -2385,15 +2382,14 @@ exports[`loaded state 1`] = `
           <div
             class="c1"
           >
-            <div
+            <h2
               class="c7"
-              color="text.main"
             >
               5
                
               Resources
                Selected
-            </div>
+            </h2>
           </div>
         </div>
         <table
