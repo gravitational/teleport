@@ -274,18 +274,22 @@ func (s *SSHMultiplexerService) setup(ctx context.Context) (
 		return nil, nil, "", nil, trace.Wrap(err)
 	}
 	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
-	proxyHost, _, err = net.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
-	if err != nil {
-		return nil, nil, "", nil, trace.Wrap(err)
-	}
 	connUpgradeRequired := false
 	if proxyPing.Proxy.TLSRoutingEnabled {
+		proxyAddr, err = proxyPing.tlsRoutingProxyPublicAddr()
+		if err != nil {
+			return nil, nil, "", nil, trace.Wrap(err, "determining proxy address")
+		}
 		connUpgradeRequired, err = s.alpnUpgradeCache.isUpgradeRequired(
 			ctx, proxyAddr, s.botCfg.Insecure,
 		)
 		if err != nil {
 			return nil, nil, "", nil, trace.Wrap(err, "determining if ALPN upgrade is required")
 		}
+	}
+	proxyHost, _, err = net.SplitHostPort(proxyAddr)
+	if err != nil {
+		return nil, nil, "", nil, trace.Wrap(err)
 	}
 
 	// Create Proxy and Auth clients
