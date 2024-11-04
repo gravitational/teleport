@@ -253,11 +253,16 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyHost, proxyPort, err := utils.SplitHostPort(proxyPing.Proxy.SSH.PublicAddr)
+	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
+	if proxyPing.Proxy.TLSRoutingEnabled {
+
+	}
+
+	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
 	if err != nil {
 		return trace.BadParameter(
 			"proxy %+v has no usable public address: %v",
-			proxyPing.Proxy.SSH.PublicAddr, err,
+			proxyAddr, err,
 		)
 	}
 
