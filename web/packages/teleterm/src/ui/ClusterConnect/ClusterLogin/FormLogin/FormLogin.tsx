@@ -82,7 +82,10 @@ export default function LoginForm(props: Props) {
   if (!localAuthEnabled) {
     return (
       <FlexBordered px={outermostPadding}>
-        <Alerts.Danger details="The ability to login has not been enabled. Please contact your system administrator for more information.">
+        <Alerts.Danger
+          m={0}
+          details="The ability to login has not been enabled. Please contact your system administrator for more information."
+        >
           Login has not been enabled
         </Alerts.Danger>
       </FlexBordered>
