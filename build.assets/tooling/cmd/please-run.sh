@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 
 # This script is a helper that tells developers what generated content is out of date
 # and which command to run.
@@ -13,8 +13,7 @@ GENERATE_COMMAND="$2"
 TITLE="$KIND are out-of-date"
 MESSAGE="Please run the command \`$GENERATE_COMMAND\`"
 
-if [ -z ${GITHUB_ACTIONS+x} ];
-then
+if [ -z ${GITHUB_ACTIONS+x} ]; then
     # We are not in GitHub Actions
     echo "============="
     echo "$TITLE"
