@@ -31,7 +31,7 @@ import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
-import Indicator from './Indicator';
+import { Indicator } from './Indicator';
 import Input from './Input';
 import Label from './Label';
 import LabelInput from './LabelInput';
