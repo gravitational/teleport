@@ -170,7 +170,7 @@ func TestClose(t *testing.T) {
 	_, ok := <-p.C()
 	require.False(t, ok, "player channel should have been closed")
 	require.NoError(t, p.Err())
-	require.Equal(t, int64(1000), p.LastPlayed())
+	require.Equal(t, time.Second, p.LastPlayed())
 }
 
 func TestSeekForward(t *testing.T) {
