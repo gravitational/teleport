@@ -583,6 +583,28 @@ func TestRootHostUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, hasExpirations)
 	})
+
+	t.Run("Test migrate unmanaged user", func(t *testing.T) {
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}) })
+
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		_, err := host.UserAdd(testuser, nil, host.UserOpts{})
+		require.NoError(t, err)
+
+		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep, Groups: []string{types.TeleportKeepGroup}})
+		require.NoError(t, err)
+		require.Nil(t, closer)
+
+		u, err := user.Lookup(testuser)
+		require.NoError(t, err)
+
+		gids, err := u.GroupIds()
+		require.NoError(t, err)
+
+		keepGroup, err := user.LookupGroup(types.TeleportKeepGroup)
+		require.NoError(t, err)
+		require.Contains(t, gids, keepGroup.Gid)
+	})
 }
 
 type hostUsersBackendWithExp struct {
