@@ -90,9 +90,18 @@ export function manageRootClusterProxyHostAllowList({
         }
       }
 
-      // Allow the SSO hostname for SSO login/mfa redirects.
+      // Allow the SSO host for SSO login/mfa redirects.
       if (rootCluster.ssoHost) {
-        allowList.add(rootCluster.ssoHost);
+        let browserSsoHost: string;
+        try {
+          browserSsoHost = proxyHostToBrowserProxyHost(rootCluster.ssoHost);
+          allowList.add(browserSsoHost);
+        } catch (error) {
+          logger.error(
+            'Ran into an error when converting sso host to browser sso host',
+            error
+          );
+        }
       }
     }
   };

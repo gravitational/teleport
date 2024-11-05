@@ -4564,10 +4564,10 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 	var ssoURL *url.URL
 	var err error
 	switch {
-	case authSettings.OIDC != nil:
-		ssoURL, err = url.Parse(authSettings.OIDC.IssuerURL)
 	case authSettings.SAML != nil:
 		ssoURL, err = url.Parse(authSettings.SAML.SSO)
+	case authSettings.OIDC != nil:
+		ssoURL, err = url.Parse(authSettings.OIDC.IssuerURL)
 	case authSettings.Github != nil:
 		ssoURL, err = url.Parse(authSettings.Github.EndpointURL)
 	}
