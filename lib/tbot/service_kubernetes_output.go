@@ -426,7 +426,7 @@ func selectKubeConnectionMethod(proxyPong *proxyPingResponse) (
 	// Even if KubePublicAddr is specified, we still use the general
 	// PublicAddr when using TLS routing.
 	if proxyPong.Proxy.TLSRoutingEnabled {
-		addr, err := proxyPong.tlsRoutingProxyPublicAddr()
+		addr, err := proxyPong.proxyWebAddr()
 		if err != nil {
 			return "", "", trace.Wrap(err)
 		}

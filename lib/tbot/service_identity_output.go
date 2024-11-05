@@ -252,13 +252,9 @@ func renderSSHConfig(
 	)
 	defer span.End()
 
-	proxyAddr := proxyPing.Proxy.SSH.PublicAddr
-	if proxyPing.Proxy.TLSRoutingEnabled {
-		var err error
-		proxyAddr, err = proxyPing.tlsRoutingProxyPublicAddr()
-		if err != nil {
-			return trace.Wrap(err, "determining tls routing address")
-		}
+	proxyAddr, err := proxyPing.proxyWebAddr()
+	if err != nil {
+		return trace.Wrap(err, "determining proxy web addr")
 	}
 
 	proxyHost, proxyPort, err := utils.SplitHostPort(proxyAddr)
