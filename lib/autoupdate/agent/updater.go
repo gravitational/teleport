@@ -188,11 +188,20 @@ type Installer interface {
 	// Install the Teleport agent at version from the download template.
 	// Install must be idempotent.
 	Install(ctx context.Context, version, template string, flags InstallFlags) error
-	// Link the Teleport agent at the specified version into the system location.
+	// Link the Teleport agent at the specified version into the linking location.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// Link must be idempotent.
 	// Link's revert function must be idempotent.
 	Link(ctx context.Context, version string) (revert func(context.Context) bool, err error)
+	// LinkSystem links the system installation of Teleport into the linking location.
+	// The revert function must restore the previous linking, returning false on any failure.
+	// LinkSystem must be idempotent.
+	// LinkSystem's revert function must be idempotent.
+	LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error)
+	// TryLinkSystem links the system installation of Teleport into the linking location.
+	// Unlike LinkSystem, TryLinkSystem will fail if existing links to other locations are present.
+	// TryLinkSystem must be idempotent.
+	TryLinkSystem(ctx context.Context) error
 	// List the installed versions of Teleport.
 	List(ctx context.Context) (versions []string, err error)
 	// Remove the Teleport agent at version.
@@ -593,5 +602,5 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 // UseSystem
 // This function is idempotent.
 func (u *Updater) UseSystem(ctx context.Context) error {
-
+	
 }
