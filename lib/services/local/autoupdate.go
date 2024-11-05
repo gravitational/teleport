@@ -113,7 +113,7 @@ func (s *AutoUpdateService) UpdateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
-	config, err := s.config.UpdateResource(ctx, c)
+	config, err := s.config.ConditionalUpdateResource(ctx, c)
 	return config, trace.Wrap(err)
 }
 
@@ -151,7 +151,7 @@ func (s *AutoUpdateService) UpdateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
-	version, err := s.version.UpdateResource(ctx, v)
+	version, err := s.version.ConditionalUpdateResource(ctx, v)
 	return version, trace.Wrap(err)
 }
 
@@ -241,7 +241,7 @@ func (s *AutoUpdateService) UpdateAutoUpdateAgentRollout(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateAgentRollout,
 ) (*autoupdate.AutoUpdateAgentRollout, error) {
-	rollout, err := s.rollout.UpdateResource(ctx, v)
+	rollout, err := s.rollout.ConditionalUpdateResource(ctx, v)
 	return rollout, trace.Wrap(err)
 }
 
