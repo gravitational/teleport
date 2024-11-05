@@ -2411,7 +2411,7 @@ func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdle
 }
 
 // SFTP securely copies files between Nodes or SSH servers using SFTP
-func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
+func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination string, opts sftp.Options) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SFTP",
@@ -2419,104 +2419,61 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	)
 	defer span.End()
 
-	if len(args) < 2 {
-		return trace.Errorf("local and remote destinations are required")
-	}
-	first := args[0]
-	last := args[len(args)-1]
+	isDownload := strings.ContainsRune(source[0], ':')
+	isUpload := strings.ContainsRune(destination, ':')
 
-	// local copy?
-	if !isRemoteDest(first) && !isRemoteDest(last) {
+	if !isUpload && !isDownload {
 		return trace.BadParameter("no remote destination specified")
 	}
 
-	var config *sftpConfig
-	if isRemoteDest(last) {
-		config, err = tc.uploadConfig(args, port, opts)
+	clt, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	// Respect any proxy templates and attempt host resolution.
+	resolvedNodes, err := tc.GetTargetNodes(ctx, clt.AuthClient, SSHOptions{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch len(resolvedNodes) {
+	case 1:
+	case 0:
+		return trace.NotFound("no matching hosts found")
+	default:
+		return trace.BadParameter("multiple matching hosts found")
+	}
+
+	var cfg *sftp.Config
+	switch {
+	case isDownload:
+		dest, err := sftp.ParseDestination(source[0])
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		config, err = tc.downloadConfig(args, port, opts)
+		cfg, err = sftp.CreateDownloadConfig(dest.Path, destination, opts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case isUpload:
+		dest, err := sftp.ParseDestination(destination)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg, err = sftp.CreateUploadConfig(source, dest.Path, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if config.hostLogin == "" {
-		config.hostLogin = tc.Config.HostLogin
-	}
 
-	if !quiet {
-		config.cfg.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-			return sftp.NewProgressBar(fileInfo.Size(), fileInfo.Name(), tc.Stdout)
-		}
-	}
-
-	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
-}
-
-type sftpConfig struct {
-	cfg       *sftp.Config
-	addr      string
-	hostLogin string
-}
-
-func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
-	// args are guaranteed to have len(args) > 1
-	srcPaths := args[:len(args)-1]
-	// copy everything except the last arg (the destination)
-	dstPath := args[len(args)-1]
-
-	dst, addr, err := getSFTPDestination(dstPath, port)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sftpConfig{
-		cfg:       cfg,
-		addr:      addr,
-		hostLogin: dst.Login,
-	}, nil
-}
-
-func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
-	if len(args) > 2 {
-		return nil, trace.BadParameter("only one source file is supported when downloading files")
-	}
-
-	// args are guaranteed to have len(args) > 1
-	src, addr, err := getSFTPDestination(args[0], port)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := sftp.CreateDownloadConfig(src.Path, args[1], opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sftpConfig{
-		cfg:       cfg,
-		addr:      addr,
-		hostLogin: src.Login,
-	}, nil
-}
-
-func getSFTPDestination(target string, port int) (dest *sftp.Destination, addr string, err error) {
-	dest, err = sftp.ParseDestination(target)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	addr = net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
-	return dest, addr, nil
+	return trace.Wrap(tc.TransferFiles(ctx, clt, tc.HostLogin, resolvedNodes[0].Addr, cfg))
 }
 
 // TransferFiles copies files between the current machine and the
 // specified Node using the supplied config
-func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr string, cfg *sftp.Config) error {
+func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient, hostLogin, nodeAddr string, cfg *sftp.Config) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/TransferFiles",
@@ -2531,16 +2488,7 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 		return trace.BadParameter("node address is not specified")
 	}
 
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	client, err := tc.ConnectToNode(
+	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
 		NodeDetails{
@@ -2554,11 +2502,7 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(client.TransferFiles(ctx, cfg))
-}
-
-func isRemoteDest(name string) bool {
-	return strings.ContainsRune(name, ':')
+	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg))
 }
 
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
