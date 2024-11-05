@@ -10,18 +10,18 @@ permissions:
   contents: read # this can be 'read' if the signatures are in remote repository
   pull-requests: write
 jobs:
-  CLAAssistant:
+  cla-assistant:
     runs-on: ubuntu-latest
     steps:
-      - id: fetch-token
-        name: Fetch installation token
+      - name: Fetch installation token
+        id: fetch-token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.CLA_ASSISTANT_APP_ID }}
           private-key: ${{ secrets.CLA_ASSISTANT_APP_PRIVATE_KEY }}
           repositories: cla-signatures
-      - id: get-membership
-        name: "Determine gravitational membership"
+      - name: "Determine gravitational membership"
+        id: get-membership
         env:
           GITHUB_TOKEN: ${{ steps.fetch-token.outputs.token }}
           USER: ${{ github.actor }}
