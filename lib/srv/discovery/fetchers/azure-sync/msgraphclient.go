@@ -38,8 +38,11 @@ type GraphClient struct {
 }
 
 const (
-	graphBaseURL = "https://graph.microsoft.com/v1.0"
-	httpTimeout  = time.Second * 30
+	usersSuffix             = "users"
+	groupsSuffix            = "groups"
+	servicePrincipalsSuffix = "servicePrincipals"
+	graphBaseURL            = "https://graph.microsoft.com/v1.0"
+	httpTimeout             = time.Second * 30
 )
 
 // graphError represents MS Graph error
@@ -59,8 +62,9 @@ type genericGraphResponse struct {
 
 // User represents user resource
 type User struct {
-	ID   string `json:"id"`
-	Name string `json:"displayName"`
+	ID       string   `json:"id"`
+	Name     string   `json:"displayName"`
+	MemberOf []string `json:"memberOf"`
 }
 
 // request represents generic request structure
@@ -97,32 +101,23 @@ func (e graphError) Error() string {
 }
 
 func (c *GraphClient) ListUsers(ctx context.Context) ([]User, error) {
-	g := &genericGraphResponse{}
-	request := request{
-		Method:   http.MethodGet,
-		Path:     "users",
-		Response: &g,
-		Err:      &graphError{},
-	}
-	err := c.request(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	var users []User
-	err = json.NewDecoder(bytes.NewReader(g.Value)).Decode(&users)
-	if err != nil {
-		return nil, err
-	}
-
-	return users, nil
+	return c.listIdentities(ctx, usersSuffix, []string{"memberOf"})
 }
 
 func (c *GraphClient) ListGroups(ctx context.Context) ([]User, error) {
+	return c.listIdentities(ctx, groupsSuffix, []string{"memberOf"})
+}
+
+func (c *GraphClient) ListServicePrincipals(ctx context.Context) ([]User, error) {
+	return c.listIdentities(ctx, servicePrincipalsSuffix, []string{"memberOf"})
+}
+
+func (c *GraphClient) listIdentities(ctx context.Context, idType string, expand []string) ([]User, error) {
 	g := &genericGraphResponse{}
 	request := request{
 		Method:   http.MethodGet,
-		Path:     "groups",
+		Path:     idType,
+		Expand:   expand,
 		Response: &g,
 		Err:      &graphError{},
 	}

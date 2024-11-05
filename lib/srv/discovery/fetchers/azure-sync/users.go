@@ -9,7 +9,7 @@ import (
 	"slices"
 )
 
-func (a *azureFetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.AzureUser, error) {
+func (a *azureFetcher) fetchPrincipals(ctx context.Context) ([]*accessgraphv1alpha.AzurePrincipal, error) {
 	// Get the VM client
 	cred, err := a.CloudClients.GetAzureCredential()
 	if err != nil {
@@ -22,7 +22,7 @@ func (a *azureFetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.Az
 	}
 	cli := NewGraphClient(token)
 
-	// Fetch the users
+	// Fetch the users, groups, and managed identities
 	users, err := cli.ListUsers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -31,18 +31,23 @@ func (a *azureFetcher) fetchUsers(ctx context.Context) ([]*accessgraphv1alpha.Az
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identities := slices.Concat(users, groups)
+	svcPrincipals, err := cli.ListServicePrincipals(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	principals := slices.Concat(users, groups, svcPrincipals)
 
 	// Return the users as protobuf messages
-	pbUsers := make([]*accessgraphv1alpha.AzureUser, 0, len(identities))
-	for _, identity := range identities {
-		pbUser := &accessgraphv1alpha.AzureUser{
-			Id:             identity.ID,
+	pbPrincipals := make([]*accessgraphv1alpha.AzurePrincipal, 0, len(principals))
+	for _, principal := range principals {
+		pbPrincipal := &accessgraphv1alpha.AzurePrincipal{
+			Id:             principal.ID,
 			SubscriptionId: a.GetSubscriptionID(),
 			LastSyncTime:   timestamppb.Now(),
-			DisplayName:    identity.Name,
+			DisplayName:    principal.Name,
+			MemberOf:       principal.MemberOf,
 		}
-		pbUsers = append(pbUsers, pbUser)
+		pbPrincipals = append(pbPrincipals, pbPrincipal)
 	}
-	return pbUsers, nil
+	return pbPrincipals, nil
 }

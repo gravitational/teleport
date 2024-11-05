@@ -30,6 +30,7 @@ func (a *azureFetcher) fetchRoleAssignments(ctx context.Context) ([]*accessgraph
 			LastSyncTime:     timestamppb.Now(),
 			PrincipalId:      *roleAssign.Properties.PrincipalID,
 			RoleDefinitionId: *roleAssign.Properties.RoleDefinitionID,
+			Scope:            *roleAssign.Properties.Scope,
 		}
 		pbRoleAssigns = append(pbRoleAssigns, pbRoleAssign)
 	}

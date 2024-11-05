@@ -31,7 +31,7 @@ message AzureResourceList {
 message AzureResource {
   oneof resource {
     AzureVirtualMachine virtual_machine = 1;
-    AzureUser user = 2;
+    AzurePrincipal principal = 2;
     AzureRoleDefinition role_definition = 3;
     AzureRoleAssignment role_assignment = 4;
   }
@@ -45,12 +45,13 @@ message AzureVirtualMachine {
   string name = 4;
 }
 
-// AzureUser is an Azure user
-message AzureUser {
+// AzurePrincipal is an Azure principal (user, group, service principal)
+message AzurePrincipal {
   string id = 1;
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
   string display_name = 4;
+  repeated string member_of = 5;
 }
 
 // AzureRoleAssignment links an Azure principal to a role definition with a scope

@@ -30,7 +30,7 @@ import (
 
 const (
 	featNameVms             = "azure/virtualmachines"
-	featNameUsers           = "azure/users"
+	featNamePrincipals      = "azure/principals"
 	featNameRoleDefinitions = "azure/roledefinitions"
 	featNameRoleAssignments = "azure/roleassignments"
 )
@@ -47,14 +47,14 @@ type Config struct {
 
 type Resources struct {
 	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
-	Users           []*accessgraphv1alpha.AzureUser
+	Principals      []*accessgraphv1alpha.AzurePrincipal
 	RoleDefinitions []*accessgraphv1alpha.AzureRoleDefinition
 	RoleAssignments []*accessgraphv1alpha.AzureRoleAssignment
 }
 
 type Features struct {
 	VirtualMachines bool
-	Users           bool
+	Principals      bool
 	RoleDefinitions bool
 	RoleAssignments bool
 }
@@ -89,8 +89,8 @@ func BuildFeatures(values ...string) Features {
 		switch value {
 		case featNameVms:
 			features.VirtualMachines = true
-		case featNameUsers:
-			features.Users = true
+		case featNamePrincipals:
+			features.Principals = true
 		case featNameRoleDefinitions:
 			features.RoleDefinitions = true
 		case featNameRoleAssignments:
@@ -106,7 +106,7 @@ func (a *azureFetcher) Poll(ctx context.Context, feats Features) (*Resources, er
 		return nil, err
 	}
 	res.VirtualMachines = common.DeduplicateSlice(res.VirtualMachines, azureVmKey)
-	res.Users = common.DeduplicateSlice(res.Users, azureUserKey)
+	res.Principals = common.DeduplicateSlice(res.Principals, azureUserKey)
 	res.RoleDefinitions = common.DeduplicateSlice(res.RoleDefinitions, azureRoleDefKey)
 	res.RoleAssignments = common.DeduplicateSlice(res.RoleAssignments, azureRoleAssignKey)
 	return res, trace.Wrap(err)
@@ -130,14 +130,14 @@ func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, e
 			return nil
 		})
 	}
-	if feats.Users {
+	if feats.Principals {
 		eg.Go(func() error {
-			users, err := a.fetchUsers(ctx)
+			principals, err := a.fetchPrincipals(ctx)
 			if err != nil {
 				errsCh <- err
 				return err
 			}
-			result.Users = users
+			result.Principals = principals
 			return nil
 		})
 	}
