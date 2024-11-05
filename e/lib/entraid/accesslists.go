@@ -321,7 +321,7 @@ func memberMapKey(member *accesslist.AccessListMember) string {
 	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
 }
 
-func listEntraGroups(ctx context.Context, graphClient graphClient) (map[string]*msgraph.Group, error) {
+func listEntraGroups(ctx context.Context, graphClient GraphClient) (map[string]*msgraph.Group, error) {
 	result := map[string]*msgraph.Group{}
 	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
 		result[*g.ID] = g
@@ -330,7 +330,7 @@ func listEntraGroups(ctx context.Context, graphClient graphClient) (map[string]*
 	return result, trace.Wrap(err)
 }
 
-func listEntraGroupsMembers(ctx context.Context, graphClient graphClient, groups map[string]*msgraph.Group) (map[string][]msgraph.GroupMember, error) {
+func listEntraGroupsMembers(ctx context.Context, graphClient GraphClient, groups map[string]*msgraph.Group) (map[string][]msgraph.GroupMember, error) {
 	result := map[string][]msgraph.GroupMember{}
 	for id, group := range groups {
 		var members []msgraph.GroupMember

@@ -274,15 +274,19 @@ func TestEntraIDService(t *testing.T) {
 	teamFTeleport, err = alSvc.GetAccessList(ctx, teamFTeleport.GetName())
 	require.NoError(t, err)
 
-	r := &DirectoryReconciler{
-		userSvc:        identitySvc,
-		accessListSvc:  alSvc,
-		graphClient:    graphClient,
-		defaultOwners:  defaultOwners,
-		ssoConnectorID: ssoConnectorID,
-		tenantID:       tenantID,
-		samlService:    samlService,
-	}
+	r, err := NewDirectoryReconciler(
+		DirectoryReconcilerConfig{
+			GraphClient:    graphClient,
+			UserSvc:        identitySvc,
+			AccessListSvc:  alSvc,
+			DefaultOwners:  defaultOwners,
+			SSOConnectorID: ssoConnectorID,
+			TenantID:       tenantID,
+			SAMLSvc:        samlService,
+		},
+	)
+	require.NoError(t, err)
+
 	err = r.Reconcile(ctx)
 	require.NoError(t, err)
 

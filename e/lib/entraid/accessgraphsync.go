@@ -60,7 +60,7 @@ type AccessGraphSynchronizer struct {
 	ssoCache map[string]*types.PluginEntraIDAppSSOSettings
 
 	// graphClient is the Microsoft Graph SDKclient
-	graphClient graphClient
+	graphClient GraphClient
 	// httpClient is the HTTP client used for miscellaneous HTTP operations
 	httpClient *http.Client
 

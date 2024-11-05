@@ -8,7 +8,6 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 type userAccessPoint interface {
@@ -36,7 +35,7 @@ type samlService interface {
 // to synchronize Entra ID users and groups into the Teleport cluster
 // as users and access lists.
 type DirectoryReconciler struct {
-	graphClient   graphClient
+	graphClient   GraphClient
 	userSvc       userAccessPoint
 	samlService   samlService
 	accessListSvc accessListAccessPoint
@@ -60,7 +59,7 @@ type DirectoryReconciler struct {
 // DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
 type DirectoryReconcilerConfig struct {
 	// GraphClient is the instantiated Microsoft Graph API client.
-	GraphClient *msgraph.Client
+	GraphClient GraphClient
 	// UserSvc is the service used to read and modify Teleport users.
 	UserSvc userAccessPoint
 	// AccessListSvc is the service used to read and modify Teleport access lists.
@@ -111,12 +110,13 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 	}
 
 	return &DirectoryReconciler{
-		graphClient:   cfg.GraphClient,
-		userSvc:       cfg.UserSvc,
-		accessListSvc: cfg.AccessListSvc,
-		defaultOwners: cfg.DefaultOwners,
-		tenantID:      cfg.TenantID,
-		samlService:   cfg.SAMLSvc,
+		graphClient:    cfg.GraphClient,
+		userSvc:        cfg.UserSvc,
+		accessListSvc:  cfg.AccessListSvc,
+		defaultOwners:  cfg.DefaultOwners,
+		tenantID:       cfg.TenantID,
+		samlService:    cfg.SAMLSvc,
+		ssoConnectorID: cfg.SSOConnectorID,
 	}, nil
 }
 
