@@ -223,23 +223,28 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 	for _, accessList := range accessLists {
 		var toUpdate bool
 		for i, owner := range accessList.Spec.Owners {
-			if owner.MembershipKind == accesslist.MembershipKindList {
-				// we don't need to check the ineligibility status of owner lists
-				continue
+			var ineligibleStatus accesslistv1.IneligibleStatus
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList:
+				// ownership requires are not checked for lists
+				// they are always eligible
+				ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
+			default:
+				ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
+					userLookup: usersMap,
+					username:   owner.Name,
+					expires:    time.Time{}, // owners don't have expiry's
+					clock:      r.clock,
+					requires:   accessList.GetOwnershipRequires(),
+				})
 			}
-			ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
-				userLookup: usersMap,
-				username:   owner.Name,
-				expires:    time.Time{}, // owners don't have expiry's
-				clock:      r.clock,
-				requires:   accessList.GetOwnershipRequires(),
-			})
 			oldIneligibleStatus := owner.IneligibleStatus
 			owner.IneligibleStatus = accesslistv1.IneligibleStatus_name[int32(ineligibleStatus)]
 			if oldIneligibleStatus != owner.IneligibleStatus {
 				r.logger.DebugContext(ctx, "Updating access list owner ineligibility status",
 					"access_list", accessList.GetName(),
-					"username", owner.Name,
+					"owner_name", owner.Name,
+					"membership_kind", owner.MembershipKind,
 					"old_status", oldIneligibleStatus,
 					"new_status", owner.IneligibleStatus,
 				)
@@ -273,28 +278,35 @@ func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, n
 
 		var toUpdate []*accesslist.AccessListMember
 		for _, member := range accessListsMembers {
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				// we don't need to check the ineligibility status of member lists
-				continue
-			}
 			accessList, ok := accessListsMap[member.Spec.AccessList]
 			if !ok {
 				r.logger.WarnContext(ctx, "Access list not found", "access_list", member.Spec.AccessList)
 				continue
 			}
-			ineligibleStatus := checkUserIsStillEligible(StillEligibleFields{
-				userLookup: usersMap,
-				username:   member.Spec.Name,
-				expires:    member.Spec.Expires,
-				clock:      r.clock,
-				requires:   accessList.GetMembershipRequires(),
-			})
+
+			var ineligibleStatus accesslistv1.IneligibleStatus
+			switch member.Spec.MembershipKind {
+			case accesslist.MembershipKindList:
+				// membership requires are not checked for lists
+				// they are always eligible
+				ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
+			default:
+				ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
+					userLookup: usersMap,
+					username:   member.Spec.Name,
+					expires:    member.Spec.Expires,
+					clock:      r.clock,
+					requires:   accessList.GetMembershipRequires(),
+				})
+			}
+
 			oldIneligibleStatus := member.Spec.IneligibleStatus
 			member.Spec.IneligibleStatus = ineligibleStatus.String()
 			if oldIneligibleStatus != member.Spec.IneligibleStatus {
 				r.logger.DebugContext(ctx, "Updating access list member ineligibility status",
 					"access_list", member.Spec.AccessList,
-					"username", member.Spec.Name,
+					"member_name", member.Spec.Name,
+					"membership_kind", member.Spec.MembershipKind,
 					"old_status", oldIneligibleStatus,
 					"new_status", member.Spec.IneligibleStatus,
 				)
