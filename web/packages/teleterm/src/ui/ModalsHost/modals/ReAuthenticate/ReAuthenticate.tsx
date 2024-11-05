@@ -55,7 +55,7 @@ export const ReAuthenticate: FC<{
   onSuccess: (otp: string) => void;
   onSsoContinue: (redirectUrl: string) => void;
 }> = props => {
-  const { promptMfaRequest: req } = props;
+  const { promptMfaRequest: req, onSsoContinue } = props;
 
   const availableMfaTypes = makeAvailableMfaTypes(req);
 
@@ -64,12 +64,13 @@ export const ReAuthenticate: FC<{
   );
 
   useEffect(() => {
-    // If SSO is the default value, open the redirect window
-    // instead of waiting for the user to select SSO.
+    // If SSO is the selected value, open the redirect window instead of waiting for the user to
+    // select SSO. This handles both a situation where the user selects the SSO option and a
+    // situation where SSO is already selected when the component renders.
     if (selectedMfaType.value === 'sso') {
-      props.onSsoContinue(req.sso.redirectUrl);
+      onSsoContinue(req.sso.redirectUrl);
     }
-  });
+  }, [selectedMfaType.value, req.sso?.redirectUrl, onSsoContinue]);
 
   const [otpToken, setOtpToken] = useState('');
 

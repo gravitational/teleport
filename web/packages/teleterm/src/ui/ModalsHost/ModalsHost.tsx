@@ -182,9 +182,8 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
             handleClose();
             dialog.onSuccess(totpCode);
           }}
-          onSsoContinue={(redirectUrl: string) => {
-            dialog.onSsoContinue(redirectUrl);
-          }}
+          // This function needs to be stable between renders.
+          onSsoContinue={dialog.onSsoContinue}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
