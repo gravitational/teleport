@@ -125,6 +125,12 @@ type Config struct {
 	BatchMaxItems int
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
+	// ConsumerLockName defines a name of a SQS consumer lock (optional).
+	// If provided, it will be prefixed with "athena/" to avoid accidental
+	// collision with existing locks.
+	ConsumerLockName string
+	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
+	ConsumerDisabled bool
 
 	// Clock is a clock interface, used in tests.
 	Clock clockwork.Clock
@@ -417,6 +423,16 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.BatchMaxInterval = dur
 	}
+	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
+		cfg.ConsumerLockName = consumerLockName
+	}
+	if val := url.Query().Get("consumerDisabled"); val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("invalid consumerDisabled value: %v", err)
+		}
+		cfg.ConsumerDisabled = boolVal
+	}
 
 	return nil
 }
@@ -484,20 +500,23 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
-
-	consumer, err := newConsumer(cfg, consumerCancel)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	l := &Log{
-		publisher:      newPublisherFromAthenaConfig(cfg),
-		querier:        querier,
-		consumerCloser: consumer,
+		publisher: newPublisherFromAthenaConfig(cfg),
+		querier:   querier,
 	}
 
-	go consumer.run(consumerCtx)
+	if !cfg.ConsumerDisabled {
+		consumerCtx, consumerCancel := context.WithCancel(ctx)
+
+		consumer, err := newConsumer(cfg, consumerCancel)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		l.consumerCloser = consumer
+
+		go consumer.run(consumerCtx)
+	}
 
 	return l, nil
 }
@@ -525,6 +544,10 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 
 func (l *Log) Close() error {
 	return trace.Wrap(l.consumerCloser.Close())
+}
+
+func (l *Log) IsConsumerDisabled() bool {
+	return l.consumerCloser == nil
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")

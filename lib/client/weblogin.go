@@ -32,8 +32,6 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -44,19 +42,15 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -243,28 +237,12 @@ type SSHLogin struct {
 // SSHLoginSSO contains SSH login parameters for SSO login.
 type SSHLoginSSO struct {
 	SSHLogin
-	// ConnectorID is the OIDC or SAML connector ID to use
+	// ConnectorID is the SSO Auth connector ID to use.
 	ConnectorID string
-	// ConnectorName is the display name of the connector.
+	// ConnectorName is the display name of the SSO Auth connector.
 	ConnectorName string
-	// Protocol is an optional protocol selection
-	Protocol string
-	// BindAddr is an optional host:port address to bind
-	// to for SSO login flows
-	BindAddr string
-	// CallbackAddr is the optional base URL to give to the user when performing
-	// SSO redirect flows.
-	CallbackAddr string
-	// Browser can be used to pass the name of a browser to override the system
-	// default (not currently implemented), or set to 'none' to suppress
-	// browser opening entirely.
-	Browser string
-	// PrivateKeyPolicy is a key policy to follow during login.
-	PrivateKeyPolicy keys.PrivateKeyPolicy
-	// ProxySupportsKeyPolicyMessage lets the tsh redirector give users more
-	// useful messages in the web UI if the proxy supports them.
-	// TODO(atburke): DELETE in v17.0.0
-	ProxySupportsKeyPolicyMessage bool
+	// ConnectorType is the type of SSO Auth connector.
+	ConnectorType string
 }
 
 // SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
@@ -282,9 +260,8 @@ type SSHLoginDirect struct {
 // SSHLoginMFA contains SSH login parameters for MFA login.
 type SSHLoginMFA struct {
 	SSHLogin
-	// PromptMFA is a customizable MFA prompt function.
-	// Defaults to [mfa.NewPrompt().Run]
-	PromptMFA mfa.Prompt
+	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
+	MFAPromptConstructor mfa.PromptConstructor
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -389,65 +366,6 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 	return clt, u, nil
 }
 
-// SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*authclient.SSHLoginResponse, error) {
-	if login.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
-		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
-			"the remote host. Make sure that you trust the provided callback host " +
-			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
-		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
-			fmt.Sprintf(callbackPrompt, login.CallbackAddr, login.BindAddr),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !ok {
-			return nil, trace.BadParameter("Login canceled.")
-		}
-	}
-	rd, err := NewRedirector(ctx, login, config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := rd.Start(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rd.Close()
-
-	clickableURL := rd.ClickableURL()
-
-	// If a command was found to launch the browser, create and start it.
-	err = OpenURLInBrowser(login.Browser, clickableURL)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
-	}
-
-	// Print the URL to the screen, in case the command that launches the browser did not run.
-	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
-	if login.Browser == teleport.BrowserNone {
-		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
-	} else {
-		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
-	}
-
-	select {
-	case err := <-rd.ErrorC():
-		log.Debugf("Got an error: %v.", err)
-		return nil, trace.Wrap(err)
-	case response := <-rd.ResponseC():
-		log.Debugf("Got response from browser.")
-		return response, nil
-	case <-time.After(defaults.SSOCallbackTimeout):
-		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
-		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
-	case <-rd.Done():
-		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err(), "canceled by user")
-	}
-}
-
 // SSHAgentLogin is used by tsh to fetch local user credentials.
 func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
@@ -460,11 +378,11 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 		Password:             login.Password,
 		OTPToken:             login.OTPToken,
 		PubKey:               login.PubKey,
+		AttestationStatement: login.AttestationStatement,
 		TTL:                  login.TTL,
 		Compatibility:        login.Compatibility,
 		RouteToCluster:       login.RouteToCluster,
 		KubernetesCluster:    login.KubernetesCluster,
-		AttestationStatement: login.AttestationStatement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -477,40 +395,6 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 	}
 
 	return &out, nil
-}
-
-// OpenURLInBrowser opens a URL in a web browser.
-func OpenURLInBrowser(browser string, URL string) error {
-	var execCmd *exec.Cmd
-	if browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		}
-	}
-	if execCmd != nil {
-		if err := execCmd.Start(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
@@ -633,35 +517,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	beginReq := MFAChallengeRequest{
-		User: login.User,
-		Pass: login.Password,
-	}
-	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert to auth gRPC proto challenge.
-	chal := &proto.MFAAuthenticateChallenge{}
-	if challenge.TOTPChallenge {
-		chal.TOTP = &proto.TOTPChallenge{}
-	}
-	if challenge.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
-	}
-
-	promptMFA := login.PromptMFA
-	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
-	}
-
-	respPB, err := promptMFA.Run(ctx, chal)
+	mfaResp, err := newMFALoginCeremony(clt, login).Run(ctx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -677,7 +533,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		AttestationStatement: login.AttestationStatement,
 	}
 	// Convert back from auth gRPC proto response.
-	switch r := respPB.Response.(type) {
+	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
@@ -693,6 +549,37 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 
 	loginResp := &authclient.SSHLoginResponse{}
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
+}
+
+func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
+	return &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			beginReq := MFAChallengeRequest{
+				User: login.User,
+				Pass: login.Password,
+			}
+			challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			challenge := &MFAAuthenticateChallenge{}
+			if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Convert to auth gRPC proto challenge.
+			chal := &proto.MFAAuthenticateChallenge{}
+			if challenge.TOTPChallenge {
+				chal.TOTP = &proto.TOTPChallenge{}
+			}
+			if challenge.WebauthnChallenge != nil {
+				chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
+			}
+			return chal, nil
+		},
+		PromptConstructor: login.MFAPromptConstructor,
+	}
 }
 
 // HostCredentials is used to fetch host credentials for a node.
@@ -831,35 +718,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	beginReq := MFAChallengeRequest{
-		User: login.User,
-		Pass: login.Password,
-	}
-	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// Convert to auth gRPC proto challenge.
-	chal := &proto.MFAAuthenticateChallenge{}
-	if challenge.TOTPChallenge {
-		chal.TOTP = &proto.TOTPChallenge{}
-	}
-	if challenge.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
-	}
-
-	promptMFA := login.PromptMFA
-	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
-	}
-
-	respPB, err := promptMFA.Run(ctx, chal)
+	mfaResp, err := newMFALoginCeremony(clt, login).Run(ctx, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -868,7 +727,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		User: login.User,
 	}
 	// Convert back from auth gRPC proto response.
-	switch r := respPB.Response.(type) {
+	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:

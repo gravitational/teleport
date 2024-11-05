@@ -22,6 +22,8 @@ test('pluralize', () => {
   expect(pluralize(0, 'apple')).toBe('apples');
   expect(pluralize(1, 'apple')).toBe('apple');
   expect(pluralize(2, 'apple')).toBe('apples');
+  expect(pluralize(undefined, 'apple')).toBe('apples');
+  expect(pluralize(null, 'apple')).toBe('apples');
 });
 
 test('capitalizeFirstLetter', () => {

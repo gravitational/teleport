@@ -1106,10 +1106,10 @@ func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	}
 }
 
-func (b *EtcdBackend) trimPrefix(in backend.Key) backend.Key {
-	return in.TrimPrefix(backend.Key(b.cfg.Key))
+func (b *EtcdBackend) trimPrefix(in []byte) backend.Key {
+	return backend.Key(in).TrimPrefix(backend.Key(b.cfg.Key))
 }
 
 func (b *EtcdBackend) prependPrefix(in backend.Key) string {
-	return b.cfg.Key + string(in)
+	return b.cfg.Key + in.String()
 }

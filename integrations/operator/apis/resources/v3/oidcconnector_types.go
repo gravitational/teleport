@@ -21,6 +21,7 @@ package v3
 import (
 	"encoding/json"
 
+	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
@@ -97,14 +98,49 @@ func (spec *TeleportOIDCConnectorSpec) DeepCopyInto(out *TeleportOIDCConnectorSp
 	}
 }
 
+// Custom json.Marshaller and json.Unmarshaler are here to cope with inconsistencies between our CRD and go types.
+// They are invoked when the kubernetes client converts the unstructured object into a typed resource.
+// We have two inconsistencies:
+// - the utils.Strings typr that marshals inconsistently: single elements are strings, multiple elements are lists
+// - the max_age setting which is an embedded pointer to another single-value message, which breaks JSON parsing
+
 // MarshalJSON serializes a spec into a JSON string
 func (spec TeleportOIDCConnectorSpec) MarshalJSON() ([]byte, error) {
 	type Alias TeleportOIDCConnectorSpec
+
+	var maxAge types.Duration
+	if spec.MaxAge != nil {
+		maxAge = spec.MaxAge.Value
+	}
+
 	return json.Marshal(&struct {
-		RedirectURLs []string `json:"redirect_url"`
+		RedirectURLs []string       `json:"redirect_url,omitempty"`
+		MaxAge       types.Duration `json:"max_age,omitempty"`
 		Alias
 	}{
 		RedirectURLs: spec.RedirectURLs,
+		MaxAge:       maxAge,
 		Alias:        (Alias)(spec),
 	})
+}
+
+// UnmarshalJSON serializes a JSON string into a spec. This override is required to deal with the
+// MaxAge field which is special case because it' an object embedded into the spec.
+func (spec *TeleportOIDCConnectorSpec) UnmarshalJSON(data []byte) error {
+	*spec = *new(TeleportOIDCConnectorSpec)
+	type Alias TeleportOIDCConnectorSpec
+
+	temp := &struct {
+		MaxAge types.Duration `json:"max_age"`
+		*Alias
+	}{
+		Alias: (*Alias)(spec),
+	}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return trace.Wrap(err, "unmarshalling custom teleport oidc connector spec")
+	}
+	if temp.MaxAge != 0 {
+		spec.MaxAge = &types.MaxAge{Value: temp.MaxAge}
+	}
+	return nil
 }

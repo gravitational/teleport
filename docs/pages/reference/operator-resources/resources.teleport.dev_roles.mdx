@@ -110,7 +110,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specallowrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
@@ -260,7 +260,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specdenyrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
@@ -340,7 +340,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |create_db_user|boolean|CreateDatabaseUser enabled automatic database user creation.|
 |create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
 |create_desktop_user|boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
-|create_host_user|boolean|CreateHostUser allows users to be automatically created on a host|
+|create_host_user|boolean|Deprecated: use CreateHostUserMode instead.|
 |create_host_user_default_shell|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|
 |create_host_user_mode|string or integer|CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop". Can be either the string or the integer representation of each option.|
 |desktop_clipboard|boolean|DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|
@@ -493,7 +493,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specallowrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
@@ -643,7 +643,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specdenyrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
@@ -723,7 +723,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |create_db_user|boolean|CreateDatabaseUser enabled automatic database user creation.|
 |create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
 |create_desktop_user|boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
-|create_host_user|boolean|CreateHostUser allows users to be automatically created on a host|
+|create_host_user|boolean|Deprecated: use CreateHostUserMode instead.|
 |create_host_user_default_shell|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|
 |create_host_user_mode|string or integer|CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop". Can be either the string or the integer representation of each option.|
 |desktop_clipboard|boolean|DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|

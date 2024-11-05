@@ -65,7 +65,7 @@ spec:
                 type: array
               client_id:
                 description: ClientID is the id of the authentication client (Teleport
-                  Auth server).
+                  Auth Service).
                 type: string
               client_redirect_settings:
                 description: ClientRedirectSettings defines which client redirect

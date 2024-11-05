@@ -29,7 +29,7 @@ func (h *Handler) SetClusterFeatures(features proto.Features) {
 	defer h.Mutex.Unlock()
 
 	entitlements.BackfillFeatures(&features)
-	h.ClusterFeatures = features
+	h.clusterFeatures = features
 }
 
 // GetClusterFeatures returns flags for supported and unsupported features.
@@ -37,7 +37,7 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
 
-	return h.ClusterFeatures
+	return h.clusterFeatures
 }
 
 // startFeatureWatcher periodically pings the auth server and updates `clusterFeatures`.

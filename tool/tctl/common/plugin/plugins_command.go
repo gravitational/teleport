@@ -49,10 +49,11 @@ func logErrorMessage(err error) slog.Attr {
 }
 
 type pluginInstallArgs struct {
-	cmd  *kingpin.CmdClause
-	name string
-	okta oktaArgs
-	scim scimArgs
+	cmd     *kingpin.CmdClause
+	name    string
+	okta    oktaArgs
+	scim    scimArgs
+	entraID entraArgs
 }
 
 type scimArgs struct {
@@ -98,6 +99,7 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 
 	p.initInstallOkta(p.install.cmd)
 	p.initInstallSCIM(p.install.cmd)
+	p.initInstallEntra(p.install.cmd)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
@@ -200,11 +202,18 @@ func (p *PluginsCommand) Cleanup(ctx context.Context, clusterAPI *authclient.Cli
 
 type authClient interface {
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
+	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 	Ping(ctx context.Context) (proto.PingResponse, error)
 }
 
 type pluginsClient interface {
 	CreatePlugin(ctx context.Context, in *pluginsv1.CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetPlugin(ctx context.Context, in *pluginsv1.GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
+	UpdatePlugin(ctx context.Context, in *pluginsv1.UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
 }
 
 type installPluginArgs struct {
@@ -310,6 +319,9 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, client *authcli
 		err = p.InstallOkta(ctx, args)
 	case p.install.scim.cmd.FullCommand():
 		err = p.InstallSCIM(ctx, client)
+	case p.install.entraID.cmd.FullCommand():
+		args := installPluginArgs{authClient: client, plugins: client.PluginsClient()}
+		err = p.InstallEntra(ctx, args)
 	case p.delete.cmd.FullCommand():
 		err = p.Delete(ctx, client)
 	default:

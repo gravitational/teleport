@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -257,4 +258,30 @@ func etcdTestEndpoint() string {
 		return host
 	}
 	return "https://127.0.0.1:2379"
+}
+
+func TestKeyPrefix(t *testing.T) {
+	prefixes := []string{"teleport", "/teleport", "/teleport/"}
+
+	for _, prefix := range prefixes {
+		t.Run("prefix="+prefix, func(t *testing.T) {
+			bk := EtcdBackend{cfg: &Config{Key: prefix}}
+
+			t.Run("leading separator in key", func(t *testing.T) {
+				prefixed := bk.prependPrefix(backend.NewKey("test", "llama"))
+				assert.Equal(t, prefix+"/test/llama", prefixed)
+
+				key := bk.trimPrefix([]byte(prefixed))
+				assert.Equal(t, "/test/llama", key.String())
+			})
+
+			t.Run("no leading separator in key", func(t *testing.T) {
+				prefixed := bk.prependPrefix(backend.Key(".locks/test/llama"))
+				assert.Equal(t, prefix+".locks/test/llama", prefixed)
+
+				key := bk.trimPrefix([]byte(prefixed))
+				assert.Equal(t, ".locks/test/llama", key.String())
+			})
+		})
+	}
 }

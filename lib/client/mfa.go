@@ -21,10 +21,33 @@ package client
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 )
+
+// NewMFACeremony returns a new MFA ceremony configured for this client.
+func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
+	return &mfa.Ceremony{
+		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
+		PromptConstructor:           tc.NewMFAPrompt,
+	}
+}
+
+// createAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rootClient.CreateAuthenticateChallenge(ctx, req)
+}
 
 // WebauthnLoginFunc is a function that performs WebAuthn login.
 // Mimics the signature of [webauthncli.Login].
@@ -34,7 +57,14 @@ type WebauthnLoginFunc = libmfa.WebauthnLoginFunc
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	cfg := tc.newPromptConfig(opts...)
 
-	var prompt mfa.Prompt = libmfa.NewCLIPrompt(cfg, tc.Stderr)
+	var prompt mfa.Prompt = libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+		PromptConfig:     *cfg,
+		Writer:           tc.Stderr,
+		PreferOTP:        tc.PreferOTP,
+		AllowStdinHijack: tc.AllowStdinHijack,
+		StdinFunc:        tc.StdinFunc,
+	})
+
 	if tc.MFAPromptConstructor != nil {
 		prompt = tc.MFAPromptConstructor(cfg)
 	}
@@ -42,17 +72,9 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	return prompt
 }
 
-// PromptMFA runs a standard MFA prompt from client settings.
-func (tc *TeleportClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	return tc.NewMFAPrompt().Run(ctx, chal)
-}
-
 func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptConfig {
 	cfg := libmfa.NewPromptConfig(tc.WebProxyAddr, opts...)
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
-	cfg.PreferOTP = tc.PreferOTP
-	cfg.AllowStdinHijack = tc.AllowStdinHijack
-
 	if tc.WebauthnLogin != nil {
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true

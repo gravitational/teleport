@@ -63,12 +63,13 @@ type CloudClientProvider interface {
 }
 
 type awsKMSKeystore struct {
-	kms         kmsiface.KMSAPI
-	clusterName types.ClusterName
-	awsAccount  string
-	awsRegion   string
-	clock       clockwork.Clock
-	logger      *slog.Logger
+	kms                kmsiface.KMSAPI
+	clusterName        types.ClusterName
+	awsAccount         string
+	awsRegion          string
+	multiRegionEnabled bool
+	clock              clockwork.Clock
+	logger             *slog.Logger
 }
 
 func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *Options) (*awsKMSKeystore, error) {
@@ -93,12 +94,13 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		clock = clockwork.NewRealClock()
 	}
 	return &awsKMSKeystore{
-		clusterName: opts.ClusterName,
-		awsAccount:  cfg.AWSAccount,
-		awsRegion:   cfg.AWSRegion,
-		kms:         kmsClient,
-		clock:       clock,
-		logger:      opts.Logger,
+		clusterName:        opts.ClusterName,
+		awsAccount:         cfg.AWSAccount,
+		awsRegion:          cfg.AWSRegion,
+		multiRegionEnabled: cfg.MultiRegion.Enabled,
+		kms:                kmsClient,
+		clock:              clock,
+		logger:             opts.Logger,
 	}, nil
 }
 
@@ -125,6 +127,7 @@ func (a *awsKMSKeystore) generateRSA(ctx context.Context, _ ...rsaKeyOption) ([]
 				TagValue: aws.String(a.clusterName.GetClusterName()),
 			},
 		},
+		MultiRegion: aws.Bool(a.multiRegionEnabled),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

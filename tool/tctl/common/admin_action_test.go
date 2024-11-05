@@ -174,6 +174,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 				setup:      createBot,
 				cleanup:    deleteBot,
 			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
 		} {
 			t.Run(name, func(t *testing.T) {
 				s.testCommand(t, ctx, tc)
@@ -1022,7 +1028,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		promptCfg.WebauthnSupported = true
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	}
 
 	// Login as the admin user.

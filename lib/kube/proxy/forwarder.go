@@ -2255,7 +2255,7 @@ func (s *clusterSession) close() {
 	}
 }
 
-func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
+func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2270,10 +2270,18 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		s.connMonitorCancel(err)
 		return nil, trace.Wrap(err)
 	}
-
+	lockTargets := s.LockTargets()
+	// when the target is not a kubernetes_service instance, we don't need to lock it.
+	// the target could be a remote cluster or a local Kubernetes API server. In both cases,
+	// hostID is empty.
+	if hostID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{
+			ServerID: hostID,
+		})
+	}
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           s.parent.cfg.LockWatcher,
-		LockTargets:           s.LockTargets(),
+		LockTargets:           lockTargets,
 		DisconnectExpiredCert: s.disconnectExpiredCert,
 		ClientIdleTimeout:     s.clientIdleTimeout,
 		Clock:                 s.parent.cfg.Clock,
@@ -2305,12 +2313,16 @@ func (s *clusterSession) getServerMetadata() apievents.ServerMetadata {
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dial(s.requestContext, network, addr))
+	var hostID string
+	conn, err := s.dial(s.requestContext, network, addr, withHostIDCollection(&hostID))
+	return s.monitorConn(conn, err, hostID)
 }
 
 func (s *clusterSession) DialWithContext(opts ...contextDialerOption) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return s.monitorConn(s.dial(ctx, network, addr, opts...))
+		var hostID string
+		conn, err := s.dial(ctx, network, addr, append(opts, withHostIDCollection(&hostID))...)
+		return s.monitorConn(conn, err, hostID)
 	}
 }
 

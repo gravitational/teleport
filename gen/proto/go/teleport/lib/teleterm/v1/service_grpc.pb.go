@@ -51,6 +51,7 @@ const (
 	TerminalService_AssumeRole_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AssumeRole"
 	TerminalService_PromoteAccessRequest_FullMethodName              = "/teleport.lib.teleterm.v1.TerminalService/PromoteAccessRequest"
 	TerminalService_GetSuggestedAccessLists_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/GetSuggestedAccessLists"
+	TerminalService_ListKubernetesResources_FullMethodName           = "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesResources"
 	TerminalService_GetKubes_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/GetKubes"
 	TerminalService_GetApps_FullMethodName                           = "/teleport.lib.teleterm.v1.TerminalService/GetApps"
 	TerminalService_AddCluster_FullMethodName                        = "/teleport.lib.teleterm.v1.TerminalService/AddCluster"
@@ -119,6 +120,9 @@ type TerminalServiceClient interface {
 	PromoteAccessRequest(ctx context.Context, in *PromoteAccessRequestRequest, opts ...grpc.CallOption) (*PromoteAccessRequestResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access request.
 	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
+	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+	ListKubernetesResources(ctx context.Context, in *ListKubernetesResourcesRequest, opts ...grpc.CallOption) (*ListKubernetesResourcesResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
 	// GetApps returns a filtered and paginated list of apps.
@@ -343,6 +347,15 @@ func (c *terminalServiceClient) PromoteAccessRequest(ctx context.Context, in *Pr
 func (c *terminalServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
 	out := new(GetSuggestedAccessListsResponse)
 	err := c.cc.Invoke(ctx, TerminalService_GetSuggestedAccessLists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *terminalServiceClient) ListKubernetesResources(ctx context.Context, in *ListKubernetesResourcesRequest, opts ...grpc.CallOption) (*ListKubernetesResourcesResponse, error) {
+	out := new(ListKubernetesResourcesResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListKubernetesResources_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -668,6 +681,9 @@ type TerminalServiceServer interface {
 	PromoteAccessRequest(context.Context, *PromoteAccessRequestRequest) (*PromoteAccessRequestResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access request.
 	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
+	// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+	// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+	ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
 	// GetApps returns a filtered and paginated list of apps.
@@ -804,6 +820,9 @@ func (UnimplementedTerminalServiceServer) PromoteAccessRequest(context.Context, 
 }
 func (UnimplementedTerminalServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
+}
+func (UnimplementedTerminalServiceServer) ListKubernetesResources(context.Context, *ListKubernetesResourcesRequest) (*ListKubernetesResourcesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListKubernetesResources not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubes not implemented")
@@ -1162,6 +1181,24 @@ func _TerminalService_GetSuggestedAccessLists_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetSuggestedAccessLists(ctx, req.(*GetSuggestedAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TerminalService_ListKubernetesResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubernetesResourcesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ListKubernetesResources(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ListKubernetesResources_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ListKubernetesResources(ctx, req.(*ListKubernetesResourcesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1711,6 +1748,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSuggestedAccessLists",
 			Handler:    _TerminalService_GetSuggestedAccessLists_Handler,
+		},
+		{
+			MethodName: "ListKubernetesResources",
+			Handler:    _TerminalService_ListKubernetesResources_Handler,
 		},
 		{
 			MethodName: "GetKubes",

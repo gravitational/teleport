@@ -1307,6 +1307,10 @@ teleport:
     # Name of the Firestore table.
     collection_name: Example_TELEPORT_FIRESTORE_TABLE_NAME
 
+    # An optional database id to use. If not provided the default
+    # database for the project is used.
+    database_id: Example_TELEPORT_FIRESTORE_DATABASE_ID
+
     credentials_path: /var/lib/teleport/gcs_creds
 
     # This setting configures Teleport to send the audit events to three places:
@@ -1315,7 +1319,7 @@ teleport:
     # database table, so attempting to use the same table for both will result in errors.
     # When using highly available storage like Firestore, you should make sure that the list always specifies
     # the High Availability storage method first, as this is what the Teleport web UI uses as its source of events to display.
-    audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'file:///var/lib/teleport/audit/events', 'stdout://']
+    audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME?projectID=$PROJECT_ID&credentialsPath=$CREDENTIALS_PATH&databaseID=$DATABASE_ID', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_GCS_BUCKET/records

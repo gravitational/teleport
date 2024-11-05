@@ -184,6 +184,10 @@ func (*testHostUserBackend) CheckSudoers(contents []byte) error {
 	return errors.New("invalid")
 }
 
+func (*testHostUserBackend) RemoveExpirations(user string) error {
+	return nil
+}
+
 // WriteSudoersFile implements HostUsersBackend
 func (tm *testHostUserBackend) WriteSudoersFile(user string, entries []byte) error {
 	entry := strings.TrimSpace(string(entries))

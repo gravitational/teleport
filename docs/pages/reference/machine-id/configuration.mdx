@@ -322,6 +322,11 @@ The output generates the following artifacts:
 - `svid.key`: the private key associated with the X509 SVID.
 - `bundle.pem`: the X509 bundle that contains the trust domain CAs.
 
+
+An artifact will also be generated for each entry within the `jwts` list. This
+will be named according to `file_name`. This artifact will contain only the
+JWT-SVID with the audience specified in `audience`.
+
 See [Workload Identity](../../enroll-resources/workload-identity/introduction.mdx) for more information on how
 to use SPIFFE SVIDs.
 
@@ -342,6 +347,17 @@ svid:
     # ip specifies the IP SANs. If omitted, no IP SANs are included.
     ip:
       - 10.0.0.1
+  # jwts controls the output of JWT-SVIDs. Each entry will be generated as a
+  # separate artifact. If omitted, no JWT-SVIDs are generated.
+  jwts:
+      # audience specifies the audience that the JWT-SVID should be issued for.
+      # this typically identifies the service that the JWT-SVID will be used to
+      # authenticate to.
+    - audience: https://example.com
+      # file_name specifies the name of the file that the JWT-SVID should be
+      # written to.
+      file_name: example-jwt
+
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 

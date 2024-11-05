@@ -70,7 +70,7 @@ func TestFeaturesWatcher(t *testing.T) {
 			Context:              ctx,
 		},
 		clock:           clock,
-		ClusterFeatures: proto.Features{},
+		clusterFeatures: proto.Features{},
 		log:             newPackageLogger(),
 		logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 	}

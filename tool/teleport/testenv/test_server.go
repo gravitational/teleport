@@ -454,6 +454,11 @@ func (p *cliModules) BuildType() string {
 	return "CLI"
 }
 
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+func (p *cliModules) LicenseExpiry() time.Time {
+	return time.Time{}
+}
+
 // IsEnterpriseBuild returns false for [cliModules].
 func (p *cliModules) IsEnterpriseBuild() bool {
 	return false

@@ -26,14 +26,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|audit|[object](#specaudit)|audit describes the frequency that this access list must be audited.|
-|description|string|description is an optional plaintext description of the access list.|
-|grants|[object](#specgrants)|grants describes the access granted by membership to this access list.|
-|membership_requires|[object](#specmembership_requires)|membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list.|
-|owner_grants|[object](#specowner_grants)|owner_grants describes the access granted by owners to this access list.|
-|owners|[][object](#specowners-items)|owners is a list of owners of the access list.|
-|ownership_requires|[object](#specownership_requires)|ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.|
-|title|string|title is a plaintext short description of the access list.|
+|audit|[object](#specaudit)|audit describes the frequency that this Access List must be audited.|
+|description|string|description is an optional plaintext description of the Access List.|
+|grants|[object](#specgrants)|grants describes the access granted by membership to this Access List.|
+|membership_requires|[object](#specmembership_requires)|membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.|
+|owner_grants|[object](#specowner_grants)|owner_grants describes the access granted by owners to this Access List.|
+|owners|[][object](#specowners-items)|owners is a list of owners of the Access List.|
+|ownership_requires|[object](#specownership_requires)|ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.|
+|title|string|title is a plaintext short description of the Access List.|
 
 ### spec.audit
 
@@ -60,8 +60,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|roles|[]string|roles are the roles that are granted to users who are members of the access list.|
-|traits|object|traits are the traits that are granted to users who are members of the access list.|
+|roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
+|traits|object|traits are the traits that are granted to users who are members of the Access List.|
 
 ### spec.membership_requires
 
@@ -74,8 +74,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|roles|[]string|roles are the roles that are granted to users who are members of the access list.|
-|traits|object|traits are the traits that are granted to users who are members of the access list.|
+|roles|[]string|roles are the roles that are granted to users who are members of the Access List.|
+|traits|object|traits are the traits that are granted to users who are members of the Access List.|
 
 ### spec.owners items
 

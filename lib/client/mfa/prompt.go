@@ -43,7 +43,8 @@ type WebauthnLoginFunc func(
 	opts *wancli.LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error)
 
-// PromptConfig contains common mfa prompt config options.
+// PromptConfig contains common mfa prompt config options shared by
+// different implementations of [mfa.Prompt].
 type PromptConfig struct {
 	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.

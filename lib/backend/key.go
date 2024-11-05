@@ -52,6 +52,11 @@ func (k Key) String() string {
 	return string(k)
 }
 
+// IsZero reports whether k represents the zero key.
+func (k Key) IsZero() bool {
+	return len(k) == 0
+}
+
 // HasPrefix reports whether the key begins with prefix.
 func (k Key) HasPrefix(prefix Key) bool {
 	return bytes.HasPrefix(k, prefix)

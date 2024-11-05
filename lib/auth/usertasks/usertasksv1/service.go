@@ -20,14 +20,21 @@ package usertasksv1
 
 import (
 	"context"
+	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/authz"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // ServiceConfig holds configuration options for the UserTask gRPC service.
@@ -40,6 +47,12 @@ type ServiceConfig struct {
 
 	// Cache is the cache for storing UserTask.
 	Cache Reader
+
+	// UsageReporter is the reporter for sending usage without it be related to an API call.
+	UsageReporter func() usagereporter.UsageReporter
+
+	// Emitter is the event emitter.
+	Emitter apievents.Emitter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -54,6 +67,12 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.Cache == nil {
 		return trace.BadParameter("cache is required")
+	}
+	if s.UsageReporter == nil {
+		return trace.BadParameter("usage reporter is required")
+	}
+	if s.Emitter == nil {
+		return trace.BadParameter("emitter is required")
 	}
 
 	return nil
@@ -70,9 +89,11 @@ type Reader interface {
 type Service struct {
 	usertasksv1.UnimplementedUserTaskServiceServer
 
-	authorizer authz.Authorizer
-	backend    services.UserTasks
-	cache      Reader
+	authorizer    authz.Authorizer
+	backend       services.UserTasks
+	cache         Reader
+	usageReporter func() usagereporter.UsageReporter
+	emitter       apievents.Emitter
 }
 
 // NewService returns a new UserTask gRPC service.
@@ -82,9 +103,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
-		cache:      cfg.Cache,
+		authorizer:    cfg.Authorizer,
+		backend:       cfg.Backend,
+		cache:         cfg.Cache,
+		usageReporter: cfg.UsageReporter,
+		emitter:       cfg.Emitter,
 	}, nil
 }
 
@@ -100,11 +123,50 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 	}
 
 	rsp, err := s.backend.CreateUserTask(ctx, req.UserTask)
+	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+
 	return rsp, nil
+}
+
+func (s *Service) emitCreateAuditEvent(ctx context.Context, req *usertasksv1.UserTask, authCtx *authz.Context, createErr error) {
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.UserTaskCreate{
+		Metadata: apievents.Metadata{
+			Type: libevents.UserTaskCreateEvent,
+			Code: libevents.UserTaskCreateCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(createErr),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      req.GetMetadata().GetName(),
+			Expires:   getExpires(req.GetMetadata().GetExpires()),
+			UpdatedBy: authCtx.Identity.GetIdentity().Username,
+		},
+		UserTaskMetadata: apievents.UserTaskMetadata{
+			TaskType:    req.GetSpec().GetTaskType(),
+			IssueType:   req.GetSpec().GetIssueType(),
+			Integration: req.GetSpec().GetIntegration(),
+		},
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit user task create event.", "error", auditErr)
+	}
+}
+
+func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserTaskStateEvent {
+	ret := &usagereporter.UserTaskStateEvent{
+		TaskType:  ut.GetSpec().GetTaskType(),
+		IssueType: ut.GetSpec().GetTaskType(),
+		State:     ut.GetSpec().GetState(),
+	}
+	if ut.GetSpec().GetTaskType() == usertasks.TaskTypeDiscoverEC2 {
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEc2().GetInstances()))
+	}
+	return ret
 }
 
 // ListUserTasks returns a list of user tasks.
@@ -182,12 +244,48 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.UpdateUserTask(ctx, req.UserTask)
+	existingUserTask, err := s.backend.GetUserTask(ctx, req.GetUserTask().GetMetadata().GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	rsp, err := s.backend.UpdateUserTask(ctx, req.UserTask)
+	s.emitUpdateAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState() {
+		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+	}
+
 	return rsp, nil
+}
+
+func (s *Service) emitUpdateAuditEvent(ctx context.Context, old, new *usertasksv1.UserTask, authCtx *authz.Context, updateErr error) {
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.UserTaskUpdate{
+		Metadata: apievents.Metadata{
+			Type: libevents.UserTaskUpdateEvent,
+			Code: libevents.UserTaskUpdateCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(updateErr),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      new.GetMetadata().GetName(),
+			Expires:   getExpires(new.GetMetadata().GetExpires()),
+			UpdatedBy: authCtx.Identity.GetIdentity().Username,
+		},
+		UserTaskMetadata: apievents.UserTaskMetadata{
+			TaskType:    new.GetSpec().GetTaskType(),
+			IssueType:   new.GetSpec().GetIssueType(),
+			Integration: new.GetSpec().GetIntegration(),
+		},
+		CurrentUserTaskState: old.GetSpec().GetState(),
+		UpdatedUserTaskState: new.GetSpec().GetState(),
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit user task update event.", "error", auditErr)
+	}
 }
 
 // UpsertUserTask upserts user task resource.
@@ -201,13 +299,39 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 		return nil, trace.Wrap(err)
 	}
 
+	var emitStateChangeEvent bool
+
+	existingUserTask, err := s.backend.GetUserTask(ctx, req.GetUserTask().GetMetadata().GetName())
+	switch {
+	case trace.IsNotFound(err):
+		emitStateChangeEvent = true
+
+	case err != nil:
+		return nil, trace.Wrap(err)
+
+	default:
+		emitStateChangeEvent = existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
+	}
+
 	rsp, err := s.backend.UpsertUserTask(ctx, req.UserTask)
+	s.emitUpsertAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return rsp, nil
+	if emitStateChangeEvent {
+		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+	}
 
+	return rsp, nil
+}
+
+func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new *usertasksv1.UserTask, authCtx *authz.Context, err error) {
+	if old == nil {
+		s.emitCreateAuditEvent(ctx, new, authCtx, err)
+		return
+	}
+	s.emitUpdateAuditEvent(ctx, old, new, authCtx, err)
 }
 
 // DeleteUserTask deletes user task resource.
@@ -221,9 +345,49 @@ func (s *Service) DeleteUserTask(ctx context.Context, req *usertasksv1.DeleteUse
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteUserTask(ctx, req.GetName()); err != nil {
+	err = s.backend.DeleteUserTask(ctx, req.GetName())
+	s.emitDeleteAuditEvent(ctx, req.GetName(), authCtx, err)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+func (s *Service) emitDeleteAuditEvent(ctx context.Context, taskName string, authCtx *authz.Context, deleteErr error) {
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.UserTaskDelete{
+		Metadata: apievents.Metadata{
+			Type: libevents.UserTaskDeleteEvent,
+			Code: libevents.UserTaskDeleteCode,
+		},
+		UserMetadata:       authCtx.GetUserMetadata(),
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		Status:             eventStatus(deleteErr),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      taskName,
+			UpdatedBy: authCtx.Identity.GetIdentity().Username,
+		},
+	}); auditErr != nil {
+		slog.WarnContext(ctx, "Failed to emit user task delete event.", "error", auditErr)
+	}
+}
+
+func eventStatus(err error) apievents.Status {
+	var msg string
+	if err != nil {
+		msg = err.Error()
+	}
+
+	return apievents.Status{
+		Success:     err == nil,
+		Error:       msg,
+		UserMessage: msg,
+	}
+}
+
+func getExpires(cj *timestamppb.Timestamp) time.Time {
+	if cj == nil {
+		return time.Time{}
+	}
+	return cj.AsTime()
 }

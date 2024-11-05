@@ -486,6 +486,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		})
 	}
 
+	// Test with real GCP account if environment is enabled.
 	if config, ok := gcpKMSTestConfig(t); ok {
 		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, opts)
 		require.NoError(t, err)
@@ -499,6 +500,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			}.marshal(),
 		})
 	}
+	// Always test with fake GCP client.
 	fakeGCPKMSConfig := servicecfg.KeystoreConfig{
 		GCPKMS: servicecfg.GCPKMSConfig{
 			ProtectionLevel: "HSM",
@@ -517,53 +519,71 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		}.marshal(),
 	})
 
-	if config, ok := awsKMSTestConfig(t); ok {
-		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, opts)
+	// Test AWS with and without multi-region keys
+	for _, multiRegion := range []bool{false, true} {
+		// Test with real AWS account if environment is enabled.
+		if config, ok := awsKMSTestConfig(t); ok {
+			config.AWSKMS.MultiRegion.Enabled = multiRegion
+
+			backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, opts)
+			require.NoError(t, err)
+			name := "aws_kms"
+			if multiRegion {
+				name += "_multi_region"
+			}
+			backends = append(backends, &backendDesc{
+				name:            name,
+				config:          config,
+				backend:         backend,
+				expectedKeyType: types.PrivateKeyType_AWS_KMS,
+				unusedRawKey: awsKMSKeyID{
+					arn: arn.ARN{
+						Partition: "aws",
+						Service:   "kms",
+						Region:    config.AWSKMS.AWSRegion,
+						AccountID: config.AWSKMS.AWSAccount,
+						Resource:  "unused",
+					}.String(),
+					account: config.AWSKMS.AWSAccount,
+					region:  config.AWSKMS.AWSRegion,
+				}.marshal(),
+			})
+		}
+
+		// Always test with fake AWS client.
+		fakeAWSKMSConfig := servicecfg.KeystoreConfig{
+			AWSKMS: servicecfg.AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+				MultiRegion: struct{ Enabled bool }{
+					Enabled: multiRegion,
+				},
+			},
+		}
+		fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, &fakeAWSKMSConfig.AWSKMS, opts)
 		require.NoError(t, err)
+		name := "fake_aws_kms"
+		if multiRegion {
+			name += "_multi_region"
+		}
 		backends = append(backends, &backendDesc{
-			name:            "aws_kms",
-			config:          config,
-			backend:         backend,
+			name:            name,
+			config:          fakeAWSKMSConfig,
+			backend:         fakeAWSKMSBackend,
 			expectedKeyType: types.PrivateKeyType_AWS_KMS,
 			unusedRawKey: awsKMSKeyID{
 				arn: arn.ARN{
 					Partition: "aws",
 					Service:   "kms",
-					Region:    config.AWSKMS.AWSRegion,
-					AccountID: config.AWSKMS.AWSAccount,
+					Region:    "us-west-2",
+					AccountID: "123456789012",
 					Resource:  "unused",
 				}.String(),
-				account: config.AWSKMS.AWSAccount,
-				region:  config.AWSKMS.AWSRegion,
+				account: "123456789012",
+				region:  "us-west-2",
 			}.marshal(),
 		})
 	}
-
-	fakeAWSKMSConfig := servicecfg.KeystoreConfig{
-		AWSKMS: servicecfg.AWSKMSConfig{
-			AWSAccount: "123456789012",
-			AWSRegion:  "us-west-2",
-		},
-	}
-	fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, &fakeAWSKMSConfig.AWSKMS, opts)
-	require.NoError(t, err)
-	backends = append(backends, &backendDesc{
-		name:            "fake_aws_kms",
-		config:          fakeAWSKMSConfig,
-		backend:         fakeAWSKMSBackend,
-		expectedKeyType: types.PrivateKeyType_AWS_KMS,
-		unusedRawKey: awsKMSKeyID{
-			arn: arn.ARN{
-				Partition: "aws",
-				Service:   "kms",
-				Region:    "us-west-2",
-				AccountID: "123456789012",
-				Resource:  "unused",
-			}.String(),
-			account: "123456789012",
-			region:  "us-west-2",
-		}.marshal(),
-	})
 
 	return &testPack{
 		opts:     opts,

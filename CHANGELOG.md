@@ -1,5 +1,105 @@
 # Changelog
 
+## 16.4.6 (10/22/2024)
+
+### Security Fixes
+
+#### [High] Privilege persistence in Okta SCIM-only integration
+
+When Okta SCIM-only integration is enabled, in certain cases Teleport could
+calculate the effective set of permission based on SSO user's stale traits. This
+could allow a user who was unassigned from an Okta group to log into a Teleport
+cluster once with a role granted by the unassigned group being present in their
+effective role set.
+
+Note: This issue only affects Teleport clusters that have installed a SCIM-only
+Okta integration as described in this guide. If you have an Okta integration
+with user sync enabled or only using Okta SSO auth connector to log into your
+Teleport cluster without SCIM integration configured, you're unaffected. To
+verify your configuration:
+
+- Use `tctl get plugins/okta --format=json | jq ".[].spec.Settings.okta.sync_settings.sync_users"`
+  command to check if you have Okta integration with user sync enabled. If it
+  outputs null or false, you may be affected and should upgrade.
+- Check SCIM provisioning settings for the Okta application you created or
+  updated while following the SCIM-only setup guide. If SCIM provisioning is
+  enabled, you may be affected and should upgrade.
+
+We strongly recommend customers who use Okta SCIM integration to upgrade their
+auth servers to version 16.3.0 or later. Teleport services other than auth
+(proxy, SSH, Kubernetes, desktop, application, database and discovery) are not
+impacted and do not need to be updated.
+
+### Other improvements and fixes
+
+* Added a new teleport_roles_total metric that exposes the number of roles which exist in a cluster. [#47812](https://github.com/gravitational/teleport/pull/47812)
+* Teleport's Windows Desktop Service now filters domain-joined Linux hosts out during LDAP discovery. [#47773](https://github.com/gravitational/teleport/pull/47773)
+* The `join_token.create` audit event has been enriched with additional metadata. [#47765](https://github.com/gravitational/teleport/pull/47765)
+* Propagate resources configured in teleport-kube-agent chart values to post-install and post-delete hooks. [#47743](https://github.com/gravitational/teleport/pull/47743)
+* Add support for the Datadog Incident Management plugin helm chart. [#47727](https://github.com/gravitational/teleport/pull/47727)
+* Automatic device enrollment may be locally disabled using the TELEPORT_DEVICE_AUTO_ENROLL_DISABLED=1 environment variable. [#47720](https://github.com/gravitational/teleport/pull/47720)
+* Fixed the Machine ID and GitHub Actions wizard. [#47708](https://github.com/gravitational/teleport/pull/47708)
+* Added migration to update the old import_all_objects database object import rule to the new preset. [#47707](https://github.com/gravitational/teleport/pull/47707)
+* Alter ServiceAccounts in the teleport-cluster Helm chart to automatically disable mounting of service account tokens on newer Kubernetes distributions, helping satisfy security linters. [#47703](https://github.com/gravitational/teleport/pull/47703)
+* Avoid tsh auto-enroll escalation in machines without a TPM. [#47695](https://github.com/gravitational/teleport/pull/47695)
+* Fixed a bug that prevented users from canceling `tsh scan keys` executions. [#47658](https://github.com/gravitational/teleport/pull/47658)
+* Postgres database session start events now include the Postgres backend PID for the session. [#47643](https://github.com/gravitational/teleport/pull/47643)
+* Reworked the `teleport-event-handler` integration to significantly improve performance, especially when running with larger `--concurrency` values. [#47633](https://github.com/gravitational/teleport/pull/47633)
+* Fixes a bug where Let's Encrypt certificate renewal failed in AMI and HA deployments due to insufficient disk space caused by syncing audit logs. [#47622](https://github.com/gravitational/teleport/pull/47622)
+* Adds support for custom SQS consumer lock name and disabling a consumer. [#47614](https://github.com/gravitational/teleport/pull/47614)
+* Fixed an issue that prevented RDS Aurora discovery configuration in the AWS OIDC enrollment wizard when any cluster existed without member instances. [#47605](https://github.com/gravitational/teleport/pull/47605)
+* Extend the Datadog plugin to support automatic approvals. [#47602](https://github.com/gravitational/teleport/pull/47602)
+* Allow using a custom database for Firestore backends. [#47583](https://github.com/gravitational/teleport/pull/47583)
+* Include host name instead of host uuid in error messages when SSH connections are prevented due to an invalid login. [#47578](https://github.com/gravitational/teleport/pull/47578)
+* Fix the example Terraform code to support the new larger Teleport Enterprise licenses and updates output of web address to use fqdn when ACM is disabled. [#47512](https://github.com/gravitational/teleport/pull/47512)
+* Add new `tctl` subcommands to manage bot instances. [#47225](https://github.com/gravitational/teleport/pull/47225)
+
+Enterprise:
+* Device auto-enroll failures are now recorded in the audit log.
+* Fixed possible panic when processing Okta assignments.
+
+## 16.4.3 (10/16/2024)
+
+* Extended Teleport Discovery Service to support resource discovery across all projects accessible by the service account. [#47568](https://github.com/gravitational/teleport/pull/47568)
+* Fixed a bug that could allow users to list active sessions even when prohibited by RBAC. [#47564](https://github.com/gravitational/teleport/pull/47564)
+* The `tctl tokens ls` command redacts secret join tokens by default. To include the token values, provide the new `--with-secrets flag`. [#47545](https://github.com/gravitational/teleport/pull/47545)
+* Added missing field-level documentation to the terraform provider reference. [#47469](https://github.com/gravitational/teleport/pull/47469)
+* Fixed a bug where `tsh logout` failed to parse flags passed with spaces. [#47460](https://github.com/gravitational/teleport/pull/47460)
+* Fixed the resource-based labels handler crashing without restarting. [#47452](https://github.com/gravitational/teleport/pull/47452)
+* Install teleport FIPS binary in FIPS environments during Server Auto Discover. [#47437](https://github.com/gravitational/teleport/pull/47437)
+* Fix possibly missing rules when using large amount of Access Monitoring Rules. [#47430](https://github.com/gravitational/teleport/pull/47430)
+* Added ability to list/get AccessMonitoringRule resources with `tctl`. [#47401](https://github.com/gravitational/teleport/pull/47401)
+* Include JWK header in JWTs issued by Teleport Application Access. [#47393](https://github.com/gravitational/teleport/pull/47393)
+* Teleport Workload ID now supports issuing JWT SVIDs via the Workload API. [#47389](https://github.com/gravitational/teleport/pull/47389)
+* Added kubeconfig context name to the output table of `tsh proxy kube` command for enhanced clarity. [#47383](https://github.com/gravitational/teleport/pull/47383)
+* Improve error messaging when connections to offline agents are attempted. [#47361](https://github.com/gravitational/teleport/pull/47361)
+* Allow specifying the instance type of AWS HA Terraform bastion instance. [#47338](https://github.com/gravitational/teleport/pull/47338)
+* Added a config option to Teleport Connect to control how it interacts with the local SSH agent (`sshAgent.addKeysToAgent`). [#47324](https://github.com/gravitational/teleport/pull/47324)
+* Teleport Workload ID issued JWT SVIDs are now compatible with OIDC federation with a number of platforms. [#47317](https://github.com/gravitational/teleport/pull/47317)
+* The "ha-autoscale-cluster" terraform module now support default AWS resource tags and ASG instance refresh on configuration or launch template changes. [#47299](https://github.com/gravitational/teleport/pull/47299)
+* Fixed error in Workload ID in cases where the process ID cannot be resolved. [#47274](https://github.com/gravitational/teleport/pull/47274)
+* Teleport Connect for Linux now requires glibc 2.31 or later. [#47262](https://github.com/gravitational/teleport/pull/47262)
+* Fixed a bug where security group rules that refer to another security group by ID were not displayed in web UI enrollment wizards when viewing security group rules. [#47246](https://github.com/gravitational/teleport/pull/47246)
+* Improve the msteams access plugin debug logging. [#47158](https://github.com/gravitational/teleport/pull/47158)
+* Fix missing tsh MFA prompt in certain OTP+WebAuthn scenarios. [#47154](https://github.com/gravitational/teleport/pull/47154)
+* Updates self-hosted db discover flow to generate 2190h TTL certs, not 12h. [#47125](https://github.com/gravitational/teleport/pull/47125)
+* Fixes an issue preventing access requests from displaying user friendly resource names. [#47112](https://github.com/gravitational/teleport/pull/47112)
+* Fixed a bug where only one IP CIDR block security group rule for a port range was displayed in the web UI RDS enrollment wizard when viewing a security group. [#47077](https://github.com/gravitational/teleport/pull/47077)
+* The `tsh play` command now supports a text output format. [#47073](https://github.com/gravitational/teleport/pull/47073)
+* Updated Go to 1.22.8. [#47050](https://github.com/gravitational/teleport/pull/47050)
+* Fixed the "source path is empty" error when attempting to upload a file in Teleport Connect. [#47011](https://github.com/gravitational/teleport/pull/47011)
+* Added static host users to Terraform provider. [#46974](https://github.com/gravitational/teleport/pull/46974)
+* Enforce a global `device_trust.mode=required` on OSS processes paired with an Enterprise Auth. [#46947](https://github.com/gravitational/teleport/pull/46947)
+* Added a new config option in Teleport Connect to control SSH agent forwarding (`ssh.forwardAgent`); starting in Teleport Connect v17, this option will be disabled by default. [#46895](https://github.com/gravitational/teleport/pull/46895)
+* Correctly display available allowed logins of leaf AWS Console Apps on `tsh app login`. [#46806](https://github.com/gravitational/teleport/pull/46806)
+* Allow all audit events to be trimmed if necessary. [#46499](https://github.com/gravitational/teleport/pull/46499)
+
+Enterprise:
+* Fixed possible panic when processing Okta assignments.
+* Fixed bug where an unknown device aborts device web authentication.
+* Add the Datadog Incident Management Plugin as a hosted plugin.
+* Permit bootstrapping enterprise clusters with state from an open source cluster.
+
 ## 16.4.2 (09/25/2024)
 
 * Fixed a panic when using the self-hosted PagerDuty plugin. [#46925](https://github.com/gravitational/teleport/pull/46925)
@@ -2537,7 +2637,7 @@ applications in Kubernetes clusters. When connected to a Kubernetes cluster (or
 deployed as a Helm chart), the Teleport Discovery Service will automatically find
 and enroll web applications with your Teleport cluster.
 
-See documentation [here](docs/pages/enroll-resources/auto-discovery/kubernetes-applications.mdx).
+See documentation [here](docs/pages/enroll-resources/auto-discovery/kubernetes-applications/kubernetes-applications.mdx).
 
 #### Extended Kubernetes per-resource RBAC
 
@@ -4640,7 +4740,7 @@ is more than one major version behind them. You can use the `--skip-version-chec
 bypass the version check.
 
 Take a look at component compatibility guarantees in the
-[documentation](docs/pages/upgrading.mdx).
+[documentation](docs/pages/upgrading/upgrading.mdx).
 
 #### HTTP_PROXY for reverse tunnels
 
@@ -5629,7 +5729,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/admin-guides/management/admin/admin.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -5880,7 +5980,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/admin-guides/access-controls/access-request-plugins.mdx)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx)
 
 ##### Signed RPM and Releases
 
@@ -5914,7 +6014,7 @@ We've added an [API Guide](docs/pages/admin-guides/api/api.mdx) to simply develo
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade procedure](./docs/pages/upgrading.mdx).
+Please follow our [standard upgrade procedure](docs/pages/upgrading/upgrading.mdx).
 
 * Optional: Consider updating `https_key_file` & `https_cert_file` to our new `https_keypairs:` format.
 * Optional: Consider migrating Kubernetes access from `proxy_service` to `kubernetes_service` after the upgrade.
@@ -6058,7 +6158,7 @@ auth_service:
 ### Upgrade Notes
 
 Please follow our [standard upgrade
-procedure](docs/pages/upgrading.mdx).
+procedure](docs/pages/upgrading/upgrading.mdx).
 
 ## 4.3.9
 
@@ -6143,7 +6243,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/admin-guides/access-controls/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
 *   [Jira](docs/pages/admin-guides/access-controls/access-request-plugins/ssh-approval-jira.mdx)
@@ -6179,7 +6279,7 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 #### Upgrade Notes
 
 Always follow the [recommended upgrade
-procedure](./docs/pages/upgrading.mdx) to upgrade to this version.
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this version.
 
 ##### New Signing Algorithm
 
@@ -6220,7 +6320,7 @@ permissions](./docs/pages/enroll-resources/kubernetes-access/controls.mdx).
 The [etcd backend](docs/pages/reference/backends.mdx#etcd) now correctly uses
 the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
-[upgrade guidance](docs/pages/upgrading.mdx).
+[upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
 **Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/admin-guides/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
@@ -6343,7 +6443,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 ### Improvements
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
-* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/admin-guides/access-controls/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
+* Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/admin-guides/access-controls/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
 * Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/admin-guides/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
@@ -6599,7 +6699,7 @@ The lists of improvements and bug fixes above mention only the significant chang
 
 ### Upgrading
 
-Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/upgrading.mdx)
+Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](docs/pages/upgrading/upgrading.mdx)
 
 Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend creating a backup of the backend datastore (DynamoDB, etcd, or dir) before upgrading a cluster to Teleport 4.0 to allow downgrades.
 
@@ -6867,7 +6967,7 @@ on Github for more.
 #### Upgrading to 3.0
 
 Follow the [recommended upgrade
-procedure](docs/pages/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this
 version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
@@ -6973,7 +7073,7 @@ As always, this release contains several bug fixes. The full list can be seen [h
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.6.9
@@ -7103,7 +7203,7 @@ You can see the full list of 2.6.0 changes [here](https://github.com/gravitation
 #### Upgrading
 
 Follow the [recommended upgrade
-procedure](docs/pages/upgrading.mdx) to upgrade to this
+procedure](docs/pages/upgrading/upgrading.mdx) to upgrade to this
 version.
 
 ## 2.5.7
@@ -7190,7 +7290,7 @@ release, which includes:
 
 * The Teleport daemon now implements built-in connection draining which allows
   zero-downtime upgrades.  [See
-  documentation](docs/pages/upgrading.mdx).
+  documentation](docs/pages/upgrading/upgrading.mdx).
 
 * Dynamic join tokens for new nodes can now be explicitly set via `tctl node add --token`.
   This allows Teleport admins to use an external mechanism for generating

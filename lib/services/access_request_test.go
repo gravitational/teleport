@@ -2150,7 +2150,7 @@ func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName s
 	return nil, trace.NotFound("remote cluster %q was not found", clusterName)
 }
 
-func TestValidateDuplicateRequestedResources(t *testing.T) {
+func TestValidateResourceRequestSizeLimits(t *testing.T) {
 	g := &mockGetter{
 		roles:       make(map[string]types.Role),
 		userStates:  make(map[string]*userloginstate.UserLoginState),
@@ -2212,6 +2212,17 @@ func TestValidateDuplicateRequestedResources(t *testing.T) {
 	require.Len(t, req.GetRequestedResourceIDs(), 2)
 	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
 	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
+
+	var requestedResourceIDs []types.ResourceID
+	for i := 0; i < 200; i++ {
+		requestedResourceIDs = append(requestedResourceIDs, types.ResourceID{
+			ClusterName: "someCluster",
+			Kind:        "node",
+			Name:        "resource" + strconv.Itoa(i),
+		})
+	}
+	req.SetRequestedResourceIDs(requestedResourceIDs)
+	require.ErrorContains(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, ExpandVars(true)), "access request exceeds maximum length")
 }
 
 func TestValidateAccessRequestClusterNames(t *testing.T) {

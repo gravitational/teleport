@@ -90,6 +90,34 @@ const colors: ThemeColors = {
   brand: '#512FC9',
 
   interactive: {
+    solid: {
+      primary: {
+        default: '#512FC9',
+        hover: '#4126A1',
+        active: '#311C79',
+      },
+      success: {
+        default: '#007D6B',
+        hover: '#006456',
+        active: '#004B40',
+      },
+      accent: {
+        default: '#0073BA',
+        hover: '#005C95',
+        active: '#004570',
+      },
+      danger: {
+        default: '#CC372D',
+        hover: '#A32C24',
+        active: '#7A211B',
+      },
+      alert: {
+        default: '#FFAB00',
+        hover: '#CC8900',
+        active: '#996700',
+      },
+    },
+
     tonal: {
       primary: [
         'rgba(81,47,201, 0.1)',
@@ -116,7 +144,7 @@ const colors: ThemeColors = {
         'rgba(0, 115, 186, 0.18)',
         'rgba(0, 115, 186, 0.25)',
       ],
-      neutral: neutralColors,
+      neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
   },
 

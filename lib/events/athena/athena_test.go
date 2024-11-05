@@ -93,13 +93,15 @@ func TestConfig_SetFromURL(t *testing.T) {
 		},
 		{
 			name: "params to batcher",
-			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxInterval=10s",
+			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxInterval=10s&consumerLockName=mylock&consumerDisabled=true",
 			want: Config{
 				TableName:        "tbl",
 				Database:         "db",
 				QueueURL:         "https://queueURL",
 				BatchMaxItems:    1000,
 				BatchMaxInterval: 10 * time.Second,
+				ConsumerLockName: "mylock",
+				ConsumerDisabled: true,
 			},
 		},
 		{
@@ -187,6 +189,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				GetQueryResultsInterval:    100 * time.Millisecond,
 				BatchMaxItems:              20000,
 				BatchMaxInterval:           1 * time.Minute,
+				ConsumerLockName:           "",
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
@@ -212,6 +215,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				GetQueryResultsInterval:    100 * time.Millisecond,
 				BatchMaxItems:              20000,
 				BatchMaxInterval:           1 * time.Minute,
+				ConsumerLockName:           "",
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
