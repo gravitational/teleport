@@ -60,9 +60,9 @@ const (
 
 // Log keys
 const (
-	targetVersionKey = "targetVersion"
-	activeVersionKey = "activeVersion"
-	backupVersionKey = "backupVersion"
+	targetVersionKey = "target_version"
+	activeVersionKey = "active_version"
+	backupVersionKey = "backup_version"
 	errorKey         = "error"
 )
 
