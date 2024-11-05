@@ -44,6 +44,12 @@ import (
 // - AWS Sync (TAG) status
 // - AWS EC2 Auto Discover status
 func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
+	// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
+	// Those are discarded because there's no Status to update.
+	if discoveryConfigName == "" {
+		return
+	}
+
 	discoveryConfigStatus := discoveryconfig.Status{
 		State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
 		LastSyncTime:                   s.clock.Now(),
