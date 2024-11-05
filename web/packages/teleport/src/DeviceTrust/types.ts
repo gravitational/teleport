@@ -22,8 +22,8 @@ export type TrustedDevice = {
   id: string;
   assetTag: string;
   osType: TrustedDeviceOSType;
-  enrollStatus: string;
-  owner?: string;
+  enrollStatus: 'Enrolled' | 'Not Enrolled';
+  owner: string;
 };
 
 export type TrustedDeviceOSType = 'Windows' | 'Linux' | 'macOS';
