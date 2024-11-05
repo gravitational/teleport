@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
@@ -65,7 +66,7 @@ To rerun the script, type 'exit' to close and then restart the process.
 `
 
 	step2Template = `
-	
+
 ` + bold("Step 2: Input Tenant ID and Client ID") + `
 
 With the output of Step 1, please copy and paste the following information:
@@ -120,9 +121,7 @@ type entraSettings struct {
 	tenantID         string
 }
 
-var (
-	errCancel = trace.BadParameter("operation canceled")
-)
+var errCancel = trace.BadParameter("operation canceled")
 
 func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings, error) {
 	pwd, err := os.Getwd()
@@ -232,6 +231,14 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 		tagSyncSettings = &types.PluginEntraIDAccessGraphSettings{
 			AppSsoSettingsCache: settings.accessGraphCache.AppSsoSettingsCache,
 		}
+	}
+
+	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, args.authClient.PerformMFACeremony, true /*allowReuse*/)
+	if err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
 	}
 
 	saml, err := types.NewSAMLConnector(inputs.entraID.authConnectorName, types.SAMLConnectorSpecV2{
