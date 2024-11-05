@@ -52,7 +52,7 @@ import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/P
 export const ReAuthenticate: FC<{
   promptMfaRequest: PromptMFARequest;
   onCancel: () => void;
-  onSuccess: (otp: string) => void;
+  onOtpSubmit: (otp: string) => void;
   onSsoContinue: (redirectUrl: string) => void;
 }> = props => {
   const { promptMfaRequest: req, onSsoContinue } = props;
@@ -101,7 +101,7 @@ export const ReAuthenticate: FC<{
           <form
             onSubmit={e => {
               e.preventDefault();
-              validator.validate() && props.onSuccess(otpToken);
+              validator.validate() && props.onOtpSubmit(otpToken);
             }}
           >
             <DialogHeader
@@ -207,14 +207,16 @@ function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
   if (req.webauthn) {
     availableMfaTypes.push(webauthn);
   }
+  if (req.totp) {
+    availableMfaTypes.push(totp);
+  }
+  // put sso last in the list so we don't automatically open the browser unless
+  // sso is the only one in the list.
   if (req.sso) {
     availableMfaTypes.push({
       value: 'sso',
       label: req.sso.displayName || req.sso.connectorId,
     });
-  }
-  if (req.totp) {
-    availableMfaTypes.push(totp);
   }
 
   // This shouldn't happen but is technically allowed by the req data structure.

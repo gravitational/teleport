@@ -41,7 +41,7 @@ export const WithWebauthn = () => (
       promptMfaRequest={{ ...promptMfaRequest, webauthn: true }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
-      onSuccess={() => {
+      onOtpSubmit={() => {
         window.alert(
           'You somehow submitted a form while only Webauthn was available.'
         );
@@ -59,7 +59,7 @@ export const WithTotp = () => (
       promptMfaRequest={{ ...promptMfaRequest, totp: true }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
-      onSuccess={showToken}
+      onOtpSubmit={showToken}
     />
   </MockAppContextProvider>
 );
@@ -72,13 +72,13 @@ export const WithSso = () => (
         sso: {
           connectorId: '',
           connectorType: '',
-          displayName: 'Example',
+          displayName: 'Example SSO',
           redirectUrl: '',
         },
       }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
-      onSuccess={() => {
+      onOtpSubmit={() => {
         window.alert(
           'You somehow submitted a form while only SSO was available.'
         );
@@ -97,13 +97,13 @@ export const WithWebauthnAndTotpAndSSO = () => (
         sso: {
           connectorId: '',
           connectorType: '',
-          displayName: '',
+          displayName: 'Example SSO',
           redirectUrl: '',
         },
       }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
-      onSuccess={showToken}
+      onOtpSubmit={showToken}
     />
   </MockAppContextProvider>
 );
@@ -119,7 +119,7 @@ export const MultilineTitle = () => (
       }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
-      onSuccess={showToken}
+      onOtpSubmit={showToken}
     />
   </MockAppContextProvider>
 );
@@ -135,7 +135,7 @@ export const ForLeafCluster = () => (
       }}
       onSsoContinue={() => {}}
       onCancel={() => {}}
-      onSuccess={showToken}
+      onOtpSubmit={showToken}
     />
   </MockAppContextProvider>
 );
