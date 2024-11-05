@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -45,8 +46,8 @@ type SPIFFESVIDCommand struct {
 // NewSPIFFESVIDCommand initializes the command and flags for the
 // `spiffe-svid` output and returns a struct that will contain the parse
 // result.
-func NewSPIFFESVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *SPIFFESVIDCommand {
-	cmd := parentCmd.Command("spiffe-svid", "Starts with a SPIFFE-compatible SVID output.")
+func NewSPIFFESVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *SPIFFESVIDCommand {
+	cmd := parentCmd.Command("spiffe-svid", fmt.Sprintf("%s tbot with a SPIFFE-compatible SVID output.", mode))
 
 	c := &SPIFFESVIDCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
