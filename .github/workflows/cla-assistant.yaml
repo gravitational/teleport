@@ -3,7 +3,7 @@ on:
   issue_comment:
     types: [created]
   pull_request_target:
-    types: [opened, closed, synchronize]
+    types: [opened, synchronize]
 # explicitly configure permissions, in case your GITHUB_TOKEN workflow permissions are set to read-only in repository settings
 permissions:
   actions: read
@@ -45,3 +45,4 @@ jobs:
           # branch should not be protected
           branch: 'main'
           allowlist: gravitational,*[bot]
+          lock-pullrequest-aftermerge: false
