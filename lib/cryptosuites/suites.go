@@ -152,7 +152,9 @@ func (a Algorithm) String() string {
 type suite map[KeyPurpose]Algorithm
 
 var (
-	// legacy is the original algorithm suite, which exclusively uses RSA2048.
+	// legacy is the original algorithm suite, which exclusively uses RSA2048
+	// for features developed before ECDSA and Ed25519 support were added. New
+	// features should always use the new algorithms.
 	legacy = suite{
 		UserCATLS:               RSA2048,
 		UserCASSH:               RSA2048,
