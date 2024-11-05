@@ -161,13 +161,12 @@ func (c *AutoUpdateCommand) configureAutoUpdateConfig(ctx context.Context, clien
 			if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Fprint(c.stdout, "autoupdate_config has been updated\n")
 		} else {
 			if _, err := client.CreateAutoUpdateConfig(ctx, config); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Fprint(c.stdout, "autoupdate_config has been created\n")
 		}
+		fmt.Fprint(c.stdout, "client tools auto update mode has been updated\n")
 	}
 	return nil
 }
@@ -195,13 +194,12 @@ func (c *AutoUpdateCommand) configureAutoUpdateVersion(ctx context.Context, clie
 			if _, err := client.UpsertAutoUpdateVersion(ctx, version); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Fprint(c.stdout, "autoupdate_version has been updated\n")
 		} else {
 			if _, err := client.CreateAutoUpdateVersion(ctx, version); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Fprint(c.stdout, "autoupdate_version has been created\n")
 		}
+		fmt.Fprint(c.stdout, "client tools auto update target version has been updated\n")
 	}
 	return nil
 }
