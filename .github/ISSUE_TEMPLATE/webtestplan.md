@@ -615,7 +615,6 @@ Not available for OSS
 
 ## Web Terminal (aka console)
 
-- [ ] Verify that top nav has a user menu (Main and Logout)
 - [ ] Verify that switching between tabs works with `ctrl+[1...9]` (alt on linux/windows)
 - Update your user role to `require_session_mfa` and:
   - [ ] Verify connecting to a ssh node prompts you to tap your registered WebAuthn key
