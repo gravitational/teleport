@@ -30,15 +30,11 @@ import {
   Image,
   Indicator,
   LabelInput,
+  Link as ExternalLink,
+  Subtitle2,
   Text,
 } from 'design';
-import {
-  ArrowBack,
-  ChevronDown,
-  ChevronRight,
-  Warning,
-  Cross,
-} from 'design/Icon';
+import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import { Danger } from 'design/Alert';
@@ -47,21 +43,30 @@ import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
+import {
+  checkSupportForKubeResources,
+  isKubeClusterWithNamespaces,
+  type KubeNamespaceRequest,
+} from '../kube';
 
 import { ReviewerOption } from './types';
 
 import shieldCheck from './shield-check.png';
 import { SelectReviewers } from './SelectReviewers';
 import { AdditionalOptions } from './AdditionalOptions';
+import { KubeNamespaceSelector } from './KubeNamespaceSelector';
+import { CrossIcon } from './CrossIcon';
 
 import type { TransitionStatus } from 'react-transition-group';
 
 import type { AccessRequest } from 'shared/services/accessRequests';
-import type { ResourceKind } from '../resource';
 
 export function RequestCheckoutWithSlider<
   T extends PendingListItem = PendingListItem,
@@ -153,8 +158,11 @@ export function RequestCheckout<T extends PendingListItem>({
   Header,
   startTime,
   onStartTimeChange,
+  fetchKubeNamespaces,
+  bulkToggleKubeResources,
 }: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
+
   function updateReason(reason: string) {
     setReason(reason);
   }
@@ -173,6 +181,11 @@ export function RequestCheckout<T extends PendingListItem>({
     });
   }
 
+  const { requestKubeResourceSupported, isRequestKubeResourceError } =
+    checkSupportForKubeResources(fetchResourceRequestRolesAttempt);
+  const hasUnsupporteKubeResourceKinds =
+    !requestKubeResourceSupported && isRequestKubeResourceError;
+
   const isInvalidRoleSelection =
     resourceRequestRoles.length > 0 &&
     isResourceRequest &&
@@ -182,10 +195,17 @@ export function RequestCheckout<T extends PendingListItem>({
     pendingAccessRequests.length === 0 ||
     createAttempt.status === 'processing' ||
     isInvalidRoleSelection ||
-    fetchResourceRequestRolesAttempt.status === 'failed' ||
+    (fetchResourceRequestRolesAttempt.status === 'failed' &&
+      hasUnsupporteKubeResourceKinds) ||
     fetchResourceRequestRolesAttempt.status === 'processing';
 
-  const numPendingAccessRequests = pendingAccessRequests.length;
+  const cancelBtnDisabled =
+    createAttempt.status === 'processing' ||
+    fetchResourceRequestRolesAttempt.status === 'processing';
+
+  const numPendingAccessRequests = pendingAccessRequests.filter(
+    item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
+  ).length;
 
   const DefaultHeader = () => {
     return (
@@ -207,126 +227,198 @@ export function RequestCheckout<T extends PendingListItem>({
     );
   };
 
-  return (
-    <>
-      {fetchResourceRequestRolesAttempt.status === 'failed' && (
-        <Alert
-          kind="danger"
-          children={fetchResourceRequestRolesAttempt.statusText}
-        />
-      )}
-      {fetchStatus === 'loading' && (
-        <Box mt={5} textAlign="center">
-          <Indicator />
-        </Box>
-      )}
-
-      {fetchStatus === 'loaded' && (
-        <div>
-          {createAttempt.status === 'success' ? (
-            <>
-              <Box>
-                <Box mt={2} mb={7} textAlign="center">
-                  <Text typography="h4" color="text.main" bold>
-                    Resources Requested Successfully
-                  </Text>
-                  <Text typography="subtitle1" color="text.slightlyMuted">
-                    You've successfully requested {numRequestedResources}{' '}
-                    {pluralize(numRequestedResources, 'resource')}
-                  </Text>
-                </Box>
-                <Flex justifyContent="center" mb={3}>
-                  <Image src={shieldCheck} width="250px" height="179px" />
+  function customRow(item: T) {
+    if (item.kind === 'kube_cluster') {
+      return (
+        <td colSpan={3}>
+          <Flex>
+            <Flex flexWrap="wrap">
+              <Flex
+                gap={2}
+                justifyContent="space-between"
+                width="100%"
+                alignItems="center"
+              >
+                <Flex gap={5}>
+                  <Box>{getPrettyResourceKind(item.kind)}</Box>
+                  <Box>{item.name}</Box>
                 </Flex>
-              </Box>
-              <SuccessComponent onClose={onClose} reset={reset} />
-            </>
-          ) : (
-            <>
-              {Header?.() || DefaultHeader()}
-              {createAttempt.status === 'failed' && (
-                <Alert kind="danger" children={createAttempt.statusText} />
-              )}
-              <StyledTable
-                data={pendingAccessRequests}
-                columns={[
-                  {
-                    key: 'clusterName',
-                    headerText: 'Cluster Name',
-                    isNonRender: !showClusterNameColumn,
-                  },
-                  {
-                    key: 'kind',
-                    headerText: 'Type',
-                    render: item => (
-                      <Cell>{getPrettyResourceKind(item.kind)}</Cell>
-                    ),
-                  },
-                  {
-                    key: 'name',
-                    headerText: 'Name',
-                  },
-                  {
-                    altKey: 'delete-btn',
-                    render: resource => (
-                      <Cell align="right">
-                        <Cross
-                          size="small"
-                          borderRadius={2}
-                          p={2}
-                          onClick={() => {
-                            clearAttempt();
-                            toggleResource(resource);
-                          }}
-                          disabled={createAttempt.status === 'processing'}
-                          css={`
-                            cursor: pointer;
-
-                            background-color: ${({ theme }) =>
-                              theme.colors.buttons.trashButton.default};
-                            border-radius: 2px;
-
-                            :hover {
-                              background-color: ${({ theme }) =>
-                                theme.colors.buttons.trashButton.hover};
-                            }
-                          `}
-                        />
-                      </Cell>
-                    ),
-                  },
-                ]}
-                emptyText="No resources are selected"
+                <CrossIcon
+                  clearAttempt={clearAttempt}
+                  item={item}
+                  toggleResource={toggleResource}
+                  createAttempt={createAttempt}
+                />
+              </Flex>
+              <KubeNamespaceSelector
+                kubeClusterItem={item}
+                savedResourceItems={pendingAccessRequests}
+                fetchKubeNamespaces={fetchKubeNamespaces}
+                bulkToggleKubeResources={bulkToggleKubeResources}
               />
-              {userGroupFetchAttempt?.status === 'processing' && (
-                <Flex mt={4} alignItems="center" justifyContent="center">
-                  <Indicator size="small" />
-                </Flex>
-              )}
-              {userGroupFetchAttempt?.status === 'failed' && (
-                <Danger mt={4}>{userGroupFetchAttempt.statusText}</Danger>
-              )}
-              {userGroupFetchAttempt?.status === 'success' &&
-                appsGrantedByUserGroup.length > 0 && (
-                  <AppsGrantedAccess apps={appsGrantedByUserGroup} />
-                )}
-              {isResourceRequest && (
-                <ResourceRequestRoles
-                  roles={resourceRequestRoles}
-                  selectedRoles={selectedResourceRequestRoles}
-                  setSelectedRoles={setSelectedResourceRequestRoles}
-                  fetchAttempt={fetchResourceRequestRolesAttempt}
-                />
-              )}
-              <Box mt={6} mb={1}>
-                <SelectReviewers
-                  reviewers={dryRunResponse?.reviewers.map(r => r.name) ?? []}
-                  selectedReviewers={selectedReviewers}
-                  setSelectedReviewers={setSelectedReviewers}
-                />
-              </Box>
-              <Validation>
-                {({ validator }) => (
+            </Flex>
+          </Flex>
+        </td>
+      );
+    }
+  }
+
+  return (
+    <Validation>
+      {({ validator }) => (
+        <>
+          {!isRequestKubeResourceError &&
+            createAttempt.status !== 'failed' &&
+            fetchResourceRequestRolesAttempt.status === 'failed' && (
+              <Alert
+                kind="danger"
+                children={fetchResourceRequestRolesAttempt.statusText}
+              />
+            )}
+          {hasUnsupporteKubeResourceKinds && (
+            <Alert kind="danger">
+              <div>
+                <HoverTooltip
+                  tipContent={
+                    fetchResourceRequestRolesAttempt.statusText.length > 248
+                      ? fetchResourceRequestRolesAttempt.statusText
+                      : null
+                  }
+                >
+                  <ShortenedText mb={2}>
+                    {fetchResourceRequestRolesAttempt.statusText}
+                  </ShortenedText>
+                </HoverTooltip>
+                <Text mb={2}>
+                  The listed allowed kinds are currently only supported through
+                  the{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
+                  >
+                    tsh CLI tool
+                  </ExternalLink>
+                  . Use the{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources"
+                  >
+                    tsh request search
+                  </ExternalLink>{' '}
+                  command that will help you construct the request.
+                </Text>
+                <Box width="340px">
+                  Example:
+                  <TextSelectCopyMulti
+                    lines={[
+                      {
+                        text: `tsh request search --kind=ALLOWED_KIND --kube-cluster=CLUSTER_NAME --all-kube-namespaces`,
+                      },
+                    ]}
+                  />
+                </Box>
+              </div>
+            </Alert>
+          )}
+          {fetchStatus === 'loading' && (
+            <Box mt={5} textAlign="center">
+              <Indicator />
+            </Box>
+          )}
+
+          {fetchStatus === 'loaded' && (
+            <div>
+              {createAttempt.status === 'success' ? (
+                <>
+                  <Box>
+                    <Box as="header" mt={2} mb={7} textAlign="center">
+                      <H2 mb={1}>Resources Requested Successfully</H2>
+                      <Subtitle2 color="text.slightlyMuted">
+                        You've successfully requested {numRequestedResources}{' '}
+                        {pluralize(numRequestedResources, 'resource')}
+                      </Subtitle2>
+                    </Box>
+                    <Flex justifyContent="center" mb={3}>
+                      <Image src={shieldCheck} width="250px" height="179px" />
+                    </Flex>
+                  </Box>
+                  <SuccessComponent onClose={onClose} reset={reset} />
+                </>
+              ) : (
+                <>
+                  {Header?.() || DefaultHeader()}
+                  {createAttempt.status === 'failed' && (
+                    <Alert kind="danger" children={createAttempt.statusText} />
+                  )}
+                  <StyledTable
+                    data={pendingAccessRequests.filter(
+                      d => d.kind !== 'namespace'
+                    )}
+                    row={{
+                      customRow,
+                    }}
+                    columns={[
+                      {
+                        key: 'clusterName',
+                        headerText: 'Cluster Name',
+                        isNonRender: !showClusterNameColumn,
+                      },
+                      {
+                        key: 'kind',
+                        headerText: 'Type',
+                        render: item => (
+                          <Cell>{getPrettyResourceKind(item.kind)}</Cell>
+                        ),
+                      },
+                      {
+                        key: 'name',
+                        headerText: 'Name',
+                      },
+                      {
+                        altKey: 'delete-btn',
+                        render: resource => (
+                          <Cell align="right">
+                            <CrossIcon
+                              clearAttempt={clearAttempt}
+                              item={resource}
+                              toggleResource={toggleResource}
+                              createAttempt={createAttempt}
+                            />
+                          </Cell>
+                        ),
+                      },
+                    ]}
+                    emptyText="No resources are selected"
+                  />
+                  {userGroupFetchAttempt?.status === 'processing' && (
+                    <Flex mt={4} alignItems="center" justifyContent="center">
+                      <Indicator size="small" />
+                    </Flex>
+                  )}
+                  {userGroupFetchAttempt?.status === 'failed' && (
+                    <Danger mt={4}>{userGroupFetchAttempt.statusText}</Danger>
+                  )}
+                  {userGroupFetchAttempt?.status === 'success' &&
+                    appsGrantedByUserGroup.length > 0 && (
+                      <AppsGrantedAccess apps={appsGrantedByUserGroup} />
+                    )}
+                  {isResourceRequest && (
+                    <ResourceRequestRoles
+                      roles={resourceRequestRoles}
+                      selectedRoles={selectedResourceRequestRoles}
+                      setSelectedRoles={setSelectedResourceRequestRoles}
+                      fetchAttempt={fetchResourceRequestRolesAttempt}
+                    />
+                  )}
+                  <Box mt={6} mb={1}>
+                    <SelectReviewers
+                      reviewers={
+                        dryRunResponse?.reviewers.map(r => r.name) ?? []
+                      }
+                      selectedReviewers={selectedReviewers}
+                      setSelectedReviewers={setSelectedReviewers}
+                    />
+                  </Box>
                   <Flex mt={6} flexDirection="column" gap={1}>
                     {dryRunResponse && (
                       <Box mb={1}>
@@ -385,19 +477,19 @@ export function RequestCheckout<T extends PendingListItem>({
                           reset();
                           onClose();
                         }}
-                        disabled={submitBtnDisabled}
+                        disabled={cancelBtnDisabled}
                       >
                         Cancel
                       </ButtonSecondary>
                     </Flex>
                   </Flex>
-                )}
-              </Validation>
-            </>
+                </>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
-    </>
+    </Validation>
   );
 }
 
@@ -644,7 +736,7 @@ function TextBox({
   );
 }
 
-function getPrettyResourceKind(kind: ResourceKind): string {
+function getPrettyResourceKind(kind: RequestableResourceKind): string {
   switch (kind) {
     case 'role':
       return 'Role';
@@ -662,6 +754,8 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'User Group';
     case 'windows_desktop':
       return 'Desktop';
+    case 'namespace':
+      return 'Namespace';
     default:
       kind satisfies never;
       return kind;
@@ -732,6 +826,12 @@ const StyledTable = styled(Table)`
   overflow: hidden;
 ` as typeof Table;
 
+const ShortenedText = styled(Text)`
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+`;
+
 export type RequestCheckoutWithSliderProps<
   T extends PendingListItem = PendingListItem,
 > = {
@@ -739,13 +839,30 @@ export type RequestCheckoutWithSliderProps<
 } & RequestCheckoutProps<T>;
 
 export interface PendingListItem {
-  kind: ResourceKind;
+  kind: RequestableResourceKind;
   /** Name of the resource, for presentation purposes only. */
   name: string;
   /** Identifier of the resource. Should be sent in requests. */
   id: string;
   clusterName?: string;
+  /**
+   * This field must be defined if a user is requesting subresources.
+   *
+   * Example:
+   * "kube_cluster" resource can have subresources such as "namespace".
+   * Example PendingListItem values if user is requesting a kubes namespace:
+   *   - kind: const "namespace"
+   *   - id: name of the kube_cluster
+   *   - subResourceName: name of the kube_cluster's namespace
+   *   - clusterName: name of teleport cluster where kube_cluster is located
+   *   - name: same as subResourceName as this is what we want to display to user
+   * */
+  subResourceName?: string;
 }
+
+export type PendingKubeResourceItem = Omit<PendingListItem, 'kind'> & {
+  kind: Extract<RequestableResourceKind, 'namespace'>;
+};
 
 export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
   {
@@ -780,6 +897,11 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     Header?: () => JSX.Element;
     startTime: Date;
     onStartTimeChange(t?: Date): void;
+    fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
+    bulkToggleKubeResources(
+      kubeResources: PendingKubeResourceItem[],
+      kubeCluster: T
+    ): void;
   };
 
 type SuccessComponentParams = {

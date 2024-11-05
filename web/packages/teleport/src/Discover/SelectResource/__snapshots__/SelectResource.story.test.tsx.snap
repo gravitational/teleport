@@ -106,7 +106,6 @@ exports[`render with URL loc state set to "server" 1`] = `
 
 .c23 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -114,7 +113,6 @@ exports[`render with URL loc state set to "server" 1`] = `
 
 .c26 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -830,7 +828,6 @@ exports[`render with all access 1`] = `
 
 .c17 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -838,7 +835,6 @@ exports[`render with all access 1`] = `
 
 .c20 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -2875,7 +2871,6 @@ exports[`render with no access 1`] = `
 
 .c7 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -2883,7 +2878,6 @@ exports[`render with no access 1`] = `
 
 .c21 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -5068,7 +5062,6 @@ exports[`render with partial access 1`] = `
 
 .c17 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -5076,7 +5069,6 @@ exports[`render with partial access 1`] = `
 
 .c23 {
   color: #009EFF;
-  font-weight: normal;
   background: none;
   text-decoration: underline;
   text-transform: none;

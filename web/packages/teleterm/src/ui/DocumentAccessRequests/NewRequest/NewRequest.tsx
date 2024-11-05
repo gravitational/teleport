@@ -250,6 +250,7 @@ function toResourceMap(request: PendingAccessRequest): ResourceMap {
     node: {},
     db: {},
     app: {},
+    namespace: {},
   };
   if (request.kind === 'role') {
     request.roles.forEach(role => {
