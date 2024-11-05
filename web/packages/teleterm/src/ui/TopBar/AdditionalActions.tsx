@@ -32,6 +32,7 @@ import { KeyboardShortcutAction } from 'teleterm/services/config';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useNewTabOpener } from 'teleterm/ui/TabHost';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 
 type MenuItem = {
   title: string;
@@ -48,7 +49,7 @@ type MenuItemConditionallyDisabled = { isDisabled: true; disabledText: string };
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
   const { workspacesService, mainProcessClient, notificationsService } = ctx;
-  workspacesService.useState();
+  useWorkspaceServiceState();
   ctx.clustersService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
