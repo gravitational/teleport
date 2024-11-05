@@ -395,14 +395,42 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 	return versions, nil
 }
 
+type symlink struct {
+	old, new string
+}
+
 // Link the specified version into the system LinkBinDir and LinkServiceDir.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
 func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
-	// setup revert function
-	type symlink struct {
-		old, new string
+	revert = func(context.Context) bool { return true }
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return revert, trace.Wrap(err)
 	}
+	revert, err = li.forceLinks(ctx,
+		filepath.Join(versionDir, "bin"),
+		filepath.Join(versionDir, filepath.Dir(servicePath)),
+	)
+	if err != nil {
+		return revert, trace.Wrap(err)
+	}
+	return revert, nil
+}
+
+// LinkSystem
+func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
+	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceDir)
+	return revert, trace.Wrap(err)
+}
+
+// forceLinks replaces binary and service links with links to files in binDir and svcDir.
+// Existing links are replaced, but existing non-link files will result in error.
+// forceLinks will revert any overridden links if it hits an error.
+// If successful, forceLinks may be reverted after the fact by calling revert.
+// The revert function returns true if reverting succeeds.
+func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string) (revert func(context.Context) bool, err error) {
+	// setup revert function
 	var revertLinks []symlink
 	revert = func(ctx context.Context) bool {
 		// This function is safe to call repeatedly.
@@ -425,11 +453,6 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		}
 	}()
 
-	versionDir, err := li.versionDir(version)
-	if err != nil {
-		return revert, trace.Wrap(err)
-	}
-
 	// ensure target directories exist before trying to create links
 	err = os.MkdirAll(li.LinkBinDir, 0755)
 	if err != nil {
@@ -442,7 +465,6 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 
 	// create binary links
 
-	binDir := filepath.Join(versionDir, "bin")
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return revert, trace.Errorf("failed to find Teleport binary directory: %w", err)
@@ -454,7 +476,7 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 		}
 		oldname := filepath.Join(binDir, entry.Name())
 		newname := filepath.Join(li.LinkBinDir, entry.Name())
-		orig, err := tryLink(oldname, newname)
+		orig, err := forceLink(oldname, newname)
 		if err != nil {
 			return revert, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
 		}
@@ -472,9 +494,9 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 
 	// create systemd service link
 
-	oldname := filepath.Join(versionDir, servicePath)
+	oldname := filepath.Join(svcDir, filepath.Base(servicePath))
 	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
-	orig, err := tryLink(oldname, newname)
+	orig, err := forceLink(oldname, newname)
 	if err != nil {
 		return revert, trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
 	}
@@ -487,88 +509,9 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	return revert, nil
 }
 
-// LinkSystemDefault links the system installation, but only in the case that
-// no installation of Teleport is already linked or partially linked.
-// See Installer interface for additional specs.
-func (li *LocalInstaller) LinkSystemDefault(ctx context.Context) error {
-	// ensure target directories exist before trying to create links
-	err := os.MkdirAll(li.LinkBinDir, 0755)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = os.MkdirAll(li.LinkServiceDir, 0755)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// validate that we can link all system binaries before attempting linking
-
-	entries, err := os.ReadDir(li.SystemBinDir)
-	if err != nil {
-		return trace.Errorf("failed to find Teleport binary directory: %w", err)
-	}
-	var linked int
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		oldname := filepath.Join(li.SystemBinDir, entry.Name())
-		newname := filepath.Join(li.LinkBinDir, entry.Name())
-		ok, err := hasNoOtherLink(oldname, newname)
-		if err != nil {
-			return trace.Errorf("error trying to read existing link %s: %w", newname, err)
-		}
-		if !ok {
-			return trace.Errorf("refusing to replace %s", newname)
-		}
-		linked++
-	}
-	// bail if no binaries can be linked
-	if linked == 0 {
-		return trace.Errorf("no binaries available to link")
-	}
-
-	// validate that we can link the systemd service file before attempting linking
-
-	oldname := filepath.Join(li.SystemServiceDir, servicePath)
-	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
-	ok, err := hasNoOtherLink(oldname, newname)
-	if err != nil {
-		return trace.Errorf("error trying to read existing link %s: %w", newname, err)
-	}
-	if !ok {
-		return trace.Errorf("refusing to replace %s", newname)
-	}
-
-	// create binary links
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		oldname := filepath.Join(li.SystemBinDir, entry.Name())
-		newname := filepath.Join(li.LinkBinDir, entry.Name())
-		err = ensureLink(oldname, newname)
-		if err != nil {
-			return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
-		}
-
-	}
-
-	// create systemd service link
-
-	oldname = filepath.Join(li.SystemServiceDir, servicePath)
-	newname = filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
-	err = ensureLink(oldname, newname)
-	if err != nil {
-		return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(oldname), err)
-	}
-	return nil
-}
-
-// tryLink attempts to create a symlink, atomically replacing an existing link if already present.
-// If a non-symlink file or directory exists in newname already, tryLink errors.
-func tryLink(oldname, newname string) (orig string, err error) {
+// forceLink attempts to create a symlink, atomically replacing an existing link if already present.
+// If a non-symlink file or directory exists in newname already, forceLink errors.
+func forceLink(oldname, newname string) (orig string, err error) {
 	orig, err = os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
@@ -589,37 +532,84 @@ func tryLink(oldname, newname string) (orig string, err error) {
 	return orig, nil
 }
 
-// tryLink attempts to create a symlink, atomically replacing an existing link if already present.
-// If a non-symlink file or directory exists in newname already, tryLink errors.
-func ensureLink(oldname, newname string) error {
-	orig, err := os.Readlink(newname)
-	if errors.Is(err, os.ErrInvalid) ||
-		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
-		// important: do not attempt to replace a non-linked install of Teleport
-		return trace.Errorf("refusing to replace file at %s", newname)
-	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+// TryLinkSystem links the system installation, but only in the case that
+// no installation of Teleport is already linked or partially linked.
+// See Installer interface for additional specs.
+func (li *LocalInstaller) TryLinkSystem(ctx context.Context) error {
+	return trace.Wrap(li.tryLinks(ctx, li.SystemBinDir, li.SystemServiceDir))
+}
+
+// tryLinks create binary and service links for files in binDir and svcDir if links are not already present.
+// Existing links that point to files outside binDir or svcDir, as well as existing non-link files, will error.
+// tryLinks will not attempt to create any links if linking may result in an error.
+// However, concurrent changes to links may result in an error with partially-complete linking.
+func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) error {
+	// ensure target directories exist before trying to create links
+	err := os.MkdirAll(li.LinkBinDir, 0755)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if errors.Is(err, os.ErrNotExist) {
-		// guarantee failure if link already exists by using os.Symlink instead of renameio.Symlink.
-		err = os.Symlink(oldname, newname)
+	err = os.MkdirAll(li.LinkServiceDir, 0755)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if orig != oldname {
-		return trace.Wrap(os.ErrExist)
+
+	// validate that we can link all system binaries before attempting linking
+
+	var links []symlink
+	var linked int
+	entries, err := os.ReadDir(li.SystemBinDir)
+	if err != nil {
+		return trace.Errorf("failed to find Teleport binary directory: %w", err)
 	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		oldname := filepath.Join(binDir, entry.Name())
+		newname := filepath.Join(li.LinkBinDir, entry.Name())
+		ok, err := needsLink(oldname, newname)
+		if err != nil {
+			return trace.Errorf("error evaluating link for %s: %w", filepath.Base(oldname), err)
+		}
+		if ok {
+			links = append(links, symlink{oldname, newname})
+		}
+		linked++
+	}
+	// bail if no binaries can be linked
+	if linked == 0 {
+		return trace.Errorf("no binaries available to link")
+	}
+
+	// validate that we can link the systemd service file before attempting linking
+
+	oldname := filepath.Join(svcDir, filepath.Base(servicePath))
+	newname := filepath.Join(li.LinkServiceDir, filepath.Base(servicePath))
+	ok, err := needsLink(oldname, newname)
+	if err != nil {
+		return trace.Errorf("error evaluating link for %s: %w", filepath.Base(oldname), err)
+	}
+	if ok {
+		links = append(links, symlink{oldname, newname})
+	}
+
+	for _, link := range links {
+		if err := os.Symlink(link.old, link.new); err != nil {
+			return trace.Errorf("failed to create symlink for %s: %w", filepath.Base(link.old), err)
+		}
+	}
+
 	return nil
 }
 
-// tryLink attempts to create a symlink, atomically replacing an existing link if already present.
-// If a non-symlink file or directory exists in newname already, tryLink errors.
-func hasNoOtherLink(oldname, newname string) (ok bool, err error) {
+// needsLink
+func needsLink(oldname, newname string) (ok bool, err error) {
 	orig, err := os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
 		// important: do not attempt to replace a non-linked install of Teleport
-		return false, nil
+		return false, trace.Errorf("refusing to replace file at %s", newname)
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return false, trace.Wrap(err)
@@ -628,9 +618,9 @@ func hasNoOtherLink(oldname, newname string) (ok bool, err error) {
 		return true, nil
 	}
 	if orig != oldname {
-		return false, nil
+		return false, trace.Errorf("refusing to replace link at %s", newname)
 	}
-	return true, nil
+	return false, nil
 }
 
 // versionDir returns the storage directory for a Teleport version.
