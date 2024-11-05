@@ -599,8 +599,32 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	return nil
 }
 
-// UseSystem
+// LinkPackage creates links from the system (package) installation of Teleport, if they are needed.
+// LinkPackage returns nils and warns if an auto-updates version is already linked, but auto-updates is disabled.
+// LinkPackage returns an error only if an unknown version of Teleport is present (e.g., manually copied files).
 // This function is idempotent.
-func (u *Updater) UseSystem(ctx context.Context) error {
-	
+func (u *Updater) LinkPackage(ctx context.Context) error {
+	cfg, err := readConfig(u.ConfigPath)
+	if err != nil {
+		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+	}
+	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+		return trace.Wrap(err)
+	}
+	activeVersion := cfg.Status.ActiveVersion
+	if cfg.Spec.Enabled {
+		u.Log.InfoContext(ctx, "Automatic updates enabled. Skipping system package link.", activeVersionKey, activeVersion)
+		return nil
+	}
+	// If an active version is set, but auto-updates is disabled, try to link the system installation in case the config is stale.
+	// If any links are present, this will return ErrLinked and not create any system links.
+	// This state is important to log as a warning,
+	if err := u.Installer.TryLinkSystem(ctx); errors.Is(err, ErrLinked) {
+		u.Log.WarnContext(ctx, "Automatic updates disabled, but a non-package version of Teleport is linked.", activeVersionKey, activeVersion)
+		return nil
+	} else if err != nil {
+		return trace.Errorf("failed to link system package installation: %w", err)
+	}
+	u.Log.InfoContext(ctx, "Successfully linked system package installation.")
+	return nil
 }

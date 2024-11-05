@@ -120,6 +120,7 @@ func Run(args []string) error {
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
+	linkCmd := app.Command("link", "Link the system installation of Teleport from the Teleport package, if auto-updates is disabled.")
 
 	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
@@ -140,6 +141,8 @@ func Run(args []string) error {
 		err = cmdDisable(ctx, &ccfg)
 	case updateCmd.FullCommand():
 		err = cmdUpdate(ctx, &ccfg)
+	case linkCmd.FullCommand():
+		err = cmdLink(ctx, &ccfg)
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
 	default:
@@ -227,6 +230,11 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// cmdLink
+func cmdLink(ctx context.Context, ccfg *cliConfig) error {
+	return trace.NotImplemented("TODO")
 }
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.

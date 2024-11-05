@@ -618,7 +618,7 @@ func needsLink(oldname, newname string) (ok bool, err error) {
 		return true, nil
 	}
 	if orig != oldname {
-		return false, trace.Errorf("refusing to replace link at %s", newname)
+		return false, trace.Errorf("refusing to replace link at %s: %w", newname, ErrLinked)
 	}
 	return false, nil
 }
