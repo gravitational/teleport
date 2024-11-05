@@ -48,10 +48,6 @@ import (
 const (
 	// PIVCardTypeYubiKey is the PIV card type assigned to yubiKeys.
 	PIVCardTypeYubiKey = "yubikey"
-
-	// PIV connections are closed after a short delay so that the program
-	// has a chance to reclaim the connection before it is closed completely.
-	releaseConnectionDelay = 5 * time.Second
 )
 
 // Cache keys to prevent reconnecting to PIV module to discover a known key.
@@ -333,8 +329,8 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	defer y.signMux.Unlock()
 	ctx, cancel := context.WithCancelCause(ctx)
 
-	// Lock the connection for the entire duration of the sign process.
-	// Without this, the connection will be released after releaseConnectionDelay,
+	// Lock the connection for the entire duration of the sign
+	// process. Without this, the connection will be released,
 	// leading to a failure when providing PIN or touch input:
 	// "verify pin: transmitting request: the supplied handle was invalid".
 	release, err := y.connect()
@@ -706,18 +702,14 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 	defer c.mu.Unlock()
 
 	release := func() {
-		go func() {
-			time.Sleep(releaseConnectionDelay)
+		c.mu.Lock()
+		defer c.mu.Unlock()
 
-			c.mu.Lock()
-			defer c.mu.Unlock()
-
-			c.activeConnections--
-			if c.activeConnections == 0 {
-				c.conn.Close()
-				c.conn = nil
-			}
-		}()
+		c.activeConnections--
+		if c.activeConnections == 0 {
+			c.conn.Close()
+			c.conn = nil
+		}
 	}
 
 	if c.conn != nil {
@@ -740,8 +732,8 @@ func (c *sharedPIVConnection) connect() (func(), error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Backoff and retry for a time slightly greater than releaseConnectionDelay.
-	retryCtx, cancel := context.WithTimeout(context.Background(), releaseConnectionDelay+100*time.Millisecond)
+	// Backoff and retry for up to 1 second.
+	retryCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	err = linearRetry.For(retryCtx, func() error {
