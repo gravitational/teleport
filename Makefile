@@ -1419,7 +1419,7 @@ derive:
 .PHONY: derive-up-to-date
 derive-up-to-date: must-start-clean/host derive
 	@if ! $(GIT) diff --quiet; then \
-		echo 'Please run make derive.'; \
+		./build.assets/please-run.sh "derived functions" "make derive"; \
 		exit 1; \
 	fi
 
@@ -1454,14 +1454,15 @@ endif
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
 	@if ! $(GIT) diff --quiet; then \
-		echo 'Please run make grpc.'; \
+		./build.assets/please-run.sh "protos gRPC" "make grpc"; \
 		exit 1; \
 	fi
 
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! $(GIT) diff --quiet; then \
-		echo 'This must be run from a repo with no unstaged commits.'; \
+		@echo 'This must be run from a repo with no unstaged commits.'; \
+		git diff; \
 		exit 1; \
 	fi
 
@@ -1470,7 +1471,7 @@ must-start-clean/host:
 crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
 	@if ! $(GIT) diff --quiet; then \
-		echo 'Please run make -C integrations/operator manifests.'; \
+		./build.assets/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
 		exit 1; \
 	fi
 

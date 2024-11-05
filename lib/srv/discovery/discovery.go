@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -56,6 +57,7 @@ import (
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/spreadwork"
 )
 
@@ -116,7 +118,10 @@ type Config struct {
 	// AccessPoint is a discovery access point
 	AccessPoint authclient.DiscoveryAccessPoint
 	// Log is the logger.
-	Log logrus.FieldLogger
+	Log *slog.Logger
+	// LegacyLogger is the old logger
+	// Deprecated: use Log instead.
+	LegacyLogger logrus.FieldLogger
 	// ServerID identifies the Teleport instance where this service runs.
 	ServerID string
 	// onDatabaseReconcile is called after each database resource reconciliation.
@@ -219,7 +224,10 @@ kubernetes matchers are present.`)
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = slog.Default()
+	}
+	if c.LegacyLogger == nil {
+		c.LegacyLogger = logrus.New()
 	}
 	if c.protocolChecker == nil {
 		c.protocolChecker = fetchers.NewProtoChecker(false)
@@ -240,11 +248,13 @@ kubernetes matchers are present.`)
 		return trace.BadParameter("cluster features are required")
 	}
 
-	c.Log = c.Log.WithField(teleport.ComponentKey, teleport.ComponentDiscovery)
+	c.Log = c.Log.With(teleport.ComponentKey, teleport.ComponentDiscovery)
+	c.LegacyLogger = c.LegacyLogger.WithField(teleport.ComponentKey, teleport.ComponentDiscovery)
 
 	if c.DiscoveryGroup == "" {
-		c.Log.Warn("discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
-			"Please set discovery_service.discovery_group according to the documentation: https://goteleport.com/docs/reference/config/#discovery-service")
+		const warningMessage = "discovery_service.discovery_group is not set. This field is required for the discovery service to work properly.\n" +
+			"Please set discovery_service.discovery_group according to the documentation: https://goteleport.com/docs/reference/config/#discovery-service"
+		c.Log.WarnContext(context.Background(), warningMessage)
 	}
 
 	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
@@ -484,7 +494,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add non-integration kube fetchers.
-	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, otherMatchers)
+	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, otherMatchers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -512,7 +522,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 			KubernetesClient: kubeClient,
 			FilterLabels:     matcher.Labels,
 			Namespaces:       matcher.Namespaces,
-			Log:              s.Log,
+			Log:              s.LegacyLogger,
 			ClusterName:      s.DiscoveryGroup,
 			ProtocolChecker:  s.Config.protocolChecker,
 		})
@@ -610,7 +620,7 @@ func (s *Server) kubeFetchersFromMatchers(matchers Matchers) ([]common.Fetcher, 
 		return matcherType == types.AWSMatcherEKS
 	})
 	if len(awsKubeMatchers) > 0 {
-		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.CloudClients, awsKubeMatchers)
+		eksFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.LegacyLogger, s.CloudClients, awsKubeMatchers)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -668,7 +678,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 						Regions:        matcher.Regions,
 						FilterLabels:   matcher.ResourceTags,
 						ResourceGroups: matcher.ResourceGroups,
-						Log:            s.Log,
+						Log:            s.LegacyLogger,
 					})
 					if err != nil {
 						return trace.Wrap(err)
@@ -749,7 +759,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 								Location:      location,
 								FilterLabels:  matcher.GetLabels(),
 								ProjectID:     projectID,
-								Log:           s.Log,
+								Log:           s.LegacyLogger,
 							})
 						if err != nil {
 							return trace.Wrap(err)
@@ -854,7 +864,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	}
 
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
+		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
 	}
 
 	return nil
@@ -873,13 +883,13 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	for _, ec2Instance := range instances.Instances {
 		eiceNode, err := common.NewAWSNodeFromEC2v1Instance(ec2Instance.OriginalInstance, awsInfo)
 		if err != nil {
-			s.Log.WithField("instance_id", ec2Instance.InstanceID).Warnf("Error converting to Teleport EICE Node: %v", err)
+			s.Log.WarnContext(s.ctx, "Error converting to Teleport EICE Node", "error", err, "instance_id", ec2Instance.InstanceID)
 			continue
 		}
 
 		existingNode, err := s.nodeWatcher.GetNode(s.ctx, eiceNode.GetName())
 		if err != nil && !trace.IsNotFound(err) {
-			s.Log.Warnf("Error finding the existing node with name %q: %v", eiceNode.GetName(), err)
+			s.Log.WarnContext(s.ctx, "Error finding the existing node", "node_name", eiceNode.GetName(), "error", err)
 			continue
 		}
 
@@ -911,11 +921,11 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	err := spreadwork.ApplyOverTime(s.ctx, applyOverTimeConfig, nodesToUpsert, func(eiceNode types.Server) {
 		if _, err := s.AccessPoint.UpsertNode(s.ctx, eiceNode); err != nil {
 			instanceID := eiceNode.GetAWSInstanceID()
-			s.Log.WithField("instance_id", instanceID).Warnf("Error upserting EC2 instance: %v", err)
+			s.Log.WarnContext(s.ctx, "Error upserting EC2 instance", "instance_id", instanceID, "error", err)
 		}
 	})
 	if err != nil {
-		s.Log.Warnf("Failed to upsert EC2 nodes: %v", err)
+		s.Log.WarnContext(s.ctx, "Failed to upsert EC2 nodes", "error", err)
 	}
 }
 
@@ -929,8 +939,7 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		return trace.Wrap(err)
 	}
 
-	s.Log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
-		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
+	s.Log.DebugContext(s.ctx, "Running Teleport installation on instances", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
 
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
@@ -949,11 +958,17 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 func (s *Server) logHandleInstancesErr(err error) {
 	var aErr awserr.Error
 	if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeInvalidInstanceId {
-		s.Log.WithError(err).Error("SSM SendCommand failed with ErrCodeInvalidInstanceId. Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details.")
+		const errorMessage = "SSM SendCommand failed with ErrCodeInvalidInstanceId. " +
+			"Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. " +
+			"Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. " +
+			"See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details."
+		s.Log.ErrorContext(s.ctx,
+			errorMessage,
+			"error", err)
 	} else if trace.IsNotFound(err) {
-		s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
+		s.Log.DebugContext(s.ctx, "All discovered EC2 instances are already part of the cluster")
 	} else {
-		s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
+		s.Log.ErrorContext(s.ctx, "Failed to enroll discovered EC2 instances", "error", err)
 	}
 }
 
@@ -966,13 +981,13 @@ func (s *Server) watchCARotation(ctx context.Context) {
 			nodes, err := s.findUnrotatedEC2Nodes(ctx)
 			if err != nil {
 				if trace.IsNotFound(err) {
-					s.Log.Debug("No OpenSSH nodes require CA rotation")
+					s.Log.DebugContext(ctx, "No OpenSSH nodes require CA rotation")
 					continue
 				}
-				s.Log.Errorf("Error finding OpenSSH nodes requiring CA rotation: %s", err)
+				s.Log.ErrorContext(ctx, "Error finding OpenSSH nodes requiring CA rotation", "error", err)
 				continue
 			}
-			s.Log.Debugf("Found %d nodes requiring rotation", len(nodes))
+			s.Log.DebugContext(ctx, "Found nodes requiring rotation", "nodes_count", len(nodes))
 			s.caRotationCh <- nodes
 		case <-s.ctx.Done():
 			return
@@ -1029,7 +1044,7 @@ func (s *Server) findUnrotatedEC2Nodes(ctx context.Context) ([]types.Server, err
 
 func (s *Server) handleEC2Discovery() {
 	if err := s.nodeWatcher.WaitInitialization(); err != nil {
-		s.Log.WithError(err).Error("Failed to initialize nodeWatcher.")
+		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
 	}
 
@@ -1040,8 +1055,7 @@ func (s *Server) handleEC2Discovery() {
 		select {
 		case instances := <-s.ec2Watcher.InstancesC:
 			ec2Instances := instances.EC2
-			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
-				ec2Instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
+			s.Log.DebugContext(s.ctx, "EC2 instances discovered, starting installation", "account_id", ec2Instances.AccountID, "instances", genEC2InstancesLogStr(ec2Instances.Instances))
 
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
 				s.logHandleInstancesErr(err)
@@ -1091,9 +1105,7 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		return trace.Wrap(errNoInstances)
 	}
 
-	s.Log.Debugf("Running Teleport installation on these virtual machines: SubscriptionID: %s, VMs: %s",
-		instances.SubscriptionID, genAzureInstancesLogStr(instances.Instances),
-	)
+	s.Log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "subscription_id", instances.SubscriptionID, "vms", genAzureInstancesLogStr(instances.Instances))
 	req := server.AzureRunRequest{
 		Client:          client,
 		Instances:       instances.Instances,
@@ -1108,14 +1120,14 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		return trace.Wrap(err)
 	}
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
+		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
 
 func (s *Server) handleAzureDiscovery() {
 	if err := s.nodeWatcher.WaitInitialization(); err != nil {
-		s.Log.WithError(err).Error("Failed to initialize nodeWatcher.")
+		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
 	}
 
@@ -1124,14 +1136,12 @@ func (s *Server) handleAzureDiscovery() {
 		select {
 		case instances := <-s.azureWatcher.InstancesC:
 			azureInstances := instances.Azure
-			s.Log.Debugf("Azure instances discovered (SubscriptionID: %s, Instances: %v), starting installation",
-				azureInstances.SubscriptionID, genAzureInstancesLogStr(azureInstances.Instances),
-			)
+			s.Log.DebugContext(s.ctx, "Azure instances discovered, starting installation", "subscription_id", azureInstances.SubscriptionID, "instances", genAzureInstancesLogStr(azureInstances.Instances))
 			if err := s.handleAzureInstances(azureInstances); err != nil {
 				if errors.Is(err, errNoInstances) {
-					s.Log.Debug("All discovered Azure VMs are already part of the cluster.")
+					s.Log.DebugContext(s.ctx, "All discovered Azure VMs are already part of the cluster")
 				} else {
-					s.Log.WithError(err).Error("Failed to enroll discovered Azure VMs.")
+					s.Log.ErrorContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err)
 				}
 			}
 		case <-s.ctx.Done():
@@ -1177,9 +1187,7 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(errNoInstances)
 	}
 
-	s.Log.Debugf("Running Teleport installation on these virtual machines: ProjectID: %s, VMs: %s",
-		instances.ProjectID, genGCPInstancesLogStr(instances.Instances),
-	)
+	s.Log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "project_id", instances.ProjectID, "vms", genGCPInstancesLogStr(instances.Instances))
 	req := server.GCPRunRequest{
 		Client:          client,
 		Instances:       instances.Instances,
@@ -1193,14 +1201,14 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(err)
 	}
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
+		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
 
 func (s *Server) handleGCPDiscovery() {
 	if err := s.nodeWatcher.WaitInitialization(); err != nil {
-		s.Log.WithError(err).Error("Failed to initialize nodeWatcher.")
+		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
 	}
 	go s.gcpWatcher.Run()
@@ -1208,14 +1216,12 @@ func (s *Server) handleGCPDiscovery() {
 		select {
 		case instances := <-s.gcpWatcher.InstancesC:
 			gcpInstances := instances.GCP
-			s.Log.Debugf("GCP instances discovered (ProjectID: %s, Instances %v), starting installation",
-				gcpInstances.ProjectID, genGCPInstancesLogStr(gcpInstances.Instances),
-			)
+			s.Log.DebugContext(s.ctx, "GCP instances discovered, starting installation", "project_id", gcpInstances.ProjectID, "instances", genGCPInstancesLogStr(gcpInstances.Instances))
 			if err := s.handleGCPInstances(gcpInstances); err != nil {
 				if errors.Is(err, errNoInstances) {
-					s.Log.Debug("All discovered GCP VMs are already part of the cluster.")
+					s.Log.DebugContext(s.ctx, "All discovered GCP VMs are already part of the cluster")
 				} else {
-					s.Log.WithError(err).Error("Failed to enroll discovered GCP VMs.")
+					s.Log.ErrorContext(s.ctx, "Failed to enroll discovered GCP VMs", "error", err)
 				}
 			}
 		case <-s.ctx.Done():
@@ -1278,7 +1284,7 @@ func (s *Server) submitFetchEvent(cloudProvider, resourceType string) {
 		},
 	})
 	if err != nil {
-		s.Log.WithError(err).Debug("Error emitting discovery fetch event.")
+		s.Log.DebugContext(s.ctx, "Error emitting discovery fetch event", "error", err)
 	}
 }
 
@@ -1371,7 +1377,7 @@ func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 	for {
 		dcs, respNextKey, err := s.AccessPoint.ListDiscoveryConfigs(s.ctx, 0, nextKey)
 		if err != nil {
-			s.Log.WithError(err).Warnf("failed to list discovery configs")
+			s.Log.WarnContext(s.ctx, "Failed to list discovery configs", "error", err)
 			return trace.Wrap(err)
 		}
 
@@ -1380,7 +1386,7 @@ func (s *Server) loadExistingDynamicDiscoveryConfigs() error {
 				continue
 			}
 			if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
-				s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
+				s.Log.WarnContext(s.ctx, "Failed to update dynamic matchers for discovery config", "discovery_config", dc.GetName(), "error", err)
 				continue
 			}
 			s.dynamicDiscoveryConfig[dc.GetName()] = dc
@@ -1406,7 +1412,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 			case types.OpPut:
 				dc, ok := event.Resource.(*discoveryconfig.DiscoveryConfig)
 				if !ok {
-					s.Log.Warnf("dynamic matcher watcher: unexpected resource type %T", event.Resource)
+					s.Log.WarnContext(s.ctx, "Dynamic matcher watcher: unexpected resource type", "expected", logutils.TypeAttr(dc), "got", logutils.TypeAttr(event.Resource))
 					return
 				}
 
@@ -1434,7 +1440,7 @@ func (s *Server) startDynamicWatcherUpdater() {
 				}
 
 				if err := s.upsertDynamicMatchers(s.ctx, dc); err != nil {
-					s.Log.WithError(err).Warnf("failed to update dynamic matchers for discovery config %q", dc.GetName())
+					s.Log.WarnContext(s.ctx, "Failed to update dynamic matchers for discovery config", "discovery_config", dc.GetName(), "error", err)
 					continue
 				}
 				s.dynamicDiscoveryConfig[dc.GetName()] = dc
@@ -1451,10 +1457,10 @@ func (s *Server) startDynamicWatcherUpdater() {
 				delete(s.dynamicDiscoveryConfig, name)
 				s.notifyDiscoveryConfigChanged()
 			default:
-				s.Log.Warnf("Skipping unknown event type %s", event.Type)
+				s.Log.WarnContext(s.ctx, "Skipping unknown event type %s", "got", event.Type)
 			}
 		case <-s.dynamicMatcherWatcher.Done():
-			s.Log.Warnf("dynamic matcher watcher error: %v", s.dynamicMatcherWatcher.Error())
+			s.Log.WarnContext(s.ctx, "Dynamic matcher watcher error", "error", s.dynamicMatcherWatcher.Error())
 			return
 		}
 	}
@@ -1586,7 +1592,7 @@ func (s *Server) discardUnsupportedMatchers(m *Matchers) {
 	validAWSMatchers := make([]types.AWSMatcher, 0, len(m.AWS))
 	for i, m := range m.AWS {
 		if m.Integration == "" {
-			s.Log.Warnf("discarding AWS matcher [%d] - missing integration", i)
+			s.Log.WarnContext(s.ctx, "Discarding AWS matcher - missing integration", "matcher_pos", i)
 			continue
 		}
 		validAWSMatchers = append(validAWSMatchers, m)
@@ -1594,17 +1600,17 @@ func (s *Server) discardUnsupportedMatchers(m *Matchers) {
 	m.AWS = validAWSMatchers
 
 	if len(m.GCP) > 0 {
-		s.Log.Warnf("discarding GCP matchers - missing integration")
+		s.Log.WarnContext(s.ctx, "Discarding GCP matchers - missing integration")
 		m.GCP = []types.GCPMatcher{}
 	}
 
 	if len(m.Azure) > 0 {
-		s.Log.Warnf("discarding Azure matchers - missing integration")
+		s.Log.WarnContext(s.ctx, "Discarding Azure matchers - missing integration")
 		m.Azure = []types.AzureMatcher{}
 	}
 
 	if len(m.Kubernetes) > 0 {
-		s.Log.Warnf("discarding Kubernetes matchers - missing integration")
+		s.Log.WarnContext(s.ctx, "Discarding Kubernetes matchers - missing integration")
 		m.Kubernetes = []types.KubernetesMatcher{}
 	}
 }
@@ -1623,7 +1629,7 @@ func (s *Server) Stop() {
 	}
 	if s.dynamicMatcherWatcher != nil {
 		if err := s.dynamicMatcherWatcher.Close(); err != nil {
-			s.Log.Warnf("dynamic matcher watcher closing error: ", trace.Wrap(err))
+			s.Log.WarnContext(s.ctx, "Dynamic matcher watcher closing error", "error", err)
 		}
 	}
 }
@@ -1655,7 +1661,7 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:    teleport.ComponentDiscovery,
-			Log:          s.Log,
+			Log:          s.LegacyLogger,
 			Client:       s.AccessPoint,
 			MaxStaleness: time.Minute,
 		},
