@@ -45,11 +45,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();
   ctx.clustersService.useState();
 
-  const {
-    localClusterUri: clusterUri,
-    rootClusterUri,
-    documentsService,
-  } = useWorkspaceContext();
+  const { rootClusterUri, documentsService } = useWorkspaceContext();
 
   const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
   const loggedInUser = useWorkspaceLoggedInUser();
@@ -74,12 +70,14 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
 
   const getRequests = async () => {
     try {
-      const response = await retryWithRelogin(ctx, clusterUri, async () => {
-        const { response } = await ctx.tshd.getAccessRequests({ clusterUri });
+      const response = await retryWithRelogin(ctx, rootClusterUri, async () => {
+        const { response } = await ctx.tshd.getAccessRequests({
+          clusterUri: rootClusterUri,
+        });
         return response.requests;
       });
       setAttempt({ status: 'success' });
-      // transform tshd access request to the webui access request and add flags
+      // Transform tshd access request to the webui access request and add flags.
       const requests = response.map(r => makeUiAccessRequest(r));
       setAccessRequests(requests);
     } catch (err) {
@@ -91,11 +89,11 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   };
 
   useEffect(() => {
-    // only fetch when visitng RequestList
+    // Only fetch when visiting RequestList.
     if (doc.state === 'browsing') {
       getRequests();
     }
-  }, [doc.state, clusterUri]);
+  }, [doc.state]);
 
   useEffect(() => {
     // if assumed object changes, we update which roles have been assumed in the table
