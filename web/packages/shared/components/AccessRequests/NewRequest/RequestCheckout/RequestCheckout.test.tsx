@@ -154,7 +154,7 @@ const props: RequestCheckoutWithSliderProps = {
   selectedReviewers: [],
   setSelectedReviewers: () => null,
   createRequest: () => null,
-  data: [],
+  pendingAccessRequests: [],
   clearAttempt: () => null,
   onClose: () => null,
   toggleResource: () => null,
