@@ -3645,7 +3645,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
