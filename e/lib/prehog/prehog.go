@@ -77,8 +77,7 @@ func InitStreamingUsageReporting(
 	}
 
 	// Replace the discard usage reporter with the real implementation.
-	// TODO(tross): Use the slog.Logger once NewStreamingUsageReporter is converted to slog.
-	reporter, err := usagereporter.NewStreamingUsageReporter(nil, clusterName, anonymizer, submitter)
+	reporter, err := usagereporter.NewStreamingUsageReporter(log, clusterName, anonymizer, submitter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
