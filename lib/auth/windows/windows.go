@@ -78,9 +78,10 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Also important: rdpclient expects the private key to be in PKCS1 format.
 	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey)
 
-	// sanitize username to avoid domain spoofing
-	username, _, _ := strings.Cut(req.Username, "@")
-	upn := fmt.Sprintf("%v@%v", username, req.Domain)
+	upn := req.Username
+	if !strings.Contains(upn, "@") {
+		upn = fmt.Sprintf("%v@%v", upn, req.Domain)
+	}
 
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
