@@ -100,18 +100,13 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 			keyStore, err := NewManager(ctx, &cfg, opts)
 			require.NoError(t, err)
 
-			var (
-				tags      []kmstypes.Tag
-				otherTags []kmstypes.Tag
-			)
+			var otherTags []kmstypes.Tag
 			for k, v := range keyStore.backendForNewKeys.(*awsKMSKeystore).tags {
-				tag := kmstypes.Tag{
-					TagKey:   aws.String(k),
-					TagValue: aws.String(v),
-				}
-				tags = append(tags, tag)
-				if aws.ToString(tag.TagKey) != clusterTagKey {
-					otherTags = append(otherTags, tag)
+				if k != clusterTagKey {
+					otherTags = append(otherTags, kmstypes.Tag{
+						TagKey:   aws.String(k),
+						TagValue: aws.String(v),
+					})
 				}
 			}
 
