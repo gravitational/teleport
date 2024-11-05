@@ -207,7 +207,7 @@ YAML configuration file. It supports all the same subcommands and flags as
 [`tbot start`](#tbot-start), but prints an equivalent configuration instead of
 starting a bot.
 
-For example, consider this simple `tbot start identity` CLI call:
+For example, consider this `tbot start identity` CLI call:
 ```code
 $ tbot start identity \
    --destination=./example \
@@ -275,10 +275,10 @@ specific section for details when using a YAML config file or legacy output.
 | `-d/--debug`         | Enable verbose logging to stderr. |
 | `--[no-]fips`        | Whether to run tbot in FIPS compliance mode. This requires the FIPS `tbot` binary. |
 | `--log-format`       | Controls the format of output logs. Can be `json` or `text`. Defaults to `text`. |
-| `-a/--auth-server`   | Address of the Teleport Auth Server. Prefer using `--proxy-server` where possible. |
+| `-a/--auth-server`   | Address of the Teleport Auth Service. Prefer using `--proxy-server` where possible. |
 | `--proxy-server`     | Address of the Teleport Proxy Server. |
 | `--token`            | A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect. |
-| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect. |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Service; used on first connect. |
 | `--certificate-ttl`  | TTL of short-lived machine certificates. |
 | `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL. |
 | `--join-method`      | Method to use to join the cluster. One of: `azure`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud` |
