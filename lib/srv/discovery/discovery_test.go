@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/server"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -679,7 +680,9 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := logrus.New()
+			legacyLogger := logrus.New()
+			logger := libutils.NewSlogLoggerForTests()
+
 			reporter := &mockUsageReporter{}
 			installer := &mockSSMInstaller{
 				installedInstances: make(map[string]struct{}),
@@ -700,6 +703,7 @@ func TestDiscoveryServer(t *testing.T) {
 				Matchers:         tc.staticMatchers,
 				Emitter:          tc.emitter,
 				Log:              logger,
+				LegacyLogger:     legacyLogger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
 				clock:            fakeClock,
 			})
@@ -759,7 +763,8 @@ func TestDiscoveryServer(t *testing.T) {
 func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := logrus.New()
+	legacyLogger := logrus.New()
+	logger := libutils.NewSlogLoggerForTests()
 
 	defaultDiscoveryGroup := "dg01"
 	awsMatcher := types.AWSMatcher{
@@ -839,6 +844,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		Matchers:         staticMatcher,
 		Emitter:          emitter,
 		Log:              logger,
+		LegacyLogger:     legacyLogger,
 		DiscoveryGroup:   defaultDiscoveryGroup,
 	})
 	require.NoError(t, err)
@@ -1337,9 +1343,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				require.NoError(t, w.Close())
 			})
 
-			logger := logrus.New()
-			logger.SetOutput(w)
-			logger.SetLevel(logrus.DebugLevel)
+			legacyLogger := logrus.New()
+			logger := libutils.NewSlogLoggerForTests()
+
+			legacyLogger.SetOutput(w)
+			legacyLogger.SetLevel(logrus.DebugLevel)
 			clustersNotUpdated := make(chan string, 10)
 			go func() {
 				// reconcileRegexp is the regex extractor of a log message emitted by reconciler when
@@ -1378,6 +1386,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					},
 					Emitter:        authClient,
 					Log:            logger,
+					LegacyLogger:   legacyLogger,
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
@@ -2652,7 +2661,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := logrus.New()
+			legacyLogger := logrus.New()
+			logger := libutils.NewSlogLoggerForTests()
+
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
 			installer := &mockAzureInstaller{
@@ -2667,6 +2678,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
 				Log:              logger,
+				LegacyLogger:     legacyLogger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
@@ -2958,7 +2970,8 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			logger := logrus.New()
+			legacyLogger := logrus.New()
+			logger := libutils.NewSlogLoggerForTests()
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
 			installer := &mockGCPInstaller{
@@ -2973,6 +2986,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				Matchers:         tc.staticMatchers,
 				Emitter:          emitter,
 				Log:              logger,
+				LegacyLogger:     legacyLogger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
 			})
 
@@ -3019,7 +3033,8 @@ func TestServer_onCreate(t *testing.T) {
 		Config: &Config{
 			DiscoveryGroup: "test-cluster",
 			AccessPoint:    accessPoint,
-			Log:            logrus.New(),
+			Log:            libutils.NewSlogLoggerForTests(),
+			LegacyLogger:   logrus.New(),
 		},
 	}
 
