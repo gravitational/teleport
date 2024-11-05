@@ -1,6 +1,6 @@
 ---
 author: Lisa Kim (lisa@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 183 - Access Request Kubernetes Resource Allow List
@@ -16,7 +16,7 @@ Allow admins to specify what kind of Kubernetes resources a user can request.
 
 # Why
 
-Currently there are no access request settings that allows admins to enforce a certain Kubernetes resource request. Current settings allow users to request [all kinds of resources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1201). For kind `kube_cluster`, users can request to any of these [subresources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1233).
+Currently there are no access request settings that allows admins to enforce a certain Kubernetes resource request. Current settings allow users to request to a `kube_cluster` and to [any of its sub resources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1201).
 
 The most permissive request is if a user requested for a resource kind `kube_cluster`. This gives users access to all (limited by whatever role user assumes) the kube subresources inside it eg: `namespaces, pods, etc`.
 
@@ -41,7 +41,7 @@ If a request came in for a subresource `namespace` for a `kube_cluster` instead,
 
 The reviewer is more likely to understand what access is being granted.
 
-This RFD proposes a new role request option that will enforce users to request for Kubernetes subresources instead.
+This RFD proposes a new role request field that will enforce users to request for certain Kubernetes subresources instead.
 
 # User Scenarios
 
@@ -51,7 +51,7 @@ Listing use cases from most permissive to most restrictive:
 
 As a requester, this means I can request to Kubernetes clusters and its resources (how it behaves now).
 
-This will be the default behavior if no request modes are specified. This will also be the default behavior of existing roles unless modified.
+This will be the default behavior if no configurations are specified. This will also be the default behavior of existing roles unless modified.
 
 In case of a `search_as_role` role being defined in multiple roles assigned to a user, the role without a `request.kubernetes_resources` configured will take precedence. For example, if a user is assigned the following roles:
 
@@ -117,7 +117,7 @@ spec:
       - kube-access
 ```
 
-Requesting for namespace not in this list is denied.
+Requesting for namespaces not matching rule will be denied.
 
 ## As an admin, if a user requests for namespaces, I want to limit namespaces using role templates and traits
 
@@ -212,7 +212,7 @@ User requesting any other Kubernetes kind will get denied.
 
 ## New request field for role spec
 
-We will introduce a new RoleCondition field under the `allow.request` section named `kubernetes_resources` and copy the data structure used for [KubernetesResource](https://github.com/gravitational/teleport/blob/c49eb984648b506f3223804784a54ddec8d4d2d3/api/proto/teleport/legacy/types/types.proto#L3293). Not all fields in KubernetesResource object will initially be supported. The first iteration will only support the [`kind` field](https://github.com/gravitational/teleport/blob/c49eb984648b506f3223804784a54ddec8d4d2d3/api/proto/teleport/legacy/types/types.proto#L3297).
+We will introduce a new RoleCondition field under the `request` section named `kubernetes_resources` and copy the existing data structure used for [KubernetesResource](https://github.com/gravitational/teleport/blob/c49eb984648b506f3223804784a54ddec8d4d2d3/api/proto/teleport/legacy/types/types.proto#L3293). Not all fields in KubernetesResource object will initially be supported. The first iteration will only support the [`kind` field](https://github.com/gravitational/teleport/blob/c49eb984648b506f3223804784a54ddec8d4d2d3/api/proto/teleport/legacy/types/types.proto#L3297).
 
 The `kind` field will support `asterisks` and the names of all [Kubernetes subresource kinds](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1233).
 
@@ -262,20 +262,20 @@ spec:
   allow:
     request:
       search_as_roles:
-      - kube-access  # same role assigned in requester-role-1, so kind will get merged to ["namespace", "secret"]
+      - kube-access  # same role assigned in requester-role-1, so "kind" will get merged to ["namespace", "secret"]
       kubernetes_resources:
       - kind: "secret"
 ```
 
 The above roles will enforce, that when requesting search_as_role `kube-access`, the backend will only allow Kubernetes resource requests for `namespaces` and or `secrets`. If requesting search_as_role `some-other-kube-access`, the backend will only allow `namespace`.
 
-In case of a `wildcard` present in the `request.kubernetes_resources`, `wildcard` will take precedence over other values, and will allow requesting to any Kubernetes subresources (but not allow requesting to a Kubernetes cluster). For example, if we add `- kind: "*"` to `requester-role-1`, when requesting search_as_role `some-other-kube-access`, then any Kubernetes subresources are allowed.
+In case of a `wildcard` present in the `request.kubernetes_resources`, `wildcard` will take precedence over other configured values, and will allow requesting to any Kubernetes subresources (but not allow requesting to a Kubernetes cluster).
 
-In case of multiple roles assigned where one role has no request mode configured and the other role configures a request mode, then the default behavior will take precedence (no restrictions are placed).
+In case of multiple roles assigned where one role has NO `request.kubernetes_resources` configured (or is empty list) and the other role configures this field, then this will be translated as `allow any request` since no configuration takes precedence over configured field.
 
 ## Deny Rules
 
-Deny can be possible and will be respected. It works merges similarly as allow.
+Deny can be possible and will be respected. It works similarly as allow.
 
 One difference is, given these two roles assigned to a user:
 
@@ -307,18 +307,19 @@ spec:
       - kind: "namespace"
 ```
 
-The `deny` rule will reject any `namespace` request regardless of which search_as_roles is requested.
+The `deny` rule will reject ANY `namespace` request regardless of which search_as_roles is requested because deny rules are globally matched.
 
 ## Request Validation
 
-During the request creation flow is where we will validate/enforce the `allow.request.kubernetes_resources` field.
+Validations for allow/deny `request.kubernetes_resources` fields will be placed:
 
-1. Determine if requested Kubernetes resource `kind` is in the `allow.request.kubernetes_resources` list
-1. Allow creation if request kind is in allow list, otherwise reject creation with error message: `Not allowed to request Kubernetes resource kind "<KIND>". Allowed kinds: "<allow.request.kubernetes_resources>"`
+1. When a resource Access Request is being validated
+1. When populating the request roles automatically for a new resource access request
+    - Roles with no matching allow/deny fields will be pruned
 
 ## New proto fields
 
-Data structure that will hold different modes:
+Data structure that will hold a list of Kubernetes "kinds":
 
 ```proto
 message RequestKubernetesResource {
@@ -342,19 +343,58 @@ message AccessRequestConditions {
 
 ## Web UI (and Teleterm)
 
-The web UI currently only supports requesting for kind `kube_cluster`. With this RFD implementation, we will add support for selecting `namespaces` as well. See [figma design](https://www.figma.com/design/CzxaBHF8hirrYv2bTVa4Rw/Identity?node-id=2220-50559&node-type=frame&t=sPqQkrRd0mRRXlzO-0) for namespace selecting.
+Our UI's currently only supports requesting for kind `kube_cluster`.
 
-These are the current states the web UI can take regarding Kubernetes resources depending on errors received when performing a dry run of creating an access request.
+With this RFD implementation, we will add support for reading/selecting only `namespaces` initially. See [figma design](https://www.figma.com/design/CzxaBHF8hirrYv2bTVa4Rw/Identity?node-id=2220-50559&node-type=frame&t=sPqQkrRd0mRRXlzO-0) for namespace selecting.
 
-- if no errors returned then both `kube_cluster` or `namespace` is allowed
-- if error mentions kinds supported by the web UI (namespace), web UI will require user to select namespace before allowing `submit`
-- if error mentions kinds not supported by the web UI, the UI will prevent user from clicking `submit` button, with a disabled message `Your role requires requesting Kubernetes resource <kind>'s, but the web UI does not support this request yet. Use "tsh request create --resource /<teleport-cluster-name>/<subresource kind>/<kube-cluster-name>/<subresource-name>" instead`
+These are the current states the UI's can take regarding Kubernetes resource requesting depending on errors received when performing a initial `dry run` of creating an access request:
+
+- if no errors returned then both `kube_cluster` and/or `namespace` is requestable
+- else, if error is returned, and it mentions Kubernetes kinds supported by the UI's (namespace), the error is ignored (implies that namespaces is required)
+- else, if error does NOT mention Kubernetes kinds supported by web UI (namespace), then an error will render with a hint
+
+This is an example of an error returned related to `kubernetes_resources`, where the configuration is not supported by the UI, thus we direct the user to use the `tsh` tool instead:
+
+```
+your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: access-kube-pumpkin: [pod], access: [pod]
+
+The listed allowed kinds are currently only supported through the `tsh CLI tool`. Use the `tsh request search` command that will help you construct the request.
+```
 
 ## CLI
 
 tsh already has support for requesting [all these resources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1201).
 
 There is nothing to add to the CLI, we will just let it error out upon request creation validation.
+
+## Querying for Kubernetes Resources
+
+Requesters can query for resources that they can request to, for `tsh` this is the [tsh request search](https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources) command. The `request.kubernetes_resources` will be applied when querying for Kubernetes resources.
+
+For example, if the user has this role assigned:
+
+```yaml
+kind: role
+metadata:
+  name: requester-role-1
+spec:
+  allow:
+    request:
+      search_as_roles:
+      - kube-access
+  deny:
+    request:
+      kubernetes_resources:
+      - kind: "pod"
+```
+
+And the user tries to query for requestable pods:
+
+```bash
+$ tsh request search --kind=pod --kube-cluster=some-cluster-name
+```
+
+The query request will be rejected with `access denied`, since users will be denied requesting to pods.
 
 ## Future Field Support
 
