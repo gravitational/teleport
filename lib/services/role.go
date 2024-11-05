@@ -3317,6 +3317,16 @@ func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResou
 			}
 		}
 	}
+
+	// Look for a role with unconfigured "kubernetes_resources" field,
+	// which will override configured fields (allow all kinds)
+	for _, role := range set {
+		allow := role.GetAccessRequestConditions(types.Allow).KubernetesResources
+		if len(allow) == 0 {
+			return set.GetAllowedSearchAsRoles()
+		}
+	}
+
 	return set.GetAllowedSearchAsRoles(WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
 }
 

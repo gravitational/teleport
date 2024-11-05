@@ -4834,6 +4834,7 @@ func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *test
 	}
 
 	roleWithNamespace := newRole([]string{"sar1"}, nil, []types.RequestKubernetesResource{{Kind: types.KindNamespace}}, []types.RequestKubernetesResource{})
+	roleWithAnotherNamespace := newRole([]string{"sar20"}, nil, []types.RequestKubernetesResource{{Kind: types.KindNamespace}}, []types.RequestKubernetesResource{})
 	roleWithSecret := newRole([]string{"sar2"}, nil, []types.RequestKubernetesResource{{Kind: types.KindKubeSecret}}, []types.RequestKubernetesResource{})
 	roleWithNoConfigure := newRole([]string{"sar3"}, nil, nil, nil)
 	roleWithDenyRole := newRole([]string{"sar4", "sar5", "sar6", "sar7"}, []string{"sar4", "sar6"}, []types.RequestKubernetesResource{{Kind: types.KindNamespace}, {Kind: types.KindKubePod}}, []types.RequestKubernetesResource{{Kind: types.KindKubePod}})
@@ -4847,38 +4848,50 @@ func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *test
 		expectedAllowedRoles []string
 	}{
 		{
+			name:                 "no configured field, takes precedence over configured field (allow all kinds)",
+			roleSet:              []types.Role{roleWithNamespace, roleWithNoConfigure},
+			requestType:          types.KindKubeSecret,
+			expectedAllowedRoles: []string{"sar1", "sar3"},
+		},
+		{
+			name:                 "no configured field, respects denied field",
+			roleSet:              []types.Role{roleWithNoConfigure, roleWithDenyWildcard},
+			requestType:          types.KindKubeSecret,
+			expectedAllowedRoles: []string{},
+		},
+		{
 			name:                 "single match",
-			roleSet:              NewRoleSet(roleWithNamespace, roleWithSecret),
+			roleSet:              []types.Role{roleWithNamespace, roleWithSecret},
 			requestType:          types.KindKubeSecret,
 			expectedAllowedRoles: []string{"sar2"},
 		},
 		{
 			name:                 "multi match",
-			roleSet:              NewRoleSet(roleWithNamespace, roleWithNoConfigure),
+			roleSet:              []types.Role{roleWithNamespace, roleWithAnotherNamespace},
 			requestType:          types.KindNamespace,
-			expectedAllowedRoles: []string{"sar1", "sar3"},
+			expectedAllowedRoles: []string{"sar1", "sar20"},
 		},
 		{
 			name:                 "wildcard allow",
-			roleSet:              NewRoleSet(roleWithAllowWildcard, roleWithNamespace),
+			roleSet:              []types.Role{roleWithAllowWildcard, roleWithNamespace},
 			requestType:          types.KindNamespace,
 			expectedAllowedRoles: []string{"sar1", "sar4", "sar5"},
 		},
 		{
 			name:                 "wildcard deny",
-			roleSet:              NewRoleSet(roleWithAllowWildcard, roleWithDenyWildcard),
+			roleSet:              []types.Role{roleWithAllowWildcard, roleWithDenyWildcard},
 			requestType:          types.KindNamespace,
 			expectedAllowedRoles: []string{},
 		},
 		{
 			name:                 "wildcard deny with unconfigured allow",
-			roleSet:              NewRoleSet(roleWithNoConfigure, roleWithDenyWildcard),
+			roleSet:              []types.Role{roleWithNoConfigure, roleWithDenyWildcard},
 			requestType:          types.KindNamespace,
 			expectedAllowedRoles: []string{},
 		},
 		{
 			name:                 "with deny role",
-			roleSet:              NewRoleSet(roleWithDenyRole, roleWithNamespace),
+			roleSet:              []types.Role{roleWithDenyRole, roleWithNamespace},
 			requestType:          types.KindNamespace,
 			expectedAllowedRoles: []string{"sar5", "sar7", "sar1"},
 		},
