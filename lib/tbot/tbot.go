@@ -764,22 +764,23 @@ type proxyPingResponse struct {
 // ProxyPing is incorrect.
 const shouldIgnoreProxyAddrEnv = "TBOT_IGNORE_PROXY_PING_ADDR"
 
-// tlsRoutingProxyPublicAddr returns the public address of the proxy which
-// should be used for TLS-routed connections. It takes into account the
-// TBOT_IGNORE_PROXY_PING_ADDR env var which can be used to force the use of
-// the proxy address explicitly provided by the user rather than that included
-// in the ProxyPing.
-func (p *proxyPingResponse) tlsRoutingProxyPublicAddr() (string, error) {
-	if os.Getenv(shouldIgnoreProxyAddrEnv) == "1" {
+func shouldIgnoreProxyPingAddr() bool {
+	return os.Getenv(shouldIgnoreProxyAddrEnv) == "1"
+}
+
+// proxyWebAddr returns the address to use to connect to the proxy web port.
+// In TLS routing mode, this address should be used for most/all connections.
+// This function takes into account the TBOT_IGNORE_PROXY_PING_ADDR environment
+// variable, which can be used to force the use of the proxy address explicitly
+// provided by the user rather than use the one fetched from the proxy ping.
+func (p *proxyPingResponse) proxyWebAddr() (string, error) {
+	if shouldIgnoreProxyPingAddr() {
 		if p.configuredProxyAddr == "" {
 			return "", trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR set but no explicit proxy address configured")
 		}
-		if !p.Proxy.TLSRoutingEnabled {
-			return "", trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR set but proxy does not have TLS routing enabled")
-		}
 		return p.configuredProxyAddr, nil
 	}
-	return p.Proxy.SSH.SSHPublicAddr, nil
+	return p.Proxy.SSH.PublicAddr, nil
 }
 
 type alpnProxyConnUpgradeRequiredCache struct {

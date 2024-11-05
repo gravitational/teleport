@@ -93,9 +93,12 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "pinging proxy")
 	}
-	proxyAddr, err := proxyPing.tlsRoutingProxyPublicAddr()
+	proxyAddr, err := proxyPing.proxyWebAddr()
 	if err != nil {
-		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining tls routing address")
+		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err, "determining proxy web address")
+	}
+	if !proxyPing.Proxy.TLSRoutingEnabled {
+		return alpnproxy.LocalProxyConfig{}, trace.BadParameter("proxy does not support TLS routing")
 	}
 
 	// Fetch information about the database and then issue the initial
