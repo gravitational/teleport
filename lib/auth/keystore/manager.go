@@ -107,6 +107,7 @@ type Manager struct {
 	usableSigningBackends []backend
 
 	currentSuiteGetter cryptosuites.GetSuiteFunc
+	logger             *slog.Logger
 }
 
 // backend is an interface that holds private keys and provides signing
@@ -227,6 +228,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		backendForNewKeys:     backendForNewKeys,
 		usableSigningBackends: usableSigningBackends,
 		currentSuiteGetter:    cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
+		logger:                opts.Logger,
 	}, nil
 }
 
@@ -529,7 +531,29 @@ func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 	key, err := m.newJWTKeyPair(ctx, alg)
 	if err != nil {
 		createErrorCounter.WithLabelValues(keyTypeJWT, m.backendForNewKeys.name(), alg.String()).Inc()
-		return nil, trace.Wrap(err)
+		if alg == cryptosuites.RSA2048 {
+			return nil, trace.Wrap(err)
+		}
+		// Try to fall back to RSA if using the legacy suite. The HSM/KMS
+		// credentials may not have permission to create ECDSA keys, especially
+		// if set up before ECDSA support was added.
+		origErr := trace.Wrap(err, "generating %s key in %s", alg.String(), m.backendForNewKeys.name())
+		m.logger.WarnContext(ctx, "Failed to generate key with default algorithm, falling back to RSA.", "error", origErr)
+		currentSuite, suiteErr := m.currentSuiteGetter(ctx)
+		if suiteErr != nil {
+			return nil, trace.NewAggregate(origErr, trace.Wrap(suiteErr, "finding current algorithm suite"))
+		}
+		switch currentSuite {
+		case types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:
+		default:
+			// Not using the legacy suite, ECDSA key gen really should have
+			// worked, return the original error.
+			return nil, origErr
+		}
+		var rsaErr error
+		if key, rsaErr = m.newJWTKeyPair(ctx, cryptosuites.RSA2048); rsaErr != nil {
+			return nil, trace.NewAggregate(origErr, trace.Wrap(rsaErr, "attempting fallback to RSA key"))
+		}
 	}
 	return key, nil
 }
