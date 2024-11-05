@@ -28,13 +28,11 @@ import {
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { AccessRequest as TshdAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 
 import * as types from 'teleterm/ui/services/workspacesService';
-import {
-  AssumedRequest,
-  LoggedInUser,
-  AccessRequest as TshdAccessRequest,
-} from 'teleterm/services/tshd/types';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
