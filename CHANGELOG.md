@@ -4,6 +4,7 @@
 
 ### ** Not yet released **
 
+* Refreshed the Web and Teleport Connect UI design [#46812](https://github.com/gravitational/teleport/pull/46812)
 
 ## 16.4.6 (10/22/2024)
 
