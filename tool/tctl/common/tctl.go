@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -378,16 +379,16 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	authConfig := new(authclient.Config)
 	// read the host UUID only in case the identity was not provided,
 	// because it will be used for reading local auth server identity
-	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
+	cfg.HostUUID, err = hostid.ReadFile(cfg.DataDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
 				"Please make sure that a Teleport Auth Service instance is running on this host prior to using tctl or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+				filepath.Join(cfg.DataDir, hostid.FileName))
 		} else if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
 				"Ensure that you are running as a user with appropriate permissions or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+				filepath.Join(cfg.DataDir, hostid.FileName))
 		}
 		return nil, trace.Wrap(err)
 	}

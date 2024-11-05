@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -757,7 +758,7 @@ func New(
 	options ...ServerOption,
 ) (*Server, error) {
 	// read the host UUID:
-	uuid, err := utils.ReadOrMakeHostUUID(dataDir)
+	uuid, err := hostid.ReadOrCreateFile(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
