@@ -33,8 +33,7 @@ import (
 
 // GraphClient represents generic MS API client
 type GraphClient struct {
-	token   azcore.AccessToken
-	baseURL string
+	token azcore.AccessToken
 }
 
 const (
@@ -55,22 +54,30 @@ type graphError struct {
 
 // genericGraphResponse represents the utility struct for parsing MS Graph API response
 type genericGraphResponse struct {
-	Context string          `json:"@odata.context"`
-	Count   int             `json:"@odata.count"`
-	Value   json.RawMessage `json:"value"`
+	Context  string          `json:"@odata.context"`
+	Count    int             `json:"@odata.count"`
+	NextLink string          `json:"@odata.nextLink"`
+	Value    json.RawMessage `json:"value"`
 }
 
 // User represents user resource
 type User struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"displayName"`
-	MemberOf []string `json:"memberOf"`
+	ID       string       `json:"id"`
+	Name     string       `json:"displayName"`
+	MemberOf []Membership `json:"memberOf"`
+}
+
+type Membership struct {
+	Type string `json:"@odata.type"`
+	ID   string `json:"id"`
 }
 
 // request represents generic request structure
 type request struct {
 	// Method HTTP method
 	Method string
+	// URL which overrides URL construction
+	URL *string
 	// Path to a resource
 	Path string
 	// Expand $expand value
@@ -87,11 +94,34 @@ type request struct {
 	SuccessCode int
 }
 
+// GetURL builds the request URL
+func (r *request) GetURL() (string, error) {
+	if r.URL != nil {
+		return *r.URL, nil
+	}
+	u, err := url.Parse(graphBaseURL)
+	if err != nil {
+		return "", err
+	}
+
+	data := url.Values{}
+	if len(r.Expand) > 0 {
+		data.Set("$expand", strings.Join(r.Expand, ","))
+	}
+	if r.Filter != "" {
+		data.Set("$filter", r.Filter)
+	}
+
+	u.Path = u.Path + "/" + r.Path
+	u.RawQuery = data.Encode()
+
+	return u.String(), nil
+}
+
 // NewGraphClient creates MS Graph API client
 func NewGraphClient(token azcore.AccessToken) *GraphClient {
 	return &GraphClient{
-		token:   token,
-		baseURL: graphBaseURL,
+		token: token,
 	}
 }
 
@@ -113,59 +143,45 @@ func (c *GraphClient) ListServicePrincipals(ctx context.Context) ([]User, error)
 }
 
 func (c *GraphClient) listIdentities(ctx context.Context, idType string, expand []string) ([]User, error) {
-	g := &genericGraphResponse{}
-	request := request{
-		Method:   http.MethodGet,
-		Path:     idType,
-		Expand:   expand,
-		Response: &g,
-		Err:      &graphError{},
-	}
-	err := c.request(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
 	var users []User
-	err = json.NewDecoder(bytes.NewReader(g.Value)).Decode(&users)
-	if err != nil {
-		return nil, err
+	var nextLink *string
+	for {
+		g := &genericGraphResponse{}
+		req := request{
+			Method:   http.MethodGet,
+			Path:     idType,
+			Expand:   expand,
+			Response: &g,
+			Err:      &graphError{},
+			URL:      nextLink,
+		}
+		err := c.request(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		var newUsers []User
+		err = json.NewDecoder(bytes.NewReader(g.Value)).Decode(&newUsers)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, newUsers...)
+		if g.NextLink == "" {
+			break
+		}
+		nextLink = &g.NextLink
 	}
 
 	return users, nil
 }
 
-// buildURL builds the request URL
-func (c *GraphClient) buildURL(request request) (string, error) {
-	u, err := url.Parse(c.baseURL)
-	if err != nil {
-		return "", err
-	}
-
-	data := url.Values{}
-	if len(request.Expand) > 0 {
-		data.Set("$expand", strings.Join(request.Expand, ","))
-	}
-	if request.Filter != "" {
-		data.Set("$filter", request.Filter)
-	}
-
-	u.Path = u.Path + "/" + request.Path
-	u.RawQuery = data.Encode()
-
-	return u.String(), nil
-}
-
 // request sends the request to the graph/bot service and returns response body as bytes slice
 func (c *GraphClient) request(ctx context.Context, req request) error {
-	client := http.Client{Timeout: httpTimeout}
-
-	url, err := c.buildURL(req)
+	reqUrl, err := req.GetURL()
 	if err != nil {
 		return err
 	}
 
-	r, err := http.NewRequestWithContext(ctx, req.Method, url, strings.NewReader(req.Body))
+	r, err := http.NewRequestWithContext(ctx, req.Method, reqUrl, strings.NewReader(req.Body))
 	if err != nil {
 		return err
 	}
@@ -173,6 +189,7 @@ func (c *GraphClient) request(ctx context.Context, req request) error {
 	r.Header.Set("Authorization", "Bearer "+c.token.Token)
 	r.Header.Set("Content-Type", "application/json")
 
+	client := http.Client{Timeout: httpTimeout}
 	resp, err := client.Do(r)
 	if err != nil {
 		return err

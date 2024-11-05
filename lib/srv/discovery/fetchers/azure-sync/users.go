@@ -9,6 +9,8 @@ import (
 	"slices"
 )
 
+const groupType = "#microsoft.graph.group"
+
 func (a *azureFetcher) fetchPrincipals(ctx context.Context) ([]*accessgraphv1alpha.AzurePrincipal, error) {
 	// Get the VM client
 	cred, err := a.CloudClients.GetAzureCredential()
@@ -40,12 +42,20 @@ func (a *azureFetcher) fetchPrincipals(ctx context.Context) ([]*accessgraphv1alp
 	// Return the users as protobuf messages
 	pbPrincipals := make([]*accessgraphv1alpha.AzurePrincipal, 0, len(principals))
 	for _, principal := range principals {
+		// Extract group membership
+		memberOf := make([]string, 0)
+		for _, member := range principal.MemberOf {
+			if member.Type == groupType {
+				memberOf = append(memberOf, member.ID)
+			}
+		}
+		// Create the protobuf principal and append it to the list
 		pbPrincipal := &accessgraphv1alpha.AzurePrincipal{
 			Id:             principal.ID,
 			SubscriptionId: a.GetSubscriptionID(),
 			LastSyncTime:   timestamppb.Now(),
 			DisplayName:    principal.Name,
-			MemberOf:       principal.MemberOf,
+			MemberOf:       memberOf,
 		}
 		pbPrincipals = append(pbPrincipals, pbPrincipal)
 	}
