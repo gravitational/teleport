@@ -277,46 +277,47 @@ export function RequestCheckout<T extends PendingListItem>({
             )}
           {hasUnsupporteKubeResourceKinds && (
             <Alert kind="danger">
-              <HoverTooltip
-                position="left"
-                tipContent={
-                  fetchResourceRequestRolesAttempt.statusText.length > 248
-                    ? fetchResourceRequestRolesAttempt.statusText
-                    : null
-                }
-              >
-                <ShortenedText mb={2}>
-                  {fetchResourceRequestRolesAttempt.statusText}
-                </ShortenedText>
-              </HoverTooltip>
-              <Text mb={2}>
-                The listed allowed kinds are currently only supported through
-                the{' '}
-                <ExternalLink
-                  target="_blank"
-                  href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
+              <div>
+                <HoverTooltip
+                  tipContent={
+                    fetchResourceRequestRolesAttempt.statusText.length > 248
+                      ? fetchResourceRequestRolesAttempt.statusText
+                      : null
+                  }
                 >
-                  tsh CLI tool
-                </ExternalLink>
-                . Use the{' '}
-                <ExternalLink
-                  target="_blank"
-                  href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources"
-                >
-                  tsh request search
-                </ExternalLink>{' '}
-                that will help you construct the request.
-              </Text>
-              <Box width="325px">
-                Example:
-                <TextSelectCopyMulti
-                  lines={[
-                    {
-                      text: `tsh request search --kind=ALLOWED_KIND --kube-cluster=CLUSTER_NAME --all-kube-namespaces`,
-                    },
-                  ]}
-                />
-              </Box>
+                  <ShortenedText mb={2}>
+                    {fetchResourceRequestRolesAttempt.statusText}
+                  </ShortenedText>
+                </HoverTooltip>
+                <Text mb={2}>
+                  The listed allowed kinds are currently only supported through
+                  the{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
+                  >
+                    tsh CLI tool
+                  </ExternalLink>
+                  . Use the{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources"
+                  >
+                    tsh request search
+                  </ExternalLink>{' '}
+                  command that will help you construct the request.
+                </Text>
+                <Box width="340px">
+                  Example:
+                  <TextSelectCopyMulti
+                    lines={[
+                      {
+                        text: `tsh request search --kind=ALLOWED_KIND --kube-cluster=CLUSTER_NAME --all-kube-namespaces`,
+                      },
+                    ]}
+                  />
+                </Box>
+              </div>
             </Alert>
           )}
           {fetchStatus === 'loading' && (
