@@ -421,14 +421,14 @@ func (s *Service[T]) MakeKey(name string) backend.Key {
 }
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
-func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
+func (s *Service[T]) RunWhileLocked(ctx context.Context, lockNameComponents []string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
 	return trace.Wrap(backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:       s.backend,
-				LockName:      lockName,
-				TTL:           ttl,
-				RetryInterval: s.runWhileLockedRetryInterval,
+				Backend:            s.backend,
+				LockNameComponents: lockNameComponents,
+				TTL:                ttl,
+				RetryInterval:      s.runWhileLockedRetryInterval,
 			},
 		}, func(ctx context.Context) error {
 			return fn(ctx, s.backend)

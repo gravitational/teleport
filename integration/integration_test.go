@@ -1662,7 +1662,8 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		// The above dialer does not work clt.AuthClient as it requires a
 		// custom transport from ProxyClient when TLS routing is disabled.
 		// Recreating the authClient without the above dialer.
-		authClientCfg := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		authClientCfg, err := clt.ProxyClient.ClientConfig(ctx, clusterName)
+		require.NoError(t, err)
 		authClientCfg.DialOpts = nil
 		authClient, err := authclient.NewClient(authClientCfg)
 		require.NoError(t, err)
@@ -5050,6 +5051,13 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			server.SetSubKind(types.SubKindOpenSSHNode)
 			_, err = clt.UpsertNode(context.Background(), server)
 			require.NoError(t, err)
+
+			// Wait for the node to be visible before continuing.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				found, err := clt.GetNodes(context.Background(), defaults.Namespace)
+				assert.NoError(t, err)
+				assert.Len(t, found, 2)
+			}, 10*time.Second, 100*time.Millisecond)
 
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 

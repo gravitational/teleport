@@ -182,6 +182,15 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	}
 	init.Token = enrollToken
 
+	return c.run(ctx, devicesClient, debug, init)
+}
+
+func (c *Ceremony) run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, debug bool, init *devicepb.EnrollDeviceInit) (*devicepb.Device, error) {
+	// Sanity check.
+	if init.GetToken() == "" {
+		return nil, trace.BadParameter("enroll init message lacks enrollment token")
+	}
+
 	// 1. Init.
 	stream, err := devicesClient.EnrollDevice(ctx)
 	if err != nil {
@@ -201,7 +210,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 	// Unimplemented errors are not expected to happen after this point.
 
 	// 2. Challenge.
-	switch osType {
+	switch c.GetDeviceOSType() {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = c.enrollDeviceMacOS(stream, resp)
 		// err handled below

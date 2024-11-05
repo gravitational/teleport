@@ -75,6 +75,7 @@ type consumer struct {
 	storeLocationBucket string
 	batchMaxItems       int
 	batchMaxInterval    time.Duration
+	consumerLockName    string
 
 	// perDateFileParquetWriter returns file writer per date.
 	// Added in config to allow testing.
@@ -153,6 +154,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		storeLocationBucket: cfg.locationS3Bucket,
 		batchMaxItems:       cfg.BatchMaxItems,
 		batchMaxInterval:    cfg.BatchMaxInterval,
+		consumerLockName:    cfg.ConsumerLockName,
 		collectConfig:       collectCfg,
 		sqsDeleter:          sqsClient,
 		queueURL:            cfg.QueueURL,
@@ -251,10 +253,14 @@ func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProces
 		case <-ctx.Done():
 			return
 		default:
+			lockName := []string{"athena", c.consumerLockName}
+			if c.consumerLockName == "" {
+				lockName = []string{"athena_lock"}
+			}
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					Backend:  c.backend,
-					LockName: "athena_lock",
+					Backend:            c.backend,
+					LockNameComponents: lockName,
 					// TTL is higher then batchMaxInterval because we want to optimize
 					// for low backend writes.
 					TTL: 5 * c.batchMaxInterval,

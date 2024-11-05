@@ -55,7 +55,6 @@ func TestAutoEnrollCeremony_Run(t *testing.T) {
 					SignChallenge:           test.dev.SignChallenge,
 					SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
 				},
-				CollectDeviceData: test.dev.CollectDeviceData,
 			}
 
 			dev, err := c.Run(ctx, devices)
@@ -63,4 +62,11 @@ func TestAutoEnrollCeremony_Run(t *testing.T) {
 			assert.NotNil(t, dev, "AutoEnroll returned nil device")
 		})
 	}
+}
+
+func TestAutoEnroll_disabledByEnv(t *testing.T) {
+	t.Setenv("TELEPORT_DEVICE_AUTO_ENROLL_DISABLED", "1")
+
+	_, err := enroll.AutoEnroll(context.Background(), nil /* devicesClient */)
+	assert.ErrorIs(t, err, enroll.ErrAutoEnrollDisabled, "AutoEnroll() error mismatch")
 }

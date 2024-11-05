@@ -305,7 +305,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   await waitFor(() => {
     expect(screen.getByTestId('Modal')).toBeInTheDocument();
   });
-  expect(screen.getByTestId('Modal')).toHaveTextContent('Login to');
+  expect(screen.getByTestId('Modal')).toHaveTextContent('Log in to');
 
   // Verify that the search bar stays open after closing the modal.
   screen.getByLabelText('Close').click();

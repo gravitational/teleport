@@ -531,6 +531,16 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			},
 		},
 		{
+			name:          "valid athena config with disabled consumer",
+			uris:          []string{sampleAthenaURI + "&consumerDisabled=true"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+				require.True(t, v.IsConsumerDisabled(), "consumer is not disabled")
+			},
+		},
+		{
 			name:          "config with rate limit - should use events.SearchEventsLimiter",
 			uris:          []string{sampleAthenaURI + "&limiterRefillAmount=3&limiterBurst=2"},
 			externalAudit: externalAuditStorageDisabled,

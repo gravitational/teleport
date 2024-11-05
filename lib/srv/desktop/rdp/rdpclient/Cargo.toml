@@ -1,7 +1,10 @@
 [package]
 name = "rdp-client"
 version = "0.1.0"
-authors = ["Andrew Lytvynov <andrew@goteleport.com>", "Zac Bergquist <zac@goteleport.com>"]
+authors = [
+    "Andrew Lytvynov <andrew@goteleport.com>",
+    "Zac Bergquist <zac@goteleport.com>",
+]
 edition = "2018"
 
 [lib]
@@ -20,10 +23,11 @@ num-traits = "0.2.16"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.2"
-rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "edfb5330a11d11eaf36d65e4300555368b4c6b02" }
+rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "2b0d99cc60c7b6474a1e2224a0bd6b2beca56b63" }
 uuid = { version = "1.4.1", features = ["v4"] }
 utf16string = "0.2.0"
 png = "0.17.10"
+lru = "0.12.5"
 
 [build-dependencies]
 cbindgen = "0.25.0"

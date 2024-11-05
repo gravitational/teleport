@@ -117,6 +117,24 @@ type DateExporterState struct {
 	Cursors map[string]string
 }
 
+// IsEmpty returns true if no state is defined.
+func (s *DateExporterState) IsEmpty() bool {
+	return len(s.Completed) == 0 && len(s.Cursors) == 0
+}
+
+// Clone returns a deep copy of the date exporter state.
+func (s *DateExporterState) Clone() DateExporterState {
+	cloned := DateExporterState{
+		Completed: make([]string, len(s.Completed)),
+		Cursors:   make(map[string]string, len(s.Cursors)),
+	}
+	copy(cloned.Completed, s.Completed)
+	for chunk, cursor := range s.Cursors {
+		cloned.Cursors[chunk] = cursor
+	}
+	return cloned
+}
+
 // DateExporter is a utility for exporting events for a given date using the chunked event export APIs. Note that
 // it is specifically designed to prioritize performance and ensure that events aren't missed. It may not yield events
 // in time order, and does not provide a mechanism to decide when export for a given date should be considered complete,

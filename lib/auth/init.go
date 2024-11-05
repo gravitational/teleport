@@ -311,9 +311,9 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err := backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  cfg.Backend,
-				LockName: domainName,
-				TTL:      30 * time.Second,
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{domainName},
+				TTL:                30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}, func(ctx context.Context) error {
