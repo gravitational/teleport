@@ -231,5 +231,32 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
-	return trace.NotImplemented("TODO")
+	versionsDir := filepath.Join(ccfg.DataDir, versionsDirName)
+	if err := os.MkdirAll(versionsDir, 0755); err != nil {
+		return trace.Errorf("failed to create versions directory: %w", err)
+	}
+
+	// Ensure update can't run concurrently.
+	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
+	if err != nil {
+		return trace.Errorf("failed to grab concurrent execution lock: %w", err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+
+	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
+		VersionsDir: versionsDir,
+		LinkDir:     ccfg.LinkDir,
+		Log:         plog,
+	})
+	if err != nil {
+		return trace.Errorf("failed to setup updater: %w", err)
+	}
+	if err := updater.Update(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
