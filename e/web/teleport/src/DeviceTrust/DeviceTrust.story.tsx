@@ -146,17 +146,20 @@ const devices: TrustedDevice[] = [
     assetTag: 'CSXXXXXXXXX',
     osType: 'macOS',
     enrollStatus: 'enrolled',
+    owner: 'mykel',
   },
   {
     id: 'goteleport.local',
     assetTag: 'DSXXXXXXXXX',
     osType: 'Linux',
     enrollStatus: 'not enrolled',
+    owner: 'lila',
   },
   {
     id: 'goteleport.local',
     assetTag: 'ESXXXXXXXXX',
     osType: 'Windows',
     enrollStatus: 'enrolled',
+    owner: 'yassey',
   },
 ];

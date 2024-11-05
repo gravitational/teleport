@@ -201,36 +201,42 @@ export const fakeItems: TrustedDevice[] = [
     assetTag: 'FWPGP915V',
     osType: 'macOS',
     enrollStatus: 'Enrolled',
+    owner: 'mykel',
   },
   {
     id: 'M7XJR4GK8823',
     assetTag: 'M7XJR4GK8823',
     osType: 'Windows',
     enrollStatus: 'Enrolled',
+    owner: 'lila',
   },
   {
     id: 'L2FQZ9VH4466',
     assetTag: 'L2FQZ9VH4466',
     osType: 'Linux',
     enrollStatus: 'Enrolled',
+    owner: 'bart',
   },
   {
     id: 'N8EYW1DP7732',
     assetTag: 'N8EYW1DP7732',
     osType: 'Linux',
     enrollStatus: 'Not Enrolled',
+    owner: 'rafao',
   },
   {
     id: 'K5BHP6CT5598',
     assetTag: 'K5BHP6CT5598',
     osType: 'Windows',
     enrollStatus: 'Not Enrolled',
+    owner: 'gzz',
   },
   {
     id: 'Y3RSL7FJ2104',
     assetTag: 'Y3RSL7FJ2104',
     osType: 'macOS',
     enrollStatus: 'Enrolled',
+    owner: 'ryry',
   },
 ];
 

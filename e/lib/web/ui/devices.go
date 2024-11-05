@@ -6,6 +6,7 @@ type Device struct {
 	AssetTag     string `json:"assetTag,omitempty"`
 	OSType       string `json:"osType,omitempty"`
 	EnrollStatus string `json:"enrollStatus,omitempty"`
+	Owner        string `json:"owner,omitempty"`
 }
 
 // ListDevicesResponse is similar to types.ListResourcesResponse

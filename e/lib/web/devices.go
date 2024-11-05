@@ -60,7 +60,7 @@ func valuesToProtoListDevicesRequest(query url.Values) (*devicepb.ListDevicesReq
 
 	// Backend handles zeroed or negative page sizes.
 	return &devicepb.ListDevicesRequest{
-		View:      devicepb.DeviceView_DEVICE_VIEW_LIST,
+		View:      devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
 		PageSize:  int32(pageSize),
 		PageToken: query.Get("startKey"),
 	}, nil
@@ -75,6 +75,7 @@ func toUIDevices(devices []*devicepb.Device) []ui.Device {
 			AssetTag:     v.AssetTag,
 			OSType:       devicetrust.FriendlyOSType(v.OsType),
 			EnrollStatus: devicetrust.FriendlyDeviceEnrollStatus(v.EnrollStatus),
+			Owner:        v.Owner,
 		})
 	}
 
