@@ -79,6 +79,7 @@ type EC2Instances struct {
 // discovered.
 type EC2Instance struct {
 	InstanceID       string
+	InstanceName     string
 	Tags             map[string]string
 	OriginalInstance ec2.Instance
 }
@@ -92,6 +93,9 @@ func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
 	for _, tag := range originalInst.Tags {
 		if key := aws.StringValue(tag.Key); key != "" {
 			inst.Tags[key] = aws.StringValue(tag.Value)
+			if key == "Name" {
+				inst.InstanceName = aws.StringValue(tag.Value)
+			}
 		}
 	}
 	return inst

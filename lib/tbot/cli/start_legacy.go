@@ -140,7 +140,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Legac
 
 	c := &LegacyCommand{
 		action: action,
-		cmd:    parentCmd.Command("legacy", "Start with either a config file or a legacy output").Default(),
+		cmd:    parentCmd.Command("legacy", "Start with either a config file or a legacy output.").Default(),
 	}
 	c.AuthProxyArgs = newAuthProxyArgs(c.cmd)
 	c.LegacyDestinationDirArgs = newLegacyDestinationDirArgs(c.cmd)

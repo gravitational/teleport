@@ -91,6 +91,10 @@ func TestEditResources(t *testing.T) {
 			kind: types.KindAutoUpdateVersion,
 			edit: testEditAutoUpdateVersion,
 		},
+		{
+			kind: types.KindDynamicWindowsDesktop,
+			edit: testEditDynamicWindowsDesktop,
+		},
 	}
 
 	for _, test := range tests {
@@ -570,7 +574,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
-	_, err = serviceClient.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: initial})
+	initial, err = serviceClient.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: initial})
 	require.NoError(t, err, "creating initial autoupdate config")
 
 	editor := func(name string) error {
@@ -612,7 +616,7 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	require.NoError(t, err)
 
 	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
-	_, err = serviceClient.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: initial})
+	initial, err = serviceClient.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: initial})
 	require.NoError(t, err, "creating initial autoupdate version")
 
 	editor := func(name string) error {
@@ -634,4 +638,36 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	assert.NotEqual(t, initial.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion(),
 		"tools_autoupdate should have been modified by edit")
 	assert.Equal(t, expected.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion())
+}
+
+func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
+	ctx := context.Background()
+
+	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
+		Addr: "test",
+	})
+	require.NoError(t, err)
+	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, expected)
+	require.NoError(t, err)
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.SetRevision(created.GetRevision())
+		expected.Spec.Addr = "test2"
+
+		collection := &dynamicWindowsDesktopCollection{desktops: []types.DynamicWindowsDesktop{expected}}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, expected.GetName())
+	require.NoError(t, err)
+	expected.SetRevision(actual.GetRevision())
+	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
 }

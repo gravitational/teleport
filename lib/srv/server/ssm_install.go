@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -63,6 +65,13 @@ type SSMInstallationResult struct {
 	// IssueType identifies the type of issue that occurred if the installation failed.
 	// These are well known identifiers that can be found at types.AutoDiscoverEC2Issue*.
 	IssueType string
+	// SSMDocumentName is the Amazon SSM Document Name used to install Teleport into the instance.
+	SSMDocumentName string
+	// InstallerScript is the Teleport Installer script name used to install Teleport into the instance.
+	InstallerScript string
+	// InstanceName is the Instance's name.
+	// Might be empty.
+	InstanceName string
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -95,6 +104,16 @@ type SSMRunRequest struct {
 	DiscoveryConfig string
 }
 
+// InstallerScriptName returns the Teleport Installer script name.
+// Returns empty string if not defined.
+func (r *SSMRunRequest) InstallerScriptName() string {
+	if r == nil || r.Params == nil {
+		return ""
+	}
+
+	return r.Params[ParamScriptName]
+}
+
 // CheckAndSetDefaults ensures the emitter is present and creates a default logger if one is not provided.
 func (c *SSMInstallerConfig) checkAndSetDefaults() error {
 	if c.ReportSSMInstallationResultFunc == nil {
@@ -120,9 +139,9 @@ func NewSSMInstaller(cfg SSMInstallerConfig) (*SSMInstaller, error) {
 
 // Run executes the SSM document and then blocks until the command has completed.
 func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
-	ids := make([]string, 0, len(req.Instances))
+	instances := make(map[string]string, len(req.Instances))
 	for _, inst := range req.Instances {
-		ids = append(ids, inst.InstanceID)
+		instances[inst.InstanceID] = inst.InstanceName
 	}
 
 	params := make(map[string][]*string)
@@ -130,8 +149,8 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		params[k] = []*string{aws.String(v)}
 	}
 
-	validInstances := ids
-	instancesState, err := si.describeSSMAgentState(ctx, req, ids)
+	validInstances := instances
+	instancesState, err := si.describeSSMAgentState(ctx, req, instances)
 	switch {
 	case trace.IsAccessDenied(err):
 		// describeSSMAgentState uses `ssm:DescribeInstanceInformation` to gather all the instances information.
@@ -155,9 +174,10 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		validInstances = instancesState.valid
 	}
 
+	validInstanceIDs := instanceIDsFrom(validInstances)
 	output, err := req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
-		InstanceIds:  aws.StringSlice(validInstances),
+		InstanceIds:  aws.StringSlice(validInstanceIDs),
 		Parameters:   params,
 	})
 	if err != nil {
@@ -176,7 +196,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		delete(params, ParamSSHDConfigPath)
 		output, err = req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 			DocumentName: aws.String(req.DocumentName),
-			InstanceIds:  aws.StringSlice(validInstances),
+			InstanceIds:  aws.StringSlice(validInstanceIDs),
 			Parameters:   params,
 		})
 		if err != nil {
@@ -186,16 +206,17 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(10)
-	for _, inst := range validInstances {
-		inst := inst
+	for instanceID, instanceName := range validInstances {
+		instanceID := instanceID
+		instanceName := instanceName
 		g.Go(func() error {
-			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, &inst))
+			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, &instanceID, instanceName))
 		})
 	}
 	return trace.Wrap(g.Wait())
 }
 
-func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, status, issueType string) *SSMInstallationResult {
+func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, instanceName, status, issueType string) *SSMInstallationResult {
 	return &SSMInstallationResult{
 		SSMRunEvent: &apievents.SSMRun{
 			Metadata: apievents.Metadata{
@@ -212,13 +233,16 @@ func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceID, status,
 		IntegrationName: req.IntegrationName,
 		DiscoveryConfig: req.DiscoveryConfig,
 		IssueType:       issueType,
+		SSMDocumentName: req.DocumentName,
+		InstallerScript: req.InstallerScriptName(),
+		InstanceName:    instanceName,
 	}
 }
 
 func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRunRequest, instanceIDsState *instanceIDsSSMState) error {
 	var errs []error
-	for _, instanceID := range instanceIDsState.missing {
-		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
+	for instanceID, instanceName := range instanceIDsState.missing {
+		installationResult := invalidSSMInstanceInstallationResult(req, instanceID, instanceName,
 			"EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceNotRegistered,
 		)
@@ -227,8 +251,8 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 		}
 	}
 
-	for _, instanceID := range instanceIDsState.connectionLost {
-		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
+	for instanceID, instanceName := range instanceIDsState.connectionLost {
+		installationResult := invalidSSMInstanceInstallationResult(req, instanceID, instanceName,
 			"SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceConnectionLost,
 		)
@@ -237,8 +261,8 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 		}
 	}
 
-	for _, instanceID := range instanceIDsState.unsupportedOS {
-		installationResult := invalidSSMInstanceInstallationResult(req, instanceID,
+	for instanceID, instanceName := range instanceIDsState.unsupportedOS {
+		installationResult := invalidSSMInstanceInstallationResult(req, instanceID, instanceName,
 			"EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 			usertasks.AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 		)
@@ -252,19 +276,29 @@ func (si *SSMInstaller) emitInvalidInstanceEvents(ctx context.Context, req SSMRu
 
 // instanceIDsSSMState contains a list of EC2 Instance IDs for a given state.
 type instanceIDsSSMState struct {
-	valid          []string
-	missing        []string
-	connectionLost []string
-	unsupportedOS  []string
+	valid          map[string]string
+	missing        map[string]string
+	connectionLost map[string]string
+	unsupportedOS  map[string]string
+}
+
+func instanceIDsFrom(m map[string]string) []string {
+	return slices.Collect(maps.Keys(m))
 }
 
 // describeSSMAgentState returns the instanceIDsSSMState for all the instances.
-func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunRequest, allInstanceIDs []string) (*instanceIDsSSMState, error) {
-	ret := &instanceIDsSSMState{}
+func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunRequest, allInstances map[string]string) (*instanceIDsSSMState, error) {
+	ret := &instanceIDsSSMState{
+		valid:          make(map[string]string),
+		missing:        make(map[string]string),
+		connectionLost: make(map[string]string),
+		unsupportedOS:  make(map[string]string),
+	}
+	instanceIDs := instanceIDsFrom(allInstances)
 
 	ssmInstancesInfo, err := req.SSM.DescribeInstanceInformationWithContext(ctx, &ssm.DescribeInstanceInformationInput{
 		Filters: []*ssm.InstanceInformationStringFilter{
-			{Key: aws.String(ssm.InstanceInformationFilterKeyInstanceIds), Values: aws.StringSlice(allInstanceIDs)},
+			{Key: aws.String(ssm.InstanceInformationFilterKeyInstanceIds), Values: aws.StringSlice(instanceIDs)},
 		},
 		MaxResults: aws.Int64(awsEC2APIChunkSize),
 	})
@@ -278,24 +312,24 @@ func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunReq
 		instanceStateByInstanceID[aws.StringValue(instanceState.InstanceId)] = instanceState
 	}
 
-	for _, instanceID := range allInstanceIDs {
+	for instanceID, instanceName := range allInstances {
 		instanceState, found := instanceStateByInstanceID[instanceID]
 		if !found {
-			ret.missing = append(ret.missing, instanceID)
+			ret.missing[instanceID] = instanceName
 			continue
 		}
 
 		if aws.StringValue(instanceState.PingStatus) == ssm.PingStatusConnectionLost {
-			ret.connectionLost = append(ret.connectionLost, instanceID)
+			ret.connectionLost[instanceID] = instanceName
 			continue
 		}
 
 		if aws.StringValue(instanceState.PlatformType) != ssm.PlatformTypeLinux {
-			ret.unsupportedOS = append(ret.unsupportedOS, instanceID)
+			ret.unsupportedOS[instanceID] = instanceName
 			continue
 		}
 
-		ret.valid = append(ret.valid, instanceID)
+		ret.valid[instanceID] = instanceName
 	}
 
 	return ret, nil
@@ -314,7 +348,7 @@ func skipAWSWaitErr(err error) error {
 	return trace.Wrap(err)
 }
 
-func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
+func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string, instanceName string) error {
 	err := req.SSM.WaitUntilCommandExecutedWithContext(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: instanceID,
@@ -359,6 +393,9 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 					IntegrationName: req.IntegrationName,
 					DiscoveryConfig: req.DiscoveryConfig,
 					IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+					SSMDocumentName: req.DocumentName,
+					InstallerScript: req.InstallerScriptName(),
+					InstanceName:    instanceName,
 				}))
 			}
 
@@ -373,6 +410,9 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 				IntegrationName: req.IntegrationName,
 				DiscoveryConfig: req.DiscoveryConfig,
 				IssueType:       usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
+				SSMDocumentName: req.DocumentName,
+				InstallerScript: req.InstallerScriptName(),
+				InstanceName:    instanceName,
 			}))
 		}
 	}

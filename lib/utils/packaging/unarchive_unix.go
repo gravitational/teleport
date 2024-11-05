@@ -33,6 +33,8 @@ import (
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // ReplaceToolsBinaries extracts executables specified by execNames from archivePath into
@@ -43,7 +45,7 @@ import (
 // For other POSIX, archivePath must be a gzipped tarball.
 func ReplaceToolsBinaries(toolsDir string, archivePath string, extractDir string, execNames []string) error {
 	switch runtime.GOOS {
-	case "darwin":
+	case constants.DarwinOS:
 		return replacePkg(toolsDir, archivePath, extractDir, execNames)
 	default:
 		return replaceTarGz(toolsDir, archivePath, extractDir, execNames)
@@ -184,9 +186,10 @@ func replacePkg(toolsDir string, archivePath string, extractDir string, execName
 		// swap operations. This ensures that the "com.apple.macl" extended
 		// attribute is set and macOS will not send a SIGKILL to the process
 		// if multiple processes are trying to operate on it.
-		command := exec.Command(path, "version", "--client")
+		command := exec.Command(path, "version")
+		command.Env = []string{"TELEPORT_TOOLS_VERSION=off"}
 		if err := command.Run(); err != nil {
-			return trace.Wrap(err)
+			return trace.WrapWithMessage(err, "failed to validate binary")
 		}
 
 		// Due to macOS applications not being a single binary (they are a

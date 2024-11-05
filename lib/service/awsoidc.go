@@ -265,10 +265,9 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	}
 
 	req := &awsoidc.AWSClientRequest{
-		IntegrationName: integration.GetName(),
-		Token:           token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          awsRegion,
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsRegion,
 	}
 
 	// The deploy service client is initialized using AWS OIDC integration.

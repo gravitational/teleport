@@ -1,9 +1,0 @@
-version: v1
-kind: update_config
-spec:
-    proxy: ""
-    group: ""
-    url_template: ""
-    enabled: false
-status:
-    active_version: ""

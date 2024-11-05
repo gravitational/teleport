@@ -34,6 +34,14 @@ const (
 	IntegrationSubKindAzureOIDC = "azure-oidc"
 )
 
+const (
+	// IntegrationAWSOIDCAudienceUnspecified denotes an empty audience value. Empty audience value
+	// is used to maintain default OIDC integration behavior and backward compatibility.
+	IntegrationAWSOIDCAudienceUnspecified = ""
+	// IntegrationAWSOIDCAudienceAWSIdentityCenter is an audience name for the Teleport AWS Idenity Center plugin.
+	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
+)
+
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
 type Integration interface {
 	ResourceWithLabels
@@ -189,7 +197,22 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 		}
 	}
 
+	if err := s.ValidateAudience(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+// ValidateAudience validates if the audience field is configured with
+// a supported audience value.
+func (s *IntegrationSpecV1_AWSOIDC) ValidateAudience() error {
+	switch s.AWSOIDC.Audience {
+	case IntegrationAWSOIDCAudienceUnspecified, IntegrationAWSOIDCAudienceAWSIdentityCenter:
+		return nil
+	default:
+		return trace.BadParameter("unsupported audience value %q", s.AWSOIDC.Audience)
+	}
 }
 
 // Validate validates the configuration for Azure OIDC integration subkind.

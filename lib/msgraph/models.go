@@ -18,6 +18,7 @@ package msgraph
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/gravitational/trace"
 )
@@ -34,6 +35,12 @@ type DirectoryObject struct {
 
 type Group struct {
 	DirectoryObject
+	GroupTypes []string `json:"groupTypes,omitempty"`
+}
+
+func (g *Group) IsOffice365Group() bool {
+	const office365Group = "Unified"
+	return slices.Contains(g.GroupTypes, office365Group)
 }
 
 func (g *Group) isGroupMember() {}
@@ -53,9 +60,10 @@ func (u *User) GetID() *string { return u.ID }
 type Application struct {
 	DirectoryObject
 
-	AppID          *string         `json:"appId,omitempty"`
-	IdentifierURIs *[]string       `json:"identifierUris,omitempty"`
-	Web            *WebApplication `json:"web,omitempty"`
+	AppID                 *string         `json:"appId,omitempty"`
+	IdentifierURIs        *[]string       `json:"identifierUris,omitempty"`
+	Web                   *WebApplication `json:"web,omitempty"`
+	GroupMembershipClaims *string         `json:"groupMembershipClaims,omitempty"`
 }
 
 type WebApplication struct {
@@ -108,8 +116,14 @@ func decodeGroupMember(msg json.RawMessage) (GroupMember, error) {
 		var u *User
 		err = json.Unmarshal(msg, &u)
 		member = u
+	case "#microsoft.graph.group":
+		var g *Group
+		err = json.Unmarshal(msg, &g)
+		member = g
 	default:
-		err = trace.BadParameter("unsupported group member type: %s", temp.Type)
+		// Return an error if we encounter a type we do not support.
+		// The caller ignores the error and continues processing the next entry.
+		err = &unsupportedGroupMember{Type: temp.Type}
 	}
 
 	return member, trace.Wrap(err)

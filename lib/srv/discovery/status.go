@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -45,6 +44,12 @@ import (
 // - AWS Sync (TAG) status
 // - AWS EC2 Auto Discover status
 func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
+	// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
+	// Those are discarded because there's no Status to update.
+	if discoveryConfigName == "" {
+		return
+	}
+
 	discoveryConfigStatus := discoveryconfig.Status{
 		State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
 		LastSyncTime:                   s.clock.Now(),
@@ -63,9 +68,9 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
 	_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
 	switch {
 	case trace.IsNotImplemented(err):
-		s.Log.Warn("UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
+		s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
 	case err != nil:
-		s.Log.WithError(err).WithField("discovery_config_name", discoveryConfigName).Info("Error updating discovery config status")
+		s.Log.InfoContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
 	}
 }
 
@@ -302,18 +307,20 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
-			integration: result.IntegrationName,
-			issueType:   result.IssueType,
-			accountID:   result.SSMRunEvent.AccountID,
-			region:      result.SSMRunEvent.Region,
+			integration:     result.IntegrationName,
+			issueType:       result.IssueType,
+			accountID:       result.SSMRunEvent.AccountID,
+			region:          result.SSMRunEvent.Region,
+			ssmDocument:     result.SSMDocumentName,
+			installerScript: result.InstallerScript,
 		},
 		&usertasksv1.DiscoverEC2Instance{
-			// TODO(marco): add instance name
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
 			DiscoveryConfig: result.DiscoveryConfig,
 			DiscoveryGroup:  s.DiscoveryGroup,
 			SyncTime:        timestamppb.New(result.SSMRunEvent.Time),
 			InstanceId:      result.SSMRunEvent.InstanceID,
+			Name:            result.InstanceName,
 		},
 	)
 
@@ -333,10 +340,12 @@ type awsEC2Tasks struct {
 
 // awsEC2TaskKey identifies a UserTask group.
 type awsEC2TaskKey struct {
-	integration string
-	issueType   string
-	accountID   string
-	region      string
+	integration     string
+	issueType       string
+	accountID       string
+	region          string
+	ssmDocument     string
+	installerScript string
 }
 
 // iterationStarted clears out any in memory issues that were recorded.
@@ -418,7 +427,7 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 		cancel()
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).WithField("semaphore", userTaskName).Warn("error cleaning up UserTask semaphore")
+			s.Log.WarnContext(ctx, "Error cleaning up UserTask semaphore", "semaphore", semaphoreName, "error", err)
 		}
 	}
 
@@ -431,10 +440,12 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances map[string]*usertasksv1.DiscoverEC2Instance) error {
 	userTaskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
-		Integration: taskGroup.integration,
-		IssueType:   taskGroup.issueType,
-		AccountID:   taskGroup.accountID,
-		Region:      taskGroup.region,
+		Integration:     taskGroup.integration,
+		IssueType:       taskGroup.issueType,
+		AccountID:       taskGroup.accountID,
+		Region:          taskGroup.region,
+		SSMDocument:     taskGroup.ssmDocument,
+		InstallerScript: taskGroup.installerScript,
 	})
 
 	releaseFn, ctxWithLease, err := s.acquireSemaphoreForUserTask(userTaskName)
@@ -516,13 +527,13 @@ func (s *Server) upsertTasksForAWSEC2FailedEnrollments() {
 		}
 
 		if err := s.mergeUpsertDiscoverEC2Task(g, instancesIssueByID); err != nil {
-			s.Log.WithError(err).WithFields(logrus.Fields{
-				"integration":    g.integration,
-				"issue_type":     g.issueType,
-				"aws_account_id": g.accountID,
-				"aws_region":     g.region,
-			},
-			).Warning("Failed to create discover ec2 user task.", g.integration, g.issueType, g.accountID, g.region)
+			s.Log.WarnContext(s.ctx, "Failed to create discover ec2 user task",
+				"integration", g.integration,
+				"issue_type", g.issueType,
+				"aws_account_id", g.accountID,
+				"aws_region", g.region,
+				"error", err,
+			)
 			continue
 		}
 

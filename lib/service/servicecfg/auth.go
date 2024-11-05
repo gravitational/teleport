@@ -278,6 +278,11 @@ type AWSKMSConfig struct {
 	AWSAccount string
 	// AWSRegion is the AWS region where the keys will reside.
 	AWSRegion string
+	// MultiRegion contains configuration for multi-region AWS KMS.
+	MultiRegion struct {
+		// Enabled configures new keys to be multi-region.
+		Enabled bool
+	}
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are

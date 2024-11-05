@@ -291,8 +291,8 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 // WarmupHardwareKey performs a bogus sign() call to prompt the user for
 // a PIN/touch (if needed).
 func (y *YubiKeyPrivateKey) WarmupHardwareKey(ctx context.Context) error {
-	b := make([]byte, 256)
-	_, err := y.sign(ctx, rand.Reader, b, crypto.SHA256)
+	hash := sha256.Sum256(make([]byte, 256))
+	_, err := y.sign(ctx, rand.Reader, hash[:], crypto.SHA256)
 	return trace.Wrap(err, "failed to access a YubiKey private key")
 }
 
@@ -374,7 +374,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := y.prompt.AskPIN(ctx, "Enter your YubiKey PIV PIN")
+		pass, err := y.prompt.AskPIN(ctx, PINRequired)
 		return pass, trace.Wrap(err)
 	}
 
@@ -666,7 +666,7 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
-	pin, err := y.prompt.AskPIN(ctx, "Enter your YubiKey PIV PIN [blank to use default PIN]")
+	pin, err := y.prompt.AskPIN(ctx, PINOptional)
 	if err != nil {
 		return trace.Wrap(err)
 	}

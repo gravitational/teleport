@@ -25,7 +25,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -57,14 +59,15 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			}
 			s3Location = issuerS3URI.String()
 		}
+		metadata := types.Metadata{Name: req.Name}
 		ig, err = types.NewIntegrationAWSOIDC(
-			types.Metadata{Name: req.Name},
+			metadata,
 			&types.AWSOIDCIntegrationSpecV1{
 				RoleARN:     req.AWSOIDC.RoleARN,
 				IssuerS3URI: s3Location,
+				Audience:    req.AWSOIDC.Audience,
 			},
 		)
-
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -223,4 +226,36 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 		Items:   items,
 		NextKey: nextKey,
 	}, nil
+}
+
+// integrationsMsTeamsAppZipGet generates and returns the app.zip required for the MsTeams plugin with the given name.
+func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
+		Name:        p.ByName("plugin"),
+		WithSecrets: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec, ok := plugin.Spec.Settings.(*types.PluginSpecV1_Msteams)
+	if !ok {
+		return nil, trace.BadParameter("plugin specified was not of type MsTeams")
+	}
+
+	w.Header().Add("Content-Type", "application/zip")
+	w.Header().Add("Content-Disposition", "attachment; filename=app.zip")
+	err = msteams.WriteAppZipTo(w, msteams.ConfigTemplatePayload{
+		AppID:      spec.Msteams.AppId,
+		TenantID:   spec.Msteams.TenantId,
+		TeamsAppID: spec.Msteams.TeamsAppId,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, nil
 }

@@ -215,10 +215,12 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 // TaskNameForDiscoverEC2Parts are the fields that deterministically compute a Discover EC2 task name.
 // To be used with TaskNameForDiscoverEC2 function.
 type TaskNameForDiscoverEC2Parts struct {
-	Integration string
-	IssueType   string
-	AccountID   string
-	Region      string
+	Integration     string
+	IssueType       string
+	AccountID       string
+	Region          string
+	SSMDocument     string
+	InstallerScript string
 }
 
 // TaskNameForDiscoverEC2 returns a deterministic name for the DiscoverEC2 task type.
@@ -233,6 +235,10 @@ func TaskNameForDiscoverEC2(parts TaskNameForDiscoverEC2Parts) string {
 	bs = append(bs, []byte(parts.AccountID)...)
 	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.Region)))...)
 	bs = append(bs, []byte(parts.Region)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.SSMDocument)))...)
+	bs = append(bs, []byte(parts.SSMDocument)...)
+	bs = append(bs, binary.LittleEndian.AppendUint64(nil, uint64(len(parts.InstallerScript)))...)
+	bs = append(bs, []byte(parts.InstallerScript)...)
 	return uuid.NewSHA1(discoverEC2Namespace, bs).String()
 }
 

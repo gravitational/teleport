@@ -103,7 +103,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -180,7 +179,7 @@ func TestMain(m *testing.M) {
 		srv.RunAndExit(os.Args[1])
 		return
 	}
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 
 	// Otherwise run tests as normal.
 	code := m.Run()
@@ -382,6 +381,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			Component: teleport.ComponentProxy,
 			Client:    s.proxyClient,
 		},
+		NodesGetter: s.proxyClient,
 	})
 	require.NoError(t, err)
 
@@ -8186,6 +8186,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			Component: teleport.ComponentProxy,
 			Client:    client,
 		},
+		NodesGetter: client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(proxyNodeWatcher.Close)
@@ -9076,6 +9077,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Client:    client,
 			Clock:     clock,
 		},
+		KubernetesServerGetter: client,
 	})
 	require.NoError(t, err)
 

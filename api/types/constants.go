@@ -331,11 +331,17 @@ const (
 	// KindAutoUpdateVersion is the resource with autoupdate versions.
 	KindAutoUpdateVersion = "autoupdate_version"
 
+	// KindAutoUpdateAgentRollout is the resource that controls and tracks agent rollouts.
+	KindAutoUpdateAgentRollout = "autoupdate_agent_rollout"
+
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
 
 	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
 	MetaNameAutoUpdateVersion = "autoupdate-version"
+
+	// MetaNameAutoUpdateAgentRollout is the name of the autoupdate agent rollout resource.
+	MetaNameAutoUpdateAgentRollout = "autoupdate-agent-rollout"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
@@ -422,6 +428,9 @@ const (
 
 	// KindWindowsDesktop is a Windows desktop host.
 	KindWindowsDesktop = "windows_desktop"
+
+	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
+	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
 
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
@@ -563,6 +572,20 @@ const (
 
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
+
+	// KindIdentityCenterAccount describes an Identity-Center managed AWS Account
+	KindIdentityCenterAccount = "aws_ic_account"
+
+	// KindIdentityCenterPermissionSet describes an AWS Identity Center Permission Set
+	KindIdentityCenterPermissionSet = "aws_ic_permission_set"
+
+	// KindIdentityCenterPermissionSet describes an AWS Principal Assignment, representing
+	// a collection Account Assignments assigned to a Teleport User or AccessList
+	KindIdentityCenterPrincipalAssignment = "aws_ic_principal_assignment"
+
+	// KindIdentityCenterAccountAssignment describes an AWS Account and Permission Set
+	// pair that can be requested by a Teleport User.
+	KindIdentityCenterAccountAssignment = "aws_ic_account_assignment"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
@@ -1247,7 +1270,14 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 }
 
-// KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
+// The list below needs to be kept in sync with `kubernetesResourceKindOptions`
+// in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
+// this comment separate to prevent it from being included in the official
+// package docs.)
+
+// KubernetesResourcesKinds lists the supported Kubernetes resource kinds. This
+// is for the latest version of Role resources; roles whose version is set to
+// v6 or prior only support [KindKubePod].
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
@@ -1294,6 +1324,11 @@ const (
 	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
 	KubeVerbPortForward = "portforward"
 )
+
+// The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
+// in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
+// this comment separate to prevent it from being included in the official
+// package docs.)
 
 // KubernetesVerbs lists the supported Kubernetes verbs.
 var KubernetesVerbs = []string{

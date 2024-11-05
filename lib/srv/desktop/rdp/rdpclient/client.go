@@ -118,7 +118,7 @@ func init() {
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
 
-	C.init()
+	C.rdpclient_init_log()
 }
 
 // Client is the RDP client.
@@ -1042,7 +1042,6 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
-
 }
 
 //export cgo_tdp_sd_truncate_request
@@ -1069,7 +1068,6 @@ func (c *Client) sharedDirectoryTruncateRequest(req tdp.SharedDirectoryTruncateR
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
-
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

@@ -29,7 +29,8 @@ clean: tfclean
 
 .PHONY: build
 build: clean
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
+# Turning off GOWORK to prevent missing package errors.
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
 	lipo -create -output $(BUILDDIR)/terraform-provider-teleport $^
@@ -195,4 +196,5 @@ $(LOCALBIN):
 
 bin/tfplugindocs: go.mod $(LOCALBIN)
 	mkdir -p bin
-	GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+# Turning off GOWORK to prevent missing package errors.
+	GOWORK=off GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs

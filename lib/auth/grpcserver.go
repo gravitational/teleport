@@ -57,6 +57,7 @@ import (
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -85,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
+	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
@@ -2163,8 +2165,11 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
+	// TODO(Joerger): Extend SSO MFA support for moderated sessions.
+	var ssoClientRedirectURL string
+
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, ssoClientRedirectURL, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5141,6 +5146,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
+	dynamicWindows, err := dynamicwindowsv1.NewService(dynamicwindowsv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
+
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
@@ -5152,12 +5167,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	trustv1pb.RegisterTrustServiceServer(server, trust)
 
-	// create server with no-op role to pass to JoinService server
-	serverWithNopRole, err := serverWithNopRole(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(cfg.AuthServer)
 	authpb.RegisterJoinServiceServer(server, joinServiceServer)
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
@@ -5193,6 +5203,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
 		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
 		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
+		Emitter:       cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5325,6 +5336,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	autoUpdateServiceServer, err := autoupdatev1.NewService(autoupdatev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
 	})
@@ -5341,31 +5353,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	return authServer, nil
-}
-
-func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
-	clusterName, err := cfg.AuthServer.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	nopRole := authz.BuiltinRole{
-		Role:        types.RoleNop,
-		Username:    string(types.RoleNop),
-		ClusterName: clusterName.GetClusterName(),
-	}
-	recConfig, err := cfg.AuthServer.GetSessionRecordingConfig(context.Background())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	nopCtx, err := authz.ContextForBuiltinRole(nopRole, recConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &ServerWithRoles{
-		authServer: cfg.AuthServer,
-		context:    *nopCtx,
-		alog:       cfg.AuthServer,
-	}, nil
 }
 
 type grpcContext struct {

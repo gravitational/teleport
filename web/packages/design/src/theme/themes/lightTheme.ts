@@ -317,7 +317,7 @@ const colors: ThemeColors = {
         borderColor: purple[300],
         typeColor: purple[300],
         iconBackground: purple[300],
-        handleColor: purple[704],
+        handleColor: purple[700],
         highlightColor: purple[300],
         label: {
           background: purple[200],

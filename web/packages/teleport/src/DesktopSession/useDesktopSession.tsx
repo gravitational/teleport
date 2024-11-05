@@ -22,7 +22,7 @@ import { useParams } from 'react-router';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { ButtonState } from 'teleport/lib/tdp';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
+import { useMfa } from 'teleport/lib/useMfa';
 import desktopService from 'teleport/services/desktops';
 import userService from 'teleport/services/user';
 
@@ -130,7 +130,7 @@ export default function useDesktopSession() {
   });
   const tdpClient = clientCanvasProps.tdpClient;
 
-  const webauthn = useWebAuthn(tdpClient);
+  const mfa = useMfa(tdpClient);
 
   const onShareDirectory = () => {
     try {
@@ -205,7 +205,7 @@ export default function useDesktopSession() {
     fetchAttempt,
     tdpConnection,
     wsConnection,
-    webauthn,
+    mfa,
     setTdpConnection,
     showAnotherSessionActiveDialog,
     setShowAnotherSessionActiveDialog,

@@ -33,7 +33,7 @@ describe('Alert', () => {
     ${'success'} | ${theme.colors.interactive.tonal.success[0]}
   `('renders appropriate background for kind $kind', ({ kind, background }) => {
     const { container } = render(<Alert kind={kind} />);
-    expect(container.firstChild.firstChild).toHaveStyle({ background });
+    expect(container.firstChild?.firstChild).toHaveStyle({ background });
   });
 
   test('action buttons', async () => {

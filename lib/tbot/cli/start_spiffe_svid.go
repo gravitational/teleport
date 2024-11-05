@@ -31,9 +31,9 @@ import (
 // `tbot configure spiffe-svid`.
 type SPIFFESVIDCommand struct {
 	*sharedStartArgs
+	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Destination                  string
 	IncludeFederatedTrustBundles bool
 
 	SVIDPath string
@@ -46,13 +46,13 @@ type SPIFFESVIDCommand struct {
 // `spiffe-svid` output and returns a struct that will contain the parse
 // result.
 func NewSPIFFESVIDCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *SPIFFESVIDCommand {
-	cmd := parentCmd.Command("spiffe-svid", "Starts with a SPIFFE-compatible SVID output")
+	cmd := parentCmd.Command("spiffe-svid", "Starts with a SPIFFE-compatible SVID output.")
 
 	c := &SPIFFESVIDCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
+	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("include-federated-trust-bundles", "If set, include federated trust bundles in the output").BoolVar(&c.IncludeFederatedTrustBundles)
 	cmd.Flag("svid-path", "A SPIFFE ID to request, prefixed with '/'").Required().StringVar(&c.SVIDPath)
 	cmd.Flag("svid-hint", "An optional hint for consumers of the SVID to aid in identification").StringVar(&c.SVIDHint)
@@ -67,7 +67,7 @@ func (c *SPIFFESVIDCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) e
 		return trace.Wrap(err)
 	}
 
-	dest, err := config.DestinationFromURI(c.Destination)
+	dest, err := c.BuildDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}

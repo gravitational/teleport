@@ -1,0 +1,93 @@
+---
+title: Introduction to SPIFFE
+description: Learn about Secure Production Identity Framework For Everyone (SPIFFE) and how it is implemented by Teleport Workload Identity
+---
+
+SPIFFE (Secure Production Identity Framework For Everyone) is a set of standards
+for securely identifying workloads.
+
+SPIFFE sets out:
+
+- A format for uniquely specifying an identity called SPIFFE ID.
+- Standards for encoding the SPIFFE ID into verifiable documents which are
+  called SVIDs (SPIFFE Verifiable Identity Document), and which come in a JWT
+  and X.509 format.
+- Processes that workloads should use to validate a received SVID.
+- A set of APIs that workloads can use to request SVIDS, the Workload API.
+
+The open nature and popularity of SPIFFE make it well-suited as the foundation
+of a full workload identity implementation. It is supported as an identity
+provider by a number of popular tools (such as Linkerd and Istio) and
+off-the-shelf SDKs exist for implementing SPIFFE directly into your own
+services.
+
+It's important to recognize that SPIFFE does not specify how to use SPIFFE IDs
+for authorization. This gives a high level of flexibility, allowing you to
+implement authorization in a way that suits you.
+
+## SPIFFE IDs and trust domains
+
+The basis of identity in SPIFFE is the SPIFFE ID. This is a unique string that
+identifies a workload. The SPIFFE ID is formatted as a URI with a scheme of
+`spiffe` and contains a trust domain and a workload identifier.
+
+The trust domain is the "root of trust" for your workload identities. Workloads
+within the trust domain are issued identities by authorities within the trust
+domain, and using the root keys of the trust domain, it is possible to
+validate these identities. The trust domain is encoded as the host within the
+URI. For Teleport Workload Identity, the trust domain is your Teleport cluster,
+and this is represented by the name configured for the cluster,
+e.g `example.teleport.sh`.
+
+The workload identifier is encoded in the URI as the path. This should be a
+string that identifies your workload within the trust domain. What you include
+within this path is up to you and your application's requirements. Typically,
+the hierarchical nature of the path is leveraged. For example, you had the
+service `foo` operating in the `europe` region, you may wish to represent this
+as: `/region/europe/svc/foo`.
+
+Together, this produces a SPIFFE ID that looks like:
+
+```
+spiffe://example.teleport.sh/region/europe/svc/foo
+```
+
+## Secure Verifiable Identity Documents (SVIDs)
+
+The SPIFFE ID may be a unique identifier for a workload, but provides no way
+for a workload to verifiably prove its identity. This is where the Secure
+Verifiable Identity Documents (SVIDs) come in.
+
+The SVID is a document that encodes the SPIFFE ID and a cryptographic proof
+which allows the SVID to be verified as issued by a trusted authority.
+
+SPIFFE sets out two formats for SVIDs:
+
+- X.509-SVID: These are X.509 certificates that include the SPIFFE ID encoded in
+  the URI SAN field. This certificate is then signed by a trusted authority
+  within the trust domain.
+- JWT-SVID: These are JWT tokens that include the SPIFFE ID as the `sub` claim.
+  These are signed by a trusted authority within the trust domain.
+
+The data needed by a workload to verify a SVID is known as the trust bundle.
+This is a set of certificates belonging to the trusted authorities within the
+trust domain.
+
+## Workload API
+
+The Workload API is a standardized gRPC API that workloads should use to request
+SVIDs and trust bundles from a SPIFFE identity provider. The Workload API
+server also handles automatically renewing the credentials for subscribed
+workloads.
+
+The Workload API is usually exposed by an agent that is installed on the same
+host as the workloads and is accessed using a unix socket rather than a TCP
+endpoint. It can perform basic authentication and authorization of the workload
+before issuing SVIDs. This is known as Workload Attestation.
+
+## Next steps
+
+- [Workload Identity Overview](./introduction.mdx): Overview of Teleport
+  Workload Identity.
+- [SPIFFE Website](https://spiffe.io/): Learn more about the SPIFFE
+  specification.

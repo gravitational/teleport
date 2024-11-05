@@ -36,10 +36,14 @@ to determine the rollout date.
     git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
     ```
 
-## Is the docs site up to date with the new release?
+## Is the docs site content up to date with the new release?
 
 - [ ] Verify that Teleport version variables are correct and reflect the upcoming
   release. Check `docs/config.json` for this.
+
+- [ ] Ensure that redirects (as configured in `docs/config.json`) only exist for
+  the default version of the docs site, and have been removed from other
+  versions.
 
 - [ ] Remove version warnings in the docs that mention a version we no longer
   support _except_ for the last EOL version. E.g., if we no longer support

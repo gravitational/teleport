@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -280,6 +281,10 @@ message AccessListMember {
 
   // MemberName is the name of the member.
   string MemberName = 4 [(gogoproto.jsontag) = "member_name,omitempty"];
+
+  // MembershipKind describes the kind of membership, either
+  // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+  teleport.accesslist.v1.MembershipKind membership_kind = 5 [(gogoproto.jsontag) = "membership_kind,omitempty"];
 }
 
 // AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.
@@ -1890,6 +1895,54 @@ message SFTP {
 
   // Error is the optional error that may have occurred
   string Error = 12 [(gogoproto.jsontag) = "error,omitempty"];
+}
+
+// SFTPSummary is emitted at the end of an SFTP transfer
+message SFTPSummary {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // FileTransferStats contains statistics about transferred files
+  repeated FileTransferStat FileTransferStats = 6 [(gogoproto.jsontag) = "file_transfer_stats"];
+}
+
+// FileTransferStat is statistics about a transferred file
+message FileTransferStat {
+  string Path = 1 [(gogoproto.jsontag) = "path"];
+  uint64 BytesRead = 2 [(gogoproto.jsontag) = "bytes_read"];
+  uint64 BytesWritten = 3 [(gogoproto.jsontag) = "bytes_written"];
 }
 
 // Subsystem is emitted when a user requests a new subsystem.
@@ -4426,6 +4479,8 @@ message PluginMetadata {
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
   // Event is one of the audit events
+  reserved 185, 186, 187;
+  reserved "AutoUpdateAgentPlanCreate", "AutoUpdateAgentPlanUpdate", "AutoUpdateAgentPlanDelete";
   oneof Event {
     events.UserLogin UserLogin = 1;
     events.UserCreate UserCreate = 2;
@@ -4610,9 +4665,10 @@ message OneOf {
     events.CrownJewelCreate CrownJewelCreate = 182;
     events.CrownJewelUpdate CrownJewelUpdate = 183;
     events.CrownJewelDelete CrownJewelDelete = 184;
-    events.AutoUpdateAgentPlanCreate AutoUpdateAgentPlanCreate = 185;
-    events.AutoUpdateAgentPlanUpdate AutoUpdateAgentPlanUpdate = 186;
-    events.AutoUpdateAgentPlanDelete AutoUpdateAgentPlanDelete = 187;
+    events.UserTaskCreate UserTaskCreate = 188;
+    events.UserTaskUpdate UserTaskUpdate = 189;
+    events.UserTaskDelete UserTaskDelete = 190;
+    events.SFTPSummary SFTPSummary = 191;
   }
 }
 
@@ -6921,6 +6977,13 @@ message AutoUpdateConfigCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AutoUpdateConfigUpdate is emitted when an auto update config is updated.
@@ -6948,6 +7011,13 @@ message AutoUpdateConfigUpdate {
 
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -6983,6 +7053,13 @@ message AutoUpdateConfigDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AutoUpdateVersionCreate is emitted when an auto update version is created.
@@ -7010,6 +7087,13 @@ message AutoUpdateVersionCreate {
 
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -7045,6 +7129,13 @@ message AutoUpdateVersionUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AutoUpdateVersionDelete is emitted when an auto update version is deleted.
@@ -7072,6 +7163,13 @@ message AutoUpdateVersionDelete {
 
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -7314,39 +7412,8 @@ message CrownJewelDelete {
   ];
 }
 
-// AutoUpdateVersionCreate is emitted when an auto update version is created.
-message AutoUpdateAgentPlanCreate {
-  // Metadata is a common event metadata
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata User = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AutoUpdateAgentPlanUpdate is emitted when an auto update version is updated.
-message AutoUpdateAgentPlanUpdate {
+// UserTaskCreate is emitted when a user task is created.
+message UserTaskCreate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -7361,23 +7428,37 @@ message AutoUpdateAgentPlanUpdate {
     (gogoproto.jsontag) = ""
   ];
 
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
   // User is a common user event metadata
-  UserMetadata User = 3 [
+  UserMetadata User = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // UserTaskMetadata holds information about the user task.
+  UserTaskMetadata UserTask = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 }
 
-// AutoUpdateAgentPlanDelete is emitted when an auto update version is deleted.
-message AutoUpdateAgentPlanDelete {
+// UserTaskUpdate is emitted when a user task is updated.
+message UserTaskUpdate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -7385,22 +7466,90 @@ message AutoUpdateAgentPlanDelete {
     (gogoproto.jsontag) = ""
   ];
 
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
   // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // UserTaskMetadata holds information about the user task.
+  UserTaskMetadata UserTask = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CurrentUserTaskState is the current UserTask State.
+  string CurrentUserTaskState = 7 [(gogoproto.jsontag) = "current_user_task_state"];
+
+  // UpdatedUserTaskState is the updated UserTask State.
+  string UpdatedUserTaskState = 8 [(gogoproto.jsontag) = "updated_user_task_state"];
+}
+
+// UserTaskMetadata contains key fields for the UserTask.
+message UserTaskMetadata {
+  // TaskType is type of the task.
+  string TaskType = 1 [(gogoproto.jsontag) = "user_task_type"];
+  // IssueType is type of the issue task.
+  string IssueType = 2 [(gogoproto.jsontag) = "user_task_issue_type"];
+  // Integration is type of associated integration.
+  string Integration = 3 [(gogoproto.jsontag) = "user_task_integration"];
+}
+
+// UserTaskDelete is emitted when a user task is deleted.
+message UserTaskDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // User is a common user event metadata
-  UserMetadata User = 3 [
+  UserMetadata User = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
+  ConnectionMetadata Connection = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

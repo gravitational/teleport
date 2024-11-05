@@ -60,12 +60,13 @@ graphical representation thereof.
 ## Prerequisites
 
 - A running Teleport Enterprise cluster v14.3.9/v15.2.0 or later.
-- For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
-- For self-hosted clusters, a running Access Graph node v1.17.0 or later. 
-Check [Access Graph page](../teleport-policy.mdx) for details on
+- Teleport Policy enabled for your account.
+- For self-hosted clusters:
+  - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
+  - A running Access Graph node v1.17.0 or later.
+Check the [Teleport Policy page](../teleport-policy.mdx) for details on
 how to set up Access Graph.
-- The node running the Access Graph service must be reachable
-from Teleport Auth Service and Discovery Service. 
+  - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
 ## Step 1/2. Configure Discovery Service (Self-hosted only)
 

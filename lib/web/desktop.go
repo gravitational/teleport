@@ -370,65 +370,67 @@ func (h *Handler) performSessionMFACeremony(
 	}()
 
 	mfaCeremony := &mfa.Ceremony{
-		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
-		SolveAuthenticateChallenge: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			codec := tdpMFACodec{}
+		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				codec := tdpMFACodec{}
 
-			// Send the challenge over the socket.
-			msg, err := codec.Encode(
-				&client.MFAAuthenticateChallenge{
-					WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
-				},
-				defaults.WebsocketWebauthnChallenge,
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			span.AddEvent("waiting for user to complete mfa ceremony")
-			var buf []byte
-			// Loop through incoming messages until we receive an MFA message that lets us
-			// complete the ceremony. Non-MFA messages (e.g. ClientScreenSpecs representing
-			// screen resizes) are withheld for later.
-			for {
-				var ty int
-				ty, buf, err = ws.ReadMessage()
+				// Send the challenge over the socket.
+				msg, err := codec.Encode(
+					&client.MFAAuthenticateChallenge{
+						WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
+					},
+					defaults.WebsocketWebauthnChallenge,
+				)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if ty != websocket.BinaryMessage {
-					return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
-				}
-				if len(buf) == 0 {
-					return nil, trace.BadParameter("empty message received")
+
+				if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+					return nil, trace.Wrap(err)
 				}
 
-				if tdp.MessageType(buf[0]) != tdp.TypeMFA {
-					// This is not an MFA message, withhold it for later.
-					msg, err := tdp.Decode(buf)
-					h.log.Debugf("Received non-MFA message, withholding:", msg)
+				span.AddEvent("waiting for user to complete mfa ceremony")
+				var buf []byte
+				// Loop through incoming messages until we receive an MFA message that lets us
+				// complete the ceremony. Non-MFA messages (e.g. ClientScreenSpecs representing
+				// screen resizes) are withheld for later.
+				for {
+					var ty int
+					ty, buf, err = ws.ReadMessage()
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
-					*withheld = append(*withheld, msg)
-					continue
+					if ty != websocket.BinaryMessage {
+						return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+					}
+					if len(buf) == 0 {
+						return nil, trace.BadParameter("empty message received")
+					}
+
+					if tdp.MessageType(buf[0]) != tdp.TypeMFA {
+						// This is not an MFA message, withhold it for later.
+						msg, err := tdp.Decode(buf)
+						h.log.Debugf("Received non-MFA message, withholding:", msg)
+						if err != nil {
+							return nil, trace.Wrap(err)
+						}
+						*withheld = append(*withheld, msg)
+						continue
+					}
+
+					break
 				}
 
-				break
-			}
+				assertion, err := codec.DecodeResponse(buf, defaults.WebsocketWebauthnChallenge)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				span.AddEvent("mfa ceremony completed")
 
-			assertion, err := codec.DecodeResponse(buf, defaults.WebsocketWebauthnChallenge)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			span.AddEvent("mfa ceremony completed")
-
-			return assertion, nil
+				return assertion, nil
+			})
 		},
+		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
 	}
 
 	_, newCerts, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
@@ -475,7 +477,8 @@ type connector struct {
 // to any of the services or if it encounters an error that is not a connection problem.
 func (c *connector) connectToWindowsService(
 	clusterName string,
-	desktopServiceIDs []string) (conn net.Conn, version string, err error) {
+	desktopServiceIDs []string,
+) (conn net.Conn, version string, err error) {
 	for _, id := range desktopServiceIDs {
 		conn, ver, err := c.tryConnect(clusterName, id)
 		if err != nil && !trace.IsConnectionProblem(err) {

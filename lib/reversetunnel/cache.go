@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,12 +93,12 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	}
 
 	if _, isRSA := hostKey.Public().(*rsa.PublicKey); isRSA {
-		// Ensure the native package is precomputing RSA keys if we ever
-		// generate one. [native.PrecomputeKeys] is idempotent.
+		// Start precomputing RSA keys if we ever generate one.
+		// [cryptosuites.PrecomputeRSAKeys] is idempotent.
 		// Doing this lazily easily handles changing signature algorithm suites
 		// and won't start precomputing keys if they are never needed (a major
 		// benefit in tests).
-		native.PrecomputeKeys()
+		cryptosuites.PrecomputeRSAKeys()
 	}
 
 	sshPub, err := ssh.NewPublicKey(hostKey.Public())
@@ -114,8 +113,6 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): request only an SSH cert, we don't need TLS here.
-	// GenerateHostCert needs support for this.
 	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
 		Key:         pubBytes,
 		HostId:      principals[0],

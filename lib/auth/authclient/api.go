@@ -34,6 +34,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -314,6 +315,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -1088,6 +1092,12 @@ type Cache interface {
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
+	// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+
+	// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens() (types.StaticTokens, error)
 
@@ -1154,7 +1164,7 @@ type Cache interface {
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
-	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1206,6 +1216,9 @@ type Cache interface {
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 
+	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
+
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
@@ -1219,6 +1232,9 @@ type Cache interface {
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
 	// GetStaticHostUser returns a static host user by name.
 	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+
+	// GetProvisioningState gets a specific provisioning state
+	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 }
 
 type NodeWrapper struct {

@@ -68,6 +68,9 @@ type Config struct {
 	Timeout time.Duration
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
+	// UpdateGroup is used to vary the webapi response based on the
+	// client's auto-update group.
+	UpdateGroup string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -169,9 +172,18 @@ func Find(cfg *Config) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/find",
+	}
+	if cfg.UpdateGroup != "" {
+		endpoint.RawQuery = url.Values{
+			"group": []string{cfg.UpdateGroup},
+		}.Encode()
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,12 +217,21 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Ping")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/ping", cfg.ProxyAddr)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/ping",
+	}
+	if cfg.UpdateGroup != "" {
+		endpoint.RawQuery = url.Values{
+			"group": []string{cfg.UpdateGroup},
+		}.Encode()
+	}
 	if cfg.ConnectorName != "" {
-		endpoint = fmt.Sprintf("%s/%s", endpoint, cfg.ConnectorName)
+		endpoint = endpoint.JoinPath(cfg.ConnectorName)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -305,6 +326,10 @@ type PingResponse struct {
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
+	// Edition represents the Teleport edition. Possible values are "oss", "ent", and "community".
+	Edition string `json:"edition"`
+	// FIPS represents if Teleport is using FIPS-compliant cryptography.
+	FIPS bool `json:"fips"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
@@ -334,8 +359,14 @@ type ProxySettings struct {
 type AutoUpdateSettings struct {
 	// ToolsVersion defines the version of {tsh, tctl} for client auto update.
 	ToolsVersion string `json:"tools_version"`
-	// ToolsMode defines mode client auto update feature `enabled|disabled`.
-	ToolsMode string `json:"tools_mode"`
+	// ToolsAutoUpdate indicates if the requesting tools client should be updated.
+	ToolsAutoUpdate bool `json:"tools_auto_update"`
+	// AgentVersion defines the version of teleport that agents enrolled into autoupdates should run.
+	AgentVersion string `json:"agent_version"`
+	// AgentAutoUpdate indicates if the requesting agent should attempt to update now.
+	AgentAutoUpdate bool `json:"agent_auto_update"`
+	// AgentUpdateJitterSeconds defines the jitter time an agent should wait before updating.
+	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
 }
 
 // KubeProxySettings is kubernetes proxy settings

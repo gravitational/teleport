@@ -122,25 +122,12 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-// TODO(tross): change the log type once e has been updated
-func NewStreamingUsageReporter(log any, clusterName types.ClusterName, anonymizationKey string, submitter SubmitFunc) (*StreamingUsageReporter, error) {
-	logger := slog.Default()
-
-	if log != nil {
-		if l, ok := log.(*slog.Logger); ok {
-			logger = l
-		}
+func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterName, anonymizer utils.Anonymizer, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+	if anonymizer == nil {
+		return nil, trace.BadParameter("missing anonymizer")
 	}
 
-	if anonymizationKey == "" {
-		return nil, trace.BadParameter("anonymization key is required")
-	}
-	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(usagereporter.UsagePrometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

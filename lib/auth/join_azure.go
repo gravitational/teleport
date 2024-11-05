@@ -351,13 +351,13 @@ func generateAzureChallenge() (string, error) {
 	return challenge, trace.Wrap(err)
 }
 
-// RegisterUsingAzureMethod registers the caller using the Azure join method
+// RegisterUsingAzureMethodWithOpts registers the caller using the Azure join method
 // and returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *proto.RegisterUsingAzureMethodRequest with a signed attested data document
 // including the challenge as a nonce.
-func (a *Server) RegisterUsingAzureMethod(
+func (a *Server) RegisterUsingAzureMethodWithOpts(
 	ctx context.Context,
 	challengeResponse client.RegisterAzureChallengeResponseFunc,
 	opts ...azureRegisterOption,
@@ -420,6 +420,19 @@ func (a *Server) RegisterUsingAzureMethod(
 		nil,
 	)
 	return certs, trace.Wrap(err)
+}
+
+// RegisterUsingAzureMethod registers the caller using the Azure join method
+// and returns signed certs to join the cluster.
+//
+// The caller must provide a ChallengeResponseFunc which returns a
+// *proto.RegisterUsingAzureMethodRequest with a signed attested data document
+// including the challenge as a nonce.
+func (a *Server) RegisterUsingAzureMethod(
+	ctx context.Context,
+	challengeResponse client.RegisterAzureChallengeResponseFunc,
+) (certs *proto.Certs, err error) {
+	return a.RegisterUsingAzureMethodWithOpts(ctx, challengeResponse)
 }
 
 // fixAzureSigningAlgorithm fixes a mismatch between the object IDs of the

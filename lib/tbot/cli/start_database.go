@@ -31,25 +31,25 @@ import (
 // `tbot configure database`.
 type DatabaseCommand struct {
 	*sharedStartArgs
+	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Destination string
-	Format      string
-	Service     string
-	Username    string
-	Database    string
+	Format   string
+	Service  string
+	Username string
+	Database string
 }
 
 // NewDatabaseCommand initializes a command and flags for database outputs and
 // returns a struct that will contain the parse result.
 func NewDatabaseCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *DatabaseCommand {
-	cmd := parentCmd.Command("database", "Starts with a database output").Alias("db")
+	cmd := parentCmd.Command("database", "Starts with a database output.").Alias("db")
 
 	c := &DatabaseCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
+	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("format", "The database output format if necessary").Default("").EnumVar(&c.Format, config.SupportedDatabaseFormatStrings()...)
 	cmd.Flag("service", "The database service name").Required().StringVar(&c.Service)
 	cmd.Flag("username", "The database user name").Required().StringVar(&c.Username)
@@ -63,7 +63,7 @@ func (c *DatabaseCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		return trace.Wrap(err)
 	}
 
-	dest, err := config.DestinationFromURI(c.Destination)
+	dest, err := c.BuildDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}

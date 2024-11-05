@@ -469,22 +469,11 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "trustedcluster"))
-	_, err = a.validateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
-		Token:           validToken,
-		CAs:             []types.CertAuthority{leafClusterCA},
-		TeleportVersion: teleport.Version,
-	})
-	require.NoError(t, err)
-
-	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
-	require.NoError(t, err)
-
 	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
-	err = a.addCertAuthorities(ctx, trustedCluster, []types.CertAuthority{ca})
-	require.NoError(t, err)
 
-	err = a.UpsertCertAuthority(ctx, ca)
+	configureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
+
+	_, err = a.Services.CreateTrustedCluster(ctx, trustedCluster, []types.CertAuthority{ca})
 	require.NoError(t, err)
 
 	err = a.createReverseTunnel(ctx, trustedCluster)

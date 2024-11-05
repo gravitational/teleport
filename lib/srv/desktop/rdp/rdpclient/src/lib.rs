@@ -49,9 +49,13 @@ mod rdpdr;
 mod ssl;
 mod util;
 
+/// rdpclient_init_log should be called at initialization time to set up
+/// logging on the rdpclient side.
 #[no_mangle]
-pub extern "C" fn init() {
-    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
+pub extern "C" fn rdpclient_init_log() {
+    if let Err(e) = env_logger::try_init() {
+        eprintln!("failed to initialize Rust logger: {e}");
+    }
 }
 
 /// free_string is used to free memory for strings that were passed back to Go side.

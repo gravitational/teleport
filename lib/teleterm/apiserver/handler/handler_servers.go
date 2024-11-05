@@ -20,12 +20,12 @@ package handler
 
 import (
 	"context"
-	"sort"
 
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination
@@ -47,24 +47,11 @@ func (s *Handler) GetServers(ctx context.Context, req *api.GetServersRequest) (*
 }
 
 func newAPIServer(server clusters.Server) *api.Server {
-	apiLabels := APILabels{}
 	serverLabels := server.GetStaticLabels()
-	for name, value := range serverLabels {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
 	serverCmdLabels := server.GetCmdLabels()
-	for name, cmd := range serverCmdLabels {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: cmd.GetResult(),
-		})
-	}
-
-	sort.Sort(apiLabels)
+	apiLabels := makeAPILabels(
+		ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels)),
+	)
 
 	return &api.Server{
 		Uri:      server.URI.String(),

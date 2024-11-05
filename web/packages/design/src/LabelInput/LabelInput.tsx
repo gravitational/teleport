@@ -17,7 +17,6 @@
  */
 
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
 
 import { space, SpaceProps } from 'design/system';
 
@@ -25,7 +24,7 @@ interface LabelInputProps extends SpaceProps {
   hasError?: boolean;
 }
 
-const LabelInput = styled.label<LabelInputProps>`
+export const LabelInput = styled.label<LabelInputProps>`
   color: ${props =>
     props.hasError
       ? props.theme.colors.error.main
@@ -36,15 +35,3 @@ const LabelInput = styled.label<LabelInputProps>`
   ${props => props.theme.typography.body3}
   ${space}
 `;
-
-LabelInput.propTypes = {
-  hasError: PropTypes.bool,
-};
-
-LabelInput.defaultProps = {
-  hasError: false,
-};
-
-LabelInput.displayName = 'LabelInput';
-
-export default LabelInput;

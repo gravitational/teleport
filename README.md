@@ -115,8 +115,7 @@ To run a full test suite locally, see [the test dependencies list](BUILD_macos.m
 ## Building Teleport
 
 The `teleport` repository contains the Teleport daemon binary (written in Go)
-and a web UI written in Javascript (a git submodule located in the `webassets/`
-directory).
+and a web UI written in TypeScript.
 
 If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current

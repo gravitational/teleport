@@ -297,6 +297,9 @@ type IntegrationConfAzureOIDC struct {
 	// When this is true, the integration script will produce
 	// a cache file necessary for TAG synchronization.
 	AccessGraphEnabled bool
+
+	// SkipOIDCConfiguration is a flag indicating that OIDC configuration should be skipped.
+	SkipOIDCConfiguration bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -1169,6 +1172,7 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 		return trace.BadParameter("must set region in ca_key_params.aws_kms")
 	}
 	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
+	cfg.Auth.KeyStore.AWSKMS.MultiRegion = kmsConfig.MultiRegion
 	return nil
 }
 
@@ -2356,7 +2360,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// pass the value of --insecure flag to the runtime
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
-	// load /etc/teleport.yaml and apply it's values:
+	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
 		return trace.Wrap(err)

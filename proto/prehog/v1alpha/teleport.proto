@@ -778,6 +778,7 @@ enum CTA {
   CTA_EXTERNAL_AUDIT_STORAGE = 10;
   CTA_OKTA_USER_SYNC = 11;
   CTA_ENTRA_ID = 12;
+  CTA_OKTA_SCIM = 13;
 }
 
 // a request forwarded to a kube cluster's API server (other than exec and
@@ -933,6 +934,8 @@ message AccessListMemberCreateEvent {
   // user_name is the anonymized user name
   string user_name = 1;
   AccessListMetadata metadata = 2;
+  // member_kind is the type of membership of the created member in the parent access list.
+  string member_kind = 3;
 }
 
 // AccessListMemberUpdate is an event that is emitted when a member is updated in an access list.
@@ -940,6 +943,8 @@ message AccessListMemberUpdateEvent {
   // user_name is the anonymized user name
   string user_name = 1;
   AccessListMetadata metadata = 2;
+  // membership_kind is the type of membership of the updated member in the parent access list.
+  string member_kind = 3;
 }
 
 // AccessListMemberDelete is an event that is emitted when a member is removed from an access list.
@@ -947,6 +952,8 @@ message AccessListMemberDeleteEvent {
   // user_name is anonymized user name
   string user_name = 1;
   AccessListMetadata metadata = 2;
+  // member_kind is the type of membership of the deleted user in the parent access list.
+  string member_kind = 3;
 }
 
 // AccessListGrantsToUser is an event that is emitted when access list permissions are granted to a user
@@ -960,6 +967,12 @@ message AccessListGrantsToUserEvent {
 
   // count_traits_granted is the number of traits granted to a user.
   int32 count_traits_granted = 3;
+
+  // count_inherited_roles_granted is the number of roles granted to a user inherited from nested access lists.
+  int32 count_inherited_roles_granted = 4;
+
+  // count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
+  int32 count_inherited_traits_granted = 5;
 }
 
 // AccessListReviewCreateEvent is an event that is emitted when an access list review is created.
@@ -1034,6 +1047,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
   INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
+  INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1398,6 +1412,31 @@ message DatabaseUserPermissionsUpdateEvent {
   int32 num_tables_permissions = 4;
 }
 
+// SessionRecordingAccessEvent is emitted when the user accesses a session
+// recording.
+//
+// PostHog event: tp.recording.access
+message SessionRecordingAccessEvent {
+  // session_type is type of the session, should be
+  // "ssh"/"k8s"/"db"/"app"/"desktop" (matching the values for
+  // api/types.SessionKind).
+  //
+  // PostHog property: tp.session_type
+  string session_type = 1;
+
+  // user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
+  // encoded in base64.
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // format is the format the session recording was accessed.
+  // One of text/json/yaml/pty. pty being the interactive session player.
+  //
+  // PostHog property: tp.recording.format
+  string format = 3;
+}
+
 // UserTaskStateEvent is emitted when a UserTask state changes.
 // This can happen when the Task is created, when it's manually
 // resolved by the user or when it changes back to being open
@@ -1582,6 +1621,8 @@ message SubmitEventRequest {
     AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
 
     UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+
+    SessionRecordingAccessEvent session_recording_access = 93;
 
     UserTaskStateEvent user_task_state = 94;
   }

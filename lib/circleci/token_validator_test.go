@@ -20,8 +20,6 @@ package circleci
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -33,6 +31,8 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // fakeIDP pretends to be a circle CI org OIDC provider, e.g:
@@ -76,7 +76,7 @@ func (f *fakeIDP) issuerURLTemplate() string {
 
 func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 	// Generate keypair for IDP
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -121,7 +121,7 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 		jwks := jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{
-					Key: &privateKey.PublicKey,
+					Key: privateKey.Public(),
 				},
 			},
 		}

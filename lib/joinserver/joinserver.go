@@ -53,6 +53,10 @@ type joinServiceClient interface {
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
 	) (*proto.Certs, error)
+	RegisterUsingToken(
+		ctx context.Context,
+		req *types.RegisterUsingTokenRequest,
+	) (*proto.Certs, error)
 }
 
 // JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
@@ -210,6 +214,10 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest) {
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
+		// No authenticated user, we don't want to trust the values provided in
+		// the request unless it's coming from a proxy.
+		req.BotInstanceID = ""
+		req.BotGeneration = 0
 		return
 	}
 
@@ -375,4 +383,20 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 			Certs: certs,
 		},
 	}))
+}
+
+// RegisterUsingToken allows nodes and proxies to join the cluster using
+// legacy join methods which do not yet have their own RPC.
+// On the Auth server, this method will call the auth.Server's
+// RegisterUsingToken method. When running on the Proxy, this method will
+// forward the request to the Auth server's JoinServiceServer.
+func (s *JoinServiceGRPCServer) RegisterUsingToken(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	if err := setClientRemoteAddr(ctx, req); err != nil {
+		return nil, trace.Wrap(err, "setting client address")
+	}
+	setBotParameters(ctx, req)
+
+	return s.joinServiceClient.RegisterUsingToken(ctx, req)
 }

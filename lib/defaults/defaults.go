@@ -724,7 +724,7 @@ const (
 )
 
 // The following are cryptographic primitives Teleport does not support in
-// it's default configuration.
+// its default configuration.
 const (
 	DiffieHellmanGroup14SHA1 = "diffie-hellman-group14-sha1"
 	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"

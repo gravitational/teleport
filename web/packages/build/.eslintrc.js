@@ -83,6 +83,9 @@ module.exports = {
         'newlines-between': 'always-and-inside-groups',
       },
     ],
+    // typescript-eslint recommends to turn import/no-unresolved off.
+    // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#eslint-plugin-import
+    'import/no-unresolved': 0,
     'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
     '@typescript-eslint/no-unused-vars': ['error'],
 
@@ -111,8 +114,6 @@ module.exports = {
     'no-alert': 0,
     'import/no-named-as-default': 0,
     'import/default': 2,
-    // XXX Change to a 2 once e pkg imports are removed from teleterm.
-    'import/no-unresolved': 1,
     'no-underscore-dangle': 0,
     'no-case-declarations': 0,
     'prefer-const': 0,

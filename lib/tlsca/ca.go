@@ -21,6 +21,7 @@ package tlsca
 import (
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -1199,7 +1200,12 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter NotAfter")
 	}
 	if c.KeyUsage == 0 {
-		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		c.KeyUsage = x509.KeyUsageDigitalSignature
+		if _, isRSA := c.PublicKey.(*rsa.PublicKey); isRSA {
+			// The KeyEncipherment bit is necessary for RSA key exchanges
+			// https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3
+			c.KeyUsage |= x509.KeyUsageKeyEncipherment
+		}
 	}
 
 	c.DNSNames = utils.Deduplicate(c.DNSNames)

@@ -42,6 +42,7 @@ const (
 	DynamicWindowsService_GetDynamicWindowsDesktop_FullMethodName    = "/teleport.dynamicwindows.v1.DynamicWindowsService/GetDynamicWindowsDesktop"
 	DynamicWindowsService_CreateDynamicWindowsDesktop_FullMethodName = "/teleport.dynamicwindows.v1.DynamicWindowsService/CreateDynamicWindowsDesktop"
 	DynamicWindowsService_UpdateDynamicWindowsDesktop_FullMethodName = "/teleport.dynamicwindows.v1.DynamicWindowsService/UpdateDynamicWindowsDesktop"
+	DynamicWindowsService_UpsertDynamicWindowsDesktop_FullMethodName = "/teleport.dynamicwindows.v1.DynamicWindowsService/UpsertDynamicWindowsDesktop"
 	DynamicWindowsService_DeleteDynamicWindowsDesktop_FullMethodName = "/teleport.dynamicwindows.v1.DynamicWindowsService/DeleteDynamicWindowsDesktop"
 )
 
@@ -59,6 +60,8 @@ type DynamicWindowsServiceClient interface {
 	CreateDynamicWindowsDesktop(ctx context.Context, in *CreateDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*types.DynamicWindowsDesktopV1, error)
 	// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
 	UpdateDynamicWindowsDesktop(ctx context.Context, in *UpdateDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*types.DynamicWindowsDesktopV1, error)
+	// UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
+	UpsertDynamicWindowsDesktop(ctx context.Context, in *UpsertDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*types.DynamicWindowsDesktopV1, error)
 	// DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
 	DeleteDynamicWindowsDesktop(ctx context.Context, in *DeleteDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -111,6 +114,16 @@ func (c *dynamicWindowsServiceClient) UpdateDynamicWindowsDesktop(ctx context.Co
 	return out, nil
 }
 
+func (c *dynamicWindowsServiceClient) UpsertDynamicWindowsDesktop(ctx context.Context, in *UpsertDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*types.DynamicWindowsDesktopV1, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.DynamicWindowsDesktopV1)
+	err := c.cc.Invoke(ctx, DynamicWindowsService_UpsertDynamicWindowsDesktop_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dynamicWindowsServiceClient) DeleteDynamicWindowsDesktop(ctx context.Context, in *DeleteDynamicWindowsDesktopRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -135,6 +148,8 @@ type DynamicWindowsServiceServer interface {
 	CreateDynamicWindowsDesktop(context.Context, *CreateDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error)
 	// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
 	UpdateDynamicWindowsDesktop(context.Context, *UpdateDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error)
+	// UpsertDynamicWindowsDesktop updates an existing dynamic Windows desktop or creates new if it doesn't exist.
+	UpsertDynamicWindowsDesktop(context.Context, *UpsertDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error)
 	// DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
 	DeleteDynamicWindowsDesktop(context.Context, *DeleteDynamicWindowsDesktopRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedDynamicWindowsServiceServer()
@@ -158,6 +173,9 @@ func (UnimplementedDynamicWindowsServiceServer) CreateDynamicWindowsDesktop(cont
 }
 func (UnimplementedDynamicWindowsServiceServer) UpdateDynamicWindowsDesktop(context.Context, *UpdateDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateDynamicWindowsDesktop not implemented")
+}
+func (UnimplementedDynamicWindowsServiceServer) UpsertDynamicWindowsDesktop(context.Context, *UpsertDynamicWindowsDesktopRequest) (*types.DynamicWindowsDesktopV1, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertDynamicWindowsDesktop not implemented")
 }
 func (UnimplementedDynamicWindowsServiceServer) DeleteDynamicWindowsDesktop(context.Context, *DeleteDynamicWindowsDesktopRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDynamicWindowsDesktop not implemented")
@@ -255,6 +273,24 @@ func _DynamicWindowsService_UpdateDynamicWindowsDesktop_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DynamicWindowsService_UpsertDynamicWindowsDesktop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertDynamicWindowsDesktopRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DynamicWindowsServiceServer).UpsertDynamicWindowsDesktop(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DynamicWindowsService_UpsertDynamicWindowsDesktop_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DynamicWindowsServiceServer).UpsertDynamicWindowsDesktop(ctx, req.(*UpsertDynamicWindowsDesktopRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _DynamicWindowsService_DeleteDynamicWindowsDesktop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteDynamicWindowsDesktopRequest)
 	if err := dec(in); err != nil {
@@ -295,6 +331,10 @@ var DynamicWindowsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateDynamicWindowsDesktop",
 			Handler:    _DynamicWindowsService_UpdateDynamicWindowsDesktop_Handler,
+		},
+		{
+			MethodName: "UpsertDynamicWindowsDesktop",
+			Handler:    _DynamicWindowsService_UpsertDynamicWindowsDesktop_Handler,
 		},
 		{
 			MethodName: "DeleteDynamicWindowsDesktop",

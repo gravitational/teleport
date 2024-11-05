@@ -17,49 +17,70 @@
  */
 
 import React from 'react';
-import Dialog, {
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogContent,
-} from 'design/Dialog';
+import Dialog, { DialogContent } from 'design/Dialog';
 import { Danger } from 'design/Alert';
-import { Text, ButtonPrimary, ButtonSecondary } from 'design';
+import { FingerprintSimple, Cross } from 'design/Icon';
 
-export default function AuthnDialog({
-  onContinue,
-  onCancel,
-  errorText,
-}: Props) {
+import { Text, ButtonSecondary, Flex, ButtonIcon, H2 } from 'design';
+
+import { guessProviderType } from 'shared/components/ButtonSso';
+import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
+
+import { MfaState } from 'teleport/lib/useMfa';
+
+export default function AuthnDialog({ mfa, onCancel }: Props) {
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
-      <DialogHeader style={{ flexDirection: 'column' }}>
-        <DialogTitle textAlign="center">
-          Multi-factor authentication
-        </DialogTitle>
-      </DialogHeader>
-      <DialogContent mb={6}>
-        {errorText && (
-          <Danger mt={2} width="100%">
-            {errorText}
+      <Flex justifyContent="space-between" alignItems="center" mb={4}>
+        <H2>Re-authenticate in the Browser</H2>
+        <ButtonIcon data-testid="close-dialog" onClick={onCancel}>
+          <Cross color="text.slightlyMuted" />
+        </ButtonIcon>
+      </Flex>
+      <DialogContent mb={5}>
+        {mfa.errorText && (
+          <Danger data-testid="danger-alert" mt={2} width="100%">
+            {mfa.errorText}
           </Danger>
         )}
-        <Text textAlign="center">
-          Re-enter your multi-factor authentication in the browser to continue.
+        <Text textAlign="center" color="text.slightlyMuted">
+          To continue, you must verify your identity by re-authenticating:
         </Text>
       </DialogContent>
-      <DialogFooter textAlign="center">
-        <ButtonPrimary onClick={onContinue} autoFocus mr={3} width="130px">
-          {errorText ? 'Retry' : 'OK'}
-        </ButtonPrimary>
-        <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
-      </DialogFooter>
+      <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
+        {mfa.ssoChallenge && (
+          <ButtonSecondary
+            size="extra-large"
+            onClick={mfa.onSsoAuthenticate}
+            gap={2}
+            block
+          >
+            <SSOIcon
+              type={guessProviderType(
+                mfa.ssoChallenge.device.displayName,
+                mfa.ssoChallenge.device.connectorType
+              )}
+            />
+            {mfa.ssoChallenge.device.displayName}
+          </ButtonSecondary>
+        )}
+        {mfa.webauthnPublicKey && (
+          <ButtonSecondary
+            size="extra-large"
+            onClick={mfa.onWebauthnAuthenticate}
+            gap={2}
+            block
+          >
+            <FingerprintSimple />
+            Passkey or MFA Device
+          </ButtonSecondary>
+        )}
+      </Flex>
     </Dialog>
   );
 }
 
 export type Props = {
-  onContinue: () => void;
+  mfa: MfaState;
   onCancel: () => void;
-  errorText: string;
 };

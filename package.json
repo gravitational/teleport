@@ -21,13 +21,18 @@
     "lint": "pnpm prettier-check && pnpm eslint",
     "lint-fix": "pnpm prettier-write && pnpm eslint --fix",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
-    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc",
+    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --build",
     "prettier-check": "prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "prettier-write": "prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx,mts}'",
     "process-icons": "node web/packages/design/src/Icon/script/script.js & pnpm prettier --loglevel silent --write 'web/packages/design/src/Icon/Icons/*.tsx'",
     "nop": "exit 0"
   },
   "private": true,
+  "pnpm": {
+    "overrides": {
+      "@bundled-es-modules/cookie>cookie": "0.7.1"
+    }
+  },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@storybook/addon-toolbars": "^8.3.4",

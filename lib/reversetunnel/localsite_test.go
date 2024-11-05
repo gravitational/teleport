@@ -58,14 +58,16 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
+	clt := &mockLocalSiteClient{}
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
 			Logger:    utils.NewSlogLoggerForTests(),
 			Clock:     clock,
-			Client:    &mockLocalSiteClient{},
+			Client:    clt,
 		},
-		ProxiesC: make(chan []types.Server, 2),
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
 	})
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
@@ -249,17 +251,19 @@ func TestProxyResync(t *testing.T) {
 	proxy2, err := types.NewServer(uuid.NewString(), types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
 
+	clt := &mockLocalSiteClient{
+		proxies: []types.Server{proxy1, proxy2},
+	}
 	// set up the watcher and wait for it to be initialized
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
 			Logger:    utils.NewSlogLoggerForTests(),
 			Clock:     clock,
-			Client: &mockLocalSiteClient{
-				proxies: []types.Server{proxy1, proxy2},
-			},
+			Client:    clt,
 		},
-		ProxiesC: make(chan []types.Server, 2),
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
 	})
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())

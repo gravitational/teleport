@@ -581,6 +581,8 @@ message Features {
   // NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
   // *Access* to the feature is gated on the `AccessMonitoring` entitlement.
   bool AccessMonitoringConfigured = 36;
+  // CloudAnonymizationKey is a hash of the Salesforce ID used to anonymize usage events
+  bytes CloudAnonymizationKey = 37 [(gogoproto.jsontag) = "cloud_anonymization_key,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -1215,6 +1217,10 @@ message MFAAuthenticateChallenge {
   // communications, in case of streaming RPCs. It may also return empty
   // challenges for all other fields.
   MFARequired MFARequired = 4;
+  // SSO Challenge is an SSO MFA challenge. If set, the client can go to the
+  // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA token.
+  // This token paired with the request id can then be used as MFA verification.
+  SSOChallenge SSOChallenge = 5;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1224,6 +1230,7 @@ message MFAAuthenticateResponse {
     // Removed: U2FResponse U2F = 1;
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
+    SSOResponse SSO = 4;
   }
 }
 
@@ -1238,6 +1245,22 @@ message TOTPChallenge {
 // TOTPResponse is a response to TOTPChallenge.
 message TOTPResponse {
   string Code = 1;
+}
+
+// SSOChallenge contains SSO auth request details to perform an SSO MFA check.
+message SSOChallenge {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // RedirectUrl is an IdP redirect URL to initate the SSO MFA flow.
+  string redirect_url = 2;
+}
+
+// SSOResponse is a response to SSOChallenge.
+message SSOResponse {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // Token is a secret token used to verify the user's SSO MFA session.
+  string token = 2;
 }
 
 // MFARegisterChallenge is a challenge for registering a new MFA device.
@@ -1864,9 +1887,11 @@ message CreateAuthenticateChallengeRequest {
   // call [AuthService.IsMFARequired] in the leaf instead of setting this field.
   IsMFARequiredRequest MFARequiredCheck = 5 [(gogoproto.jsontag) = "mfa_required_check,omitempty"];
   // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
-  // ChallengeExtensions only apply to webauthn challenges currently. Required, except
-  // for v15 clients and older.
+  // Required, except for v15 clients and older.
   teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 6 [(gogoproto.jsontag) = "challenge_extensions,omitempty"];
+  // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
+  // If unset, the server will only return non-SSO challenges.
+  string SSOClientRedirectURL = 7 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
@@ -2809,10 +2834,6 @@ service AuthService {
   // ListAccessRequests gets access requests with pagination and sorting.
   rpc ListAccessRequests(ListAccessRequestsRequest) returns (ListAccessRequestsResponse);
 
-  // CreateAccessRequest creates a new access request.
-  // Deprecated: use CreateAccessRequestV2 instead.
-  // DELETE IN v15.0.0.
-  rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
   // CreateAccessRequestV2 creates a new access request.
   rpc CreateAccessRequestV2(types.AccessRequestV3) returns (types.AccessRequestV3);
   // DeleteAccessRequest deletes an access request.
@@ -3020,10 +3041,6 @@ service AuthService {
 
   // GetRole retrieves a role described by the given request.
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
-  // GetRole retrieves all roles.
-  //
-  // DELETE IN 17.0
-  rpc GetRoles(google.protobuf.Empty) returns (GetRolesResponse);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
   // CreateRole creates a new role.

@@ -18,20 +18,49 @@
 
 import React from 'react';
 
+import { makeDefaultMfaState } from 'teleport/lib/useMfa';
+
 import AuthnDialog, { Props } from './AuthnDialog';
 
 export default {
   title: 'Teleport/AuthnDialog',
 };
 
-export const Loaded = () => <AuthnDialog {...props} />;
+export const Loaded = () => {
+  const props: Props = {
+    ...defaultProps,
+    mfa: {
+      ...defaultProps.mfa,
+      ssoChallenge: {
+        redirectUrl: 'hi',
+        requestId: '123',
+        channelId: '123',
+        device: {
+          connectorId: '123',
+          connectorType: 'saml',
+          displayName: 'Okta',
+        },
+      },
+      webauthnPublicKey: {
+        challenge: new ArrayBuffer(1),
+      },
+    },
+  };
+  return <AuthnDialog {...props} />;
+};
 
-export const Error = () => (
-  <AuthnDialog {...props} errorText="some error message" />
-);
+export const Error = () => {
+  const props: Props = {
+    ...defaultProps,
+    mfa: {
+      ...defaultProps.mfa,
+      errorText: 'Something went wrong',
+    },
+  };
+  return <AuthnDialog {...props} />;
+};
 
-const props: Props = {
-  onContinue: () => null,
+const defaultProps: Props = {
+  mfa: makeDefaultMfaState(),
   onCancel: () => null,
-  errorText: '',
 };

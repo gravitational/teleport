@@ -20,7 +20,6 @@ package handler
 
 import (
 	"context"
-	"sort"
 
 	"github.com/gravitational/trace"
 
@@ -74,22 +73,11 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 }
 
 func newAPIKube(kube clusters.Kube) *api.Kube {
-	apiLabels := APILabels{}
-	for name, value := range kube.KubernetesCluster.GetStaticLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
-	}
-
-	for name, cmd := range kube.KubernetesCluster.GetDynamicLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: cmd.GetResult(),
-		})
-	}
-
-	sort.Sort(apiLabels)
+	staticLabels := kube.KubernetesCluster.GetStaticLabels()
+	dynamicLabels := kube.KubernetesCluster.GetDynamicLabels()
+	apiLabels := makeAPILabels(
+		ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels)),
+	)
 
 	return &api.Kube{
 		Name:   kube.KubernetesCluster.GetName(),
@@ -99,14 +87,7 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 }
 
 func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string, resourceURI uri.ResourceURI) *api.KubeResource {
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels())
-	apiLabels := APILabels{}
-	for _, uiLabel := range uiLabels {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  uiLabel.Name,
-			Value: uiLabel.Value,
-		})
-	}
+	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels()))
 
 	return &api.KubeResource{
 		Uri:       resourceURI.AppendKube(kubeCluster).AppendKubeResourceNamespace(resource.GetName()).String(),
