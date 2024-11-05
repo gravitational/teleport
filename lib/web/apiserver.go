@@ -1321,7 +1321,10 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			Name:                connector.GetName(),
 			Display:             connector.GetDisplay(),
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
-			SSO:                 connector.GetSSO(),
+			// Note that we get the connector's primary SSO field, not the MFA SSO field.
+			// These two values are often unique, but should have the same host prefix
+			// (e.g. https://dev-813354.oktapreview.com) in reasonable, functional setups.
+			SSO: connector.GetSSO(),
 		},
 		// Local fallback / MFA.
 		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
