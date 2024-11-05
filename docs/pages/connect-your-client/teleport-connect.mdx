@@ -216,6 +216,27 @@ The application connection tab shows an example command that can be used to quer
 Requests sent under the displayed address will be proxied through an authenticated tunnel to the
 application.
 
+## Hardware key support
+
+Teleport Connect supports authenticating with hardware-based keys.
+Keys are generated and stored directly on a hardware device, providing greater security than storing
+them on a file system. For more details, see [Hardware Key Support guide](../admin-guides/access-controls/guides/hardware-key-support.mdx).
+
+<Admonition type="note" title="PIV support">
+  Hardware key support requires users to use a PIV-compatible hardware key.
+  Currently, this feature is only guaranteed to support YubiKey series 5+.
+</Admonition>
+
+To log in with a hardware key, your role or cluster configuration must enable it.
+Once enforced, Teleport Connect will require you to keep the hardware key plugged in and may also prompt for a tap and/or PIV PIN:
+
+![Logging in with a hardware key](../../img/use-teleport/connect-hardware-keys@2x.png)
+
+When logging in for the first time, you’ll be prompted to log in again immediately.
+
+If your key is set to the default PIV PIN, you may be prompted to change it at this step.
+Entering a default or empty PIN will open a dialog to update it.
+
 ## Connecting to multiple clusters
 
 Teleport Connect allows you to log in to multiple clusters at the same time. After logging in to
