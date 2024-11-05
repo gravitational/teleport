@@ -22,6 +22,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -221,4 +223,11 @@ type IdentityCenter interface {
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
 	IdentityCenterAccountAssignments
+}
+
+// MatchByOriginAWSIdentityCenterLabel matches resource metadata label to
+// contain origin value of OriginAWSIdentityCenter.
+func MatchByOriginAWSIdentityCenterLabel[T types.Resource](resource T) bool {
+	origin, ok := resource.GetMetadata().Labels[types.OriginLabel]
+	return ok && origin == common.OriginAWSIdentityCenter
 }
