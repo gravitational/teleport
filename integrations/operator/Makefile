@@ -139,6 +139,10 @@ test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p
 test:
 	go test ./... -coverprofile cover.out
 
+.PHONY: echo-kubebuilder-assets
+echo-kubebuilder-assets:
+	@echo KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
+
 .PHONY: crdgen-test
 crdgen-test: ## Run crdgen tests.
 	make -C crdgen test
