@@ -2,7 +2,11 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { fireEvent, render, screen } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
-import { within, waitFor } from '@testing-library/react';
+import {
+  within,
+  waitFor,
+  waitForElementToBeRemoved,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as service from 'teleport/services/userPreferences/userPreferences';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
@@ -430,9 +434,11 @@ test('created requests specifiable fields are respected on checkout (not overwri
 
   // Go back to selecting resources to test that previous
   // specifiable fields have been cleared.
-  jest.clearAllMocks();
   await userEvent.click(
     screen.getByRole('button', { name: /make another request/i })
+  );
+  await waitForElementToBeRemoved(() =>
+    screen.queryByTestId('request-checkout')
   );
   // Select a resource.
   await screen.findAllByText('node1-addr');
@@ -445,15 +451,18 @@ test('created requests specifiable fields are respected on checkout (not overwri
   expect(screen.getByText('1 Resource Selected')).toBeInTheDocument();
   await screen.findAllByText('node1-addr');
 
+  jest.clearAllMocks();
   await userEvent.click(
     screen.getByRole('button', { name: /submit request/i })
   );
+
+  await screen.findByText(/resources requested successfully/i);
 
   expect(ctx.workflowService.createAccessRequest).toHaveBeenCalledWith({
     assumeStartTime: null,
     dryRun: undefined,
     maxDuration: new Date('2024-02-17T02:51:00.000Z'),
-    reason: 'some reason',
+    reason: '',
     requestTTL: new Date('2024-02-17T02:51:00.000Z'),
     resourceIds: [
       {
