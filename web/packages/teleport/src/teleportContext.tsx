@@ -110,7 +110,7 @@ class TeleportContext implements types.Context {
 
     if (user.acl.accessGraph.list) {
       // If access graph is enabled, check what features are enabled and store them in local storage.
-      userService
+      await userService
         .fetchAccessGraphFeatures()
         .then(features => {
           for (let key in features) {
