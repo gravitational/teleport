@@ -93,6 +93,11 @@ module.exports = {
       'error',
       { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },
     ],
+    '@typescript-eslint/no-empty-object-type': [
+      'error',
+      // with-single-extends is needed to allow for interface extends like we have in jest.d.ts.
+      { allowInterfaces: 'with-single-extends' },
+    ],
 
     // Severity should be one of the following:
     // "off" or 0 - turn the rule off
