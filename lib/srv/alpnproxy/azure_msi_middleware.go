@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -45,15 +46,16 @@ type AzureMSIMiddleware struct {
 	// ClientID to be returned in a claim.
 	ClientID string
 
-	// Key used to sign JWT
-	Key crypto.Signer
-
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// Log is the Logger.
 	Log logrus.FieldLogger
 	// Secret to be provided by the client.
 	Secret string
+
+	// privateKey used to sign JWT
+	privateKey   crypto.Signer
+	privateKeyMu sync.RWMutex
 }
 
 var _ LocalProxyHTTPMiddleware = &AzureMSIMiddleware{}
@@ -66,9 +68,6 @@ func (m *AzureMSIMiddleware) CheckAndSetDefaults() error {
 		m.Log = logrus.WithField(teleport.ComponentKey, "azure_msi")
 	}
 
-	if m.Key == nil {
-		return trace.BadParameter("missing Key")
-	}
 	if m.Secret == "" {
 		return trace.BadParameter("missing Secret")
 	}
@@ -94,6 +93,18 @@ func (m *AzureMSIMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Req
 	}
 
 	return false
+}
+
+// SetPrivateKey updates the private key.
+func (m *AzureMSIMiddleware) SetPrivateKey(privateKey crypto.Signer) {
+	m.privateKeyMu.Lock()
+	defer m.privateKeyMu.Unlock()
+	m.privateKey = privateKey
+}
+func (m *AzureMSIMiddleware) getPrivateKey() crypto.Signer {
+	m.privateKeyMu.RLock()
+	defer m.privateKeyMu.RUnlock()
+	return m.privateKey
 }
 
 func (m *AzureMSIMiddleware) msiEndpoint(rw http.ResponseWriter, req *http.Request) error {
@@ -176,7 +187,7 @@ func (m *AzureMSIMiddleware) toJWT(claims jwt.AzureTokenClaims) (string, error) 
 	// Create a new key that can sign and verify tokens.
 	key, err := jwt.New(&jwt.Config{
 		Clock:       m.Clock,
-		PrivateKey:  m.Key,
+		PrivateKey:  m.getPrivateKey(),
 		ClusterName: types.TeleportAzureMSIEndpoint, // todo get cluster name
 	})
 	if err != nil {
