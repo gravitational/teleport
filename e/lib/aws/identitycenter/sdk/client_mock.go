@@ -306,3 +306,17 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 	}
 	return nil, trace.NotFound("assignment not found")
 }
+
+func (c *ClientMock) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assigment, error) {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	switch principalType {
+	case ssoadmintypes.PrincipalTypeUser:
+		return c.UserAssignments[principalID], nil
+	case ssoadmintypes.PrincipalTypeGroup:
+		return c.GroupAssignments[principalID], nil
+	default:
+		return nil, trace.BadParameter("unsupported principal type %q", principalType)
+	}
+}

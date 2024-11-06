@@ -46,6 +46,8 @@ type Client interface {
 	ListUserAssignments(ctx context.Context, userID string) ([]*Assigment, error)
 	// ListGroupsAssignments lists account assignment for a user group.
 	ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assigment, error)
+	// ListAssignments lists account assignment for a given principal, which can either be a user or a user group.
+	ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assigment, error)
 
 	// WaitForAccountAssignmentResult waits until the account assignment creation reaches a terminal state
 	// by tracking the status of the account assignment operation using the request ID.
@@ -383,7 +385,7 @@ func (c *client) ListUsers(ctx context.Context) ([]*User, error) {
 
 // ListUserAssignments lists account assignment for a user.
 func (c *client) ListUserAssignments(ctx context.Context, userID string) ([]*Assigment, error) {
-	result, err := c.listAssigment(ctx, userID, ssoadmintypes.PrincipalTypeUser)
+	result, err := c.ListAssignments(ctx, userID, ssoadmintypes.PrincipalTypeUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -392,15 +394,15 @@ func (c *client) ListUserAssignments(ctx context.Context, userID string) ([]*Ass
 
 // ListGroupsAssignments lists account assignment for a user group.
 func (c *client) ListGroupsAssignments(ctx context.Context, groupID string) ([]*Assigment, error) {
-	result, err := c.listAssigment(ctx, groupID, ssoadmintypes.PrincipalTypeGroup)
+	result, err := c.ListAssignments(ctx, groupID, ssoadmintypes.PrincipalTypeGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return result, nil
 }
 
-// listAssigment lists account assignment for a given principal, which can either be a user or a user group.
-func (c *client) listAssigment(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assigment, error) {
+// ListAssignments lists account assignment for a given principal, which can either be a user or a user group.
+func (c *client) ListAssignments(ctx context.Context, principalID string, principalType ssoadmintypes.PrincipalType) ([]*Assigment, error) {
 	var nextToken *string
 	var out []*Assigment
 	for {
