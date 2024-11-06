@@ -36,7 +36,7 @@ func (s *Server) reconcileAccessGraphAzure(
 		upsert, toDel := azure_sync.ReconcileResults(currentTAGResources, &azure_sync.Resources{})
 
 		if err := azurePush(stream, upsert, toDel); err != nil {
-			s.Log.WithError(err).Error("Error pushing empty resources to TAGs")
+			s.Log.ErrorContext(ctx, "Error pushing empty resources to TAGs", "error", err)
 		}
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
@@ -82,7 +82,7 @@ func (s *Server) reconcileAccessGraphAzure(
 	// Aggregate all errors into a single error.
 	err := trace.NewAggregate(errs...)
 	if err != nil {
-		s.Log.WithError(err).Error("Error polling TAGs")
+		s.Log.ErrorContext(ctx, "Error polling TAGs", "error", err)
 	}
 	result := azure_sync.MergeResources(results...)
 	// Merge all results into a single result
@@ -98,7 +98,7 @@ func (s *Server) reconcileAccessGraphAzure(
 	*/
 
 	if pushErr != nil {
-		s.Log.WithError(pushErr).Error("Error pushing TAGs")
+		s.Log.ErrorContext(ctx, "Error pushing TAGs", "error", pushErr)
 		return nil
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
@@ -242,7 +242,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	defer func() {
 		lease.Stop()
 		if err := lease.Wait(); err != nil {
-			s.Log.WithError(err).Warn("error cleaning up semaphore")
+			s.Log.WarnContext(ctx, "error cleaning up semaphore", "error", err)
 		}
 	}()
 
@@ -263,12 +263,12 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 	// Create the event stream
 	stream, err := client.AzureEventsStream(ctx)
 	if err != nil {
-		s.Log.WithError(err).Error("Failed to get TAG Azure service stream")
+		s.Log.ErrorContext(ctx, "Failed to get TAG Azure service stream", "error", err)
 		return trace.Wrap(err)
 	}
 	header, err := stream.Header()
 	if err != nil {
-		s.Log.WithError(err).Error("Failed to get TAG Azure service stream header")
+		s.Log.ErrorContext(ctx, "Failed to get TAG Azure service stream header", "error", err)
 		return trace.Wrap(err)
 	}
 	const (
@@ -318,7 +318,7 @@ func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadC
 func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 	staticFetchers, err := s.accessGraphAzureFetchersFromMatchers(cfg.Matchers, "" /* discoveryConfigName */)
 	if err != nil {
-		s.Log.WithError(err).Error("Error initializing access graph fetchers")
+		s.Log.ErrorContext(ctx, "Error initializing access graph fetchers", "error", err)
 	}
 	s.staticTAGSyncAzureFetchers = staticFetchers
 	if cfg.AccessGraphConfig.Enabled {
@@ -342,7 +342,7 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 					s.Log.Warn("Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
-					s.Log.Warnf("Error initializing and watching access graph: %v", err)
+					s.Log.Warn("Error initializing and watching access graph", "error", err)
 				}
 
 				select {
