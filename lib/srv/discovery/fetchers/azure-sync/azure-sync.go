@@ -29,12 +29,12 @@ import (
 )
 
 const (
-	featNamePrincipals      = "azure/principals"
-	featNameRoleDefinitions = "azure/roledefinitions"
-	featNameRoleAssignments = "azure/roleassignments"
-	featNameVms             = "azure/virtualmachines"
-	featNameDBs             = "azure/databases"
-	featNameAKS             = "azure/aks"
+	featNamePrincipals       = "azure/principals"
+	featNameRoleDefinitions  = "azure/roledefinitions"
+	featNameRoleAssignments  = "azure/roleassignments"
+	featNameVms              = "azure/virtualmachines"
+	featNameManagedDatabases = "azure/databases"
+	featNameAKSClusters      = "azure/aksclusters"
 )
 
 const FetcherConcurrency = 5
@@ -57,12 +57,12 @@ type Resources struct {
 }
 
 type Features struct {
-	Principals      bool
-	RoleDefinitions bool
-	RoleAssignments bool
-	VirtualMachines bool
-	Databases       bool
-	AKS             bool
+	Principals       bool
+	RoleDefinitions  bool
+	RoleAssignments  bool
+	VirtualMachines  bool
+	ManagedDatabases bool
+	AKSClusters      bool
 }
 
 type Fetcher interface {
@@ -101,6 +101,10 @@ func BuildFeatures(values ...string) Features {
 			features.RoleDefinitions = true
 		case featNameRoleAssignments:
 			features.RoleAssignments = true
+		case featNameManagedDatabases:
+			features.ManagedDatabases = true
+		case featNameAKSClusters:
+			features.AKSClusters = true
 		}
 	}
 	return features
@@ -169,7 +173,7 @@ func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, e
 			return nil
 		})
 	}
-	if feats.Databases {
+	if feats.ManagedDatabases {
 		eg.Go(func() error {
 			dbs, err := a.fetchDatabases(ctx)
 			if err != nil {
@@ -180,7 +184,7 @@ func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, e
 			return nil
 		})
 	}
-	if feats.AKS {
+	if feats.AKSClusters {
 		eg.Go(func() error {
 			clusters, err := a.fetchClusters(ctx)
 			if err != nil {
