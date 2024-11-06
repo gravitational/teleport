@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -40,8 +41,8 @@ type ApplicationCommand struct {
 
 // NewApplicationCommand initializes a command and flag for application outputs
 // and returns a struct that will contain the parse result.
-func NewApplicationCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *ApplicationCommand {
-	cmd := parentCmd.Command("application", "Starts with an application output.").Alias("app")
+func NewApplicationCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *ApplicationCommand {
+	cmd := parentCmd.Command("application", fmt.Sprintf("%s tbot with an application output.", mode)).Alias("app")
 
 	c := &ApplicationCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)

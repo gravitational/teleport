@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -39,8 +40,8 @@ type IdentityCommand struct {
 
 // NewIdentityCommand initializes the command and flags for identity outputs
 // and returns a struct that will contain the parse result.
-func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *IdentityCommand {
-	cmd := parentCmd.Command("identity", "Start with an identity output for SSH and Teleport API access.").Alias("ssh").Alias("id")
+func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *IdentityCommand {
+	cmd := parentCmd.Command("identity", fmt.Sprintf("%s tbot with an identity output for SSH and Teleport API access.", mode)).Alias("ssh").Alias("id")
 
 	c := &IdentityCommand{}
 	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
