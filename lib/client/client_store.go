@@ -202,6 +202,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 				// Set ValidUntil to now to show that the keys are not available.
 				ValidUntil:              time.Now(),
 				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+				SSOHost:                 profile.SSOHost,
 			}, nil
 		}
 		return nil, trace.Wrap(err)
@@ -217,6 +218,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		SiteName:                profile.SiteName,
 		KubeProxyAddr:           profile.KubeProxyAddr,
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
 		IsVirtual:               !onDisk,
 	})
 }
