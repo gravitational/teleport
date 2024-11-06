@@ -172,21 +172,18 @@ function Inner(props: { rootCluster: Cluster }) {
       </StyledMain>
       {isRequestingResourcesFromResourcesViewEnabled && (
         <Alert kind="outline-info" mb={2}>
-          <InfoIcon color="info" pr={2} />
-          <Text>
-            To request access to a resource, go to the{' '}
-            {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
-            <Link
-              css={`
-                cursor: pointer;
-                color: inherit !important;
-              `}
-              onClick={openClusterDocument}
-            >
-              resources view
-            </Link>{' '}
-            or find it in the search bar.
-          </Text>
+          To request access to a resource, go to the{' '}
+          {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
+          <Link
+            css={`
+              cursor: pointer;
+              color: inherit !important;
+            `}
+            onClick={openClusterDocument}
+          >
+            resources view
+          </Link>{' '}
+          or find it in the search bar.
         </Alert>
       )}
     </Layout>
