@@ -109,6 +109,7 @@ export function RequestCheckoutWithSlider<
   return (
     <div
       ref={ref}
+      data-testid="request-checkout"
       css={`
         position: absolute;
         width: 100vw;
