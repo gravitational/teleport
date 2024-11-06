@@ -433,6 +433,8 @@ type CLIConf struct {
 	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
+	// AWSAssumeRole is Amazon Role ARN or role name that will be assumed using the base role.
+	AWSAssumeRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
 	AWSCommandArgs []string
 	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
@@ -881,6 +883,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
+	awsAssumeRoleCredentials := app.Command("aws-assume-role-credentials", "Assume a role and output credentials suitable for credential_process").Hidden()
+	awsAssumeRoleCredentials.Flag("app", "Name of the AWS application to use if logged into multiple.").Required().StringVar(&cf.AppName)
+	awsAssumeRoleCredentials.Flag("aws-role", "Base AWS role to login the app.").Required().StringVar(&cf.AWSRole)
+	awsAssumeRoleCredentials.Flag("assume-role", "Base AWS role to login the app.").Required().StringVar(&cf.AWSAssumeRole)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
@@ -1602,6 +1608,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case awsAssumeRoleCredentials.FullCommand():
+		err = onAWSAssumeRoleCredentials(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
 	case gcloud.FullCommand():
