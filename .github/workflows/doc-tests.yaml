@@ -41,7 +41,7 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout
+      - name: Check out teleport
         uses: actions/checkout@v4
         with:
           repository: 'gravitational/teleport'
@@ -52,6 +52,27 @@ jobs:
         with:
           repository: 'gravitational/docs-website'
           path: 'docs'
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Check out shared-workflows
+        uses: actions/checkout@v4
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Ensure docs changes include redirects
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=docpaths -token="${{ steps.generate_token.outputs.token }}" -teleport-path="${{ github.workspace }}/teleport" -reviewers="${{ secrets.reviewers }}"
 
       # Cache node_modules. Unlike the example in the actions/cache repo, this
       # caches the node_modules directory instead of the yarn cache. This is
