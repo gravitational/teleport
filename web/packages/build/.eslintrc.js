@@ -65,6 +65,14 @@ module.exports = {
         'jest/no-large-snapshots': ['warn', { maxSize: 200 }],
       },
     },
+    // Allow require imports in .js files, as migrating our project to ESM modules requires a lot of
+    // changes.
+    {
+      files: ['**/*.js'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'warn',
+      },
+    },
   ],
   rules: {
     'import/order': [
