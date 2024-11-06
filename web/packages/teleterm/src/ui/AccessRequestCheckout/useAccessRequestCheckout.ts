@@ -57,6 +57,15 @@ export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
   useWorkspaceServiceState();
   ctx.clustersService.useState();
+  /**
+   * @deprecated Do not use it here. This value comes from the cluster selector next to the search
+   * bar. Changing the cluster should not affect the request checkout in any way.
+   * clusterUri is kept here just to not break existing code that depends on it.
+   * See https://github.com/gravitational/teleport/issues/48510.
+   *
+   * Instead, in most cases you want to use rootClusterUri or the cluster URI derived from a URI of
+   * a resource that you're operating on.
+   */
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
@@ -134,7 +143,7 @@ export default function useAccessRequestCheckout() {
     }
 
     runFetchResourceRoles(() =>
-      retryWithRelogin(ctx, clusterUri, async () => {
+      retryWithRelogin(ctx, rootClusterUri, async () => {
         const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
           resourceIds: pendingAccessRequestsWithoutParentResource
@@ -157,7 +166,7 @@ export default function useAccessRequestCheckout() {
 
   useEffect(() => {
     clearCreateAttempt();
-  }, [clusterUri]);
+  }, [rootClusterUri]);
 
   useEffect(() => {
     if (
@@ -277,7 +286,7 @@ export default function useAccessRequestCheckout() {
   }
 
   function getAssumedRequests() {
-    if (!clusterUri) {
+    if (!rootClusterUri) {
       return [];
     }
     const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
@@ -326,7 +335,7 @@ export default function useAccessRequestCheckout() {
 
     setCreateRequestAttempt({ status: 'processing' });
 
-    return retryWithRelogin(ctx, clusterUri, () =>
+    return retryWithRelogin(ctx, rootClusterUri, () =>
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
         return {
           accessRequest: response.request,
@@ -421,7 +430,7 @@ export default function useAccessRequestCheckout() {
       useSearchAsRoles: true,
       nextKey: '',
       resourceType: 'namespace',
-      clusterUri,
+      clusterUri: clusterUri,
       predicateExpression: '',
       kubernetesCluster: kubeCluster,
       kubernetesNamespace: '',
@@ -448,11 +457,9 @@ export default function useAccessRequestCheckout() {
     goToRequestsList,
     requestedCount,
     clearCreateAttempt,
-    clusterUri,
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,
     resourceRequestRoles,
-    rootClusterUri,
     fetchResourceRolesAttempt,
     createRequestAttempt,
     collapseBar,
