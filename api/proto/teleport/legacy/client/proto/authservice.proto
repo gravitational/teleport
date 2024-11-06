@@ -593,6 +593,8 @@ message Features {
   bool JoinActiveSessions = 33 [(gogoproto.jsontag) = "join_active_sessions,omitempty"];
   // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
   bool MobileDeviceManagement = 34 [(gogoproto.jsontag) = "mobile_device_management,omitempty"];
+  // CloudAnonymizationKey is a hash of the Salesforce ID used to anonymize usage events
+  bytes CloudAnonymizationKey = 37 [(gogoproto.jsontag) = "cloud_anonymization_key,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
