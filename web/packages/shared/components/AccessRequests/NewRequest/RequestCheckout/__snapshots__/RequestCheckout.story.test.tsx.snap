@@ -936,6 +936,7 @@ exports[`failed state 1`] = `
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
@@ -2591,6 +2592,7 @@ exports[`loaded state 1`] = `
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
@@ -3732,6 +3734,7 @@ exports[`success state 1`] = `
 <div>
   <div
     class="c0"
+    data-testid="request-checkout"
   >
     <div
       class="c1 c2 entered"
