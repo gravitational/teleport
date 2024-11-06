@@ -87,6 +87,12 @@ export default function useAccessRequestCheckout() {
 
   const { attempt: createRequestAttempt, setAttempt: setCreateRequestAttempt } =
     useAttempt('');
+  // isCreatingRequest is an auxiliary variable that helps to differentiate between a dry run being
+  // performed vs an actual request being created, as both types of requests use the same attempt
+  // object (createRequestAttempt).
+  // TODO(ravicious): Remove this in React 19 when useSyncExternalStore updates are batched with
+  // other updates.
+  const [isCreatingRequest, setIsCreatingRequest] = useState(false);
 
   const { attempt: fetchResourceRolesAttempt, run: runFetchResourceRoles } =
     useAttempt('success');
@@ -112,10 +118,15 @@ export default function useAccessRequestCheckout() {
     // suggested reviewers.
     // Options and reviewers can change depending on the selected
     // roles or resources.
-    if (showCheckout && requestedCount == 0) {
+    if (showCheckout && requestedCount == 0 && !isCreatingRequest) {
       performDryRun();
     }
-  }, [showCheckout, pendingAccessRequestRequest]);
+  }, [
+    showCheckout,
+    pendingAccessRequestRequest,
+    requestedCount,
+    isCreatingRequest,
+  ]);
 
   useEffect(() => {
     if (!pendingAccessRequestRequest || requestedCount > 0) {
@@ -142,7 +153,7 @@ export default function useAccessRequestCheckout() {
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
     );
-  }, [pendingAccessRequestRequest]);
+  }, [pendingAccessRequestRequest, requestedCount]);
 
   useEffect(() => {
     clearCreateAttempt();
@@ -349,6 +360,7 @@ export default function useAccessRequestCheckout() {
   }
 
   async function createRequest(req: CreateRequest) {
+    setIsCreatingRequest(true);
     let requestedCount: number;
     try {
       const response = await prepareAndCreateRequest(req);
@@ -360,6 +372,7 @@ export default function useAccessRequestCheckout() {
     setRequestedCount(requestedCount);
     reset();
     setCreateRequestAttempt({ status: 'success' });
+    setIsCreatingRequest(false);
   }
 
   function clearCreateAttempt() {
