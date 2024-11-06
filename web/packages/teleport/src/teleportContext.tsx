@@ -110,7 +110,10 @@ class TeleportContext implements types.Context {
 
     if (user.acl.accessGraph.list) {
       // If access graph is enabled, check what features are enabled and store them in local storage.
-      userService
+      // We await this so it is done by the time the page renders, otherwise the local storage event
+      // wouldn't trigger a re-render and Policy could end up not being displayed until the navigation
+      // is re-rendered.
+      await userService
         .fetchAccessGraphFeatures()
         .then(features => {
           for (let key in features) {
