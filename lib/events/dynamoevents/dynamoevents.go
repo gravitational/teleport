@@ -290,6 +290,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	var dynamoOpts []func(*dynamodb.Options)
+	var resolver dynamodb.EndpointResolverV2
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
@@ -299,8 +300,13 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
 		}
 
-		dynamoOpts = append(dynamoOpts, dynamodb.WithEndpointResolverV2(&staticResolver{endpoint: u}))
+		resolver = &staticResolver{endpoint: u}
+	} else {
+		resolver = dynamodb.NewDefaultEndpointResolverV2()
 	}
+
+	wrappedResolver := &wrappedEndpointResolver{resolver: resolver}
+	dynamoOpts = append(dynamoOpts, dynamodb.WithEndpointResolverV2(wrappedResolver))
 
 	// FIPS settings are applied on the individual service instead of the aws config,
 	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
@@ -321,7 +327,22 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	l.InfoContext(ctx, "Connection established to DynamoDB database", "endpoint", wrappedResolver.resolvedURL.String())
+
 	return b, nil
+}
+
+type wrappedEndpointResolver struct {
+	resolver    dynamodb.EndpointResolverV2
+	resolvedURL url.URL
+}
+
+func (w *wrappedEndpointResolver) ResolveEndpoint(ctx context.Context, params dynamodb.EndpointParameters) (smithyendpoints.Endpoint, error) {
+	endpoint, err := w.resolver.ResolveEndpoint(ctx, params)
+	if err == nil {
+		w.resolvedURL = endpoint.URI
+	}
+	return endpoint, err
 }
 
 type staticResolver struct {

@@ -37,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -200,11 +201,14 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	wrappedResolver := &wrappedEndpointResolver{resolver: s3.NewDefaultEndpointResolverV2()}
+
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(*cfg.AWSConfig, func(o *s3.Options) {
 		if cfg.Endpoint != "" {
 			o.UsePathStyle = true
 		}
+		o.EndpointResolverV2 = wrappedResolver
 	})
 
 	uploader := manager.NewUploader(client)
@@ -223,8 +227,21 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err := h.ensureBucket(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.logger.InfoContext(ctx, "Setting up bucket S3 completed.", "bucket", h.Bucket, "duration", time.Since(start))
+	h.logger.InfoContext(ctx, "Setting up bucket S3 completed.", "bucket", h.Bucket, "endpoint", wrappedResolver.resolvedURL.String(), "duration", time.Since(start))
 	return h, nil
+}
+
+type wrappedEndpointResolver struct {
+	resolver    s3.EndpointResolverV2
+	resolvedURL url.URL
+}
+
+func (w *wrappedEndpointResolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (smithyendpoints.Endpoint, error) {
+	endpoint, err := w.resolver.ResolveEndpoint(ctx, params)
+	if err == nil {
+		w.resolvedURL = endpoint.URI
+	}
+	return endpoint, err
 }
 
 // Handler handles upload and downloads to S3 object storage
