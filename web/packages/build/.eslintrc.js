@@ -88,6 +88,11 @@ module.exports = {
     'import/no-unresolved': 0,
     'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
     '@typescript-eslint/no-unused-vars': ['error'],
+    'no-unused-expressions': 'off',
+    '@typescript-eslint/no-unused-expressions': [
+      'error',
+      { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },
+    ],
 
     // Severity should be one of the following:
     // "off" or 0 - turn the rule off
