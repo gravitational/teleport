@@ -401,9 +401,9 @@ command supports these additional flags:
 | `--reader-user`  | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
 | `--reader-group` | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux. |
 | `--format`       | The database output format if necessary |
-| `--service`      | The database service name. This is the name of the database as it appears in Teleport and `tsh db ls`. Required. |
+| `--service`      | The service name of the database as it appears in Teleport and `tsh db ls`. Required. |
 | `--username`     | The database user name. The bot user must have permission to connect as this user. Required. |
-| `--database`     | The name of the database available in the requested database service. Required. |
+| `--database`     | The name of the database available in the requested service. Required. |
 
 ## tbot start kubernetes
 
@@ -506,9 +506,9 @@ command supports these additional flags:
 | Flag         | Description |
 |--------------|-------------|
 | `--listen`   | A socket URI to listen on, e.g. `tcp://localhost:1234`. Required. |
-| `--service`  | The database service name. This is the name of the database as it appears in Teleport and `tsh db ls`. Required. |
+| `--service`  | The service name of the database as it appears in Teleport and `tsh db ls`. Required. |
 | `--username` | The database user name. The bot user must have permission to connect as this user. Required. |
-| `--database` | The name of the database available in the requested database service. Required. |
+| `--database` | The name of the database available in the requested service. Required. |
 
 ## tbot start spiffe-svid
 
