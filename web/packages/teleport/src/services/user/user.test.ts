@@ -193,6 +193,7 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    reviewRequests: false,
     accessRequests: {
       list: false,
       read: false,
