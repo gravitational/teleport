@@ -104,7 +104,7 @@ export default class TtyTerminal {
         this.fallbackToCanvas();
       });
       this.term.loadAddon(this._webglAddon);
-    } catch (err) {
+    } catch {
       this.fallbackToCanvas();
     }
 
@@ -134,7 +134,7 @@ export default class TtyTerminal {
     this._webglAddon = undefined;
     try {
       this.term.loadAddon(this._canvasAddon);
-    } catch (err) {
+    } catch {
       logger.error(
         'Canvas renderer could not be loaded. Falling back to default'
       );
