@@ -50,16 +50,31 @@ describe('AuthnDialog', () => {
     jest.clearAllMocks();
   });
 
-  test('renders the dialog with basic content', () => {
+  test('renders single option dialog', () => {
     const mfa = makeMockState({ ssoChallenge: mockSsoChallenge });
     render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
 
+    expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
-      screen.getByText('Re-authenticate in the Browser')
+      screen.getByText('Select the method below to verify your identity:')
     ).toBeInTheDocument();
+    expect(screen.getByText('Okta')).toBeInTheDocument();
+    expect(screen.getByTestId('close-dialog')).toBeInTheDocument();
+  });
+
+  test('renders multi option dialog', () => {
+    const mfa = makeMockState({
+      ssoChallenge: mockSsoChallenge,
+      webauthnPublicKey: {
+        challenge: new ArrayBuffer(1),
+      },
+    });
+    render(<AuthnDialog mfa={mfa} onCancel={mockOnCancel} />);
+
+    expect(screen.getByText('Verify Your Identity')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'To continue, you must verify your identity by re-authenticating:'
+        'Select one of the following methods to verify your identity:'
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Okta')).toBeInTheDocument();

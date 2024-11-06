@@ -26,7 +26,7 @@ export default {
   title: 'Teleport/AuthnDialog',
 };
 
-export const Loaded = () => {
+export const LoadedWithMultipleOptions = () => {
   const props: Props = {
     ...defaultProps,
     mfa: {
@@ -41,6 +41,19 @@ export const Loaded = () => {
           displayName: 'Okta',
         },
       },
+      webauthnPublicKey: {
+        challenge: new ArrayBuffer(1),
+      },
+    },
+  };
+  return <AuthnDialog {...props} />;
+};
+
+export const LoadedWithSingleOption = () => {
+  const props: Props = {
+    ...defaultProps,
+    mfa: {
+      ...defaultProps.mfa,
       webauthnPublicKey: {
         challenge: new ArrayBuffer(1),
       },
