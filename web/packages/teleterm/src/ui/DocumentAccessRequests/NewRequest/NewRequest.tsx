@@ -18,9 +18,8 @@
 
 import styled from 'styled-components';
 
-import { Alert, Box, Flex, Link, Text, Indicator } from 'design';
+import { Alert, Box, Flex, Link, Indicator } from 'design';
 import { space, SpaceProps, width } from 'design/system';
-import { Info as InfoIcon } from 'design/Icon';
 
 import {
   ShowResources,

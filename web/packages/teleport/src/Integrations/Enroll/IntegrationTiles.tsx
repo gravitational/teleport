@@ -27,8 +27,6 @@ import {
 } from 'teleport/components/ToolTipNoPermBadge';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
-
 import { IntegrationTile } from './common';
 
 export function IntegrationTiles({
