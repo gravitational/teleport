@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TdHTMLAttributes } from 'react';
-
 import { Theme } from 'design/theme';
 
 import Label from '../Label';
@@ -26,7 +24,8 @@ import * as Icons from '../Icon';
 
 import { displayDate } from '../datetime';
 
-import {
+import type { ReactNode, TdHTMLAttributes } from 'react';
+import type {
   ServersideProps,
   SortDir,
   TableColumn,
@@ -58,6 +57,7 @@ export function SortHeaderCell<T>({
         <a
           onClick={handleServersideClick}
           style={{ display: 'flex', alignItems: 'center' }}
+          aria-label={column.ariaLabel || undefined}
         >
           {text}
           <SortIndicator
@@ -162,7 +162,7 @@ export const ClickableLabelCell = ({
 type SortHeaderCellProps<T> = {
   column: TableColumn<T>;
   serversideProps?: ServersideProps;
-  text: string;
+  text: string | ReactNode;
   dir?: SortDir;
   onClick: () => void;
 };

@@ -33,7 +33,7 @@ export function encodeUrlQueryParams({
   sort,
   kinds,
   isAdvancedSearch = false,
-  pinnedOnly = false,
+  pinnedOnly,
 }: EncodeUrlQueryParamsProps) {
   const urlParams = new URLSearchParams();
 

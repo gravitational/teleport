@@ -20,6 +20,8 @@ import { MatchCallback } from 'design/utils/match';
 
 import { Pagination } from './useTable';
 
+import type { ReactNode } from 'react';
+
 export type TableProps<T> = {
   data: T[];
   columns: TableColumn<T>[];
@@ -91,7 +93,8 @@ export type TableProps<T> = {
 };
 
 type TableColumnBase<T> = {
-  headerText?: string;
+  headerText?: string | ReactNode;
+  ariaLabel?: string;
   render?: (row: T) => JSX.Element;
   isSortable?: boolean;
   onSort?: (a: T, b: T) => number;
