@@ -1,4 +1,4 @@
-.version: &version "17.0.0-alpha.4"
+.version: &version "17.0.0-alpha.4.gus-mac-fix.1"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
