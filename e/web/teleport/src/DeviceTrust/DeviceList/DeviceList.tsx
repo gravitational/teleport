@@ -1,12 +1,14 @@
 import React from 'react';
+import styled from 'styled-components';
 import Table, { Cell } from 'design/DataTable';
-
-import * as Icons from 'design/Icon';
 
 import {
   DeviceListProps,
   TrustedDeviceOSType,
 } from 'teleport/DeviceTrust/types';
+import { P2 } from 'design/Text';
+import Box from 'design/Box';
+import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 
 export const DeviceList = ({
   items = [],
@@ -17,15 +19,6 @@ export const DeviceList = ({
 }: DeviceListProps) => {
   return (
     <Table
-      css={`
-        tbody tr {
-          cursor: pointer;
-          &:hover {
-            background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[2]};
-          }
-        }
-      `}
       data={items}
       columns={[
         {
@@ -40,6 +33,9 @@ export const DeviceList = ({
         {
           key: 'enrollStatus',
           headerText: 'Enroll Status',
+          render: ({ enrollStatus }) => (
+            <EnrollmentStatusCell status={enrollStatus} />
+          ),
         },
         {
           key: 'owner',
@@ -54,21 +50,49 @@ export const DeviceList = ({
   );
 };
 
-export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
-  let icon;
-  switch (osType) {
-    case 'Windows':
-      icon = <Icons.Windows size="small" mr={1} />;
-      break;
-    case 'Linux':
-      icon = <Icons.Linux size="small" mr={1} />;
-      break;
-    default:
-      icon = <Icons.Apple size="small" mr={1} />;
-  }
+const EnrollmentStatusCell = ({ status }: { status: string }) => {
+  const enrolled = status === 'Enrolled';
   return (
-    <Cell align="left" style={{ display: 'flex' }}>
-      {icon} {osType}
+    <Cell
+      align="left"
+      css={`
+        display: flex;
+        align-items: center;
+      `}
+    >
+      <EnrollmentIcon enrolled={enrolled} />
+      <P2 color={enrolled ? 'success.main' : 'error.main'}>{status}</P2>
     </Cell>
   );
 };
+
+export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
+  let iconName: ResourceIconName;
+  switch (osType) {
+    case 'Windows':
+      iconName = 'microsoft';
+      break;
+    case 'Linux':
+      iconName = 'linux';
+      break;
+    case 'macOS':
+      iconName = 'apple';
+      break;
+  }
+  return (
+    <Cell align="left" style={{ display: 'flex', alignItems: 'center' }}>
+      <ResourceIcon name={iconName} width="14px" mr={3} />
+      {osType}
+    </Cell>
+  );
+};
+
+const EnrollmentIcon = styled(Box)<{ enrolled: boolean }>`
+  width: 12px;
+  height: 12px;
+  margin-right: ${p => p.theme.space[1]}px;
+  border-radius: 50%;
+background-color: ${p =>
+  p.enrolled ? p.theme.colors.success.main : p.theme.colors.error.main};
+  };
+`;

@@ -291,16 +291,6 @@ const auditEvents = [
 const AuditList = () => {
   return (
     <Table
-      // manually setting css here instead of wrapping so it can keep the data type
-      css={`
-        tbody tr {
-          cursor: pointer;
-          &:hover {
-            background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[2]};
-          }
-        }
-      `}
       data={auditEvents}
       isSearchable
       initialSort={{ key: 'time', dir: 'DESC' }}
@@ -438,7 +428,6 @@ const PreviewBox = styled(Box)`
   margin-left: ${p => p.theme.space[5]}px;
   width: 675px;
   position: relative;
-  background-color: ${p => p.theme.colors.levels.surface};
   padding: 12px;
   border-radius: ${p => p.theme.radii[3]}px;
 `;
