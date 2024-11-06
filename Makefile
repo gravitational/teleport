@@ -1508,6 +1508,7 @@ endif
 # Unlike protos-up-to-date, this target runs locally.
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
+	@if ! git diff --quiet; then \
 		./build.assets/please-run.sh "protos gRPC" "make grpc"; \
 		exit 1; \
 	fi
