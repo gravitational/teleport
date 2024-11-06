@@ -112,8 +112,8 @@ The `tbot proxy` command acts as a wrapper for `tsh proxy` to provide local prox
 Note that `tsh` must be installed to make use of this command.
 
 Consider using one of the following dedicated tunnel modes where possible:
-* [`tbot start application-tunnel`](#tbot-start-application-tunnel)
-* [`tbot start database-tunnel`](#tbot-start-database-tunnel)
+- [`tbot start application-tunnel`](#tbot-start-application-tunnel)
+- [`tbot start database-tunnel`](#tbot-start-database-tunnel)
 
 ### Flags
 
@@ -252,14 +252,14 @@ The `tbot start` family of commands starts the Machine ID client in various
 modes, depending on the type of resources to be accessed. Refer to one of these
 for specific information:
 
-* [`tbot start legacy`](#tbot-start-legacy): Starts with a YAML configuration file or in legacy output mode
-* [`tbot start identity`](#tbot-start-identity): Starts with an identity output for SSH and Teleport API access
-* [`tbot start database`](#tbot-start-database): Starts with a database credential output
-* [`tbot start kubernetes`](#tbot-start-kubernetes): Starts with a Kubernetes output
-* [`tbot start application`](#tbot-start-application): Starts with an application TLS credential output
-* [`tbot start application-tunnel`](#tbot-start-application-tunnel): Starts a local application tunnel
-* [`tbot start database-tunnel`](#tbot-start-database-tunnel): Starts a local database tunnel
-* [`tbot start spiffe-svid`](#tbot-start-spiffe-svid): Starts a Workload ID SPIFFE SVID output
+- [`tbot start legacy`](#tbot-start-legacy): Starts with a YAML configuration file or in legacy output mode
+- [`tbot start identity`](#tbot-start-identity): Starts with an identity output for SSH and Teleport API access
+- [`tbot start database`](#tbot-start-database): Starts with a database credential output
+- [`tbot start kubernetes`](#tbot-start-kubernetes): Starts with a Kubernetes output
+- [`tbot start application`](#tbot-start-application): Starts with an application TLS credential output
+- [`tbot start application-tunnel`](#tbot-start-application-tunnel): Starts a local application tunnel
+- [`tbot start database-tunnel`](#tbot-start-database-tunnel): Starts a local database tunnel
+- [`tbot start spiffe-svid`](#tbot-start-spiffe-svid): Starts a Workload ID SPIFFE SVID output
 
 If only `tbot start` is specified, `tbot start legacy` will be inferred by
 default; this is the correct mode for use with a YAML configuration file.
