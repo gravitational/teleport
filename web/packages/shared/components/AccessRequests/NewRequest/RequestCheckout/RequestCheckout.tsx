@@ -118,6 +118,7 @@ export const RequestCheckoutWithSlider = forwardRef<
     return (
       <div
         ref={mergeRefs([wrapperRef, ref])}
+        data-testid="request-checkout"
         css={`
           position: absolute;
           width: 100vw;
