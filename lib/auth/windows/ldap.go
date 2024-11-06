@@ -67,8 +67,12 @@ func (cfg LDAPConfig) Check() error {
 
 // DomainDN returns the distinguished name for the domain
 func (cfg LDAPConfig) DomainDN() string {
+	return ToDN(cfg.Domain)
+}
+
+func ToDN(domain string) string {
 	var sb strings.Builder
-	parts := strings.Split(cfg.Domain, ".")
+	parts := strings.Split(domain, ".")
 	for _, p := range parts {
 		if sb.Len() > 0 {
 			sb.WriteString(",")

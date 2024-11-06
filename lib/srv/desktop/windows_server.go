@@ -1225,6 +1225,13 @@ func timer() func() int64 {
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
+		domain := s.cfg.LDAPConfig.DomainDN()
+		if strings.Contains(username, "@") {
+			parts := strings.SplitN(username, "@", 2)
+			username = parts[0]
+			domain = windows.ToDN(parts[1])
+		}
+
 		// Find the user's SID
 		filter := windows.CombineLDAPFilters([]string{
 			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountType, windows.AccountTypeUser),
@@ -1232,13 +1239,13 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 
-		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(domain, filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(domain, filter, []string{windows.AttrObjectSid})
 		}
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
