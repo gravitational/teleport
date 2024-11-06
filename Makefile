@@ -397,7 +397,7 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS) ./tool/teleport-update
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
