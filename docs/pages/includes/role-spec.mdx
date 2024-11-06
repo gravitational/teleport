@@ -351,9 +351,9 @@ spec:
       search_as_roles: ['access']
 
       # 'kubernetes_resources' restricts what kinds of Kubernetes resources
-      # a user can access request to. The example defined below, enforces users to 
+      # a user can request access to. In the below example, users can
       # request only Kubernetes namespaces. Default (when nothing is defined) allows
-      # any Kubernetes resource request.
+      # access requests to any Kubernetes resource or the entire cluster.
       kubernetes_resources:
         - kind: "namespace"
 
