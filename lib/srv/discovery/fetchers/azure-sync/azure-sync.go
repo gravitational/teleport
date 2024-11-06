@@ -29,10 +29,12 @@ import (
 )
 
 const (
-	featNameVms             = "azure/virtualmachines"
 	featNamePrincipals      = "azure/principals"
 	featNameRoleDefinitions = "azure/roledefinitions"
 	featNameRoleAssignments = "azure/roleassignments"
+	featNameVms             = "azure/virtualmachines"
+	featNameDBs             = "azure/databases"
+	featNameAKS             = "azure/aks"
 )
 
 const FetcherConcurrency = 5
@@ -46,17 +48,21 @@ type Config struct {
 }
 
 type Resources struct {
-	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
 	Principals      []*accessgraphv1alpha.AzurePrincipal
 	RoleDefinitions []*accessgraphv1alpha.AzureRoleDefinition
 	RoleAssignments []*accessgraphv1alpha.AzureRoleAssignment
+	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
+	Databases       []*accessgraphv1alpha.AzureManagedDatabase
+	AKS             []*accessgraphv1alpha.AzureAKSCluster
 }
 
 type Features struct {
-	VirtualMachines bool
 	Principals      bool
 	RoleDefinitions bool
 	RoleAssignments bool
+	VirtualMachines bool
+	Databases       bool
+	AKS             bool
 }
 
 type Fetcher interface {
@@ -119,17 +125,6 @@ func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, e
 	var result = &Resources{}
 	var errs []error
 	errsCh := make(chan error)
-	if feats.VirtualMachines {
-		eg.Go(func() error {
-			vms, err := a.fetchVirtualMachines(ctx)
-			if err != nil {
-				errsCh <- err
-				return err
-			}
-			result.VirtualMachines = vms
-			return nil
-		})
-	}
 	if feats.Principals {
 		eg.Go(func() error {
 			principals, err := a.fetchPrincipals(ctx)
@@ -160,6 +155,39 @@ func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, e
 				return err
 			}
 			result.RoleAssignments = roleAssigns
+			return nil
+		})
+	}
+	if feats.VirtualMachines {
+		eg.Go(func() error {
+			vms, err := a.fetchVirtualMachines(ctx)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
+			result.VirtualMachines = vms
+			return nil
+		})
+	}
+	if feats.Databases {
+		eg.Go(func() error {
+			dbs, err := a.fetchDatabases(ctx)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
+			result.Databases = dbs
+			return nil
+		})
+	}
+	if feats.AKS {
+		eg.Go(func() error {
+			clusters, err := a.fetchClusters(ctx)
+			if err != nil {
+				errsCh <- err
+				return err
+			}
+			result.AKS = clusters
 			return nil
 		})
 	}

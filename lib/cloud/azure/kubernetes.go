@@ -61,6 +61,8 @@ const (
 
 // AKSCluster represents an AKS cluster.
 type AKSCluster struct {
+	// ID is the ID of the cluster
+	ID string
 	// Name is the name of the cluster.
 	Name string
 	// GroupName is the resource group name.
@@ -584,6 +586,7 @@ func checkIfAuthMethodIsUnSupported(cfg *rest.Config) (*rest.Config, error) {
 // AKSClusterFromManagedCluster converts an Azure armcontainerservice.ManagedCluster into AKSCluster.
 func AKSClusterFromManagedCluster(cluster *armcontainerservice.ManagedCluster) (*AKSCluster, error) {
 	result := &AKSCluster{
+		ID:       StringVal(cluster.ID),
 		Name:     StringVal(cluster.Name),
 		Location: StringVal(cluster.Location),
 		Tags:     ConvertTags(cluster.Tags),

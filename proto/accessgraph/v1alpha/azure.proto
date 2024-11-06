@@ -30,15 +30,33 @@ message AzureResourceList {
 // AWSResource is a list of AWS resources supported by the access graph.
 message AzureResource {
   oneof resource {
-    AzureVirtualMachine virtual_machine = 1;
-    AzurePrincipal principal = 2;
-    AzureRoleDefinition role_definition = 3;
-    AzureRoleAssignment role_assignment = 4;
+    AzurePrincipal principal = 1;
+    AzureRoleDefinition role_definition = 2;
+    AzureRoleAssignment role_assignment = 3;
+    AzureVirtualMachine virtual_machine = 4;
+    AzureManagedDatabase flexible_database = 5;
+    AzureAKSCluster aks_cluster = 6;
   }
 }
 
 // AzureVirtualMachine is an Azure virtual machine
 message AzureVirtualMachine {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
+}
+
+// AzureManagedDatabase is an Azure-managed Postgres or MySQL database
+message AzureManagedDatabase {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
+}
+
+// AzureAKSCluster is an AKS cluster
+message AzureAKSCluster {
   string id = 1;
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
