@@ -333,7 +333,7 @@ function CustomTable<T>({
         >
           <ButtonSecondary
             textTransform="none"
-            width="150px"
+            width="160px"
             disabled={isNextDisabled}
             onClick={nextPage}
           >

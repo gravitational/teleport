@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Alert, Box, ButtonIcon, ButtonSecondary, Flex, Text } from 'design';
+import { Alert, Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
 import { Cell } from 'design/DataTable';
 import { Pencil } from 'design/Icon';
 import { Option } from 'shared/components/Select';
@@ -493,19 +493,17 @@ export const EnrollingNestedListsAlert = ({
   kind: 'owner' | 'member';
   listName: string;
 }) => (
-  <Alert kind="info">
-    <Text>
-      Enrolling Access Lists will grant {kind}ship{' '}
-      {kind === 'member' ? 'in' : 'of'} '{listName}' to all their members. Learn
-      more in the{' '}
-      <Link
-        href="https://goteleport.com/docs/reference/access-controls/access-lists/"
-        target="_blank"
-      >
-        Teleport documentation
-      </Link>
-      .
-    </Text>
+  <Alert kind="info" linkColor="buttons.link.default">
+    Enrolling Access Lists will grant {kind}ship{' '}
+    {kind === 'member' ? 'in' : 'of'} '{listName}' to all their members. Learn
+    more in the{' '}
+    <Link
+      href="https://goteleport.com/docs/reference/access-controls/access-lists/"
+      target="_blank"
+    >
+      Teleport documentation
+    </Link>
+    .
   </Alert>
 );
 

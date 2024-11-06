@@ -88,6 +88,7 @@ export const ReviewRecurrence = ({
         isDisabled={isDisabled}
         onChange={onChangeFrequency}
         value={selectedFrequency}
+        menuPosition="fixed"
       />
       <FieldSelect
         width="50%"
@@ -97,6 +98,7 @@ export const ReviewRecurrence = ({
         isDisabled={isDisabled}
         onChange={onChangeDayOfMonth}
         value={selectedDayOfMonth}
+        menuPosition="fixed"
       />
     </Flex>
   );

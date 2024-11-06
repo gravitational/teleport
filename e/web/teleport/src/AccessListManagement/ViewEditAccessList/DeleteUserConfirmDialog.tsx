@@ -106,7 +106,7 @@ export const DeleteMemberWarning = ({
 }: {
   isReviewing?: boolean;
 }) => (
-  <OutlineWarn mb={0}>
+  <OutlineWarn mb={2}>
     {isReviewing
       ? 'Changes made here will be reflected in Okta. '
       : 'This change will be reflected in Okta. '}

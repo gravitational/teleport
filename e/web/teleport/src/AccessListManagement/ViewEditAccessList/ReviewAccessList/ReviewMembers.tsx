@@ -41,8 +41,8 @@ export function ReviewMembers({
 
   return (
     <>
-      <H2 mb={3}>Members</H2>
       {isOkta && <DeleteMemberWarning isReviewing={true} />}
+      <H2 mb={3}>Members</H2>
       <AccessListMemberTable
         members={editedMembers}
         canEditMembers={true}
