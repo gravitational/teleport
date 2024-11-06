@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -981,6 +982,10 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 	u, err := url.Parse(clientRedirect)
 	if err != nil {
 		return trace.Wrap(err, "parsing client redirect URL")
+	}
+	if u.Path == sso.WebMFARedirect {
+		// If this is a SSO redirect in the WebUI, allow.
+		return nil
 	}
 	if u.Opaque != "" {
 		return trace.BadParameter("unexpected opaque client redirect URL")
