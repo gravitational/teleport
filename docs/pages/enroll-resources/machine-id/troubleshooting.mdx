@@ -76,7 +76,7 @@ directories (usually `/opt/machine-id`) rather than the internal data directory
 Once you have addressed the underlying cause, follow these steps to reset a
 locked bot:
  1. Remove the lock on the bot's user
- 1. Reset the bot's generation counter by deleting and re-creating the bot
+ 1. Reset the bot's generation counter by creating a new bot instance
 
 To remove the lock, first find and remove the lock targeting the bot user:
 
@@ -103,7 +103,8 @@ $ tctl bots instances add example
 
 Finally, reconfigure the local `tbot` instance with the new token and restart
 it. It will detect the new token and automatically reset its internal data
-directory.
+directory. The bot will be issued a new bot instance UUID once connected, and
+the generation counter will be reset.
 
 ## `tbot` shows a "bad certificate error" at startup
 
