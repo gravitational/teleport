@@ -366,7 +366,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	}()
 
 	currentTAGResources := &aws_sync.Resources{}
-	ticker := time.NewTicker(15 * time.Minute)
+	ticker := time.NewTicker(s.PollInterval)
 	defer ticker.Stop()
 	for {
 		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
