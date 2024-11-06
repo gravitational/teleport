@@ -4,6 +4,7 @@
   "description": "build scripts",
   "main": "index.js",
   "license": "Apache-2.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/gravitational/webapps/webapps.git",

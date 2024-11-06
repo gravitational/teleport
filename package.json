@@ -28,6 +28,7 @@
     "nop": "exit 0"
   },
   "private": true,
+  "type": "module",
   "pnpm": {
     "overrides": {
       "@bundled-es-modules/cookie>cookie": "0.7.1"

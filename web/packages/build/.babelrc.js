@@ -38,7 +38,7 @@ function makePresets(test = false) {
   ];
 }
 
-module.exports = {
+const config = {
   env: {
     test: {
       presets: makePresets(true),
@@ -67,3 +67,5 @@ module.exports = {
     ['babel-plugin-styled-components', { displayName: false, ssr: false }],
   ],
 };
+
+export default config;

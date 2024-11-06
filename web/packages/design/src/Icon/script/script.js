@@ -28,8 +28,8 @@ Everything that is generated is based on the SVG files in the `assets` directory
 only do so in that directory and then run the script. Do not edit any of the generated files.
 */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
 
 const basePath = 'web/packages/design/src/Icon';
 

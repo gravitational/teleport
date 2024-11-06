@@ -1,5 +1,6 @@
-const baseCfg = require('@gravitational/build/.babelrc');
-module.exports = function (api) {
+import baseCfg from '@gravitational/build/.babelrc';
+
+export default function (api) {
   api.cache(true);
   return baseCfg;
-};
+}

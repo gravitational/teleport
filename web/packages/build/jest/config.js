@@ -16,14 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-const path = require('path');
+import path from 'node:path';
 
-module.exports = {
-  testEnvironment: path.join(__dirname, 'jest-environment-patched-jsdom.js'),
+const config = {
+  testEnvironment: path.join(
+    import.meta.dirname,
+    'jest-environment-patched-jsdom.js'
+  ),
   moduleNameMapper: {
     // mock all imports to asset files
-    '\\.(css|scss|stylesheet)$': path.join(__dirname, 'mockStyles.js'),
-    '\\.(png|svg|yaml|yaml\\?raw)$': path.join(__dirname, 'mockFiles.js'),
+    '\\.(css|scss|stylesheet)$': path.join(
+      import.meta.dirname,
+      'mockStyles.js'
+    ),
+    '\\.(png|svg|yaml|yaml\\?raw)$': path.join(
+      import.meta.dirname,
+      'mockFiles.js'
+    ),
     '^shared/(.*)$': '<rootDir>/web/packages/shared/$1',
     '^design($|/.*)': '<rootDir>/web/packages/design/src/$1',
     '^teleport($|/.*)': '<rootDir>/web/packages/teleport/src/$1',
@@ -40,3 +49,5 @@ module.exports = {
   },
   showSeed: true,
 };
+
+export default config;

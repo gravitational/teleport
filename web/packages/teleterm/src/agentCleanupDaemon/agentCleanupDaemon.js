@@ -32,9 +32,9 @@
 // [2] https://github.com/TypeStrong/ts-node/tree/47d4f45f35e824a2515e17383a563be7dba7d8ff#how-it-works
 // [3] https://github.com/electron/electron/issues/21457
 
-const { setTimeout } = require('node:timers/promises');
+import { setTimeout } from 'node:timers/promises';
 
-const { format, createLogger, transports } = require('winston');
+import { format, createLogger, transports } from 'winston';
 
 const agentPid = parseInt(process.argv[2], 10);
 // Pass ppid over argv rather than reading process.ppid, as ppid can change when the cleanup deamon

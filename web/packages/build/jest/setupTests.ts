@@ -17,15 +17,17 @@
  */
 
 import 'whatwg-fetch';
+import crypto from 'node:crypto';
+import path from 'node:path';
 
-const crypt = require('crypto');
-const path = require('path');
+import failOnConsole from 'jest-fail-on-console';
 
-const failOnConsole = require('jest-fail-on-console');
-
+// TODO: Check if this works.
 let entFailOnConsoleIgnoreList = [];
 try {
-  entFailOnConsoleIgnoreList = require('../../../../e/web/testsWithIgnoredConsole');
+  entFailOnConsoleIgnoreList = await import(
+    '../../../../e/web/testsWithIgnoredConsole'
+  );
 } catch (err) {
   // Ignore errors related to teleport.e not being present. This allows OSS users and OSS CI to run
   // tests without teleport.e.
@@ -36,7 +38,7 @@ try {
 
 Object.defineProperty(globalThis, 'crypto', {
   value: {
-    randomUUID: () => crypt.randomUUID(),
+    randomUUID: () => crypto.randomUUID(),
   },
 });
 

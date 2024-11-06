@@ -1,4 +1,4 @@
-const config = require('@gravitational/build/jest/config');
+import baseConfig from './web/packages/build/jest/config.js';
 
 process.env.TZ = 'UTC';
 
@@ -19,8 +19,8 @@ const esModules = [
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
-module.exports = {
-  ...config,
+const config = {
+  ...baseConfig,
   globals: {
     electron: {},
   },
@@ -45,3 +45,5 @@ module.exports = {
     '<rootDir>/web/packages/build/jest/customMatchers.ts',
   ],
 };
+
+export default config;
