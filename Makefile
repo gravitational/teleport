@@ -397,6 +397,10 @@ $(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
 
+.PHONY: $(BUILDDIR)/teleport-update
+$(BUILDDIR)/teleport-update:
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS) ./tool/teleport-update
+
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
 teleport-hot-reload:
@@ -1623,10 +1627,11 @@ print/env:
 .PHONY: install
 install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
-	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
-	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
-	cp -f $(BUILDDIR)/tbot      $(BINDIR)/
-	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	cp -f $(BUILDDIR)/tctl             $(BINDIR)/
+	cp -f $(BUILDDIR)/tsh              $(BINDIR)/
+	cp -f $(BUILDDIR)/tbot             $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport         $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport-update  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
 # Docker image build. Always build the binaries themselves within docker (see
