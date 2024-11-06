@@ -25,6 +25,12 @@ type ClientMock struct {
 // It is used to mock the AWS state for testing purposes.
 func NewMockedAWSState() MockedAWSStateType {
 	return MockedAWSStateType{
+		Info: InstanceInfo{
+			OwnerAccountID:  "2222222222",
+			Name:            "Mock Identity Center Instance",
+			IdentityStoreID: "store1",
+			Status:          ssoadmintypes.InstanceStatusActive,
+		},
 		Accounts: []*Account{
 			{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"},
 			{Name: "Account2", ID: "2222222222", ARN: "arn:aws:iam::2222222222:account/Account2"},
@@ -76,6 +82,8 @@ func NewMockedAWSState() MockedAWSStateType {
 
 // MockedAWSStateType is a struct that holds the mocked AWS state.
 type MockedAWSStateType struct {
+	// Info holds information about the Identoty Center instance
+	Info InstanceInfo
 	// Accounts is a list of mocked accounts.
 	Accounts []*Account
 	// PermissionSets is a list of mocked permission sets.
@@ -92,6 +100,14 @@ type MockedAWSStateType struct {
 	GroupAssignments map[string][]*Assigment
 	// AccountPermAssignments is a map of account ID to a list of permission set ARNs.
 	AccountPermAssignments map[string][]string
+}
+
+// DescribeInstance returns a mocked InstanceInfo
+func (c *ClientMock) DescribeInstance(ctx context.Context) (*InstanceInfo, error) {
+	c.Mu.Lock()
+	info := c.Info
+	c.Mu.Unlock()
+	return &info, nil
 }
 
 // ListAccounts returns a list of mocked accounts.

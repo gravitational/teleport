@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -16,10 +17,14 @@ import (
 type Config struct {
 	// AWSConfig is an AWS SDK configuration parameter.
 	AWSConfig *aws.Config
-	// InstanceARN is Identity Center instance ARN.
+	// InstanceARN is Identity Center instance ARN. Must be a valid ARN.
 	InstanceARN string
-	// Clock is the clock used for time-related operations.
+	// Clock is the clock used for time-related operations. Defaults to the
+	// system clock.
 	Clock clockwork.Clock
+	// Logger is the slog logger that the client should use. Defaults to the
+	// system default logger if not supplied.
+	Logger *slog.Logger
 }
 
 func (c *Config) checkAndSetDefault() error {
@@ -34,6 +39,9 @@ func (c *Config) checkAndSetDefault() error {
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 	return nil
 }

@@ -1,5 +1,9 @@
 package sdk
 
+import (
+	ssoAdminTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+)
+
 // PermissionSet represents permission set from Identity Center.
 type PermissionSet struct {
 	// Name is the name of a permission set.
@@ -91,4 +95,16 @@ type UserWithAssignment struct {
 	// Assignments is a list of account name and permission set
 	// assigned to a group.
 	Assignments []*Assigment
+}
+
+// IdentityStoreID holds an AWS Identity Store ID
+type IdentityStoreID string
+
+// InstanceInfo describes information about the configured Identity Center
+// instance
+type InstanceInfo struct {
+	OwnerAccountID  string
+	Name            string
+	IdentityStoreID IdentityStoreID
+	Status          ssoAdminTypes.InstanceStatus
 }

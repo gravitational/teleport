@@ -13,8 +13,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type InstanceDescriber interface {
+	// DescribeInstance fetches data about the identity center instance itself.
+	DescribeInstance(context.Context) (*InstanceInfo, error)
+}
+
 // Client interface exports methods supported by this AWS Identity Center SDK.
 type Client interface {
+	InstanceDescriber
+
 	// ListAccounts lists Identity Center accounts.
 	ListAccounts(ctx context.Context) ([]*Account, error)
 	// ListAccountsWithAssignedPermissionSetARNs lists Identity Center accounts with assigned permission sets.
@@ -69,6 +76,26 @@ type client struct {
 	identityStoreClient identityStoreClient
 	ssoAdminClient      ssoAdminClient
 	organizationsClient organizationsClient
+}
+
+// DescribeInstance fetches information about the configured Identity Center
+// instance
+func (c *client) DescribeInstance(ctx context.Context) (*InstanceInfo, error) {
+	c.Config.Logger.DebugContext(ctx, "Querying Identity Center instance data")
+
+	instance, err := c.ssoAdminClient.DescribeInstance(ctx, &ssoadmin.DescribeInstanceInput{
+		InstanceArn: aws.String(c.Config.InstanceARN),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "querying Identity Center instance")
+	}
+
+	return &InstanceInfo{
+		Name:            aws.ToString(instance.Name),
+		IdentityStoreID: IdentityStoreID(aws.ToString(instance.IdentityStoreId)),
+		Status:          instance.Status,
+		OwnerAccountID:  aws.ToString(instance.OwnerAccountId),
+	}, nil
 }
 
 // ListAccounts lists Identity Center accounts.

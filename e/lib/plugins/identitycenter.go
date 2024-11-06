@@ -9,7 +9,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
-	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	icSDK "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	scimSDK "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
 
 // awsICInstanceFactory creates a new instance of the AWS Identity Center Plugin.
@@ -19,6 +21,11 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 	settings := p.Spec.GetAwsIc()
 	if settings == nil {
 		return nil, trace.BadParameter("plugin must have AWS IC settings")
+	}
+
+	instanceARN, err := arn.Parse(settings.Arn)
+	if err != nil {
+		return nil, trace.Wrap(err, "malformed IC Instance ARN")
 	}
 
 	if len(deps.staticCredentials) == 0 {
@@ -33,10 +40,17 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 		deps.logger.InfoContext(deps.lifetime, "AWS IC integration starting")
 		defer deps.logger.InfoContext(deps.lifetime, "AWS IC integration stopped")
 
-		authServer := deps.parentProcess.GetAuthServer()
-		logger := deps.logger.With(teleport.ComponentKey, "PROV")
+		// set up a context that will automatically cancel itself when this
+		// plugin delegate exits. This is to make sure that everything we start
+		// below gets stopped on exit, *especially* if that exit is early due to
+		// error.
+		ctx, cancel := context.WithCancel(deps.lifetime)
+		defer cancel()
 
-		scimClient, err := scimsdk.New(&scimsdk.Config{
+		authServer := deps.parentProcess.GetAuthServer()
+		logger := deps.logger.With(teleport.ComponentKey, identitycenter.Component)
+
+		scimClient, err := scimSDK.New(&scimSDK.Config{
 			Endpoint: settings.ProvisioningSpec.BaseUrl,
 			Token:    bearerToken,
 			Log:      logger,
@@ -44,30 +58,38 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		instanceARN, err := arn.Parse(settings.Arn)
+
+		awsConfig, err := credprovider.CreateAWSConfigForIntegration(ctx, credprovider.Config{
+			Region:                settings.Region,
+			IntegrationName:       settings.IntegrationName,
+			IntegrationGetter:     authServer.Services,
+			AWSOIDCTokenGenerator: identitycenter.MakeTokenGenerator(authServer),
+			Logger:                logger,
+			Clock:                 authServer.GetClock(),
+		})
 		if err != nil {
-			return trace.Wrap(err, "malformed IC Instance ARN")
+			return trace.Wrap(err)
 		}
-		// TODO(tcsc): replace with real implementation
-		tokenFactory := func(_ context.Context, integration string) (string, error) {
-			return "", trace.NotImplemented("Integration token generator not yet implemented")
+
+		identityCenterClient, err := icSDK.New(icSDK.Config{
+			InstanceARN: instanceARN.String(),
+			AWSConfig:   awsConfig,
+			Logger:      logger,
+		})
+		if err != nil {
+			return trace.Wrap(err, "creating Identity Center client")
 		}
 
 		svc, err := identitycenter.NewService(identitycenter.ServiceConfig{
 			Provisioning: identitycenter.ProvisioningConfig{
 				SCIMClient:          scimClient,
 				StateSvc:            authServer.Services,
+				StateSvcCache:       authServer.Cache,
 				UsersSvcCache:       authServer.Cache,
 				AccessListsSvcCache: authServer.Cache,
 				LocksSvc:            authServer.Services,
 			},
-			AWS: identitycenter.AWSConfig{
-				InstanceARN:         instanceARN,
-				Region:              settings.Region,
-				IntegrationName:     settings.IntegrationName,
-				IntegrationsService: authServer.Services,
-				TokenFactoryFn:      tokenFactory,
-			},
+			IdentityCenterClient:  identityCenterClient,
 			UsersSvc:              authServer.Services,
 			AccessListsSvc:        authServer.Services,
 			AccessRequestsSvc:     authServer.Services,
