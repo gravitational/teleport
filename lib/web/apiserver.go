@@ -83,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -2260,6 +2261,16 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 
 	// Extract secret out of the request.
 	secretKey := u.Query().Get("secret_key")
+
+	// We don't use a secret key for WebUI SSO MFA redirects. The request ID itself is
+	// kept a secret on the front end to minimize the risk of a phishing attack.
+	if secretKey == "" && u.Path == sso.WebMFARedirect && response.MFAToken != "" {
+		q := u.Query()
+		q.Add("response", string(out))
+		u.RawQuery = q.Encode()
+		return u, nil
+	}
+
 	if secretKey == "" {
 		return nil, trace.BadParameter("missing secret_key")
 	}

@@ -2182,7 +2182,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				envelope := &terminal.Envelope{
 					Version: defaults.WebsocketVersion,
-					Type:    defaults.WebsocketWebauthnChallenge,
+					Type:    defaults.WebsocketMFAChallenge,
 					Payload: string(webauthnResBytes),
 				}
 				protoBytes, err := proto.Marshal(envelope)
@@ -2389,7 +2389,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 	})
 	require.NoError(t, err)
 	err = tdpConn.WriteMessage(tdp.MFA{
-		Type: defaults.WebsocketWebauthnChallenge[0],
+		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: res.GetWebauthn(),
@@ -3093,7 +3093,6 @@ func TestPingSSHDialTimeout(t *testing.T) {
 
 	// Validate the timeout is the default value.
 	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
-
 }
 
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
@@ -4387,7 +4386,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 				require.ElementsMatch(t, tc.expectedResponse, resp.Items)
 			}
-
 		})
 	}
 }
@@ -4768,7 +4766,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
@@ -4806,7 +4803,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 }
 
@@ -10063,7 +10059,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketWebauthnChallenge,
+				Type:    defaults.WebsocketMFAChallenge,
 				Payload: string(webauthnResBytes),
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
@@ -10094,7 +10090,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 			envelope := &terminal.Envelope{
 				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketWebauthnChallenge,
+				Type:    defaults.WebsocketMFAChallenge,
 				Payload: string(webauthnResBytes),
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
@@ -10132,7 +10128,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 		envelope := &terminal.Envelope{
 			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketWebauthnChallenge,
+			Type:    defaults.WebsocketMFAChallenge,
 			Payload: string(webauthnResBytes),
 		}
 		envelopeBytes, err := proto.Marshal(envelope)
