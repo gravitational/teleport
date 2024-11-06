@@ -77,6 +77,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeEntraID:           entraIDInstanceFactory,
 			types.PluginTypeDatadog:           datadogInstanceFactory,
 			types.PluginTypeAWSIdentityCenter: awsIdentityCenterInstanceFactory,
+			types.PluginTypeMSTeams:           msTeamsInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {

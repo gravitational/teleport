@@ -55,6 +55,15 @@ func (*DatadogPluginSpec) PluginSpecType() types.PluginType {
 	return types.PluginTypeDatadog
 }
 
+type MsTeamsPluginSpec struct {
+	DefaultRecipient string `json:"defaultRecipient,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for MsTeamsPluginSpec
+func (*MsTeamsPluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeMSTeams
+}
+
 // Plugin holds a UI-visible representation of a hosted plugin instance
 type Plugin struct {
 	// Name of the plugin
@@ -228,6 +237,8 @@ func pluginDetails(p types.Plugin) string {
 		return "Users and groups will be synchronized from the Entra ID directory"
 	case *types.PluginSpecV1_Datadog:
 		return fmt.Sprintf(`Incidents will be created at %q and notify %q recipient`, settings.Datadog.ApiEndpoint, settings.Datadog.FallbackRecipient)
+	case *types.PluginSpecV1_Msteams:
+		return fmt.Sprintf(`Microsoft Teams plugin will be the default recipient "%s"`, settings.Msteams.DefaultRecipient)
 	default:
 		return ""
 	}
@@ -263,6 +274,10 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			OktaAppName:          settings.Okta.SyncSettings.AppName,
 			TeleportSSOConnector: settings.Okta.SyncSettings.SsoConnectorId,
 			DefaultOwners:        settings.Okta.SyncSettings.DefaultOwners,
+		}
+	case *types.PluginSpecV1_Msteams:
+		return &MsTeamsPluginSpec{
+			DefaultRecipient: settings.Msteams.DefaultRecipient,
 		}
 
 	case *types.PluginSpecV1_Datadog:

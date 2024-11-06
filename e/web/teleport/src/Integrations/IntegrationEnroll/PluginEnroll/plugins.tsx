@@ -1330,8 +1330,118 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     name: 'Microsoft Teams',
     icon: 'microsoftteams',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/',
-    cloudHostable: false,
+    cloudHostable: true,
     selfHostable: true,
+    fullName: 'Microsoft Teams access request notifications',
+    Description: () => (
+      <Text>
+        <P>
+          Integrating with Microsift Teams allows Teleport to send notifications
+          via Microsoft Teams about incoming access requests.
+        </P>
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'Permissions required by the Microsoft Azure App.',
+        permissions: [
+          {
+            title: 'AppCatalog.Read.All',
+            description:
+              'Used to list Teams Apps and check the app is installed.',
+          },
+          {
+            title: 'User.Read.All',
+            description: 'Used to get notification recipients.',
+          },
+          {
+            title: 'TeamsAppInstallation.ReadWriteSelfForUser.All',
+            description:
+              'Used to initiate communication with a user that never interacted with the Teams App before.',
+          },
+          {
+            title: 'TeamsAppInstallation.ReadWriteSelfForTeam.All',
+            description:
+              'Used to discover if the app is installed in the Team.',
+          },
+        ],
+      },
+    ],
+    FormMixin: () => {
+      const [token, setToken] = useState('');
+      const [appID, setAppID] = useState('');
+      const [tenantID, setTenantID] = useState('');
+      const [teamsAppID, setTeamsAppID] = useState('');
+      const [region, setRegion] = useState('');
+      const [defaultRecipient, setDefaultRecipient] = useState('');
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="App ID"
+            name="appID" // must be the same name as expected by the backend as form value
+            rule={requiredField('App ID Required')}
+            value={appID}
+            onChange={e => setAppID(e.target.value)}
+            placeholder="App ID"
+            toolTipContent="The Application ID (the ID for bots must be the underlying app ID, not the bot's ID)"
+          />
+          <FieldInput
+            width="500px"
+            label="Tenant ID"
+            name="tenantID" // must be the same name as expected by the backend as form value
+            rule={requiredField('Tenant ID Required')}
+            value={tenantID}
+            onChange={e => setTenantID(e.target.value)}
+            placeholder="Tenant ID"
+            toolTipContent="The Microsoft Tenant ID"
+          />
+          <FieldInput
+            width="500px"
+            label="TeamsApp ID"
+            name="teamsAppID" // must be the same name as expected by the backend as form value
+            value={teamsAppID}
+            onChange={e => setTeamsAppID(e.target.value)}
+            placeholder="Teams App ID "
+            toolTipContent="The ID of the Teams App"
+          />
+          <FieldInput
+            width="500px"
+            label="Region"
+            name="region" // must be the same name as expected by the backend as form value
+            value={region}
+            onChange={e => setRegion(e.target.value)}
+            placeholder="Region"
+            toolTipContent="Region to be used by the Microsoft Graph API client"
+          />
+          <FieldInput
+            width="500px"
+            label="App secret"
+            name="appSecret" // must be the same name as expected by the backend as form value
+            rule={requiredField('App secret Required')}
+            value={token}
+            type="password"
+            onChange={e => setToken(e.target.value)}
+            placeholder="abc-def...-123"
+            toolTipContent="App secret is used to authenticate the Azure app"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Default Recipient"
+            name="defaultRecipient" // must be the same name as expected by the backend as form value
+            rule={requiredField('Default recipient Required')}
+            value={defaultRecipient}
+            onChange={e => setDefaultRecipient(e.target.value)}
+            placeholder="Default Recipient"
+            toolTipContent="The name of a default channel or a default username that will receive all notifications about access requests"
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return null;
+    },
   },
   {
     type: 'entra-id',

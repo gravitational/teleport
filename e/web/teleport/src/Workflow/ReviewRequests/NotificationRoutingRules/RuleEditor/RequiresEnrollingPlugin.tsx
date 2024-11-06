@@ -16,8 +16,8 @@ export function RequiresEnrollingPlugin() {
     >
       <Text>
         Access Request Notification Rules are only supported for hosted Slack,
-        Mattermost, and Datadog. Support for more integrations is coming soon.
-        Check out our{' '}
+        Mattermost, Microsoft, and Datadog. Support for more integrations is
+        coming soon. Check out our{' '}
         <ExternalLink
           href="https://goteleport.com/docs/upcoming-releases/"
           target="_blank"

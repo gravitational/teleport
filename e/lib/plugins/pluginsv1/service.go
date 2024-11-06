@@ -47,6 +47,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeEntraID,
 		types.PluginTypeDatadog,
 		types.PluginTypeAWSIdentityCenter,
+		types.PluginTypeMSTeams,
 	}
 }
 

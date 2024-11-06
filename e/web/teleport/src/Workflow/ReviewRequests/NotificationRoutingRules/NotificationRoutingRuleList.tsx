@@ -9,6 +9,7 @@ import {
   PluginMattermostSpec,
   PluginSlackSpec,
   PluginDatadogSpec,
+  PluginMsTeamsSpec,
 } from 'teleport/services/integrations';
 import { capitalizeFirstLetter } from 'shared/utils/text';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -165,6 +166,11 @@ function makePluginsForTable(plugins: Plugin[]): TableRowFallback[] {
         recipients = [fallbackRecipient];
         break;
       }
+      case 'msteams': {
+        const { defaultRecipient } = plugin.spec as PluginMsTeamsSpec;
+        recipients = [defaultRecipient];
+        break;
+      }
       default: {
         recipients = ['unknown'];
       }
@@ -249,6 +255,21 @@ const renderInfoCell = (plugin: Plugin) => {
               Fallback notification rule for Mattermost. The default email and
               or team/channel will receive all notifications about access
               requests. {commonText}
+            </ToolTipInfo>
+          </Box>
+        </Flex>
+      </Cell>
+    );
+  }
+  if (plugin.kind === 'msteams') {
+    return (
+      <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
+        <Flex alignItems="center" width="60px">
+          <Box css={{ margin: '0 auto' }}>
+            <ToolTipInfo>
+              Fallback notification rule for Microsoft Teams. The default email
+              or channel will receive all notifications about access requests.
+              {commonText}
             </ToolTipInfo>
           </Box>
         </Flex>

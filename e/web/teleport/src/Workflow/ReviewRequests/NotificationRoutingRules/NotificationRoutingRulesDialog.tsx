@@ -85,14 +85,15 @@ export const NotificationRoutingRulesDialog = forwardRef<
 
   function fetchPlugins() {
     // TODO(lisa): extend as backend support for more plugins
-    // is added. Currently only supports slack.
+    // is added. Currently only supports slack, msteams and mattermost.
     pluginRun(() =>
       pluginsService.fetchPlugins().then(resp => {
         const filteredPlugins = resp.filter(
           r =>
             r.kind === 'slack' ||
             r.kind === 'mattermost' ||
-            r.kind === 'datadog'
+            r.kind === 'datadog' ||
+            r.kind === 'msteams'
         );
         setPlugins(filteredPlugins);
       })

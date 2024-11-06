@@ -29,6 +29,7 @@ const onboardSupportPluginKinds: PluginKind[] = [
   'mattermost',
   'entra-id',
   'datadog',
+  'msteams',
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;

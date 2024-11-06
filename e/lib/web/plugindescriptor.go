@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -97,6 +98,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeEntraID:           entraIDPluginDescriptor{},
 	types.PluginTypeDatadog:           pluginInstallerFn(installDatadogPlugin),
 	types.PluginTypeAWSIdentityCenter: awsICPluginDescriptor{},
+	types.PluginTypeMSTeams:           pluginInstallerFn(installMSTeamsPlugin),
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
@@ -620,7 +622,6 @@ func installDatadogPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 	if len(applicationKey) == 0 {
 		return nil, trace.BadParameter("missing Datadog Application key")
 	}
-
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
@@ -673,6 +674,73 @@ func installDatadogPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		},
 		CredentialLabels: map[string]string{
 			"datadog/api_endpoint": apiEndpoint,
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui, nil
+}
+
+func installMSTeamsPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	appSecret := r.FormValue("appSecret")
+	if len(appSecret) == 0 {
+		return nil, trace.BadParameter("missing MsTeams app secret")
+	}
+	appID := r.FormValue("appID")
+	if len(appID) == 0 {
+		return nil, trace.BadParameter("missing MsTeams app ID")
+	}
+	tenantID := r.FormValue("tenantID")
+	if len(tenantID) == 0 {
+		return nil, trace.BadParameter("missing MsTeams tenant ID")
+	}
+	defaultRecipient := r.FormValue("defaultRecipient")
+	if len(defaultRecipient) == 0 {
+		return nil, trace.BadParameter("missing MsTeams default recipient")
+	}
+	teamsAppID := r.FormValue("teamsAppID")
+	if teamsAppID == "" {
+		teamsAppID = uuid.NewString()
+	}
+	region := r.FormValue("region")
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			Kind:    types.PluginTypeMSTeams,
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeMSTeams,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Msteams{
+					Msteams: &types.PluginMSTeamsSettings{
+						AppId:            appID,
+						TenantId:         tenantID,
+						TeamsAppId:       teamsAppID,
+						Region:           region,
+						DefaultRecipient: defaultRecipient,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{},
+					Name:   types.PluginTypeMSTeams,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: appSecret,
+				},
+			},
 		},
 	}
 

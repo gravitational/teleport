@@ -355,5 +355,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeAWSIdentityCenter,
 		},
+		{
+			Type: types.PluginTypeMSTeams,
+		},
 	}, resp.PluginTypes)
 }

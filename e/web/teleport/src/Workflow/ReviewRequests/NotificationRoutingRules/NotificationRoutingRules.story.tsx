@@ -67,6 +67,18 @@ const validRuleObjectDatadog = {
   },
 };
 
+const validRuleObjectMsteams = {
+  metadata: { name: 'sample-msteams' },
+  spec: {
+    subjects: ['access_request'],
+    condition: 'contains_any(access_request.spec.roles, set("access"))',
+    notification: {
+      name: 'msteams-plugin',
+      recipients: ['apple', 'banana', 'carrot'],
+    },
+  },
+};
+
 const invalidRuleObject = {
   metadata: { name: 'invalid-fields-default-to-yaml-editor' },
   spec: {
@@ -142,6 +154,15 @@ const withPlugins = http.get(cfg.getPluginUrl(), () =>
       type: 'datadog',
       spec: { fallbackRecipient: 'some-fallback-recipient' },
     },
+    {
+      name: 'msteam-plugin',
+      details: '',
+      statusCode: '',
+      type: 'msteams',
+      spec: {
+        defaultRecipient: 'some-fallback-recipient',
+      },
+    },
   ])
 );
 
@@ -158,6 +179,12 @@ const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
       {
         object: {
           ...validRuleObjectMattermost,
+        },
+        yaml: ``,
+      },
+      {
+        object: {
+          ...validRuleObjectMsteams,
         },
         yaml: ``,
       },

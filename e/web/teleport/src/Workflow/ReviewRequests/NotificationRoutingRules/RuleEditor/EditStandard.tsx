@@ -325,6 +325,14 @@ function getRecipientToolTipInfo(pluginName: string) {
       </>
     );
   }
+  if (lowerCasedName.includes('msteams')) {
+    return (
+      <>
+        Recipients can be Microsoft Teams user emails/IDs, or channel URL
+        recipients. Make sure to invite the bot to every team/channel.
+      </>
+    );
+  }
   if (lowerCasedName.includes('datadog')) {
     return <>Recipients can be emails and team handle names.</>;
   }
