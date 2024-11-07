@@ -708,39 +708,56 @@ spec:
 version: v3
 ```
 
-- [ ] Verify that a user has access only to: "Servers", "Applications", "Databases", "Kubernetes", "Active Sessions", "Access Requests" and "Manage Clusters"
-- [ ] Verify there is no `Add Server, Application, Databases, Kubernetes` button in each respective view
-- [ ] Verify only `Servers`, `Apps`, `Databases`, and `Kubernetes` are listed under `options` button in `Manage Clusters`
+- [ ] Verify that the user has no `Access` top-level navigation item.
+- [ ] Verify that the `Audit` top-level navigation item only contains `Active Sessions`.
+- [ ] Verify that on Enterprise, the user has no `Policy` top-level navigation item, while the admin does.
+- [ ] Verify that on Enterprise, the `Identity` top-level navigation item only contains `Access Requests` and `Access Lists`.
+- [ ] Verify that on Enterprise, the `Add New` top-level navigation item only contains `Resource` and `Access List`.
+- [ ] Verify that on OSS, the user has no `Identity` top-level navigation item.
+- [ ] Verify that on OSS, the `Add New` top-level navigation item only contains `Resource`.
+- [ ] Verify the `Enroll New Resource` button is disabled on the Resources screen.
 
 Note: User has read/create access_request access to their own requests, despite resource settings
 
 Add the following under `spec.allow.rules` to enable read access to the audit log:
 
 ```
-  - resources:
+    - resources:
       - event
       verbs:
       - list
 ```
 
-- [ ] Verify that the `Audit Log` and `Session Recordings` is accessible
-- [ ] Verify that playing a recorded session is denied
+- [ ] Verify that the `Audit Log` is accessible
 
-Add the following to enable read access to recorded sessions
+Add the following to enable list access to session recordings:
 
 ```
-  - resources:
+    - resources:
       - session
       verbs:
+      - list
+```
+
+- [ ] Verify that `Session Recordings` is accessible
+- [ ] Verify that playing a recorded session is denied
+
+Change the session permissions to enable read access to recorded sessions:
+
+```
+    - resources:
+      - session
+      verbs:
+      - list
       - read
 ```
 
-- [ ] Verify that a user can re-play a session (session.end)
+- [ ] Verify that a user can re-play a session
 
-Add the following to enable read access to the roles
+Add the following to enable read access to the roles:
 
 ```
-- resources:
+    - resources:
       - role
       verbs:
       - list
@@ -753,7 +770,7 @@ Add the following to enable read access to the roles
 Add the following to enable read access to the auth connectors
 
 ```
-- resources:
+    - resources:
       - auth_connector
       verbs:
       - list
@@ -766,7 +783,7 @@ Add the following to enable read access to the auth connectors
 Add the following to enable read access to users
 
 ```
-  - resources:
+    - resources:
       - user
       verbs:
       - list
@@ -779,14 +796,14 @@ Add the following to enable read access to users
 Add the following to enable read access to trusted clusters
 
 ```
-  - resources:
+    - resources:
       - trusted_cluster
       verbs:
       - list
       - read
 ```
 
-- [ ] Verify that a user can access the "Trust" screen
+- [ ] Verify that a user can access the "Trusted Root Clusters" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
 ## Teleport Connect
