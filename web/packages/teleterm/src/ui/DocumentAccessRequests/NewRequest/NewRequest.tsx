@@ -30,6 +30,12 @@ import { PendingAccessRequest } from 'teleterm/ui/services/workspacesService/acc
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
+/**
+ * Only allows requesting roles (resources can be requested through the unified
+ * resources or the search bar).
+ *
+ * Available via Additional actions -> New role request.
+ */
 export function NewRequest() {
   const ctx = useAppContext();
 
