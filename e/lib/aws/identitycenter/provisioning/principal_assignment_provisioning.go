@@ -2,9 +2,11 @@ package provisioning
 
 import (
 	"context"
+	"sync"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -60,18 +62,33 @@ func (a *AssignmentProvisioner) Provision(ctx context.Context, principal *pb.Pri
 		teleportAssignments: utils.NewSet(teleportAssignments...),
 		awsAssignments:      utils.NewSet(awsAssignments...),
 	}
+
+	var g errGroup
+	g.SetLimit(a.MaxConcurrentRequests)
+
 	for item := range diffCalc.assignmentsToCreate() {
-		err := a.createAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType)
-		if err != nil {
-			log.WarnContext(ctx, "Failed to create AWS IC assignment", "permission_set_arn", item.PermissionSetARN, "account_id", item.AccountID)
-			return nil, trace.Wrap(err)
-		}
+		item := item
+		g.Go(func() error {
+			err := a.createAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType)
+			if err != nil {
+				log.WarnContext(ctx, "Failed to create AWS IC assignment", "permission_set_arn", item.PermissionSetARN, "account_id", item.AccountID)
+				return trace.Wrap(err)
+			}
+			return nil
+		})
 	}
 	for item := range diffCalc.assignmentsToDelete() {
-		if err := a.deleteAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType); err != nil {
-			log.WarnContext(ctx, "Failed to delete AWS IC assignment", "permission_set_arn", item.PermissionSetARN, "account_id", item.AccountID)
-			return nil, trace.Wrap(err)
-		}
+		item := item
+		g.Go(func() error {
+			if err := a.deleteAssignment(ctx, externalID, item.PermissionSetARN, item.AccountID, principalType); err != nil {
+				log.WarnContext(ctx, "Failed to delete AWS IC assignment", "permission_set_arn", item.PermissionSetARN, "account_id", item.AccountID)
+				return trace.Wrap(err)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Update the assignment on the Teleport backend to reflect the provisioning state.
@@ -175,4 +192,35 @@ func markAssignmentAsProvisioned(principal *pb.PrincipalAssignment) *pb.Principa
 	cpy.GetStatus().ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED
 	cpy.GetStatus().Error = ""
 	return cpy
+}
+
+// errGroup captures and aggregates errors from concurrent tasks.
+// it is a wrapper around errgroup.Group that captures only the first error and cancels the rest.
+// were wrapped errors are aggregated and wait for all tasks to finish.
+type errGroup struct {
+	errGroup errgroup.Group
+	err      []error
+	mtx      sync.Mutex
+}
+
+func (g *errGroup) SetLimit(limit int) {
+	g.errGroup.SetLimit(limit)
+}
+
+func (g *errGroup) Go(fn func() error) {
+	g.errGroup.Go(func() error {
+		err := fn()
+		if err != nil {
+			g.mtx.Lock()
+			g.err = append(g.err, err)
+			g.mtx.Unlock()
+		}
+		return nil
+	})
+}
+
+func (g *errGroup) Wait() error {
+	//  discard g.Wait's error as we're collecting all errors manually
+	_ = g.errGroup.Wait()
+	return trace.NewAggregate(g.err...)
 }

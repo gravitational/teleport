@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	defaultProvisioningTimeout = 2 * time.Minute
+	defaultProvisioningTimeout   = 2 * time.Minute
+	defaultMaxConcurrentRequests = 7
 )
 
 // ProvisionerConfig provisions the principal assignment in AWS Identity Center.
@@ -25,6 +26,8 @@ type ProvisionerConfig struct {
 	ProvisioningTimeout time.Duration
 	// SDKClient is the AWS Identity Center client.
 	SDKClient icsdk.Client
+	// MaxConcurrentRequests is the maximum number of concurrent requests.
+	MaxConcurrentRequests int
 }
 
 func (cfg *ProvisionerConfig) CheckAndSetDefaults() error {
@@ -36,6 +39,9 @@ func (cfg *ProvisionerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.ProvisioningTimeout == 0 {
 		cfg.ProvisioningTimeout = defaultProvisioningTimeout
+	}
+	if cfg.MaxConcurrentRequests == 0 {
+		cfg.MaxConcurrentRequests = defaultMaxConcurrentRequests
 	}
 	return nil
 }
