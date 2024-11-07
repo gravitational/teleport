@@ -84,7 +84,7 @@ export const SERVERS: ResourceSpec[] = [
     platform: Platform.macOS,
   },
   {
-    name: 'EC2 Auto Enrollment',
+    name: 'EC2 Auto Enrollment via SSM',
     kind: ResourceKind.Server,
     keywords:
       baseServerKeywords +
