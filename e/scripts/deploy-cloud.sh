@@ -30,10 +30,26 @@ function fail_on_exit_code() {
 }
 
 # input variables
+CURRENT_VERSION=$(perl -n -e'/Version = "(?<version>(?<major>[[:alnum:]]+)\.(?<minor>[[:alnum:]]+)\.(?<patch>[[:alnum:]]+)(?<devtag>-[[:alnum:]\.]+)?)"/ && print "$+{version}"' ../api/version.go)
 BASE_IMAGE_REPO=${BASE_IMAGE_REPO:-public.ecr.aws/gravitational/teleport-ent-distroless}
-BASE_IMAGE_TAG=${BASE_IMAGE_TAG:-$(perl -n -e'/Version = "([[:alnum:]\.]*)[-"]/ && print $1' ../version.go)}
+BASE_IMAGE_TAG=${BASE_IMAGE_TAG:-$CURRENT_VERSION}
+
 NAMESPACE_PREFIX=${NAMESPACE_PREFIX:-cloud-gravitational-io}
 BUILDDIR=${BUILDDIR:-build}
+
+CURRENT_MAJOR_VERSION=$(echo "${CURRENT_VERSION}" | perl -n -e'/^(?<major>[[:alnum:]]+)./ && print "$+{major}"')
+BASE_IMAGE_TAG_MAJOR_VERSION=$(echo "${BASE_IMAGE_TAG}" | perl -n -e'/^(?<major>[[:alnum:]]+)./ && print "$+{major}"')
+
+if [[ "${CURRENT_MAJOR_VERSION}" != "${BASE_IMAGE_TAG_MAJOR_VERSION}" ]]; then
+  echo "
+!!!!!!!
+WARNING: The local repo major version (v${CURRENT_MAJOR_VERSION}) does not match BASE_IMAGE_TAG major version (v${BASE_IMAGE_TAG_MAJOR_VERSION}).
+         Automatic upgrades will use 'stable/cloud/v${BASE_IMAGE_TAG_MAJOR_VERSION}' and may not work as expected.
+         You should ignore this warning if you know that $(realpath "${BUILDDIR}/teleport") major version is v${BASE_IMAGE_TAG_MAJOR_VERSION}.
+!!!!!!!
+"
+fi
+
 TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build}
 TENANT=${TENANT:-}
 CLOUD_SKIP_DEPLOY=${CLOUD_SKIP_DEPLOY:-""}
