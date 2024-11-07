@@ -27,6 +27,7 @@ import {
   PendingKubeResourceItem,
   isKubeClusterWithNamespaces,
   KubeNamespaceRequest,
+  RequestableResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
@@ -48,8 +49,6 @@ import {
 } from 'teleterm/services/tshd/types';
 
 import { routing } from 'teleterm/ui/uri';
-
-import { ResourceKind } from '../DocumentAccessRequests/NewRequest/useNewRequest';
 
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
 
@@ -459,6 +458,18 @@ export default function useAccessRequestCheckout() {
     bulkToggleKubeResources,
   };
 }
+
+type ResourceKind =
+  | Extract<
+      RequestableResourceKind,
+      | 'node'
+      | 'app'
+      | 'db'
+      | 'kube_cluster'
+      | 'saml_idp_service_provider'
+      | 'namespace'
+    >
+  | 'role';
 
 type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
   (
