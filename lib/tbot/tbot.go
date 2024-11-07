@@ -155,11 +155,18 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 
 	addr, addrKind := b.cfg.Address()
 	var resolver reversetunnelclient.Resolver
-	if shouldIgnoreProxyPingAddr() {
+	if shouldUseProxyAddr() {
 		if addrKind != config.AddressKindProxy {
-			return trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
+			return trace.BadParameter("TBOT_USE_PROXY_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
 		}
-		resolver = reversetunnelclient.StaticResolver(addr, types.ProxyListenerMode_Multiplex)
+		// If the user has indicated they want tbot to prefer using the proxy
+		// address they have configured, we use a static resolver set to this
+		// address. We also assume that they have TLS routing/multiplexing
+		// enabled, since otherwise we'd need them to manually configure an
+		// an entry for each kind of address.
+		resolver = reversetunnelclient.StaticResolver(
+			addr, types.ProxyListenerMode_Multiplex,
+		)
 	} else {
 		resolver, err = reversetunnelclient.CachingResolver(
 			ctx,
@@ -761,27 +768,31 @@ type proxyPingResponse struct {
 	configuredProxyAddr string
 }
 
-// shouldIgnoreProxyAddrEnv is an environment variable which can be set to
+// useProxyAddrEnv is an environment variable which can be set to
 // force `tbot` to prefer using the proxy address explicitly provided by the
 // user over the one fetched from the proxy ping. This is only intended to work
 // in cases where TLS routing is enabled, and is intended to support cases where
 // the Proxy is accessible from multiple addresses, and the one included in the
 // ProxyPing is incorrect.
-const shouldIgnoreProxyAddrEnv = "TBOT_IGNORE_PROXY_PING_ADDR"
+const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
 
-func shouldIgnoreProxyPingAddr() bool {
-	return os.Getenv(shouldIgnoreProxyAddrEnv) == "1"
+// shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
+// variable is set to "1". More generally, this indicates that the user wishes
+// for tbot to prefer using the proxy address that has been explicitly provided
+// by the user rather than the one fetched via a discovery process (e.g ping).
+func shouldUseProxyAddr() bool {
+	return os.Getenv(useProxyAddrEnv) == "1"
 }
 
 // proxyWebAddr returns the address to use to connect to the proxy web port.
 // In TLS routing mode, this address should be used for most/all connections.
-// This function takes into account the TBOT_IGNORE_PROXY_PING_ADDR environment
+// This function takes into account the TBOT_USE_PROXY_ADDR environment
 // variable, which can be used to force the use of the proxy address explicitly
 // provided by the user rather than use the one fetched from the proxy ping.
 func (p *proxyPingResponse) proxyWebAddr() (string, error) {
-	if shouldIgnoreProxyPingAddr() {
+	if shouldUseProxyAddr() {
 		if p.configuredProxyAddr == "" {
-			return "", trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR set but no explicit proxy address configured")
+			return "", trace.BadParameter("TBOT_USE_PROXY_ADDR set but no explicit proxy address configured")
 		}
 		return p.configuredProxyAddr, nil
 	}
