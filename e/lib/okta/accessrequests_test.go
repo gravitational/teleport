@@ -20,33 +20,9 @@ import (
 )
 
 func TestAccessRequestReconciler(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-	ap := newTestAccessPoint(t, clock)
-	onReconcileCh := make(chan struct{}, 1)
-	onServiceDisconnectedCh := make(chan struct{}, 1)
-	connected, err := connected.New(connected.Config{
-		DisableCache:    true,
-		ConnectedGetter: ap,
-		Plugins:         ap,
-	})
-	require.NoError(t, err)
-
-	reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
-		Clock:                   clock,
-		ClusterName:             testClusterName,
-		AccessPoint:             ap,
-		LockWatcher:             newLockWatcher(t, ap),
-		OktaConnected:           connected,
-		OktaClient:              ap,
-		onReconcileCh:           onReconcileCh,
-		onServiceDisconnectedCh: onServiceDisconnectedCh,
-	})
-	require.NoError(t, err)
-	require.NoError(t, reconciler.Start(ctx))
-	t.Cleanup(func() {
-		reconciler.Stop()
-	})
+	ctx, clock, ap, reconciler := setupTestAccessRequestReconciler(t)
+	onReconcileCh := reconciler.onReconcileCh
+	onServiceDisconnectedCh := reconciler.onServiceDisconnectedCh
 
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
@@ -203,6 +179,63 @@ func TestAccessRequestReconciler(t *testing.T) {
 		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+}
+
+func TestAccessRequestReconciler_idempotency(t *testing.T) {
+	ctx, _, ap, reconciler := setupTestAccessRequestReconciler(t)
+	onReconcileCh := reconciler.onReconcileCh
+
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
+
+	user := userName("test-user")
+	roles := []string{"test-role"}
+
+	// There should be no assignments created.
+	assignments, _, err := ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, assignments)
+
+	// Create approved AccessRequest
+	hash := crypto.SHA256
+	appServer := application(t, hash, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
+	_, err = ap.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	// Create approved access request to Okta app
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), string(user), roles,
+		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
+	require.NoError(t, err)
+	accessRequest.SetState(types.RequestState_APPROVED)
+
+	accessRequest, err = ap.CreateAccessRequestV2(ctx, accessRequest)
+	require.NoError(t, err)
+
+	// Wait for the access request creation to be reconciled
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
+
+	// Now the AccessRequest is reconciled - we should have 1 corresponding OktaAssignment
+	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, assignments, 1)
+
+	// Let's delete the created Okta assignment outside the reconciliation loop. This may
+	// happen in e.g. HA setup where another reconciler did it first.
+	err = ap.DeleteOktaAssignment(ctx, assignments[0].GetName())
+	require.NoError(t, err)
+
+	// There still should be access request registered in the reconciler
+	require.Len(t, reconciler.getAccessRequests(), 1)
+
+	// Let's delete the access request now
+	err = ap.DeleteAccessRequest(ctx, accessRequest.GetName())
+	require.NoError(t, err)
+
+	// Wait for the access request deletion to be reconciled
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
+
+	// The access request should be de-registered in the reconciler, even though the
+	// corresponding Okta assignment doesn't exist in the backend
+	require.Empty(t, reconciler.getAccessRequests())
 }
 
 func TestAccessRequestToOktaAssignment(t *testing.T) {
@@ -630,6 +663,40 @@ func TestOnLogin(t *testing.T) {
 			}
 		})
 	}
+}
+
+func setupTestAccessRequestReconciler(t *testing.T) (context.Context, clockwork.FakeClock, *testAccessPoint, *AccessRequestReconciler) {
+	t.Helper()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	ap := newTestAccessPoint(t, clock)
+	onReconcileCh := make(chan struct{}, 1)
+	onServiceDisconnectedCh := make(chan struct{}, 1)
+	connected, err := connected.New(connected.Config{
+		DisableCache:    true,
+		ConnectedGetter: ap,
+		Plugins:         ap,
+	})
+	require.NoError(t, err)
+
+	reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
+		Clock:                   clock,
+		ClusterName:             testClusterName,
+		AccessPoint:             ap,
+		LockWatcher:             newLockWatcher(t, ap),
+		OktaConnected:           connected,
+		OktaClient:              ap,
+		onReconcileCh:           onReconcileCh,
+		onServiceDisconnectedCh: onServiceDisconnectedCh,
+	})
+	require.NoError(t, err)
+	require.NoError(t, reconciler.Start(ctx))
+	t.Cleanup(func() {
+		reconciler.Stop()
+	})
+
+	return ctx, clock, ap, reconciler
 }
 
 func getOktaAssignment(t *testing.T, ap *testAccessPoint, name string) types.OktaAssignment {

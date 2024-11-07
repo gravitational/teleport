@@ -474,14 +474,17 @@ func (a *AccessRequestReconciler) onUpdate(ctx context.Context, updatedAccessReq
 func (a *AccessRequestReconciler) onDelete(ctx context.Context, request types.AccessRequest) error {
 	// No need to look at access request state, we should clean up the associated Okta assignments.
 	assignment, err := a.oktaClient.GetOktaAssignment(ctx, request.GetName())
-	if err != nil {
+	if trace.IsNotFound(err) {
+		// Nothing to reconcile. The Okta assignment is already gone.
+	} else if err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Set the cleanup time to now to trigger a cleanup.
-	assignment.SetCleanupTime(a.clock.Now())
-	if _, err := a.oktaClient.UpdateOktaAssignment(ctx, assignment); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err, "error marking assignment for cleanup")
+	} else {
+		// Set the cleanup time to now to trigger a cleanup.
+		assignment.SetCleanupTime(a.clock.Now())
+		_, err := a.oktaClient.UpdateOktaAssignment(ctx, assignment)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "error marking assignment for cleanup")
+		}
 	}
 
 	a.accessRequestsMu.Lock()
