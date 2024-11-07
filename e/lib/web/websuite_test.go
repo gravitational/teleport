@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -184,9 +183,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		HostedPlugins: servicecfg.HostedPluginsConfig{
 			Enabled: true,
 			OAuthProviders: servicecfg.PluginOAuthProviders{
-				Slack: &oauth2.ClientCredentials{
-					ID:     "test",
-					Secret: "test",
+				SlackCredentials: &servicecfg.OAuthClientCredentials{
+					ClientID:     "test",
+					ClientSecret: "test",
 				},
 			},
 		},

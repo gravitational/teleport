@@ -24,10 +24,10 @@ type AuthorizerSet struct {
 // and automatically adds Authorizers from the service config to it
 func NewAuthorizerSetFromConfig(cfg servicecfg.PluginOAuthProviders) *AuthorizerSet {
 	a := NewAuthorizerSet()
-	if cfg.Slack != nil {
+	if cfg.SlackCredentials != nil {
 		a.Add(types.PluginTypeSlack, &Authorizer{
-			Authorizer: slack.NewAuthorizer(cfg.Slack.ID, cfg.Slack.Secret),
-			ClientID:   cfg.Slack.ID,
+			Authorizer: slack.NewAuthorizer(cfg.SlackCredentials.ClientID, cfg.SlackCredentials.ClientSecret),
+			ClientID:   cfg.SlackCredentials.ClientID,
 		})
 	}
 	return a
