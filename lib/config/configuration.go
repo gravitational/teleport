@@ -1752,6 +1752,7 @@ kubernetes matchers are present`)
 				AssumeRole: assumeRole,
 			})
 		}
+		tMatcher.PollInterval = types.Duration(fc.Discovery.AccessGraph.PollInterval)
 		cfg.Discovery.AccessGraph = &tMatcher
 	}
 
