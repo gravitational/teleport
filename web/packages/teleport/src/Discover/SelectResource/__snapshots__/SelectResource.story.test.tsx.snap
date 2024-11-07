@@ -439,7 +439,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c22"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -1187,7 +1187,7 @@ exports[`render with all access 1`] = `
           <div
             class="c16"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -3601,7 +3601,7 @@ exports[`render with no access 1`] = `
           <div
             class="c19"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
@@ -5447,7 +5447,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c16"
           >
-            EC2 Auto Enrollment
+            EC2 Auto Enrollment via SSM
           </div>
         </div>
       </div>
