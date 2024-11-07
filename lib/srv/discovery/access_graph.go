@@ -48,6 +48,8 @@ const (
 	// batchSize is the maximum number of resources to send in a single
 	// request to the access graph service.
 	batchSize = 500
+	// defaultPollInterval is the default interval between polling for access graph resources
+	defaultPollInterval = 15 * time.Minute
 )
 
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
@@ -368,6 +370,9 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	currentTAGResources := &aws_sync.Resources{}
 	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", s.Config.Matchers.AccessGraph.PollInterval)
 	tickerInterval := time.Duration(s.Config.Matchers.AccessGraph.PollInterval)
+	if tickerInterval <= 0 {
+		tickerInterval = defaultPollInterval
+	}
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 	for {
