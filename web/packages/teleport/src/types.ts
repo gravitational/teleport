@@ -200,6 +200,7 @@ export interface FeatureFlags {
   // Whether or not the management section should be available.
   managementSection: boolean;
   accessGraph: boolean;
+  accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
   addBots: boolean;

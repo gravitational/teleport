@@ -208,6 +208,10 @@ export default class StoreUserContext extends Store<UserContext> {
     );
   }
 
+  getDiscoveryConfigAccess() {
+    return this.state.acl.discoverConfigs;
+  }
+
   getPluginsAccess() {
     return this.state.acl.plugins;
   }
