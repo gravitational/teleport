@@ -1224,7 +1224,7 @@ func timer() func() int64 {
 // optionally querying LDAP for the user's Security Identifier.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
-	if !desktop.NonAD() {
+	if !desktop.NonAD() && os.Getenv("SKIP_LDAP_SID") != "true" {
 		domain := s.cfg.LDAPConfig.DomainDN()
 		if strings.Contains(username, "@") {
 			parts := strings.SplitN(username, "@", 2)
