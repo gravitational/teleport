@@ -59,12 +59,12 @@ func NewClient(ctx context.Context, conf Config, clusterName, webProxyAddr strin
 	}
 
 	if conf.Mailgun != nil {
-		mailer = NewMailgunMailer(*conf.Mailgun, conf.Delivery.Sender, clusterName)
+		mailer = NewMailgunMailer(*conf.Mailgun, conf.StatusSink, conf.Delivery.Sender, clusterName, conf.RoleToRecipients[types.Wildcard])
 		logger.Get(ctx).WithField("domain", conf.Mailgun.Domain).Info("Using Mailgun as email transport")
 	}
 
 	if conf.SMTP != nil {
-		mailer = NewSMTPMailer(*conf.SMTP, conf.Delivery.Sender, clusterName)
+		mailer = NewSMTPMailer(*conf.SMTP, conf.StatusSink, conf.Delivery.Sender, clusterName)
 		logger.Get(ctx).WithFields(logger.Fields{
 			"host":     conf.SMTP.Host,
 			"port":     conf.SMTP.Port,
@@ -77,6 +77,11 @@ func NewClient(ctx context.Context, conf Config, clusterName, webProxyAddr strin
 		clusterName: clusterName,
 		webProxyURL: webProxyURL,
 	}, nil
+}
+
+// CheckHealth checks if the Email client connection is healthy.
+func (c *Client) CheckHealth(ctx context.Context) error {
+	return trace.Wrap(c.mailer.CheckHealth(ctx))
 }
 
 // SendNewThreads sends emails on new requests. Returns EmailData.
