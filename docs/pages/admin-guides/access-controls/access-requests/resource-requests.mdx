@@ -406,7 +406,7 @@ Requesting access to a Kubernetes Namespace allows you to access all resources
 in that namespace but you won't be able to access any other supported resources
 in the cluster.
 
-##### Restrict Access Requests to specific Kubernetes resources
+##### Restrict Access Requests to specific Kubernetes resource kinds
 
 The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes 
 resources a user can request access to. Configuring this field to any value will disallow
@@ -465,12 +465,12 @@ spec:
         - kind: "*"
 ```
 
-See related section about [Kubernetes Resources](../../../../enroll-resources/kubernetes-access/controls.mdx/#kubernetes_resources) 
+See related section about [Kubernetes Resources](../../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) 
 to see a list of supported `kind` values.
 
 The `request.kubernetes_resources` field only restricts what `kinds` of Kubernetes resource requests are allowed.
 To control Kubernetes access to these resources see 
-[Preventing unintended access to Kubernetes resources](./enroll-resources/kubernetes-access/controls.mdx//#preventing-unintended-access-to-kubernetes-resources) 
+[Preventing unintended access to Kubernetes resources](#preventing-unintended-access-to-kubernetes-resources) 
 section for more details.
 
 #### `db`
