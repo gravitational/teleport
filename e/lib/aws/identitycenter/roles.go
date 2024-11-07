@@ -81,9 +81,13 @@ func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (accountAssi
 	return roles, nil
 }
 
+// getImportedRoleName returns role name based on permission set name and account name.
+func getImportedRoleName(permissionSetName, accountName string) string {
+	return normalizeResourceName(fmt.Sprintf("%s-on-%s", permissionSetName, accountName))
+}
+
 func NewAccountAssignmentRole(acct services.IdentityCenterAccount, ps *identitycenterv1.PermissionSetInfo) (*types.RoleV6, error) {
-	roleName := normalizeResourceName(
-		fmt.Sprintf("%s-on-%s", ps.GetName(), acct.Spec.Name))
+	roleName := getImportedRoleName(ps.GetName(), acct.Spec.Name)
 
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{

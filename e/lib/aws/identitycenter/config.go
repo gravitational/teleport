@@ -13,6 +13,7 @@ import (
 	icSDK "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	scimSDK "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -55,10 +56,27 @@ func (cfg *ProvisioningConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// ImportConfig defines configuration parameters for Identity Center resource
+// import services.
+type ImportConfig struct {
+	// AccessListDefaultOwners is a list of Teleport users name that will be used
+	// as default owners of Access List created for Identity Center groups.
+	AccessListDefaultOwners []string
+}
+
+func (cfg *ImportConfig) CheckAndSetDefaults() error {
+	if len(cfg.AccessListDefaultOwners) == 0 {
+		return trace.BadParameter("missing Access List default owners")
+	}
+
+	return nil
+}
+
 // ServiceConfig provides configuration for an Identity Center service
 type ServiceConfig struct {
-	Provisioning          ProvisioningConfig
-	IdentityCenterClient  icSDK.Client
+	Provisioning ProvisioningConfig
+	// ICClient is Idenity Center SDK client
+	ICClient              icSDK.Client
 	Clock                 clockwork.Clock
 	EventsClient          types.Events
 	IdentityCenterDataSvc services.IdentityCenter
@@ -67,6 +85,7 @@ type ServiceConfig struct {
 	UsersSvc              UsersService
 	AccessListsSvc        services.AccessLists
 	AccessRequestsSvc     services.AccessRequestGetter
+	ImportConfig          ImportConfig
 
 	// SyncInterval defines the interval between synchronization with AWS.
 	// Defaults to defaultResourceSyncInterval if not set
@@ -84,6 +103,14 @@ type ServiceConfig struct {
 	// including ALL access lists.
 	AccessListPredicate func(*accesslist.AccessList) bool
 
+	// PluginStatusSink is used to emit plugin status. It can be used to report the main
+	// plugin runtime status or emit internal sub-process status such as group import
+	// operation status.
+	PluginStatusSink common.StatusSink
+
+	// PluginsService is used to interface with Plugins service.
+	PluginsService pluginsService
+
 	// EventBufferSize is the number of resource events to buffer between
 	// the resource monitors and the provisioner. Defaults to
 	// `defaultEventBufferSize` if unset.
@@ -95,7 +122,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err, "validating provisioning config")
 	}
 	if cfg.IdentityCenterDataSvc == nil {
-		return trace.BadParameter("missing identity center data service")
+		return trace.BadParameter("missing Identity Center data service")
 	}
 	if cfg.UsersSvc == nil {
 		return trace.BadParameter("missing users service")
@@ -128,8 +155,17 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
+	if err := cfg.ImportConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating import config")
+	}
 	if cfg.SyncInterval == 0 {
 		cfg.SyncInterval = defaultResourceSyncInterval
+	}
+	if cfg.PluginStatusSink == nil {
+		return trace.BadParameter("missing plugin status sink")
+	}
+	if cfg.PluginsService == nil {
+		return trace.BadParameter("missing plugins service")
 	}
 	if cfg.EventBufferSize == 0 {
 		cfg.EventBufferSize = defaultEventEventBufferSize

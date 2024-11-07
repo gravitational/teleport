@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // instanceDependencies is a container for dependencies of a plugin instance.
@@ -23,6 +24,7 @@ type instanceDependencies struct {
 	parentProcess     *service.TeleportProcess
 	staticCredentials []types.PluginStaticCredentials
 	logger            *slog.Logger
+	pluginsService    services.Plugins
 	// HTTP client to be used by Plugin.
 	// Leave as `nil` for the plugins to use their own defaults.
 	HTTPClient *http.Client

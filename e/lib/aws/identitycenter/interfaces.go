@@ -52,3 +52,8 @@ type UsersService interface {
 	// DeleteUser deletes the user with the given name
 	DeleteUser(ctx context.Context, user string) error
 }
+
+// pluginsService is used to interface with Plugins service.
+type pluginsService interface {
+	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
+}

@@ -12,7 +12,7 @@ import (
 func TestClientMock(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	var c Client = NewClientMock()
+	var c Client = NewClientMock(nil /* custom mock data */)
 	t.Run("should list users with account and permission assignments", func(t *testing.T) {
 		resp, err := c.ListGroupsWithAccountAndPermAssignment(ctx)
 		require.NoError(t, err)
@@ -31,7 +31,7 @@ func TestAccountAssigmentMock(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	var c Client = NewClientMock()
+	var c Client = NewClientMock(nil /* custom mock data */)
 
 	want := []*UserWithAssignment{
 		{

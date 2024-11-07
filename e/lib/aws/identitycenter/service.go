@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
 	icSDK "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -40,6 +41,9 @@ type Service struct {
 	usersSvc            UsersService
 	userPredicate       func(types.User) bool
 	awsSyncInterval     time.Duration
+	importConfig        ImportConfig
+	pluginStatusSink    common.StatusSink
+	pluginsService      pluginsService
 	resourceMonitor     *monitor.ResourceMonitor
 	principalEventCh    chan *monitor.PrincipalEvent
 }
@@ -93,7 +97,7 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		accessRequestSvc:    config.AccessRequestsSvc,
 		clock:               config.Clock,
 		icSvc:               config.IdentityCenterDataSvc,
-		icClient:            config.IdentityCenterClient,
+		icClient:            config.ICClient,
 		log:                 config.Log,
 		provisioner:         provisioner,
 		rolesSvc:            config.RolesSvc,
@@ -101,6 +105,9 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		userPredicate:       config.UserPredicate,
 		accessListPredicate: config.AccessListPredicate,
 		awsSyncInterval:     config.SyncInterval,
+		importConfig:        config.ImportConfig,
+		pluginStatusSink:    config.PluginStatusSink,
+		pluginsService:      config.PluginsService,
 		resourceMonitor:     resourceMonitor,
 		principalEventCh:    principalEventCh,
 	}
@@ -112,6 +119,14 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 // Run the Identity Center service, blocking until the supplied context is
 // canceled
 func (svc *Service) Run(ctx context.Context) error {
+	if err := svc.maybeImportGroupAndGroupMembers(ctx); err != nil {
+		svc.log.ErrorContext(ctx,
+			"Group import service exited with error",
+			"error", err)
+		return trace.Wrap(err)
+	}
+
+	svc.log.InfoContext(ctx, "Starting provisioning service...")
 	go svc.runProvisioner(ctx)
 	go svc.runAWSSyncService(ctx)
 	go svc.runResourceMonitor(ctx)

@@ -321,6 +321,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		parentProcess:     m.parentProcess,
 		staticCredentials: staticCreds,
 		logger:            log,
+		pluginsService:    m.plugins,
 	}
 
 	// Note that we give a copy of the plugin resource to the plugin factory. If

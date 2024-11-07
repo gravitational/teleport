@@ -2,11 +2,16 @@ package identitycenter
 
 import (
 	"context"
+	"fmt"
 	"iter"
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
@@ -93,4 +98,93 @@ func allAccounts(ctx context.Context, src services.IdentityCenterAccounts) iter.
 			pageToken.Update(nextPage)
 		}
 	}
+}
+
+// listTeleportUsers returns a map with a key containing username for each users
+// that exist in Teleport user database.
+func listTeleportUsers(ctx context.Context, service UsersService) (map[string]struct{}, error) {
+	var users []types.User
+
+	req := &usersv1.ListUsersRequest{
+		PageSize:    apidefaults.DefaultChunkSize,
+		WithSecrets: false,
+	}
+	for {
+		resp, err := service.ListUsers(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, user := range resp.Users {
+			users = append(users, user)
+		}
+
+		req.PageToken = resp.NextPageToken
+		if req.PageToken == "" {
+			break
+		}
+	}
+
+	out := make(map[string]struct{})
+	for _, u := range users {
+		out[u.GetName()] = struct{}{}
+	}
+
+	return out, nil
+}
+
+// accessListFromTeleport lists all existing Access Lists matching origin OriginAWSIdentityCenter.
+func accessListFromTeleport(ctx context.Context, service services.AccessLists) (map[string]*accesslist.AccessList, error) {
+	outList := map[string]*accesslist.AccessList{}
+
+	var accessLists []*accesslist.AccessList
+	var pageToken string
+	var err error
+	for {
+		accessLists, pageToken, err = service.ListAccessLists(ctx, apidefaults.DefaultChunkSize, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "listing existing Access Lists from Teleport")
+		}
+		for _, al := range accessLists {
+			if matchByOriginAWSIdentityCenterLabel(al) {
+				outList[al.GetName()] = al
+			}
+		}
+
+		if pageToken == "" {
+			break
+		}
+	}
+
+	return outList, nil
+}
+
+// accessListMembersFromTeleport returns all existing members for each accessListNames.
+func accessListMembersFromTeleport(ctx context.Context, accessListNames []string, service services.AccessLists) (map[string]*accesslist.AccessListMember, error) {
+	out := map[string]*accesslist.AccessListMember{}
+
+	var members []*accesslist.AccessListMember
+	var pageToken string
+	var err error
+	for _, acl := range accessListNames {
+		for {
+			members, pageToken, err = service.ListAccessListMembers(ctx, acl, apidefaults.DefaultChunkSize, pageToken)
+			if err != nil {
+				return nil, trace.Wrap(err, "listing existing Access List members from Teleport")
+			}
+
+			for _, m := range members {
+				out[memberMapKey(m)] = m
+			}
+			if pageToken == "" {
+				break
+			}
+		}
+	}
+
+	return out, nil
+}
+
+func memberMapKey(member *accesslist.AccessListMember) string {
+	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
 }

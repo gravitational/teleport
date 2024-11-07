@@ -17,3 +17,12 @@ func ToAccountMap(accounts []*Account) AccountMap {
 	}
 	return out
 }
+
+// ToUserMap transforms Users to UserMap.
+func ToUserMap(users []*User) UserMap {
+	out := make(UserMap)
+	for _, u := range users {
+		out[u.ID] = u
+	}
+	return out
+}

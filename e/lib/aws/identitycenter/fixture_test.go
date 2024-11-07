@@ -24,7 +24,7 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 			AccessListsSvcCache: fixture.Auth.Cache,
 			LocksSvc:            fixture.Auth.Services,
 		},
-		IdentityCenterClient:  fixture.ICClient,
+		ICClient:              fixture.ICClient,
 		UsersSvc:              fixture.Auth.Services,
 		AccessListsSvc:        fixture.Auth.Services,
 		AccessRequestsSvc:     fixture.Auth.Services,
@@ -33,6 +33,11 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 		IdentityCenterDataSvc: fixture.Auth.Services,
 		Log:                   slog.Default().With("test", t.Name()),
 		RolesSvc:              fixture.Auth.Services,
+		ImportConfig: ImportConfig{
+			AccessListDefaultOwners: []string{"user1", "user2"},
+		},
+		PluginsService:   fixture.PluginService,
+		PluginStatusSink: fixture.PluginStatusSink,
 	}
 
 	svc, err := NewService(cfg)

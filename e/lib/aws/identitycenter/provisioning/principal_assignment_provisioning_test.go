@@ -19,7 +19,7 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 		externalID = "test-external-id"
 	)
 	ctx := context.Background()
-	sdkMockClient := icsdk.NewClientMock()
+	sdkMockClient := icsdk.NewClientMock(nil /* custom mock data */)
 
 	assignmentService := &mockAssignmentService{
 		UpdatePrincipalAssignmentFunc: func(ctx context.Context, assignment *pb.PrincipalAssignment) (*pb.PrincipalAssignment, error) {

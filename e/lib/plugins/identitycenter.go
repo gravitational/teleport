@@ -9,8 +9,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter"
-	icSDK "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
-	scimSDK "github.com/gravitational/teleport/e/lib/scim/sdk"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
 
@@ -50,7 +50,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 		authServer := deps.parentProcess.GetAuthServer()
 		logger := deps.logger.With(teleport.ComponentKey, identitycenter.Component)
 
-		scimClient, err := scimSDK.New(&scimSDK.Config{
+		scimClient, err := scimsdk.New(&scimsdk.Config{
 			Endpoint: settings.ProvisioningSpec.BaseUrl,
 			Token:    bearerToken,
 			Log:      logger,
@@ -71,7 +71,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			return trace.Wrap(err)
 		}
 
-		identityCenterClient, err := icSDK.New(icSDK.Config{
+		identityCenterClient, err := icsdk.New(icsdk.Config{
 			InstanceARN: instanceARN.String(),
 			AWSConfig:   awsConfig,
 			Logger:      logger,
@@ -89,7 +89,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 				AccessListsSvcCache: authServer.Cache,
 				LocksSvc:            authServer.Services,
 			},
-			IdentityCenterClient:  identityCenterClient,
+			ICClient:              identityCenterClient,
 			UsersSvc:              authServer.Services,
 			AccessListsSvc:        authServer.Services,
 			AccessRequestsSvc:     authServer.Services,
@@ -98,6 +98,11 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			IdentityCenterDataSvc: authServer.Services,
 			Log:                   logger,
 			RolesSvc:              authServer.Services,
+			ImportConfig: identitycenter.ImportConfig{
+				AccessListDefaultOwners: settings.AccessListDefaultOwners,
+			},
+			PluginStatusSink: deps.statusSink,
+			PluginsService:   deps.pluginsService,
 		})
 		if err != nil {
 			return trace.Wrap(err)

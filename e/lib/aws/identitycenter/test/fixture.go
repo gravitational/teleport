@@ -11,6 +11,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -18,16 +20,19 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 // Fixture holds resources for constructing and testing an
 // IdentityCenter service
 type Fixture struct {
-	Backend    backend.Backend
-	Clock      clockwork.FakeClock
-	Auth       *auth.Server
-	SCIMClient *scimsdk.ClientMock
-	ICClient   *icsdk.ClientMock
+	Backend          backend.Backend
+	Clock            clockwork.FakeClock
+	Auth             *auth.Server
+	SCIMClient       *scimsdk.ClientMock
+	ICClient         *icsdk.ClientMock
+	PluginService    *local.PluginsService
+	PluginStatusSink common.StatusSink
 }
 
 func withCache(srv *auth.Server) error {
@@ -111,14 +116,18 @@ func NewFixture(t *testing.T) *Fixture {
 	t.Cleanup(func() { require.NoError(t, auth.Close()) })
 
 	scimClient := scimsdk.NewSCIMClientMock()
-	icClient := icsdk.NewClientMock()
+	icClient := icsdk.NewClientMock(nil /* custom mock data */)
+
+	pluginService := local.NewPluginsService(backend)
 
 	fixture := &Fixture{
-		Backend:    backend,
-		Clock:      clock,
-		Auth:       auth,
-		SCIMClient: scimClient,
-		ICClient:   icClient,
+		Backend:          backend,
+		Clock:            clock,
+		Auth:             auth,
+		SCIMClient:       scimClient,
+		ICClient:         icClient,
+		PluginService:    pluginService,
+		PluginStatusSink: &integration.FakeStatusSink{},
 	}
 
 	return fixture

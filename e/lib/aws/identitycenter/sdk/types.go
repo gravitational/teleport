@@ -55,6 +55,9 @@ type User struct {
 	UserName string
 }
 
+// UserMap is map of Identity Center user where map key is User ID.
+type UserMap map[string]*User
+
 // Group represents Identity Center group.
 type Group struct {
 	// DisplayName is the display name of a group.

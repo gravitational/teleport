@@ -9,10 +9,14 @@ import (
 )
 
 // NewClientMock creates and returns a new instance of ClientMock.
-func NewClientMock() *ClientMock {
-	return &ClientMock{
+func NewClientMock(customMockData *MockedAWSStateType) *ClientMock {
+	client := &ClientMock{
 		MockedAWSStateType: NewMockedAWSState(),
 	}
+	if customMockData != nil {
+		client.MockedAWSStateType = *customMockData
+	}
+	return client
 }
 
 // ClientMock is a mock implementation of the Client interface for testing purposes.
@@ -28,8 +32,7 @@ type ClientMock struct {
 	}
 }
 
-// NewMockedAWSState is a struct that holds the mocked AWS state.
-// It is used to mock the AWS state for testing purposes.
+// NewMockedAWSState returns a default mock state.
 func NewMockedAWSState() MockedAWSStateType {
 	return MockedAWSStateType{
 		Info: InstanceInfo{
@@ -85,6 +88,63 @@ func NewMockedAWSState() MockedAWSStateType {
 			"2222222222": {"arn:aws:sso:::permissionSet/ReadOnly"},
 		},
 	}
+}
+
+// DefaultMockedData defines a default MockedAWSStateType values used for
+// testing mocked AWS state.
+var DefaultMockedData = MockedAWSStateType{
+	Info: InstanceInfo{
+		OwnerAccountID:  "2222222222",
+		Name:            "Mock Identity Center Instance",
+		IdentityStoreID: "store1",
+		Status:          ssoadmintypes.InstanceStatusActive,
+	},
+	Accounts: []*Account{
+		{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"},
+		{Name: "Account2", ID: "2222222222", ARN: "arn:aws:iam::2222222222:account/Account2"},
+	},
+	PermissionSets: []*PermissionSet{
+		{Name: "Admin", ARN: "arn:aws:sso:::permissionSet/Admin", Description: "Admin permissions"},
+		{Name: "ReadOnly", ARN: "arn:aws:sso:::permissionSet/ReadOnly", Description: "Read-only permissions"},
+	},
+	Users: []*User{
+		{ID: "user1", UserName: "user_one"},
+		{ID: "user2", UserName: "user_two"},
+	},
+	Groups: []*Group{
+		{DisplayName: "Group1", ID: "group1", IdentityStoreID: "store1"},
+		{DisplayName: "Group2", ID: "group2", IdentityStoreID: "store1"},
+	},
+	GroupMemberships: map[string][]*GroupMember{
+		"group1": {
+			{MemberID: "user1"},
+			{MemberID: "user2"},
+		},
+		"group2": {
+			{MemberID: "user2"},
+		},
+	},
+	UserAssignments: map[string][]*Assigment{
+		"user1": {
+			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
+			{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
+		},
+		"user2": {
+			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
+		},
+	},
+	GroupAssignments: map[string][]*Assigment{
+		"group1": {
+			{AccountID: "1111111111", PermissionSetARN: "arn:aws:sso:::permissionSet/Admin"},
+		},
+		"group2": {
+			{AccountID: "2222222222", PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly"},
+		},
+	},
+	AccountPermAssignments: map[string][]string{
+		"1111111111": {"arn:aws:sso:::permissionSet/Admin", "arn:aws:sso:::permissionSet/ReadOnly"},
+		"2222222222": {"arn:aws:sso:::permissionSet/ReadOnly"},
+	},
 }
 
 // MockedAWSStateType is a struct that holds the mocked AWS state.
