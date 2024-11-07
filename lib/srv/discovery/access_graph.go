@@ -366,7 +366,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	}()
 
 	currentTAGResources := &aws_sync.Resources{}
-	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", s.PollInterval)
+	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", s.Config.Matchers.AccessGraph.PollInterval)
 	tickerInterval := time.Duration(s.Config.Matchers.AccessGraph.PollInterval)
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
