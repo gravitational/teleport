@@ -172,7 +172,7 @@ func mySQLVersionToProto(database types.Database) string {
 }
 
 // WithOnSetCert provides a callback when lp.SetCert is called.
-func WithOnSetCert(callback func(*tls.Certificate)) LocalProxyConfigOpt {
+func WithOnSetCert(callback func(tls.Certificate)) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.onSetCert = callback
 		return nil
