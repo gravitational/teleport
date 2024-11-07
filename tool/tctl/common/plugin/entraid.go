@@ -71,6 +71,17 @@ To rerun the script, type 'exit' to close and then restart the process.
 
 With the output of Step 1, please copy and paste the following information:
 `
+
+	manualConfigurationTemplate = `
+
+` + bold("Step 1: Input Tenant ID and Client ID") + `
+
+To finish the Entra ID integration, manually configure the Application in Azure Entra ID.
+
+Follow the instructions provided in the Teleport documentation: [https://goteleport.com/docs/admin-guides/teleport-policy/integrations/entra-id/].
+
+After completing the Entra ID setup, copy and paste the following information:
+`
 )
 
 type entraArgs struct {
@@ -80,6 +91,7 @@ type entraArgs struct {
 	useSystemCredentials bool
 	accessGraph          bool
 	force                bool
+	manualEntraIDSetup   bool
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -113,6 +125,12 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Short('f').
 		Default("false").
 		BoolVar(&p.install.entraID.force)
+
+	cmd.
+		Flag("manual-setup", "Manually set up the EntraID integration.").
+		Short('m').
+		Default("false").
+		BoolVar(&p.install.entraID.manualEntraIDSetup)
 }
 
 type entraSettings struct {
@@ -123,7 +141,13 @@ type entraSettings struct {
 
 var errCancel = trace.BadParameter("operation canceled")
 
-func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings, error) {
+func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSetup bool) (entraSettings, error) {
+	if manualEntraIDSetup {
+		fmt.Fprint(os.Stdout, manualConfigurationTemplate)
+		settings, err := readAzureInputs(p.install.entraID.accessGraph)
+		return settings, trace.Wrap(err)
+	}
+
 	pwd, err := os.Getwd()
 	if err != nil {
 		return entraSettings{}, trace.Wrap(err, "failed to get working dir")
@@ -163,14 +187,19 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings,
 		return entraSettings{}, errCancel
 	}
 
+	fmt.Fprint(os.Stdout, step2Template)
+
+	settings, err := readAzureInputs(p.install.entraID.accessGraph)
+	return settings, trace.Wrap(err)
+}
+
+func readAzureInputs(acessGraph bool) (entraSettings, error) {
 	validUUID := func(input string) bool {
 		_, err := uuid.Parse(input)
 		return err == nil
 	}
-
-	fmt.Fprint(os.Stdout, step2Template)
-
 	var settings entraSettings
+	var err error
 	settings.tenantID, err = readData(os.Stdin, os.Stdout, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
 	if err != nil {
 		return settings, trace.Wrap(err, "failed to read Tenant ID")
@@ -181,7 +210,7 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string) (entraSettings,
 		return settings, trace.Wrap(err, "failed to read Client ID")
 	}
 
-	if p.install.entraID.accessGraph {
+	if acessGraph {
 		dataValidator := func(input string) bool {
 			settings.accessGraphCache, err = readTAGCache(input)
 			return err == nil
@@ -218,7 +247,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 		return trace.Wrap(err)
 	}
 
-	settings, err := p.entraSetupGuide(proxyPublicAddr)
+	settings, err := p.entraSetupGuide(proxyPublicAddr, inputs.entraID.manualEntraIDSetup)
 	if err != nil {
 		if errors.Is(err, errCancel) {
 			return nil
