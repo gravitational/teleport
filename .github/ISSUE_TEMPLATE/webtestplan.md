@@ -28,7 +28,7 @@ There should be a cluster dropdown for:
 - [ ] web terminal console view (can get to it by ssh into a node, or route to: `/web/cluster/<cluster-name>/console/nodes`)
 - [ ] Can edit and delete a trusted cluster
 
-### Top Bar Nav
+### Navigation
 
 - [ ] Contains `Resources` (unified resources), `Access Management`, `Access Requests`, `Active Sessions`, `Notification Bell` and `user settings menu`
 
@@ -36,7 +36,6 @@ There should be a cluster dropdown for:
 
 - Verify that clicking on the username, user menu dropdown renders:
   - [ ] Account Settings (actions should require re-authn with a mfa device)
-    - [ ] Verify adding very first device or passkey works without requiring re-authentication
     - [ ] Can CRUD passkeys (passwordless)
       - [ ] Can login with added passkey
     - [ ] Can change passwords
@@ -44,7 +43,6 @@ There should be a cluster dropdown for:
       - [ ] Verify that account is locked after several unsuccessful change password attempts
     - [ ] Can CRUD MFA devices (test both otp + hardware key)
       - [ ] Can login with added device
-    - [ ] Verify `second_factor` set to `off` disables adding devices
     - Recovery codes
       - [ ] Cloud only: can read and generate new recovery codes
   - [ ] Help & Support
