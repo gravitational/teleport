@@ -48,8 +48,8 @@ type AutoUpdateCommand struct {
 	app    *kingpin.Application
 	config *servicecfg.Config
 
-	configureCmd *kingpin.CmdClause
-	getCmd       *kingpin.CmdClause
+	setCmd *kingpin.CmdClause
+	getCmd *kingpin.CmdClause
 
 	mode               string
 	toolsTargetVersion string
@@ -68,9 +68,9 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 
 	clientToolsCmd := autoUpdateCmd.Command("client-tools", "Client tools auto update commands.")
 
-	c.configureCmd = clientToolsCmd.Command("configure", "Edit client tools auto update configuration.")
-	c.configureCmd.Flag("set-mode", "Sets the mode to enable or disable tools auto update in cluster.").EnumVar(&c.mode, "enabled", "disabled", "on", "off")
-	c.configureCmd.Flag("set-target-version", "Defines client tools target version required to be updated.").StringVar(&c.toolsTargetVersion)
+	c.setCmd = clientToolsCmd.Command("set", "Sets client tools auto update configuration.")
+	c.setCmd.Flag("mode", "Defines the mode to enable or disable tools auto update in cluster.").EnumVar(&c.mode, "enabled", "disabled", "on", "off")
+	c.setCmd.Flag("target-version", "Defines client tools target version required to be updated.").StringVar(&c.toolsTargetVersion)
 
 	c.getCmd = clientToolsCmd.Command("get", "Receive tools auto update target version.")
 	c.getCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
@@ -84,8 +84,8 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *service
 // TryRun takes the CLI command as an argument and executes it.
 func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
-	case c.configureCmd.FullCommand():
-		err = c.Configure(ctx, client)
+	case c.setCmd.FullCommand():
+		err = c.Set(ctx, client)
 	case c.getCmd.FullCommand():
 		err = c.Get(ctx, client)
 	default:
@@ -94,16 +94,16 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *auth
 	return true, trace.Wrap(err)
 }
 
-// Configure works with AutoUpdateConfig and AutoUpdateVersion resources to create or update.
-func (c *AutoUpdateCommand) Configure(ctx context.Context, client *authclient.Client) error {
+// Set creates or updates AutoUpdateConfig and AutoUpdateVersion resources with specified parameters.
+func (c *AutoUpdateCommand) Set(ctx context.Context, client *authclient.Client) error {
 	if c.mode != "" {
-		if err := c.configureAutoUpdateConfig(ctx, client); err != nil {
+		if err := c.setAutoUpdateConfig(ctx, client); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	if c.toolsTargetVersion != "" {
-		if err := c.configureAutoUpdateVersion(ctx, client); err != nil {
+		if err := c.setAutoUpdateVersion(ctx, client); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -135,7 +135,7 @@ func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) 
 	return nil
 }
 
-func (c *AutoUpdateCommand) configureAutoUpdateConfig(ctx context.Context, client *authclient.Client) error {
+func (c *AutoUpdateCommand) setAutoUpdateConfig(ctx context.Context, client *authclient.Client) error {
 	configExists := true
 	config, err := client.GetAutoUpdateConfig(ctx)
 	if trace.IsNotFound(err) {
@@ -166,12 +166,12 @@ func (c *AutoUpdateCommand) configureAutoUpdateConfig(ctx context.Context, clien
 				return trace.Wrap(err)
 			}
 		}
-		fmt.Fprint(c.stdout, "client tools auto update mode has been updated\n")
+		fmt.Fprint(c.stdout, "client tools auto update mode has been set\n")
 	}
 	return nil
 }
 
-func (c *AutoUpdateCommand) configureAutoUpdateVersion(ctx context.Context, client *authclient.Client) error {
+func (c *AutoUpdateCommand) setAutoUpdateVersion(ctx context.Context, client *authclient.Client) error {
 	if _, err := semver.NewVersion(c.toolsTargetVersion); err != nil {
 		return trace.WrapWithMessage(err, "not semantic version")
 	}
@@ -191,7 +191,7 @@ func (c *AutoUpdateCommand) configureAutoUpdateVersion(ctx context.Context, clie
 	if version.Spec.Tools.TargetVersion != c.toolsTargetVersion {
 		version.Spec.Tools.TargetVersion = c.toolsTargetVersion
 		if versionExists {
-			if _, err := client.UpsertAutoUpdateVersion(ctx, version); err != nil {
+			if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
@@ -199,7 +199,7 @@ func (c *AutoUpdateCommand) configureAutoUpdateVersion(ctx context.Context, clie
 				return trace.Wrap(err)
 			}
 		}
-		fmt.Fprint(c.stdout, "client tools auto update target version has been updated\n")
+		fmt.Fprint(c.stdout, "client tools auto update target version has been set\n")
 	}
 	return nil
 }
