@@ -457,6 +457,7 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 			"sso:DescribePermissionSet",
 			"sso:ListPermissionSets",
 			"sso:ListAccountAssignmentsForPrincipal",
+			"sso:ListPermissionSetsProvisionedToAccount",
 
 			// CreateAndDeleteAccountAssignment
 			"sso:CreateAccountAssignment",
