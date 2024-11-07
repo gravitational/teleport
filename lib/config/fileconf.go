@@ -1334,7 +1334,11 @@ func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) 
 		if err != nil {
 			return out, trace.Wrap(err)
 		}
-		out.Slack = slack
+		out.Slack = &oauth2.ClientCredentials{
+			ID:     slack.ClientID,
+			Secret: slack.ClientSecret,
+		}
+		out.SlackCredentials = slack
 	}
 	return out, nil
 }
@@ -1348,7 +1352,7 @@ type OAuthClientCredentials struct {
 	ClientSecret string `yaml:"client_secret"`
 }
 
-func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+func (o *OAuthClientCredentials) Parse() (*servicecfg.OAuthClientCredentials, error) {
 	if o.ClientID == "" || o.ClientSecret == "" {
 		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
 	}
@@ -1367,9 +1371,9 @@ func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
 	}
 	clientSecret = strings.TrimSpace(string(content))
 
-	return &oauth2.ClientCredentials{
-		ID:     clientID,
-		Secret: clientSecret,
+	return &servicecfg.OAuthClientCredentials{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 	}, nil
 }
 
