@@ -27,8 +27,6 @@ import {
 } from 'teleport/components/ToolTipNoPermBadge';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-import { ToolTipBadge } from 'teleport/components/ToolTipBadge';
-
 import { IntegrationTile } from './common';
 
 export function IntegrationTiles({
@@ -38,7 +36,8 @@ export function IntegrationTiles({
   hasIntegrationAccess?: boolean;
   hasExternalAuditStorage?: boolean;
 }) {
-  const externalAuditStorageEnabled = cfg.externalAuditStorage;
+  const externalAuditStorageEnabled =
+    cfg.entitlements.ExternalAuditStorage.enabled;
   const isOnpremEnterprise = cfg.isEnterprise && !cfg.isCloud;
 
   return (
@@ -126,17 +125,4 @@ function renderExternalAuditStorageBadge(
       />
     );
   }
-
-  return (
-    <ToolTipBadge
-      badgeTitle="New"
-      children={
-        <div>
-          Connect your own AWS account to store Audit logs and Session
-          recordings using Athena and S3.
-        </div>
-      }
-      color="success.main"
-    />
-  );
 }
