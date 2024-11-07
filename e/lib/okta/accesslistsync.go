@@ -44,10 +44,10 @@ const (
 
 var (
 	// AccessListSyncFirstDuration Wait 5 minutes for the first loop in hopes that the synchronizer has run.
-	AccessListSyncFirstDuration = 1 * time.Minute
+	AccessListSyncFirstDuration = 5 * time.Minute
 	// DefaultAccessListSyncInterval defines a 30 minute default time between running
 	// the access list synchronizer.
-	DefaultAccessListSyncInterval = 1 * time.Minute
+	DefaultAccessListSyncInterval = 30 * time.Minute
 )
 
 // accessListSyncConfig is the configuration for the access list synchronizer.
