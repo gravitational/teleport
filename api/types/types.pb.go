@@ -50516,6 +50516,63 @@ func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
+	if len(m.UmiClientId) > 0 {
+		i -= len(m.UmiClientId)
+		copy(dAtA[i:], m.UmiClientId)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.UmiClientId)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.SubscriptionID) > 0 {
+		i -= len(m.SubscriptionID)
+		copy(dAtA[i:], m.SubscriptionID)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.SubscriptionID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Regions) > 0 {
+		for iNdEx := len(m.Regions) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Regions[iNdEx])
+			copy(dAtA[i:], m.Regions[iNdEx])
+			i = encodeVarintTypes(dAtA, i, uint64(len(m.Regions[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *AccessGraphAzureSync) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AccessGraphAzureSync) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Integration) > 0 {
+		i -= len(m.Integration)
+		copy(dAtA[i:], m.Integration)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.Integration)))
+		i--
+		dAtA[i] = 0x22
+	}
 	if len(m.UMIClientID) > 0 {
 		i -= len(m.UMIClientID)
 		copy(dAtA[i:], m.UMIClientID)
@@ -61901,6 +61958,12 @@ func (m *AccessGraphSync) Size() (n int) {
 	_ = l
 	if len(m.AWS) > 0 {
 		for _, e := range m.AWS {
+			l = e.Size()
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
+	if len(m.Azure) > 0 {
+		for _, e := range m.Azure {
 			l = e.Size()
 			n += 1 + l + sovTypes(uint64(l))
 		}
@@ -134274,6 +134337,40 @@ func (m *AccessGraphSync) Unmarshal(dAtA []byte) error {
 			}
 			m.AWS = append(m.AWS, &AccessGraphAWSSync{})
 			if err := m.AWS[len(m.AWS)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Azure", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Azure = append(m.Azure, &AccessGraphAzureSync{})
+			if err := m.Azure[len(m.Azure)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
