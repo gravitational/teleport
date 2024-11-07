@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +28,10 @@ const (
 	// TokenExpiryPeriod is the expiration period for user/password bearer tokens.
 	TokenExpiryPeriod = 20 * time.Minute
 )
+
+// userAgentRegex matches "$product/$version", for example, "teleport/16.4.6"
+// or "teleport/17.0.0-alpha.2".
+var userAgentRegex = regexp.MustCompile(`^teleport/\d+\.\d+\.\d+(-.+)?$`)
 
 // User holds credentials for an API user.
 type User struct {
@@ -121,6 +126,21 @@ type rootHandler struct {
 func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if !strings.HasPrefix(req.URL.Path, a.prefix) {
 		http.NotFound(w, req)
+		return
+	}
+
+	// Require the product name under the User-Agent header.
+	uaHeader := req.Header.Get("User-Agent")
+	if !userAgentRegex.MatchString(uaHeader) {
+		slog.WarnContext(req.Context(), "Request blocked due to User-Agent", "user_agent", uaHeader)
+
+		// Note: this is a fake.API requirement, not a Jamf API requirement.
+		a.replyError(w, errorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			Errors: []*apiError{
+				{Description: `User-Agent header must contain product/version`},
+			},
+		})
 		return
 	}
 

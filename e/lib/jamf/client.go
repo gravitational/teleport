@@ -15,8 +15,15 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log"
+)
+
+const (
+	userAgentProduct = "teleport"
+	// For example: "teleport/16.4.6" (version without the the "v").
+	userAgent = userAgentProduct + "/" + api.Version
 )
 
 var (
@@ -214,6 +221,8 @@ func (c *Client) nowUTC() time.Time {
 
 func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 	req.Header.Set("Accept", "application/json")
+	// https://developer.jamf.com/developer-guide/docs/application-header-best-practices
+	req.Header.Set("User-Agent", userAgent)
 
 	// Log all requests at trace level.
 	{
