@@ -26,7 +26,6 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
-	"github.com/go-ldap/ldap/v3"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -44,6 +43,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
