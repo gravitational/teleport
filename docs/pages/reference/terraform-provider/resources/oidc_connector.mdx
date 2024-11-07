@@ -18,6 +18,7 @@ description: This page describes the supported values of the teleport_oidc_conne
 variable "oidc_secret" {}
 
 resource "teleport_oidc_connector" "example" {
+  version = "v3"
   metadata = {
     name = "example"
     labels = {
@@ -100,6 +101,7 @@ Optional:
 - `client_id` (String) ClientID is the OIDC OAuth app client ID.
 - `client_secret` (String) ClientSecret is the OIDC OAuth app client secret.
 - `enabled` (Boolean) Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.
+- `max_age` (String) MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.
 - `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
 
 

@@ -22,7 +22,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import { RadioGroup } from 'design/RadioGroup';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
+import { StepComponentProps, StepSlider, StepHeader } from 'design/StepSlider';
 import React, { useState } from 'react';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -35,8 +35,6 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { Auth2faType } from 'shared/services';
 
 import Box from 'design/Box';
-
-import { StepHeader } from 'design/StepSlider';
 
 import { ChangePasswordReq } from 'teleport/services/auth';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';

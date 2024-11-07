@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -45,7 +47,8 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Log:                 s.log,
+		// TODO(tross): update to use the server logger once it has been converted to slog
+		Logger: slog.With("kind", types.KindKubernetesCluster),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -87,7 +90,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
-func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
+func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil, nil
@@ -100,6 +103,7 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 			// Logger:       s.log,
 			Client: s.AccessPoint,
 		},
+		KubernetesClusterGetter: s.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,7 +112,7 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 		defer watcher.Close()
 		for {
 			select {
-			case clusters := <-watcher.KubeClustersC:
+			case clusters := <-watcher.ResourcesC:
 				s.monitoredKubeClusters.setResources(clusters)
 				select {
 				case s.reconcileCh <- struct{}{}:

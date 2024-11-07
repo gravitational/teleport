@@ -14,6 +14,7 @@ description: This page describes the supported values of the teleport_role resou
 # Teleport Role resource
 
 resource "teleport_role" "example" {
+  version = "v7"
   metadata = {
     name        = "example"
     description = "Example Teleport Role"
@@ -101,6 +102,7 @@ Optional:
 
 Optional:
 
+- `account_assignments` (Attributes List) AccountAssignments holds the list of account assignments affected by this condition. (see [below for nested schema](#nested-schema-for-specallowaccount_assignments))
 - `app_labels` (Map of List of String) AppLabels is a map of labels used as part of the RBAC system.
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
@@ -140,6 +142,14 @@ Optional:
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
 
+### Nested Schema for `spec.allow.account_assignments`
+
+Optional:
+
+- `account` (String)
+- `permission_set` (String)
+
+
 ### Nested Schema for `spec.allow.db_permissions`
 
 Optional:
@@ -171,7 +181,7 @@ Optional:
 
 Optional:
 
-- `kind` (String) Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.
+- `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
@@ -183,6 +193,7 @@ Optional:
 
 - `annotations` (Map of List of String) Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specallowrequestclaims_to_roles))
+- `kubernetes_resources` (Attributes List) kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources. (see [below for nested schema](#nested-schema-for-specallowrequestkubernetes_resources))
 - `max_duration` (String) MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.
 - `roles` (List of String) Roles is the name of roles which will match the request rule.
 - `search_as_roles` (List of String) SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.
@@ -196,6 +207,13 @@ Optional:
 - `claim` (String) Claim is a claim name.
 - `roles` (List of String) Roles is a list of static teleport roles to match.
 - `value` (String) Value is a claim value to match.
+
+
+### Nested Schema for `spec.allow.request.kubernetes_resources`
+
+Optional:
+
+- `kind` (String) kind specifies the Kubernetes Resource type.
 
 
 ### Nested Schema for `spec.allow.request.thresholds`
@@ -264,6 +282,7 @@ Optional:
 
 Optional:
 
+- `account_assignments` (Attributes List) AccountAssignments holds the list of account assignments affected by this condition. (see [below for nested schema](#nested-schema-for-specdenyaccount_assignments))
 - `app_labels` (Map of List of String) AppLabels is a map of labels used as part of the RBAC system.
 - `app_labels_expression` (String) AppLabelsExpression is a predicate expression used to allow/deny access to Apps.
 - `aws_role_arns` (List of String) AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
@@ -303,6 +322,14 @@ Optional:
 - `windows_desktop_labels_expression` (String) WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.
 - `windows_desktop_logins` (List of String) WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
 
+### Nested Schema for `spec.deny.account_assignments`
+
+Optional:
+
+- `account` (String)
+- `permission_set` (String)
+
+
 ### Nested Schema for `spec.deny.db_permissions`
 
 Optional:
@@ -334,7 +361,7 @@ Optional:
 
 Optional:
 
-- `kind` (String) Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.
+- `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
@@ -346,6 +373,7 @@ Optional:
 
 - `annotations` (Map of List of String) Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.
 - `claims_to_roles` (Attributes List) ClaimsToRoles specifies a mapping from claims (traits) to teleport roles. (see [below for nested schema](#nested-schema-for-specdenyrequestclaims_to_roles))
+- `kubernetes_resources` (Attributes List) kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources. (see [below for nested schema](#nested-schema-for-specdenyrequestkubernetes_resources))
 - `max_duration` (String) MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.
 - `roles` (List of String) Roles is the name of roles which will match the request rule.
 - `search_as_roles` (List of String) SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.
@@ -359,6 +387,13 @@ Optional:
 - `claim` (String) Claim is a claim name.
 - `roles` (List of String) Roles is a list of static teleport roles to match.
 - `value` (String) Value is a claim value to match.
+
+
+### Nested Schema for `spec.deny.request.kubernetes_resources`
+
+Optional:
+
+- `kind` (String) kind specifies the Kubernetes Resource type.
 
 
 ### Nested Schema for `spec.deny.request.thresholds`

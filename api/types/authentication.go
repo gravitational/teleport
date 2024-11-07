@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -71,9 +69,8 @@ type AuthPreference interface {
 	// SetType sets the type of authentication: local, saml, or oidc.
 	SetType(string)
 
-	// GetSecondFactor gets the type of second factor.
-	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
+	// Deprecated: only used in tests to set the deprecated off/optional values.
 	SetSecondFactor(constants.SecondFactorType)
 	// GetSecondFactors gets a list of supported second factors.
 	GetSecondFactors() []SecondFactorType
@@ -319,16 +316,6 @@ func (c *AuthPreferenceV2) GetType() string {
 // SetType sets the type of authentication.
 func (c *AuthPreferenceV2) SetType(s string) {
 	c.Spec.Type = s
-}
-
-// GetSecondFactor returns the type of second factor.
-func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
-	// SecondFactors takes priority if set.
-	if len(c.Spec.SecondFactors) > 0 {
-		return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
-	}
-
-	return c.Spec.SecondFactor
 }
 
 // SetSecondFactor sets the type of second factor.
@@ -634,6 +621,9 @@ type SignatureAlgorithmSuiteParams struct {
 // brand new cluster or after resetting the auth preference.
 func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlgorithmSuiteParams) {
 	switch {
+	case c.Spec.SignatureAlgorithmSuite != SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED && c.Metadata.Labels[OriginLabel] != OriginDefaults:
+		// If the suite is set and it's not a default value, return.
+		return
 	case params.FIPS:
 		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1)
 	case params.UsingHSMOrKMS || params.Cloud:
@@ -863,7 +853,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
-	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.GetSecondFactor())
+	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactors=%q)", c.Spec.Type, c.GetSecondFactors())
 }
 
 // Clone returns a copy of the AuthPreference resource.
@@ -948,108 +938,6 @@ func (wal *WebauthnLocalAuth) Check() error {
 		return trace.BadParameter("missing UserID field")
 	}
 	return nil
-}
-
-// NewMFADevice creates a new MFADevice with the given name. Caller must set
-// the Device field in the returned MFADevice.
-func NewMFADevice(name, id string, addedAt time.Time) *MFADevice {
-	return &MFADevice{
-		Metadata: Metadata{
-			Name: name,
-		},
-		Id:       id,
-		AddedAt:  addedAt,
-		LastUsed: addedAt,
-	}
-}
-
-// setStaticFields sets static resource header and metadata fields.
-func (d *MFADevice) setStaticFields() {
-	d.Kind = KindMFADevice
-	d.Version = V1
-}
-
-// CheckAndSetDefaults validates MFADevice fields and populates empty fields
-// with default values.
-func (d *MFADevice) CheckAndSetDefaults() error {
-	d.setStaticFields()
-	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if d.Id == "" {
-		return trace.BadParameter("MFADevice missing ID field")
-	}
-	if d.AddedAt.IsZero() {
-		return trace.BadParameter("MFADevice missing AddedAt field")
-	}
-	if d.LastUsed.IsZero() {
-		return trace.BadParameter("MFADevice missing LastUsed field")
-	}
-	if d.LastUsed.Before(d.AddedAt) {
-		return trace.BadParameter("MFADevice LastUsed field must be earlier than AddedAt")
-	}
-	if d.Device == nil {
-		return trace.BadParameter("MFADevice missing Device field")
-	}
-	if err := checkWebauthnDevice(d); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func checkWebauthnDevice(d *MFADevice) error {
-	wrapper, ok := d.Device.(*MFADevice_Webauthn)
-	if !ok {
-		return nil
-	}
-	switch webDev := wrapper.Webauthn; {
-	case webDev == nil:
-		return trace.BadParameter("MFADevice has malformed WebauthnDevice")
-	case len(webDev.CredentialId) == 0:
-		return trace.BadParameter("WebauthnDevice missing CredentialId field")
-	case len(webDev.PublicKeyCbor) == 0:
-		return trace.BadParameter("WebauthnDevice missing PublicKeyCbor field")
-	default:
-		return nil
-	}
-}
-
-func (d *MFADevice) GetKind() string         { return d.Kind }
-func (d *MFADevice) GetSubKind() string      { return d.SubKind }
-func (d *MFADevice) SetSubKind(sk string)    { d.SubKind = sk }
-func (d *MFADevice) GetVersion() string      { return d.Version }
-func (d *MFADevice) GetMetadata() Metadata   { return d.Metadata }
-func (d *MFADevice) GetName() string         { return d.Metadata.GetName() }
-func (d *MFADevice) SetName(n string)        { d.Metadata.SetName(n) }
-func (d *MFADevice) GetRevision() string     { return d.Metadata.GetRevision() }
-func (d *MFADevice) SetRevision(rev string)  { d.Metadata.SetRevision(rev) }
-func (d *MFADevice) Expiry() time.Time       { return d.Metadata.Expiry() }
-func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
-
-// MFAType returns the human-readable name of the MFA protocol of this device.
-func (d *MFADevice) MFAType() string {
-	switch d.Device.(type) {
-	case *MFADevice_Totp:
-		return "TOTP"
-	case *MFADevice_U2F:
-		return "U2F"
-	case *MFADevice_Webauthn:
-		return "WebAuthn"
-	default:
-		return "unknown"
-	}
-}
-
-func (d *MFADevice) MarshalJSON() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	err := (&jsonpb.Marshaler{}).Marshal(buf, d)
-	return buf.Bytes(), trace.Wrap(err)
-}
-
-func (d *MFADevice) UnmarshalJSON(buf []byte) error {
-	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
-	err := unmarshaler.Unmarshal(bytes.NewReader(buf), d)
-	return trace.Wrap(err)
 }
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.

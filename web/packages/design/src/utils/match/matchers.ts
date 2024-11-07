@@ -23,23 +23,19 @@ import { MatchCallback } from './match';
 export function dateMatcher<T>(
   datePropNames: (keyof T & string)[]
 ): MatchCallback<T> {
-  return (targetValue, searchValue, propName) => {
-    if (datePropNames.includes(propName)) {
-      return displayDate(new Date(targetValue))
-        .toLocaleUpperCase()
-        .includes(searchValue);
-    }
-  };
+  return (targetValue, searchValue, propName) =>
+    datePropNames.includes(propName) &&
+    displayDate(new Date(targetValue))
+      .toLocaleUpperCase()
+      .includes(searchValue);
 }
 
 export function dateTimeMatcher<T>(
   dateTimePropNames: (keyof T & string)[]
 ): MatchCallback<T> {
-  return (targetValue, searchValue, propName) => {
-    if (dateTimePropNames.includes(propName)) {
-      return displayDateTime(new Date(targetValue))
-        .toLocaleUpperCase()
-        .includes(searchValue);
-    }
-  };
+  return (targetValue, searchValue, propName) =>
+    dateTimePropNames.includes(propName) &&
+    displayDateTime(new Date(targetValue))
+      .toLocaleUpperCase()
+      .includes(searchValue);
 }

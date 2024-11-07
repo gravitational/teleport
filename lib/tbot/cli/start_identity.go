@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -31,22 +32,23 @@ import (
 // `tbot configure identity`.
 type IdentityCommand struct {
 	*sharedStartArgs
+	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Destination string
-	Cluster     string
+	Cluster string
 }
 
 // NewIdentityCommand initializes the command and flags for identity outputs
 // and returns a struct that will contain the parse result.
-func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *IdentityCommand {
-	cmd := parentCmd.Command("identity", "Start with an identity output for SSH and Teleport API access").Alias("ssh").Alias("id")
+func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *IdentityCommand {
+	cmd := parentCmd.Command("identity", fmt.Sprintf("%s tbot with an identity output for SSH and Teleport API access.", mode)).Alias("ssh").Alias("id")
 
 	c := &IdentityCommand{}
+	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.sharedStartArgs = newSharedStartArgs(cmd)
+
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&c.Destination)
 	cmd.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster").StringVar(&c.Cluster)
 
 	// Note: roles and ssh_config mode are excluded for now.
@@ -59,7 +61,7 @@ func (c *IdentityCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		return trace.Wrap(err)
 	}
 
-	dest, err := config.DestinationFromURI(c.Destination)
+	dest, err := c.BuildDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}

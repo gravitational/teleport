@@ -220,7 +220,7 @@ const ListComponent = () => {
           css={`
             width: 100%;
             justify-content: center;
-            height: ${p => p.theme.topBarHeight[2]}px;
+            height: ${p => p.theme.topBarHeight[1]}px;
           `}
         >
           <NotificationsListComponent />

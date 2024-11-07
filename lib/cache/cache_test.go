@@ -121,6 +121,7 @@ type testPack struct {
 	webSessionS             types.WebSessionInterface
 	webTokenS               types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
+	dynamicWindowsDesktops  services.DynamicWindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
 	okta                    services.Okta
@@ -139,6 +140,7 @@ type testPack struct {
 	staticHostUsers         services.StaticHostUser
 	autoUpdateService       services.AutoUpdateService
 	provisioningStates      services.ProvisioningStates
+	identityCenter          services.IdentityCenter
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -268,6 +270,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dynamicWindowsDesktopService, err := local.NewDynamicWindowsDesktopService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
@@ -287,6 +294,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -387,6 +395,13 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.identityCenter, err = local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
+		Backend: p.backend,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -420,6 +435,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -438,6 +454,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
+		IdentityCenter:          p.identityCenter,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -648,6 +665,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		WebSession:              p.cache.webSessionCache,
 		WebToken:                p.cache.webTokenCache,
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
+		DynamicWindowsDesktops:  p.cache.dynamicWindowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		StaticHostUsers:         p.staticHostUsers,
@@ -829,6 +847,7 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseServices:        p.databaseServices,
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
+			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
@@ -848,6 +867,7 @@ func TestCompletenessInit(t *testing.T) {
 			AutoUpdateService:       p.autoUpdateService,
 			ProvisioningStates:      p.provisioningStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
+			IdentityCenter:          p.identityCenter,
 			EventsC:                 p.eventsC,
 		}))
 		require.NoError(t, err)
@@ -911,6 +931,7 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -929,6 +950,7 @@ func TestCompletenessReset(t *testing.T) {
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
+		IdentityCenter:          p.identityCenter,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1119,6 +1141,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1137,6 +1160,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
+		IdentityCenter:          p.identityCenter,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1212,6 +1236,7 @@ func initStrategy(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
+		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1230,6 +1255,7 @@ func initStrategy(t *testing.T) {
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
 		ProvisioningStates:      p.provisioningStates,
+		IdentityCenter:          p.identityCenter,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2560,16 +2586,17 @@ func TestAccessListMembers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	count, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
+	count, listCount, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
 	require.NoError(t, err)
 	require.Equal(t, uint32(40), count)
+	require.Equal(t, uint32(0), listCount)
 
 	// Eventually, this should be reflected in the cache.
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
-		count, err := p.cache.CountAccessListMembers(ctx, al.GetName())
+		count, listCount, err := p.cache.CountAccessListMembers(ctx, al.GetName())
 		assert.NoError(t, err)
-		return count == uint32(40)
+		return count == uint32(40) && listCount == uint32(0)
 	}, time.Second*2, time.Millisecond*250)
 }
 
@@ -2803,6 +2830,42 @@ func TestAutoUpdateVersion(t *testing.T) {
 	})
 }
 
+// TestAutoUpdateAgentRollout tests that CRUD operations on AutoUpdateAgentRollout resource are
+// replicated from the backend to the cache.
+func TestAutoUpdateAgentRollout(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*autoupdate.AutoUpdateAgentRollout]{
+		newResource: func(name string) (*autoupdate.AutoUpdateAgentRollout, error) {
+			return newAutoUpdateAgentRollout(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateAgentRollout) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateAgentRollout(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentRollout, error) {
+			item, err := p.autoUpdateService.GetAutoUpdateAgentRollout(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateAgentRollout{}, nil
+			}
+			return []*autoupdate.AutoUpdateAgentRollout{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentRollout, error) {
+			item, err := p.cache.GetAutoUpdateAgentRollout(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateAgentRollout{}, nil
+			}
+			return []*autoupdate.AutoUpdateAgentRollout{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateAgentRollout(ctx))
+		},
+	})
+}
+
 // TestGlobalNotifications tests that CRUD operations on global notification resources are
 // replicated from the backend to the cache.
 func TestGlobalNotifications(t *testing.T) {
@@ -2966,7 +3029,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 			}
 
 			assert.Empty(collect, cmp.Diff(expected, out, cmpOpts...))
-		}, 2*time.Second, 250*time.Millisecond)
+		}, 2*time.Second, 10*time.Millisecond)
 	}
 
 	// Check that the resource is now in the backend.
@@ -3390,69 +3453,74 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	}
 
 	events := map[string]types.Resource{
-		types.KindCertAuthority:              &types.CertAuthorityV2{},
-		types.KindClusterName:                &types.ClusterNameV2{},
-		types.KindClusterAuditConfig:         types.DefaultClusterAuditConfig(),
-		types.KindClusterNetworkingConfig:    types.DefaultClusterNetworkingConfig(),
-		types.KindClusterAuthPreference:      types.DefaultAuthPreference(),
-		types.KindSessionRecordingConfig:     types.DefaultSessionRecordingConfig(),
-		types.KindUIConfig:                   &types.UIConfigV1{},
-		types.KindStaticTokens:               &types.StaticTokensV2{},
-		types.KindToken:                      &types.ProvisionTokenV2{},
-		types.KindUser:                       &types.UserV2{},
-		types.KindRole:                       &types.RoleV6{Version: types.V4},
-		types.KindNamespace:                  &types.Namespace{},
-		types.KindNode:                       &types.ServerV2{},
-		types.KindProxy:                      &types.ServerV2{},
-		types.KindAuthServer:                 &types.ServerV2{},
-		types.KindReverseTunnel:              &types.ReverseTunnelV2{},
-		types.KindTunnelConnection:           &types.TunnelConnectionV2{},
-		types.KindAccessRequest:              &types.AccessRequestV3{},
-		types.KindAppServer:                  &types.AppServerV3{},
-		types.KindApp:                        &types.AppV3{},
-		types.KindWebSession:                 &types.WebSessionV2{SubKind: types.KindWebSession},
-		types.KindAppSession:                 &types.WebSessionV2{SubKind: types.KindAppSession},
-		types.KindSnowflakeSession:           &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
-		types.KindSAMLIdPSession:             &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
-		types.KindWebToken:                   &types.WebTokenV3{},
-		types.KindRemoteCluster:              &types.RemoteClusterV3{},
-		types.KindKubeServer:                 &types.KubernetesServerV3{},
-		types.KindDatabaseService:            &types.DatabaseServiceV1{},
-		types.KindDatabaseServer:             &types.DatabaseServerV3{},
-		types.KindDatabase:                   &types.DatabaseV3{},
-		types.KindNetworkRestrictions:        &types.NetworkRestrictionsV4{},
-		types.KindLock:                       &types.LockV2{},
-		types.KindWindowsDesktopService:      &types.WindowsDesktopServiceV3{},
-		types.KindWindowsDesktop:             &types.WindowsDesktopV3{},
-		types.KindInstaller:                  &types.InstallerV1{},
-		types.KindKubernetesCluster:          &types.KubernetesClusterV3{},
-		types.KindSAMLIdPServiceProvider:     &types.SAMLIdPServiceProviderV1{},
-		types.KindUserGroup:                  &types.UserGroupV1{},
-		types.KindOktaImportRule:             &types.OktaImportRuleV1{},
-		types.KindOktaAssignment:             &types.OktaAssignmentV1{},
-		types.KindIntegration:                &types.IntegrationV1{},
-		types.KindDiscoveryConfig:            newDiscoveryConfig(t, "discovery-config"),
-		types.KindHeadlessAuthentication:     &types.HeadlessAuthentication{},
-		types.KindUserLoginState:             newUserLoginState(t, "user-login-state"),
-		types.KindAuditQuery:                 newAuditQuery(t, "audit-query"),
-		types.KindSecurityReport:             newSecurityReport(t, "security-report"),
-		types.KindSecurityReportState:        newSecurityReport(t, "security-report-state"),
-		types.KindAccessList:                 newAccessList(t, "access-list", clock),
-		types.KindAccessListMember:           newAccessListMember(t, "access-list", "member"),
-		types.KindAccessListReview:           newAccessListReview(t, "access-list", "review"),
-		types.KindKubeWaitingContainer:       newKubeWaitingContainer(t),
-		types.KindNotification:               types.Resource153ToLegacy(newUserNotification(t, "test")),
-		types.KindGlobalNotification:         types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:       types.Resource153ToLegacy(newAccessMonitoringRule(t)),
-		types.KindCrownJewel:                 types.Resource153ToLegacy(newCrownJewel(t, "test")),
-		types.KindDatabaseObject:             types.Resource153ToLegacy(newDatabaseObject(t, "test")),
-		types.KindAccessGraphSettings:        types.Resource153ToLegacy(newAccessGraphSettings(t)),
-		types.KindSPIFFEFederation:           types.Resource153ToLegacy(newSPIFFEFederation("test")),
-		types.KindStaticHostUser:             types.Resource153ToLegacy(newStaticHostUser(t, "test")),
-		types.KindAutoUpdateConfig:           types.Resource153ToLegacy(newAutoUpdateConfig(t)),
-		types.KindAutoUpdateVersion:          types.Resource153ToLegacy(newAutoUpdateVersion(t)),
-		types.KindUserTask:                   types.Resource153ToLegacy(newUserTasks(t)),
-		types.KindProvisioningPrincipalState: types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
+		types.KindCertAuthority:                     &types.CertAuthorityV2{},
+		types.KindClusterName:                       &types.ClusterNameV2{},
+		types.KindClusterAuditConfig:                types.DefaultClusterAuditConfig(),
+		types.KindClusterNetworkingConfig:           types.DefaultClusterNetworkingConfig(),
+		types.KindClusterAuthPreference:             types.DefaultAuthPreference(),
+		types.KindSessionRecordingConfig:            types.DefaultSessionRecordingConfig(),
+		types.KindUIConfig:                          &types.UIConfigV1{},
+		types.KindStaticTokens:                      &types.StaticTokensV2{},
+		types.KindToken:                             &types.ProvisionTokenV2{},
+		types.KindUser:                              &types.UserV2{},
+		types.KindRole:                              &types.RoleV6{Version: types.V4},
+		types.KindNamespace:                         &types.Namespace{},
+		types.KindNode:                              &types.ServerV2{},
+		types.KindProxy:                             &types.ServerV2{},
+		types.KindAuthServer:                        &types.ServerV2{},
+		types.KindReverseTunnel:                     &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:                  &types.TunnelConnectionV2{},
+		types.KindAccessRequest:                     &types.AccessRequestV3{},
+		types.KindAppServer:                         &types.AppServerV3{},
+		types.KindApp:                               &types.AppV3{},
+		types.KindWebSession:                        &types.WebSessionV2{SubKind: types.KindWebSession},
+		types.KindAppSession:                        &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindSnowflakeSession:                  &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindSAMLIdPSession:                    &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
+		types.KindWebToken:                          &types.WebTokenV3{},
+		types.KindRemoteCluster:                     &types.RemoteClusterV3{},
+		types.KindKubeServer:                        &types.KubernetesServerV3{},
+		types.KindDatabaseService:                   &types.DatabaseServiceV1{},
+		types.KindDatabaseServer:                    &types.DatabaseServerV3{},
+		types.KindDatabase:                          &types.DatabaseV3{},
+		types.KindNetworkRestrictions:               &types.NetworkRestrictionsV4{},
+		types.KindLock:                              &types.LockV2{},
+		types.KindWindowsDesktopService:             &types.WindowsDesktopServiceV3{},
+		types.KindWindowsDesktop:                    &types.WindowsDesktopV3{},
+		types.KindDynamicWindowsDesktop:             &types.DynamicWindowsDesktopV1{},
+		types.KindInstaller:                         &types.InstallerV1{},
+		types.KindKubernetesCluster:                 &types.KubernetesClusterV3{},
+		types.KindSAMLIdPServiceProvider:            &types.SAMLIdPServiceProviderV1{},
+		types.KindUserGroup:                         &types.UserGroupV1{},
+		types.KindOktaImportRule:                    &types.OktaImportRuleV1{},
+		types.KindOktaAssignment:                    &types.OktaAssignmentV1{},
+		types.KindIntegration:                       &types.IntegrationV1{},
+		types.KindDiscoveryConfig:                   newDiscoveryConfig(t, "discovery-config"),
+		types.KindHeadlessAuthentication:            &types.HeadlessAuthentication{},
+		types.KindUserLoginState:                    newUserLoginState(t, "user-login-state"),
+		types.KindAuditQuery:                        newAuditQuery(t, "audit-query"),
+		types.KindSecurityReport:                    newSecurityReport(t, "security-report"),
+		types.KindSecurityReportState:               newSecurityReport(t, "security-report-state"),
+		types.KindAccessList:                        newAccessList(t, "access-list", clock),
+		types.KindAccessListMember:                  newAccessListMember(t, "access-list", "member"),
+		types.KindAccessListReview:                  newAccessListReview(t, "access-list", "review"),
+		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
+		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
+		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
+		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
+		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
+		types.KindSPIFFEFederation:                  types.Resource153ToLegacy(newSPIFFEFederation("test")),
+		types.KindStaticHostUser:                    types.Resource153ToLegacy(newStaticHostUser(t, "test")),
+		types.KindAutoUpdateConfig:                  types.Resource153ToLegacy(newAutoUpdateConfig(t)),
+		types.KindAutoUpdateVersion:                 types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
+		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
+		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
+		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
+		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
+		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
 	}
 
 	for name, cfg := range cases {
@@ -4003,7 +4071,9 @@ func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
-		ToolsAutoupdate: true,
+		Tools: &autoupdate.AutoUpdateConfigSpecTools{
+			Mode: update.ToolsUpdateModeEnabled,
+		},
 	})
 	require.NoError(t, err)
 	return r
@@ -4013,7 +4083,23 @@ func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 	t.Helper()
 
 	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
-		ToolsVersion: "1.2.3",
+		Tools: &autoupdate.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
+	})
+	require.NoError(t, err)
+	return r
+}
+
+func newAutoUpdateAgentRollout(t *testing.T) *autoupdate.AutoUpdateAgentRollout {
+	t.Helper()
+
+	r, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
+		StartVersion:   "1.2.3",
+		TargetVersion:  "2.3.4",
+		Schedule:       update.AgentsScheduleImmediate,
+		AutoupdateMode: update.AgentsUpdateModeEnabled,
+		Strategy:       update.AgentsStrategyTimeBased,
 	})
 	require.NoError(t, err)
 	return r

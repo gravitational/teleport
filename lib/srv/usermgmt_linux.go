@@ -51,7 +51,7 @@ type HostSudoersProvisioningBackend struct {
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
 func newHostUsersBackend() (HostUsersBackend, error) {
 	var missing []string
-	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo"} {
+	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo", "chage"} {
 		if _, err := exec.LookPath(requiredBin); err != nil {
 			missing = append(missing, requiredBin)
 		}
@@ -282,4 +282,9 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 	}
 
 	return nil
+}
+
+func (u *HostUsersProvisioningBackend) RemoveExpirations(username string) error {
+	_, err := host.RemoveUserExpirations(username)
+	return trace.Wrap(err)
 }

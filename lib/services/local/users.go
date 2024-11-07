@@ -39,8 +39,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -659,7 +661,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 	return nil
 }
 
-// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
+// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -676,7 +678,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	return nil, trace.NotFound("user with identity %q not found", &id)
 }
 
-// GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
+// GetUserBySAMLIdentity returns a user by its specified OIDC Identity, returns
 // first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -1218,6 +1220,10 @@ func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 
+	if _, ok := d.Device.(*types.MFADevice_Sso); ok {
+		return trace.BadParameter("cannot create SSO MFA device")
+	}
+
 	devs, err := s.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1354,6 +1360,12 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 	}
 
 	err := s.Delete(ctx, backend.NewKey(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
+	if trace.IsNotFound(err) {
+		if _, err := s.getSSOMFADevice(ctx, user); err == nil {
+			return trace.BadParameter("cannot delete ephemeral SSO MFA device")
+		}
+		return trace.Wrap(err)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1368,6 +1380,41 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		return nil, trace.BadParameter("missing parameter user")
 	}
 
+	// get normal MFA devices and SSO mfa device concurrently, returning the first error we get.
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	var devices []*types.MFADevice
+	eg.Go(func() error {
+		var err error
+		devices, err = s.getMFADevices(egCtx, user, withSecrets)
+		return trace.Wrap(err)
+	})
+
+	var ssoDev *types.MFADevice
+	eg.Go(func() error {
+		var err error
+		ssoDev, err = s.getSSOMFADevice(egCtx, user)
+		if trace.IsNotFound(err) {
+			return nil // OK, SSO device may not exist.
+		}
+		return trace.Wrap(err)
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ssoDev != nil {
+		devices = append(devices, ssoDev)
+	}
+
+	return devices, nil
+}
+
+// getMFADevices reads devices from storage. Devices from other sources, such as
+// the ephemeral SSO devices, are not returned by it.
+// See getSSOMFADevice and GetMFADevices (which returns all devices).
+func (s *IdentityService) getMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user, mfaDevicePrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -1389,6 +1436,62 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		devices = append(devices, &d)
 	}
 	return devices, nil
+}
+
+// getSSOMFADevice returns the user's SSO MFA device. This device is ephemeral, meaning it
+// does not actually appear in the backend under the user's mfa key. Instead it is fetched
+// by checking related user and cluster configuration settings.
+func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*types.MFADevice, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	u, err := s.GetUser(ctx, user, false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cb := u.GetCreatedBy()
+	if cb.Connector == nil {
+		return nil, trace.NotFound("no SSO MFA device found; user was not created by an auth connector")
+	}
+
+	var mfaConnector interface {
+		IsMFAEnabled() bool
+		GetDisplay() string
+	}
+
+	const ssoMFADisabledErr = "no SSO MFA device found; user's auth connector does not have MFA enabled"
+	switch cb.Connector.Type {
+	case constants.SAML:
+		mfaConnector, err = s.GetSAMLConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+	case constants.OIDC:
+		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+	case constants.Github:
+		// Github connectors do not support SSO MFA.
+		return nil, trace.NotFound(ssoMFADisabledErr)
+	default:
+		return nil, trace.NotFound("user created by unknown auth connector type %v", cb.Connector.Type)
+	}
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("user created by unknown %v auth connector %v", cb.Connector.Type, cb.Connector.ID)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !mfaConnector.IsMFAEnabled() {
+		return nil, trace.NotFound(ssoMFADisabledErr)
+	}
+
+	return types.NewMFADevice(mfaConnector.GetDisplay(), cb.Connector.ID, cb.Time.UTC(), &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   cb.Connector.ID,
+			ConnectorType: cb.Connector.Type,
+			DisplayName:   mfaConnector.GetDisplay(),
+		},
+	})
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
@@ -1782,6 +1885,57 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	return &req, nil
 }
 
+func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
+	switch {
+	case sd == nil:
+		return trace.BadParameter("missing parameter sd")
+	case sd.RequestID == "":
+		return trace.BadParameter("missing parameter RequestID")
+	case sd.ConnectorID == "":
+		return trace.BadParameter("missing parameter ConnectorID")
+	case sd.ConnectorType == "":
+		return trace.BadParameter("missing parameter ConnectorType")
+	case sd.Username == "":
+		return trace.BadParameter("missing parameter Username")
+	}
+
+	value, err := json.Marshal(sd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:     ssoMFASessionDataKey(sd.RequestID),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
+	if sessionID == "" {
+		return nil, trace.BadParameter("missing parameter sessionID")
+	}
+
+	item, err := s.Get(ctx, ssoMFASessionDataKey(sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sd := &services.SSOMFASessionData{}
+	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
+}
+
+func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return trace.BadParameter("missing parameter sessionID")
+	}
+
+	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(sessionID)))
+}
+
+func ssoMFASessionDataKey(sessionID string) backend.Key {
+	return backend.NewKey(webPrefix, ssoMFASessionData, sessionID)
+}
+
 // UpsertGithubConnector creates or updates a Github connector
 func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	if err := services.CheckAndSetDefaults(connector); err != nil {
@@ -2062,6 +2216,7 @@ const (
 	webauthnGlobalSessionData = "sessionData"
 	webauthnLocalAuthPrefix   = "webauthnlocalauth"
 	webauthnSessionData       = "webauthnsessiondata"
+	ssoMFASessionData         = "ssomfasessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	attestationsPrefix        = "key_attestations"
 	userPreferencesPrefix     = "user_preferences"

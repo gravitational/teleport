@@ -57,12 +57,13 @@ const (
 )
 
 type awsKMSKeystore struct {
-	kms         kmsClient
-	clusterName types.ClusterName
-	awsAccount  string
-	awsRegion   string
-	clock       clockwork.Clock
-	logger      *slog.Logger
+	kms                kmsClient
+	clusterName        types.ClusterName
+	awsAccount         string
+	awsRegion          string
+	multiRegionEnabled bool
+	clock              clockwork.Clock
+	logger             *slog.Logger
 }
 
 func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *Options) (*awsKMSKeystore, error) {
@@ -99,12 +100,13 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		clock = clockwork.NewRealClock()
 	}
 	return &awsKMSKeystore{
-		clusterName: opts.ClusterName,
-		awsAccount:  cfg.AWSAccount,
-		awsRegion:   cfg.AWSRegion,
-		kms:         kmsClient,
-		clock:       clock,
-		logger:      opts.Logger,
+		clusterName:        opts.ClusterName,
+		awsAccount:         cfg.AWSAccount,
+		awsRegion:          cfg.AWSRegion,
+		multiRegionEnabled: cfg.MultiRegion.Enabled,
+		kms:                kmsClient,
+		clock:              clock,
+		logger:             opts.Logger,
 	}, nil
 }
 
@@ -126,7 +128,9 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 		return nil, nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "Creating new AWS KMS keypair.", "algorithm", alg)
+	a.logger.InfoContext(ctx, "Creating new AWS KMS keypair.",
+		slog.Any("algorithm", algorithm),
+		slog.Bool("multi_region", a.multiRegionEnabled))
 
 	output, err := a.kms.CreateKey(ctx, &kms.CreateKeyInput{
 		Description: aws.String("Teleport CA key"),
@@ -138,6 +142,7 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 				TagValue: aws.String(a.clusterName.GetClusterName()),
 			},
 		},
+		MultiRegion: aws.Bool(a.multiRegionEnabled),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

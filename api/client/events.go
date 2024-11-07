@@ -23,6 +23,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -117,6 +118,22 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *provisioningv1.PrincipalState:
 			out.Resource = &proto.Event_ProvisioningPrincipalState{
 				ProvisioningPrincipalState: r,
+			}
+		case *autoupdate.AutoUpdateAgentRollout:
+			out.Resource = &proto.Event_AutoUpdateAgentRollout{
+				AutoUpdateAgentRollout: r,
+			}
+		case *identitycenterv1.Account:
+			out.Resource = &proto.Event_IdentityCenterAccount{
+				IdentityCenterAccount: r,
+			}
+		case *identitycenterv1.PrincipalAssignment:
+			out.Resource = &proto.Event_IdentityCenterPrincipalAssignment{
+				IdentityCenterPrincipalAssignment: r,
+			}
+		case *identitycenterv1.AccountAssignment:
+			out.Resource = &proto.Event_IdentityCenterAccountAssignment{
+				IdentityCenterAccountAssignment: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -253,6 +270,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.WindowsDesktopV3:
 		out.Resource = &proto.Event_WindowsDesktop{
 			WindowsDesktop: r,
+		}
+	case *types.DynamicWindowsDesktopV1:
+		out.Resource = &proto.Event_DynamicWindowsDesktop{
+			DynamicWindowsDesktop: r,
 		}
 	case *types.InstallerV1:
 		out.Resource = &proto.Event_Installer{
@@ -444,6 +465,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetWindowsDesktop(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetDynamicWindowsDesktop(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else if r := in.GetKubernetesServer(); r != nil {
 		out.Resource = r
 		return &out, nil
@@ -567,10 +591,22 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetAutoUpdateVersion(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetAutoUpdateAgentRollout(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetUserTask(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetProvisioningPrincipalState(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterAccount(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterPrincipalAssignment(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterAccountAssignment(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

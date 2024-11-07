@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tpm"
 )
 
-func (a *Server) registerUsingTPMMethod(
+func (a *Server) RegisterUsingTPMMethod(
 	ctx context.Context,
 	initReq *proto.RegisterUsingTPMMethodInitialRequest,
 	solveChallenge client.RegisterTPMChallengeResponseFunc,

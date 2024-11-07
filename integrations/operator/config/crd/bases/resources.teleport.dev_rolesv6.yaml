@@ -38,6 +38,17 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -252,7 +263,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -326,6 +336,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -564,6 +589,17 @@ spec:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -778,7 +814,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -852,6 +887,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array

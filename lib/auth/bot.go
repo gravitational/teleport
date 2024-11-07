@@ -288,8 +288,6 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
-	// TODO(nklaassen): consider recording both public keys once they are
-	// actually separated.
 	var publicKeyPEM []byte
 	if req.tlsPublicKey != nil {
 		publicKeyPEM = req.tlsPublicKey

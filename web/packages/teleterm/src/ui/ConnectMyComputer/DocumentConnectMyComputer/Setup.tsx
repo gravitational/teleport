@@ -467,16 +467,7 @@ function StandardError(props: {
   error: string;
   mb?: number | string;
 }): JSX.Element {
-  return (
-    <Alerts.Danger
-      mb={props.mb || 0}
-      css={`
-        white-space: pre-wrap;
-      `}
-    >
-      {props.error}
-    </Alerts.Danger>
-  );
+  return <Alerts.Danger mb={props.mb || 0}>{props.error}</Alerts.Danger>;
 }
 
 function ClusterAndHostnameCopy(props: {

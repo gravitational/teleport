@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -257,6 +258,9 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -289,6 +293,9 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -371,6 +378,9 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -423,6 +433,9 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -491,6 +504,9 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 		Dir:                tc.KeysDir,
 		Clock:              storageFakeClock,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -750,6 +766,9 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+					return nil
+				},
 			})
 			require.NoError(t, err)
 
@@ -866,6 +885,9 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		Clock:              fakeClock,
 		WebauthnLogin:      webauthnLogin,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -926,6 +948,9 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -1010,6 +1035,9 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -1237,6 +1265,9 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                tc.KeysDir,
 				InsecureSkipVerify: tc.InsecureSkipVerify,
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+					return nil
+				},
 			})
 			require.NoError(t, err)
 

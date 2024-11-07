@@ -46,8 +46,8 @@ import { Option } from 'shared/components/Select';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { routing } from 'teleterm/ui/uri';
 
@@ -61,14 +61,6 @@ export const ReAuthenticate: FC<{
   const logger = useLogger('ReAuthenticate');
   const { promptMfaRequest: req } = props;
 
-  // TODO(ravicious): At the moment it doesn't seem like it's possible for both Webauthn and TOTP to
-  // be available at the same time (see lib/client/mfa.PromptConfig/GetRunOptions). Whenever both
-  // Webauthn and TOTP are supported, Webauthn is preferred. Well, unless AllowStdinHijack is
-  // specified, but lib/teleterm doesn't do this and AllowStdinHijack has a scary comment next to it
-  // telling you not to use it.
-  //
-  // Alas, the data structure certainly allows for this so the modal was designed with supporting
-  // such scenario in mind.
   const availableMfaTypes: MfaType[] = [];
   // Add Webauthn first to prioritize it if both Webauthn and TOTP are available.
   if (req.webauthn) {

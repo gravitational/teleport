@@ -520,7 +520,7 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
-	// authentication request has it's own authentication, however this limits the requests
+	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -531,7 +531,7 @@ func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclien
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
 func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
-	// authentication request has it's own authentication, however this limits the requests
+	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -573,6 +573,11 @@ func (a *ServerWithRoles) GetClusterCACert(
 	return a.authServer.GetClusterCACert(ctx)
 }
 
+// Deprecated: This method only exists to service the RegisterUsingToken HTTP
+// RPC, which has been replaced by an RPC on the JoinServiceServer.
+// JoinServiceServer directly invokes auth.Server and performs its own checks
+// on metadata.
+// TODO(strideynet): DELETE IN V18.0.0
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	isProxy := a.hasBuiltinRole(types.RoleProxy)
 
@@ -613,48 +618,6 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
-}
-
-// RegisterUsingIAMMethod registers the caller using the IAM join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingIAMMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
-	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
-	return certs, trace.Wrap(err)
-}
-
-// RegisterUsingAzureMethod registers the caller using the Azure join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingAzureMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
-	certs, err := a.authServer.RegisterUsingAzureMethod(ctx, challengeResponse)
-	return certs, trace.Wrap(err)
-}
-
-// RegisterUsingTPMMethod registers the caller using the TPM join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingTPMMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingTPMMethod(
-	ctx context.Context,
-	initReq *proto.RegisterUsingTPMMethodInitialRequest,
-	solveChallenge client.RegisterTPMChallengeResponseFunc,
-) (*proto.Certs, error) {
-	certs, err := a.authServer.registerUsingTPMMethod(
-		ctx, initReq, solveChallenge,
-	)
-	return certs, trace.Wrap(err)
 }
 
 // GenerateHostCerts generates new host certificates (signed
@@ -2224,11 +2187,7 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
-func emitTokenEvent(
-	ctx context.Context,
-	e apievents.Emitter,
-	roles types.SystemRoles,
-	joinMethod types.JoinMethod,
+func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
 ) {
 	userMetadata := authz.ClientUserMetadata(ctx)
 	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
@@ -2236,9 +2195,14 @@ func emitTokenEvent(
 			Type: events.ProvisionTokenCreateEvent,
 			Code: events.ProvisionTokenCreateCode,
 		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      token.GetSafeName(),
+			Expires:   token.Expiry(),
+			UpdatedBy: userMetadata.GetUser(),
+		},
 		UserMetadata: userMetadata,
-		Roles:        roles,
-		JoinMethod:   joinMethod,
+		Roles:        token.GetRoles(),
+		JoinMethod:   token.GetJoinMethod(),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit join token create event.")
 	}
@@ -2262,12 +2226,11 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2284,7 +2247,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
@@ -3382,7 +3345,7 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	// Token is it's own authentication, no need to double check.
+	// Token is its own authentication, no need to double check.
 	resp, err := a.authServer.ChangeUserAuthentication(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3623,7 +3586,7 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 }
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3682,7 +3645,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3778,7 +3741,7 @@ func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse
 		clientIP = "" // We only trust IP information coming from the Proxy.
 	}
 
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3995,7 +3958,7 @@ func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, stateToken s
 }
 
 func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateGithubAuthCallback(ctx, q)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4571,9 +4534,6 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		msg = err.Error()
 	}
 
-	oldSecondFactor := storedAuthPref.GetSecondFactor()
-	newSecondFactor := newAuthPref.GetSecondFactor()
-
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4586,7 +4546,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 			Error:       msg,
 			UserMessage: msg,
 		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, newAuthPref),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4624,9 +4584,6 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		msg = err.Error()
 	}
 
-	oldSecondFactor := storedAuthPref.GetSecondFactor()
-	newSecondFactor := defaultAuthPref.GetSecondFactor()
-
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4639,7 +4596,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 			Error:       msg,
 			UserMessage: msg,
 		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, defaultAuthPref),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4967,7 +4924,7 @@ func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRe
 		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
 	}
 
-	// the token provides it's own authorization and authentication
+	// the token provides its own authorization and authentication
 	return a.authServer.validateTrustedCluster(ctx, validateRequest)
 }
 

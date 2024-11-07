@@ -110,12 +110,20 @@ const LabelState = styled.span<LabelStateProps>`
   ${color}
   ${fontSize}
 `;
-LabelState.defaultProps = {
-  shadow: false,
-};
 
 export default LabelState;
-export const StateDanger = props => <LabelState kind="danger" {...props} />;
-export const StateInfo = props => <LabelState kind="secondary" {...props} />;
-export const StateWarning = props => <LabelState kind="warning" {...props} />;
-export const StateSuccess = props => <LabelState kind="success" {...props} />;
+
+type LabelStatePropsWithoutKind = Omit<LabelStateProps, 'kind'>;
+
+export const StateDanger = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="danger" {...props} />
+);
+export const StateInfo = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="secondary" {...props} />
+);
+export const StateWarning = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="warning" {...props} />
+);
+export const StateSuccess = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="success" {...props} />
+);

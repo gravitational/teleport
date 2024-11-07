@@ -20,10 +20,6 @@ package transportv1
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -48,6 +44,7 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -834,23 +831,17 @@ func (s *sshServer) Stop() error {
 }
 
 func generateSigner(t *testing.T, keyring agent.Agent) ssh.Signer {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	private, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
-	block := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(private),
-	}
+	signer, err := ssh.NewSignerFromSigner(private)
+	require.NoError(t, err)
 
 	require.NoError(t, keyring.Add(agent.AddedKey{
 		PrivateKey:   private,
 		Comment:      "test",
 		LifetimeSecs: math.MaxUint32,
 	}))
-
-	privatePEM := pem.EncodeToMemory(block)
-	signer, err := ssh.ParsePrivateKey(privatePEM)
-	require.NoError(t, err)
 
 	return signer
 }

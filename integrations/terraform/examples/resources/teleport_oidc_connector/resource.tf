@@ -5,6 +5,7 @@
 variable "oidc_secret" {}
 
 resource "teleport_oidc_connector" "example" {
+  version = "v3"
   metadata = {
     name = "example"
     labels = {

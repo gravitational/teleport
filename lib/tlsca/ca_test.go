@@ -19,9 +19,9 @@
 package tlsca
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
+	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"testing"
@@ -36,9 +36,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
@@ -86,7 +87,7 @@ func TestPrincipals(t *testing.T) {
 			ca, err := test.createFunc()
 			require.NoError(t, err)
 
-			privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
 			hostnames := []string{"localhost", "example.com"}
@@ -122,7 +123,7 @@ func TestRenewableIdentity(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	identity := Identity{
@@ -159,7 +160,7 @@ func TestKubeExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -209,7 +210,7 @@ func TestDatabaseExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -254,7 +255,7 @@ func TestAzureExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -331,6 +332,28 @@ func TestIdentity_ToFromSubject(t *testing.T) {
 				assertStringOID(t, want.CredentialID, DeviceCredentialIDExtensionOID, subj, "CredentialID mismatch")
 			},
 		},
+		{
+			name: "user type: sso",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				UserType: "sso",
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
+		{
+			name: "user type: local",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				UserType: "local",
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -360,7 +383,7 @@ func TestGCPExtensions(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	expires := clock.Now().Add(time.Hour)
@@ -470,6 +493,60 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 			if !proto.Equal(&got, &want) {
 				t.Errorf("GetUserMetadata mismatch (-want +got)\n%s", cmp.Diff(want, got))
 			}
+		})
+	}
+}
+
+// TestKeyUsage asserts that only certs with RSA subject keys get the
+// KeyEncipherment keyUsage extension.
+func TestKeyUsage(t *testing.T) {
+	rsaKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
+	require.NoError(t, err)
+	ecdsaKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		algo                  string
+		key                   crypto.Signer
+		expectCAKeyUsage      x509.KeyUsage
+		expectSubjectKeyUsage x509.KeyUsage
+	}{
+		{
+			algo:                  "RSA",
+			key:                   rsaKey,
+			expectCAKeyUsage:      x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageKeyEncipherment,
+			expectSubjectKeyUsage: x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		},
+		{
+			algo:                  "ECDSA",
+			key:                   ecdsaKey,
+			expectCAKeyUsage:      x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+			expectSubjectKeyUsage: x509.KeyUsageDigitalSignature,
+		},
+	} {
+		t.Run(tc.algo, func(t *testing.T) {
+			caPEM, err := GenerateSelfSignedCAWithSigner(tc.key, pkix.Name{
+				CommonName:   "teleport.example.com",
+				Organization: []string{"teleport.example.com"},
+			}, nil /*dnsNames*/, defaults.CATTL)
+			require.NoError(t, err)
+
+			ca, err := FromCertAndSigner(caPEM, tc.key)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectCAKeyUsage, ca.Cert.KeyUsage)
+
+			subjectPEM, err := ca.GenerateCertificate(CertificateRequest{
+				PublicKey: tc.key.Public(),
+				Subject: pkix.Name{
+					CommonName:   "teleport.example.com",
+					Organization: []string{"teleport.example.com"},
+				},
+				NotAfter: time.Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+
+			subject, err := ParseCertificatePEM(subjectPEM)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectSubjectKeyUsage, subject.KeyUsage)
 		})
 	}
 }

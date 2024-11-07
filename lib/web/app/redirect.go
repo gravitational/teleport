@@ -103,8 +103,9 @@ const appRedirectHTML = `
     <title>Teleport Redirection Service</title>
     <script nonce="{{.}}">
       (function() {
-        var url = new URL(window.location);
-        var params = new URLSearchParams(url.search);
+        var currentUrl = new URL(window.location);
+        var currentOrigin = currentUrl.origin;
+        var params = new URLSearchParams(currentUrl.search);
         var stateValue = params.get('state');
         var subjectValue = params.get('subject');
         var path = params.get('path');
@@ -137,16 +138,20 @@ const appRedirectHTML = `
               return;
             }
             try {
-              // if a path parameter was passed through the redirect, append that path to the target url
+              // if a path parameter was passed through the redirect, append that path to the current origin
               if (path) {
-                var redirectUrl = new URL(path, url.origin)
-                window.location.replace(redirectUrl.toString());
+                var redirectUrl = new URL(path, currentOrigin)
+                if (redirectUrl.origin === currentOrigin) {
+                  window.location.replace(redirectUrl.toString())
+                } else {
+                  window.location.replace(currentOrigin)
+                }
               } else {
-                window.location.replace(url.origin);
+                window.location.replace(currentOrigin)
               }
             } catch (error) {
-              // in case of malformed url, return to origin
-              window.location.replace(url.origin)
+              // in case of malformed url, return to current origin
+              window.location.replace(currentOrigin)
             }
           }
         });

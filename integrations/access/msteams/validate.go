@@ -146,7 +146,7 @@ func loadConfig(configPath string) (*Bot, *Config, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	b, err := NewBot(c.MSAPI, "local", "", log)
+	b, err := NewBot(c, "local", "", log)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -22,11 +22,15 @@ import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 
 import { Box, Flex } from 'design';
-import { AWSIcon, AzureIcon } from 'design/SVGIcon';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import { useAsync } from 'shared/hooks/useAsync';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { saveOnDisk } from 'shared/utils/saveOnDisk';
+
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import api from 'teleport/services/api';
 
 import {
   getStatusCodeDescription,
@@ -66,6 +70,18 @@ export function IntegrationList(props: Props<IntegrationLike>) {
     return { cursor: 'pointer' };
   }
 
+  const [downloadAttempt, download] = useAsync(
+    async (clusterId: string, itemName: string) => {
+      return api
+        .fetch(cfg.getMsTeamsAppZipRoute(clusterId, itemName))
+        .then(response => response.blob())
+        .then(blob => {
+          saveOnDisk(blob, 'app.zip', 'application/zip');
+        });
+    }
+  );
+
+  const { clusterId } = useStickyClusterId();
   return (
     <Table
       pagination={{ pageSize: 20 }}
@@ -110,6 +126,14 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                         to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
                       >
                         View Status
+                      </MenuItem>
+                    )}
+                    {item.kind === 'msteams' && (
+                      <MenuItem
+                        disabled={downloadAttempt.status === 'processing'}
+                        onClick={() => download(clusterId, item.name)}
+                      >
+                        Download app.zip
                       </MenuItem>
                     )}
                     <MenuItem onClick={() => props.onDeletePlugin(item)}>
@@ -340,6 +364,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Datadog Incident Management';
         icon = <IconContainer name="datadog" />;
         break;
+      case 'aws-identity-center':
+        formattedText = 'AWS Identity Center';
+        icon = <IconContainer name="aws" />;
+        break;
     }
   } else {
     // Default is integration.
@@ -347,19 +375,11 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case IntegrationKind.AwsOidc:
       case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
-        icon = (
-          <SvgIconContainer>
-            <AWSIcon />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer name="aws" />;
         break;
       case IntegrationKind.AzureOidc:
         formattedText = 'Azure OIDC';
-        icon = (
-          <SvgIconContainer>
-            <AzureIcon size={24} />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer name="azure" />;
         break;
     }
   }
@@ -380,9 +400,5 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(ResourceIcon)`
   width: 22px;
-  margin-right: 10px;
-`;
-
-const SvgIconContainer = styled(Flex)`
   margin-right: 10px;
 `;

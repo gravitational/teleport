@@ -191,6 +191,10 @@ export function splitSelectProps<
     markAsError,
     maxMenuHeight,
     menuIsOpen,
+    onMenuOpen,
+    onMenuClose,
+    closeMenuOnSelect,
+    hideSelectedOptions,
     menuPosition,
     name,
     noOptionsMessage,
@@ -222,8 +226,12 @@ export function splitSelectProps<
       isMulti,
       isSearchable,
       maxMenuHeight,
-      menuIsOpen,
       menuPosition,
+      menuIsOpen,
+      onMenuOpen,
+      onMenuClose,
+      closeMenuOnSelect,
+      hideSelectedOptions,
       name,
       noOptionsMessage,
       onBlur,
@@ -267,6 +275,10 @@ type KeysRemovedFromOthers =
   | 'maxMenuHeight'
   | 'menuIsOpen'
   | 'menuPosition'
+  | 'onMenuOpen'
+  | 'onMenuClose'
+  | 'closeMenuOnSelect'
+  | 'hideSelectedOptions'
   | 'name'
   | 'noOptionsMessage'
   | 'onBlur'

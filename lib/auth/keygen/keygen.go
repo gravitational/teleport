@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,11 +67,6 @@ func New(_ context.Context, opts ...Option) *Keygen {
 	}
 
 	return k
-}
-
-// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute.
-func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
-	return native.GenerateKeyPair()
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.

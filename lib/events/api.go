@@ -285,6 +285,8 @@ const (
 	// SFTPEvent means a user attempted a file operation
 	SFTPEvent = "sftp"
 	SFTPPath  = "path"
+	// SFTPSummaryEvent is emitted at the end of an SFTP transfer.
+	SFTPSummaryEvent = "sftp_summary"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
@@ -815,6 +817,27 @@ const (
 	CrownJewelUpdateEvent = "access_graph.crown_jewel.update"
 	// CrownJewelDeleteEvent is emitted when a crown jewel resource is deleted.
 	CrownJewelDeleteEvent = "access_graph.crown_jewel.delete"
+
+	// UserTaskCreateEvent is emitted when a user task resource is created.
+	UserTaskCreateEvent = "user_task.create"
+	//UserTaskUpdateEvent is emitted when a user task resource is updated.
+	UserTaskUpdateEvent = "user_task.update"
+	// UserTaskDeleteEvent is emitted when a user task resource is deleted.
+	UserTaskDeleteEvent = "user_task.delete"
+
+	// AutoUpdateConfigCreateEvent is emitted when a AutoUpdateConfig resource is created.
+	AutoUpdateConfigCreateEvent = "auto_update_config.create"
+	// AutoUpdateConfigUpdateEvent is emitted when a AutoUpdateConfig resource is updated.
+	AutoUpdateConfigUpdateEvent = "auto_update_config.update"
+	// AutoUpdateConfigDeleteEvent is emitted when a AutoUpdateConfig resource is deleted.
+	AutoUpdateConfigDeleteEvent = "auto_update_config.delete"
+
+	// AutoUpdateVersionCreateEvent is emitted when a AutoUpdateVersion resource is created.
+	AutoUpdateVersionCreateEvent = "auto_update_version.create"
+	// AutoUpdateVersionUpdateEvent is emitted when a AutoUpdateVersion resource is updated.
+	AutoUpdateVersionUpdateEvent = "auto_update_version.update"
+	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
+	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

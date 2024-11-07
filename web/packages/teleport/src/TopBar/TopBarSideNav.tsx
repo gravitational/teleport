@@ -32,7 +32,7 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 
 import { Notifications } from 'teleport/Notifications';
-import { zIndexMap } from 'teleport/Navigation/SideNavigation/Navigation';
+import { zIndexMap } from 'teleport/Navigation/SideNavigation/zIndexMap';
 
 export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();
@@ -84,9 +84,6 @@ export const TopBarContainer = styled(TopNav)`
   height: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
     height: ${p => p.theme.topBarHeight[1]}px;
-  }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    height: ${p => p.theme.topBarHeight[2]}px;
   }
 `;
 

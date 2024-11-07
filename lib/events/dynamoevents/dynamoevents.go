@@ -906,7 +906,7 @@ func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	if startKey == "" {
 		return checkpoint, nil
 	}
-	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
+	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
 	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
 		return checkpointKey{}, trace.Wrap(err)
 	}

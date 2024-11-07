@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, MouseEvent } from 'react';
 import styled from 'styled-components';
 
 import { ButtonPrimary, Box, Flex, Text, H2 } from '..';
@@ -48,8 +48,8 @@ type SimplePopoverState = {
 };
 
 class SimplePopover extends React.Component<any, SimplePopoverState> {
-  btnRef: Element;
-  growContentTimer: ReturnType<typeof setInterval>;
+  btnRef: Element | null = null;
+  growContentTimer: ReturnType<typeof setInterval> | undefined;
 
   state: SimplePopoverState = {
     anchorEl: null,
@@ -224,7 +224,7 @@ class MouseOverPopover extends React.Component {
     anchorEl: null,
   };
 
-  handlePopoverOpen = event => {
+  handlePopoverOpen = (event: MouseEvent<HTMLDivElement>) => {
     this.setState({ anchorEl: event.currentTarget });
   };
 
@@ -441,7 +441,7 @@ const ManyPopovers = ({
   margin?: string;
   popoverMargin?: number;
 }) => {
-  const [anchorRef, setAnchorRef] = useState(null);
+  const [anchorRef, setAnchorRef] = useState<HTMLDivElement | null>(null);
   return (
     <Box backgroundColor="levels.deep">
       <Box

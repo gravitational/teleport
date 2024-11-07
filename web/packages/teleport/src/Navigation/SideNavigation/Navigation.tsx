@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useCallback } from 'react';
-import styled, { css, useTheme } from 'styled-components';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
+import styled, { useTheme } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
-import { NavLink } from 'react-router-dom';
-import { Text, Flex, Box } from 'design';
-import { Theme } from 'design/theme/themes/types';
+import { Text, Flex, Box, P2 } from 'design';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
@@ -30,22 +34,23 @@ import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
 
 import {
-  NavigationCategory,
+  Section,
+  RightPanel,
+  SubsectionItem,
+  verticalPadding,
+} from './Section';
+import { zIndexMap } from './zIndexMap';
+
+import {
+  CustomNavigationSubcategory,
   NAVIGATION_CATEGORIES,
-  STANDALONE_CATEGORIES,
+  SidenavCategory,
 } from './categories';
-import { CategoryIcon } from './CategoryIcon';
+import { SearchSection } from './Search';
+import { ResourcesSection } from './ResourcesSection';
 
 import type * as history from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
-
-export const zIndexMap = {
-  topBar: 23,
-  sideNavButtons: 22,
-  sideNavContainer: 21,
-  sideNavExpandedPanel: 20,
-};
 
 const SideNavContainer = styled(Flex).attrs({
   gap: 2,
@@ -61,10 +66,6 @@ const SideNavContainer = styled(Flex).attrs({
   overflow: visible;
 `;
 
-const verticalPadding = '12px';
-
-const rightPanelWidth = '236px';
-
 const PanelBackground = styled.div`
   width: 100%;
   height: 100%;
@@ -75,56 +76,40 @@ const PanelBackground = styled.div`
   border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
 `;
 
-const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
-  isVisible: boolean;
-  skipAnimation: boolean;
-}>`
-  position: fixed;
-  left: var(--sidenav-width);
-  height: 100%;
-  scrollbar-gutter: auto;
-  overflow: visible;
-  width: ${rightPanelWidth};
-  background: ${p => p.theme.colors.levels.surface};
-  z-index: ${zIndexMap.sideNavExpandedPanel};
-  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
-
-  ${props =>
-    props.isVisible
-      ? `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-out;'}
-      transform: translateX(0);
-      `
-      : `
-      ${props.skipAnimation ? '' : 'transition: transform .15s ease-in;'}
-      transform: translateX(-100%);
-      `}
-
-  top: ${p => p.theme.topBarHeight[0]}px;
-  padding-bottom: ${p => p.theme.topBarHeight[0] + p.theme.space[2]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
-    top: ${p => p.theme.topBarHeight[1]}px;
-    padding-bottom: ${p => p.theme.topBarHeight[1] + p.theme.space[2]}px;
-  }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    top: ${p => p.theme.topBarHeight[2]}px;
-    padding-bottom: ${p => p.theme.topBarHeight[3] + p.theme.space[2]}px;
-  }
-`;
-
-type NavigationSection = {
-  category: NavigationCategory;
-  subsections: NavigationSubsection[];
+/* NavigationSection is a section in the navbar, this can either be a standalone section (clickable button with no drawer), or a category with subsections shown in a drawer that expands. */
+export type NavigationSection = {
+  category?: SidenavCategory;
+  subsections?: NavigationSubsection[];
+  /* standalone is whether this is a clickable nav section with no subsections/drawer. */
   standalone?: boolean;
 };
 
-type NavigationSubsection = {
-  category: NavigationCategory;
+/**
+ * NavigationSubsection is a subsection of a NavigationSection, these are the items listed in the drawer of a NavigationSection, or if isTopMenuItem is true, in the top menu (eg. Account Settings).
+ */
+export type NavigationSubsection = {
+  category?: SidenavCategory;
+  isTopMenuItem?: boolean;
   title: string;
   route: string;
   exact: boolean;
   icon: (props) => JSX.Element;
   parent?: TeleportFeature;
+  searchableTags?: string[];
+  /**
+   * customRouteMatchFn is a custom function for determining whether this subsection is currently active,
+   * this is useful in cases where a simple base route match isn't sufficient.
+   */
+  customRouteMatchFn?: (currentViewRoute: string) => boolean;
+  /**
+   * subCategory is the subcategory (ie. subsection grouping) this subsection should be under, if applicable.
+   * */
+  subCategory?: CustomNavigationSubcategory;
+  /**
+   * onClick is custom code that can be run when clicking on the subsection.
+   * Note that this is merely extra logic, and does not replace the default routing behaviour of a subsection which will navigate the user to the route.
+   */
+  onClick?: () => void;
 };
 
 function getNavigationSections(
@@ -133,14 +118,13 @@ function getNavigationSections(
   const navigationSections = NAVIGATION_CATEGORIES.map(category => ({
     category,
     subsections: getSubsectionsForCategory(category, features),
-    standalone: STANDALONE_CATEGORIES.indexOf(category) !== -1,
   }));
 
   return navigationSections;
 }
 
 function getSubsectionsForCategory(
-  category: NavigationCategory,
+  category: SidenavCategory,
   features: TeleportFeature[]
 ): NavigationSubsection[] {
   const filteredFeatures = features.filter(
@@ -157,8 +141,31 @@ function getSubsectionsForCategory(
       route: feature.navigationItem.getLink(cfg.proxyCluster),
       exact: feature.navigationItem.exact,
       icon: feature.navigationItem.icon,
+      searchableTags: feature.navigationItem.searchableTags,
     };
   });
+}
+
+// getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
+// Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
+/**
+ * getTopMenuSection returns a NavigationSection with the top menu items. This is not used in the sidenav, but will be used to make the top menu items searchable.
+ */
+function getTopMenuSection(features: TeleportFeature[]): NavigationSection {
+  const topMenuItems = features.filter(
+    feature => !!feature.topMenuItem && !feature.sideNavCategory
+  );
+
+  return {
+    subsections: topMenuItems.map(feature => ({
+      isTopMenuItem: true,
+      title: feature.topMenuItem.title,
+      route: feature.topMenuItem.getLink(cfg.proxyCluster),
+      exact: feature?.route?.exact,
+      icon: feature.topMenuItem.icon,
+      searchableTags: feature.topMenuItem.searchableTags,
+    })),
+  };
 }
 
 function getNavSubsectionForRoute(
@@ -174,8 +181,20 @@ function getNavSubsectionForRoute(
       })
     );
 
-  if (!feature || !feature.sideNavCategory) {
+  if (!feature || (!feature.sideNavCategory && !feature.topMenuItem)) {
     return;
+  }
+
+  if (feature.topMenuItem) {
+    return {
+      isTopMenuItem: true,
+      exact: feature.route.exact,
+      title: feature.topMenuItem.title,
+      route: feature.topMenuItem.getLink(cfg.proxyCluster),
+      icon: feature.topMenuItem.icon,
+      searchableTags: feature.topMenuItem.searchableTags,
+      category: feature?.sideNavCategory,
+    };
   }
 
   return {
@@ -184,42 +203,132 @@ function getNavSubsectionForRoute(
     route: feature.navigationItem.getLink(cfg.proxyCluster),
     exact: feature.navigationItem.exact,
     icon: feature.navigationItem.icon,
+    searchableTags: feature.navigationItem.searchableTags,
   };
+}
+
+/**
+ * useDebounceClose adds a debounce to closing drawers, this is to prevent the drawer closing if the user overshoots it, giving them a slight delay to re-enter the drawer.
+ */
+function useDebounceClose<T>(
+  value: T | null,
+  delay: number,
+  isClosing: boolean
+): T | null {
+  const [debouncedValue, setDebouncedValue] = useState<T | null>(value);
+  const timeoutRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    // If we're closing the drarwer as opposed to switching to a different section (value is null and isClosing is true), apply debounce.
+    if (value === null && isClosing) {
+      timeoutRef.current = setTimeout(() => {
+        setDebouncedValue(null);
+      }, delay);
+    } else {
+      // For opening or any other change, update immediately.
+      setDebouncedValue(value);
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [value, delay, isClosing]);
+
+  return debouncedValue;
 }
 
 export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
-  const [expandedSection, setExpandedSection] =
-    useState<NavigationSection | null>(null);
-  const currentView = getNavSubsectionForRoute(features, history.location);
+  const [targetSection, setTargetSection] = useState<NavigationSection | null>(
+    null
+  );
+  const [isClosing, setIsClosing] = useState(false);
+  const debouncedSection = useDebounceClose(targetSection, 200, isClosing);
   const [previousExpandedSection, setPreviousExpandedSection] =
     useState<NavigationSection | null>();
+  const navigationTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Clear navigation timeout on unmount.
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
+  const currentView = useMemo(
+    () => getNavSubsectionForRoute(features, history.location),
+    [history.location]
+  );
 
   const navSections = getNavigationSections(features).filter(
     section => section.subsections.length
   );
+  const topMenuSection = getTopMenuSection(features);
 
   const handleSetExpandedSection = useCallback(
     (section: NavigationSection) => {
+      setIsClosing(false);
       if (!section.standalone) {
-        setPreviousExpandedSection(expandedSection);
-        setExpandedSection(section);
+        setPreviousExpandedSection(debouncedSection);
+        setTargetSection(section);
       } else {
         setPreviousExpandedSection(null);
-        setExpandedSection(null);
+        setTargetSection(null);
       }
     },
-    [expandedSection]
+    [debouncedSection]
   );
 
-  const resetExpandedSection = useCallback(() => {
+  const resetExpandedSection = useCallback((closeAfterDelay = true) => {
+    setIsClosing(closeAfterDelay);
     setPreviousExpandedSection(null);
-    setExpandedSection(null);
+    setTargetSection(null);
   }, []);
+
+  // Handler for navigation actions
+  const handleNavigation = useCallback(
+    (route: string) => {
+      history.push(route);
+
+      // Clear any existing timeout
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+
+      // Add a small delay to the close to allow the user to see some feedback (see the section they clicked become active).
+      navigationTimeoutRef.current = setTimeout(() => {
+        resetExpandedSection(false);
+      }, 150);
+    },
+    [resetExpandedSection, history]
+  );
+
+  // Hide the nav if the current feature has hideNavigation set to true.
+  const hideNav = features.find(
+    f =>
+      f.route &&
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: f.route.exact ?? false,
+      })
+  )?.hideNavigation;
+
+  if (hideNav) {
+    return null;
+  }
 
   return (
     <Box
+      as="nav"
       onMouseLeave={() => resetExpandedSection()}
       onKeyUp={e => e.key === 'Escape' && resetExpandedSection()}
       onBlur={(event: React.FocusEvent<HTMLDivElement, Element>) => {
@@ -235,240 +344,93 @@ export function Navigation() {
     >
       <SideNavContainer>
         <PanelBackground />
+        <SearchSection
+          navigationSections={[...navSections, topMenuSection]}
+          expandedSection={debouncedSection}
+          previousExpandedSection={previousExpandedSection}
+          handleSetExpandedSection={handleSetExpandedSection}
+          currentView={currentView}
+        />
+        <ResourcesSection
+          expandedSection={debouncedSection}
+          previousExpandedSection={previousExpandedSection}
+          handleSetExpandedSection={handleSetExpandedSection}
+          currentView={currentView}
+        />
         {navSections.map(section => (
-          <Section
-            key={section.category}
-            section={section}
-            $active={section.category === currentView?.category}
-            setExpandedSection={() => handleSetExpandedSection(section)}
-            aria-controls={`panel-${expandedSection?.category}`}
-            onClick={() => {
-              if (section.standalone) {
-                history.push(section.subsections[0].route);
+          <React.Fragment key={section.category}>
+            {section.category === 'Add New' && <Divider />}
+            <Section
+              key={section.category}
+              section={section}
+              $active={section.category === currentView?.category}
+              setExpandedSection={() => handleSetExpandedSection(section)}
+              aria-controls={`panel-${debouncedSection?.category}`}
+              onClick={() => {
+                if (section.standalone) {
+                  handleNavigation(section.subsections[0].route);
+                }
+              }}
+              isExpanded={
+                !!debouncedSection &&
+                !debouncedSection.standalone &&
+                section.category === debouncedSection?.category
               }
-            }}
-            isExpanded={
-              !!expandedSection &&
-              !expandedSection.standalone &&
-              section.category === expandedSection?.category
-            }
-          >
-            <RightPanel
-              isVisible={
-                !!expandedSection &&
-                !expandedSection.standalone &&
-                section.category === expandedSection?.category
-              }
-              skipAnimation={!!previousExpandedSection}
-              id={`panel-${section.category}`}
-              onFocus={() => handleSetExpandedSection(section)}
             >
-              <Flex
-                flexDirection="column"
-                justifyContent="space-between"
-                height="100%"
+              <RightPanel
+                isVisible={
+                  !!debouncedSection &&
+                  !debouncedSection.standalone &&
+                  section.category === debouncedSection?.category
+                }
+                skipAnimation={!!previousExpandedSection}
+                id={`panel-${section.category}`}
+                onFocus={() => handleSetExpandedSection(section)}
+                onMouseEnter={() => handleSetExpandedSection(section)}
               >
-                <Box
-                  css={`
-                    overflow-y: scroll;
-                    padding: 3px;
-                  `}
+                <Flex
+                  flexDirection="column"
+                  justifyContent="space-between"
+                  height="100%"
                 >
-                  <Flex py={verticalPadding} px={3}>
-                    <Text typography="h2" color="text.slightlyMuted">
-                      {section.category}
-                    </Text>
-                  </Flex>
-                  {!section.standalone &&
-                    section.subsections.map(section => (
-                      <SubsectionItem
-                        $active={currentView?.route === section.route}
-                        to={section.route}
-                        exact={section.exact}
-                        key={section.title}
-                      >
-                        <section.icon size={16} />
-                        <Text typography="body2">{section.title}</Text>
-                      </SubsectionItem>
-                    ))}
-                </Box>
-                {cfg.edition === 'oss' && <AGPLFooter />}
-                {cfg.edition === 'community' && <CommunityFooter />}
-              </Flex>
-            </RightPanel>
-          </Section>
+                  <Box
+                    css={`
+                      overflow-y: auto;
+                      padding: 3px;
+                    `}
+                  >
+                    <Flex py={verticalPadding} px={3}>
+                      <Text typography="h2" color="text.slightlyMuted">
+                        {section.category}
+                      </Text>
+                    </Flex>
+                    {!section.standalone &&
+                      section.subsections.map(subsection => (
+                        <SubsectionItem
+                          $active={currentView?.route === subsection.route}
+                          to={subsection.route}
+                          exact={subsection.exact}
+                          key={subsection.title}
+                          onClick={(e: React.MouseEvent) => {
+                            e.preventDefault();
+                            handleNavigation(subsection.route);
+                          }}
+                        >
+                          <subsection.icon size={16} />
+                          <P2>{subsection.title}</P2>
+                        </SubsectionItem>
+                      ))}
+                  </Box>
+                  {cfg.edition === 'oss' && <AGPLFooter />}
+                  {cfg.edition === 'community' && <CommunityFooter />}
+                </Flex>
+              </RightPanel>
+            </Section>
+          </React.Fragment>
         ))}
       </SideNavContainer>
     </Box>
   );
-}
-
-function SubsectionItem({
-  $active,
-  to,
-  exact,
-  children,
-}: {
-  $active: boolean;
-  to: string;
-  exact: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <StyledSubsectionItem $active={$active} to={to} exact={exact} tabIndex={0}>
-      {children}
-    </StyledSubsectionItem>
-  );
-}
-
-const StyledSubsectionItem = styled(NavLink)<{
-  $active: boolean;
-}>`
-  display: flex;
-  position: relative;
-  color: ${props => props.theme.colors.text.slightlyMuted};
-  text-decoration: none;
-  user-select: none;
-  gap: ${props => props.theme.space[2]}px;
-  padding-top: ${verticalPadding};
-  padding-bottom: ${verticalPadding};
-  padding-left: ${props => props.theme.space[3]}px;
-  padding-right: ${props => props.theme.space[3]}px;
-  border-radius: ${props => props.theme.radii[2]}px;
-  cursor: pointer;
-
-  ${props => getSubsectionStyles(props.theme, props.$active)}
-`;
-
-function Section({
-  section,
-  $active,
-  setExpandedSection,
-  onClick,
-  children,
-  isExpanded,
-}: {
-  section: NavigationSection;
-  $active: boolean;
-  setExpandedSection: () => void;
-  onClick: (event: React.MouseEvent) => void;
-  isExpanded?: boolean;
-  children?: JSX.Element;
-}) {
-  return (
-    <>
-      <CategoryButton
-        $active={$active}
-        onMouseEnter={setExpandedSection}
-        onFocus={setExpandedSection}
-        onClick={onClick}
-        isExpanded={isExpanded}
-        tabIndex={section.standalone ? 0 : -1}
-      >
-        <CategoryIcon category={section.category} />
-        {section.category}
-      </CategoryButton>
-      {children}
-    </>
-  );
-}
-
-const CategoryButton = styled.button<{ $active: boolean; isExpanded: boolean }>`
-  height: 60px;
-  width: 60px;
-  cursor: pointer;
-  outline: hidden;
-  border: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${props => props.theme.radii[2]}px;
-  z-index: ${zIndexMap.sideNavButtons};
-
-  font-size: ${props => props.theme.typography.body4.fontSize};
-  font-weight: ${props => props.theme.typography.body4.fontWeight};
-  letter-spacing: ${props => props.theme.typography.body4.letterSpacing};
-  line-height: ${props => props.theme.typography.body4.lineHeight};
-
-  ${props => getCategoryStyles(props.theme, props.$active, props.isExpanded)}
-`;
-
-function getCategoryStyles(theme: Theme, active: boolean, isExpanded: boolean) {
-  if (active) {
-    return css`
-      color: ${theme.colors.brand};
-      background: ${theme.colors.interactive.tonal.primary[0]};
-      &:hover,
-      &:focus-visible {
-        background: ${theme.colors.interactive.tonal.primary[1]};
-        color: ${theme.colors.interactive.solid.primary.default};
-      }
-      &:active {
-        background: ${theme.colors.interactive.tonal.primary[2]};
-        color: ${theme.colors.interactive.solid.primary.active};
-      }
-      ${isExpanded &&
-      `
-        background: ${theme.colors.interactive.tonal.primary[1]};
-        color: ${theme.colors.interactive.solid.primary.default};
-        `}
-    `;
-  }
-
-  return css`
-    background: transparent;
-    color: ${theme.colors.text.slightlyMuted};
-    &:hover,
-    &:focus-visible {
-      background: ${theme.colors.interactive.tonal.neutral[0]};
-      color: ${theme.colors.text.main};
-    }
-    &:active {
-      background: ${theme.colors.interactive.tonal.neutral[1]};
-      color: ${theme.colors.text.main};
-    }
-    ${isExpanded &&
-    `
-      background: ${theme.colors.interactive.tonal.neutral[0]};
-      color: ${theme.colors.text.main};
-      `}
-  `;
-}
-
-function getSubsectionStyles(theme: Theme, active: boolean) {
-  if (active) {
-    return css`
-      color: ${theme.colors.brand};
-      background: ${theme.colors.interactive.tonal.primary[0]};
-      &:focus-visible {
-        outline: 2px solid ${theme.colors.interactive.solid.primary.default};
-      }
-      &:hover {
-        background: ${theme.colors.interactive.tonal.primary[1]};
-        color: ${theme.colors.interactive.solid.primary.default};
-      }
-      &:active {
-        background: ${theme.colors.interactive.tonal.primary[2]};
-        color: ${theme.colors.interactive.solid.primary.active};
-      }
-    `;
-  }
-
-  return css`
-    color: ${props => props.theme.colors.text.slightlyMuted};
-    &:focus-visible {
-      outline: 2px solid ${theme.colors.text.muted};
-    }
-    &:hover {
-      background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
-      color: ${props => props.theme.colors.text.main};
-    }
-    &:active {
-      background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
-      color: ${props => props.theme.colors.text.main};
-    }
-  `;
 }
 
 function AGPLFooter() {
@@ -553,4 +515,11 @@ const StyledFooterBox = styled(Box)`
 const SubText = styled(Text)`
   color: ${props => props.theme.colors.text.disabled};
   font-size: ${props => props.theme.fontSizes[1]}px;
+`;
+
+const Divider = styled.div`
+  z-index: ${zIndexMap.sideNavButtons};
+  height: 1px;
+  background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
+  width: 60px;
 `;

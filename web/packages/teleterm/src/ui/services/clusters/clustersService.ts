@@ -45,6 +45,7 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { AssumedRequest } from 'teleterm/services/tshd/types';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -59,6 +60,10 @@ export function createClusterServiceState(): types.ClustersServiceState {
     gateways: new Map(),
   };
 }
+
+// A workaround to always return the same object so useEffect that relies on it
+// doesn't go into an endless loop.
+const EMPTY_ASSUMED_REQUESTS = {};
 
 export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
   state: types.ClustersServiceState = createClusterServiceState();
@@ -284,16 +289,24 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   async syncAndWatchRootClusterWithErrorHandling(
     clusterUri: uri.RootClusterUri
   ) {
-    const cluster = this.findCluster(clusterUri);
-    const clusterName =
-      cluster?.name || routing.parseClusterUri(clusterUri).params.rootClusterId;
-
     try {
       await this.syncRootCluster(clusterUri);
     } catch (e) {
-      this.notificationsService.notifyError({
+      const cluster = this.findCluster(clusterUri);
+      const clusterName =
+        cluster?.name ||
+        routing.parseClusterUri(clusterUri).params.rootClusterId;
+
+      const notificationId = this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
         description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
       });
       // only start the watcher if the cluster was synchronized successfully.
       return;
@@ -302,9 +315,22 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     try {
       await this.client.startHeadlessWatcher({ rootClusterUri: clusterUri });
     } catch (e) {
-      this.notificationsService.notifyError({
+      const cluster = this.findCluster(clusterUri);
+      const clusterName =
+        cluster?.name ||
+        routing.parseClusterUri(clusterUri).params.rootClusterId;
+
+      const notificationId = this.notificationsService.notifyError({
         title: `Could not start headless requests watcher for ${clusterName}`,
         description: e.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            // retry the entire call
+            this.syncAndWatchRootClusterWithErrorHandling(clusterUri);
+          },
+        },
       });
     }
   }
@@ -327,9 +353,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       const { response } = await this.client.listRootClusters({});
       clusters = response.clusters;
     } catch (error) {
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncRootClustersAndCatchErrors();
+          },
+        },
       });
       return;
     }
@@ -353,9 +386,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         draft.gateways = new Map(response.gateways.map(g => [g.uri, g]));
       });
     } catch (error) {
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title: 'Could not synchronize database connections',
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.syncGatewaysAndCatchErrors();
+          },
+        },
       });
     }
   }
@@ -377,9 +417,11 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response.clusters;
   }
 
-  getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
+  getAssumedRequests(
+    rootClusterUri: uri.RootClusterUri
+  ): Record<string, AssumedRequest> {
     const cluster = this.state.clusters.get(rootClusterUri);
-    return cluster?.loggedInUser?.assumedRequests || {};
+    return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
   }
 
   /** Assumes roles for the given requests. */
@@ -498,9 +540,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         : gatewayUri;
       const title = `Could not close the database connection ${gatewayDescription}`;
 
-      this.notificationsService.notifyError({
+      const notificationId = this.notificationsService.notifyError({
         title,
         description: error.message,
+        action: {
+          content: 'Retry',
+          onClick: () => {
+            this.notificationsService.removeNotification(notificationId);
+            this.removeGateway(gatewayUri);
+          },
+        },
       });
       throw error;
     }
