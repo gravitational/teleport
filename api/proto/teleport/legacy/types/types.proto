@@ -3838,6 +3838,8 @@ message SSOMFADevice {
   string connector_id = 1;
   // connector_type is the type of the SSO connector.
   string connector_type = 2;
+  // display_name is the display name of the SSO connector
+  string display_name = 3;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.

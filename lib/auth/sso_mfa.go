@@ -34,7 +34,10 @@ import (
 
 // beginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
 func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
-	chal := new(proto.SSOChallenge)
+	chal := &proto.SSOChallenge{
+		Device: sso,
+	}
+
 	switch sso.ConnectorType {
 	case constants.SAML:
 		resp, err := a.CreateSAMLAuthRequestForMFA(ctx, types.SAMLAuthRequest{

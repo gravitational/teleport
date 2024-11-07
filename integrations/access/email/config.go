@@ -71,6 +71,10 @@ type Config struct {
 	// the Teleport auth server. The Email app will create a gRPC-based
 	// client on startup if this is not set.
 	Client teleport.Client
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // LoadConfig reads the config file, initializes a new Config struct object, and returns it.
