@@ -70,27 +70,6 @@ export class ResourcesService {
     return servers[0];
   }
 
-  async fetchDatabases(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getDatabases(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
-  }
-
-  async fetchKubes(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getKubes(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
-  }
-
-  async fetchApps(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getApps(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
-  }
-
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
     const { response } = await this.tshClient.listDatabaseUsers({ dbUri });
     return response.users;
