@@ -42,13 +42,6 @@ export class ResourcesService {
 
   constructor(private tshClient: TshdClient) {}
 
-  async fetchServers(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getServers(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
-  }
-
   // TODO(ravicious): Refactor it to use logic similar to that in the Web UI.
   // https://github.com/gravitational/teleport/blob/2a2b08dbfdaf71706a5af3812d3a7ec843d099b4/lib/web/apiserver.go#L2471
   async getServerByHostname(
@@ -56,12 +49,16 @@ export class ResourcesService {
     hostname: string
   ): Promise<types.Server | undefined> {
     const query = `name == "${hostname}"`;
-    const { agents: servers } = await this.fetchServers({
-      clusterUri,
-      query,
-      limit: 2,
-      sort: null,
-    });
+    const {
+      response: { agents: servers },
+    } = await this.tshClient.getServers(
+      makeGetResourcesParamsRequest({
+        clusterUri,
+        query,
+        limit: 2,
+        sort: null,
+      })
+    );
 
     if (servers.length > 1) {
       throw new AmbiguousHostnameError(hostname);
