@@ -11,10 +11,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
 	icSDK "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -40,6 +40,8 @@ type Service struct {
 	usersSvc            UsersService
 	userPredicate       func(types.User) bool
 	awsSyncInterval     time.Duration
+	resourceMonitor     *monitor.ResourceMonitor
+	principalEventCh    chan *monitor.PrincipalEvent
 }
 
 // NewService creates a new Identity Center Service instance from the supplied
@@ -66,6 +68,25 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		return nil, trace.Wrap(err, "creating provisioner")
 	}
 
+	resourceMonitor, err := monitor.New(monitor.Config{
+		AccessListsSvcCache: config.Provisioning.AccessListsSvcCache,
+		Events:              config.EventsClient,
+		Clock:               config.Clock,
+		Logger:              config.Log.With(teleport.ComponentKey, Component+":RM"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating resource monitor")
+	}
+
+	// Events from the resource monitor will end up being queued for handling in
+	// this buffered channel. The channel is buffered because recalculating and
+	// provisioning a principal can take some time (especially while creating or
+	// deleting the downstream Identity Center account assignments, which can
+	// sometimes take *minutes*), and using a buffered channel gives us a bit of
+	// breathing space to keep queueing up PrincipalEvents for later processing
+	// without unduly blocking the Resource Monitor.
+	principalEventCh := make(chan *monitor.PrincipalEvent, config.EventBufferSize)
+
 	svc = &Service{
 		accessListSvc:       config.AccessListsSvc,
 		accessListSvcCache:  config.Provisioning.AccessListsSvcCache,
@@ -80,7 +101,10 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		userPredicate:       config.UserPredicate,
 		accessListPredicate: config.AccessListPredicate,
 		awsSyncInterval:     config.SyncInterval,
+		resourceMonitor:     resourceMonitor,
+		principalEventCh:    principalEventCh,
 	}
+	resourceMonitor.SetEventHandler(svc.onResourceMonitorEvent)
 
 	return svc, nil
 }
@@ -88,188 +112,59 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 // Run the Identity Center service, blocking until the supplied context is
 // canceled
 func (svc *Service) Run(ctx context.Context) error {
-	svc.log.InfoContext(ctx, "Starting provisioning service...")
 	go svc.runProvisioner(ctx)
+	go svc.runAWSSyncService(ctx)
+	go svc.runResourceMonitor(ctx)
 
-	svc.log.InfoContext(ctx, "Starting identity center service...")
-	if err := svc.awsSyncService(ctx); err != nil {
-		svc.log.ErrorContext(ctx,
-			"Identity center service exited with error",
-			"error", err)
-	}
+	svc.runResourceEventHandler(ctx)
 
 	return nil
-}
-
-// awsSyncService is the main sync loop of the service. It periodically updates
-// all of Teleports AWS resources (accounts, account assignments, permission
-// sets, etc) with AWS.
-func (svc *Service) awsSyncService(ctx context.Context) error {
-	svc.log.DebugContext(ctx, "Entering AWS IAM IdentityCenter service")
-	defer svc.log.DebugContext(ctx, "Exiting AWS IAM IdentityCenter service")
-
-	svc.log.DebugContext(ctx, "Starting AWS sync loop", "sync_interval", svc.awsSyncInterval)
-	timer := svc.clock.NewTimer(svc.awsSyncInterval + utils.RandomDuration(10*time.Second))
-	defer timer.Stop()
-
-	for {
-		if err := svc.synchronize(ctx); err != nil {
-			svc.log.ErrorContext(ctx, "Failed synchronizing", "error", err)
-		}
-
-		select {
-		case <-timer.Chan():
-			timer.Reset(svc.awsSyncInterval + utils.RandomDuration(10*time.Second))
-
-		case <-ctx.Done():
-			svc.log.InfoContext(ctx, "Exit signaled")
-			return nil
-		}
-	}
 }
 
 func (svc *Service) runProvisioner(ctx context.Context) {
+	svc.log.DebugContext(ctx, "Starting provisioning service...")
 	if err := svc.provisioner.Run(ctx); err != nil {
-		svc.log.ErrorContext(ctx, "Provisioning service exited with error", "error", err)
+		svc.log.ErrorContext(ctx, "Provisioning service exited with error",
+			"error", err)
 	}
 }
 
-type localData struct {
-	awsAccounts            accountResourceMap
-	permissionSets         psResourceMap
-	accountAssignments     accountAssignmentMap
-	accountAssignmentRoles rolesMap
+func (svc *Service) runAWSSyncService(ctx context.Context) {
+	svc.log.DebugContext(ctx, "Starting Identity Center sync service...")
+	if err := svc.awsSyncService(ctx); err != nil {
+		svc.log.ErrorContext(ctx, "Identity Center sync service exited with error",
+			"error", err)
+	}
 }
 
-func (svc *Service) loadLocalData(ctx context.Context) (*localData, error) {
-	svc.log.DebugContext(ctx, "Loading Teleport Identity Center resources")
-
-	svc.log.DebugContext(ctx, "loading existing accounts")
-	awsAccounts, err := svc.loadAccountResources(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "loading existing account records")
-	}
-
-	svc.log.DebugContext(ctx, "loading existing permission sets")
-	permissionSets, err := svc.loadPermissionSets(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "loading existing permission set records")
-	}
-
-	svc.log.DebugContext(ctx, "loading existing account assignment resources")
-	accountAssignments, err := svc.loadAccountAssignmentResources(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "loading existing account assignment roles")
-	}
-
-	svc.log.DebugContext(ctx, "loading existing account assignment roles")
-	accountAssignmentRoles, err := svc.loadAccountAssignmentRoles(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "loading existing account assignment roles")
-	}
-
-	data := &localData{
-		awsAccounts:            awsAccounts,
-		permissionSets:         permissionSets,
-		accountAssignments:     accountAssignments,
-		accountAssignmentRoles: accountAssignmentRoles,
-	}
-
-	return data, nil
+func (svc *Service) runResourceMonitor(ctx context.Context) {
+	svc.resourceMonitor.Watch(ctx)
+	// the resource monitor event handler is the only thing that writes to this
+	// channel, so it's safe to close it once the monitor has exited
+	close(svc.principalEventCh)
 }
 
-func (svc *Service) synchronize(ctx context.Context) error {
-	svc.log.InfoContext(ctx, "Entering synchronization")
-	defer svc.log.InfoContext(ctx, "Exiting synchronization")
-
-	rawData, err := svc.refreshExternalData(ctx)
-	if err != nil {
-		return trace.Wrap(err, "doing initial data fetch")
+func (svc *Service) runResourceEventHandler(ctx context.Context) {
+	svc.log.DebugContext(ctx, "Starting resource event handler...")
+	if err := svc.resourceEventLoop(ctx); err != nil {
+		svc.log.ErrorContext(ctx, "Identity Center resource event handler exited with error",
+			"error", err)
 	}
-
-	awsResources, err := svc.preProcessExternalData(ctx, rawData)
-	if err != nil {
-		return trace.Wrap(err, "preprocessing raw aws data")
-	}
-
-	teleportResources, err := svc.loadLocalData(ctx)
-	if err != nil {
-		return trace.Wrap(err, "loading Teleport Identity Center data")
-	}
-
-	svc.log.DebugContext(ctx, "reconciling accounts")
-	_, err = svc.reconcileAccounts(ctx, teleportResources.awsAccounts, awsResources.accounts)
-	if err != nil {
-		return trace.Wrap(err, "reconciling initial account list")
-	}
-
-	svc.log.DebugContext(ctx, "reconciling permission sets")
-	_, err = svc.reconcilePermissionSets(ctx, teleportResources.permissionSets, awsResources.permissionSets)
-	if err != nil {
-		return trace.Wrap(err, "reconciling initial account list")
-	}
-
-	svc.log.DebugContext(ctx, "reconciling account assignment records")
-	_, err = svc.reconcileAccountAssignments(ctx, teleportResources.accountAssignments, awsResources.accountAssignments)
-	if err != nil {
-		return trace.Wrap(err, "reconciling permission set records")
-	}
-
-	svc.log.DebugContext(ctx, "reconciling account assignment roles")
-	_, err = svc.reconcileAccountAssignmentRoles(ctx, teleportResources.accountAssignmentRoles, awsResources.accountAssignmentRoles)
-	if err != nil {
-		return trace.Wrap(err, "reconciling  account assignment roles")
-	}
-
-	return nil
 }
 
-// preProcessedExternalData holds AWS Identity Center *after* we have re-indexes
-// and cross-referenced it to make it easier to search.
-type preProcessedExternalData struct {
-	icInstance             *icSDK.InstanceInfo
-	accounts               accountResourceMap
-	accountAssignments     accountAssignmentMap
-	permissionSets         psResourceMap
-	accountAssignmentRoles rolesMap
+func (svc *Service) queueResourceEvent(ctx context.Context, event *monitor.PrincipalEvent) error {
+	select {
+	case svc.principalEventCh <- event:
+		return nil
+
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
-// preProcessExternalData cross-references the fetched data
-//   - ensures Accounts have updated permission set lists
-func (svc *Service) preProcessExternalData(ctx context.Context, data *externalData) (*preProcessedExternalData, error) {
-	svc.log.DebugContext(ctx, "Normalizing Identity Center data")
-
-	// generate all of the the possible permission set bindings
-	assignmentCount := len(data.accounts) * len(data.permissionSets)
-	roles := make(rolesMap, assignmentCount)
-	accountAssignments := make(accountAssignmentMap, assignmentCount)
-	for _, acct := range data.accounts {
-		for _, ps := range acct.Spec.PermissionSetInfo {
-			role, err := NewAccountAssignmentRole(acct, ps)
-			if err != nil {
-				return nil, trace.Wrap(err, "creating account assignment role")
-			}
-			roles.Store(getAccountID(acct), ps.Arn, role)
-
-			asmt, err := newAccountAssignment(acct, ps)
-			if err != nil {
-				return nil, trace.Wrap(err, "creating account assignment record")
-			}
-			accountAssignments[getAccountAssignmentID(asmt)] = asmt
-		}
+func (svc *Service) onResourceMonitorEvent(ctx context.Context, event *monitor.PrincipalEvent) {
+	if err := svc.queueResourceEvent(ctx, event); err != nil {
+		svc.log.ErrorContext(ctx,
+			"Unable to queue resource event. event dropped")
 	}
-
-	// mark the owning account
-	ownerID := services.IdentityCenterAccountID(data.icInstance.OwnerAccountID)
-	if acct, ok := data.accounts[ownerID]; ok {
-		acct.GetSpec().IsOrganizationOwner = true
-	}
-
-	return &preProcessedExternalData{
-		icInstance:             data.icInstance,
-		accounts:               data.accounts,
-		permissionSets:         data.permissionSets,
-		accountAssignments:     accountAssignments,
-		accountAssignmentRoles: roles,
-	}, nil
 }

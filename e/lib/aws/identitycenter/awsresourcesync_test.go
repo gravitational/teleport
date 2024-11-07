@@ -105,26 +105,26 @@ func TestPreprocessing(t *testing.T) {
 	})
 
 	t.Run("AccountAssignmentRoles", func(t *testing.T) {
-		expectedRoles := rolesMap{
-			roleKey{acctOneID, psAdminARN}: test.AccountAssignmentRole{
+		expectedRoles := accountAssignmentRolesMap{
+			mkRoleKey(acctOneID, psAdminARN): test.AccountAssignmentRole{
 				Name:             "admin-on-account1",
 				AccountID:        acctOneID,
 				PermissionSetARN: psAdminARN,
 			}.Build(t),
 
-			roleKey{acctOneID, psReadOnlyARN}: test.AccountAssignmentRole{
+			mkRoleKey(acctOneID, psReadOnlyARN): test.AccountAssignmentRole{
 				Name:             "readonly-on-account1",
 				AccountID:        acctOneID,
 				PermissionSetARN: psReadOnlyARN,
 			}.Build(t),
 
-			roleKey{acctTwoID, psAdminARN}: test.AccountAssignmentRole{
+			mkRoleKey(acctTwoID, psAdminARN): test.AccountAssignmentRole{
 				Name:             "admin-on-account2",
 				AccountID:        acctTwoID,
 				PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
 			}.Build(t),
 
-			roleKey{acctTwoID, psReadOnlyARN}: test.AccountAssignmentRole{
+			mkRoleKey(acctTwoID, psReadOnlyARN): test.AccountAssignmentRole{
 				Name:             "readonly-on-account2",
 				AccountID:        acctTwoID,
 				PermissionSetARN: psReadOnlyARN,

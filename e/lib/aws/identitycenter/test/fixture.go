@@ -40,7 +40,7 @@ func withCache(srv *auth.Server) error {
 		Setup:        cache.ForAuth,
 		CacheName:    []string{teleport.ComponentAuth},
 		EventsSystem: true,
-		Unstarted:    true,
+		Unstarted:    false,
 
 		Access:                  svces.Access,
 		AccessLists:             svces.AccessLists,

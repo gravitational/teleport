@@ -83,6 +83,11 @@ type ServiceConfig struct {
 	// access list should be provisioned and managed by Teleport. Defaults to
 	// including ALL access lists.
 	AccessListPredicate func(*accesslist.AccessList) bool
+
+	// EventBufferSize is the number of resource events to buffer between
+	// the resource monitors and the provisioner. Defaults to
+	// `defaultEventBufferSize` if unset.
+	EventBufferSize int
 }
 
 func (cfg *ServiceConfig) CheckAndSetDefaults() error {
@@ -125,6 +130,9 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.SyncInterval == 0 {
 		cfg.SyncInterval = defaultResourceSyncInterval
+	}
+	if cfg.EventBufferSize == 0 {
+		cfg.EventBufferSize = defaultEventEventBufferSize
 	}
 
 	return nil

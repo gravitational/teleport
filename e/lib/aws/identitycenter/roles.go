@@ -18,43 +18,36 @@ const (
 	RoleSubKindIdentityCenter = "aws_identity_center"
 )
 
-type roleKey struct {
+type accountAssignmentRoleKey struct {
 	account       services.IdentityCenterAccountID
 	permissionSet string
 }
 
-type rolesMap map[roleKey]*types.RoleV6
+type accountAssignmentRolesMap map[accountAssignmentRoleKey]*types.RoleV6
 
-func mkRoleKey(role *types.RoleV6) (roleKey, error) {
+func mkRoleKey(account services.IdentityCenterAccountID, permissionSetARN string) accountAssignmentRoleKey {
+	return accountAssignmentRoleKey{
+		account:       account,
+		permissionSet: permissionSetARN,
+	}
+}
+
+func mkRoleKeyForRole(role *types.RoleV6) (accountAssignmentRoleKey, error) {
 	if role == nil {
-		return roleKey{}, trace.BadParameter("role may not be nil")
+		return accountAssignmentRoleKey{}, trace.BadParameter("role may not be nil")
 	}
 
 	if len(role.Spec.Allow.AccountAssignments) != 1 {
-		return roleKey{}, trace.BadParameter("role must have a single account assignment")
+		return accountAssignmentRoleKey{}, trace.BadParameter("role must have a single account assignment")
 	}
 
 	asmt := &role.Spec.Allow.AccountAssignments[0]
-	key := roleKey{
-		account:       services.IdentityCenterAccountID(asmt.Account),
-		permissionSet: asmt.PermissionSet,
-	}
-
-	return key, nil
+	return mkRoleKey(services.IdentityCenterAccountID(asmt.Account), asmt.PermissionSet), nil
 }
 
-func (m rolesMap) Load(account services.IdentityCenterAccountID, permissionSet string) (*types.RoleV6, bool) {
-	r, ok := m[roleKey{account: account, permissionSet: permissionSet}]
-	return r, ok
-}
-
-func (m rolesMap) Store(account services.IdentityCenterAccountID, permissionSet string, r *types.RoleV6) {
-	m[roleKey{account: account, permissionSet: permissionSet}] = r
-}
-
-func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (rolesMap, error) {
+func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (accountAssignmentRolesMap, error) {
 	var pageKey string
-	roles := rolesMap{}
+	roles := accountAssignmentRolesMap{}
 	for {
 		response, err := svc.rolesSvc.ListRoles(ctx, &proto.ListRolesRequest{
 			StartKey: pageKey,
@@ -71,7 +64,7 @@ func (svc *Service) loadAccountAssignmentRoles(ctx context.Context) (rolesMap, e
 				continue
 			}
 
-			roleKey, err := mkRoleKey(role)
+			roleKey, err := mkRoleKeyForRole(role)
 			if err != nil {
 				svc.log.WarnContext(ctx, "malformed account assignment role",
 					"error", err.Error(),
@@ -111,7 +104,7 @@ func NewAccountAssignmentRole(acct services.IdentityCenterAccount, ps *identityc
 	return role.(*types.RoleV6), nil
 }
 
-func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRoles, newRoles rolesMap) (rolesMap, error) {
+func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRoles, newRoles accountAssignmentRolesMap) (accountAssignmentRolesMap, error) {
 	result := maps.Clone(oldRoles)
 
 	for k, old := range oldRoles {
@@ -124,7 +117,7 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 		// if we can't make an appropriate key for the map then there is no
 		// point polluting the role DB with something that will never work, so
 		// try making the key first, even though we don't use it til later
-		key, err := mkRoleKey(newRole)
+		key, err := mkRoleKeyForRole(newRole)
 		if err != nil {
 			return trace.Wrap(err, "malformed Identity Center Account Assignment Role resource")
 		}
@@ -154,7 +147,7 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 			return trace.BadParameter("Expected RoleV6, got %T", rv6)
 		}
 
-		key, err := mkRoleKey(newRole)
+		key, err := mkRoleKeyForRole(newRole)
 		if err != nil {
 			return trace.Wrap(err, "malformed Identity Center Account Assignment Role resource")
 		}
@@ -170,7 +163,7 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 			return trace.Wrap(err, "updating Identity Center Account record")
 		}
 
-		key, err := mkRoleKey(role)
+		key, err := mkRoleKeyForRole(role)
 		if err != nil {
 			return trace.Wrap(err, "malformed Identity Center Account Assignment Role resource")
 		}
@@ -180,7 +173,7 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 	}
 
 	r, err := services.NewGenericReconciler(
-		services.GenericReconcilerConfig[roleKey, *types.RoleV6]{
+		services.GenericReconcilerConfig[accountAssignmentRoleKey, *types.RoleV6]{
 			Matcher:             func(*types.RoleV6) bool { return true },
 			GetCurrentResources: passThrough(oldRoles),
 			GetNewResources:     passThrough(newRoles),

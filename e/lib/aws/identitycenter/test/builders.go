@@ -5,13 +5,17 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -153,4 +157,75 @@ func (a AccountAssignment) Build() services.IdentityCenterAccountAssignment {
 			},
 		},
 	}
+}
+
+type AccessList struct {
+	Name          string
+	Title         string
+	Owners        []types.User
+	GrantsMembers []types.Role
+	GrantsOwners  []types.Role
+}
+
+func (a AccessList) Build(t *testing.T) *accesslist.AccessList {
+	var owners []accesslist.Owner
+	for _, owner := range a.Owners {
+		owners = append(owners, accesslist.Owner{Name: owner.GetName()})
+	}
+
+	ownerGrants := make([]string, 0, len(a.GrantsOwners))
+	for _, g := range a.GrantsOwners {
+		ownerGrants = append(ownerGrants, g.GetName())
+	}
+
+	membershipGrants := make([]string, 0, len(a.GrantsMembers))
+	for _, g := range a.GrantsMembers {
+		membershipGrants = append(membershipGrants, g.GetName())
+	}
+
+	acl, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: a.Name,
+		},
+		accesslist.Spec{
+			Title:  a.Title,
+			Owners: owners,
+			OwnerGrants: accesslist.Grants{
+				Roles:  ownerGrants,
+				Traits: trait.Traits{},
+			},
+			Grants: accesslist.Grants{
+				Roles:  membershipGrants,
+				Traits: trait.Traits{},
+			},
+		})
+	require.NoError(t, err)
+	return acl
+}
+
+type AccessListMember struct {
+	Member     types.User
+	AccessList *accesslist.AccessList
+	Timestamp  time.Time
+	AddedBy    types.User
+}
+
+func (a AccessListMember) Build(t *testing.T) *accesslist.AccessListMember {
+	if a.Timestamp.IsZero() {
+		a.Timestamp = time.Now()
+	}
+
+	aclMember, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: a.Member.GetName(),
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: a.AccessList.GetName(),
+			Name:       a.Member.GetName(),
+			Joined:     a.Timestamp,
+			AddedBy:    a.AddedBy.GetName(),
+		})
+	require.NoError(t, err)
+
+	return aclMember
 }
