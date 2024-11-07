@@ -21463,6 +21463,50 @@ func (m *AccessGraphAWSSync) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AccessGraphAWSSync proto.InternalMessageInfo
 
+// AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
+type AccessGraphAzureSync struct {
+	Regions              []string `protobuf:"bytes,1,rep,name=Regions,proto3" json:"regions,omitempty"`
+	SubscriptionID       string   `protobuf:"bytes,2,opt,name=SubscriptionID,proto3" json:"regions,omitempty"`
+	UmiClientId          string   `protobuf:"bytes,3,opt,name=UmiClientId,proto3" json:"regions,omitempty"`
+	Integration          string   `protobuf:"bytes,4,opt,name=Integration,proto3" json:"integration,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AccessGraphAzureSync) Reset()         { *m = AccessGraphAzureSync{} }
+func (m *AccessGraphAzureSync) String() string { return proto.CompactTextString(m) }
+func (*AccessGraphAzureSync) ProtoMessage()    {}
+func (*AccessGraphAzureSync) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9198ee693835762e, []int{359}
+}
+func (m *AccessGraphAzureSync) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AccessGraphAzureSync) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AccessGraphAzureSync.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AccessGraphAzureSync) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AccessGraphAzureSync.Merge(m, src)
+}
+func (m *AccessGraphAzureSync) XXX_Size() int {
+	return m.Size()
+}
+func (m *AccessGraphAzureSync) XXX_DiscardUnknown() {
+	xxx_messageInfo_AccessGraphAzureSync.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AccessGraphAzureSync proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterEnum("types.IAMPolicyStatus", IAMPolicyStatus_name, IAMPolicyStatus_value)
 	proto.RegisterEnum("types.DatabaseTLSMode", DatabaseTLSMode_name, DatabaseTLSMode_value)
@@ -21900,6 +21944,7 @@ func init() {
 	proto.RegisterType((*OktaOptions)(nil), "types.OktaOptions")
 	proto.RegisterType((*AccessGraphSync)(nil), "types.AccessGraphSync")
 	proto.RegisterType((*AccessGraphAWSSync)(nil), "types.AccessGraphAWSSync")
+	proto.RegisterType((*AccessGraphAzureSync)(nil), "types.AccessGraphAzureSync")
 }
 
 func init() { proto.RegisterFile("teleport/legacy/types/types.proto", fileDescriptor_9198ee693835762e) }
@@ -50442,6 +50487,63 @@ func (m *AccessGraphAWSSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *AccessGraphAzureSync) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AccessGraphAzureSync) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AccessGraphAzureSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Integration) > 0 {
+		i -= len(m.Integration)
+		copy(dAtA[i:], m.Integration)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.Integration)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.UmiClientId) > 0 {
+		i -= len(m.UmiClientId)
+		copy(dAtA[i:], m.UmiClientId)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.UmiClientId)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.SubscriptionID) > 0 {
+		i -= len(m.SubscriptionID)
+		copy(dAtA[i:], m.SubscriptionID)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.SubscriptionID)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Regions) > 0 {
+		for iNdEx := len(m.Regions) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Regions[iNdEx])
+			copy(dAtA[i:], m.Regions[iNdEx])
+			i = encodeVarintTypes(dAtA, i, uint64(len(m.Regions[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintTypes(dAtA []byte, offset int, v uint64) int {
 	offset -= sovTypes(v)
 	base := offset
@@ -61805,6 +61907,12 @@ func (m *AccessGraphSync) Size() (n int) {
 			n += 1 + l + sovTypes(uint64(l))
 		}
 	}
+	if len(m.Azure) > 0 {
+		for _, e := range m.Azure {
+			l = e.Size()
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
 	l = github_com_gogo_protobuf_types.SizeOfStdDuration(m.PollInterval)
 	n += 1 + l + sovTypes(uint64(l))
 	if m.XXX_unrecognized != nil {
@@ -61827,6 +61935,36 @@ func (m *AccessGraphAWSSync) Size() (n int) {
 	}
 	if m.AssumeRole != nil {
 		l = m.AssumeRole.Size()
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	l = len(m.Integration)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AccessGraphAzureSync) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Regions) > 0 {
+		for _, s := range m.Regions {
+			l = len(s)
+			n += 1 + l + sovTypes(uint64(l))
+		}
+	}
+	l = len(m.SubscriptionID)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	l = len(m.UmiClientId)
+	if l > 0 {
 		n += 1 + l + sovTypes(uint64(l))
 	}
 	l = len(m.Integration)
@@ -134180,6 +134318,40 @@ func (m *AccessGraphSync) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Azure", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Azure = append(m.Azure, &AccessGraphAzureSync{})
+			if err := m.Azure[len(m.Azure)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTypes(dAtA[iNdEx:])
@@ -134298,6 +134470,185 @@ func (m *AccessGraphAWSSync) Unmarshal(dAtA []byte) error {
 			if err := m.AssumeRole.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Integration", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Integration = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AccessGraphAzureSync) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AccessGraphAzureSync: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AccessGraphAzureSync: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Regions", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Regions = append(m.Regions, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SubscriptionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SubscriptionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UmiClientId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UmiClientId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 4:
 			if wireType != 2 {
