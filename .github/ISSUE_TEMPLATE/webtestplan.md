@@ -1150,7 +1150,7 @@ Add the following to enable read access to trusted clusters
       Connect to properly recognize it as a TCP app.
   - Start the app with debug logs on and tail `tshd.log`. Verify that the UI works correctly in the
     following scenarios:
-    - All buth the first point assume that you successfully go through the osascript prompt.
+    - All but the first point assume that you successfully go through the osascript prompt.
     - Close the osascript prompt.
       - [ ] The VNet panel shows info about the password prompt being closed.
     - Start VNet, then stop it.
