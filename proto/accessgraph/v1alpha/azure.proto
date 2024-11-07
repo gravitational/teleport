@@ -1,0 +1,98 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+syntax = "proto3";
+package accessgraph.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AzureResourceList is a list of Azure resources
+message AzureResourceList {
+  repeated AzureResource resources = 1;
+}
+
+// AWSResource is a list of AWS resources supported by the access graph.
+message AzureResource {
+  oneof resource {
+    AzurePrincipal principal = 1;
+    AzureRoleDefinition role_definition = 2;
+    AzureRoleAssignment role_assignment = 3;
+    AzureVirtualMachine virtual_machine = 4;
+    AzureManagedDatabase managed_database = 5;
+    AzureAKSCluster aks_cluster = 6;
+  }
+}
+
+// AzureVirtualMachine is an Azure virtual machine
+message AzureVirtualMachine {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
+}
+
+// AzureManagedDatabase is an Azure-managed Postgres or MySQL database
+message AzureManagedDatabase {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
+}
+
+// AzureAKSCluster is an AKS cluster
+message AzureAKSCluster {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
+}
+
+// AzurePrincipal is an Azure principal (user, group, service principal)
+message AzurePrincipal {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string display_name = 4;
+  repeated string member_of = 5;
+}
+
+// AzureRoleAssignment links an Azure principal to a role definition with a scope
+message AzureRoleAssignment {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string principal_id = 4;
+  string role_definition_id = 5;
+  string scope = 6;
+}
+
+// AzureRoleDefinition defines a role by its permissions
+message AzureRoleDefinition {
+  string id = 1;
+  string subscription_id = 2;
+  google.protobuf.Timestamp last_sync_time = 3;
+  string name = 4;
+  repeated AzurePermission permissions = 5;
+}
+
+// AzurePermission defines the actions and not (disallowed) actions for a role definition
+message AzurePermission {
+  repeated string actions = 4;
+  repeated string not_actions = 5;
+}
