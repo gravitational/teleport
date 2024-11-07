@@ -143,6 +143,9 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
     /**
      * GetServers returns filtered, sorted, and paginated servers
      *
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
      * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
     getServers: grpc.handleUnaryCall<GetServersRequest, GetServersResponse>;

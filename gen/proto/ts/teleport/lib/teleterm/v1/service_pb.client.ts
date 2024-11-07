@@ -150,6 +150,9 @@ export interface ITerminalServiceClient {
     /**
      * GetServers returns filtered, sorted, and paginated servers
      *
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
      * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
     getServers(input: GetServersRequest, options?: RpcOptions): UnaryCall<GetServersRequest, GetServersResponse>;
@@ -463,6 +466,9 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     /**
      * GetServers returns filtered, sorted, and paginated servers
      *
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
      * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
      */
     getServers(input: GetServersRequest, options?: RpcOptions): UnaryCall<GetServersRequest, GetServersResponse> {
