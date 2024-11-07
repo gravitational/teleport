@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.22.8
+go 1.22.9
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
