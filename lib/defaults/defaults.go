@@ -707,8 +707,8 @@ const (
 	// made for an existing file transfer request
 	WebsocketFileTransferDecision = "t"
 
-	// WebsocketWebauthnChallenge is sending a webauthn challenge.
-	WebsocketWebauthnChallenge = "n"
+	// WebsocketMFAChallenge is sending an MFA challenge. Only supports WebAuthn and SSO MFA.
+	WebsocketMFAChallenge = "n"
 
 	// WebsocketSessionMetadata is sending the data for a ssh session.
 	WebsocketSessionMetadata = "s"
@@ -724,7 +724,7 @@ const (
 )
 
 // The following are cryptographic primitives Teleport does not support in
-// it's default configuration.
+// its default configuration.
 const (
 	DiffieHellmanGroup14SHA1 = "diffie-hellman-group14-sha1"
 	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"

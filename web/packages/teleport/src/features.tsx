@@ -649,6 +649,13 @@ export class FeatureAccount implements TeleportFeature {
     getLink() {
       return cfg.routes.account;
     },
+    searchableTags: [
+      'account settings',
+      'settings',
+      'password',
+      'mfa',
+      'change password',
+    ],
   };
 }
 
@@ -671,6 +678,7 @@ export class FeatureHelpAndSupport implements TeleportFeature {
     getLink() {
       return cfg.routes.support;
     },
+    searchableTags: ['help', 'support', NavTitle.HelpAndSupport],
   };
 }
 

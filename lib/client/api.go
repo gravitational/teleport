@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -95,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/signal"
 )
 
 const (
@@ -519,6 +521,9 @@ type Config struct {
 	// HasTouchIDCredentialsFunc allows tests to override touchid.HasCredentials.
 	// If nil touchid.HasCredentials is used.
 	HasTouchIDCredentialsFunc func(rpID, user string) bool
+
+	// SSOHost is the host of the SSO provider used to log in.
+	SSOHost string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -702,6 +707,39 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
+	// The user has typed a command like `tsh ssh ...` without being logged in,
+	// if the running binary needs to be updated, update and re-exec.
+	//
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	//
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
+	toolsVersion, reExec, err := updater.CheckRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if reExec {
+		ctxUpdate, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
+		defer cancel()
+		// Download the version of client tools required by the cluster.
+		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			utils.FatalError(err)
+		}
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
+		}
+	}
+
 	if opt.afterLoginHook != nil {
 		if err := opt.afterLoginHook(); err != nil {
 			return trace.Wrap(err)
@@ -850,6 +888,8 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.PIVSlot = profile.PIVSlot
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
+	c.SSOHost = profile.SSOHost
+
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -900,6 +940,7 @@ func (c *Config) Profile() *profile.Profile {
 		PIVSlot:                       c.PIVSlot,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
+		SSOHost:                       c.SSOHost,
 	}
 }
 
@@ -2295,13 +2336,11 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				}
 				playing = !playing
 			case keyLeft, keyDown:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(max(current-skipDuration, 0)) // rewind
+				player.SetPos(max(player.LastPlayed()-skipDuration, 0)) // rewind
 				term.Clear()
 				term.SetCursorPos(1, 1)
 			case keyRight, keyUp:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(current + skipDuration) // advance forward
+				player.SetPos(player.LastPlayed() + skipDuration) // advance forward
 			}
 		}
 	}()
@@ -4266,7 +4305,9 @@ You may use the --skip-version-check flag to bypass this check.
 	// cached, there is no need to do this test again.
 	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
-	tc.applyAuthSettings(pr.Auth)
+	if err := tc.applyAuthSettings(pr.Auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	tc.lastPing = pr
 
@@ -4545,7 +4586,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 
 // applyAuthSettings updates configuration changes based on the advertised
 // authentication settings, overriding existing fields in tc.
-func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
+func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) error {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
 
 	// If PIVSlot is not already set, default to the server setting.
@@ -4557,6 +4598,25 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 	if authSettings.PrivateKeyPolicy != "" && !authSettings.PrivateKeyPolicy.IsSatisfiedBy(tc.PrivateKeyPolicy) {
 		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
 	}
+
+	var ssoURL *url.URL
+	var err error
+	switch {
+	case authSettings.SAML != nil:
+		ssoURL, err = url.Parse(authSettings.SAML.SSO)
+	case authSettings.OIDC != nil:
+		ssoURL, err = url.Parse(authSettings.OIDC.IssuerURL)
+	case authSettings.Github != nil:
+		ssoURL, err = url.Parse(authSettings.Github.EndpointURL)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ssoURL != nil {
+		tc.SSOHost = ssoURL.Host
+	}
+
+	return nil
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests

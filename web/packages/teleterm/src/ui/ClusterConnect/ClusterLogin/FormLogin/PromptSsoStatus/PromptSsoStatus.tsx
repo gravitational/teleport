@@ -22,7 +22,7 @@ import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 export default function PromptSsoStatus(props: Props) {
   return (
-    <Flex p={4} gap={4} flexDirection="column" alignItems="flex-start">
+    <Flex gap={4} flexDirection="column" alignItems="flex-start">
       <Box style={{ position: 'relative' }}>
         <Text bold mb={2} textAlign="center">
           Please follow the steps in the new browser window to authenticate.

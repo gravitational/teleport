@@ -134,6 +134,9 @@ func TestProxyWatcher(t *testing.T) {
 		},
 		ProxyGetter: presence,
 		ProxiesC:    make(chan []types.Server, 10),
+		ProxyDiffer: func(old, new types.Server) bool {
+			return old.GetPeerAddr() != new.GetPeerAddr()
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)

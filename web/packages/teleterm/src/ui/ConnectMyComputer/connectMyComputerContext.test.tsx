@@ -18,13 +18,11 @@
 
 import { EventEmitter } from 'node:events';
 
-import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
 import {
@@ -90,13 +88,11 @@ function renderUseConnectMyComputerContextHook(
   return renderHook(() => useConnectMyComputerContext(), {
     wrapper: ({ children }) => (
       <MockAppContextProvider appContext={appContext}>
-        <WorkspaceContextProvider value={null}>
-          <resourcesContext.ResourcesContextProvider>
-            <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-              {children}
-            </ConnectMyComputerContextProvider>
-          </resourcesContext.ResourcesContextProvider>
-        </WorkspaceContextProvider>
+        <resourcesContext.ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+            {children}
+          </ConnectMyComputerContextProvider>
+        </resourcesContext.ResourcesContextProvider>
       </MockAppContextProvider>
     ),
   });
@@ -322,15 +318,13 @@ describe('canUse', () => {
       const { result } = renderHook(() => useConnectMyComputerContext(), {
         wrapper: ({ children }) => (
           <MockAppContextProvider appContext={appContext}>
-            <WorkspaceContextProvider value={null}>
-              <resourcesContext.ResourcesContextProvider>
-                <ConnectMyComputerContextProvider
-                  rootClusterUri={rootCluster.uri}
-                >
-                  {children}
-                </ConnectMyComputerContextProvider>
-              </resourcesContext.ResourcesContextProvider>
-            </WorkspaceContextProvider>
+            <resourcesContext.ResourcesContextProvider>
+              <ConnectMyComputerContextProvider
+                rootClusterUri={rootCluster.uri}
+              >
+                {children}
+              </ConnectMyComputerContextProvider>
+            </resourcesContext.ResourcesContextProvider>
           </MockAppContextProvider>
         ),
       });

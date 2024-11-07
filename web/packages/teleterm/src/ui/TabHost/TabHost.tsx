@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import * as types from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { canDocChangeShell } from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { Tabs } from 'teleterm/ui/Tabs';
@@ -28,6 +29,8 @@ import { DocumentsRenderer } from 'teleterm/ui/Documents/DocumentsRenderer';
 import { IAppContext } from 'teleterm/ui/types';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 import { Shell } from 'teleterm/mainProcess/shell';
+
+import { useStoreSelector } from '../hooks/useStoreSelector';
 
 import { useTabShortcuts } from './useTabShortcuts';
 import { useNewTabOpener } from './useNewTabOpener';
@@ -37,8 +40,10 @@ export function TabHostContainer(props: {
   topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
 }) {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
-  const isRootClusterSelected = !!ctx.workspacesService.getRootClusterUri();
+  const isRootClusterSelected = useStoreSelector(
+    'workspacesService',
+    useCallback(state => !!state.rootClusterUri, [])
+  );
 
   if (isRootClusterSelected) {
     return <TabHost ctx={ctx} topBarContainerRef={props.topBarContainerRef} />;
@@ -53,6 +58,7 @@ export function TabHost({
   ctx: IAppContext;
   topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
 }) {
+  useWorkspaceServiceState();
   const documentsService =
     ctx.workspacesService.getActiveWorkspaceDocumentService();
   const activeDocument = documentsService?.getActive();

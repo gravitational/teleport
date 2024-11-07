@@ -15,22 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-import { FC, PropsWithChildren } from 'react';
-import { Box } from 'design';
-import { Attempt } from 'shared/hooks/useAsync';
-
-import * as types from 'teleterm/ui/services/clusters/types';
 import {
   appUri,
   makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
 
-import {
-  ClusterLoginPresentation,
-  ClusterLoginPresentationProps,
-} from './ClusterLogin';
+import { TestContainer, makeProps } from './storyHelpers';
+import { ClusterLoginPresentation } from './ClusterLogin';
 
 export default {
   title: 'Teleterm/ModalsHost/ClusterLogin/Reason',
@@ -99,56 +91,6 @@ export const VnetCertExpired = () => {
     </TestContainer>
   );
 };
-
-function makeProps(): ClusterLoginPresentationProps {
-  return {
-    shouldPromptSsoStatus: false,
-    title: 'localhost',
-    loginAttempt: {
-      status: '',
-      statusText: '',
-    } as Attempt<void>,
-    init: () => null,
-    initAttempt: {
-      status: 'success',
-      statusText: '',
-      data: {
-        localAuthEnabled: true,
-        authProviders: [],
-        type: '',
-        hasMessageOfTheDay: false,
-        allowPasswordless: true,
-        localConnectorName: '',
-        authType: 'local',
-      } as types.AuthSettings,
-    } as const,
-
-    loggedInUserName: null,
-    onCloseDialog: () => null,
-    onAbort: () => null,
-    onLoginWithLocal: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithPasswordless: () => Promise.resolve<[void, Error]>([null, null]),
-    onLoginWithSso: () => null,
-    clearLoginAttempt: () => null,
-    passwordlessLoginState: null,
-    reason: undefined,
-  };
-}
-
-const TestContainer: FC<PropsWithChildren> = ({ children }) => (
-  <>
-    <span>Bordered box is not part of the component</span>
-    <Box
-      css={`
-        width: 450px;
-        border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surface};
-      `}
-    >
-      {children}
-    </Box>
-  </>
-);
 
 const dbGateway = makeDatabaseGateway({
   uri: '/gateways/gateway1',

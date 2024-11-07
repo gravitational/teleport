@@ -28,6 +28,7 @@ import {
   convertBackendUserPreferences,
   isBackendUserPreferences,
 } from 'teleport/services/userPreferences/userPreferences';
+import { RecentHistoryItem } from 'teleport/Navigation/RecentHistory';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
@@ -41,7 +42,10 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.LICENSE_ACKNOWLEDGED,
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
   KeysEnum.USE_NEW_ROLE_EDITOR,
+  KeysEnum.RECENT_HISTORY,
 ];
+
+const RECENT_HISTORY_MAX_LENGTH = 10;
 
 export const storageService = {
   clear() {
@@ -264,5 +268,46 @@ export const storageService = {
 
   getIsTopBarView(): boolean {
     return this.getParsedJSONValue(KeysEnum.USE_TOP_BAR, false);
+  },
+
+  getRecentHistory(): RecentHistoryItem[] {
+    return this.getParsedJSONValue(KeysEnum.RECENT_HISTORY, []);
+  },
+
+  addRecentHistoryItem(item: RecentHistoryItem): RecentHistoryItem[] {
+    const history = storageService.getRecentHistory();
+    const deduplicatedHistory = [...history];
+
+    // Remove a duplicate item if it exists.
+    const existingDuplicateIndex = history.findIndex(
+      historyItem => historyItem.route === item.route
+    );
+    if (existingDuplicateIndex !== -1) {
+      deduplicatedHistory.splice(existingDuplicateIndex, 1);
+    }
+
+    const newHistory = [item, ...deduplicatedHistory].slice(
+      0,
+      RECENT_HISTORY_MAX_LENGTH
+    );
+
+    window.localStorage.setItem(
+      KeysEnum.RECENT_HISTORY,
+      JSON.stringify(newHistory)
+    );
+
+    return newHistory;
+  },
+
+  removeRecentHistoryItem(route: string): RecentHistoryItem[] {
+    const history = storageService.getRecentHistory();
+    const newHistory = history.filter(item => item.route !== route);
+
+    window.localStorage.setItem(
+      KeysEnum.RECENT_HISTORY,
+      JSON.stringify(newHistory)
+    );
+
+    return newHistory;
   },
 };

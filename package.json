@@ -28,6 +28,11 @@
     "nop": "exit 0"
   },
   "private": true,
+  "pnpm": {
+    "overrides": {
+      "@bundled-es-modules/cookie>cookie": "0.7.1"
+    }
+  },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@storybook/addon-toolbars": "^8.3.4",

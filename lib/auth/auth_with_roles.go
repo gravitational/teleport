@@ -520,7 +520,7 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
-	// authentication request has it's own authentication, however this limits the requests
+	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -531,7 +531,7 @@ func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclien
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
 func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
-	// authentication request has it's own authentication, however this limits the requests
+	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -3345,7 +3345,7 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	// Token is it's own authentication, no need to double check.
+	// Token is its own authentication, no need to double check.
 	resp, err := a.authServer.ChangeUserAuthentication(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3586,7 +3586,7 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 }
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3645,7 +3645,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3741,7 +3741,7 @@ func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse
 		clientIP = "" // We only trust IP information coming from the Proxy.
 	}
 
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3958,7 +3958,7 @@ func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, stateToken s
 }
 
 func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateGithubAuthCallback(ctx, q)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4924,7 +4924,7 @@ func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRe
 		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
 	}
 
-	// the token provides it's own authorization and authentication
+	// the token provides its own authorization and authentication
 	return a.authServer.validateTrustedCluster(ctx, validateRequest)
 }
 
