@@ -1148,25 +1148,18 @@ Add the following to enable read access to trusted clusters
   - [ ] Verify that Connect asks for relogin when attempting to connect to an app after cert expires.
     - Be mindful that you need to connect to the app at least once before the cert expires for
       Connect to properly recognize it as a TCP app.
-  - Start the app with debug logs on and tail `tshd.log`. Verify that the UI works correctly in the
-    following scenarios:
-    - All but the first point assume that you successfully go through the osascript prompt.
-    - Close the osascript prompt.
-      - [ ] The VNet panel shows info about the password prompt being closed.
-    - Start VNet, then stop it.
-      - [ ] The VNet panel doesn't show any errors related to VNet being stopped.
-    - Start VNet, then remove the socket file used for communication with the admin process. It's reported in
-      `tshd.log` as `Created unix socket for admin subcommand socket:<path>`.
-      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
-      - [ ] The admin process cleans up files in `/etc/resolver`.
-    - Start VNet. While its running, kill the admin process.
-      - The easiest way to find the PID of the admin process is to open Activity Monitor, View →
-        All Processes, Hierarchically, search for `tsh` and find tsh running under kernel_task →
-        authtrampoline → bash → tsh. Then just `sudo kill -s KILL <tsh pid>`.
-      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
-      - [ ] The admin process _leaves_ files in `/etc/resolver`. However, it's possible to start
-        VNet again, connect to a TCP app, then shut VNet down and it results in the files being
-        cleaned up.
+  - Start VNet, then stop it.
+    - [ ] The VNet panel doesn't show any errors related to VNet being stopped.
+  - Start VNet. While its running, kill the admin process.
+    - The easiest way to find the PID of the admin process is to open Activity Monitor, View →
+      All Processes, Hierarchically, search for `tsh` and find tsh running under kernel_task →
+      launchd → tsh, owned by root. Then just `sudo kill -s KILL <tsh pid>`.
+    - [ ] The admin process _leaves_ files in `/etc/resolver`. However, it's possible to start
+      VNet again, connect to a TCP app, then shut VNet down and it results in the files being
+      cleaned up.
+  - Start VNet in a clean macOS VM. Verify that on the first VNet start, macOS shows the prompt for
+    enabling the background item for tsh.app. Accept it and verify that you can connect to a TCP app
+    through VNet.
 - Misc
   - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
         `~/Library/Application\ Support/Teleport\ Connect/logs`.
