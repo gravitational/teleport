@@ -20696,10 +20696,12 @@ var xxx_messageInfo_OktaOptions proto.InternalMessageInfo
 // AccessGraphSync is a configuration for Access Graph service.
 type AccessGraphSync struct {
 	// AWS is a configuration for AWS Access Graph service poll service.
-	AWS                  []*AccessGraphAWSSync `protobuf:"bytes,1,rep,name=AWS,proto3" json:"aws,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
+	AWS []*AccessGraphAWSSync `protobuf:"bytes,1,rep,name=AWS,proto3" json:"aws,omitempty"`
+	// PollInterval is the frequency at which to poll for AWS resources
+	PollInterval         Duration `protobuf:"varint,2,opt,name=PollInterval,proto3,casttype=Duration" json:"poll_interval,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *AccessGraphSync) Reset()         { *m = AccessGraphSync{} }
@@ -48786,6 +48788,11 @@ func (m *AccessGraphSync) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.PollInterval != 0 {
+		i = encodeVarintTypes(dAtA, i, uint64(m.PollInterval))
+		i--
+		dAtA[i] = 0x10
+	}
 	if len(m.AWS) > 0 {
 		for iNdEx := len(m.AWS) - 1; iNdEx >= 0; iNdEx-- {
 			{
@@ -59858,6 +59865,9 @@ func (m *AccessGraphSync) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovTypes(uint64(l))
 		}
+	}
+	if m.PollInterval != 0 {
+		n += 1 + sovTypes(uint64(m.PollInterval))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -130039,6 +130049,25 @@ func (m *AccessGraphSync) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PollInterval", wireType)
+			}
+			m.PollInterval = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PollInterval |= Duration(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTypes(dAtA[iNdEx:])
