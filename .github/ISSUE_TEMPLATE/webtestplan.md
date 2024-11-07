@@ -793,16 +793,12 @@ Add the following to enable read access to trusted clusters
 - Auth methods
   - Verify that the app supports clusters using different auth settings
     (`auth_service.authentication` in the cluster config):
-    - [ ] `type: local`, `second_factor: "off"`
     - [ ] `type: local`, `second_factor: "otp"`
       - [ ] Test per-session MFA items listed later in the test plan.
     - [ ] `type: local`, `second_factor: "webauthn"`,
       - [ ] Test per-session MFA items listed later in the test plan.
     - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
     - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
-    - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
-    - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
-    - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
     - [ ] `type: local`, `second_factor: "on"`, log in with OTP
       - [ ] Test per-session MFA items listed later in the test plan.
     - [ ] `type: local`, `second_factor: "on"`, log in with hardware key
@@ -815,7 +811,6 @@ Add the following to enable read access to trusted clusters
         parens. Or set up the connectors on a local enterprise cluster following [the guide from
         our wiki](https://gravitational.slab.com/posts/quick-git-hub-saml-oidc-setup-6dfp292a).
       - [ ] GitHub (asteroid)
-        - [ ] local login on a GitHub-enabled cluster
       - [ ] SAML (platform cluster)
       - [ ] OIDC (e-demo)
   - Verify that all items from this section work on:
@@ -896,12 +891,11 @@ Add the following to enable read access to trusted clusters
   - [ ] Check that those connections are removed after you log out of the root cluster that they
         belong to.
   - [ ] Verify that reopening a db connection from the connections picker remembers last used port.
-- Cluster resources (servers, databases, k8s, apps)
+- Cluster resources
   - [ ] Verify that the app shows the same resources as the Web UI.
   - [ ] Verify that search is working for the resources list.
   - [ ] Verify that pagination is working for the resources list.
-  - [ ] Verify that pagination works in tandem with search, that is verify that search results are
-        paginated too.
+  - [ ] Verify that search results are paginated too.
   - [ ] Verify that you can connect to these resources.
     - Verify that this works on:
       - [ ] macOS
