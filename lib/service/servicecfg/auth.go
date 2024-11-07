@@ -178,7 +178,18 @@ type HostedPluginsConfig struct {
 // PluginOAuthProviders holds application credentials for each
 // 3rd party API provider
 type PluginOAuthProviders struct {
+	// TODO(tross) delete once teleport.e has been converted.
+	// Deprecated: use SlackCredentials instead.
 	Slack *oauth2.ClientCredentials
+
+	SlackCredentials *OAuthClientCredentials
+}
+
+// OAuthClientCredentials stores the client_id and client_secret
+// of an OAuth application.
+type OAuthClientCredentials struct {
+	ClientID     string
+	ClientSecret string
 }
 
 // KeystoreConfig configures the auth keystore.
