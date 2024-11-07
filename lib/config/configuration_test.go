@@ -3665,6 +3665,10 @@ func TestAuthHostedPlugins(t *testing.T) {
 				require.NotNil(t, p.OAuthProviders.Slack)
 				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
 				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+
+				require.NotNil(t, p.OAuthProviders.SlackCredentials)
+				require.Equal(t, "foo", p.OAuthProviders.SlackCredentials.ClientID)
+				require.Equal(t, "bar", p.OAuthProviders.SlackCredentials.ClientSecret)
 			},
 		},
 	}
