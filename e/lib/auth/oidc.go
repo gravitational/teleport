@@ -766,6 +766,24 @@ func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) authclient.OIDCAuthReq
 	}
 }
 
+// OIDCClaimsToTraits converts OIDC-style claims into teleport-specific trait format
+func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
+	traits := make(map[string][]string)
+
+	for claimName := range claims {
+		claimValue, ok, _ := claims.StringClaim(claimName)
+		if ok {
+			traits[claimName] = []string{claimValue}
+		}
+		claimValues, ok, _ := claims.StringsClaim(claimName)
+		if ok {
+			traits[claimName] = claimValues
+		}
+	}
+
+	return traits
+}
+
 func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth.SSODiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*auth.CreateUserParams, error) {
 	var err error
 
@@ -779,7 +797,7 @@ func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth
 		Username:      username,
 	}
 
-	p.Traits = services.OIDCClaimsToTraits(claims)
+	p.Traits = OIDCClaimsToTraits(claims)
 
 	evaluationOutput, err := oas.auth.GetLoginRuleEvaluator().Evaluate(ctx, &loginrule.EvaluationInput{
 		Traits: p.Traits,
