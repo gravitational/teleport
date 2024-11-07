@@ -953,12 +953,12 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 				"tcp_ports": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"end_port": {
-							Description: "EndPort describes the end of the range, inclusive. It must be between 2-65535 and be greater than Port when describing a port range. When describing a single port, it must be set to 0.",
+							Description: "EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
 						"port": {
-							Description: "Port describes the start of the range. It must be between 1-65535.",
+							Description: "Port describes the start of the range. It must be between 1 and 65535.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},

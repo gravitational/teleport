@@ -102,6 +102,6 @@ Optional:
 
 Optional:
 
-- `end_port` (Number) EndPort describes the end of the range, inclusive. It must be between 2-65535 and be greater than Port when describing a port range. When describing a single port, it must be set to 0.
-- `port` (Number) Port describes the start of the range. It must be between 1-65535.
+- `end_port` (Number) EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.
+- `port` (Number) Port describes the start of the range. It must be between 1 and 65535.
 
