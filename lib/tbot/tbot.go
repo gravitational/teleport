@@ -153,17 +153,25 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	addr, _ := b.cfg.Address()
-	resolver, err := reversetunnelclient.CachingResolver(
-		ctx,
-		reversetunnelclient.WebClientResolver(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: addr,
-			Insecure:  b.cfg.Insecure,
-		}),
-		nil /* clock */)
-	if err != nil {
-		return trace.Wrap(err)
+	addr, addrKind := b.cfg.Address()
+	var resolver reversetunnelclient.Resolver
+	if shouldIgnoreProxyPingAddr() {
+		if addrKind != config.AddressKindProxy {
+			return trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
+		}
+		resolver = reversetunnelclient.StaticResolver(addr, types.ProxyListenerMode_Multiplex)
+	} else {
+		resolver, err = reversetunnelclient.CachingResolver(
+			ctx,
+			reversetunnelclient.WebClientResolver(&webclient.Config{
+				Context:   ctx,
+				ProxyAddr: addr,
+				Insecure:  b.cfg.Insecure,
+			}),
+			nil /* clock */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Create an error group to manage all the services lifetimes.
@@ -536,9 +544,6 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	case config.AddressKindAuth:
 		// TODO(noah): DELETE IN V17.0.0
 		b.log.WarnContext(ctx, "We recently introduced the ability to explicitly configure the address of the Teleport Proxy using --proxy-server. We recommend switching to this if you currently provide the address of the Proxy to --auth-server.")
-	}
-	if shouldIgnoreProxyPingAddr() && addrKind != config.AddressKindProxy {
-		return nil, trace.BadParameter("TBOT_IGNORE_PROXY_PING_ADDR requires that a proxy address is set using --proxy-server or proxy_server")
 	}
 
 	// Ensure they have provided a join method.
