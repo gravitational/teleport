@@ -3729,10 +3729,11 @@ var xxx_messageInfo_Header proto.InternalMessageInfo
 // PortRange can be used to describe a single port in which case the Port field is the port and the
 // EndPort field is 0.
 type PortRange struct {
-	// Port describes the start of the range. It must be between 1-65535.
+	// Port describes the start of the range. It must be between 1 and 65535.
 	Port uint32 `protobuf:"varint,1,opt,name=Port,proto3" json:"port"`
-	// EndPort describes the end of the range, inclusive. It must be between 2-65535 and be greater
-	// than Port when describing a port range. When describing a single port, it must be set to 0.
+	// EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+	// be greater than Port when describing a port range. When omitted or set to zero, it signifies
+	// that the port range defines a single port.
 	EndPort              uint32   `protobuf:"varint,2,opt,name=EndPort,proto3" json:"end_port,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

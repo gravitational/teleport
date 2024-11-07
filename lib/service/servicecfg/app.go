@@ -135,10 +135,11 @@ type CORS struct {
 // PortRange can be used to describe a single port in which case the Port field is the port and the
 // EndPort field is 0.
 type PortRange struct {
-	// Port describes the start of the range. It must be between 1-65535.
+	// Port describes the start of the range. It must be between 1 and 65535.
 	Port uint16
-	// EndPort describes the end of the range, inclusive. It must be between 2-65535 and be greater
-	// than Port when describing a port range. When describing a single port, it must be set to 0.
+	// EndPort describes the end of the range, inclusive. If set, it must be between 2and 65535 and be
+	// greater than Port when describing a port range. When omitted or set to zero, it signifies that
+	// the port range defines a single port.
 	EndPort uint16
 }
 
