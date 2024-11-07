@@ -749,7 +749,8 @@ func (e *AccessListMemberCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListMemberCreate{
 			AccessListMemberCreate: &prehogv1a.AccessListMemberCreateEvent{
-				UserName: a.AnonymizeString(e.UserName),
+				UserName:   a.AnonymizeString(e.UserName),
+				MemberKind: e.MemberKind,
 				Metadata: &prehogv1a.AccessListMetadata{
 					Id: a.AnonymizeString(e.Metadata.Id),
 				},
@@ -765,7 +766,8 @@ func (e *AccessListMemberUpdateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListMemberUpdate{
 			AccessListMemberUpdate: &prehogv1a.AccessListMemberUpdateEvent{
-				UserName: a.AnonymizeString(e.UserName),
+				UserName:   a.AnonymizeString(e.UserName),
+				MemberKind: e.MemberKind,
 				Metadata: &prehogv1a.AccessListMetadata{
 					Id: a.AnonymizeString(e.Metadata.Id),
 				},
@@ -781,7 +783,8 @@ func (e *AccessListMemberDeleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListMemberDelete{
 			AccessListMemberDelete: &prehogv1a.AccessListMemberDeleteEvent{
-				UserName: a.AnonymizeString(e.UserName),
+				UserName:   a.AnonymizeString(e.UserName),
+				MemberKind: e.MemberKind,
 				Metadata: &prehogv1a.AccessListMetadata{
 					Id: a.AnonymizeString(e.Metadata.Id),
 				},
@@ -797,9 +800,11 @@ func (e *AccessListGrantsToUserEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListGrantsToUser{
 			AccessListGrantsToUser: &prehogv1a.AccessListGrantsToUserEvent{
-				UserName:           a.AnonymizeString(e.UserName),
-				CountRolesGranted:  e.CountRolesGranted,
-				CountTraitsGranted: e.CountTraitsGranted,
+				UserName:                    a.AnonymizeString(e.UserName),
+				CountRolesGranted:           e.CountRolesGranted,
+				CountTraitsGranted:          e.CountTraitsGranted,
+				CountInheritedRolesGranted:  e.CountInheritedRolesGranted,
+				CountInheritedTraitsGranted: e.CountInheritedTraitsGranted,
 			},
 		},
 	}
@@ -1677,6 +1682,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListMemberCreate.Metadata.Id,
 			},
+			MemberKind: e.AccessListMemberCreate.MemberMetadata.MembershipKind.String(),
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate:
@@ -1685,6 +1691,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListMemberUpdate.Metadata.Id,
 			},
+			MemberKind: e.AccessListMemberUpdate.MemberMetadata.MembershipKind.String(),
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListMemberDelete:
@@ -1693,13 +1700,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListMemberDelete.Metadata.Id,
 			},
+			MemberKind: e.AccessListMemberDelete.MemberMetadata.MembershipKind.String(),
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
 		ret := &AccessListGrantsToUserEvent{
-			UserName:           userMD.Username,
-			CountRolesGranted:  e.AccessListGrantsToUser.CountRolesGranted,
-			CountTraitsGranted: e.AccessListGrantsToUser.CountTraitsGranted,
+			UserName:                    userMD.Username,
+			CountRolesGranted:           e.AccessListGrantsToUser.CountRolesGranted,
+			CountTraitsGranted:          e.AccessListGrantsToUser.CountTraitsGranted,
+			CountInheritedRolesGranted:  e.AccessListGrantsToUser.CountInheritedRolesGranted,
+			CountInheritedTraitsGranted: e.AccessListGrantsToUser.CountInheritedTraitsGranted,
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_TagExecuteQuery:

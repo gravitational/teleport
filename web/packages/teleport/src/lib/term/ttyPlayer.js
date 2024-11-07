@@ -243,6 +243,10 @@ export default class TtyPlayer extends Tty {
     this.cancelTimeUpdate();
     this._setPlayerStatus(StatusEnum.PAUSED);
 
+    if (this.webSocket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
     const buffer = new ArrayBuffer(4);
     const dv = new DataView(buffer);
     dv.setUint8(0, messageTypePlayPause);

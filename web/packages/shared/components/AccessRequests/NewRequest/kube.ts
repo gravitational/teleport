@@ -45,50 +45,55 @@ export function isKubeClusterWithNamespaces(
 }
 
 /**
- * Checks each data for kube_cluster or namespace
+ * Parses error message (in an expected format returned from the backend) to see if
+ * the message is a type of request.kubernetes_resources related error:
+ * https://github.com/gravitational/teleport/blob/master/lib/services/access_request.go#L2050
+ *
+ * If error matches, it then checks if namespace or kube_cluster is mentioned
+ * in the "allowed kinds" portion of the error message.
  */
-export function checkForUnsupportedKubeRequestModes(
-  requestRoleAttempt: Attempt
-) {
-  let unsupportedKubeRequestModes: string[];
-  let affectedKubeClusterName = '';
-  let requiresNamespaceSelect = false;
+export function checkSupportForKubeResources(requestRoleAttempt: Attempt) {
+  let requestKubeResourceSupported = true;
+  let isRequestKubeResourceError = false;
 
+  const retVal = { requestKubeResourceSupported, isRequestKubeResourceError };
   if (requestRoleAttempt.status === 'failed') {
     const errMsg = requestRoleAttempt.statusText.toLowerCase();
 
-    if (errMsg.includes('request_mode') && errMsg.includes('allowed kinds: ')) {
-      let allowedKinds = errMsg.split('allowed kinds: ')[1];
+    if (
+      errMsg.includes('request.kubernetes_resources') &&
+      errMsg.includes('allowed kinds')
+    ) {
+      let splitMsgParts = [];
+      if (errMsg.includes('requested roles: ')) {
+        splitMsgParts = errMsg.split('requested roles: ');
+      } else if (errMsg.includes('requestable roles: ')) {
+        splitMsgParts = errMsg.split('requestable roles: ');
+      }
 
-      // Web UI supports selecting namespace and wildcard
-      // which basically means requiring namespace.
-      if (allowedKinds.includes('*') || allowedKinds.includes('namespace')) {
-        requiresNamespaceSelect = true;
-      } else {
-        if (allowedKinds.startsWith('[')) {
-          allowedKinds = allowedKinds.slice(1, -1);
+      if (!splitMsgParts.length || !splitMsgParts[1]) {
+        return retVal;
+      }
+
+      const kindParts = splitMsgParts[1].split(', ');
+
+      // Check that at least one of the kind parts have a kind that
+      // the web UI supports (namespace or kube_cluster):
+      const isSupported = kindParts.some(part => {
+        const allowed = part.split(': ');
+        if (
+          allowed[1]?.includes('namespace') ||
+          allowed[1]?.includes('kube_cluster')
+        ) {
+          return true;
         }
-        unsupportedKubeRequestModes = allowedKinds.split(' ');
-      }
-
-      const initialSplit = errMsg.split('for kubernetes cluster "');
-      if (initialSplit.length > 1) {
-        affectedKubeClusterName = initialSplit[1]
-          .split('". allowed kinds')[0]
-          .trim();
-      }
-
+      });
       return {
-        affectedKubeClusterName,
-        requiresNamespaceSelect,
-        unsupportedKubeRequestModes,
+        requestKubeResourceSupported: isSupported,
+        isRequestKubeResourceError: true,
       };
     }
   }
 
-  return {
-    affectedKubeClusterName,
-    unsupportedKubeRequestModes,
-    requiresNamespaceSelect,
-  };
+  return retVal;
 }

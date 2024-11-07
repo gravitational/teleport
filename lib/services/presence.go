@@ -117,7 +117,7 @@ type Presence interface {
 	// Deprecated: use ListReverseTunnels
 	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
-	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
+	// DeleteReverseTunnel deletes reverse tunnel by its domain name
 	DeleteReverseTunnel(ctx context.Context, domainName string) error
 
 	// DeleteAllReverseTunnels deletes all reverse tunnels

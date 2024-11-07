@@ -17,7 +17,6 @@
  */
 
 import { z } from 'zod';
-import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 import {
@@ -43,6 +42,11 @@ import {
   RootClusterUri,
   routing,
 } from 'teleterm/ui/uri';
+
+import {
+  identitySelector,
+  useStoreSelector,
+} from 'teleterm/ui/hooks/useStoreSelector';
 
 import {
   AccessRequestsService,
@@ -218,10 +222,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.state.rootClusterUri &&
       routing.belongsToProfile(this.state.rootClusterUri, resourceUri)
     );
-  }
-
-  useState() {
-    return useStore(this);
   }
 
   setState(nextState: (draftState: WorkspacesState) => WorkspacesState | void) {
@@ -616,3 +616,15 @@ const unifiedResourcePreferencesSchema = z
 type UnifiedResourcePreferencesSchemaAsRequired = Required<
   z.infer<typeof unifiedResourcePreferencesSchema>
 >;
+
+/**
+ * useWorkspaceServiceState is a replacement for the legacy useStore hook. Many components within
+ * teleterm depend on the behavior of useStore which re-renders the component on any change within
+ * the store. Most of the time, those components don't even use the state returned by useStore.
+ *
+ * @deprecated Prefer useStoreSelector with a selector that picks only what the callsite is going
+ * to use. useWorkspaceServiceState re-renders the component on any change within any workspace.
+ */
+export const useWorkspaceServiceState = () => {
+  return useStoreSelector('workspacesService', identitySelector);
+};
