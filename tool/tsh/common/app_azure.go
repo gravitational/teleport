@@ -139,15 +139,13 @@ func (a *azureApp) StartLocalProxies(ctx context.Context) error {
 	err := a.StartLocalProxyWithForwarder(ctx,
 		alpnproxy.MatchAzureRequests,
 		alpnproxy.WithHTTPMiddleware(azureMiddleware),
-		alpnproxy.WithOnSetCert(func(cert *tls.Certificate) {
-			if cert != nil {
-				// Note that the PrivateKey is most likely set by api/utils/keys.TLSCertificateForSigner.
-				signer, ok := cert.PrivateKey.(crypto.Signer)
-				if ok {
-					azureMiddleware.SetPrivateKey(signer)
-				} else {
-					log.Warn("Provided tls.Certificate has no valid private key.")
-				}
+		alpnproxy.WithOnSetCert(func(cert tls.Certificate) {
+			// Note that the PrivateKey is most likely set by api/utils/keys.TLSCertificateForSigner.
+			signer, ok := cert.PrivateKey.(crypto.Signer)
+			if ok {
+				azureMiddleware.SetPrivateKey(signer)
+			} else {
+				log.Warn("Provided tls.Certificate has no valid private key.")
 			}
 		}),
 	)

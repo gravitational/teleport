@@ -53,15 +53,16 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 		require.NoError(t, err)
 		return privateKey
 	}
+	key := newPrivateKey()
 	m := &AzureMSIMiddleware{
 		Identity: "azureTestIdentity",
 		TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
 		ClientID: "decaffff-cafe-4aaa-cafe-cafecafecafe",
 		Log:      logrus.WithField(teleport.ComponentKey, "msi"),
 		Clock:    clockwork.NewFakeClockAt(time.Date(2022, 1, 1, 9, 0, 0, 0, time.UTC)),
-		Key:      newPrivateKey(),
 		Secret:   "my-secret",
 	}
+	m.SetPrivateKey(key)
 	require.NoError(t, m.CheckAndSetDefaults())
 
 	tests := []struct {
@@ -182,7 +183,7 @@ func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorith
 					return key.VerifyAzureToken(token)
 				}
 
-				claims, err := fromJWT(req.AccessToken, m.Key)
+				claims, err := fromJWT(req.AccessToken, key)
 				require.NoError(t, err)
 				require.Equal(t, jwt.AzureTokenClaims{
 					TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
