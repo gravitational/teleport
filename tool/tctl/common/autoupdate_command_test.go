@@ -23,7 +23,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,10 +56,6 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	assert.Equal(t, "disabled", config.Spec.Tools.Mode)
 
 	// Set target version for auto update.
-	_, err = runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "get"})
-	require.Error(t, err)
-	assert.True(t, trace.IsNotFound(err))
-
 	_, err = runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "set", "--target-version=1.2.3"})
 	require.NoError(t, err)
 
@@ -70,8 +65,9 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 
 	getBuf, err := runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "get", "--format=json"})
 	require.NoError(t, err)
-	response := mustDecodeJSON[versionResponse](t, getBuf)
+	response := mustDecodeJSON[getResponse](t, getBuf)
 	assert.Equal(t, "1.2.3", response.TargetVersion)
+	assert.Equal(t, "disabled", response.Mode)
 }
 
 func runAutoUpdateCommand(t *testing.T, ctx context.Context, client *authclient.Client, args []string) (*bytes.Buffer, error) {

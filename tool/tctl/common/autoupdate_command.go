@@ -37,8 +37,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// versionResponse is structure for formatting the autoupdate version response.
-type versionResponse struct {
+// getResponse is structure for formatting the client tools auto update response.
+type getResponse struct {
+	Mode          string `json:"mode"`
 	TargetVersion string `json:"target_version"`
 }
 
@@ -204,20 +205,32 @@ func (c *AutoUpdateCommand) setAutoUpdateVersion(ctx context.Context, client *au
 	return nil
 }
 
-func (c *AutoUpdateCommand) get(ctx context.Context, client *authclient.Client) (*versionResponse, error) {
-	var response versionResponse
+func (c *AutoUpdateCommand) get(ctx context.Context, client *authclient.Client) (*getResponse, error) {
+	var response getResponse
 	if c.proxy != "" {
 		find, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: c.proxy, Insecure: true})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		response.TargetVersion = find.AutoUpdate.ToolsVersion
+		response.Mode = autoupdate.ToolsUpdateModeDisabled
+		if find.AutoUpdate.ToolsAutoUpdate {
+			response.Mode = autoupdate.ToolsUpdateModeEnabled
+		}
 	} else {
-		version, err := client.GetAutoUpdateVersion(ctx)
-		if err != nil {
+		config, err := client.GetAutoUpdateConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		if version.Spec.Tools != nil {
+		if config != nil && config.Spec.Tools != nil {
+			response.Mode = config.Spec.Tools.Mode
+		}
+
+		version, err := client.GetAutoUpdateVersion(ctx)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		if version != nil && version.Spec.Tools != nil {
 			response.TargetVersion = version.Spec.Tools.TargetVersion
 		}
 	}
