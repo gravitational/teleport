@@ -18,7 +18,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -139,11 +138,8 @@ type AccessRequestReconciler struct {
 	reconcileCh chan struct{}
 	stopCh      chan struct{}
 
-	accessRequestsMu sync.RWMutex
-	accessRequests   map[string]types.AccessRequest
-
-	newAccessRequestsMu sync.RWMutex
-	newAccessRequests   map[string]types.AccessRequest
+	accessRequests    *accessRequestSyncMap
+	newAccessRequests *accessRequestSyncMap
 
 	retryer retryutils.Retry
 
@@ -178,8 +174,8 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 		oktaClient:              config.OktaClient,
 		reconcileCh:             make(chan struct{}),
 		stopCh:                  make(chan struct{}, 1),
-		accessRequests:          map[string]types.AccessRequest{},
-		newAccessRequests:       map[string]types.AccessRequest{},
+		accessRequests:          newAccessRequestSyncMap(),
+		newAccessRequests:       newAccessRequestSyncMap(),
 		retryer:                 retryer,
 		onServiceDisconnectedCh: config.onServiceDisconnectedCh,
 		onReconcileCh:           config.onReconcileCh,
@@ -258,8 +254,8 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 		Matcher: func(resource types.AccessRequest) bool {
 			return a.matcher(ctx, resource)
 		},
-		GetCurrentResources: a.getAccessRequests,
-		GetNewResources:     a.getNewAccessRequests,
+		GetCurrentResources: a.accessRequests.CopyAsMap,
+		GetNewResources:     a.newAccessRequests.CopyAsMap,
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
@@ -314,9 +310,7 @@ func (a *AccessRequestReconciler) reconcile(ctx context.Context, reconciler *ser
 					}
 				})
 			} else if a.onReconcile != nil {
-				a.accessRequestsMu.RLock()
-				a.onReconcile(copyAccessRequestMapToAccessRequests(a.accessRequests))
-				a.accessRequestsMu.RUnlock()
+				a.onReconcile(a.accessRequests.CopyAsSlice())
 			}
 			if a.onReconcileCh != nil {
 				a.onReconcileCh <- struct{}{}
@@ -349,22 +343,6 @@ func (a *AccessRequestReconciler) Stop() {
 	close(a.stopCh)
 }
 
-// getAccessRequests returns the list of access requests currently known to the reconciler.
-func (a *AccessRequestReconciler) getAccessRequests() map[string]types.AccessRequest {
-	a.accessRequestsMu.RLock()
-	defer a.accessRequestsMu.RUnlock()
-
-	return utils.FromSlice(copyAccessRequestMapToAccessRequests(a.accessRequests), types.AccessRequest.GetName)
-}
-
-// getNewAccessRequests returns the list of new access requests that the reconciler has yet to act on.
-func (a *AccessRequestReconciler) getNewAccessRequests() map[string]types.AccessRequest {
-	a.newAccessRequestsMu.RLock()
-	defer a.newAccessRequestsMu.RUnlock()
-
-	return utils.FromSlice(copyAccessRequestMapToAccessRequests(a.newAccessRequests), types.AccessRequest.GetName)
-}
-
 // startResourceWatcher starts watching changes to access request resources and
 // create OktaAssignment resources.
 func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*services.AccessRequestWatcher, error) {
@@ -387,12 +365,7 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 		for {
 			select {
 			case newAccessRequests := <-watcher.AccessRequestsC:
-				a.newAccessRequestsMu.Lock()
-				a.newAccessRequests = map[string]types.AccessRequest{}
-				for _, newAccessRequest := range newAccessRequests {
-					a.newAccessRequests[newAccessRequest.GetName()] = newAccessRequest
-				}
-				a.newAccessRequestsMu.Unlock()
+				a.newAccessRequests.ReplaceWith(newAccessRequests)
 
 				select {
 				case a.reconcileCh <- struct{}{}:
@@ -439,9 +412,7 @@ func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest
 			return trace.Wrap(err)
 		}
 
-		a.accessRequestsMu.Lock()
-		a.accessRequests[newAccessRequest.GetName()] = newAccessRequest
-		a.accessRequestsMu.Unlock()
+		a.accessRequests.Insert(newAccessRequest)
 	}
 
 	return nil
@@ -462,9 +433,7 @@ func (a *AccessRequestReconciler) onUpdate(ctx context.Context, updatedAccessReq
 			return trace.Wrap(err, "error marking assignment for cleanup")
 		}
 
-		a.accessRequestsMu.Lock()
-		a.accessRequests[updatedAccessRequest.GetName()] = updatedAccessRequest
-		a.accessRequestsMu.Unlock()
+		a.accessRequests.Insert(updatedAccessRequest)
 	}
 
 	return nil
@@ -487,10 +456,7 @@ func (a *AccessRequestReconciler) onDelete(ctx context.Context, request types.Ac
 		}
 	}
 
-	a.accessRequestsMu.Lock()
-	delete(a.accessRequests, request.GetName())
-	a.accessRequestsMu.Unlock()
-
+	a.accessRequests.Delete(request)
 	return nil
 }
 
@@ -663,7 +629,7 @@ func (a *AccessRequestReconciler) OnLogin(ctx context.Context, user types.User) 
 
 	// Cycle through all access requests, looking for access requests that belong to the
 	// given user.
-	accessRequests := a.getAccessRequests()
+	accessRequests := a.accessRequests.CopyAsMap()
 	for accessRequestName, accessRequest := range accessRequests {
 		// This access request is already expired, so no need to process it. Its
 		// corresponding Okta assignment should also be expired.
@@ -715,15 +681,6 @@ func (a *AccessRequestReconciler) OnLogin(ctx context.Context, user types.User) 
 	return nil
 }
 
-func copyAccessRequestMapToAccessRequests(accessRequests map[string]types.AccessRequest) types.AccessRequests {
-	accessRequestsCopy := types.AccessRequests(make([]types.AccessRequest, 0, len(accessRequests)))
-	for _, accessRequest := range accessRequests {
-		accessRequestsCopy = append(accessRequestsCopy, accessRequest.Copy())
-	}
-
-	return accessRequestsCopy
-}
-
 // isUserLocal will return true if the given user is a local user. If the user cannot be determined,
 // it will return false, which means it will indicate that the user is an SSO user.
 func (a *AccessRequestReconciler) isUserLocal(ctx context.Context, username string) (bool, error) {
@@ -736,4 +693,64 @@ func (a *AccessRequestReconciler) isUserLocal(ctx context.Context, username stri
 		return false, trace.Wrap(err)
 	}
 	return user.GetUserType() == types.UserTypeLocal, nil
+}
+
+type accessRequestSyncMap struct {
+	mu             sync.RWMutex
+	accessRequests map[string]types.AccessRequest
+}
+
+func newAccessRequestSyncMap() *accessRequestSyncMap {
+	return &accessRequestSyncMap{
+		accessRequests: make(map[string]types.AccessRequest),
+	}
+}
+
+func (m *accessRequestSyncMap) Insert(v types.AccessRequest) {
+	m.mu.Lock()
+	m.accessRequests[v.GetName()] = v
+	m.mu.Unlock()
+}
+
+func (m *accessRequestSyncMap) Delete(v types.AccessRequest) {
+	m.mu.Lock()
+	delete(m.accessRequests, v.GetName())
+	m.mu.Unlock()
+}
+
+func (m *accessRequestSyncMap) ReplaceWith(values types.AccessRequests) {
+	newData := make(map[string]types.AccessRequest)
+	for _, v := range values {
+		newData[v.GetName()] = v
+	}
+
+	m.mu.Lock()
+	m.accessRequests = newData
+	m.mu.Unlock()
+}
+
+func (m *accessRequestSyncMap) CopyAsMap() map[string]types.AccessRequest {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	res := make(map[string]types.AccessRequest, len(m.accessRequests))
+	for k, v := range m.accessRequests {
+		res[k] = v.Copy()
+	}
+
+	return res
+}
+
+func (m *accessRequestSyncMap) CopyAsSlice() types.AccessRequests {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	res := make([]types.AccessRequest, len(m.accessRequests))
+	i := 0
+	for _, v := range m.accessRequests {
+		res[i] = v.Copy()
+		i++
+	}
+
+	return res
 }

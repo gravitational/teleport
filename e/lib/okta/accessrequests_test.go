@@ -27,8 +27,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// Reconciler should be empty to start
-	require.Empty(t, reconciler.getAccessRequests())
-	require.Empty(t, reconciler.getNewAccessRequests())
+	require.Empty(t, reconciler.accessRequests.CopyAsMap())
+	require.Empty(t, reconciler.newAccessRequests.CopyAsMap())
 
 	user := userName("test-user")
 	roles := []string{"test-role"}
@@ -67,8 +67,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
-	require.Empty(t, reconciler.getAccessRequests())
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, reconciler.accessRequests.CopyAsMap())
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
@@ -84,8 +84,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
-	require.Empty(t, reconciler.getAccessRequests())
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, reconciler.accessRequests.CopyAsMap())
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
@@ -108,15 +108,15 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, err)
 
 	// No reconcile will be triggered because the reconciler will be stopped.
-	require.Empty(t, reconciler.getAccessRequests())
-	require.Empty(t, reconciler.getNewAccessRequests())
+	require.Empty(t, reconciler.accessRequests.CopyAsMap())
+	require.Empty(t, reconciler.newAccessRequests.CopyAsMap())
 
 	// We'll reconnect the Okta service and the assignment should be created.
 	ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
 	clock.Advance(10 * time.Minute) // This will restart the reconciler.
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.accessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(map[string]types.AccessRequest{accessRequest.GetName(): accessRequest}, reconciler.newAccessRequests.CopyAsMap(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	foundAssignment := getOktaAssignment(t, ap, accessRequest.GetName())
 	expires := accessRequest.GetAccessExpiry()
@@ -224,7 +224,7 @@ func TestAccessRequestReconciler_idempotency(t *testing.T) {
 	require.NoError(t, err)
 
 	// There still should be access request registered in the reconciler
-	require.Len(t, reconciler.getAccessRequests(), 1)
+	require.Len(t, reconciler.accessRequests.CopyAsMap(), 1)
 
 	// Let's delete the access request now
 	err = ap.DeleteAccessRequest(ctx, accessRequest.GetName())
@@ -235,7 +235,7 @@ func TestAccessRequestReconciler_idempotency(t *testing.T) {
 
 	// The access request should be de-registered in the reconciler, even though the
 	// corresponding Okta assignment doesn't exist in the backend
-	require.Empty(t, reconciler.getAccessRequests())
+	require.Empty(t, reconciler.accessRequests.CopyAsMap())
 }
 
 func TestAccessRequestToOktaAssignment(t *testing.T) {
@@ -606,7 +606,7 @@ func TestOnLogin(t *testing.T) {
 
 			// Wait for the reconciler to see the access requests.
 			require.EventuallyWithT(t, func(tollect *assert.CollectT) {
-				assert.Len(t, reconciler.getAccessRequests(), count)
+				assert.Len(t, reconciler.accessRequests.CopyAsMap(), count)
 			}, 5*time.Second, 10*time.Millisecond)
 
 			cmpOpts := []cmp.Option{
