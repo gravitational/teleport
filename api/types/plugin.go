@@ -129,6 +129,7 @@ type PluginStatus interface {
 	GetGitlab() *PluginGitlabStatusV1
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
+	GetAwsIc() *PluginAWSICStatusV1
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
