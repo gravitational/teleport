@@ -685,7 +685,6 @@ $ kubectl -n <namespace> edit tenant
 - [ ] Verify receiving email for link to start recovery
 - [ ] Verify receiving email for successfully recovering
 - [ ] Verify email link is invalid after successful recovery
-- [ ] Verify receiving email for locked account when max attempts reached
 
 ## RBAC
 
