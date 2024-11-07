@@ -18,6 +18,7 @@ package mfa
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -72,12 +73,14 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 	if c.SSOMFACeremonyConstructor != nil {
 		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to handle SSO MFA ceremony")
+			// We may fail to start the SSO MFA flow in cases where the Proxy is down or broken. Fall
+			// back to skipping SSO MFA, especially since SSO MFA may not even be allowed on the server.
+			slog.DebugContext(ctx, "Failed to attempt SSO MFA, continuing with other MFA methods.", "error", err)
+		} else {
+			defer ssoMFACeremony.Close()
+			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 		}
-		defer ssoMFACeremony.Close()
-
-		req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
-		promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 	}
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)
