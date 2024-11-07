@@ -106,7 +106,7 @@ function Inner(props: { rootCluster: Cluster }) {
     documentsService.open(doc.uri);
   }
 
-  const isRequestingResourcesFromResourcesViewEnabled =
+  const doesUnifiedResourcesShowBothAccesibleAndRequestableResources =
     props.rootCluster.showResources === ShowResources.REQUESTABLE;
   // This means that we can only request roles.
   // Let's hide all tabs in that case.
@@ -169,22 +169,39 @@ function Inner(props: { rootCluster: Cluster }) {
           />
         )}
       </StyledMain>
-      {isRequestingResourcesFromResourcesViewEnabled && (
-        <Alert kind="outline-info" mb={2}>
-          To request access to a resource, go to the{' '}
-          {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
-          <Link
-            css={`
-              cursor: pointer;
-              color: inherit !important;
-            `}
-            onClick={openClusterDocument}
-          >
-            resources view
-          </Link>{' '}
-          or find it in the search bar.
-        </Alert>
-      )}
+      <Alert kind="outline-info" mb={2}>
+        {doesUnifiedResourcesShowBothAccesibleAndRequestableResources ? (
+          <>
+            To request access to a resource, go to the{' '}
+            {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
+            <Link
+              css={`
+                cursor: pointer;
+                color: inherit !important;
+              `}
+              onClick={openClusterDocument}
+            >
+              resources view
+            </Link>{' '}
+            or find it in the search bar.
+          </>
+        ) : (
+          <>
+            To request access to a resource, go to the{' '}
+            {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
+            <Link
+              css={`
+                cursor: pointer;
+                color: inherit !important;
+              `}
+              onClick={openClusterDocument}
+            >
+              resources view
+            </Link>{' '}
+            and select Access Requests &gt; Show requestable resources.
+          </>
+        )}
+      </Alert>
     </Layout>
   );
 }
