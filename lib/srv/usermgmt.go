@@ -689,6 +689,7 @@ func (u *HostUserManagement) getHostUser(username string) (*HostUser, error) {
 	return &HostUser{
 		Name:   username,
 		UID:    usr.Uid,
+		GID:    usr.Gid,
 		Home:   usr.HomeDir,
 		Groups: groups,
 	}, trace.NewAggregate(groupErrs...)

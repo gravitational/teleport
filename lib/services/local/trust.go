@@ -232,13 +232,6 @@ func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) er
 		return trace.Wrap(err)
 	}
 
-	// try to skip writes that would have no effect
-	if existing, err := s.GetCertAuthority(ctx, ca.GetID(), true); err == nil {
-		if services.CertAuthoritiesEquivalent(existing, ca) {
-			return nil
-		}
-	}
-
 	item, err := caToItem(activeCAKey(ca.GetID()), ca)
 	if err != nil {
 		return trace.Wrap(err)

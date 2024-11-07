@@ -65,15 +65,15 @@ func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 
 // Ceremony is a customizable SSO MFA ceremony.
 type MFACeremony struct {
-	clientCallbackURL   string
 	close               func()
+	ClientCallbackURL   string
 	HandleRedirect      func(ctx context.Context, redirectURL string) error
 	GetCallbackMFAToken func(ctx context.Context) (string, error)
 }
 
 // GetClientCallbackURL returns the client callback URL.
 func (m *MFACeremony) GetClientCallbackURL() string {
-	return m.clientCallbackURL
+	return m.ClientCallbackURL
 }
 
 // Run the SSO MFA ceremony.
@@ -108,8 +108,8 @@ func (m *MFACeremony) Close() {
 // The returned MFACeremony takes ownership of the Redirector.
 func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 	return &MFACeremony{
-		clientCallbackURL: rd.ClientCallbackURL,
 		close:             rd.Close,
+		ClientCallbackURL: rd.ClientCallbackURL,
 		HandleRedirect:    rd.OpenRedirect,
 		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
 			loginResp, err := rd.WaitForResponse(ctx)

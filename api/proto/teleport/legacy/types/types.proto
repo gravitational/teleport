@@ -3838,6 +3838,8 @@ message SSOMFADevice {
   string connector_id = 1;
   // connector_type is the type of the SSO connector.
   string connector_type = 2;
+  // display_name is the display name of the SSO connector
+  string display_name = 3;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -6255,6 +6257,8 @@ message PluginSpecV1 {
     PluginAWSICSettings aws_ic = 16;
     // Settings for the Email Access Request plugin
     PluginEmailSettings email = 17;
+    // Settings for the Microsoft Teams plugin
+    PluginMSTeamsSettings msteams = 18;
   }
 
   // generation contains a unique ID that should:
@@ -6659,6 +6663,21 @@ message SMTPSpec {
   // StartTLSPolicy specifies the SMTP start TLS policy used to send emails over
   // SMTP.
   string start_tls_policy = 3;
+}
+
+// PluginMSTeamsSettings defines the settings for a Microsoft Teams integration plugin
+message PluginMSTeamsSettings {
+  option (gogoproto.equal) = true;
+  // AppId is the Microsoft application ID (uuid, for Azure bots must be underlying app id, not bot's id).
+  string app_id = 1;
+  // TenantId is the Microsoft tenant ID.
+  string tenant_id = 2;
+  // TeamsAppId is the Microsoft teams application ID.
+  string teams_app_id = 3;
+  // Region to be used by the Microsoft Graph API client.
+  string region = 4;
+  // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+  string default_recipient = 5;
 }
 
 message PluginBootstrapCredentialsV1 {

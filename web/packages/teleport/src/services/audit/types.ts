@@ -300,6 +300,9 @@ export const eventCodes = {
   USER_TASK_CREATE: 'UT001I',
   USER_TASK_UPDATE: 'UT002I',
   USER_TASK_DELETE: 'UT003I',
+  PLUGIN_CREATE: 'PG001I',
+  PLUGIN_UPDATE: 'PG002I',
+  PLUGIN_DELETE: 'PG003I',
 } as const;
 
 /**
@@ -1692,6 +1695,18 @@ export type RawEvents = {
   [eventCodes.USER_TASK_DELETE]: RawEvent<
     typeof eventCodes.USER_TASK_DELETE,
     HasName
+  >;
+  [eventCodes.PLUGIN_CREATE]: RawEvent<
+    typeof eventCodes.PLUGIN_CREATE,
+    Merge<HasName, { plugin_type: string }>
+  >;
+  [eventCodes.PLUGIN_UPDATE]: RawEvent<
+    typeof eventCodes.PLUGIN_UPDATE,
+    Merge<HasName, { plugin_type: string }>
+  >;
+  [eventCodes.PLUGIN_DELETE]: RawEvent<
+    typeof eventCodes.PLUGIN_DELETE,
+    Merge<HasName, { user: string }>
   >;
   [eventCodes.SFTP_SUMMARY]: RawEvent<
     typeof eventCodes.SFTP_SUMMARY,

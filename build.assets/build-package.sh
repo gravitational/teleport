@@ -221,7 +221,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     FILE_LIST="${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/fdpass-teleport"
     BUNDLE_ID="${b:-com.gravitational.teleport}"
     if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
-        PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
+        PKG_FILENAME="teleport-ent-bin-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     else
         PKG_FILENAME="teleport-bin-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
