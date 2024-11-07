@@ -106,7 +106,10 @@ type TerminalServiceClient interface {
 	StartHeadlessWatcher(ctx context.Context, in *StartHeadlessWatcherRequest, opts ...grpc.CallOption) (*StartHeadlessWatcherResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
+	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
+	//
+	// Deprecated: Use ListUnifiedResources instead.
 	GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(ctx context.Context, in *GetAccessRequestsRequest, opts ...grpc.CallOption) (*GetAccessRequestsResponse, error)
@@ -270,6 +273,7 @@ func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListD
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *terminalServiceClient) GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetServersResponse)
@@ -660,7 +664,10 @@ type TerminalServiceServer interface {
 	StartHeadlessWatcher(context.Context, *StartHeadlessWatcherRequest) (*StartHeadlessWatcherResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
+	// Deprecated: Do not use.
 	// GetServers returns filtered, sorted, and paginated servers
+	//
+	// Deprecated: Use ListUnifiedResources instead.
 	GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
 	GetAccessRequests(context.Context, *GetAccessRequestsRequest) (*GetAccessRequestsResponse, error)
