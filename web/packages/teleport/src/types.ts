@@ -81,7 +81,13 @@ export enum NavTitle {
   // Resources Requests
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
-  AccessGraph = 'Access Graph',
+
+  // Access Graph
+  AccessGraphDashboard = 'Dashboard',
+  AccessGraphBrowse = 'Browse',
+  AccessGraphCrownJewels = 'Crown Jewels',
+  AccessGraphGraphExplorer = 'Graph Explorer',
+  AccessGraphSQLEditor = 'SQL Editor',
 
   // Activity
   SessionRecordings = 'Session Recordings',
