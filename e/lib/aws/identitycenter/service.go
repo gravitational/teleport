@@ -240,8 +240,9 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 	svc.log.DebugContext(ctx, "Normalizing Identity Center data")
 
 	// generate all of the the possible permission set bindings
-	roles := make(rolesMap, len(data.accounts)*len(data.permissionSets))
-	accountAssignments := make(accountAssignmentMap, len(data.accounts)*len(data.permissionSets))
+	assignmentCount := len(data.accounts) * len(data.permissionSets)
+	roles := make(rolesMap, assignmentCount)
+	accountAssignments := make(accountAssignmentMap, assignmentCount)
 	for _, acct := range data.accounts {
 		for _, ps := range acct.Spec.PermissionSetInfo {
 			role, err := NewAccountAssignmentRole(acct, ps)
@@ -256,6 +257,12 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 			}
 			accountAssignments[getAccountAssignmentID(asmt)] = asmt
 		}
+	}
+
+	// mark the owning account
+	ownerID := services.IdentityCenterAccountID(data.icInstance.OwnerAccountID)
+	if acct, ok := data.accounts[ownerID]; ok {
+		acct.GetSpec().IsOrganizationOwner = true
 	}
 
 	return &preProcessedExternalData{

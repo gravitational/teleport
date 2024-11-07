@@ -102,12 +102,12 @@ func (svc *Service) reconcileAccountAssignments(ctx context.Context, oldAssignme
 func newAccountAssignment(acct services.IdentityCenterAccount, ps *identitycenterv1.PermissionSetInfo) (services.IdentityCenterAccountAssignment, error) {
 	asmt := services.IdentityCenterAccountAssignment{
 		AccountAssignment: &identitycenterv1.AccountAssignment{
-			Kind: types.KindIdentityCenterAccountAssignment,
+			Kind:    types.KindIdentityCenterAccountAssignment,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: normalizeResourceName(fmt.Sprintf("%s--%s", acct.Spec.Name, ps.Name)),
 				Labels: map[string]string{
-					types.OriginLabel:       common.OriginAWSIdentityCenter,
-					types.AWSAccountIDLabel: acct.Spec.Id,
+					types.OriginLabel: common.OriginAWSIdentityCenter,
 				},
 			},
 			Spec: &identitycenterv1.AccountAssignmentSpec{

@@ -10,12 +10,13 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/equal"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 func getPermissionSetID(ps *identitycenterv1.PermissionSet) services.PermissionSetID {
-	return services.PermissionSetID(ps.Spec.Arn)
+	return services.PermissionSetID(ps.GetMetadata().GetName())
 }
 
 type psResourceMap map[services.PermissionSetID]*identitycenterv1.PermissionSet
@@ -26,6 +27,9 @@ func newPermissionSet(arn arn.ARN, name, description string) *identitycenterv1.P
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: normalizeResourceName(arn.Resource),
+			Labels: map[string]string{
+				common.OriginLabel: common.OriginAWSIdentityCenter,
+			},
 		},
 		Spec: &identitycenterv1.PermissionSetSpec{
 			Arn:         arn.String(),

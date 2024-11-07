@@ -2,6 +2,8 @@ package identitycenter
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
@@ -51,11 +53,16 @@ func (svc *Service) refreshExternalData(ctx context.Context) (*externalData, err
 		permissionSets: permissionSets,
 	}
 
-	// Ensure all accounts have the available permission sets listed
+	// Ensure all accounts have the available permission sets listed. The
+	// permission set info will be sorted by permission set id to ensure
+	// deterministic ordering.
+	sortedPermissionSetIDs := slices.Collect(maps.Keys(permissionSets))
+	slices.Sort(sortedPermissionSetIDs)
 	for _, acct := range accounts {
 		pss := make([]*identitycenterv1.PermissionSetInfo, 0, len(permissionSets))
 
-		for _, ps := range permissionSets {
+		for _, psID := range sortedPermissionSetIDs {
+			ps := permissionSets[psID]
 			pss = append(pss, &identitycenterv1.PermissionSetInfo{
 				Name: ps.Spec.Name,
 				Arn:  ps.Spec.Arn,

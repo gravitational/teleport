@@ -19,6 +19,13 @@ func NewClientMock() *ClientMock {
 type ClientMock struct {
 	Mu sync.Mutex
 	MockedAWSStateType
+
+	// MonkeyPatch allows tests to override the default behavior of a mock
+	// instance.
+	MonkeyPatch struct {
+		DescribeInstance   func(context.Context) (*InstanceInfo, error)
+		ListPermissionSets func(context.Context) ([]*PermissionSet, error)
+	}
 }
 
 // NewMockedAWSState is a struct that holds the mocked AWS state.
@@ -105,8 +112,12 @@ type MockedAWSStateType struct {
 // DescribeInstance returns a mocked InstanceInfo
 func (c *ClientMock) DescribeInstance(ctx context.Context) (*InstanceInfo, error) {
 	c.Mu.Lock()
+	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.DescribeInstance != nil {
+		return c.MonkeyPatch.DescribeInstance(ctx)
+	}
 	info := c.Info
-	c.Mu.Unlock()
 	return &info, nil
 }
 
@@ -147,6 +158,10 @@ func (c *ClientMock) ListPermissionSetARNsForAccount(ctx context.Context, accoun
 func (c *ClientMock) ListPermissionSets(ctx context.Context) ([]*PermissionSet, error) {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+
+	if c.MonkeyPatch.ListPermissionSets != nil {
+		return c.MonkeyPatch.ListPermissionSets(ctx)
+	}
 	return c.PermissionSets, nil
 }
 
