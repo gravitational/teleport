@@ -6620,10 +6620,10 @@ enum AWSICGroupImportStatusCode {
   // UNSPECIFIED denotes that a status is unknown.
   UNSPECIFIED = 0;
   // DONE denotes that the group and group members import operation was
-  // performed with success.
+  // completed.
   DONE = 1;
-  // ERROR denotes that the group and group members import met with an error.
-  ERROR = 2;
+  // FAILED denotes that the group and group members import met with an error.
+  FAILED = 2;
 }
 
 // PluginEmailSettings holds the settings for an Email Access Request plugin.
@@ -6716,6 +6716,7 @@ message PluginStatusV1 {
     PluginEntraIDStatusV1 entra_id = 5;
     // Okta holds status details for the Okta plugin
     PluginOktaStatusV1 okta = 7;
+    // AWSIC holds status details for the AWS Identity Center plugin.
     PluginAWSICStatusV1 aws_ic = 8;
   }
 
