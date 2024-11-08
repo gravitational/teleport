@@ -45,21 +45,6 @@ message AzureVirtualMachine {
   string name = 4;
 }
 
-// AzureManagedDatabase is an Azure-managed Postgres or MySQL database
-message AzureManagedDatabase {
-  string id = 1;
-  string subscription_id = 2;
-  google.protobuf.Timestamp last_sync_time = 3;
-  string name = 4;
-}
-
-// AzureAKSCluster is an AKS cluster
-message AzureAKSCluster {
-  string id = 1;
-  string subscription_id = 2;
-  google.protobuf.Timestamp last_sync_time = 3;
-  string name = 4;
-}
 
 // AzurePrincipal is an Azure principal (user, group, service principal)
 message AzurePrincipal {
