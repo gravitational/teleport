@@ -177,7 +177,7 @@ function getNavSubsectionForRoute(
     .find(feature =>
       matchPath(route.pathname, {
         path: feature.route.path,
-        exact: false,
+        exact: feature.route.exact,
       })
     );
 
