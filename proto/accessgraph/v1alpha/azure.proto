@@ -27,7 +27,7 @@ message AzureResourceList {
   repeated AzureResource resources = 1;
 }
 
-// AWSResource is a list of AWS resources supported by the access graph.
+// AzureResource is a list of Azure resources supported by the access graph.
 message AzureResource {
   oneof resource {
     // principal  is an Azure principal
