@@ -420,7 +420,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 	}
 }
 
-func TestLocalInstaller_TryLinkSystem(t *testing.T) {
+func TestLocalInstaller_TryLink(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
 
@@ -483,12 +483,7 @@ func TestLocalInstaller_TryLinkSystem(t *testing.T) {
 				"lib/systemd/system/teleport.service",
 			},
 
-			resultLinks: []string{
-				"bin/teleport",
-				"bin/tsh",
-				"bin/tbot",
-				"lib/systemd/system/teleport.service",
-			},
+			errMatch: "refusing",
 		},
 		{
 			name: "conflicting systemd files",
@@ -601,12 +596,12 @@ func TestLocalInstaller_TryLinkSystem(t *testing.T) {
 				Log:            slog.Default(),
 			}
 			ctx := context.Background()
-			revert, err := installer.Link(ctx, version)
+			err = installer.TryLink(ctx, version)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
 
-				// verify automatic revert
+				// verify no changes
 				for _, link := range tt.existingLinks {
 					v, err := os.Readlink(filepath.Join(linkDir, link))
 					require.NoError(t, err)
@@ -617,10 +612,6 @@ func TestLocalInstaller_TryLinkSystem(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, filepath.Base(n), string(v))
 				}
-
-				// ensure revert still succeeds
-				ok := revert(ctx)
-				require.True(t, ok)
 				return
 			}
 			require.NoError(t, err)
@@ -630,20 +621,6 @@ func TestLocalInstaller_TryLinkSystem(t *testing.T) {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
 				require.Equal(t, filepath.Base(link), string(v))
-			}
-
-			// verify manual revert
-			ok := revert(ctx)
-			require.True(t, ok)
-			for _, link := range tt.existingLinks {
-				v, err := os.Readlink(filepath.Join(linkDir, link))
-				require.NoError(t, err)
-				require.Equal(t, filepath.Base(link)+".old", v)
-			}
-			for _, n := range tt.existingFiles {
-				v, err := os.ReadFile(filepath.Join(linkDir, n))
-				require.NoError(t, err)
-				require.Equal(t, filepath.Base(n), string(v))
 			}
 		})
 	}

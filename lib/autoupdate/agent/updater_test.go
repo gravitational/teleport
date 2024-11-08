@@ -835,10 +835,12 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall func(ctx context.Context, version, template string, flags InstallFlags) error
-	FuncRemove  func(ctx context.Context, version string) error
-	FuncLink    func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
-	FuncList    func(ctx context.Context) (versions []string, err error)
+	FuncInstall       func(ctx context.Context, version, template string, flags InstallFlags) error
+	FuncRemove        func(ctx context.Context, version string) error
+	FuncLink          func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
+	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
+	FuncTryLinkSystem func(ctx context.Context) error
+	FuncList          func(ctx context.Context) (versions []string, err error)
 }
 
 func (ti *testInstaller) Install(ctx context.Context, version, template string, flags InstallFlags) error {
@@ -851,6 +853,14 @@ func (ti *testInstaller) Remove(ctx context.Context, version string) error {
 
 func (ti *testInstaller) Link(ctx context.Context, version string) (revert func(context.Context) bool, err error) {
 	return ti.FuncLink(ctx, version)
+}
+
+func (ti *testInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
+	return ti.FuncLinkSystem(ctx)
+}
+
+func (ti *testInstaller) TryLinkSystem(ctx context.Context) error {
+	return ti.FuncTryLinkSystem(ctx)
 }
 
 func (ti *testInstaller) List(ctx context.Context) (versions []string, err error) {

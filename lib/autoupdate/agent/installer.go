@@ -532,6 +532,18 @@ func forceLink(oldname, newname string) (orig string, err error) {
 	return orig, nil
 }
 
+// TryLink
+func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
+	versionDir, err := li.versionDir(version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(li.tryLinks(ctx,
+		filepath.Join(versionDir, "bin"),
+		filepath.Join(versionDir, filepath.Dir(servicePath)),
+	))
+}
+
 // TryLinkSystem links the system installation, but only in the case that
 // no installation of Teleport is already linked or partially linked.
 // See Installer interface for additional specs.
@@ -558,7 +570,7 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) e
 
 	var links []symlink
 	var linked int
-	entries, err := os.ReadDir(li.SystemBinDir)
+	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return trace.Errorf("failed to find Teleport binary directory: %w", err)
 	}
