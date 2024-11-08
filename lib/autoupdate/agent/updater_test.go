@@ -958,6 +958,7 @@ type testInstaller struct {
 	FuncRemove        func(ctx context.Context, version string) error
 	FuncLink          func(ctx context.Context, version string) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
+	FuncTryLink       func(ctx context.Context, version string) error
 	FuncTryLinkSystem func(ctx context.Context) error
 	FuncList          func(ctx context.Context) (versions []string, err error)
 }
@@ -976,6 +977,10 @@ func (ti *testInstaller) Link(ctx context.Context, version string) (revert func(
 
 func (ti *testInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
 	return ti.FuncLinkSystem(ctx)
+}
+
+func (ti *testInstaller) TryLink(ctx context.Context, version string) error {
+	return ti.FuncTryLink(ctx, version)
 }
 
 func (ti *testInstaller) TryLinkSystem(ctx context.Context) error {

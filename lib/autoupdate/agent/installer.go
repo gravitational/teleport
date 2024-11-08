@@ -395,10 +395,6 @@ func (li *LocalInstaller) List(ctx context.Context) (versions []string, err erro
 	return versions, nil
 }
 
-type symlink struct {
-	old, new string
-}
-
 // Link the specified version into the system LinkBinDir and LinkServiceDir.
 // The revert function restores the previous linking.
 // See Installer interface for additional specs.
@@ -418,10 +414,17 @@ func (li *LocalInstaller) Link(ctx context.Context, version string) (revert func
 	return revert, nil
 }
 
-// LinkSystem
+// LinkSystem links the system (package) version into the system LinkBinDir and LinkServiceDir.
+// The revert function restores the previous linking.
+// See Installer interface for additional specs.
 func (li *LocalInstaller) LinkSystem(ctx context.Context) (revert func(context.Context) bool, err error) {
 	revert, err = li.forceLinks(ctx, li.SystemBinDir, li.SystemServiceDir)
 	return revert, trace.Wrap(err)
+}
+
+// symlink from old to new
+type symlink struct {
+	old, new string
 }
 
 // forceLinks replaces binary and service links with links to files in binDir and svcDir.
@@ -532,7 +535,9 @@ func forceLink(oldname, newname string) (orig string, err error) {
 	return orig, nil
 }
 
-// TryLink
+// TryLink links the specified version, but only in the case that
+// no installation of Teleport is already linked or partially linked.
+// See Installer interface for additional specs.
 func (li *LocalInstaller) TryLink(ctx context.Context, version string) error {
 	versionDir, err := li.versionDir(version)
 	if err != nil {
@@ -615,7 +620,9 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, binDir, svcDir string) e
 	return nil
 }
 
-// needsLink
+// needsLink returns true when a symlink from oldname to newname needs to be created, or false if it exists.
+// If a non-symlink file or directory exists at newname, needsLink errors.
+// If a symlink to a different location exists, needsLink errors with ErrLinked.
 func needsLink(oldname, newname string) (ok bool, err error) {
 	orig, err := os.Readlink(newname)
 	if errors.Is(err, os.ErrInvalid) ||
@@ -623,11 +630,11 @@ func needsLink(oldname, newname string) (ok bool, err error) {
 		// important: do not attempt to replace a non-linked install of Teleport
 		return false, trace.Errorf("refusing to replace file at %s", newname)
 	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return false, trace.Wrap(err)
-	}
 	if errors.Is(err, os.ErrNotExist) {
 		return true, nil
+	}
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
 	if orig != oldname {
 		return false, trace.Errorf("refusing to replace link at %s: %w", newname, ErrLinked)
