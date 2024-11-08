@@ -193,14 +193,22 @@ func (svc *Service) refreshAllPrincipalAssignments(ctx context.Context) error {
 func (svc *Service) refreshPrincipalAssignment(
 	ctx context.Context,
 	principal types.Resource,
-	assignment *identitycenterv1.PrincipalAssignment,
+	pa *identitycenterv1.PrincipalAssignment,
 ) error {
 
-	_, err := svc.assignmentCalculator.CalcAssignments(ctx, principal, assignment)
+	pa, err := svc.assignmentCalculator.CalcAssignments(ctx, principal, pa)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO(tcsc): invoke provisioner here
+	if pa.GetStatus().GetProvisioningState() != identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE {
+		return nil
+	}
+
+	_, err = svc.assignmentProvisioner.Provision(ctx, pa)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }

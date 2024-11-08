@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/calculator"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
+	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -29,25 +30,26 @@ const (
 
 // Service is the configuration for the Identity Center service
 type Service struct {
-	accessListSvc        services.AccessLists
-	accessListPredicate  func(*accesslist.AccessList) bool
-	accessListSvcCache   provisioning.AccessListsService
-	accessRequestSvc     services.AccessRequestGetter
-	icClient             icsdk.Client
-	clock                clockwork.Clock
-	icSvc                services.IdentityCenter
-	log                  *slog.Logger
-	provisioner          *provisioning.Service
-	rolesSvc             RolesService
-	usersSvc             UsersService
-	userPredicate        func(types.User) bool
-	awsSyncInterval      time.Duration
-	importConfig         ImportConfig
-	pluginStatusSink     common.StatusSink
-	pluginsService       pluginsService
-	resourceMonitor      *monitor.ResourceMonitor
-	principalEventCh     chan *monitor.PrincipalEvent
-	assignmentCalculator *calculator.AssignmentCalculator
+	accessListSvc         services.AccessLists
+	accessListPredicate   func(*accesslist.AccessList) bool
+	accessListSvcCache    provisioning.AccessListsService
+	accessRequestSvc      services.AccessRequestGetter
+	icClient              icsdk.Client
+	clock                 clockwork.Clock
+	icSvc                 services.IdentityCenter
+	log                   *slog.Logger
+	provisioner           *provisioning.Service
+	rolesSvc              RolesService
+	usersSvc              UsersService
+	userPredicate         func(types.User) bool
+	awsSyncInterval       time.Duration
+	importConfig          ImportConfig
+	pluginStatusSink      common.StatusSink
+	pluginsService        pluginsService
+	resourceMonitor       *monitor.ResourceMonitor
+	principalEventCh      chan *monitor.PrincipalEvent
+	assignmentCalculator  *calculator.AssignmentCalculator
+	assignmentProvisioner *icprov.AssignmentProvisioner
 }
 
 // NewService creates a new Identity Center Service instance from the supplied
@@ -97,6 +99,15 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	assignmentProvisioner, err := icprov.NewAssignmentProvisioner(icprov.ProvisionerConfig{
+		Assignment: config.IdentityCenterDataSvc,
+		Log:        config.Log.With(teleport.ComponentKey, Component+":AP"),
+		SDKClient:  config.ICClient,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Events from the resource monitor will end up being queued for handling in
 	// this buffered channel. The channel is buffered because recalculating and
 	// provisioning a principal can take some time (especially while creating or
@@ -107,25 +118,26 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 	principalEventCh := make(chan *monitor.PrincipalEvent, config.EventBufferSize)
 
 	svc = &Service{
-		accessListSvc:        config.AccessListsSvc,
-		accessListSvcCache:   config.Provisioning.AccessListsSvcCache,
-		accessRequestSvc:     config.AccessRequestsSvc,
-		clock:                config.Clock,
-		icSvc:                config.IdentityCenterDataSvc,
-		icClient:             config.ICClient,
-		log:                  config.Log,
-		provisioner:          provisioner,
-		rolesSvc:             config.RolesSvc,
-		usersSvc:             config.UsersSvc,
-		userPredicate:        config.UserPredicate,
-		accessListPredicate:  config.AccessListPredicate,
-		awsSyncInterval:      config.SyncInterval,
-		importConfig:         config.ImportConfig,
-		pluginStatusSink:     config.PluginStatusSink,
-		pluginsService:       config.PluginsService,
-		resourceMonitor:      resourceMonitor,
-		principalEventCh:     principalEventCh,
-		assignmentCalculator: assignmentCalculator,
+		accessListSvc:         config.AccessListsSvc,
+		accessListSvcCache:    config.Provisioning.AccessListsSvcCache,
+		accessRequestSvc:      config.AccessRequestsSvc,
+		clock:                 config.Clock,
+		icSvc:                 config.IdentityCenterDataSvc,
+		icClient:              config.ICClient,
+		log:                   config.Log,
+		provisioner:           provisioner,
+		rolesSvc:              config.RolesSvc,
+		usersSvc:              config.UsersSvc,
+		userPredicate:         config.UserPredicate,
+		accessListPredicate:   config.AccessListPredicate,
+		awsSyncInterval:       config.SyncInterval,
+		importConfig:          config.ImportConfig,
+		pluginStatusSink:      config.PluginStatusSink,
+		pluginsService:        config.PluginsService,
+		resourceMonitor:       resourceMonitor,
+		principalEventCh:      principalEventCh,
+		assignmentCalculator:  assignmentCalculator,
+		assignmentProvisioner: assignmentProvisioner,
 	}
 	resourceMonitor.SetEventHandler(svc.onResourceMonitorEvent)
 
