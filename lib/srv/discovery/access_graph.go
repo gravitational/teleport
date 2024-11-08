@@ -374,7 +374,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		tickerInterval = defaultPollInterval
 	}
 	timer := time.NewTimer(tickerInterval)
-	defer ticker.Stop()
+	defer timer.Stop()
 	for {
 		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
 		if errors.Is(err, errNoAccessGraphFetchers) {
@@ -387,10 +387,17 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 			}
 			return trace.Wrap(err)
 		}
+		if !timer.Stop() {
+			select {
+			case <-timer.C: // drain
+			default:
+			}
+		}
+		timer.Reset(tickerInterval)
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-ticker.C:
+		case <-timer.C:
 		case <-reloadCh:
 		}
 	}
