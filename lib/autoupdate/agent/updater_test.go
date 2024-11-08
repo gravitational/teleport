@@ -510,6 +510,125 @@ func TestUpdater_Update(t *testing.T) {
 	}
 }
 
+func TestUpdater_LinkPackage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		cfg              *UpdateConfig // nil -> file not present
+		tryLinkSystemErr error
+
+		tryLinkSystemCalls int
+		errMatch           string
+	}{
+		{
+			name: "updates enabled",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: true,
+				},
+			},
+
+			tryLinkSystemCalls: 0,
+		},
+		{
+			name: "updates disabled",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+
+			tryLinkSystemCalls: 1,
+		},
+		{
+			name: "already linked",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+			tryLinkSystemErr: ErrLinked,
+
+			tryLinkSystemCalls: 1,
+		},
+		{
+			name: "link error",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Enabled: false,
+				},
+			},
+			tryLinkSystemErr: errors.New("bad"),
+
+			tryLinkSystemCalls: 1,
+			errMatch:           "bad",
+		},
+		{
+			name:               "no config",
+			tryLinkSystemCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "update.yaml")
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				VersionsDir:        dir,
+			})
+			require.NoError(t, err)
+
+			var tryLinkSystemCalls int
+			updater.Installer = &testInstaller{
+				FuncTryLinkSystem: func(_ context.Context) error {
+					tryLinkSystemCalls++
+					return tt.tryLinkSystemErr
+				},
+			}
+
+			ctx := context.Background()
+			err = updater.LinkPackage(ctx)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.tryLinkSystemCalls, tryLinkSystemCalls)
+
+			if tt.cfg == nil {
+				return
+			}
+			data, err := os.ReadFile(cfgPath)
+			require.NoError(t, err)
+			if golden.ShouldSet() {
+				golden.Set(t, data)
+			}
+			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
 func TestUpdater_Enable(t *testing.T) {
 	t.Parallel()
 
