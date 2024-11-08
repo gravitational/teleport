@@ -314,7 +314,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS2',
@@ -328,7 +328,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS3',
@@ -342,7 +342,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS4',
@@ -356,7 +356,7 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'CONFIG_MAP',
-    endpointPublicAddress: true,
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS5',
@@ -370,6 +370,6 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'account-id', value: '1234567789012' },
     ],
     authenticationMode: 'API_AND_CONFIG_MAP',
-    endpointPublicAddress: false,
+    endpointPublicAccess: false,
   },
 ];
