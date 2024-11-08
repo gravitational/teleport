@@ -41,6 +41,8 @@ type TestModules struct {
 	TestBuildType string
 	// TestFeatures is returned from the Features function.
 	TestFeatures Features
+	// FIPS allows tests to toggle fips behavior.
+	FIPS bool
 
 	defaultModules
 
@@ -80,7 +82,7 @@ func (m *TestModules) PrintVersion() {
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (m *TestModules) IsBoringBinary() bool {
-	return m.defaultModules.IsBoringBinary()
+	return m.FIPS
 }
 
 // Features returns supported features.
