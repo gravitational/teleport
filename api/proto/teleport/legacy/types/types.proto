@@ -8048,7 +8048,7 @@ message AccessGraphAWSSync {
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
 message AccessGraphAzureSync {
   repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
-  string SubscriptionID = 2 [(gogoproto.jsontag) = "regions,omitempty"];
-  string UmiClientId = 3 [(gogoproto.jsontag) = "regions,omitempty"];
+  string SubscriptionID = 2 [(gogoproto.jsontag) = "subscription_id,omitempty"];
+  string UMIClientID = 3 [(gogoproto.jsontag) = "umi_client_id,omitempty"];
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }
