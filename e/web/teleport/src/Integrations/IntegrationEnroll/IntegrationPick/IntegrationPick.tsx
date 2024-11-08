@@ -210,32 +210,37 @@ function PluginTile({
   const pluginEnrollable = pluginAccess === 'allowed' && !pluginAlreadyEnrolled;
 
   let tileProps;
+  const tileDisabled = pluginAccess !== 'allowed';
 
   if (pluginEnrollable && plugin.cloudHostable) {
     tileProps = {
       as: InternalLink,
-      to: cfg.getIntegrationEnrollRoute(plugin.type),
+      to: !tileDisabled
+        ? cfg.getIntegrationEnrollRoute(plugin.type)
+        : undefined,
     };
   } else if (!plugin.cloudHostable) {
     tileProps = {
       as: ExternalLink,
       href: plugin.url,
       target: '_blank',
-      onClick: () => {
-        userEventService.captureIntegrationEnrollEvent({
-          event: IntegrationEnrollEvent.Started,
-          eventData: {
-            id: crypto.randomUUID(),
-            kind: pluginTypeToIntegrationEnrollKind(plugin.type),
-          },
-        });
-      },
+      onClick: !tileDisabled
+        ? () => {
+            userEventService.captureIntegrationEnrollEvent({
+              event: IntegrationEnrollEvent.Started,
+              eventData: {
+                id: crypto.randomUUID(),
+                kind: pluginTypeToIntegrationEnrollKind(plugin.type),
+              },
+            });
+          }
+        : undefined,
     };
   }
 
   return (
     <IntegrationTile
-      disabled={pluginAccess !== 'allowed'}
+      disabled={tileDisabled}
       data-testid={`tile-${plugin.type}`}
       $exists={pluginAlreadyEnrolled}
       {...tileProps}
