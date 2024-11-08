@@ -34,8 +34,6 @@ message AzureResource {
     AzureRoleDefinition role_definition = 2;
     AzureRoleAssignment role_assignment = 3;
     AzureVirtualMachine virtual_machine = 4;
-    AzureManagedDatabase managed_database = 5;
-    AzureAKSCluster aks_cluster = 6;
   }
 }
 
