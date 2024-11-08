@@ -370,10 +370,10 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	currentTAGResources := &aws_sync.Resources{}
 	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", s.Config.Matchers.AccessGraph.PollInterval)
 	tickerInterval := time.Duration(s.Config.Matchers.AccessGraph.PollInterval)
-	if tickerInterval <= 0 {
+	if tickerInterval <= defaultPollInterval {
 		tickerInterval = defaultPollInterval
 	}
-	ticker := time.NewTicker(tickerInterval)
+	timer := time.NewTimer(tickerInterval)
 	defer ticker.Stop()
 	for {
 		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
