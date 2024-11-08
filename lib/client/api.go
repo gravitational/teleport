@@ -495,6 +495,9 @@ type Config struct {
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 
+	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
+	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
+
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If empty, a default CLI prompt is used.
@@ -521,6 +524,9 @@ type Config struct {
 	// HasTouchIDCredentialsFunc allows tests to override touchid.HasCredentials.
 	// If nil touchid.HasCredentials is used.
 	HasTouchIDCredentialsFunc func(rpID, user string) bool
+
+	// SSOHost is the host of the SSO provider used to log in.
+	SSOHost string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -885,6 +891,8 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.PIVSlot = profile.PIVSlot
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
+	c.SSOHost = profile.SSOHost
+
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -935,6 +943,7 @@ func (c *Config) Profile() *profile.Profile {
 		PIVSlot:                       c.PIVSlot,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
+		SSOHost:                       c.SSOHost,
 	}
 }
 
@@ -4299,7 +4308,9 @@ You may use the --skip-version-check flag to bypass this check.
 	// cached, there is no need to do this test again.
 	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
-	tc.applyAuthSettings(pr.Auth)
+	if err := tc.applyAuthSettings(pr.Auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	tc.lastPing = pr
 
@@ -4578,7 +4589,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 
 // applyAuthSettings updates configuration changes based on the advertised
 // authentication settings, overriding existing fields in tc.
-func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
+func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) error {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
 
 	// If PIVSlot is not already set, default to the server setting.
@@ -4590,6 +4601,25 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 	if authSettings.PrivateKeyPolicy != "" && !authSettings.PrivateKeyPolicy.IsSatisfiedBy(tc.PrivateKeyPolicy) {
 		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
 	}
+
+	var ssoURL *url.URL
+	var err error
+	switch {
+	case authSettings.SAML != nil:
+		ssoURL, err = url.Parse(authSettings.SAML.SSO)
+	case authSettings.OIDC != nil:
+		ssoURL, err = url.Parse(authSettings.OIDC.IssuerURL)
+	case authSettings.Github != nil:
+		ssoURL, err = url.Parse(authSettings.Github.EndpointURL)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ssoURL != nil {
+		tc.SSOHost = ssoURL.Host
+	}
+
+	return nil
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests

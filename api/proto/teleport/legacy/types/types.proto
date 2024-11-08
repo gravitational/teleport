@@ -3838,6 +3838,8 @@ message SSOMFADevice {
   string connector_id = 1;
   // connector_type is the type of the SSO connector.
   string connector_type = 2;
+  // display_name is the display name of the SSO connector
+  string display_name = 3;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -6597,6 +6599,33 @@ message AWSICProvisioningSpec {
   string bearer_token = 2;
 }
 
+// PluginAWSICStatusV1 defines AWS Identity Center plugin sub-process status.
+message PluginAWSICStatusV1 {
+  // GroupImportStatus is a status of Identity Center group and group members import.
+  AWSICGroupImportStatus group_import_status = 1;
+}
+
+// AWSICGroupImportStatus defines Identity Center group and group members import status.
+message AWSICGroupImportStatus {
+  // StatusCode is a status code of group and group members import operation.
+  AWSICGroupImportStatusCode status_code = 1;
+  // ErrorMessage contains error message for a group and group members import attempt
+  // that met with an error.
+  string error_message = 2;
+}
+
+// AWSICGroupImportStatus defines Identity Center group and group members
+// import status codes.
+enum AWSICGroupImportStatusCode {
+  // UNSPECIFIED denotes that a status is unknown.
+  UNSPECIFIED = 0;
+  // DONE denotes that the group and group members import operation was
+  // completed.
+  DONE = 1;
+  // FAILED denotes that the group and group members import met with an error.
+  FAILED = 2;
+}
+
 // PluginEmailSettings holds the settings for an Email Access Request plugin.
 message PluginEmailSettings {
   option (gogoproto.equal) = true;
@@ -6687,6 +6716,8 @@ message PluginStatusV1 {
     PluginEntraIDStatusV1 entra_id = 5;
     // Okta holds status details for the Okta plugin
     PluginOktaStatusV1 okta = 7;
+    // AWSIC holds status details for the AWS Identity Center plugin.
+    PluginAWSICStatusV1 aws_ic = 8;
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.

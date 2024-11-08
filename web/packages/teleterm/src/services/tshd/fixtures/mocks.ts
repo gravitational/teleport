@@ -28,18 +28,6 @@ import { MockedUnaryCall } from '../cloneableClient';
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
-  getKubes = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getDatabases = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
   listDatabaseUsers = () =>
     new MockedUnaryCall({
       users: [],
@@ -52,12 +40,6 @@ export class MockTshClient implements TshdClient {
       applicableRoles: [],
     });
   getServers = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getApps = () =>
     new MockedUnaryCall({
       agents: [],
       totalCount: 0,

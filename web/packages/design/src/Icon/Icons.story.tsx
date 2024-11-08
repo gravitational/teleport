@@ -107,6 +107,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Copy} text="Copy" />
     <IconBox IconCmpt={Icon.CreditCard} text="CreditCard" />
     <IconBox IconCmpt={Icon.Cross} text="Cross" />
+    <IconBox IconCmpt={Icon.Crown} text="Crown" />
     <IconBox IconCmpt={Icon.Database} text="Database" />
     <IconBox IconCmpt={Icon.Desktop} text="Desktop" />
     <IconBox IconCmpt={Icon.DeviceMobileCamera} text="DeviceMobileCamera" />
@@ -142,6 +143,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Label} text="Label" />
     <IconBox IconCmpt={Icon.Lan} text="Lan" />
     <IconBox IconCmpt={Icon.Laptop} text="Laptop" />
+    <IconBox IconCmpt={Icon.Layout} text="Layout" />
     <IconBox IconCmpt={Icon.License} text="License" />
     <IconBox IconCmpt={Icon.LineSegment} text="LineSegment" />
     <IconBox IconCmpt={Icon.LineSegments} text="LineSegments" />
@@ -172,6 +174,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Password} text="Password" />
     <IconBox IconCmpt={Icon.Pencil} text="Pencil" />
     <IconBox IconCmpt={Icon.Planet} text="Planet" />
+    <IconBox IconCmpt={Icon.Plugs} text="Plugs" />
     <IconBox IconCmpt={Icon.PlugsConnected} text="PlugsConnected" />
     <IconBox IconCmpt={Icon.Plus} text="Plus" />
     <IconBox IconCmpt={Icon.PowerSwitch} text="PowerSwitch" />
@@ -198,6 +201,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Sun} text="Sun" />
     <IconBox IconCmpt={Icon.SyncAlt} text="SyncAlt" />
+    <IconBox IconCmpt={Icon.Table} text="Table" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
     <IconBox IconCmpt={Icon.Tags} text="Tags" />
     <IconBox IconCmpt={Icon.Terminal} text="Terminal" />

@@ -98,5 +98,9 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 		return nil, trace.Wrap(err)
 	}
 
+	if tc.SSOMFACeremonyConstructor != nil {
+		return tc.SSOMFACeremonyConstructor(rd), nil
+	}
+
 	return sso.NewCLIMFACeremony(rd), nil
 }

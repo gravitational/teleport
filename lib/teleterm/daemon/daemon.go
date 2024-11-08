@@ -39,6 +39,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -265,6 +266,8 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
 	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI)
+	clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+
 	return cluster, clusterClient, nil
 }
 
@@ -794,26 +797,6 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
-// GetKubes accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.GetKubes(ctx, proxyClient.CurrentCluster(), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
@@ -1101,7 +1084,6 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
 		return trace.Wrap(err)
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

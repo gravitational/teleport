@@ -36,7 +36,7 @@ spec:
 {{- if $auth.resources }}
         resources:
   {{- toYaml $auth.resources | nindent 10 }}
-{{- end }}        
+{{- end }}
 {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
         env:
   {{- if (gt (len $auth.extraEnv) 0) }}
@@ -104,4 +104,5 @@ spec:
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
+      serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
 {{- end }}

@@ -19,12 +19,13 @@
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { Cluster, LoggedInUser } from 'teleterm/services/tshd/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 
 export function useIdentity() {
   const ctx = useAppContext();
 
   ctx.clustersService.useState();
-  ctx.workspacesService.useState();
+  useWorkspaceServiceState();
 
   async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
