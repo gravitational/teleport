@@ -59,9 +59,6 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 	switch {
 	case c.CreateAuthenticateChallenge == nil:
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
-	case req == nil:
-		// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
-		// its own req or uses a different rpc, e.g. moderated sessions.
 	case req.ChallengeExtensions == nil:
 		return nil, trace.BadParameter("missing challenge extensions")
 	case req.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED:
