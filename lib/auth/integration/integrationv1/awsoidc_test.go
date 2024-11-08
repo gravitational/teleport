@@ -449,3 +449,39 @@ func TestRBAC(t *testing.T) {
 		}
 	})
 }
+
+func TestConvertEKSCluster(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		input    awsoidc.EKSCluster
+		expected *integrationv1.EKSCluster
+	}{
+		{
+			name: "valid",
+			input: awsoidc.EKSCluster{
+				Name:                 "my-cluster",
+				Region:               "us-east-1",
+				Arn:                  "my-arn",
+				Labels:               map[string]string{},
+				JoinLabels:           map[string]string{},
+				Status:               "ACTIVE",
+				AuthenticationMode:   "API",
+				EndpointPublicAccess: true,
+			},
+			expected: &integrationv1.EKSCluster{
+				Name:                 "my-cluster",
+				Region:               "us-east-1",
+				Arn:                  "my-arn",
+				Labels:               map[string]string{},
+				JoinLabels:           map[string]string{},
+				Status:               "ACTIVE",
+				AuthenticationMode:   "API",
+				EndpointPublicAccess: true,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, convertEKSCluster(tt.input))
+		})
+	}
+}
