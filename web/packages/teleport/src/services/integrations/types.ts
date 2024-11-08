@@ -173,7 +173,8 @@ export type PluginSpec =
   | PluginMattermostSpec
   | PluginOpsgenieSpec
   | PluginDatadogSpec
-  | PluginEmailSpec;
+  | PluginEmailSpec
+  | PluginMsTeamsSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -231,6 +232,14 @@ export type PluginMattermostSpec = {
   channel: string;
   team: string;
   reportToEmail: string;
+};
+
+export type PluginMsTeamsSpec = {
+  appID: string;
+  tenantID: string;
+  teamsAppID: string;
+  region: string;
+  defaultRecipient: string;
 };
 
 export type PluginOpsgenieSpec = {
@@ -466,11 +475,11 @@ export type AwsEksCluster = {
   authenticationMode: 'API' | 'API_AND_CONFIG_MAP' | 'CONFIG_MAP';
 
   /**
-   * EndpointPublicAddress indicates whether this cluster is publicly accessible.
+   * EndpointPublicAccess indicates whether this cluster is publicly accessible.
    * This is a requirement for Teleport Cloud tenants because the control plane must be able to access the EKS Cluster
    * in order to deploy the helm chart.
    */
-  endpointPublicAddress: boolean;
+  endpointPublicAccess: boolean;
 };
 
 export type EnrollEksClustersRequest = {
