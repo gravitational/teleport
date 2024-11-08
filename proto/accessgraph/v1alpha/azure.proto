@@ -47,7 +47,6 @@ message AzureVirtualMachine {
   map<string, string> tags = 6;
 }
 
-
 // AzurePrincipal is an Azure principal (user, group, service principal)
 message AzurePrincipal {
   string id = 1;
@@ -73,7 +72,9 @@ message AzureRoleDefinition {
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
   string name = 4;
-  repeated AzureRBACPermission permissions = 5;
+  string description = 5;
+  repeated string assignable_scopes = 6;
+  repeated AzureRBACPermission permissions = 7;
 }
 
 // AzurePermission defines the actions and not (disallowed) actions for a role definition
