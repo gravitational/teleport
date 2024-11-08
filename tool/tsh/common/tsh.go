@@ -43,6 +43,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -215,8 +216,17 @@ type CLIConf struct {
 	DatabaseRoles string
 	// AppName specifies proxied application name.
 	AppName string
-	// Interactive, when set to true, launches remote command with the terminal attached
+	// Interactive sessions will allocate a PTY and create interactive "shell"
+	// sessions.
 	Interactive bool
+	// NonInteractive sessions will not allocate a PTY and create
+	// non-interactive "exec" sessions. This variable is needed due to
+	// limitations in kingpin (lack of an inverse short flag) which forces
+	// the registration of both flags.
+	NonInteractive bool
+	// ShowVersion is an OpenSSH compatibility flag that prints out the version
+	// of tsh. Useful for users that alias ssh to "tsh ssh".
+	ShowVersion bool
 	// Quiet mode, -q command (disables progress printing)
 	Quiet bool
 	// Namespace is used to select cluster namespace
@@ -731,7 +741,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
-	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required").StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -751,6 +761,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+	// The following flags are OpenSSH compatibility flags. They are used for
+	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
+	// implemented. From "man 1 ssh":
+	//
+	// * "-V Display the version number and exit."
+	// * "-T Disable pseudo-terminal allocation."
+	ssh.Flag(uuid.New().String(), "").Short('T').Hidden().BoolVar(&cf.NonInteractive)
+	ssh.Flag(uuid.New().String(), "").Short('V').Hidden().BoolVar(&cf.ShowVersion)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -3483,12 +3501,42 @@ func runLocalCommand(hostLogin string, command []string) error {
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
+	// If "tsh ssh -V" is invoked, tsh is in OpenSSH compatibility mode, show
+	// the version and exit.
+	if cf.ShowVersion {
+		modules.GetModules().PrintVersion()
+		return nil
+	}
+
+	// If "tsh ssh" is invoked with the "-t" or "-T" flag, manually validate
+	// "-t" and "-T" flags for "tsh ssh" due to the lack of inverse short flags
+	// in kingpin.
+	if cf.Interactive && cf.NonInteractive {
+		return trace.BadParameter("either -t or -T can be specified, not both")
+	}
+	if cf.NonInteractive {
+		cf.Interactive = false
+	}
+
+	// If "tsh ssh" is invoked the user must specify some host to connect to.
+	// In the past, this was handled by making "UserHost" required in kingpin.
+	// However, to support "tsh ssh -V" this was no longer possible. This
+	// property is how enforced in this function.
+	if cf.UserHost == "" {
+		return trace.BadParameter("required argument '[user@]host' not provided")
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	tc.AllowHeadless = true
+
+	// Support calling `tsh ssh -- <command>` (with a double dash before the command)
+	if len(cf.RemoteCommand) > 0 && strings.TrimSpace(cf.RemoteCommand[0]) == "--" {
+		cf.RemoteCommand = cf.RemoteCommand[1:]
+	}
 
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {

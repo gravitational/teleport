@@ -10,7 +10,7 @@ clusters.
 Teleport agents run an **upgrader** that queries a **version server** to
 determine whether they are out of date. This guide describes how to set up your
 infrastructure to support automatic upgrades. If you are a Teleport Cloud user
-or run a version server already, return to the [Upgrading](../upgrading.mdx)
+or run a version server already, return to the [Upgrading](upgrading.mdx)
 menu for the appropriate next steps to upgrade Teleport.
 
 The [Automatic Update Architecture](../reference/architecture/agent-update-management.mdx)
@@ -340,10 +340,10 @@ This section assumes that the name of your `teleport-kube-agent` release is
    
 1. Check for any deployment issues by checking the updater logs:
    
-    ```code
-    $ kubectl -n <Var name="teleport" /> logs deployment/<Var name="teleport-agent" />-updater
-    2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
-    ```
+   ```code
+   $ kubectl -n <Var name="teleport" /> logs deployment/<Var name="teleport-agent" />-updater
+   2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
+   ```
 
 ### Troubleshooting automatic agent upgrades on Kubernetes
 

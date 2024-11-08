@@ -5052,6 +5052,13 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			_, err = clt.UpsertNode(context.Background(), server)
 			require.NoError(t, err)
 
+			// Wait for the node to be visible before continuing.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				found, err := clt.GetNodes(context.Background(), defaults.Namespace)
+				assert.NoError(t, err)
+				assert.Len(t, found, 2)
+			}, 10*time.Second, 100*time.Millisecond)
+
 			_, err = runCommand(t, instance, []string{"echo hello"}, clientConfig, 1)
 
 			// check if we were able to exec the command or not
