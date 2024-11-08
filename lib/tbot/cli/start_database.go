@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -42,8 +43,8 @@ type DatabaseCommand struct {
 
 // NewDatabaseCommand initializes a command and flags for database outputs and
 // returns a struct that will contain the parse result.
-func NewDatabaseCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *DatabaseCommand {
-	cmd := parentCmd.Command("database", "Starts with a database output.").Alias("db")
+func NewDatabaseCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *DatabaseCommand {
+	cmd := parentCmd.Command("database", fmt.Sprintf("%s tbot with a database output.", mode)).Alias("db")
 
 	c := &DatabaseCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)
