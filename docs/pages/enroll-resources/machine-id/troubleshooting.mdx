@@ -331,7 +331,7 @@ attempt to use the other address and that this may cause connections to fail.
 This is because `tbot` queries an auto-configuration endpoint exposed by the
 Proxy Service to determine the canonical address to use when connecting.
 
-To fix this, set a variable of `TBOT_USE_PROXY_ADDR=1` in the environment of the
+To fix this, set a variable of `TBOT_USE_PROXY_ADDR=yes` in the environment of the
 `tbot` process. This configures `tbot` to prefer using the address that you have
 explicitly provided. This only functions correctly in cases where TLS
 routing/multiplexing is enabled for the Teleport cluster.
