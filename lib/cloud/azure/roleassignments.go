@@ -9,10 +9,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type RoleAssignmentsClient interface {
-	ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error)
-}
-
 type roleAssignmentsClient struct {
 	cli *armauthorization.RoleAssignmentsClient
 }

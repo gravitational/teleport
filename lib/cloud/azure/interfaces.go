@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
@@ -122,4 +123,16 @@ type PostgresFlexServersClient interface {
 	ListAll(ctx context.Context) ([]*armpostgresqlflexibleservers.Server, error)
 	// ListWithinGroup returns all Azure Postgres Flex servers within an Azure resource group.
 	ListWithinGroup(ctx context.Context, group string) ([]*armpostgresqlflexibleservers.Server, error)
+}
+
+// RoleAssignmentsClient is an interface for an Azure role assignments client
+type RoleAssignmentsClient interface {
+	// ListRoleAssignments returns all role assignments within a given scope.
+	ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error)
+}
+
+// RoleDefinitionsClient is an interface for an Azure role definitions client
+type RoleDefinitionsClient interface {
+	// ListRoleDefinitions returns all role definitions within a given scope.
+	ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error)
 }

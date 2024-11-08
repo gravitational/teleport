@@ -9,10 +9,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type RoleDefinitionsClient interface {
-	ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error)
-}
-
 type roleDefinitionsClient struct {
 	cli *armauthorization.RoleDefinitionsClient
 }
