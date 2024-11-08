@@ -245,7 +245,8 @@ acmeURI: ""
 # You will need to download your Enterprise license from the Teleport dashboard and create a secret to use this:
 # kubectl -n ${TELEPORT_NAMESPACE?} create secret generic license --from-file=/path/to/downloaded/license.pem
 enterprise: false
-
+# Override default Enterprise license name
+licenseSecretName: "license"
 # CRDs are installed by default when the operator is enabled. This manual override allows to disable CRD installation
 # when deploying multiple releases in the same cluster.
 # installCRDs:
