@@ -477,9 +477,27 @@ func TestInstanceFactory(t *testing.T) {
 	}
 }
 
-func testAuthProcess(t *testing.T) *service.TeleportProcess {
+type testAuthOptions struct {
+	clock clockwork.Clock
+}
+
+type testAuthOption func(*testAuthOptions)
+
+func withClock(clock clockwork.Clock) testAuthOption {
+	return func(o *testAuthOptions) {
+		o.clock = clock
+	}
+}
+
+func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProcess {
+	options := &testAuthOptions{
+		clock: clockwork.NewFakeClock(),
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.Clock = clockwork.NewFakeClock()
+	cfg.Clock = options.clock
 	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"})

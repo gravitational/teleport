@@ -76,7 +76,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeGitlab:            gitlabInstanceFactory,
 			types.PluginTypeEntraID:           entraIDInstanceFactory,
 			types.PluginTypeDatadog:           datadogInstanceFactory,
-			types.PluginTypeAWSIdentityCenter: awsIdentityCenterInstanceFactory,
+			types.PluginTypeAWSIdentityCenter: withLeaderLock(awsIdentityCenterInstanceFactory),
 			types.PluginTypeMSTeams:           msTeamsInstanceFactory,
 		}
 	}
