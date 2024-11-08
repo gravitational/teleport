@@ -1,4 +1,4 @@
-.version: &version "14.3.33"
+.version: &version "14.3.33-dev.yubikey.fix.3"
 
 name: teleport-cluster
 apiVersion: v2
