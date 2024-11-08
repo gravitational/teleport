@@ -480,8 +480,8 @@ type DeleteAccountAssignmentRequest struct {
 	PrincipalID string
 	// PermissionSetARN is the ARN of the permission set.
 	PermissionSetARN string
-	// PrincipalTarget is the type of the principal.
-	PrincipalTarget ssoadmintypes.PrincipalType
+	// PrincipalType is the type of the principal.
+	PrincipalType ssoadmintypes.PrincipalType
 	// AccountID is the ID of the AWS account.
 	AccountID string
 }
@@ -493,7 +493,8 @@ func (c *client) DeleteAccountAssignment(ctx context.Context, req *DeleteAccount
 		PermissionSetArn: aws.String(req.PermissionSetARN),
 		TargetId:         aws.String(req.AccountID),
 		TargetType:       ssoadmintypes.TargetTypeAwsAccount,
-		PrincipalType:    req.PrincipalTarget,
+		PrincipalType:    req.PrincipalType,
+		PrincipalId:      aws.String(req.PrincipalID),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

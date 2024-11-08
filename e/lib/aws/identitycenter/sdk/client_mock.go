@@ -354,7 +354,7 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 
 	var principalAssignments map[string][]*Assigment
 	var curr map[string][]*Assigment
-	switch req.PrincipalTarget {
+	switch req.PrincipalType {
 	case ssoadmintypes.PrincipalTypeUser:
 		principalAssignments = c.UserAssignments
 		curr = c.UserAssignments
@@ -362,7 +362,7 @@ func (c *ClientMock) DeleteAccountAssignment(ctx context.Context, req *DeleteAcc
 		principalAssignments = c.GroupAssignments
 		curr = c.GroupAssignments
 	default:
-		return nil, trace.BadParameter("unsupported principal target type %T", req.PrincipalTarget)
+		return nil, trace.BadParameter("unsupported principal target type %T", req.PrincipalType)
 	}
 
 	assignments, ok := principalAssignments[req.PrincipalID]

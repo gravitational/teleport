@@ -54,7 +54,7 @@ func TestAccountAssigmentMock(t *testing.T) {
 		deleteResp, err := c.DeleteAccountAssignment(ctx, &DeleteAccountAssignmentRequest{
 			PrincipalID:      "user1",
 			PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
-			PrincipalTarget:  ssoadmintypes.PrincipalTypeUser,
+			PrincipalType:    ssoadmintypes.PrincipalTypeUser,
 			AccountID:        "1111111111",
 		})
 		require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestAccountAssigmentMock(t *testing.T) {
 		deleteResp, err = c.DeleteAccountAssignment(ctx, &DeleteAccountAssignmentRequest{
 			PrincipalID:      "user2",
 			PermissionSetARN: "arn:aws:sso:::permissionSet/ReadOnly",
-			PrincipalTarget:  ssoadmintypes.PrincipalTypeUser,
+			PrincipalType:    ssoadmintypes.PrincipalTypeUser,
 			AccountID:        "1111111111",
 		})
 		require.NoError(t, err)

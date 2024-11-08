@@ -134,7 +134,7 @@ func (a *AssignmentProvisioner) deleteAssignment(ctx context.Context, externalID
 		PrincipalID:      externalID,
 		PermissionSetARN: permissionSetARN,
 		AccountID:        accountID,
-		PrincipalTarget:  principalType,
+		PrincipalType:    principalType,
 	})
 	if err != nil {
 		return trace.Wrap(err)

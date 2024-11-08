@@ -11,6 +11,7 @@ import (
 	orgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,6 +53,28 @@ func TestClientConnection(t *testing.T) {
 	uResp, err := c.ListUsers(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t, users, uResp)
+
+	caaResp, err := c.CreateAccountAssignment(ctx, &CreateAccountAssignmentRequest{
+		PrincipalID:      "test@example.com",
+		PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+		AccountID:        "some-account-id",
+		PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+	})
+	require.NoError(t, err)
+	require.Equal(t, accountAssignmentRequestID, caaResp.RequestID)
+	require.Equal(t, ssoadmintypes.StatusValuesInProgress, caaResp.Status)
+	require.Empty(t, caaResp.FailureReason)
+
+	daaResp, err := c.DeleteAccountAssignment(ctx, &DeleteAccountAssignmentRequest{
+		PrincipalID:      "test@example.com",
+		PrincipalType:    ssoadmintypes.PrincipalTypeUser,
+		AccountID:        "some-account-id",
+		PermissionSetARN: "arn:aws:sso:::permissionSet/Admin",
+	})
+	require.NoError(t, err)
+	require.Equal(t, accountAssignmentRequestID, daaResp.RequestID)
+	require.Equal(t, ssoadmintypes.StatusValuesInProgress, daaResp.Status)
+	require.Empty(t, daaResp.FailureReason)
 }
 
 type mockAWSClient struct {
@@ -108,6 +131,85 @@ func (mockAWSClient) DescribePermissionSet(ctx context.Context, params *ssoadmin
 		PermissionSet: toPermissionSet(permSetMap[*params.PermissionSetArn]),
 	}, nil
 }
+
+func (mockAWSClient) CreateAccountAssignment(ctx context.Context, req *ssoadmin.CreateAccountAssignmentInput, _ ...func(*ssoadmin.Options)) (*ssoadmin.CreateAccountAssignmentOutput, error) {
+	if aws.ToString(req.InstanceArn) == "" {
+		return nil, trace.BadParameter("missing Instance ARN")
+	}
+
+	if aws.ToString(req.PermissionSetArn) == "" {
+		return nil, trace.BadParameter("missing PermissionSet ARN")
+	}
+
+	if req.TargetType == "" {
+		return nil, trace.BadParameter("missing Target Type")
+	}
+
+	if aws.ToString(req.TargetId) == "" {
+		return nil, trace.BadParameter("missing Target ID")
+	}
+
+	if req.PrincipalType == "" {
+		return nil, trace.BadParameter("missing Principal Type")
+	}
+
+	if aws.ToString(req.PrincipalId) == "" {
+		return nil, trace.BadParameter("missing Principal ID")
+	}
+
+	return &ssoadmin.CreateAccountAssignmentOutput{
+		AccountAssignmentCreationStatus: &ssoadmintypes.AccountAssignmentOperationStatus{
+			Status:           ssoadmintypes.StatusValuesInProgress,
+			RequestId:        aws.String(accountAssignmentRequestID),
+			TargetType:       req.TargetType,
+			TargetId:         req.TargetId,
+			PrincipalType:    req.PrincipalType,
+			PrincipalId:      req.PrincipalId,
+			PermissionSetArn: req.PermissionSetArn,
+		},
+	}, nil
+}
+
+func (mockAWSClient) DeleteAccountAssignment(ctx context.Context, req *ssoadmin.DeleteAccountAssignmentInput, _ ...func(*ssoadmin.Options)) (*ssoadmin.DeleteAccountAssignmentOutput, error) {
+
+	if aws.ToString(req.InstanceArn) == "" {
+		return nil, trace.BadParameter("missing Instance ARN")
+	}
+
+	if aws.ToString(req.PermissionSetArn) == "" {
+		return nil, trace.BadParameter("missing PermissionSet ARN")
+	}
+
+	if req.TargetType == "" {
+		return nil, trace.BadParameter("missing Target Type")
+	}
+
+	if aws.ToString(req.TargetId) == "" {
+		return nil, trace.BadParameter("missing Target ID")
+	}
+
+	if req.PrincipalType == "" {
+		return nil, trace.BadParameter("missing Principal Type")
+	}
+
+	if aws.ToString(req.PrincipalId) == "" {
+		return nil, trace.BadParameter("missing Principal ID")
+	}
+
+	return &ssoadmin.DeleteAccountAssignmentOutput{
+		AccountAssignmentDeletionStatus: &ssoadmintypes.AccountAssignmentOperationStatus{
+			Status:           ssoadmintypes.StatusValuesInProgress,
+			RequestId:        aws.String(accountAssignmentRequestID),
+			TargetType:       req.TargetType,
+			TargetId:         req.TargetId,
+			PrincipalType:    req.PrincipalType,
+			PrincipalId:      req.PrincipalId,
+			PermissionSetArn: req.PermissionSetArn,
+		},
+	}, nil
+}
+
+const accountAssignmentRequestID = "some request id"
 
 func toAccounts(acc []*Account) []orgtypes.Account {
 	var out []orgtypes.Account
