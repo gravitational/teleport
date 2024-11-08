@@ -384,8 +384,12 @@ func (u *Updater) Update(ctx context.Context) error {
 	}
 	targetVersion := resp.AutoUpdate.AgentVersion
 	var flags InstallFlags
-	if resp.Edition == "ent" {
+	switch resp.Edition {
+	case modules.BuildEnterprise:
 		flags |= FlagEnterprise
+	case modules.BuildOSS, modules.BuildCommunity:
+	default:
+		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
 	}
 	if resp.FIPS {
 		flags |= FlagFIPS
