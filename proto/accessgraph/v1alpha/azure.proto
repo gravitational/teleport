@@ -27,7 +27,7 @@ message AzureResourceList {
   repeated AzureResource resources = 1;
 }
 
-// AWSResource is a list of AWS resources supported by the access graph.
+// AzureResource is a list of Azure resources supported by the access graph.
 message AzureResource {
   oneof resource {
     AzurePrincipal principal = 1;
@@ -43,6 +43,8 @@ message AzureVirtualMachine {
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
   string name = 4;
+  string resource_group = 5;
+  map<string, string> tags = 6;
 }
 
 
@@ -71,7 +73,7 @@ message AzureRoleDefinition {
   string subscription_id = 2;
   google.protobuf.Timestamp last_sync_time = 3;
   string name = 4;
-  repeated AzurePermission permissions = 5;
+  repeated AzureRBACPermission permissions = 5;
 }
 
 // AzurePermission defines the actions and not (disallowed) actions for a role definition
