@@ -1489,6 +1489,7 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		Sso: &types.SSOMFADevice{
 			ConnectorId:   cb.Connector.ID,
 			ConnectorType: cb.Connector.Type,
+			DisplayName:   mfaConnector.GetDisplay(),
 		},
 	})
 }

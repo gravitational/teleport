@@ -178,10 +178,12 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
       return (
         <ReAuthenticate
           promptMfaRequest={dialog.promptMfaRequest}
-          onSuccess={totpCode => {
+          onOtpSubmit={totpCode => {
             handleClose();
             dialog.onSuccess(totpCode);
           }}
+          // This function needs to be stable between renders.
+          onSsoContinue={dialog.onSsoContinue}
           onCancel={() => {
             handleClose();
             dialog.onCancel();

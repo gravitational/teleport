@@ -196,16 +196,18 @@ func TestLocalInstaller_Link(t *testing.T) {
 	const version = "new-version"
 
 	tests := []struct {
-		name  string
-		dirs  []string
-		files []string
+		name          string
+		installDirs   []string
+		installFiles  []string
+		existingLinks []string
+		existingFiles []string
 
-		links    []string
-		errMatch string
+		resultLinks []string
+		errMatch    string
 	}{
 		{
-			name: "present",
-			dirs: []string{
+			name: "present with new links",
+			installDirs: []string{
 				"bin",
 				"bin/somedir",
 				"etc",
@@ -213,7 +215,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				"etc/systemd/somedir",
 				"somedir",
 			},
-			files: []string{
+			installFiles: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
@@ -221,7 +223,7 @@ func TestLocalInstaller_Link(t *testing.T) {
 				"README",
 			},
 
-			links: []string{
+			resultLinks: []string{
 				"bin/teleport",
 				"bin/tsh",
 				"bin/tbot",
@@ -229,15 +231,102 @@ func TestLocalInstaller_Link(t *testing.T) {
 			},
 		},
 		{
-			name:  "no links",
-			files: []string{"README"},
-			dirs:  []string{"bin"},
+			name: "present with existing links",
+			installDirs: []string{
+				"bin",
+				"bin/somedir",
+				"etc",
+				"etc/systemd",
+				"etc/systemd/somedir",
+				"somedir",
+			},
+			installFiles: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
+			existingLinks: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				"lib/systemd/system/teleport.service",
+			},
+
+			resultLinks: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				"lib/systemd/system/teleport.service",
+			},
+		},
+		{
+			name: "conflicting systemd files",
+			installDirs: []string{
+				"bin",
+				"bin/somedir",
+				"etc",
+				"etc/systemd",
+				"etc/systemd/somedir",
+				"somedir",
+			},
+			installFiles: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
+			existingLinks: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+			},
+			existingFiles: []string{
+				"lib/systemd/system/teleport.service",
+			},
+
+			errMatch: "refusing",
+		},
+		{
+			name: "conflicting bin files",
+			installDirs: []string{
+				"bin",
+				"bin/somedir",
+				"etc",
+				"etc/systemd",
+				"etc/systemd/somedir",
+				"somedir",
+			},
+			installFiles: []string{
+				"bin/teleport",
+				"bin/tsh",
+				"bin/tbot",
+				servicePath,
+				"README",
+			},
+			existingLinks: []string{
+				"bin/teleport",
+				"bin/tbot",
+				"lib/systemd/system/teleport.service",
+			},
+			existingFiles: []string{
+				"bin/tsh",
+			},
+
+			errMatch: "refusing",
+		},
+		{
+			name:         "no links",
+			installFiles: []string{"README"},
+			installDirs:  []string{"bin"},
 
 			errMatch: "no binaries",
 		},
 		{
-			name:  "no bin directory",
-			files: []string{"README"},
+			name:         "no bin directory",
+			installFiles: []string{"README"},
 
 			errMatch: "binary directory",
 		},
@@ -251,16 +340,30 @@ func TestLocalInstaller_Link(t *testing.T) {
 			err := os.MkdirAll(versionDir, 0o755)
 			require.NoError(t, err)
 
-			for _, d := range tt.dirs {
+			// setup files in version directory
+			for _, d := range tt.installDirs {
 				err := os.Mkdir(filepath.Join(versionDir, d), os.ModePerm)
 				require.NoError(t, err)
 			}
-			for _, n := range tt.files {
+			for _, n := range tt.installFiles {
 				err := os.WriteFile(filepath.Join(versionDir, n), []byte(filepath.Base(n)), os.ModePerm)
 				require.NoError(t, err)
 			}
 
+			// setup files in system links directory
 			linkDir := t.TempDir()
+			for _, n := range tt.existingLinks {
+				err := os.MkdirAll(filepath.Dir(filepath.Join(linkDir, n)), os.ModePerm)
+				require.NoError(t, err)
+				err = os.Symlink(filepath.Base(n)+".old", filepath.Join(linkDir, n))
+				require.NoError(t, err)
+			}
+			for _, n := range tt.existingFiles {
+				err := os.MkdirAll(filepath.Dir(filepath.Join(linkDir, n)), os.ModePerm)
+				require.NoError(t, err)
+				err = os.WriteFile(filepath.Join(linkDir, n), []byte(filepath.Base(n)), os.ModePerm)
+				require.NoError(t, err)
+			}
 
 			installer := &LocalInstaller{
 				InstallDir:     versionsDir,
@@ -269,18 +372,49 @@ func TestLocalInstaller_Link(t *testing.T) {
 				Log:            slog.Default(),
 			}
 			ctx := context.Background()
-			err = installer.Link(ctx, version)
+			revert, err := installer.Link(ctx, version)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
+
+				// verify automatic revert
+				for _, link := range tt.existingLinks {
+					v, err := os.Readlink(filepath.Join(linkDir, link))
+					require.NoError(t, err)
+					require.Equal(t, filepath.Base(link)+".old", v)
+				}
+				for _, n := range tt.existingFiles {
+					v, err := os.ReadFile(filepath.Join(linkDir, n))
+					require.NoError(t, err)
+					require.Equal(t, filepath.Base(n), string(v))
+				}
+
+				// ensure revert still succeeds
+				ok := revert(ctx)
+				require.True(t, ok)
 				return
 			}
 			require.NoError(t, err)
 
-			for _, link := range tt.links {
+			// verify links
+			for _, link := range tt.resultLinks {
 				v, err := os.ReadFile(filepath.Join(linkDir, link))
 				require.NoError(t, err)
 				require.Equal(t, filepath.Base(link), string(v))
+			}
+
+			// verify manual revert
+			ok := revert(ctx)
+			require.True(t, ok)
+			for _, link := range tt.existingLinks {
+				v, err := os.Readlink(filepath.Join(linkDir, link))
+				require.NoError(t, err)
+				require.Equal(t, filepath.Base(link)+".old", v)
+			}
+			for _, n := range tt.existingFiles {
+				v, err := os.ReadFile(filepath.Join(linkDir, n))
+				require.NoError(t, err)
+				require.Equal(t, filepath.Base(n), string(v))
 			}
 		})
 	}
@@ -397,7 +531,7 @@ func TestLocalInstaller_Remove(t *testing.T) {
 			ctx := context.Background()
 
 			if tt.linkedVersion != "" {
-				err = installer.Link(ctx, tt.linkedVersion)
+				_, err = installer.Link(ctx, tt.linkedVersion)
 				require.NoError(t, err)
 			}
 			err = installer.Remove(ctx, tt.removeVersion)

@@ -200,7 +200,7 @@ func (m *MailgunMailer) CheckHealth(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, mailgunHTTPTimeout)
 	defer cancel()
 
-	msg := m.mailgun.NewMessage(m.sender, "Health Check", "Testing Mailgun API connection...", m.fallbackRecipients...)
+	msg := mailgun.NewMessage(m.sender, "Health Check", "Testing Mailgun API connection...", m.fallbackRecipients...)
 	msg.SetRequireTLS(true)
 	msg.EnableTestMode() // Test message submission without delivering to recipients.
 	_, _, err := m.mailgun.Send(ctx, msg)
@@ -212,7 +212,7 @@ func (m *MailgunMailer) Send(ctx context.Context, id, recipient, body, reference
 	subject := fmt.Sprintf("%v Role Request %v", m.clusterName, id)
 	refHeader := fmt.Sprintf("<%v>", references)
 
-	msg := m.mailgun.NewMessage(m.sender, subject, body, recipient)
+	msg := mailgun.NewMessage(m.sender, subject, body, recipient)
 	msg.SetRequireTLS(true)
 
 	if references != "" {

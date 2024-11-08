@@ -33,6 +33,7 @@ import { useSpecifiableFields } from 'shared/components/AccessRequests/NewReques
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import {
   PendingAccessRequest,
   extractResourceRequestProperties,
@@ -54,8 +55,17 @@ import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  useWorkspaceServiceState();
   ctx.clustersService.useState();
+  /**
+   * @deprecated Do not use it here. This value comes from the cluster selector next to the search
+   * bar. Changing the cluster should not affect the request checkout in any way.
+   * clusterUri is kept here just to not break existing code that depends on it.
+   * See https://github.com/gravitational/teleport/issues/48510.
+   *
+   * Instead, in most cases you want to use rootClusterUri or the cluster URI derived from a URI of
+   * a resource that you're operating on.
+   */
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
@@ -86,6 +96,12 @@ export default function useAccessRequestCheckout() {
 
   const { attempt: createRequestAttempt, setAttempt: setCreateRequestAttempt } =
     useAttempt('');
+  // isCreatingRequest is an auxiliary variable that helps to differentiate between a dry run being
+  // performed vs an actual request being created, as both types of requests use the same attempt
+  // object (createRequestAttempt).
+  // TODO(ravicious): Remove this in React 19 when useSyncExternalStore updates are batched with
+  // other updates.
+  const [isCreatingRequest, setIsCreatingRequest] = useState(false);
 
   const { attempt: fetchResourceRolesAttempt, run: runFetchResourceRoles } =
     useAttempt('success');
@@ -111,10 +127,15 @@ export default function useAccessRequestCheckout() {
     // suggested reviewers.
     // Options and reviewers can change depending on the selected
     // roles or resources.
-    if (showCheckout && requestedCount == 0) {
+    if (showCheckout && requestedCount == 0 && !isCreatingRequest) {
       performDryRun();
     }
-  }, [showCheckout, pendingAccessRequestRequest]);
+  }, [
+    showCheckout,
+    pendingAccessRequestRequest,
+    requestedCount,
+    isCreatingRequest,
+  ]);
 
   useEffect(() => {
     if (!pendingAccessRequestRequest || requestedCount > 0) {
@@ -122,7 +143,7 @@ export default function useAccessRequestCheckout() {
     }
 
     runFetchResourceRoles(() =>
-      retryWithRelogin(ctx, clusterUri, async () => {
+      retryWithRelogin(ctx, rootClusterUri, async () => {
         const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
           resourceIds: pendingAccessRequestsWithoutParentResource
@@ -141,11 +162,11 @@ export default function useAccessRequestCheckout() {
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
     );
-  }, [pendingAccessRequestRequest]);
+  }, [pendingAccessRequestRequest, requestedCount]);
 
   useEffect(() => {
     clearCreateAttempt();
-  }, [clusterUri]);
+  }, [rootClusterUri]);
 
   useEffect(() => {
     if (
@@ -265,7 +286,7 @@ export default function useAccessRequestCheckout() {
   }
 
   function getAssumedRequests() {
-    if (!clusterUri) {
+    if (!rootClusterUri) {
       return [];
     }
     const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
@@ -314,7 +335,7 @@ export default function useAccessRequestCheckout() {
 
     setCreateRequestAttempt({ status: 'processing' });
 
-    return retryWithRelogin(ctx, clusterUri, () =>
+    return retryWithRelogin(ctx, rootClusterUri, () =>
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
         return {
           accessRequest: response.request,
@@ -348,6 +369,7 @@ export default function useAccessRequestCheckout() {
   }
 
   async function createRequest(req: CreateRequest) {
+    setIsCreatingRequest(true);
     let requestedCount: number;
     try {
       const response = await prepareAndCreateRequest(req);
@@ -359,6 +381,7 @@ export default function useAccessRequestCheckout() {
     setRequestedCount(requestedCount);
     reset();
     setCreateRequestAttempt({ status: 'success' });
+    setIsCreatingRequest(false);
   }
 
   function clearCreateAttempt() {
@@ -407,7 +430,7 @@ export default function useAccessRequestCheckout() {
       useSearchAsRoles: true,
       nextKey: '',
       resourceType: 'namespace',
-      clusterUri,
+      clusterUri: clusterUri,
       predicateExpression: '',
       kubernetesCluster: kubeCluster,
       kubernetesNamespace: '',
@@ -434,11 +457,9 @@ export default function useAccessRequestCheckout() {
     goToRequestsList,
     requestedCount,
     clearCreateAttempt,
-    clusterUri,
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,
     resourceRequestRoles,
-    rootClusterUri,
     fetchResourceRolesAttempt,
     createRequestAttempt,
     collapseBar,
