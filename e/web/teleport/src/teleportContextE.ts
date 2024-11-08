@@ -97,7 +97,7 @@ class TeleportEContext extends TeleportContext {
             },
           });
 
-          this.redirectUrl = eCfg.routes.accessGraph;
+          this.redirectUrl = eCfg.routes.accessGraph.dashboard;
         }
       } catch {
         // it's okay if we can't fetch the marketing params

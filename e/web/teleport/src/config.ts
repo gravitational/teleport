@@ -13,7 +13,14 @@ const cfg = {
   oss: ossCfg,
 
   routes: {
-    accessGraph: '/web/accessgraph',
+    accessGraph: {
+      dashboard: '/web/accessgraph',
+      browse: '/web/accessgraph/browse',
+      crownJewels: '/web/accessgraph/crownjewels',
+      graphExplorer: '/web/accessgraph/graph',
+      sqlEditor: '/web/accessgraph/sql',
+      integrations: '/web/accessgraph/integrations',
+    },
     accessLists: '/web/accesslists/:accessListId?',
     accessListNew: '/web/accesslists/new',
 
@@ -166,7 +173,7 @@ const cfg = {
     // /web/accessgraph` and `/web/accessgraph/integrations/new`
     // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
 
-    return [this.routes.accessGraph];
+    return [this.routes.accessGraph.dashboard];
   },
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {

@@ -1,19 +1,24 @@
 import React, { lazy } from 'react';
 import * as OSS from 'teleport/features';
 import {
-  NavigationCategory,
   ManagementSection,
+  NavigationCategory,
 } from 'teleport/Navigation/categories';
 import { NavigationCategory as SideNavigationCategory } from 'teleport/Navigation/SideNavigation/categories';
 import {
   Add,
   Chart,
+  Code,
+  Crown,
   Download,
-  FlowArrow,
   Graph,
   Headset,
   Laptop,
+  Layout,
+  LineSegments,
   ListAddCheck,
+  Plugs,
+  Table,
   UserList,
 } from 'design/Icon';
 
@@ -431,9 +436,11 @@ export class FeatureSSOConfirm implements TeleportFeature {
     path: cfg.routes.ssoConfirm,
     component: SSOConfirm,
   };
+
   hasAccess() {
     return true;
   }
+
   hideNavigation = true;
   logoOnlyTopbar = true;
 }
@@ -459,12 +466,10 @@ class FeatureAccessGraph implements TeleportFeature {
   section = ManagementSection.Permissions;
   sideNavCategory = SideNavigationCategory.Policy;
 
-  hideNavigation = true;
-
   route = {
-    title: 'Access Graph',
-    path: cfg.routes.accessGraph,
-    exact: false,
+    title: `Access Graph - ${NavTitle.AccessGraphDashboard}`,
+    path: cfg.routes.accessGraph.dashboard,
+    exact: true,
     component: AccessGraph,
   };
 
@@ -473,12 +478,112 @@ class FeatureAccessGraph implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitle.AccessGraph,
-    icon: FlowArrow,
+    title: NavTitle.AccessGraphDashboard,
+    icon: Layout,
     getLink() {
-      return cfg.routes.accessGraph;
+      return cfg.routes.accessGraph.dashboard;
     },
-    searchableTags: ['access graph', 'graph', 'tag'],
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'dashboard'],
+  };
+}
+
+class FeatureAccessGraphBrowse extends FeatureAccessGraph {
+  route = {
+    title: `Access Graph - ${NavTitle.AccessGraphBrowse}`,
+    path: cfg.routes.accessGraph.browse,
+    exact: false,
+    component: AccessGraph,
+  };
+
+  navigationItem = {
+    title: NavTitle.AccessGraphBrowse,
+    icon: Table,
+    getLink() {
+      return cfg.routes.accessGraph.browse;
+    },
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'browse'],
+  };
+}
+
+class FeatureAccessGraphCrownJewels extends FeatureAccessGraph {
+  route = {
+    title: `Access Graph - ${NavTitle.AccessGraphCrownJewels}`,
+    path: cfg.routes.accessGraph.crownJewels,
+    exact: false,
+    component: AccessGraph,
+  };
+
+  navigationItem = {
+    title: NavTitle.AccessGraphCrownJewels,
+    icon: Crown,
+    getLink() {
+      return cfg.routes.accessGraph.crownJewels;
+    },
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'crown jewels'],
+  };
+}
+
+class FeatureAccessGraphGraphExplorer extends FeatureAccessGraph {
+  route = {
+    title: `Access Graph - ${NavTitle.AccessGraphGraphExplorer}`,
+    path: cfg.routes.accessGraph.graphExplorer,
+    exact: false,
+    component: AccessGraph,
+  };
+
+  navigationItem = {
+    title: NavTitle.AccessGraphGraphExplorer,
+    icon: LineSegments,
+    getLink() {
+      return cfg.routes.accessGraph.graphExplorer;
+    },
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'graph explorer'],
+  };
+}
+
+class FeatureAccessGraphSQLEditor extends FeatureAccessGraph {
+  route = {
+    title: `Access Graph - ${NavTitle.AccessGraphSQLEditor}`,
+    path: cfg.routes.accessGraph.sqlEditor,
+    exact: false,
+    component: AccessGraph,
+  };
+
+  navigationItem = {
+    title: NavTitle.AccessGraphSQLEditor,
+    icon: Code,
+    getLink() {
+      return cfg.routes.accessGraph.sqlEditor;
+    },
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'sql editor'],
+  };
+}
+
+class FeatureAccessGraphIntegrations extends FeatureAccessGraph {
+  route = {
+    title: `Access Graph - ${NavTitle.Integrations}`,
+    path: cfg.routes.accessGraph.integrations,
+    exact: false,
+    component: AccessGraph,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.accessGraphIntegrations;
+  }
+
+  navigationItem = {
+    title: NavTitle.Integrations,
+    icon: Plugs,
+    getLink() {
+      return cfg.routes.accessGraph.integrations;
+    },
+    exact: false,
+    searchableTags: ['access graph', 'graph', 'tag', 'sql editor'],
   };
 }
 
@@ -527,6 +632,11 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
 
     // - Policy
     new FeatureAccessGraph(),
+    new FeatureAccessGraphBrowse(),
+    new FeatureAccessGraphCrownJewels(),
+    new FeatureAccessGraphGraphExplorer(),
+    new FeatureAccessGraphSQLEditor(),
+    new FeatureAccessGraphIntegrations(),
 
     // Other
     new FeatureAccount(),

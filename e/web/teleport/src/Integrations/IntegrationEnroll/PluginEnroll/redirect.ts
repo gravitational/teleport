@@ -9,7 +9,7 @@ type RedirectConfig = Record<string, RedirectConfigItem>;
 
 const redirectConfig: RedirectConfig = {
   tag: {
-    url: cfg.routes.accessGraph,
+    url: cfg.routes.accessGraph.dashboard,
     primaryButtonText: 'Return to Access Graph',
   },
 };
