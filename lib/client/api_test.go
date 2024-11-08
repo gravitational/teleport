@@ -1265,6 +1265,16 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			},
 			expectResolvable: true,
 		},
+		{
+			name:             "trace.BadParameter should be resolvable",
+			err:              trace.BadParameter("bad"),
+			expectResolvable: true,
+		},
+		{
+			name:             "nonRetryableError should not be resolvable",
+			err:              trace.Wrap(NewNonRetryableError(trace.BadParameter("bad"))),
+			expectResolvable: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			resolvable := IsErrorResolvableWithRelogin(tt.err)
@@ -1364,4 +1374,12 @@ func TestGetTargetNodes(t *testing.T) {
 			require.EqualValues(t, test.expected, match)
 		})
 	}
+}
+
+func TestNonRetryableError(t *testing.T) {
+	err := NewNonRetryableError(trace.AccessDenied("do not enter"))
+	require.Error(t, err)
+	require.Equal(t, "do not enter", err.Error())
+	require.True(t, isNonRetryableError(err))
+	require.True(t, trace.IsAccessDenied(err))
 }
