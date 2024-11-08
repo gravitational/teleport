@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
@@ -293,8 +294,12 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 			return trace.Errorf("failed to request version from proxy: %w", err)
 		}
 		targetVersion = resp.AutoUpdate.AgentVersion
-		if resp.Edition == "ent" {
+		switch resp.Edition {
+		case modules.BuildEnterprise:
 			flags |= FlagEnterprise
+		case modules.BuildOSS, modules.BuildCommunity:
+		default:
+			u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
 		}
 		if resp.FIPS {
 			flags |= FlagFIPS
