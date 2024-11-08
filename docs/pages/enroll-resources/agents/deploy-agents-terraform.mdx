@@ -13,9 +13,10 @@ machines by declaring it as code using Terraform.
 
 There are several methods you can use to join a Teleport agent to your cluster,
 which we discuss in the [Joining Services to your
-Cluster](join-services-to-your-cluster.mdx) guide. In this guide, we will use
-the **join token** method, where the operator stores a secure token on the Auth
-Service, and an agent presents the token in order to join a cluster.
+Cluster](join-services-to-your-cluster/join-services-to-your-cluster.mdx) guide.
+In this guide, we will use the **join token** method, where the operator stores
+a secure token on the Auth Service, and an agent presents the token in order to
+join a cluster.
 
 No matter which join method you use, it will involve the following Terraform
 resources:
@@ -56,7 +57,7 @@ a demo cluster using:
 
 - An identity file for the Teleport Terraform provider. Make sure you are
   familiar with [how to set up the Teleport Terraform
-  provider](../../admin-guides/infrastructure-as-code/terraform-provider.mdx) before
+  provider](../../admin-guides/infrastructure-as-code/terraform-provider/terraform-provider.mdx) before
   following this guide.
 
 - (!docs/pages/includes/tctl.mdx!)

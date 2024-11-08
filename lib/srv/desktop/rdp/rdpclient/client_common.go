@@ -32,9 +32,13 @@ import (
 type Config struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
-	// UserCertGenerator generates user certificates for RDP authentication.
+
+	// GenerateUserCert generates user certificates for RDP authentication.
 	GenerateUserCert GenerateUserCertFn
 	CertTTL          time.Duration
+
+	// HostID uniquely identifies the Teleport agent running the RDP client.
+	HostID string
 
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error

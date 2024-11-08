@@ -100,9 +100,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	authType := authLocal
 
 	// check for any SSO identities
-	isSSO := len(user.GetOIDCIdentities()) > 0 ||
-		len(user.GetGithubIdentities()) > 0 ||
-		len(user.GetSAMLIdentities()) > 0
+	isSSO := user.GetUserType() == types.UserTypeSSO
 
 	if isSSO {
 		// SSO user
