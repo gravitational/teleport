@@ -92,7 +92,6 @@ Users need to complete the necessary steps for Entra ID application setup indepe
 
 ## Configure Entra ID integration
 
-Please choose the preferred operational mode from the menu below.
 
 <Tabs>
 <TabItem label="Teleport as OIDC provider" >
@@ -228,7 +227,6 @@ $ tctl plugins install entraid \
     --[no-]access-graph  \ 
     --use-system-credentials \
     --auth-server <Var name="example.teleport.sh:443" />
-
 ```
 
 Follow the detailed instructions provided by the `tctl plugins install entraid` guide to install and configure the Entra ID plugin.
@@ -237,7 +235,7 @@ Be sure to follow each step in the `tctl plugins install entraid` guide closely 
 
 </TabItem>
 
-        <TabItem label="Manual setup" >
+<TabItem label="Manual setup" >
 
 ### Step 1/3. Assign permissions to Azure Identity of your Auth Service VMs
 
