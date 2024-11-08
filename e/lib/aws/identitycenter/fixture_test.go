@@ -38,6 +38,9 @@ func newTestService(t *testing.T, fixture *ictest.Fixture) *Service {
 		},
 		PluginsService:   fixture.PluginService,
 		PluginStatusSink: fixture.PluginStatusSink,
+
+		// TODO: replace with cache when Auth.Cache implements AccountAssignmentLister
+		IdentityCenterDataSvcCache: fixture.Auth.Services,
 	}
 
 	svc, err := NewService(cfg)

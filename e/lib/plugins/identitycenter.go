@@ -103,6 +103,10 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			},
 			PluginStatusSink: deps.statusSink,
 			PluginsService:   deps.pluginsService,
+
+			// TODO(tcsc): Expose ListAccountAssignments on the cache interface
+			//             and replace this with a reference to authServer.Cache
+			IdentityCenterDataSvcCache: authServer.Services,
 		})
 		if err != nil {
 			return trace.Wrap(err)

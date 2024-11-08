@@ -9,7 +9,7 @@ import (
 	"github.com/gravitational/trace"
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	icSDK "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
+	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -20,7 +20,7 @@ type ExternalID = provisioning.ExternalID
 type PrincipalMap map[ExternalID]*identitycenterv1.PrincipalAssignment
 
 type externalData struct {
-	icInstance     *icSDK.InstanceInfo
+	icInstance     *icsdk.InstanceInfo
 	accounts       accountResourceMap
 	permissionSets psResourceMap
 }

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -26,6 +27,7 @@ import (
 // Fixture holds resources for constructing and testing an
 // IdentityCenter service
 type Fixture struct {
+	Ctx              context.Context
 	Backend          backend.Backend
 	Clock            clockwork.FakeClock
 	Auth             *auth.Server
@@ -35,7 +37,11 @@ type Fixture struct {
 	PluginStatusSink common.StatusSink
 }
 
-func withCache(srv *auth.Server) error {
+type CacheArgs struct {
+	Started bool
+}
+
+func initCache(srv *auth.Server, args CacheArgs) error {
 	// TODO: See if we can trim the requirements for the cache down a bit.
 
 	svces := srv.Services
@@ -45,7 +51,7 @@ func withCache(srv *auth.Server) error {
 		Setup:        cache.ForAuth,
 		CacheName:    []string{teleport.ComponentAuth},
 		EventsSystem: true,
-		Unstarted:    false,
+		Unstarted:    !args.Started,
 
 		Access:                  svces.Access,
 		AccessLists:             svces.AccessLists,
@@ -93,7 +99,14 @@ func withCache(srv *auth.Server) error {
 	return nil
 }
 
-func NewFixture(t *testing.T) *Fixture {
+func WithCache(args CacheArgs) func(*auth.Server) error {
+	return func(srv *auth.Server) error { return initCache(srv, args) }
+}
+
+func NewFixture(t *testing.T, opts ...auth.ServerOption) *Fixture {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	clock := clockwork.NewFakeClock()
 
 	backend, err := memory.New(memory.Config{Clock: clock})
@@ -105,13 +118,14 @@ func NewFixture(t *testing.T) *Fixture {
 	})
 	require.NoError(t, err)
 
+	opts = append(opts, auth.WithClock(clock))
 	auth, err := auth.NewServer(&auth.InitConfig{
 		Authority:              authority.New(),
 		Backend:                backend,
 		ClusterName:            clusterName,
 		SkipPeriodicOperations: true,
 		VersionStorage:         auth.NewFakeTeleportVersion(),
-	}, auth.WithClock(clock), withCache)
+	}, opts...)
 	require.NoError(t, err, "creating Auth server")
 	t.Cleanup(func() { require.NoError(t, auth.Close()) })
 
@@ -121,6 +135,7 @@ func NewFixture(t *testing.T) *Fixture {
 	pluginService := local.NewPluginsService(backend)
 
 	fixture := &Fixture{
+		Ctx:              ctx,
 		Backend:          backend,
 		Clock:            clock,
 		Auth:             auth,

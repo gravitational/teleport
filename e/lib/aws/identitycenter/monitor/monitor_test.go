@@ -78,7 +78,7 @@ func TestResourceMonitor(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// GIVEN a test cluster
-	fixture := ictest.NewFixture(t)
+	fixture := ictest.NewFixture(t, ictest.WithCache(ictest.CacheArgs{Started: true}))
 	eventCh := make(chan *PrincipalEvent)
 	defer close(eventCh)
 
