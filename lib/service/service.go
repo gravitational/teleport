@@ -932,7 +932,7 @@ type Process interface {
 type NewProcess func(cfg *servicecfg.Config) (Process, error)
 
 func newTeleportProcess(cfg *servicecfg.Config) (Process, error) {
-	return NewTeleport(cfg)
+	return NewTeleportMini(cfg)
 }
 
 // Run installs a signal handler for relevant control signals, starts the
