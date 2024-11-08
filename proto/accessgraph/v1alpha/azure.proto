@@ -75,7 +75,7 @@ message AzureRoleDefinition {
 }
 
 // AzurePermission defines the actions and not (disallowed) actions for a role definition
-message AzurePermission {
+message AzureRBACPermission {
   repeated string actions = 4;
   repeated string not_actions = 5;
 }
