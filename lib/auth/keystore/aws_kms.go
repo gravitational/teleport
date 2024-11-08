@@ -141,14 +141,12 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 		slog.Any("algorithm", algorithm),
 		slog.Bool("multi_region", a.multiRegionEnabled))
 
-	tags := make([]kmstypes.Tag, len(a.tags))
-	var tagIndex int
+	tags := make([]kmstypes.Tag, 0, len(a.tags))
 	for k, v := range a.tags {
-		tags[tagIndex] = kmstypes.Tag{
+		tags = append(tags, kmstypes.Tag{
 			TagKey:   aws.String(k),
 			TagValue: aws.String(v),
-		}
-		tagIndex++
+		})
 	}
 
 	output, err := a.kms.CreateKey(ctx, &kms.CreateKeyInput{
