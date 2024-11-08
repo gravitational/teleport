@@ -466,11 +466,11 @@ export type AwsEksCluster = {
   authenticationMode: 'API' | 'API_AND_CONFIG_MAP' | 'CONFIG_MAP';
 
   /**
-   * EndpointPublicAddress indicates whether this cluster is publicly accessible.
+   * EndpointPublicAccess indicates whether this cluster is publicly accessible.
    * This is a requirement for Teleport Cloud tenants because the control plane must be able to access the EKS Cluster
    * in order to deploy the helm chart.
    */
-  endpointPublicAddress: boolean;
+  endpointPublicAccess: boolean;
 };
 
 export type EnrollEksClustersRequest = {
