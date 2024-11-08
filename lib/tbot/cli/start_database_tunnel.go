@@ -19,6 +19,7 @@
 package cli
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -40,8 +41,8 @@ type DatabaseTunnelCommand struct {
 }
 
 // NewDatabaseTunnelCommand creates a command supporting `tbot start database-tunnel`
-func NewDatabaseTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *DatabaseTunnelCommand {
-	cmd := parentCmd.Command("database-tunnel", "Start a database tunnel listener").Alias("db-tunnel")
+func NewDatabaseTunnelCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *DatabaseTunnelCommand {
+	cmd := parentCmd.Command("database-tunnel", fmt.Sprintf("%s tbot with a database tunnel listener.", mode)).Alias("db-tunnel")
 
 	c := &DatabaseTunnelCommand{}
 	c.sharedStartArgs = newSharedStartArgs(cmd)

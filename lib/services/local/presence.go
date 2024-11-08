@@ -498,7 +498,7 @@ func (s *PresenceService) GetReverseTunnels(ctx context.Context) ([]types.Revers
 	return tunnels, nil
 }
 
-// DeleteReverseTunnel deletes reverse tunnel by it's cluster name
+// DeleteReverseTunnel deletes reverse tunnel by its cluster name
 func (s *PresenceService) DeleteReverseTunnel(ctx context.Context, clusterName string) error {
 	err := s.Delete(ctx, backend.NewKey(reverseTunnelsPrefix, clusterName))
 	return trace.Wrap(err)

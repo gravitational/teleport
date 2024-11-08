@@ -661,7 +661,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 	return nil
 }
 
-// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
+// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -678,7 +678,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	return nil, trace.NotFound("user with identity %q not found", &id)
 }
 
-// GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
+// GetUserBySAMLIdentity returns a user by its specified OIDC Identity, returns
 // first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -1489,6 +1489,7 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		Sso: &types.SSOMFADevice{
 			ConnectorId:   cb.Connector.ID,
 			ConnectorType: cb.Connector.Type,
+			DisplayName:   mfaConnector.GetDisplay(),
 		},
 	})
 }

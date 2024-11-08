@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
 import styled, { useTheme } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
 import { Text, Flex, Box, P2 } from 'design';
@@ -72,15 +78,18 @@ const PanelBackground = styled.div`
 
 /* NavigationSection is a section in the navbar, this can either be a standalone section (clickable button with no drawer), or a category with subsections shown in a drawer that expands. */
 export type NavigationSection = {
-  category: SidenavCategory;
+  category?: SidenavCategory;
   subsections?: NavigationSubsection[];
   /* standalone is whether this is a clickable nav section with no subsections/drawer. */
   standalone?: boolean;
 };
 
-/* NavigationSubsection is a subsection of a NavigationSection, these are the items listed in the drawer of a NavigationSection. */
+/**
+ * NavigationSubsection is a subsection of a NavigationSection, these are the items listed in the drawer of a NavigationSection, or if isTopMenuItem is true, in the top menu (eg. Account Settings).
+ */
 export type NavigationSubsection = {
-  category: SidenavCategory;
+  category?: SidenavCategory;
+  isTopMenuItem?: boolean;
   title: string;
   route: string;
   exact: boolean;
@@ -139,6 +148,26 @@ function getSubsectionsForCategory(
 
 // getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
 // Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
+/**
+ * getTopMenuSection returns a NavigationSection with the top menu items. This is not used in the sidenav, but will be used to make the top menu items searchable.
+ */
+function getTopMenuSection(features: TeleportFeature[]): NavigationSection {
+  const topMenuItems = features.filter(
+    feature => !!feature.topMenuItem && !feature.sideNavCategory
+  );
+
+  return {
+    subsections: topMenuItems.map(feature => ({
+      isTopMenuItem: true,
+      title: feature.topMenuItem.title,
+      route: feature.topMenuItem.getLink(cfg.proxyCluster),
+      exact: feature?.route?.exact,
+      icon: feature.topMenuItem.icon,
+      searchableTags: feature.topMenuItem.searchableTags,
+    })),
+  };
+}
+
 function getNavSubsectionForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
@@ -148,12 +177,24 @@ function getNavSubsectionForRoute(
     .find(feature =>
       matchPath(route.pathname, {
         path: feature.route.path,
-        exact: false,
+        exact: feature.route.exact,
       })
     );
 
-  if (!feature || !feature.sideNavCategory) {
+  if (!feature || (!feature.sideNavCategory && !feature.topMenuItem)) {
     return;
+  }
+
+  if (feature.topMenuItem) {
+    return {
+      isTopMenuItem: true,
+      exact: feature.route.exact,
+      title: feature.topMenuItem.title,
+      route: feature.topMenuItem.getLink(cfg.proxyCluster),
+      icon: feature.topMenuItem.icon,
+      searchableTags: feature.topMenuItem.searchableTags,
+      category: feature?.sideNavCategory,
+    };
   }
 
   return {
@@ -223,11 +264,15 @@ export function Navigation() {
       }
     };
   }, []);
-  const currentView = getNavSubsectionForRoute(features, history.location);
+  const currentView = useMemo(
+    () => getNavSubsectionForRoute(features, history.location),
+    [history.location]
+  );
 
   const navSections = getNavigationSections(features).filter(
     section => section.subsections.length
   );
+  const topMenuSection = getTopMenuSection(features);
 
   const handleSetExpandedSection = useCallback(
     (section: NavigationSection) => {
@@ -300,7 +345,7 @@ export function Navigation() {
       <SideNavContainer>
         <PanelBackground />
         <SearchSection
-          navigationSections={navSections}
+          navigationSections={[...navSections, topMenuSection]}
           expandedSection={debouncedSection}
           previousExpandedSection={previousExpandedSection}
           handleSetExpandedSection={handleSetExpandedSection}

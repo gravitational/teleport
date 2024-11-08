@@ -28,6 +28,11 @@
     "nop": "exit 0"
   },
   "private": true,
+  "pnpm": {
+    "overrides": {
+      "@bundled-es-modules/cookie>cookie": "0.7.1"
+    }
+  },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@storybook/addon-toolbars": "^8.3.4",
@@ -39,6 +44,7 @@
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/jest": "^29.5.13",
+    "@types/history": "^4.7.11",
     "@types/node": "^20.16.10",
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",

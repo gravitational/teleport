@@ -59,7 +59,7 @@ type WebauthnLoginFunc = libmfa.WebauthnLoginFunc
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 	cfg := tc.newPromptConfig(opts...)
 
-	var prompt mfa.Prompt = libmfa.NewCLIPromptV2(&libmfa.CLIPromptConfig{
+	var prompt mfa.Prompt = libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
 		PromptConfig:     *cfg,
 		Writer:           tc.Stderr,
 		PreferOTP:        tc.PreferOTP,
@@ -96,6 +96,10 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 	rd, err := sso.NewRedirector(rdConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if tc.SSOMFACeremonyConstructor != nil {
+		return tc.SSOMFACeremonyConstructor(rd), nil
 	}
 
 	return sso.NewCLIMFACeremony(rd), nil

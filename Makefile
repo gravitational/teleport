@@ -364,7 +364,7 @@ $(BUILDDIR)/tctl:
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tctl without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 # Appending new conditional settings for community build type
@@ -394,6 +394,10 @@ $(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG))
 $(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
+
+.PHONY: $(BUILDDIR)/teleport-update
+$(BUILDDIR)/teleport-update:
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -1543,8 +1547,7 @@ derive:
 .PHONY: derive-up-to-date
 derive-up-to-date: must-start-clean/host derive
 	@if ! git diff --quiet; then \
-		echo 'Please run make derive.'; \
-		git diff; \
+		./build.assets/please-run.sh "derived functions" "make derive"; \
 		exit 1; \
 	fi
 
@@ -1579,15 +1582,14 @@ endif
 .PHONY: protos-up-to-date/host
 protos-up-to-date/host: must-start-clean/host grpc/host
 	@if ! git diff --quiet; then \
-		echo 'Please run make grpc.'; \
-		git diff; \
+		./build.assets/please-run.sh "protos gRPC" "make grpc"; \
 		exit 1; \
 	fi
 
 .PHONY: must-start-clean/host
 must-start-clean/host:
 	@if ! git diff --quiet; then \
-		echo 'This must be run from a repo with no unstaged commits.'; \
+		@echo 'This must be run from a repo with no unstaged commits.'; \
 		git diff; \
 		exit 1; \
 	fi
@@ -1597,14 +1599,12 @@ must-start-clean/host:
 crds-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/operator manifests
 	@if ! git diff --quiet; then \
-		echo 'Please run make -C integrations/operator manifests.'; \
-		git diff; \
+		./build.assets/please-run.sh "operator CRD manifests" "make -C integrations/operator crd"; \
 		exit 1; \
 	fi
 	$(MAKE) -C integrations/operator crd-docs
 	@if ! git diff --quiet; then \
-		echo 'Please run make -C integrations/operator crd-docs.'; \
-		git diff; \
+		./build.assets/please-run.sh "operator CRD docs" "make -C integrations/operator crd"; \
 		exit 1; \
 	fi
 
@@ -1613,8 +1613,7 @@ crds-up-to-date: must-start-clean/host
 terraform-resources-up-to-date: must-start-clean/host
 	$(MAKE) -C integrations/terraform docs
 	@if ! git diff --quiet; then \
-		echo 'Please run make -C integrations/terraform docs.'; \
-		git diff; \
+		./build.assets/please-run.sh "TF provider docs" "make -C integrations/terraform docs"; \
 		exit 1; \
 	fi
 
@@ -1625,10 +1624,11 @@ print/env:
 .PHONY: install
 install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
-	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
-	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
-	cp -f $(BUILDDIR)/tbot      $(BINDIR)/
-	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	cp -f $(BUILDDIR)/tctl             $(BINDIR)/
+	cp -f $(BUILDDIR)/tsh              $(BINDIR)/
+	cp -f $(BUILDDIR)/tbot             $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport         $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport-update  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
 # Docker image build. Always build the binaries themselves within docker (see
@@ -1818,7 +1818,7 @@ changelog:
 # does not match version set it will fail to create a release. If tag doesn't exist it
 # will also fail to create a release.
 #
-# For more information on release notes generation see: 
+# For more information on release notes generation see:
 #   https://github.com/gravitational/shared-workflows/tree/gus/release-notes/tools/release-notes#readme
 RELEASE_NOTES_GEN = github.com/gravitational/shared-workflows/tools/release-notes@latest
 .PHONY: create-github-release

@@ -303,6 +303,8 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'region', value: 'us-east-1' },
       { name: 'account-id', value: '1234567789012' },
     ],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS2',
@@ -315,6 +317,8 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'region', value: 'us-east1' },
       { name: 'account-id', value: '1234567789012' },
     ],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS3',
@@ -327,5 +331,35 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'region', value: 'us-east-1' },
       { name: 'account-id', value: '1234567789012' },
     ],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
+  },
+  {
+    name: 'EKS4',
+    region: 'us-east-1',
+    accountId: '123456789012',
+    status: 'active',
+    labels: [{ name: 'env', value: 'prod' }],
+    joinLabels: [
+      { name: 'teleport.dev/cloud', value: 'AWS' },
+      { name: 'region', value: 'us-east-1' },
+      { name: 'account-id', value: '1234567789012' },
+    ],
+    authenticationMode: 'CONFIG_MAP',
+    endpointPublicAccess: true,
+  },
+  {
+    name: 'EKS5',
+    region: 'us-east-1',
+    accountId: '123456789012',
+    status: 'active',
+    labels: [{ name: 'env', value: 'prod' }],
+    joinLabels: [
+      { name: 'teleport.dev/cloud', value: 'AWS' },
+      { name: 'region', value: 'us-east-1' },
+      { name: 'account-id', value: '1234567789012' },
+    ],
+    authenticationMode: 'API_AND_CONFIG_MAP',
+    endpointPublicAccess: false,
   },
 ];
