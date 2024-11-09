@@ -35,12 +35,11 @@ export const IntegrationTile = styled(Flex)<{
   width: 170px;
   background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
   text-align: center;
-  cursor: pointer;
-
+  cursor: ${({ disabled, $exists }) =>
+    disabled || $exists ? 'default' : 'pointer'};
   ${props => {
-    const pointerEvents = props.disabled || props.$exists ? 'none' : 'auto';
     if (props.$exists) {
-      return { pointerEvents };
+      return;
     }
 
     return `
@@ -48,9 +47,8 @@ export const IntegrationTile = styled(Flex)<{
     &:hover {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
-    pointer-events: ${pointerEvents};
     `;
-  }}
+  }};
 `;
 
 export const NoCodeIntegrationDescription = () => (

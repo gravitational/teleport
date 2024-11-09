@@ -6255,6 +6255,10 @@ message PluginSpecV1 {
     PluginDatadogAccessSettings datadog = 15;
     // PluginAWSICSettings holds settings for AWSICSettings
     PluginAWSICSettings aws_ic = 16;
+    // Settings for the Email Access Request plugin
+    PluginEmailSettings email = 17;
+    // Settings for the Microsoft Teams plugin
+    PluginMSTeamsSettings msteams = 18;
   }
 
   // generation contains a unique ID that should:
@@ -6595,6 +6599,87 @@ message AWSICProvisioningSpec {
   string bearer_token = 2;
 }
 
+// PluginAWSICStatusV1 defines AWS Identity Center plugin sub-process status.
+message PluginAWSICStatusV1 {
+  // GroupImportStatus is a status of Identity Center group and group members import.
+  AWSICGroupImportStatus group_import_status = 1;
+}
+
+// AWSICGroupImportStatus defines Identity Center group and group members import status.
+message AWSICGroupImportStatus {
+  // StatusCode is a status code of group and group members import operation.
+  AWSICGroupImportStatusCode status_code = 1;
+  // ErrorMessage contains error message for a group and group members import attempt
+  // that met with an error.
+  string error_message = 2;
+}
+
+// AWSICGroupImportStatus defines Identity Center group and group members
+// import status codes.
+enum AWSICGroupImportStatusCode {
+  // UNSPECIFIED denotes that a status is unknown.
+  UNSPECIFIED = 0;
+  // DONE denotes that the group and group members import operation was
+  // completed.
+  DONE = 1;
+  // FAILED denotes that the group and group members import met with an error.
+  FAILED = 2;
+}
+
+// PluginEmailSettings holds the settings for an Email Access Request plugin.
+message PluginEmailSettings {
+  option (gogoproto.equal) = true;
+
+  // Sender specifies the email sender.
+  string sender = 1;
+  // FallbackRecipient specifies the default recipient.
+  string fallback_recipient = 2;
+
+  // Spec configures the mail service settings.
+  oneof spec {
+    // MailgunSpec configures Mailgun service settings.
+    MailgunSpec mailgun_spec = 3;
+    // SmtpSpec configures generic SMTP service settings.
+    SMTPSpec smtp_spec = 4;
+  }
+}
+
+// MailgunSpec holds Mailgun-specific settings.
+message MailgunSpec {
+  option (gogoproto.equal) = true;
+
+  // Domain specifies the Mailgun sending domain.
+  string domain = 1;
+}
+
+// SMTPSpec holds a generic SMTP service specific settings.
+message SMTPSpec {
+  option (gogoproto.equal) = true;
+
+  // Host specifies the SMTP service host name.
+  string host = 1;
+  // Port specifies the SMTP service port number.
+  int32 port = 2;
+  // StartTLSPolicy specifies the SMTP start TLS policy used to send emails over
+  // SMTP.
+  string start_tls_policy = 3;
+}
+
+// PluginMSTeamsSettings defines the settings for a Microsoft Teams integration plugin
+message PluginMSTeamsSettings {
+  option (gogoproto.equal) = true;
+  // AppId is the Microsoft application ID (uuid, for Azure bots must be underlying app id, not bot's id).
+  string app_id = 1;
+  // TenantId is the Microsoft tenant ID.
+  string tenant_id = 2;
+  // TeamsAppId is the Microsoft teams application ID.
+  string teams_app_id = 3;
+  // Region to be used by the Microsoft Graph API client.
+  string region = 4;
+  // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
+  string default_recipient = 5;
+}
+
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
@@ -6631,6 +6716,8 @@ message PluginStatusV1 {
     PluginEntraIDStatusV1 entra_id = 5;
     // Okta holds status details for the Okta plugin
     PluginOktaStatusV1 okta = 7;
+    // AWSIC holds status details for the AWS Identity Center plugin.
+    PluginAWSICStatusV1 aws_ic = 8;
   }
 
   // last_raw_error variable stores the most recent raw error message received from an API or service.
