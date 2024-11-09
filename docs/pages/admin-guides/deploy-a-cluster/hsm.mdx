@@ -193,29 +193,35 @@ to use.
    Teleport with the necessary capabilities.
 
    YubiHSM2 comes with a factory default authentication key at slot 1 with password
-   `password`. You should replace and delete it as recommended by Yubico.
+   `password`. We recommend replacing this or changing the password as soon as
+   possible.
 
    When creating the authentication key to be used by Teleport, the password
-   must have at least 8 characters. The example `hunter22` is used here.
+   must have at least 8 characters.
 
    ```text
    $ yubihsm-shell
    Using default connector URL: http://localhost:12345
    yubihsm> connect
    Session keepalive set up to run every 15 seconds
-   yubihsm> session open 1 password
+   yubihsm> session open 1
+   Enter password:
    Created session 0
 
-   # Create an Authenticate Key for Teleport
-   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa hunter22
+   # Create an Authentication Key for Teleport
+   yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:sign-pss:sign-ecdsa:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep:sign-ecdsa
+   Enter password:
    Stored Authentication key 0x85cf
 
    # Make sure you can open a session with the new authentication key and password
-   yubihsm> session open 0x85cf hunter22
+   yubihsm> session open 0x85cf
+   Enter password:
    Created session 1
 
-   # Delete the factory default authentication key
-   yubihsm> delete 0 1 authentication-key
+   # Change the password for the factory default authentication key.
+   # Remember to securely store this password somewhere.
+   yubihsm> change authkey 0 1 authentication-key
+   Enter password:
    ```
 
    Take note of the slot number of the new authentication key.
@@ -294,8 +300,8 @@ auth_service:
       # slot_number should always be set to 0 for YubiHSM2
       slot_number: 0
       # pin should be the (hex) slot number of your authentication key,
-      # concatenated with the password
-      pin: "85cfhunter22"
+      # concatenated with your chosen password
+      pin: "85cfpassword"
       # pin_path can optionally be used to read the pin from a file
       # pin_path: /path/to/pin_file
 ```
