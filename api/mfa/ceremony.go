@@ -75,7 +75,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		if err != nil {
 			// We may fail to start the SSO MFA flow in cases where the Proxy is down or broken. Fall
 			// back to skipping SSO MFA, especially since SSO MFA may not even be allowed on the server.
-			slog.DebugContext(ctx, "Failed to attempt SSO MFA, continuing with other MFA methods.", "error", err)
+			slog.DebugContext(ctx, "Failed to attempt SSO MFA, continuing with other MFA methods", "error", err)
 		} else {
 			defer ssoMFACeremony.Close()
 			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
