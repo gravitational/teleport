@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 )
 
@@ -126,13 +125,7 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 	for {
 		select {
 		case <-ticker.Chan():
-			mfaResp, err := presenceCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
-				// With the custom CreateAuthenticateChallenge method above, we don't actually
-				// need to provide the extensions here, but the ceremony expects it.
-				ChallengeExtensions: &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-				},
-			})
+			mfaResp, err := presenceCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{})
 			if err != nil {
 				return trace.Wrap(err)
 			}
