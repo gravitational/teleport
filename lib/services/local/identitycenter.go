@@ -337,6 +337,11 @@ func (svc *IdentityCenterService) DeletePermissionSet(ctx context.Context, name 
 	return trace.Wrap(svc.permissionSets.DeleteResource(ctx, string(name)))
 }
 
+// DeleteAllPermissionSets deletes all Identity Center PermissionSet
+func (svc *IdentityCenterService) DeleteAllPermissionSets(ctx context.Context, req *identitycenterv1.DeleteAllPermissionSetsRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, trace.Wrap(svc.permissionSets.DeleteAllResources(ctx))
+}
+
 // ListAccountAssignments lists all IdentityCenterAccountAssignment record
 // known to the service
 func (svc *IdentityCenterService) ListAccountAssignments(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {

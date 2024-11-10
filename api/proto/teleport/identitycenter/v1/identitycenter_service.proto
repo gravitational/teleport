@@ -31,6 +31,9 @@ service IdentityCenterService {
 
   // DeleteAllPrincipalAssignments deletes all Identity Center principal assignments.
   rpc DeleteAllPrincipalAssignments(DeleteAllPrincipalAssignmentsRequest) returns (google.protobuf.Empty);
+
+  // DeleteAllPermissionSets deletes all Identity Center permission sets.
+  rpc DeleteAllPermissionSets(DeleteAllPermissionSetsRequest) returns (google.protobuf.Empty);
 }
 
 // DeleteAllIdentityCenterAccountsRequest is a request to delete all Identity Center imported accounts.
@@ -41,3 +44,6 @@ message DeleteAllAccountAssignmentsRequest {}
 
 // DeleteAllPrincipalAssignmentsRequest is a request to delete all Identity Center principal assignments.
 message DeleteAllPrincipalAssignmentsRequest {}
+
+// DeleteAllPermissionSetsRequest is a request to delete all Identity Center permission sets.
+message DeleteAllPermissionSetsRequest {}
