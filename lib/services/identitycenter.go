@@ -151,6 +151,9 @@ type IdentityCenterPermissionSets interface {
 
 	// DeletePermissionSet deletes a specific Identity Center PermissionSet
 	DeletePermissionSet(context.Context, PermissionSetID) error
+
+	// DeleteAllPermissionSets deletes all Identity Center PermissionSets.
+	DeleteAllPermissionSets(context.Context, *identitycenterv1.DeleteAllPermissionSetsRequest) (*emptypb.Empty, error)
 }
 
 // IdentityCenterAccountAssignment wraps a raw identitycenterv1.AccountAssignment

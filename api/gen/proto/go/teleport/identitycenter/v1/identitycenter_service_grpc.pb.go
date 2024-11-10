@@ -37,6 +37,7 @@ const (
 	IdentityCenterService_DeleteAllIdentityCenterAccounts_FullMethodName = "/teleport.identitycenter.v1.IdentityCenterService/DeleteAllIdentityCenterAccounts"
 	IdentityCenterService_DeleteAllAccountAssignments_FullMethodName     = "/teleport.identitycenter.v1.IdentityCenterService/DeleteAllAccountAssignments"
 	IdentityCenterService_DeleteAllPrincipalAssignments_FullMethodName   = "/teleport.identitycenter.v1.IdentityCenterService/DeleteAllPrincipalAssignments"
+	IdentityCenterService_DeleteAllPermissionSets_FullMethodName         = "/teleport.identitycenter.v1.IdentityCenterService/DeleteAllPermissionSets"
 )
 
 // IdentityCenterServiceClient is the client API for IdentityCenterService service.
@@ -52,6 +53,8 @@ type IdentityCenterServiceClient interface {
 	DeleteAllAccountAssignments(ctx context.Context, in *DeleteAllAccountAssignmentsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllPrincipalAssignments deletes all Identity Center principal assignments.
 	DeleteAllPrincipalAssignments(ctx context.Context, in *DeleteAllPrincipalAssignmentsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// DeleteAllPermissionSets deletes all Identity Center permission sets.
+	DeleteAllPermissionSets(ctx context.Context, in *DeleteAllPermissionSetsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type identityCenterServiceClient struct {
@@ -92,6 +95,16 @@ func (c *identityCenterServiceClient) DeleteAllPrincipalAssignments(ctx context.
 	return out, nil
 }
 
+func (c *identityCenterServiceClient) DeleteAllPermissionSets(ctx context.Context, in *DeleteAllPermissionSetsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, IdentityCenterService_DeleteAllPermissionSets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IdentityCenterServiceServer is the server API for IdentityCenterService service.
 // All implementations must embed UnimplementedIdentityCenterServiceServer
 // for forward compatibility.
@@ -105,6 +118,8 @@ type IdentityCenterServiceServer interface {
 	DeleteAllAccountAssignments(context.Context, *DeleteAllAccountAssignmentsRequest) (*emptypb.Empty, error)
 	// DeleteAllPrincipalAssignments deletes all Identity Center principal assignments.
 	DeleteAllPrincipalAssignments(context.Context, *DeleteAllPrincipalAssignmentsRequest) (*emptypb.Empty, error)
+	// DeleteAllPermissionSets deletes all Identity Center permission sets.
+	DeleteAllPermissionSets(context.Context, *DeleteAllPermissionSetsRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedIdentityCenterServiceServer()
 }
 
@@ -123,6 +138,9 @@ func (UnimplementedIdentityCenterServiceServer) DeleteAllAccountAssignments(cont
 }
 func (UnimplementedIdentityCenterServiceServer) DeleteAllPrincipalAssignments(context.Context, *DeleteAllPrincipalAssignmentsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllPrincipalAssignments not implemented")
+}
+func (UnimplementedIdentityCenterServiceServer) DeleteAllPermissionSets(context.Context, *DeleteAllPermissionSetsRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllPermissionSets not implemented")
 }
 func (UnimplementedIdentityCenterServiceServer) mustEmbedUnimplementedIdentityCenterServiceServer() {}
 func (UnimplementedIdentityCenterServiceServer) testEmbeddedByValue()                               {}
@@ -199,6 +217,24 @@ func _IdentityCenterService_DeleteAllPrincipalAssignments_Handler(srv interface{
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IdentityCenterService_DeleteAllPermissionSets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAllPermissionSetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityCenterServiceServer).DeleteAllPermissionSets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityCenterService_DeleteAllPermissionSets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityCenterServiceServer).DeleteAllPermissionSets(ctx, req.(*DeleteAllPermissionSetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IdentityCenterService_ServiceDesc is the grpc.ServiceDesc for IdentityCenterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -217,6 +253,10 @@ var IdentityCenterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllPrincipalAssignments",
 			Handler:    _IdentityCenterService_DeleteAllPrincipalAssignments_Handler,
+		},
+		{
+			MethodName: "DeleteAllPermissionSets",
+			Handler:    _IdentityCenterService_DeleteAllPermissionSets_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -175,7 +175,7 @@ func (ss *ProvisioningStateService) DeleteProvisioningState(ctx context.Context,
 // DeleteDownstreamProvisioningStates deletes *all* provisioning records for
 // a given downstream
 func (ss *ProvisioningStateService) DeleteDownstreamProvisioningStates(ctx context.Context, req *provisioningv1.DeleteDownstreamProvisioningStatesRequest) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, trace.Wrap(ss.service.WithPrefix(string(req.GetDownstreamId())).DeleteAllResources(ctx))
+	return &emptypb.Empty{}, trace.Wrap(ss.service.WithPrefix(req.GetDownstreamId()).DeleteAllResources(ctx))
 }
 
 // DeleteAllProvisioningStates deletes *all* provisioning records for a *all*
