@@ -14,7 +14,6 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -488,7 +487,7 @@ func (w *WrappedClient) DoHttp(ctx context.Context, method string, url *url.URL,
 }
 
 // oktaErrToTrace takes Okta errors and converts them into appropriate trace equivalents.
-func (w *WrappedClient) oktaErrToTrace(ctx context.Context, err error) error {
+func (w *WrappedClient) oktaErrToTrace(_ context.Context, err error) error {
 	var oktaErr *okta.Error
 	// If this is not an Okta error, just wrap the error and return it.
 	if !errors.As(err, &oktaErr) {
@@ -497,7 +496,6 @@ func (w *WrappedClient) oktaErrToTrace(ctx context.Context, err error) error {
 
 	switch oktaErr.ErrorCode {
 	case OktaErrCodeAuthenticationException, OktaErrCodeInvalidSessionException, OktaErrCodeInvalidTokenProvidedException:
-		reportPluginStatus(ctx, w.Log, w.pluginStatusSink, types.PluginStatusCode_UNAUTHORIZED)
 		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
 	case OktaErrCodeAccessDeniedException:
 		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), OktaErrorID, oktaErr.ErrorId)
@@ -519,18 +517,4 @@ func TestCredentials(ctx context.Context, client Client) error {
 		return trace.Wrap(err, "testing Okta credentials")
 	}
 	return nil
-}
-
-// reportPluginStatus will report the plugin status to the given status sink if it exists.
-func reportPluginStatus(ctx context.Context, log *slog.Logger, pluginStatusSink common.StatusSink, code types.PluginStatusCode) {
-	if pluginStatusSink == nil {
-		return
-	}
-
-	err := pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
-		Code: code,
-	})
-	if err != nil {
-		log.With("error", err).ErrorContext(ctx, "Error emitting plugin status")
-	}
 }

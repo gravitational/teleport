@@ -2,16 +2,18 @@ package okta
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 )
 
 type serviceStatusUpdater interface {
-	SetCode(context.Context, types.PluginStatusCode)
 	UpdateUserSync(context.Context, time.Time /* nUsers */, int, error)
 	UpdateAppGroupSync(context.Context, time.Time /* nApps*/, int /* nGroups */, int, error)
 	UpdateAccessListSync(context.Context, time.Time /* nApps */, int /* nGroups */, int, error)
@@ -25,16 +27,6 @@ type serviceStatus struct {
 	details *types.PluginOktaStatusV1
 }
 
-func (s *serviceStatus) SetCode(ctx context.Context, code types.PluginStatusCode) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if s.code != code {
-		s.code = code
-		reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
-	}
-}
-
 func (s *serviceStatus) UpdateUserSync(ctx context.Context, now time.Time, nUsers int, err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -42,7 +34,7 @@ func (s *serviceStatus) UpdateUserSync(ctx context.Context, now time.Time, nUser
 	userSync := s.details.UsersSyncDetails
 	if err != nil {
 		userSync.StatusCode = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR
-		userSync.Error = err.Error()
+		userSync.Error = formatError(err).Error()
 		userSync.LastFailed = &now
 	} else {
 		userSync.StatusCode = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS
@@ -50,6 +42,7 @@ func (s *serviceStatus) UpdateUserSync(ctx context.Context, now time.Time, nUser
 		userSync.LastSuccessful = &now
 		userSync.NumUsersSynced = int32(nUsers)
 	}
+	s.propagateErrors(err)
 	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
@@ -61,7 +54,7 @@ func (s *serviceStatus) UpdateAppGroupSync(ctx context.Context, now time.Time, n
 		s.details.AppGroupSyncDetails.StatusCode =
 			types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR
 		s.details.AppGroupSyncDetails.LastFailed = &now
-		s.details.AppGroupSyncDetails.Error = err.Error()
+		s.details.AppGroupSyncDetails.Error = formatError(err).Error()
 	} else {
 		s.details.AppGroupSyncDetails.StatusCode =
 			types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS
@@ -70,7 +63,7 @@ func (s *serviceStatus) UpdateAppGroupSync(ctx context.Context, now time.Time, n
 		s.details.AppGroupSyncDetails.NumGroupsSynced = int32(nGroups)
 		s.details.AppGroupSyncDetails.LastSuccessful = &now
 	}
-
+	s.propagateErrors(err)
 	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
 }
 
@@ -81,7 +74,7 @@ func (s *serviceStatus) UpdateAccessListSync(ctx context.Context, now time.Time,
 	acl := s.details.AccessListsSyncDetails
 	if err != nil {
 		acl.StatusCode = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR
-		acl.Error = err.Error()
+		acl.Error = formatError(err).Error()
 		acl.LastFailed = &now
 	} else {
 		acl.StatusCode = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS
@@ -90,8 +83,41 @@ func (s *serviceStatus) UpdateAccessListSync(ctx context.Context, now time.Time,
 		acl.NumGroupsSynced = int32(nGroups)
 		acl.LastSuccessful = &now
 	}
-
+	s.propagateErrors(err)
 	reportPluginStatus(ctx, s.logger, s.sink, s.code, s.details)
+}
+
+func (s *serviceStatus) propagateErrors(err error) {
+	const statusError = types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR
+
+	switch {
+	case err == nil:
+		if s.details.AppGroupSyncDetails.StatusCode != statusError &&
+			s.details.UsersSyncDetails.StatusCode != statusError &&
+			s.details.AccessListsSyncDetails.StatusCode != statusError {
+			s.code = types.PluginStatusCode_RUNNING
+		}
+
+	case trace.IsAccessDenied(err):
+		s.code = types.PluginStatusCode_UNAUTHORIZED
+
+	default:
+		s.code = types.PluginStatusCode_OTHER_ERROR
+	}
+}
+
+const (
+	deadlineExceededMessage = "Request timed out. Service may be rate limited."
+)
+
+func formatError(err error) error {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return trace.Wrap(err, deadlineExceededMessage)
+
+	default:
+		return err
+	}
 }
 
 // reportPluginStatus will report the plugin status to the given status sink if it exists.

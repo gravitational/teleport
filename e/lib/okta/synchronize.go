@@ -177,9 +177,6 @@ func (s *Service) synchronize(ctx context.Context) error {
 		}
 	}
 
-	// If we get to here, the plugin is definitely running
-	s.serviceStatus.SetCode(ctx, types.PluginStatusCode_RUNNING)
-
 	return nil
 }
 

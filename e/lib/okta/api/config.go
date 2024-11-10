@@ -34,9 +34,6 @@ type ClientConfig struct {
 	// StatusSink receives status update information from the OktaClient.
 	// May be nil, in which case status updates will be dropped.
 	StatusSink common.StatusSink
-	// UpdateStatusCode is a function that will report a new status code for the
-	// entire integration.
-	UpdateStatusCode StatusCodeUpdater
 	// Oauth is an optional OAuth configuration for the Okta client.
 	AuthProvider AuthProvider
 }

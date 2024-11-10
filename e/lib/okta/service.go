@@ -406,10 +406,6 @@ type ClientConfig struct {
 
 	// Log receives any log info
 	Logger *slog.Logger
-
-	// UpdateStatusCode is a function that will report a new status code for the
-	// entire integration.
-	UpdateStatusCode StatusCodeUpdater
 }
 
 // Check validates the state of the ClientConfig, returning a non-nil error
@@ -519,7 +515,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 			emitter:     config.Emitter,
 		})
 		if err != nil {
-			s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
+			s.serviceStatus.UpdateUserSync(ctx, config.Clock.Now(), 0, err)
 			return nil, trace.Wrap(err)
 		}
 	} else {
@@ -527,13 +523,12 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 	}
 
 	client, err := creator(ctx, api.ClientConfig{
-		Endpoint:         config.OktaAPIEndpoint,
-		AuthProvider:     config.AuthProvider,
-		Log:              config.Logger.With("okta", "client"),
-		UpdateStatusCode: s.serviceStatus.SetCode,
+		Endpoint:     config.OktaAPIEndpoint,
+		AuthProvider: config.AuthProvider,
+		Log:          config.Logger.With("okta", "client"),
 	})
 	if err != nil {
-		s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
+		s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -543,7 +538,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 
 	clusterName, err := s.accessPoint.GetClusterName()
 	if err != nil {
-		s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
+		s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -573,16 +568,13 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 			StopChannel:         s.stopCh,
 		})
 		if err != nil {
-			s.serviceStatus.SetCode(ctx, types.PluginStatusCode_OTHER_ERROR)
+			s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
 			return nil, trace.Wrap(err)
 		}
 		s.accessListSync = alSync
 	} else {
 		config.Logger.InfoContext(ctx, "Access list synchronization is disabled")
 	}
-
-	s.serviceStatus.SetCode(ctx, types.PluginStatusCode_RUNNING)
-
 	return s, nil
 }
 
