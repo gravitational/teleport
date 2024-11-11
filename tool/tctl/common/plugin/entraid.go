@@ -346,7 +346,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args installPluginArg
 							SsoConnectorId:    inputs.entraID.authConnectorName,
 							CredentialsSource: credentialsSource,
 							TenantId:          settings.tenantID,
-							AppId:             settings.clientID,
+							EntraAppId:        settings.clientID,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},

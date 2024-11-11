@@ -93,6 +93,7 @@ const (
 )
 
 // OptionalClaim represents an optional claim in a token.
+// https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims?tabs=appui
 type OptionalClaim struct {
 	// AdditionalProperties is a list of additional properties.
 	// Possible values:
