@@ -3111,3 +3111,16 @@ func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config)
 		process.SetExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
 	}
 }
+
+// WaitWithContext waits until all internal services stop.
+func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
+	local, cancel := context.WithCancel(ctx)
+	go func() {
+		defer cancel()
+		if err := process.Supervisor.Wait(); err != nil {
+			process.logger.WarnContext(process.ExitContext(), "Error waiting for all services to complete", "error", err)
+		}
+	}()
+
+	<-local.Done()
+}
