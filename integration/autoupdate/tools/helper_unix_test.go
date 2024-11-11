@@ -1,6 +1,8 @@
+//go:build !windows
+
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,21 +18,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package tools_test
 
 import (
-	"context"
+	"errors"
+	"syscall"
 
-	"github.com/gravitational/teleport/lib/utils/signal"
-	"github.com/gravitational/teleport/tool/tctl/common"
+	"github.com/gravitational/trace"
 )
 
-func main() {
-	ctx, cancel := signal.GetSignalHandler().NotifyContext(context.Background())
-	defer cancel()
-
-	// aggregate common and oss-specific command variants
-	commands := common.Commands()
-	commands = append(commands, common.OSSCommands()...)
-	common.Run(ctx, commands)
+// sendInterrupt sends a SIGINT to the process.
+func sendInterrupt(pid int) error {
+	err := syscall.Kill(pid, syscall.SIGINT)
+	if errors.Is(err, syscall.ESRCH) {
+		return trace.BadParameter("can't find the process: %v", pid)
+	}
+	return trace.Wrap(err)
 }

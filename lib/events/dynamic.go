@@ -422,6 +422,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CrownJewelUpdate{}
 	case CrownJewelDeleteEvent:
 		e = &events.CrownJewelDelete{}
+
+	case AutoUpdateConfigCreateEvent:
+		e = &events.AutoUpdateConfigCreate{}
+	case AutoUpdateConfigUpdateEvent:
+		e = &events.AutoUpdateConfigUpdate{}
+	case AutoUpdateConfigDeleteEvent:
+		e = &events.AutoUpdateConfigDelete{}
+
+	case AutoUpdateVersionCreateEvent:
+		e = &events.AutoUpdateVersionCreate{}
+	case AutoUpdateVersionUpdateEvent:
+		e = &events.AutoUpdateVersionUpdate{}
+	case AutoUpdateVersionDeleteEvent:
+		e = &events.AutoUpdateVersionDelete{}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

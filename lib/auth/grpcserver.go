@@ -6026,6 +6026,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	autoUpdateServiceServer, err := autoupdatev1.NewService(autoupdatev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
 	})

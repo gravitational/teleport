@@ -25,10 +25,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,7 +67,7 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 
 // callMethod calls a method with given name in the DatabaseObjectService service
 func callMethod(t *testing.T, service *Service, method string) error {
-	for _, desc := range autoupdate.AutoUpdateService_ServiceDesc.Methods {
+	for _, desc := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
 		if desc.MethodName == method {
 			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
 			return err
@@ -177,7 +181,7 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-								service := newService(t, state, fakeChecker{allowedVerbs: verbs})
+								service := newService(t, state, fakeChecker{allowedVerbs: verbs}, &libevents.DiscardEmitter{})
 								err := callMethod(t, service, tt.name)
 								// expect access denied except with full set of verbs.
 								if len(verbs) == len(tt.allowedVerbs) {
@@ -201,7 +205,7 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						// it is enough to test against tt.allowedVerbs,
 						// this is the only different data point compared to the test cases above.
-						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs})
+						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs}, &libevents.DiscardEmitter{})
 						err := callMethod(t, service, tt.name)
 						require.True(t, trace.IsAccessDenied(err))
 					})
@@ -212,7 +216,7 @@ func TestServiceAccess(t *testing.T) {
 
 	// verify that all declared methods have matching test cases
 	t.Run("verify coverage", func(t *testing.T) {
-		for _, method := range autoupdate.AutoUpdateService_ServiceDesc.Methods {
+		for _, method := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
 			t.Run(method.MethodName, func(t *testing.T) {
 				match := false
 				for _, testCase := range testCases {
@@ -222,6 +226,98 @@ func TestServiceAccess(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestAutoUpdateConfigEvents(t *testing.T) {
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	ctx := context.Background()
+
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
+		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+			Mode: autoupdate.ToolsUpdateModeEnabled,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = service.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigCreateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigCreateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigCreate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{Config: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateConfigDeleteEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateConfigDeleteCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigDelete).Name)
+	mockEmitter.Reset()
+}
+
+func TestAutoUpdateVersionEvents(t *testing.T) {
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	ctx := context.Background()
+
+	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
+		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+			TargetVersion: "1.2.3",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = service.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionCreateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionCreateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionCreate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{Version: config})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionUpdateCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
+	mockEmitter.Reset()
+
+	_, err = service.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
+	require.NoError(t, err)
+	require.Len(t, mockEmitter.Events(), 1)
+	require.Equal(t, libevents.AutoUpdateVersionDeleteEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, libevents.AutoUpdateVersionDeleteCode, mockEmitter.LastEvent().GetCode())
+	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionDelete).Name)
+	mockEmitter.Reset()
 }
 
 type fakeChecker struct {
@@ -241,7 +337,7 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
-func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker) *Service {
+func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, emitter apievents.Emitter) *Service {
 	t.Helper()
 
 	bk, err := memory.New(memory.Config{})
@@ -250,10 +346,10 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	storage, err := local.NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
-	return newServiceWithStorage(t, authState, checker, storage)
+	return newServiceWithStorage(t, authState, checker, storage, emitter)
 }
 
-func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.AutoUpdateService) *Service {
+func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.AutoUpdateService, emitter apievents.Emitter) *Service {
 	t.Helper()
 
 	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
@@ -272,6 +368,7 @@ func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, c
 		Authorizer: authorizer,
 		Backend:    storage,
 		Cache:      storage,
+		Emitter:    emitter,
 	})
 	require.NoError(t, err)
 	return service
