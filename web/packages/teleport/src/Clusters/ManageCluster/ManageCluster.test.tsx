@@ -93,14 +93,14 @@ describe('test ManageCluster component', () => {
     renderElement(<ManageCluster />, ctx);
     await waitFor(() => {
       expect(
-        screen.queryByText(clusterInfoFixture.authVersion)
-      ).not.toBeInTheDocument();
+        screen.getByText('Failed to load cluster information')
+      ).toBeInTheDocument();
     });
 
     await waitFor(() => {
       expect(
-        screen.getByText('Failed to load cluster information')
-      ).toBeInTheDocument();
+        screen.queryByText(clusterInfoFixture.authVersion)
+      ).not.toBeInTheDocument();
     });
   });
 });
