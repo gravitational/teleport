@@ -243,14 +243,6 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
-  # discovery_group is used to group discovered resources into different
-  # sets. This is required when you have multiple Teleport Discovery services
-  # running. It prevents discovered services from colliding in Teleport when
-  # managing discovered resources.
-  # If two Discovery Services match the same resources, they must be in the
-  # same discovery group.
-  # If two Discovery Services match different resources, they must be in
-  # different discovery groups.
   discovery_group: "aks-prod"
   azure:
   - types: ["aks"]
