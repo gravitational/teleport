@@ -16,20 +16,7 @@ syntax = "proto3";
 
 package teleport.authorization.v1alpha1;
 
-import "teleport/authorization/v1alpha1/ssh_access.proto";
-
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/authorization/v1alpha1;authzpb";
 
-// AuthorizationService performs authorization decisions for Teleport.
-//
-// AuthorizationService acts the PDP (Policy Decision Point) for Teleport
-// services, whereas the services themselves act as the PEP (Policy Enforcement
-// Point). In other words, it calculates the outcome of an authorization request
-// but does not enforce it - each Teleport service must do so.
-//
-// Authorization responses carry all the data necessary for the enforcement of a
-// decision.
-service AuthorizationService {
-  // AuthorizeSSHAccess calculates the outcome of an SSH access attempt.
-  rpc AuthorizeSSHAccess(AuthorizeSSHAccessRequest) returns (AuthorizeSSHAccessResponse);
-}
+// Metadata common for successful access attempts.
+message PermitMetadata {}
