@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1927,4 +1928,9 @@ func createLockedPIDFile(pidFile string) error {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
+}
+
+// GetBackend returns the process' backend
+func (process *TeleportProcess) GetBackend() backend.Backend {
+	return process.backend
 }
