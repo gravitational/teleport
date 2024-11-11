@@ -92,6 +92,7 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
+  discoverConfigs: Access;
   plugins: Access;
   integrations: AccessWithUse;
   deviceTrust: Access;

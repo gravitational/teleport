@@ -58,6 +58,9 @@ export function createTshdEventsContextBridgeService(
           kind: 'reauthenticate',
           promptMfaRequest: request,
           onSuccess: totpCode => resolve({ hasCanceledModal: false, totpCode }),
+          onSsoContinue: (redirectUrl: string) => {
+            window.open(redirectUrl);
+          },
           onCancel: () =>
             resolve({
               hasCanceledModal: true,
@@ -82,7 +85,9 @@ export function createTshdEventsContextBridgeService(
         };
       }
 
-      return { totpCode };
+      return {
+        totpCode,
+      };
     },
 
     getUsageReportingSettings: async () => {
