@@ -1,0 +1,72 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.pdp.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/pdp/v1;pdpv1";
+
+
+// PolicyDecisionPoint is the interface for the policy decision point (pdp), used by policy
+// enforcement points (pep) to evaluate attempts to access or otherwise act upon resources.
+service PolicyDecisionPoint {
+  // EvaluateServerAccess evaluates server access policies against a request.
+  rpc EvaluateServerAccess(EvaluateServerAccessRequest) returns (EvaluateServerAccessResponse);
+
+  // EvaluateVerb evaluates simple verb access rules (e.g. `token:create`, `access_request:delete`, etc).
+  // resources that do not merit more comprehensive policy evaluation/enforcement features use
+  // this method rather than having dedicated methods.
+  rpc EvaluateVerb(EvaluateVerbRequest) returns (EvaluateVerbResponse);
+  
+  // TODO(fspmarshall): additional evaluation methods are required
+  // to fully model all required decisions.
+}
+
+
+// EvaluationMetadata is the metadata common to all evaluation requests sent by the pep. 
+message EvaluationMetadata {
+  // enforcement_point_version is the version of the policy enforcement point, sent
+  // to the pdp as part of the evaluation request to allow the pdp to make backwards
+  // compatibility decisions.
+  string enforcement_point_version = 1;
+  // asserted_pdp_features is a list of features that the policy enforcement point
+  // asserts the policy decision point must support in order to correctly handle the
+  // evaluation request.
+  repeated string asserted_pdp_features = 2;
+  // dry_run omits audit log generation and other side effects from policy evaluation.
+  bool dry_run = 2;
+  // verbose enables additional informative parametrs in policy evaluation responses.
+  bool verbose = 3;
+}
+
+
+// PermitMetadata is the metadata common to all permits returned by the pdp.
+message PermitMetadata {
+  // decision_point_version is the version of the policy decision point, returned to
+  // the pep as part of the permit to allow the pep to make backwards compatibility
+  // decisions.
+  string decision_point_version = 1;
+  // asserted_pep_features is a list of features that the policy decision point
+  // asserts the policy enforcement point must support in order to correctly
+  // enforce the permit.
+  repeated string asserted_pep_features = 2;
+}
+
+
+// DenialMetadata is the metadata common to all denials returned by the pdp.
+message DenialMetadata {
+    // user_message is a sanitized message suitable for display to the user
+    string user_message = 1;
+}
