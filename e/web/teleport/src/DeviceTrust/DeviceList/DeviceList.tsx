@@ -51,7 +51,7 @@ export const DeviceList = ({
 };
 
 const EnrollmentStatusCell = ({ status }: { status: string }) => {
-  const enrolled = status === 'Enrolled';
+  const enrolled = status === 'enrolled';
   return (
     <Cell
       align="left"
