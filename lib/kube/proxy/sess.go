@@ -748,7 +748,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 	s.started = true
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 
-	if !s.sess.noAuditEvents {
+	if s.sess.isLocalKubernetesCluster {
 		s.terminalSizeQueue.callback = func(termSize terminalResizeMessage) {
 			s.mu.Lock()
 			defer s.mu.Unlock()

@@ -423,6 +423,10 @@ type authContext struct {
 	kubeServers []types.KubeServer
 	// apiResource holds the information about the requested API resource.
 	apiResource apiResource
+	// isLocalKubernetesCluster is true if the target cluster is served by this teleport service.
+	// It is false if the target cluster is served by another teleport service or a different
+	// Teleport cluster.
+	isLocalKubernetesCluster bool
 }
 
 func (c authContext) String() string {
@@ -760,7 +764,8 @@ func (f *Forwarder) setupContext(
 			return nil, trace.NotFound("Kubernetes cluster %q not found", kubeCluster)
 		}
 	}
-	if f.isLocalKubeCluster(isRemoteCluster, kubeCluster) {
+	isLocalKubernetesCluster := f.isLocalKubeCluster(isRemoteCluster, kubeCluster)
+	if isLocalKubernetesCluster {
 		kubeResource, apiResource, err = f.parseResourceFromRequest(req, kubeCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -794,10 +799,11 @@ func (f *Forwarder) setupContext(
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			isRemote:   isRemoteCluster,
 		},
-		kubeServers:  kubeServers,
-		requestVerb:  apiResource.getVerb(req),
-		apiResource:  apiResource,
-		kubeResource: kubeResource,
+		kubeServers:              kubeServers,
+		requestVerb:              apiResource.getVerb(req),
+		apiResource:              apiResource,
+		kubeResource:             kubeResource,
+		isLocalKubernetesCluster: isLocalKubernetesCluster,
 	}, nil
 }
 
@@ -850,9 +856,11 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 	)
 	defer span.End()
 
-	if sess.noAuditEvents {
+	// If the session is not local, don't emit the event.
+	if !sess.isLocalKubernetesCluster {
 		return
 	}
+
 	r := sess.apiResource
 	if r.skipEvent {
 		return
@@ -1146,7 +1154,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if !f.isLocalKubeCluster(ctx.teleportCluster.isRemote, ctx.kubeClusterName) {
+	if !sess.isLocalKubernetesCluster {
 		return f.remoteJoin(ctx, w, req, p, sess)
 	}
 
@@ -1639,7 +1647,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 	return upgradeRequestToRemoteCommandProxy(request,
 		func(proxy *remoteCommandProxy) error {
-			if sess.noAuditEvents {
+			if !sess.isLocalKubernetesCluster {
 				// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
 				return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
 			}
@@ -1736,7 +1744,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 	}
 
 	onPortForward := func(addr string, success bool) {
-		if sess.noAuditEvents {
+		if !sess.isLocalKubernetesCluster {
 			return
 		}
 		portForward := &apievents.PortForward{
@@ -2007,7 +2015,7 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 		return nil, trace.Wrap(err)
 	}
 
-	isLocalKubeCluster := f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
+	isLocalKubeCluster := sess.isLocalKubernetesCluster
 	isListRequest := authCtx.requestVerb == types.KubeVerbList
 	// Watch requests can be send to a single resource or to a collection of resources.
 	// isWatchingCollectionRequest is true when the request is a watch request and
@@ -2104,10 +2112,8 @@ type clusterSession struct {
 	// nil otherwise.
 	kubeAPICreds kubeCreds
 	forwarder    *reverseproxy.Forwarder
-	// noAuditEvents is true if this teleport service should leave audit event
-	// logging to another service.
-	noAuditEvents bool
-	targetAddr    string
+	// targetAddr is the address of the target cluster.
+	targetAddr string
 	// kubeAddress is the address of this session's active connection (if there is one)
 	kubeAddress string
 	// upgradeToHTTP2 indicates whether the transport should be configured to use HTTP2.
@@ -2316,11 +2322,8 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	connCtx, cancel := context.WithCancelCause(ctx)
 	return &clusterSession{
-		parent:      f,
-		authContext: authCtx,
-		// This session talks to a kubernetes_service, which should handle
-		// audit logging. Avoid duplicate logging.
-		noAuditEvents:     true,
+		parent:            f,
+		authContext:       authCtx,
 		requestContext:    ctx,
 		connCtx:           connCtx,
 		connMonitorCancel: cancel,
@@ -2344,7 +2347,7 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 		reverseproxy.WithLogger(f.log),
 		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
 	}
-	if f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
+	if sess.isLocalKubernetesCluster {
 		// If the target cluster is local, i.e. the cluster that is served by this
 		// teleport service, then we set up the forwarder to allow re-writing
 		// the response to the client to include user friendly error messages.
