@@ -577,7 +577,7 @@ const (
 	// resource kinds in RBAC checks. This is to simplify Role condition statements
 	// so that they don't have to individually specify all of the Identity Center
 	// resource kinds.
-	KindIdentityCenter = "aws_ic"
+	KindIdentityCenter = "aws_identity_center"
 
 	// KindIdentityCenterAccount describes an Identity-Center managed AWS Account
 	KindIdentityCenterAccount = "aws_ic_account"
