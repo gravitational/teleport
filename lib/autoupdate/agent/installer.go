@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"syscall"
@@ -47,19 +48,6 @@ const (
 )
 
 var (
-	// tgzExtractPaths describes how to extract the Teleport tgz.
-	// See utils.Extract for more details on how this list is parsed.
-	// Paths must use tarball-style / separators (not filepath).
-	tgzExtractPaths = []utils.ExtractPath{
-		{Src: "teleport/examples/systemd/teleport.service", Dst: "etc/systemd/teleport.service", DirMode: 0755},
-		{Src: "teleport/examples", Skip: true, DirMode: 0755},
-		{Src: "teleport/install", Skip: true, DirMode: 0755},
-		{Src: "teleport/README.md", Dst: "share/README.md", DirMode: 0755},
-		{Src: "teleport/CHANGELOG.md", Dst: "share/CHANGELOG.md", DirMode: 0755},
-		{Src: "teleport/VERSION", Dst: "share/VERSION", DirMode: 0755},
-		{Src: "teleport", Dst: "bin", DirMode: 0755},
-	}
-
 	// servicePath contains the path to the Teleport SystemD service within the version directory.
 	servicePath = filepath.Join("etc", "systemd", "teleport.service")
 )
@@ -214,7 +202,7 @@ func (li *LocalInstaller) Install(ctx context.Context, version, template string,
 	}()
 
 	// Extract tgz into version directory.
-	if err := li.extract(ctx, versionDir, f, n); err != nil {
+	if err := li.extract(ctx, versionDir, f, n, flags); err != nil {
 		return trace.Errorf("failed to extract teleport: %w", err)
 	}
 	// Write the checksum last. This marks the version directory as valid.
@@ -339,7 +327,7 @@ func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, 
 	return shaReader.Sum(nil), nil
 }
 
-func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64) error {
+func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Reader, max int64, flags InstallFlags) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return trace.Wrap(err)
 	}
@@ -357,11 +345,30 @@ func (li *LocalInstaller) extract(ctx context.Context, dstDir string, src io.Rea
 	}
 	li.Log.InfoContext(ctx, "Extracting Teleport tarball.", "path", dstDir, "size", max)
 
-	err = utils.Extract(zr, dstDir, tgzExtractPaths...)
+	err = utils.Extract(zr, dstDir, tgzExtractPaths(flags&(FlagEnterprise|FlagFIPS) != 0)...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// tgzExtractPaths describes how to extract the Teleport tgz.
+// See utils.Extract for more details on how this list is parsed.
+// Paths must use tarball-style / separators (not filepath).
+func tgzExtractPaths(ent bool) []utils.ExtractPath {
+	prefix := "teleport"
+	if ent {
+		prefix += "-ent"
+	}
+	return []utils.ExtractPath{
+		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: "etc/systemd/teleport.service", DirMode: 0755},
+		{Src: path.Join(prefix, "examples"), Skip: true, DirMode: 0755},
+		{Src: path.Join(prefix, "install"), Skip: true, DirMode: 0755},
+		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: 0755},
+		{Src: path.Join(prefix, "CHANGELOG.md"), Dst: "share/CHANGELOG.md", DirMode: 0755},
+		{Src: path.Join(prefix, "VERSION"), Dst: "share/VERSION", DirMode: 0755},
+		{Src: prefix, Dst: "bin", DirMode: 0755},
+	}
 }
 
 func uncompressedSize(f io.Reader) (int64, error) {
