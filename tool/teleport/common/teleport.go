@@ -46,8 +46,8 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/servicemini"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tpm"
@@ -488,7 +488,7 @@ func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 	} else {
 		config.Logger.InfoContext(ctx, "Starting Teleport with a config file", "version", teleport.Version, "config_file", configFileUsed)
 	}
-	return service.Run(ctx, *config, nil)
+	return servicemini.Run(ctx, *config, nil)
 }
 
 // onStatus is the handler for "status" CLI command
