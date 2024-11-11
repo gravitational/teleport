@@ -593,6 +593,16 @@ func TestGetInheritedGrants(t *testing.T) {
 	grants, err := GetInheritedGrants(ctx, acl2, accessListAndMembersGetter)
 	require.NoError(t, err)
 	require.Equal(t, expectedGrants, grants)
+
+	expectedMemberGrants := &accesslist.Grants{
+		Traits: map[string][]string{
+			"1-member-trait": {"1-member-value"},
+		},
+		Roles: []string{"1-member-role"},
+	}
+	memberGrants, err := GetInheritedMemberGrants(ctx, acl2, accessListAndMembersGetter)
+	require.NoError(t, err)
+	require.Equal(t, expectedMemberGrants, memberGrants)
 }
 
 func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
