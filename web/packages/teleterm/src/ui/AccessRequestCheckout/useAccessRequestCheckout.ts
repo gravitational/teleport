@@ -26,7 +26,6 @@ import {
   PendingListItem,
   PendingKubeResourceItem,
   isKubeClusterWithNamespaces,
-  KubeNamespaceRequest,
   RequestableResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
@@ -56,17 +55,6 @@ export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
   useWorkspaceServiceState();
   ctx.clustersService.useState();
-  /**
-   * @deprecated Do not use it here. This value comes from the cluster selector next to the search
-   * bar. Changing the cluster should not affect the request checkout in any way.
-   * clusterUri is kept here just to not break existing code that depends on it.
-   * See https://github.com/gravitational/teleport/issues/48510.
-   *
-   * Instead, in most cases you want to use rootClusterUri or the cluster URI derived from a URI of
-   * a resource that you're operating on.
-   */
-  const clusterUri =
-    ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
 
   const {
@@ -338,8 +326,7 @@ export default function useAccessRequestCheckout() {
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
         return {
           accessRequest: response.request,
-          requestedCount:
-            pendingAccessRequestsWithoutParentResource.filter.length,
+          requestedCount: pendingAccessRequestsWithoutParentResource.length,
         };
       })
     ).catch(e => {
@@ -419,19 +406,19 @@ export default function useAccessRequestCheckout() {
     }
   }
 
-  async function fetchKubeNamespaces({
-    kubeCluster,
-    search,
-  }: KubeNamespaceRequest): Promise<string[]> {
+  async function fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListKubeClusterWithOriginalItem
+  ): Promise<string[]> {
     const { response } = await ctx.tshd.listKubernetesResources({
       searchKeywords: search,
       limit: 50,
       useSearchAsRoles: true,
       nextKey: '',
       resourceType: 'namespace',
-      clusterUri: clusterUri,
+      clusterUri: kubeCluster.originalItem.resource.uri,
       predicateExpression: '',
-      kubernetesCluster: kubeCluster,
+      kubernetesCluster: kubeCluster.id,
       kubernetesNamespace: '',
     });
     return response.resources.map(i => i.name);

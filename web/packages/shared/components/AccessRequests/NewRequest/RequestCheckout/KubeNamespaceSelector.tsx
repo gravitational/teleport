@@ -28,8 +28,6 @@ import { CheckableOptionComponent } from '../CheckableOption';
 
 import { PendingListItem, PendingKubeResourceItem } from './RequestCheckout';
 
-import type { KubeNamespaceRequest } from '../kube';
-
 export function KubeNamespaceSelector({
   kubeClusterItem,
   fetchKubeNamespaces,
@@ -37,7 +35,10 @@ export function KubeNamespaceSelector({
   bulkToggleKubeResources,
 }: {
   kubeClusterItem: PendingListItem;
-  fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
+  fetchKubeNamespaces(
+    search: string,
+    kubeCluster: PendingListItem
+  ): Promise<string[]>;
   savedResourceItems: PendingListItem[];
   bulkToggleKubeResources: (
     resources: PendingKubeResourceItem[],
@@ -57,7 +58,9 @@ export function KubeNamespaceSelector({
 
   const currKubeClustersNamespaceItems = savedResourceItems.filter(
     resource =>
-      resource.kind === 'namespace' && resource.id === kubeClusterItem.id
+      resource.kind === 'namespace' &&
+      resource.id === kubeClusterItem.id &&
+      resource.clusterName === kubeClusterItem.clusterName
   ) as PendingKubeResourceItem[];
 
   const [selectedOpts, setSelectedOpts] = useState<Option[]>(() =>
@@ -128,10 +131,7 @@ export function KubeNamespaceSelector({
   };
 
   async function handleLoadOptions(input: string) {
-    const namespaces = await fetchKubeNamespaces({
-      kubeCluster: kubeClusterItem.id,
-      search: input,
-    });
+    const namespaces = await fetchKubeNamespaces(input, kubeClusterItem);
 
     return namespaces.map(namespace => ({
       kind: 'namespace',
@@ -141,10 +141,9 @@ export function KubeNamespaceSelector({
   }
 
   return (
-    <Box width="100%" mb={-3}>
+    <Box width="100%" mb={-3} mt={2}>
       <StyledSelect
-        label={`Namespaces`}
-        inputId={kubeClusterItem.id}
+        inputId={`${kubeClusterItem.id}-${kubeClusterItem.clusterName}`}
         width="100%"
         placeholder="Start typing a namespace and press enter"
         isMulti
