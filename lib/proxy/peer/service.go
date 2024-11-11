@@ -19,6 +19,7 @@
 package peer
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 
@@ -104,6 +105,10 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	sent, received := streamConn.Stat()
 	log.DebugContext(stream.Context(), "closing dial request from peer", "sent", sent, "received", received)
 	return trace.Wrap(err)
+}
+
+func (s *proxyService) Ping(ctx context.Context, _ *proto.ProxyServicePingRequest) (*proto.ProxyServicePingResponse, error) {
+	return new(proto.ProxyServicePingResponse), nil
 }
 
 // splitServerID splits a server id in to a node id and cluster name.
