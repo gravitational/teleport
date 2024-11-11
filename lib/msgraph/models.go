@@ -92,7 +92,7 @@ type OptionalClaim struct {
 // OptionalClaims represents optional claims in a token.
 // Currently, only SAML2 tokens are supported.
 type OptionalClaims struct {
-	Saml2Token []OptionalClaim `json:"saml2Token,omitempty"`
+	SAML2Token []OptionalClaim `json:"saml2Token,omitempty"`
 }
 
 type WebApplication struct {
