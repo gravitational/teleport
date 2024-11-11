@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -1249,8 +1250,10 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			expectResolvable: true,
 		},
 		{
-			name:             "nonRetryableError should not be resolvable",
-			err:              trace.Wrap(NewNonRetryableError(trace.BadParameter("bad"))),
+			name: "nonRetryableError should not be resolvable",
+			err: trace.Wrap(&NonRetryableError{
+				Err: trace.BadParameter("bad"),
+			}),
 			expectResolvable: false,
 		},
 	} {
@@ -1355,9 +1358,13 @@ func TestGetTargetNodes(t *testing.T) {
 }
 
 func TestNonRetryableError(t *testing.T) {
-	err := NewNonRetryableError(trace.AccessDenied("do not enter"))
+	orgError := trace.AccessDenied("do not enter")
+	err := &NonRetryableError{
+		Err: orgError,
+	}
 	require.Error(t, err)
-	require.Equal(t, "do not enter", err.Error())
-	require.True(t, isNonRetryableError(err))
-	require.True(t, trace.IsAccessDenied(err))
+	assert.Equal(t, "do not enter", err.Error())
+	assert.True(t, IsNonRetryableError(err))
+	assert.True(t, trace.IsAccessDenied(err))
+	assert.Equal(t, orgError, err.Unwrap())
 }

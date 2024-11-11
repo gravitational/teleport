@@ -518,8 +518,8 @@ func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStat
 			isActive:   true,
 		}, nil
 	} else if !trace.IsNotFound(err) {
-		// pickActiveApp errors are hon-retryable.
-		return nil, trace.Wrap(client.NewNonRetryableError(err))
+		// pickActiveApp errors are non-retryable.
+		return nil, trace.Wrap(&client.NonRetryableError{Err: err})
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
@@ -547,7 +547,7 @@ func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStat
 	// trace.BadParameter errors. Wrap errors from pickCloudAppLogin as they
 	// are not retryable.
 	if err := appInfo.pickCloudAppLogin(cf, logins); err != nil {
-		return nil, trace.Wrap(client.NewNonRetryableError(err))
+		return nil, trace.Wrap(&client.NonRetryableError{Err: err})
 	}
 	return appInfo, nil
 }
