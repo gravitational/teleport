@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -32,12 +30,10 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/proxy/clusterdial"
@@ -50,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
@@ -59,10 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
-	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
-	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
-	webapp "github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/quic-go/quic-go"
@@ -179,14 +171,6 @@ func NewTeleportMini(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.Config.SetAuthServerAddress(process.Config.Auth.ListenAddr)
 	}
 
-	if len(process.Config.AuthServerAddresses()) != 0 && process.Config.AuthServerAddresses()[0].Port(0) == 0 {
-		// port appears undefined, attempt early listener creation so that we can get the real port
-		listener, err := process.importOrCreateListener(ListenerAuth, process.Config.Auth.ListenAddr.Addr)
-		if err == nil {
-			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
-		}
-	}
-
 	var resolverAddr utils.NetAddr
 	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
 		resolverAddr = cfg.ProxyServer
@@ -234,64 +218,6 @@ func NewTeleportMini(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
 		}
 	})
-
-	// if an external upgrader is defined, we need to set up an appropriate upgrade window exporter.
-	if upgraderKind != "" {
-		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
-			process.logger.WarnContext(process.ExitContext(), "Use of external upgraders on control-plane instances is not recommended.")
-		}
-
-		if upgraderKind == "unit" {
-			process.RegisterFunc("autoupdates.endpoint.export", func() error {
-				conn, err := waitForInstanceConnector(process, process.logger)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if conn == nil {
-					return trace.BadParameter("process exiting and Instance connector never became available")
-				}
-
-				resp, err := conn.Client.Ping(process.ExitContext())
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if !resp.GetServerFeatures().GetCloud() {
-					return nil
-				}
-
-				if err := endpoint.Export(process.ExitContext(), resolverAddr.String()); err != nil {
-					process.logger.WarnContext(process.ExitContext(),
-						"Failed to export and validate autoupdates endpoint.",
-						"addr", resolverAddr.String(),
-						"error", err)
-					return trace.Wrap(err)
-				}
-				process.logger.InfoContext(process.ExitContext(), "Exported autoupdates endpoint.", "addr", resolverAddr.String())
-				return nil
-			})
-		}
-
-		driver, err := uw.NewDriver(upgraderKind)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
-			Driver:                   driver,
-			ExportFunc:               process.exportUpgradeWindows,
-			AuthConnectivitySentinel: process.inventoryHandle.Sender(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
-		process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
-			exporter.Close()
-		})
-
-		process.logger.InfoContext(process.ExitContext(), "Configured upgrade window exporter for external upgrader.", "kind", upgraderKind)
-	}
 
 	serviceStarted := false
 
@@ -351,9 +277,6 @@ func NewTeleportMini(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if cfg.Apps.Enabled {
 		eventMapping.In = append(eventMapping.In, AppsReady)
 	}
-	if process.shouldInitDatabases() {
-		eventMapping.In = append(eventMapping.In, DatabasesReady)
-	}
 	if cfg.Metrics.Enabled {
 		eventMapping.In = append(eventMapping.In, MetricsReady)
 	}
@@ -362,9 +285,6 @@ func NewTeleportMini(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 	if cfg.Tracing.Enabled {
 		eventMapping.In = append(eventMapping.In, TracingReady)
-	}
-	if process.shouldInitDiscovery() {
-		eventMapping.In = append(eventMapping.In, DiscoveryReady)
 	}
 
 	process.RegisterEventMapping(eventMapping)
@@ -407,16 +327,6 @@ func NewTeleportMini(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		serviceStarted = true
 	} else {
 		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentMetrics), process.logger)
-	}
-
-	if process.shouldInitDiscovery() {
-		process.initDiscovery()
-		serviceStarted = true
-	} else {
-		if process.Config.Discovery.Enabled {
-			process.logger.WarnContext(process.ExitContext(), "Discovery service is enabled with empty configuration, skipping initialization")
-		}
-		warnOnErr(process.ExitContext(), process.closeImportedDescriptors(teleport.ComponentDiscovery), process.logger)
 	}
 
 	if cfg.OpenSSH.Enabled {
@@ -717,222 +627,7 @@ func (process *TeleportProcess) initMiniProxyEndpoint(conn *Connector) error {
 	var webServer *web.Server
 	var minimalWebServer *web.Server
 
-	if !process.Config.Proxy.DisableWebService {
-		var fs http.FileSystem
-		if !process.Config.Proxy.DisableWebInterface {
-			fs, err = newHTTPFileSystem()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		proxySettings := &web.ProxySettings{
-			ServiceConfig: cfg,
-			ProxySSHAddr:  proxySSHAddr.String(),
-			AccessPoint:   accessPoint,
-		}
-
-		traceClt := tracing.NewNoopClient()
-		if cfg.Tracing.Enabled {
-			traceConf, err := process.Config.Tracing.Config()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			traceConf.Logger = process.logger.With(teleport.ComponentKey, teleport.ComponentTracing)
-
-			clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			traceClt = clt
-		}
-
-		var accessGraphAddr utils.NetAddr
-		if cfg.AccessGraph.Enabled {
-			addr, err := utils.ParseAddr(cfg.AccessGraph.Addr)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			accessGraphAddr = *addr
-		}
-
-		cn, err := conn.Client.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		lockWatcher, err := services.NewLockWatcher(process.GracefulExitContext(), services.LockWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentWebProxy,
-				Logger:    process.logger,
-				Client:    conn.Client,
-				Clock:     process.Clock,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   cn.GetClusterName(),
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.log,
-			PermitCaching: process.Config.CachePolicy.Enabled,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
-			AccessPoint:    accessPoint,
-			LockWatcher:    lockWatcher,
-			Clock:          process.Clock,
-			ServerID:       cfg.HostUUID,
-			Emitter:        asyncEmitter,
-			EmitterContext: process.GracefulExitContext(),
-			Logger:         process.log,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		connectionsHandler, err := app.NewConnectionsHandler(process.GracefulExitContext(), &app.ConnectionsHandlerConfig{
-			Clock:             process.Clock,
-			DataDir:           cfg.DataDir,
-			Emitter:           asyncEmitter,
-			Authorizer:        authorizer,
-			HostID:            cfg.HostUUID,
-			AuthClient:        conn.Client,
-			AccessPoint:       accessPoint,
-			TLSConfig:         serverTLSConfig,
-			ConnectionMonitor: connMonitor,
-			CipherSuites:      cfg.CipherSuites,
-			ServiceComponent:  teleport.ComponentWebProxy,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := accessPoint.GetApplicationServers(ctx, apidefaults.Namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			publicAddressMatches := webapp.MatchPublicAddr(publicAddr)
-			for _, a := range allAppServers {
-				if publicAddressMatches(ctx, a) {
-					return a.GetApp(), nil
-				}
-			}
-			return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
-		})
-
-		webConfig := web.Config{
-			Proxy:                     tsrv,
-			AuthServers:               cfg.AuthServerAddresses()[0],
-			DomainName:                cfg.Hostname,
-			ProxyClient:               conn.Client,
-			ProxySSHAddr:              proxySSHAddr,
-			ProxyWebAddr:              cfg.Proxy.WebAddr,
-			ProxyPublicAddrs:          cfg.Proxy.PublicAddrs,
-			CipherSuites:              cfg.CipherSuites,
-			FIPS:                      cfg.FIPS,
-			AccessPoint:               accessPoint,
-			Emitter:                   asyncEmitter,
-			PluginRegistry:            process.PluginRegistry,
-			HostUUID:                  process.Config.HostUUID,
-			Context:                   process.GracefulExitContext(),
-			StaticFS:                  fs,
-			ClusterFeatures:           process.GetClusterFeatures(),
-			GetProxyClientCertificate: conn.ClientGetCertificate,
-			UI:                        cfg.Proxy.UI,
-			ProxySettings:             proxySettings,
-			PublicProxyAddr:           process.proxyPublicAddr().Addr,
-			ALPNHandler:               alpnHandlerForWeb.HandleConnection,
-			TraceClient:               traceClt,
-			Router:                    proxyRouter,
-			SessionControl: web.SessionControllerFunc(func(ctx context.Context, sctx *web.SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
-				controller := srv.WebSessionController(sessionController)
-				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
-				return ctx, trace.Wrap(err)
-			}),
-			PROXYSigner:               proxySigner,
-			NodeWatcher:               nodeWatcher,
-			AccessGraphAddr:           accessGraphAddr,
-			TracerProvider:            process.TracingProvider,
-			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
-			IntegrationAppHandler:     connectionsHandler,
-			FeatureWatchInterval:      utils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
-		}
-		webHandler, err := web.NewHandler(webConfig)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
-			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
-				Listener: tls.NewListener(listeners.web, tlsConfigWeb),
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			listeners.web = listeners.tls.Web()
-			listeners.db.tls = listeners.tls.DB()
-
-			process.RegisterCriticalFunc("proxy.tls", func() error {
-				logger.InfoContext(process.ExitContext(), "TLS multiplexer is starting.", "listen_address", cfg.Proxy.WebAddr.Addr)
-				if err := listeners.tls.Serve(); !trace.IsConnectionProblem(err) {
-					logger.WarnContext(process.ExitContext(), "TLS multiplexer error.", "error", err)
-				}
-				logger.InfoContext(process.ExitContext(), "TLS multiplexer exited.")
-				return nil
-			})
-		}
-
-		webServer, err = web.NewServer(web.ServerConfig{
-			Server: &http.Server{
-				Handler: utils.ChainHTTPMiddlewares(
-					webHandler,
-					makeXForwardedForMiddleware(cfg),
-					limiter.MakeMiddleware(proxyLimiter),
-					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
-				),
-				// Note: read/write timeouts *should not* be set here because it
-				// will break some application access use-cases.
-				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-				IdleTimeout:       apidefaults.DefaultIdleTimeout,
-				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
-				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-					ctx = authz.ContextWithConn(ctx, c)
-					return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
-				},
-			},
-			Handler: webHandler,
-			Log:     process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		process.RegisterCriticalFunc("proxy.web", func() error {
-			logger.InfoContext(process.ExitContext(), "Starting web proxy service.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.WebAddr.Addr)
-			defer webHandler.Close()
-			process.BroadcastEvent(Event{Name: ProxyWebServerReady, Payload: webHandler})
-			if err := webServer.Serve(listeners.web); err != nil && !errors.Is(err, net.ErrClosed) && !errors.Is(err, http.ErrServerClosed) {
-				logger.WarnContext(process.ExitContext(), "Error while serving web requests", "error", err)
-			}
-			logger.InfoContext(process.ExitContext(), "Exited.")
-			return nil
-		})
-
-		if listeners.reverseTunnelMux != nil {
-			if minimalWebServer, err = process.initMinimalReverseTunnel(listeners, tlsConfigWeb, cfg, webConfig); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	} else {
-		logger.InfoContext(process.ExitContext(), "Web UI is disabled.")
-	}
+	logger.InfoContext(process.ExitContext(), "Web UI is disabled.")
 
 	// Register ALPN handler that will be accepting connections for plain
 	// TCP applications.
@@ -1215,7 +910,6 @@ func (process *TeleportProcess) initMiniProxyEndpoint(conn *Connector) error {
 		AccessPoint:         accessPoint,
 		AuthMethods:         conn.ClientAuthMethods(),
 		LocalCluster:        clusterName,
-		KubeDialAddr:        utils.DialAddrFromListenAddr(kubeDialAddr(cfg.Proxy, clusterNetworkConfig.GetProxyListenerMode())),
 		ReverseTunnelServer: tsrv,
 		FIPS:                process.Config.FIPS,
 		Log:                 rcWatchLog,
@@ -1248,21 +942,6 @@ func (process *TeleportProcess) initMiniProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		grpcServerMTLS, err = process.initSecureGRPCServer(
-			initSecureGRPCServerCfg{
-				limiter:  proxyLimiter,
-				conn:     conn,
-				listener: listeners.grpcMTLS,
-				kubeProxyAddr: kubeDialAddr(
-					cfg.Proxy,
-					clusterNetworkConfig.GetProxyListenerMode(),
-				),
-				accessPoint:     accessPoint,
-				lockWatcher:     lockWatcher,
-				emitter:         asyncEmitter,
-				tlsCipherSuites: cfg.CipherSuites,
-			},
-		)
 		if err != nil {
 			return trace.Wrap(err)
 		}

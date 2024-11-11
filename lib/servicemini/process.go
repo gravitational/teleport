@@ -3124,3 +3124,13 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 
 	<-local.Done()
 }
+
+// GetID returns the process ID.
+func (process *TeleportProcess) GetID() string {
+	return process.id
+}
+
+// GetAuthServer returns the process' auth server
+func (process *TeleportProcess) GetAuthServer() *auth.Server {
+	return process.localAuth
+}
