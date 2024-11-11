@@ -235,6 +235,21 @@ func (c *grpcClientConn) Close() error {
 	return c.cc.Close()
 }
 
+// Ping implements [internal.ClientConn].
+func (c *grpcClientConn) Ping(ctx context.Context) error {
+	release := c.maybeAcquire()
+	if release == nil {
+		return trace.ConnectionProblem(nil, "error starting stream: connection is shutting down")
+	}
+	defer release()
+
+	_, err := clientapi.NewProxyServiceClient(c.cc).Ping(ctx, new(clientapi.ProxyServicePingRequest))
+	if trace.IsNotImplemented(err) {
+		err = nil
+	}
+	return trace.Wrap(err)
+}
+
 // Dial implements [internal.ClientConn].
 func (c *grpcClientConn) Dial(
 	nodeID string,
