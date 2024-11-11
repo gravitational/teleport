@@ -18,12 +18,15 @@
 
 import React from 'react';
 import { MemoryRouter, Route } from 'react-router-dom';
+import { setupServer } from 'msw/node';
+import { http, HttpResponse } from 'msw';
 
 import { render, waitFor, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContentMinWidth } from 'teleport/Main/Main';
+import cfg from 'teleport/config';
 
 import { clusterInfoFixture } from '../fixtures';
 
@@ -42,34 +45,50 @@ function renderElement(element, ctx) {
 }
 
 describe('test ManageCluster component', () => {
-  beforeEach(() => {
-    jest.resetAllMocks();
-  });
+  const server = setupServer(
+    http.get(cfg.getClusterInfoPath('cluster-id'), () => {
+      return HttpResponse.json({
+        name: 'cluster-id',
+        lastConnected: new Date(),
+        status: 'active',
+        publicURL: 'cluster-id.teleport.com',
+        authVersion: 'v17.0.0',
+        proxyVersion: 'v17.0.0',
+        isCloud: false,
+        licenseExpiry: new Date(),
+      });
+    })
+  );
+
+  beforeAll(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
 
   test('fetches cluster information on load', async () => {
     const ctx = createTeleportContext();
-    jest
-      .spyOn(ctx.clusterService, 'fetchClusterDetails')
-      .mockResolvedValueOnce({ ...clusterInfoFixture });
 
     renderElement(<ManageCluster />, ctx);
     await waitFor(() => {
-      expect(
-        screen.getByText(clusterInfoFixture.authVersion)
-      ).toBeInTheDocument();
+      expect(screen.getByText('v17.0.0')).toBeInTheDocument();
     });
 
-    expect(screen.getByText(clusterInfoFixture.clusterId)).toBeInTheDocument();
-    expect(screen.getByText(clusterInfoFixture.publicURL)).toBeInTheDocument();
-
-    expect(ctx.clusterService.fetchClusterDetails).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('cluster-id')).toBeInTheDocument();
+    expect(screen.getByText('cluster-id.teleport.com')).toBeInTheDocument();
   });
 
   test('shows error when load fails', async () => {
+    server.use(
+      http.get(cfg.getClusterInfoPath('cluster-id'), () => {
+        return HttpResponse.json(
+          {
+            message: 'Failed to load cluster information',
+          },
+          { status: 400 }
+        );
+      })
+    );
+
     const ctx = createTeleportContext();
-    jest
-      .spyOn(ctx.clusterService, 'fetchClusterDetails')
-      .mockRejectedValue({ message: 'error message' });
 
     renderElement(<ManageCluster />, ctx);
     await waitFor(() => {
@@ -79,9 +98,9 @@ describe('test ManageCluster component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('error message')).toBeInTheDocument();
+      expect(
+        screen.getByText('Failed to load cluster information')
+      ).toBeInTheDocument();
     });
-
-    expect(ctx.clusterService.fetchClusterDetails).toHaveBeenCalledTimes(1);
   });
 });
