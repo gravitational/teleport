@@ -123,6 +123,393 @@ func TestUpdater_Disable(t *testing.T) {
 	}
 }
 
+func TestUpdater_Update(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		cfg        *UpdateConfig // nil -> file not present
+		flags      InstallFlags
+		inWindow   bool
+		installErr error
+		syncErr    error
+		reloadErr  error
+
+		removedVersion    string
+		installedVersion  string
+		installedTemplate string
+		requestGroup      string
+		syncCalls         int
+		reloadCalls       int
+		revertCalls       int
+		errMatch          string
+	}{
+		{
+			name: "updates enabled during window",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Group:       "group",
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+				},
+			},
+			inWindow: true,
+
+			installedVersion:  "16.3.0",
+			installedTemplate: "https://example.com",
+			requestGroup:      "group",
+			syncCalls:         1,
+			reloadCalls:       1,
+		},
+		{
+			name: "updates disabled during window",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Group:       "group",
+					URLTemplate: "https://example.com",
+					Enabled:     false,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+				},
+			},
+			inWindow: true,
+		},
+		{
+			name: "updates enabled outside of window",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Group:       "group",
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+				},
+			},
+			requestGroup: "group",
+		},
+		{
+			name: "updates disabled outside of window",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Group:       "group",
+					URLTemplate: "https://example.com",
+					Enabled:     false,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+				},
+			},
+		},
+		{
+			name: "insecure URL",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "http://example.com",
+					Enabled:     true,
+				},
+			},
+			inWindow: true,
+
+			errMatch: "URL must use TLS",
+		},
+		{
+			name: "install error",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+			},
+			inWindow:   true,
+			installErr: errors.New("install error"),
+
+			errMatch: "install error",
+		},
+		{
+			name: "version already installed in window",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "16.3.0",
+				},
+			},
+			inWindow: true,
+		},
+		{
+			name: "version already installed outside of window",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "16.3.0",
+				},
+			},
+		},
+		{
+			name: "backup version removed on install",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					BackupVersion: "backup-version",
+				},
+			},
+			inWindow: true,
+
+			installedVersion:  "16.3.0",
+			installedTemplate: "https://example.com",
+			removedVersion:    "backup-version",
+			syncCalls:         1,
+			reloadCalls:       1,
+		},
+		{
+			name: "backup version kept when no change",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "16.3.0",
+					BackupVersion: "backup-version",
+				},
+			},
+			inWindow: true,
+		},
+		{
+			name: "config does not exist",
+		},
+		{
+			name: "FIPS and Enterprise flags",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					BackupVersion: "backup-version",
+				},
+			},
+			inWindow: true,
+			flags:    FlagEnterprise | FlagFIPS,
+
+			installedVersion:  "16.3.0",
+			installedTemplate: "https://example.com",
+			removedVersion:    "backup-version",
+			syncCalls:         1,
+			reloadCalls:       1,
+		},
+		{
+			name:     "invalid metadata",
+			cfg:      &UpdateConfig{},
+			errMatch: "invalid",
+		},
+		{
+			name: "sync fails",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					BackupVersion: "backup-version",
+				},
+			},
+			inWindow: true,
+			syncErr:  errors.New("sync error"),
+
+			installedVersion:  "16.3.0",
+			installedTemplate: "https://example.com",
+			removedVersion:    "backup-version",
+			syncCalls:         2,
+			reloadCalls:       0,
+			revertCalls:       1,
+			errMatch:          "sync error",
+		},
+		{
+			name: "reload fails",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					URLTemplate: "https://example.com",
+					Enabled:     true,
+				},
+				Status: UpdateStatus{
+					ActiveVersion: "old-version",
+					BackupVersion: "backup-version",
+				},
+			},
+			inWindow:  true,
+			reloadErr: errors.New("reload error"),
+
+			installedVersion:  "16.3.0",
+			installedTemplate: "https://example.com",
+			removedVersion:    "backup-version",
+			syncCalls:         2,
+			reloadCalls:       2,
+			revertCalls:       1,
+			errMatch:          "reload error",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var requestedGroup string
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestedGroup = r.URL.Query().Get("group")
+				config := webclient.PingResponse{
+					AutoUpdate: webclient.AutoUpdateSettings{
+						AgentVersion:    "16.3.0",
+						AgentAutoUpdate: tt.inWindow,
+					},
+				}
+				if tt.flags&FlagEnterprise != 0 {
+					config.Edition = "ent"
+				}
+				config.FIPS = tt.flags&FlagFIPS != 0
+				err := json.NewEncoder(w).Encode(config)
+				require.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
+
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, "update.yaml")
+
+			// Create config file only if provided in test case
+			if tt.cfg != nil {
+				tt.cfg.Spec.Proxy = strings.TrimPrefix(server.URL, "https://")
+				b, err := yaml.Marshal(tt.cfg)
+				require.NoError(t, err)
+				err = os.WriteFile(cfgPath, b, 0600)
+				require.NoError(t, err)
+			}
+
+			updater, err := NewLocalUpdater(LocalUpdaterConfig{
+				InsecureSkipVerify: true,
+				VersionsDir:        dir,
+			})
+			require.NoError(t, err)
+
+			var (
+				installedVersion  string
+				installedTemplate string
+				linkedVersion     string
+				removedVersion    string
+				installedFlags    InstallFlags
+				revertCalls       int
+			)
+			updater.Installer = &testInstaller{
+				FuncInstall: func(_ context.Context, version, template string, flags InstallFlags) error {
+					installedVersion = version
+					installedTemplate = template
+					installedFlags = flags
+					return tt.installErr
+				},
+				FuncLink: func(_ context.Context, version string) (revert func(context.Context) bool, err error) {
+					linkedVersion = version
+					return func(_ context.Context) bool {
+						revertCalls++
+						return true
+					}, nil
+				},
+				FuncList: func(_ context.Context) (versions []string, err error) {
+					return []string{"old"}, nil
+				},
+				FuncRemove: func(_ context.Context, version string) error {
+					removedVersion = version
+					return nil
+				},
+			}
+			var (
+				syncCalls   int
+				reloadCalls int
+			)
+			updater.Process = &testProcess{
+				FuncSync: func(_ context.Context) error {
+					syncCalls++
+					return tt.syncErr
+				},
+				FuncReload: func(_ context.Context) error {
+					reloadCalls++
+					return tt.reloadErr
+				},
+			}
+
+			ctx := context.Background()
+			err = updater.Update(ctx)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMatch)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.installedVersion, installedVersion)
+			require.Equal(t, tt.installedTemplate, installedTemplate)
+			require.Equal(t, tt.installedVersion, linkedVersion)
+			require.Equal(t, tt.removedVersion, removedVersion)
+			require.Equal(t, tt.flags, installedFlags)
+			require.Equal(t, tt.requestGroup, requestedGroup)
+			require.Equal(t, tt.syncCalls, syncCalls)
+			require.Equal(t, tt.reloadCalls, reloadCalls)
+			require.Equal(t, tt.revertCalls, revertCalls)
+
+			if tt.cfg == nil {
+				return
+			}
+
+			data, err := os.ReadFile(cfgPath)
+			require.NoError(t, err)
+			data = blankTestAddr(data)
+
+			if golden.ShouldSet() {
+				golden.Set(t, data)
+			}
+			require.Equal(t, string(golden.Get(t)), string(data))
+		})
+	}
+}
+
 func TestUpdater_Enable(t *testing.T) {
 	t.Parallel()
 
@@ -130,8 +517,8 @@ func TestUpdater_Enable(t *testing.T) {
 		name       string
 		cfg        *UpdateConfig // nil -> file not present
 		userCfg    OverrideConfig
-		installErr error
 		flags      InstallFlags
+		installErr error
 		syncErr    error
 		reloadErr  error
 

@@ -498,6 +498,7 @@ func tryLink(oldname, newname string) (orig string, err error) {
 	if orig == oldname {
 		return "", nil
 	}
+	// TODO(sclevine): verify oldname is valid binary
 	err = renameio.Symlink(oldname, newname)
 	if err != nil {
 		return orig, trace.Wrap(err)

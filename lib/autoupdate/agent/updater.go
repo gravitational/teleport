@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,6 +57,14 @@ const (
 	// UpdateConfig metadata
 	updateConfigVersion = "v1"
 	updateConfigKind    = "update_config"
+)
+
+// Log keys
+const (
+	targetVersionKey = "target_version"
+	activeVersionKey = "active_version"
+	backupVersionKey = "backup_version"
+	errorKey         = "error"
 )
 
 // UpdateConfig describes the update.yaml file schema.
@@ -243,6 +252,8 @@ type OverrideConfig struct {
 	URLTemplate string
 	// ForceVersion to the specified version.
 	ForceVersion string
+	// ForceFlags in installed Teleport.
+	ForceFlags InstallFlags
 }
 
 // Enable enables agent updates and attempts an initial update.
@@ -258,6 +269,9 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
 	}
+	if cfg.Spec.Proxy == "" {
+		return trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", updateConfigName)
+	}
 
 	// Lookup target version from the proxy.
 
@@ -265,9 +279,9 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 	if err != nil {
 		return trace.Errorf("failed to parse proxy server address: %w", err)
 	}
-	desiredVersion := override.ForceVersion
-	var flags InstallFlags
-	if desiredVersion == "" {
+	targetVersion := override.ForceVersion
+	flags := override.ForceFlags
+	if targetVersion == "" {
 		resp, err := webclient.Find(&webclient.Config{
 			Context:     ctx,
 			ProxyAddr:   addr.Addr,
@@ -279,106 +293,25 @@ func (u *Updater) Enable(ctx context.Context, override OverrideConfig) error {
 		if err != nil {
 			return trace.Errorf("failed to request version from proxy: %w", err)
 		}
-		desiredVersion = resp.AutoUpdate.AgentVersion
-		if resp.Edition == "ent" {
+		targetVersion = resp.AutoUpdate.AgentVersion
+		switch resp.Edition {
+		case modules.BuildEnterprise:
 			flags |= FlagEnterprise
+		case modules.BuildOSS, modules.BuildCommunity:
+		default:
+			u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
 		}
 		if resp.FIPS {
 			flags |= FlagFIPS
 		}
 	}
 
-	if desiredVersion == "" {
+	if targetVersion == "" {
 		return trace.Errorf("agent version not available from Teleport cluster")
 	}
-	switch cfg.Status.BackupVersion {
-	case "", desiredVersion, cfg.Status.ActiveVersion:
-	default:
-		if desiredVersion == cfg.Status.ActiveVersion {
-			// Keep backup version if we are only verifying active version
-			break
-		}
-		err := u.Installer.Remove(ctx, cfg.Status.BackupVersion)
-		if err != nil {
-			// this could happen if it was already removed due to a failed installation
-			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", "error", err)
-		}
-	}
 
-	// Install the desired version (or validate existing installation)
-
-	template := cfg.Spec.URLTemplate
-	if template == "" {
-		template = cdnURITemplate
-	}
-	err = u.Installer.Install(ctx, desiredVersion, template, flags)
-	if err != nil {
-		return trace.Errorf("failed to install: %w", err)
-	}
-	revert, err := u.Installer.Link(ctx, desiredVersion)
-	if err != nil {
-		return trace.Errorf("failed to link: %w", err)
-	}
-
-	// If we fail to revert after this point, the next update/enable will
-	// fix the link to restore the active version.
-
-	// Sync process configuration after linking.
-
-	if err := u.Process.Sync(ctx); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return trace.Errorf("sync canceled")
-		}
-		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
-		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
-		if ok := revert(ctx); !ok {
-			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
-		} else if err := u.Process.Sync(ctx); err != nil {
-			u.Log.ErrorContext(ctx, "Failed to sync configuration after failed restart.", "error", err)
-		}
-		u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
-
-		return trace.Errorf("failed to validate configuration for new version %q of Teleport: %w", desiredVersion, err)
-	}
-
-	// Restart Teleport if necessary.
-
-	if cfg.Status.ActiveVersion != desiredVersion {
-		u.Log.InfoContext(ctx, "Target version successfully installed.", "version", desiredVersion)
-		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-			if errors.Is(err, context.Canceled) {
-				return trace.Errorf("reload canceled")
-			}
-			// If reloading Teleport at the new version fails, revert, resync, and reload.
-			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
-			if ok := revert(ctx); !ok {
-				u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks to older version. Installation likely broken.")
-			} else if err := u.Process.Sync(ctx); err != nil {
-				u.Log.ErrorContext(ctx, "Invalid configuration found after reverting Teleport to older version. Installation likely broken.", "error", err)
-			} else if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-				u.Log.ErrorContext(ctx, "Failed to revert Teleport to older version. Installation likely broken.", "error", err)
-			}
-			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
-
-			return trace.Errorf("failed to start new version %q of Teleport: %w", desiredVersion, err)
-		}
-		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
-		cfg.Status.ActiveVersion = desiredVersion
-	} else {
-		u.Log.InfoContext(ctx, "Target version successfully validated.", "version", desiredVersion)
-	}
-	if v := cfg.Status.BackupVersion; v != "" {
-		u.Log.InfoContext(ctx, "Backup version set.", "version", v)
-	}
-
-	// Check if manual cleanup might be needed.
-
-	versions, err := u.Installer.List(ctx)
-	if err != nil {
-		return trace.Errorf("failed to list installed versions: %w", err)
-	}
-	if n := len(versions); n > 2 {
-		u.Log.WarnContext(ctx, "More than 2 versions of Teleport installed. Version directory may need cleanup to save space.", "count", n)
+	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Always write the configuration file if enable succeeds.
@@ -406,6 +339,193 @@ func (u *Updater) Disable(ctx context.Context) error {
 	if err := writeConfig(u.ConfigPath, cfg); err != nil {
 		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
 	}
+	return nil
+}
+
+// Update initiates an agent update.
+// If the update succeeds, the new installed version is marked as active.
+// Otherwise, the auto-updates configuration is not changed.
+// Unlike Enable, Update will not validate or repair the current version.
+// This function is idempotent.
+func (u *Updater) Update(ctx context.Context) error {
+	// Read configuration from update.yaml and override any new values passed as flags.
+	cfg, err := readConfig(u.ConfigPath)
+	if err != nil {
+		return trace.Errorf("failed to read %s: %w", updateConfigName, err)
+	}
+	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
+		return trace.Wrap(err)
+	}
+	activeVersion := cfg.Status.ActiveVersion
+	if !cfg.Spec.Enabled {
+		u.Log.InfoContext(ctx, "Automatic updates disabled.", activeVersionKey, activeVersion)
+		return nil
+	}
+	if cfg.Spec.Proxy == "" {
+		return trace.Errorf("Teleport proxy URL must be present in %s", updateConfigName)
+	}
+
+	// Lookup target version from the proxy.
+
+	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
+	if err != nil {
+		return trace.Errorf("failed to parse proxy server address: %w", err)
+	}
+	resp, err := webclient.Find(&webclient.Config{
+		Context:     ctx,
+		ProxyAddr:   addr.Addr,
+		Insecure:    u.InsecureSkipVerify,
+		Timeout:     30 * time.Second,
+		UpdateGroup: cfg.Spec.Group,
+		Pool:        u.Pool,
+	})
+	if err != nil {
+		return trace.Errorf("failed to request version from proxy: %w", err)
+	}
+	targetVersion := resp.AutoUpdate.AgentVersion
+	var flags InstallFlags
+	switch resp.Edition {
+	case modules.BuildEnterprise:
+		flags |= FlagEnterprise
+	case modules.BuildOSS, modules.BuildCommunity:
+	default:
+		u.Log.WarnContext(ctx, "Unknown edition detected, defaulting to community.", "edition", resp.Edition)
+	}
+	if resp.FIPS {
+		flags |= FlagFIPS
+	}
+
+	if !resp.AutoUpdate.AgentAutoUpdate {
+		switch targetVersion {
+		case "":
+			u.Log.WarnContext(ctx, "Cannot determine target agent version. Waiting for both version and update window.")
+		case activeVersion:
+			u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is not active.", activeVersionKey, activeVersion)
+		default:
+			u.Log.InfoContext(ctx, "Update available, but update window is not active.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+		}
+		return nil
+	}
+
+	switch targetVersion {
+	case "":
+		u.Log.ErrorContext(ctx, "Update window is active, but target version is not available.", activeVersionKey, activeVersion)
+		return trace.Errorf("target version missing")
+	case activeVersion:
+		u.Log.InfoContext(ctx, "Teleport is up-to-date. Update window is active, but no action is needed.", activeVersionKey, activeVersion)
+		return nil
+	default:
+		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetVersionKey, targetVersion, activeVersionKey, activeVersion)
+	}
+
+	jitterSec := resp.AutoUpdate.AgentUpdateJitterSeconds
+	time.Sleep(time.Duration(jitterSec) * time.Second)
+
+	if err := u.update(ctx, cfg, targetVersion, flags); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Write the configuration file if update succeeds.
+
+	if err := writeConfig(u.ConfigPath, cfg); err != nil {
+		return trace.Errorf("failed to write %s: %w", updateConfigName, err)
+	}
+	u.Log.InfoContext(ctx, "Configuration updated.")
+	return nil
+}
+
+func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, targetVersion string, flags InstallFlags) error {
+	activeVersion := cfg.Status.ActiveVersion
+	switch v := cfg.Status.BackupVersion; v {
+	case "", targetVersion, activeVersion:
+	default:
+		if targetVersion == activeVersion {
+			// Keep backup version if we are only verifying active version
+			break
+		}
+		err := u.Installer.Remove(ctx, v)
+		if err != nil {
+			// this could happen if it was already removed due to a failed installation
+			u.Log.WarnContext(ctx, "Failed to remove backup version of Teleport before new install.", errorKey, err, backupVersionKey, v)
+		}
+	}
+
+	// Install the desired version (or validate existing installation)
+
+	template := cfg.Spec.URLTemplate
+	if template == "" {
+		template = cdnURITemplate
+	}
+	err := u.Installer.Install(ctx, targetVersion, template, flags)
+	if err != nil {
+		return trace.Errorf("failed to install: %w", err)
+	}
+	revert, err := u.Installer.Link(ctx, targetVersion)
+	if err != nil {
+		return trace.Errorf("failed to link: %w", err)
+	}
+
+	// If we fail to revert after this point, the next update/enable will
+	// fix the link to restore the active version.
+
+	// Sync process configuration after linking.
+
+	if err := u.Process.Sync(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return trace.Errorf("sync canceled")
+		}
+		// If sync fails, we may have left the host in a bad state, so we revert linking and re-Sync.
+		u.Log.ErrorContext(ctx, "Reverting symlinks due to invalid configuration.")
+		if ok := revert(ctx); !ok {
+			u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks. Installation likely broken.")
+		} else if err := u.Process.Sync(ctx); err != nil {
+			u.Log.ErrorContext(ctx, "Failed to sync configuration after failed restart.", errorKey, err)
+		}
+		u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+
+		return trace.Errorf("failed to validate configuration for new version %q of Teleport: %w", targetVersion, err)
+	}
+
+	// Restart Teleport if necessary.
+
+	if cfg.Status.ActiveVersion != targetVersion {
+		u.Log.InfoContext(ctx, "Target version successfully installed.", targetVersionKey, targetVersion)
+		if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
+			if errors.Is(err, context.Canceled) {
+				return trace.Errorf("reload canceled")
+			}
+			// If reloading Teleport at the new version fails, revert, resync, and reload.
+			u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
+			if ok := revert(ctx); !ok {
+				u.Log.ErrorContext(ctx, "Failed to revert Teleport symlinks to older version. Installation likely broken.")
+			} else if err := u.Process.Sync(ctx); err != nil {
+				u.Log.ErrorContext(ctx, "Invalid configuration found after reverting Teleport to older version. Installation likely broken.", errorKey, err)
+			} else if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
+				u.Log.ErrorContext(ctx, "Failed to revert Teleport to older version. Installation likely broken.", errorKey, err)
+			}
+			u.Log.WarnContext(ctx, "Teleport updater encountered a configuration error and successfully reverted the installation.")
+
+			return trace.Errorf("failed to start new version %q of Teleport: %w", targetVersion, err)
+		}
+		cfg.Status.BackupVersion = cfg.Status.ActiveVersion
+		cfg.Status.ActiveVersion = targetVersion
+	} else {
+		u.Log.InfoContext(ctx, "Target version successfully validated.", targetVersionKey, targetVersion)
+	}
+	if v := cfg.Status.BackupVersion; v != "" {
+		u.Log.InfoContext(ctx, "Backup version set.", backupVersionKey, v)
+	}
+
+	// Check if manual cleanup might be needed.
+
+	versions, err := u.Installer.List(ctx)
+	if err != nil {
+		return trace.Errorf("failed to list installed versions: %w", err)
+	}
+	if n := len(versions); n > 2 {
+		u.Log.WarnContext(ctx, "More than 2 versions of Teleport installed. Version directory may need cleanup to save space.", "count", n)
+	}
+
 	return nil
 }
 
@@ -466,9 +586,6 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if spec.URLTemplate != "" &&
 		!strings.HasPrefix(strings.ToLower(spec.URLTemplate), "https://") {
 		return trace.Errorf("Teleport download URL must use TLS (https://)")
-	}
-	if spec.Proxy == "" {
-		return trace.Errorf("Teleport proxy URL must be specified with --proxy or present in %s", updateConfigName)
 	}
 	return nil
 }
