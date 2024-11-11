@@ -58,6 +58,7 @@ export function ViewEditAccessList() {
     processAccessLists,
   } = useAccessListManagementContext();
   const location = useLocation<{
+    startReviewFor?: string;
     previousPaths?: string[];
   }>();
   const history = useHistory();
@@ -183,18 +184,41 @@ export function ViewEditAccessList() {
   // The accessListId can change if a user clicks on a different
   // access list in the notification dropdown.
   useEffect(() => {
-    setReviewing(false);
-    fetchAccessList();
+    if (location.state?.startReviewFor !== accessListId) {
+      setReviewing(false);
+    }
+    if (!accessList || accessList.id !== accessListId) {
+      fetchAccessList();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessListId]);
 
-  if (reviewing) {
+  if (
+    reviewing ||
+    (location.state?.startReviewFor &&
+      location.state.startReviewFor === accessListId &&
+      attempt.attempt.status === 'success' &&
+      !!accessList)
+  ) {
     return (
       <ReviewAccessList
         reviewer={ctx.storeUser.getUsername()}
         accessList={accessList}
         fetchRoleOptions={fetchRoleOptions}
-        cancelReview={() => setReviewing(false)}
+        cancelReview={() => {
+          setReviewing(false);
+
+          // If we're coming from list of all ALs, we should navigate back there.
+          if (location.state?.startReviewFor === accessListId) {
+            navigateBackFromList();
+            return;
+          }
+
+          history.push(location.pathname, {
+            startReviewFor: undefined,
+            previousPaths: location.state.previousPaths,
+          });
+        }}
         isOwner={perms.isOwner}
       />
     );

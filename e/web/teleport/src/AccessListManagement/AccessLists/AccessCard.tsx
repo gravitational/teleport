@@ -50,11 +50,21 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
   const isMember = membersCount == null;
   const canViewMembers = !isMember && membersCount >= 0;
   const requiresReview = needsReviewBy && !isMember;
+  const isOverdue = requiresReview && needsReviewBy < new Date();
 
   return (
-    <AccessCardContainer key={id} onClick={onClick} $onlyRender={onlyRender}>
+    <AccessCardContainer
+      key={id}
+      onClick={onClick}
+      onKeyUp={e => (e.key === 'Enter' || e.key === ' ' ? onClick() : null)}
+      $onlyRender={onlyRender}
+      tabIndex={0}
+      role="listitem"
+    >
       {requiresReview && (
-        <ReviewBadge>Review by {format(needsReviewBy, 'MM/dd')}</ReviewBadge>
+        <ReviewBadge isOverdue={isOverdue}>
+          Review by {format(needsReviewBy, 'MM/dd')}
+        </ReviewBadge>
       )}
       <Box width="100%">
         <Flex gap={1}>
@@ -101,7 +111,7 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
   );
 }
 
-const renderRolesAndTraits = ({
+export const renderRolesAndTraits = ({
   roles,
   traits,
 }: {
@@ -135,7 +145,7 @@ const renderRolesAndTraits = ({
             React.cloneElement(label, { inverse: true })
           )}
         >
-          <Text typography="body4">+{otherLabels.length} more</Text>
+          <Text typography="body4">+ {otherLabels.length} more</Text>
         </HoverTooltip>
       </Flex>
     );
@@ -146,21 +156,28 @@ const renderRolesAndTraits = ({
 
 const AccessCardContainer = styled(Flex)<{ $onlyRender?: boolean }>`
   position: relative;
-  transition: all 150ms;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    outline-width 150ms ease;
 
   border-radius: ${props => props.theme.radii[2]}px;
   border: 2px solid ${props => props.theme.colors.spotBackground[0]};
 
-  min-width: 333px;
-  max-width: 333px;
+  width: 100%;
   padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
   flex-direction: column;
   justify-content: space-between;
   align-items: flex-start;
   gap: 4px;
-  flex: 1 1 0;
+  outline: none;
 
-  &:hover {
+  &:focus-visible {
+    outline: ${p => p.theme.borders[2]} ${props => props.theme.colors.brand};
+  }
+
+  &:hover,
+  &:focus-visible {
     cursor: pointer;
     box-shadow: ${props => props.theme.boxShadow[1]};
     border-color: ${props => props.theme.colors.levels.elevated};
@@ -187,9 +204,10 @@ const SingleLineBox = styled(Text)<{ $requiresReview: boolean }>`
   max-width: ${p => (p.$requiresReview ? '155' : '235')}px;
 `;
 
-const ReviewBadge = styled.div`
+const ReviewBadge = styled.div<{ isOverdue?: boolean }>`
   position: absolute;
-  background-color: ${p => p.theme.colors.warning.main};
+  background-color: ${p =>
+    p.isOverdue ? p.theme.colors.error.main : p.theme.colors.warning.main};
   width: 80px;
   height: 20px;
   right: 0;

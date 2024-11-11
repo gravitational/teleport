@@ -1,10 +1,22 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  Dispatch,
+  SetStateAction,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
+import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { KeysEnum } from 'teleport/services/storageService';
 
-import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListOwner,
+  accessManagementService,
+} from 'e-teleport/services/accessmanagement';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
 import { accessListRequiresReview } from 'e-teleport/stores/storeNotificationsE';
 import { useFetchUserAndRoles } from 'e-teleport/AccessListManagement/useFetchUsersAndRoles';
@@ -14,14 +26,34 @@ import type { PropsWithChildren } from 'react';
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import type TeleportEContext from 'e-teleport/teleportContextE';
 import type { AccessList } from 'e-teleport/services/accessmanagement';
+import type { SortDir } from 'design/DataTable/types';
 
 // PreProcessFn is a function that takes a list of AccessList and returns a list of AccessLists.
 // This is used to modify the access lists before they are processed, e.g. to filter out certain lists
 // or add additional information after changes are made in the web ui.
 type PreProcessFn = (lists: AccessList[]) => AccessList[];
 
-interface AccessListManagementContext {
+// AccessListFilters is used to filter the access lists based on the source, owners, and roles.
+export type AccessListFilters = {
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  source?: ('okta' | 'teleport')[];
+  owners?: string[];
+  roles?: string[];
+};
+
+// AccessListSort is used to sort the access lists based on a property name and direction.
+export type AccessListSort = {
+  fieldName: keyof AccessListWithModifiedGrants;
+  dir: SortDir;
+};
+
+type State = {
   accessLists: AccessListWithModifiedGrants[];
+  allOwners: AccessListOwner[];
+  allGrantedRoles: string[];
+};
+
+interface AccessListManagementContext {
   attempt: ReturnType<typeof useAttempt>;
   usersAndRolesAttempt: ReturnType<typeof useAttempt>['attempt'];
   processAccessLists: (preProcess?: PreProcessFn) => void;
@@ -29,7 +61,18 @@ interface AccessListManagementContext {
   fetchUsersAndRoles: ReturnType<
     typeof useFetchUserAndRoles
   >['fetchUsersAndRoles'];
+  refetchAccessLists: (setAttempt: boolean) => void;
+
+  accessLists: State['accessLists'];
+  allOwners: State['allOwners'];
+  allGrantedRoles: State['allGrantedRoles'];
   userOptions: ReturnType<typeof useFetchUserAndRoles>['userOptions'];
+  filters: AccessListFilters;
+  sort: AccessListSort;
+  view: ViewMode;
+  setFilters: Dispatch<SetStateAction<AccessListFilters>>;
+  setSort: Dispatch<SetStateAction<AccessListSort>>;
+  setView: Dispatch<SetStateAction<ViewMode>>;
 }
 
 const STUB_ATTEMPT = {
@@ -39,40 +82,91 @@ const STUB_ATTEMPT = {
   handleError: () => {},
 } satisfies ReturnType<typeof useAttempt>;
 
+const DEFAULT_SORT = {
+  fieldName: 'title',
+  dir: 'ASC',
+} satisfies AccessListSort;
+
 const AccessListManagementContext = createContext<AccessListManagementContext>({
   attempt: STUB_ATTEMPT,
   usersAndRolesAttempt: STUB_ATTEMPT.attempt,
   accessLists: [],
   userOptions: [],
+  allOwners: [],
+  allGrantedRoles: [],
+  filters: {},
+  sort: DEFAULT_SORT,
+  view: ViewMode.CARD,
+  setView: () => {},
+  setFilters: () => {},
+  setSort: () => {},
   processAccessLists: () => {},
   fetchRoleOptions: () => Promise.resolve([]),
   fetchUsersAndRoles: () => Promise.resolve(),
+  refetchAccessLists: () => {},
 });
 
 export const AccessListManagementContextProvider = (
   props: PropsWithChildren<unknown>
 ) => {
   const ctx = useTeleportE();
-  const [accessLists, setAccessLists] = useState<
-    AccessListWithModifiedGrants[]
-  >([]);
+
+  const accessListPreferences =
+    JSON.parse(
+      localStorage.getItem(KeysEnum.ACCESS_LIST_PREFERENCES) || '{}'
+    ) || {};
+
+  const [state, setState] = useState<State>({
+    accessLists: [],
+    allOwners: [],
+    allGrantedRoles: [],
+  });
+
+  const [filters, setFilters] = useState<AccessListFilters>(
+    accessListPreferences?.filters || {}
+  );
+  const [sort, setSort] = useState<AccessListSort>(
+    accessListPreferences?.sort || DEFAULT_SORT
+  );
+  const [view, _setView] = useState<ViewMode>(
+    accessListPreferences?.view || ViewMode.CARD
+  );
+  const setView = (newState: ViewMode) => {
+    _setView(newState);
+
+    if (accessListPreferences?.view !== newState) {
+      localStorage.setItem(
+        KeysEnum.ACCESS_LIST_PREFERENCES,
+        JSON.stringify({
+          ...accessListPreferences,
+          view: newState,
+        })
+      );
+    }
+  };
+
   const initialFetch = useRef<Promise<void>>(null);
   const pendingPreProcessRef = useRef<PreProcessFn[]>([]);
 
   const attempt = useAttempt('processing');
   const usersAndRolesAttempt = useAttempt('processing');
 
+  const refetchAccessLists = (setAttempt: boolean) => {
+    initialFetch.current = fetchAccessListsWithAttempt({
+      ctx,
+      attempt,
+      pendingPreProcessRef,
+      setAttempt,
+      setState,
+    });
+  };
+
   useEffect(() => {
     if (initialFetch.current) {
       return;
     }
 
-    initialFetch.current = fetchAccessListsWithAttempt({
-      ctx,
-      attempt,
-      setAccessLists,
-      pendingPreProcessRef,
-    });
+    refetchAccessLists(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -89,9 +183,19 @@ export const AccessListManagementContextProvider = (
       return;
     }
 
-    processFetchedLists({ ctx, listsToUse: accessLists, setAccessLists })(
-      preProcess
-    );
+    setState(prev => {
+      const accessLists = processFetchedLists({
+        ctx,
+        listsToUse: prev.accessLists,
+      })(preProcess);
+      const { allOwners, allGrantedRoles } =
+        getOwnersRolesFromLists(accessLists);
+      return {
+        accessLists,
+        allOwners,
+        allGrantedRoles,
+      };
+    });
   };
 
   return (
@@ -99,11 +203,20 @@ export const AccessListManagementContextProvider = (
       value={{
         attempt,
         usersAndRolesAttempt: usersAndRolesAttempt.attempt,
-        accessLists,
         userOptions,
+        accessLists: state.accessLists,
+        allOwners: state.allOwners,
+        allGrantedRoles: state.allGrantedRoles,
+        filters,
+        sort,
+        view,
+        setFilters,
+        setSort,
+        setView,
         processAccessLists,
         fetchRoleOptions,
         fetchUsersAndRoles,
+        refetchAccessLists,
       }}
     >
       {props.children}
@@ -117,15 +230,19 @@ export const useAccessListManagementContext = () =>
 const fetchAccessListsWithAttempt = async ({
   ctx,
   attempt,
-  setAccessLists,
   pendingPreProcessRef,
+  setState,
+  setAttempt = true,
 }: {
   ctx: TeleportEContext;
   attempt: ReturnType<typeof useAttempt>;
-  setAccessLists: (lists: AccessListWithModifiedGrants[]) => void;
   pendingPreProcessRef: { current: PreProcessFn[] };
+  setState: Dispatch<SetStateAction<State>>;
+  setAttempt?: boolean;
 }): Promise<void> => {
-  attempt.setAttempt({ status: 'processing' });
+  if (setAttempt) {
+    attempt.setAttempt({ status: 'processing' });
+  }
 
   try {
     let listsToUse = await accessManagementService.fetchAccessLists();
@@ -136,8 +253,15 @@ const fetchAccessListsWithAttempt = async ({
       pendingPreProcessRef.current = [];
     }
 
-    processFetchedLists({ ctx, listsToUse, setAccessLists })();
+    const processedLists = processFetchedLists({ ctx, listsToUse })();
+    const { allOwners, allGrantedRoles } =
+      getOwnersRolesFromLists(processedLists);
 
+    setState({
+      accessLists: processedLists,
+      allOwners,
+      allGrantedRoles,
+    });
     attempt.setAttempt({ status: 'success' });
   } catch (e) {
     if (e.name === 'AbortError') {
@@ -155,15 +279,7 @@ const fetchAccessListsWithAttempt = async ({
 };
 
 const processFetchedLists =
-  ({
-    ctx,
-    listsToUse,
-    setAccessLists,
-  }: {
-    ctx: TeleportEContext;
-    listsToUse: AccessList[];
-    setAccessLists: (lists: AccessListWithModifiedGrants[]) => void;
-  }) =>
+  ({ ctx, listsToUse }: { ctx: TeleportEContext; listsToUse: AccessList[] }) =>
   (preProcess?: (lists: AccessList[]) => AccessList[]) => {
     if (typeof preProcess === 'function') {
       listsToUse = preProcess(listsToUse);
@@ -175,23 +291,27 @@ const processFetchedLists =
       ctx.storeUser.state
     );
 
-    const processedLists = orderByNameAndReviewState(processTraits(listsToUse));
-
-    setAccessLists(processedLists);
+    return processTraits(listsToUse);
   };
 
-const orderByNameAndReviewState = (lists: AccessListWithModifiedGrants[]) => {
-  const sorted = lists.sort((a, b) =>
-    compareByString(a.title.toLocaleLowerCase(), b.title.toLocaleLowerCase())
-  );
+const getOwnersRolesFromLists = (lists: AccessList[]) => {
+  const allOwners: AccessListOwner[] = [];
+  const allGrantedRoles: string[] = [];
 
-  // Sort by required reviews by date.
-  const noReviewsRequired = sorted.filter(l => !l.needsReviewBy);
-  const requiresReviewSortedByDate = sorted
-    .filter(l => l.needsReviewBy)
-    .sort((a, b) => a.audit.nextDate.getTime() - b.audit.nextDate.getTime());
+  for (let i = 0; i < lists.length; i++) {
+    for (const owner of lists[i].owners) {
+      if (!allOwners.some(o => o.name === owner.name)) {
+        allOwners.push(owner);
+      }
+    }
+    for (const role of lists[i].grants.roles) {
+      if (!allGrantedRoles.includes(role)) {
+        allGrantedRoles.push(role);
+      }
+    }
+  }
 
-  return [...requiresReviewSortedByDate, ...noReviewsRequired];
+  return { allOwners, allGrantedRoles };
 };
 
 const processTraits = (
@@ -224,6 +344,7 @@ const processTraits = (
       })
         ? r.audit.nextDate
         : null,
+      auditNextDate: r.audit.nextDate,
     };
   });
 
