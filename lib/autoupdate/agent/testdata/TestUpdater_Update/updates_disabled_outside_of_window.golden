@@ -1,0 +1,10 @@
+version: v1
+kind: update_config
+spec:
+    proxy: localhost
+    group: group
+    url_template: https://example.com
+    enabled: false
+status:
+    active_version: old-version
+    backup_version: ""
