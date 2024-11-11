@@ -40,7 +40,7 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	authClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// Enable mode to check that resources were modified.
-	_, err := runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "set", "--mode=enabled"})
+	_, err := runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "set", "--mode=on"})
 	require.NoError(t, err)
 
 	config, err := authClient.GetAutoUpdateConfig(ctx)
@@ -48,7 +48,7 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	assert.Equal(t, "enabled", config.Spec.Tools.Mode)
 
 	// Disable mode to check that resources were modified.
-	_, err = runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "set", "--mode=disabled"})
+	_, err = runAutoUpdateCommand(t, ctx, authClient, []string{"client-tools", "set", "--mode=off"})
 	require.NoError(t, err)
 
 	config, err = authClient.GetAutoUpdateConfig(ctx)

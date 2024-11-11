@@ -65,16 +65,16 @@ type AutoUpdateCommand struct {
 func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.app = app
 	c.config = config
-	autoUpdateCmd := app.Command("autoupdate", "Teleport auto update commands.")
+	autoUpdateCmd := app.Command("autoupdate", "Manage auto update configuration.")
 
-	clientToolsCmd := autoUpdateCmd.Command("client-tools", "Client tools auto update commands.")
+	clientToolsCmd := autoUpdateCmd.Command("client-tools", "Manage client tools auto update configuration.")
 
-	c.setCmd = clientToolsCmd.Command("set", "Sets client tools auto update configuration.")
-	c.setCmd.Flag("mode", "Defines the mode to enable or disable tools auto update in cluster.").EnumVar(&c.mode, "enabled", "disabled", "on", "off")
+	c.setCmd = clientToolsCmd.Command("set", "Modifies client tools auto update configuration.")
+	c.setCmd.Flag("mode", "Specifies whether client tools auto updates are enabled for the cluster.").EnumVar(&c.mode, "on", "off")
 	c.setCmd.Flag("target-version", "Defines client tools target version required to be updated.").StringVar(&c.toolsTargetVersion)
 
-	c.getCmd = clientToolsCmd.Command("get", "Receive tools auto update target version.")
-	c.getCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address going to be used for requesting target version for auto update.").StringVar(&c.proxy)
+	c.getCmd = clientToolsCmd.Command("get", "Retrieve client tools auto update configuration.")
+	c.getCmd.Flag("proxy", "Address of the Teleport proxy. When defined this address will be used to retrieve client tools auto update configuration.").StringVar(&c.proxy)
 	c.getCmd.Flag("format", "Output format: 'yaml' or 'json'").Default(teleport.YAML).StringVar(&c.format)
 
 	if c.stdout == nil {
@@ -147,17 +147,15 @@ func (c *AutoUpdateCommand) setAutoUpdateConfig(ctx context.Context, client *aut
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
-	switch c.mode {
-	case "on":
-		c.mode = autoupdate.ToolsUpdateModeEnabled
-	case "off":
-		c.mode = autoupdate.ToolsUpdateModeDisabled
+	mode := autoupdate.ToolsUpdateModeDisabled
+	if c.mode == "on" {
+		mode = autoupdate.ToolsUpdateModeEnabled
 	}
 	if config.Spec.Tools == nil {
 		config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{}
 	}
-	if config.Spec.Tools.Mode != c.mode {
-		config.Spec.Tools.Mode = c.mode
+	if config.Spec.Tools.Mode != mode {
+		config.Spec.Tools.Mode = mode
 		if configExists {
 			if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
 				return trace.Wrap(err)
@@ -206,33 +204,35 @@ func (c *AutoUpdateCommand) setAutoUpdateVersion(ctx context.Context, client *au
 }
 
 func (c *AutoUpdateCommand) get(ctx context.Context, client *authclient.Client) (*getResponse, error) {
-	var response getResponse
 	if c.proxy != "" {
-		find, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: c.proxy, Insecure: true})
+		find, err := webclient.Find(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: c.proxy,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		response.TargetVersion = find.AutoUpdate.ToolsVersion
-		response.Mode = autoupdate.ToolsUpdateModeDisabled
+		mode := autoupdate.ToolsUpdateModeDisabled
 		if find.AutoUpdate.ToolsAutoUpdate {
-			response.Mode = autoupdate.ToolsUpdateModeEnabled
+			mode = autoupdate.ToolsUpdateModeEnabled
 		}
-	} else {
-		config, err := client.GetAutoUpdateConfig(ctx)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		if config != nil && config.Spec.Tools != nil {
-			response.Mode = config.Spec.Tools.Mode
-		}
+		return &getResponse{
+			TargetVersion: find.AutoUpdate.ToolsVersion,
+			Mode:          mode,
+		}, nil
+	}
 
-		version, err := client.GetAutoUpdateVersion(ctx)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		if version != nil && version.Spec.Tools != nil {
-			response.TargetVersion = version.Spec.Tools.TargetVersion
-		}
+	var response getResponse
+	config, err := client.GetAutoUpdateConfig(ctx)
+	if config != nil && config.Spec.Tools != nil {
+		response.Mode = config.Spec.Tools.Mode
+	}
+	version, err := client.GetAutoUpdateVersion(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	if version != nil && version.Spec.Tools != nil {
+		response.TargetVersion = version.Spec.Tools.TargetVersion
 	}
 
 	return &response, nil
