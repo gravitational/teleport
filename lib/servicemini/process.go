@@ -3134,3 +3134,8 @@ func (process *TeleportProcess) GetID() string {
 func (process *TeleportProcess) GetAuthServer() *auth.Server {
 	return process.localAuth
 }
+
+// GetAuditLog returns the process' audit log
+func (process *TeleportProcess) GetAuditLog() events.AuditLogSessionStreamer {
+	return process.auditLog
+}
