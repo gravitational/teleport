@@ -796,40 +796,38 @@ func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
 	}
 }
 
-// NewNonRetryableError wraps an error to indicate that the error should fail
+// NonRetryableError wraps an error to indicate that the error should fail
 // IsErrorResolvableWithRelogin. This wrapper is used to workaround the false
 // positives like trace.IsBadParameter check in IsErrorResolvableWithRelogin.
-func NewNonRetryableError(err error) error {
-	return &nonRetryableError{
-		Err: err,
-	}
-}
-
-type nonRetryableError struct {
+type NonRetryableError struct {
+	// Err is the original error.
 	Err error
 }
 
-func (e *nonRetryableError) Error() string {
+// Error returns the error text.
+func (e *NonRetryableError) Error() string {
 	if e == nil || e.Err == nil {
-		return "error"
+		return ""
 	}
 	return e.Err.Error()
 }
 
-func (e *nonRetryableError) Unwrap() error {
+// Unwrap returns the original error.
+func (e *NonRetryableError) Unwrap() error {
 	if e == nil {
 		return nil
 	}
 	return e.Err
 }
 
-func isNonRetryableError(err error) bool {
-	return errors.As(err, new(*nonRetryableError))
+// IsNonRetryableError checks if the provided error is a NonRetryableError.
+func IsNonRetryableError(err error) bool {
+	return errors.As(err, new(*NonRetryableError))
 }
 
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
-	if isNonRetryableError(err) {
+	if IsNonRetryableError(err) {
 		return false
 	}
 
