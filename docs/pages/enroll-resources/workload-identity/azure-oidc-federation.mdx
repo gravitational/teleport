@@ -32,10 +32,6 @@ protect Azure APIs in a few ways:
   Machine ID and therefore cannot be used when a machine needs to authenticate
   with Azure.
 
-1. Create User Managed Identity
-2. Create Federated credential
-3. Assign role to Federated Credential.
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -45,6 +41,8 @@ protect Azure APIs in a few ways:
   workloads which need to access Teleport Workload Identity will run. For more
   information, see the [deployment
   guides](../machine-id/deployment/deployment.mdx).
+- An Azure resource group and subscription you wish to grant the workload access
+  to.
 
 <Notice type="warning">
 Issuing JWT SVIDs with Teleport Workload Identity requires at least Teleport
@@ -73,11 +71,94 @@ sense to name the workload or person that will use the SPIFFE ID. See the
 
 ## Step 1/4. Configure Azure
 
+To configure Azure to accept Workload Identity JWT SVIDs as authentication,
+you'll need to create an identity to represent that workload within Azure, 
+configure that identity to accept JWT SVIDs issued by your Teleport Cluster as
+a federated credential, and then grant that identity the necessary permissions
+within Azure using a role assignment.
+
+### Create a user-managed identity
+
+First, you'll create a user-managed identity to represent the workload within
+Azure.
+
+1. Browse to the "Managed Identities" section of the Azure Portal.
+2. Select "Create" to open the "Create User Assigned Managed Identity" form.
+3. Select your resource group and subscription.
+4. Enter a unique name for your identity that describes the workload it will
+  represent. In our example, we will use "example-service".
+5. Select "Review + create".
+
+You now need to record some key information about the created user-managed
+identity to be used in future steps.
+
+Browse to the "Properties" section on the created user-managed identity and note
+down the "Client Id" and "Tenant Id", these values will both be UUIDs.
+
+### Create a federated credential
+
+Next, you need to configure a federated credential for the user-managed
+identity. This will configure Azure to accept JWT SVIDs issued by your Teleport
+cluster as a form of authentication for this user-managed identity.
+
+1. Browse to your user-managed identity in the Azure Portal and select the 
+  "Federated credentials" page from the "Settings" section.
+2. Select "Add Credential" to open the "Add Federated Credential" form.
+3. Select "Other" for the "Federated credential scenario".
+4. Enter the address of your Teleport Proxy service followed by
+  `/workload-identity` for the "Issuer URL", for example
+  `https://example.teleport.sh/workload-identity`.
+5. Enter the SPIFFE ID you have decided on for the workload in the
+  "Subject identifier" field. For example,
+  `spiffe://example.teleport.sh/svc/example-service`. This will control which
+  JWT SVIDs issued by Teleport Workload Identity will be accepted for this
+  user-managed identity.
+6. Enter a unique, identifiable name for the federated credential. For example,
+   `example-teleport-sh-svc-example-service`.
+7. Click "Add".
+
+### Create a storage account and container
+
+### Create a role assignment
+
 ## Step 2/4. Configure Teleport RBAC
 
 ## Step 3/4. Issue Workload Identity JWTs
 
-## Step 4/4. Configure Azure CLIs and SDKs
+You'll now configure `tbot` to issue and renew the short-lived JWT SVIDs for
+your workload. It'll write the JWT as a file on disk, where you can then
+configure Azure clients and SDKs to read it.
+
+Take your already deployed `tbot` service and configure it to issue SPIFFE SVIDs
+by adding the following to the `tbot` configuration file:
+
+```yaml
+outputs:
+  - type: spiffe-svid
+    destination:
+      type: directory
+      path: /opt/workload-identity
+    svid:
+      path: /svc/example-service
+    jwts:
+      - audience: api://AzureADTokenExchange
+        file_name: azure-jwt
+```
+
+Replace:
+
+- /opt/workload-identity with the directory where you want the JWT to be
+  written.
+- /svc/example-service with the SPIFFE ID you have chosen.
+
+Restart your `tbot` service to apply the new configuration. You should see a
+file created at `/opt/workload-identity/azure-jwt` containing the JWT.
+
+## Step 4/4. Configure the Azure CLIs and SDKs
+
+### Configuring Azure CLI
+
+### Configuring Azure SDKs
 
 ## Next steps
 
