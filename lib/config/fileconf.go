@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -1303,10 +1302,6 @@ func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) 
 		slack, err := p.Slack.Parse()
 		if err != nil {
 			return out, trace.Wrap(err)
-		}
-		out.Slack = &oauth2.ClientCredentials{
-			ID:     slack.ClientID,
-			Secret: slack.ClientSecret,
 		}
 		out.SlackCredentials = slack
 	}
