@@ -684,6 +684,32 @@ func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, ki
 
 // GetInheritedGrants returns the combined Grants for an Access List's members, inherited from any ancestor lists.
 func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Grants, error) {
+	return getInheritedGrants(ctx, accessList, g, getInheritedGrantsOptions{
+		withMemberGrants: true,
+		withOwnerGrants:  true,
+	})
+}
+
+// GetInheritedGrants returns the Grants from an Access Lists membership
+// hierarchy. Ownership grants are not considered.
+func GetInheritedMemberGrants(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Grants, error) {
+	return getInheritedGrants(ctx, accessList, g, getInheritedGrantsOptions{
+		withMemberGrants: true,
+		withOwnerGrants:  false,
+	})
+}
+
+type getInheritedGrantsOptions struct {
+	withMemberGrants bool
+	withOwnerGrants  bool
+}
+
+func getInheritedGrants(
+	ctx context.Context,
+	accessList *accesslist.AccessList,
+	g AccessListAndMembersGetter,
+	opts getInheritedGrantsOptions,
+) (*accesslist.Grants, error) {
 	grants := accesslist.Grants{
 		Traits: trait.Traits{},
 	}
@@ -711,24 +737,28 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 		}
 	}
 
-	// Get ancestors via member relationship
-	ancestorLists, err := getAncestorsFor(ctx, accessList, RelationshipKindMember, g)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, ancestor := range ancestorLists {
-		memberGrants := ancestor.GetGrants()
-		addGrants(memberGrants.Roles, memberGrants.Traits)
+	if opts.withMemberGrants {
+		// Get ancestors via member relationship
+		ancestorLists, err := getAncestorsFor(ctx, accessList, RelationshipKindMember, g)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, ancestor := range ancestorLists {
+			memberGrants := ancestor.GetGrants()
+			addGrants(memberGrants.Roles, memberGrants.Traits)
+		}
 	}
 
-	// Get ancestors via owner relationship
-	ancestorOwnerLists, err := getAncestorsFor(ctx, accessList, RelationshipKindOwner, g)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, ancestorOwner := range ancestorOwnerLists {
-		ownerGrants := ancestorOwner.GetOwnerGrants()
-		addGrants(ownerGrants.Roles, ownerGrants.Traits)
+	if opts.withOwnerGrants {
+		// Get ancestors via owner relationship
+		ancestorOwnerLists, err := getAncestorsFor(ctx, accessList, RelationshipKindOwner, g)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, ancestorOwner := range ancestorOwnerLists {
+			ownerGrants := ancestorOwner.GetOwnerGrants()
+			addGrants(ownerGrants.Roles, ownerGrants.Traits)
+		}
 	}
 
 	slices.Sort(grants.Roles)
