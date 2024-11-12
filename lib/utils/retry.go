@@ -24,23 +24,20 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-// HalfJitter is a global jitter instance used for one-off jitters.
-// Prefer instantiating a new jitter instance for operations that require
-// repeated calls, and use a dedicated sharded jitter instance for
-// any usecases that might scale with cluster size or request count.
-var HalfJitter = retryutils.NewHalfJitter()
+// HalfJitter is [retryutils.HalfJitter].
+//
+// Deprecated: use retryutils.HalfJitter.
+func HalfJitter(d time.Duration) time.Duration { return retryutils.HalfJitter(d) }
 
-// SeventhJitter is a global jitter instance used for one-off jitters.
-// Prefer instantiating a new jitter instance for operations that require
-// repeated calls, and use a dedicated sharded jitter instance for
-// any usecases that might scale with cluster size or request count.
-var SeventhJitter = retryutils.NewSeventhJitter()
+// SeventhJitter is [retryutils.SeventhJitter].
+//
+// Deprecated: use retryutils.SeventhJitter.
+func SeventhJitter(d time.Duration) time.Duration { return retryutils.SeventhJitter(d) }
 
-// FullJitter is a global jitter instance used for one-off jitters.
-// Prefer instantiating a new jitter instance for operations that require
-// repeated calls, and use a dedicated sharded jitter instance for
-// any usecases that might scale with cluster size or request count.
-var FullJitter = retryutils.NewFullJitter()
+// FullJitter is [retryutils.FullJitter].
+//
+// Deprecated: use retryutils.FullJitter.
+func FullJitter(d time.Duration) time.Duration { return retryutils.FullJitter(d) }
 
 // NewDefaultLinear creates a linear retry with reasonable default parameters for
 // attempting to restart "critical but potentially load-inducing" operations, such
