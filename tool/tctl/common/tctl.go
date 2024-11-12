@@ -70,6 +70,9 @@ const (
 	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
 )
 
+// globalConfigKey context value key for propagating the global config for the commands.
+type globalConfigKey struct{}
+
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
 type GlobalCLIFlags struct {
 	// Debug enables verbose logging mode to the console
@@ -228,7 +231,7 @@ func TryRun(commands []CLICommand, commandsWithoutAuth []CLICommand, args []stri
 
 	cfg.Debug = ccf.Debug
 
-	ctx := context.Background()
+	ctx := context.WithValue(context.Background(), globalConfigKey{}, ccf)
 	var match bool
 	for _, c := range commandsWithoutAuth {
 		match, err = c.TryRun(ctx, selectedCmd, nil)

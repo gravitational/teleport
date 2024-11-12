@@ -139,9 +139,15 @@ func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) 
 
 // GetByProxy makes request to find endpoint without auth to fetch tools autoupdate version.
 func (c *AutoUpdateCommand) GetByProxy(ctx context.Context) error {
+	var insecure bool
+	if ccf, ok := ctx.Value(globalConfigKey{}).(GlobalCLIFlags); ok {
+		insecure = ccf.Insecure
+	}
+
 	find, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: c.proxy,
+		Insecure:  insecure,
 	})
 	if err != nil {
 		return trace.Wrap(err)

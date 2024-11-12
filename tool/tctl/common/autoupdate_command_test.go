@@ -34,7 +34,7 @@ import (
 // TestClientToolsAutoUpdateCommands verifies all commands related to client auto updates, by
 // enabling/disabling auto update, setting the target version and retrieve it.
 func TestClientToolsAutoUpdateCommands(t *testing.T) {
-	ctx := context.Background()
+	ctx := context.WithValue(context.Background(), globalConfigKey{}, GlobalCLIFlags{Insecure: true})
 	log := utils.NewSlogLoggerForTests()
 	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
 	authClient := testenv.MakeDefaultAuthClient(t, process)
@@ -68,12 +68,32 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	response := mustDecodeJSON[getResponse](t, getBuf)
 	assert.Equal(t, "1.2.3", response.TargetVersion)
 	assert.Equal(t, "disabled", response.Mode)
+
+	// Make same request with proxy flag to read command expecting the same
+	// response from `webapi/find` endpoint.
+	proxy, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+	getProxyBuf, err := runAutoUpdateReadCommand(t, ctx, authClient, []string{"client-tools", "get", "--proxy=" + proxy.Addr, "--format=json"})
+	require.NoError(t, err)
+	response = mustDecodeJSON[getResponse](t, getProxyBuf)
+	assert.Equal(t, "1.2.3", response.TargetVersion)
+	assert.Equal(t, "disabled", response.Mode)
 }
 
 func runAutoUpdateCommand(t *testing.T, ctx context.Context, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &AutoUpdateCommand{
 		stdout: &stdoutBuff,
+	}
+	args = append([]string{"autoupdate"}, args...)
+	return &stdoutBuff, runCommandWithContext(t, ctx, client, command, args)
+}
+
+func runAutoUpdateReadCommand(t *testing.T, ctx context.Context, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &AutoUpdateCommand{
+		stdout:   &stdoutBuff,
+		readOnly: true,
 	}
 	args = append([]string{"autoupdate"}, args...)
 	return &stdoutBuff, runCommandWithContext(t, ctx, client, command, args)
