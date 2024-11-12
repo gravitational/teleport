@@ -43,7 +43,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
-	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -148,6 +147,9 @@ type Config struct {
 
 	// EnableAutoScaling is used to enable auto scaling policy.
 	EnableAutoScaling bool
+
+	// CredentialsProvider if supplied is used to override the credentials source.
+	CredentialsProvider aws.CredentialsProvider
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -282,24 +284,20 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
 	}
 
-	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if cfg.CredentialsProvider != nil {
+		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
-
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	var dynamoOpts []func(*dynamodb.Options)
 
 	// Override the service endpoint using the "endpoint" query parameter from
 	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
 	if cfg.Endpoint != "" {
-		u, err := url.Parse(cfg.Endpoint)
-		if err != nil {
+		if _, err := url.Parse(cfg.Endpoint); err != nil {
 			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
 		}
 
-		dynamoOpts = append(dynamoOpts, dynamodb.WithEndpointResolverV2(&staticResolver{endpoint: u}))
+		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 	}
 
 	// FIPS settings are applied on the individual service instead of the aws config,
@@ -310,6 +308,13 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})
 	}
+
+	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	b := &Log{
 		logger: l,
@@ -322,14 +327,6 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	return b, nil
-}
-
-type staticResolver struct {
-	endpoint *url.URL
-}
-
-func (s *staticResolver) ResolveEndpoint(ctx context.Context, params dynamodb.EndpointParameters) (smithyendpoints.Endpoint, error) {
-	return smithyendpoints.Endpoint{URI: *s.endpoint}, nil
 }
 
 type tableStatus int
