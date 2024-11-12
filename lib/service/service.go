@@ -4706,7 +4706,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var peerAddrString string
 	var peerServer *peer.Server
-	var peerQUICServer *peerquic.QUICServer
+	var peerQUICServer *peerquic.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -4749,7 +4749,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 
 		if peerQUICTransport != nil {
-			peerQUICServer, err := peerquic.NewQUICServer(peerquic.QUICServerConfig{
+			peerQUICServer, err := peerquic.NewServer(peerquic.ServerConfig{
 				Log:          process.logger,
 				Dialer:       reversetunnelclient.NewPeerDialer(tsrv),
 				CipherSuites: cfg.CipherSuites,

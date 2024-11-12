@@ -29,8 +29,8 @@ import (
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 )
 
-// QUICServerConfig holds the parameters for [NewQUICServer].
-type QUICServerConfig struct {
+// ServerConfig holds the parameters for [NewServer].
+type ServerConfig struct {
 	Log *slog.Logger
 	// Dialer is the dialer used to open connections to agents on behalf
 	// of the peer proxies. Required.
@@ -53,7 +53,7 @@ type QUICServerConfig struct {
 	GetClientCAs func(*tls.ClientHelloInfo) (*x509.CertPool, error)
 }
 
-func (c *QUICServerConfig) checkAndSetDefaults() error {
+func (c *ServerConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = slog.Default()
 	}
@@ -76,11 +76,11 @@ func (c *QUICServerConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// QUICServer is a proxy peering server that uses the QUIC protocol.
-type QUICServer struct{}
+// Server is a proxy peering server that uses the QUIC protocol.
+type Server struct{}
 
-// NewQUICServer returns a [QUICServer] with the given config.
-func NewQUICServer(cfg QUICServerConfig) (*QUICServer, error) {
+// NewServer returns a [Server] with the given config.
+func NewServer(cfg ServerConfig) (*Server, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,19 +89,19 @@ func NewQUICServer(cfg QUICServerConfig) (*QUICServer, error) {
 
 // Serve opens a listener and serves incoming connection. Returns after calling
 // Close or Shutdown.
-func (s *QUICServer) Serve(t *quic.Transport) error {
+func (s *Server) Serve(t *quic.Transport) error {
 	panic("QUIC proxy peering is not implemented")
 }
 
 // Close stops listening for incoming connections and ungracefully terminates
 // all the existing ones.
-func (s *QUICServer) Close() error {
+func (s *Server) Close() error {
 	panic("QUIC proxy peering is not implemented")
 }
 
 // Shutdown stops listening for incoming connections and waits until the
 // existing ones are closed or until the context expires. If the context
 // expires, running connections are ungracefully terminated.
-func (s *QUICServer) Shutdown(ctx context.Context) error {
+func (s *Server) Shutdown(ctx context.Context) error {
 	panic("QUIC proxy peering is not implemented")
 }
