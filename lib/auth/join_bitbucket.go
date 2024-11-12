@@ -80,6 +80,10 @@ func checkBitbucketAllowRules(token *types.ProvisionTokenV2, claims *bitbucket.I
 			continue
 		}
 
+		if rule.DeploymentEnvironmentUUID != "" && claims.DeploymentEnvironmentUUID != rule.DeploymentEnvironmentUUID {
+			continue
+		}
+
 		if rule.BranchName != "" && claims.BranchName != rule.BranchName {
 			continue
 		}

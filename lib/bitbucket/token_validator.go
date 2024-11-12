@@ -28,29 +28,21 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// IDTokenValidatorConfig contains the configuration options needed to control
-// the behavior of IDTokenValidator.
-type IDTokenValidatorConfig struct {
-	// Clock is used by the validator when checking expiry and issuer times of
-	// tokens. If omitted, a real clock will be used.
-	Clock clockwork.Clock
-}
-
 // IDTokenValidator validates a Bitbucket issued ID Token.
 type IDTokenValidator struct {
-	IDTokenValidatorConfig
+	// clock is used by the validator when checking expiry and issuer times of
+	// tokens. If omitted, a real clock will be used.
+	clock clockwork.Clock
 }
 
 // NewIDTokenValidator returns an initialized IDTokenValidator
-func NewIDTokenValidator(
-	cfg IDTokenValidatorConfig,
-) *IDTokenValidator {
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
+func NewIDTokenValidator(clock clockwork.Clock) *IDTokenValidator {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
 	}
 
 	return &IDTokenValidator{
-		IDTokenValidatorConfig: cfg,
+		clock: clock,
 	}
 }
 
@@ -65,7 +57,7 @@ func (id *IDTokenValidator) Validate(
 
 	verifier := p.Verifier(&oidc.Config{
 		ClientID: audience,
-		Now:      id.Clock.Now,
+		Now:      id.clock.Now,
 	})
 
 	idToken, err := verifier.Verify(ctx, token)
@@ -76,7 +68,7 @@ func (id *IDTokenValidator) Validate(
 	// `go-oidc` does not implement not before check, so we need to manually
 	// perform this
 	if err := jwt.CheckNotBefore(
-		id.Clock.Now(), time.Minute*2, idToken,
+		id.clock.Now(), time.Minute*2, idToken,
 	); err != nil {
 		return nil, trace.Wrap(err, "enforcing nbf")
 	}

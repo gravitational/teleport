@@ -621,9 +621,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	if as.bitbucketIDTokenValidator == nil {
-		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(bitbucket.IDTokenValidatorConfig{
-			Clock: as.clock,
-		})
+		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
 	}
 
 	// Add in a login hook for generating state during user login.
