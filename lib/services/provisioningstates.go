@@ -19,9 +19,10 @@ package services
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/lib/utils/pagination"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // DownstreamID holds the configured ID of a downstream identity "receiver". For
