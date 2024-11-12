@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -1326,10 +1325,6 @@ func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) 
 		if err != nil {
 			return out, trace.Wrap(err)
 		}
-		out.Slack = &oauth2.ClientCredentials{
-			ID:     slack.ClientID,
-			Secret: slack.ClientSecret,
-		}
 		out.SlackCredentials = slack
 	}
 	return out, nil
@@ -1528,6 +1523,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// PollInterval is the frequency at which to poll for AWS resources
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
