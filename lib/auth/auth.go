@@ -408,7 +408,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("Google Cloud KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-	} else if cfg.KeyStoreConfig.AWSKMS != (servicecfg.AWSKMSConfig{}) {
+	} else if cfg.KeyStoreConfig.AWSKMS != nil {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}

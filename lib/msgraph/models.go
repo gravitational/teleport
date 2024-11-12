@@ -35,7 +35,14 @@ type DirectoryObject struct {
 
 type Group struct {
 	DirectoryObject
+	// GroupTypes is a list of group type strings.
 	GroupTypes []string `json:"groupTypes,omitempty"`
+	// OnPremisesDomainName is the on-premises domain name of the group.
+	OnPremisesDomainName *string `json:"onPremisesDomainName,omitempty"`
+	// OnPremisesNetBiosName is the on-premises NetBIOS name of the group.
+	OnPremisesNetBiosName *string `json:"onPremisesNetBiosName,omitempty"`
+	// OnPremisesSamAccountName is the on-premises SAM account name of the group.
+	OnPremisesSamAccountName *string `json:"onPremisesSamAccountName,omitempty"`
 }
 
 func (g *Group) IsOffice365Group() bool {
@@ -64,6 +71,28 @@ type Application struct {
 	IdentifierURIs        *[]string       `json:"identifierUris,omitempty"`
 	Web                   *WebApplication `json:"web,omitempty"`
 	GroupMembershipClaims *string         `json:"groupMembershipClaims,omitempty"`
+	OptionalClaims        *OptionalClaims `json:"optionalClaims,omitempty"`
+}
+
+// OptionalClaim represents an optional claim in a token.
+type OptionalClaim struct {
+	// AdditionalProperties is a list of additional properties.
+	// Possible values:
+	// - sam_account_name: sAMAccountName
+	// - dns_domain_and_sam_account_name: dnsDomainName\sAMAccountName
+	// - netbios_domain_and_sam_account_name: netbiosDomainName\sAMAccountName
+	// - emit_as_roles
+	// - cloud_displayname
+	AdditionalProperties *[]string `json:"additionalProperties,omitempty"`
+	Essential            *bool     `json:"essential,omitempty"`
+	Name                 *string   `json:"name,omitempty"`
+	Source               *string   `json:"source,omitempty"`
+}
+
+// OptionalClaims represents optional claims in a token.
+// Currently, only SAML2 tokens are supported.
+type OptionalClaims struct {
+	SAML2Token []OptionalClaim `json:"saml2Token,omitempty"`
 }
 
 type WebApplication struct {

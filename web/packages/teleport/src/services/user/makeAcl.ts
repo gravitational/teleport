@@ -72,6 +72,8 @@ export function makeAcl(json): Acl {
   const bots = json.bots || defaultAccess;
   const accessMonitoringRule = json.accessMonitoringRule || defaultAccess;
 
+  const discoverConfigs = json.discoverConfigs || defaultAccess;
+
   return {
     accessList,
     authConnectors,
@@ -107,6 +109,7 @@ export function makeAcl(json): Acl {
     accessGraph,
     bots,
     accessMonitoringRule,
+    discoverConfigs,
   };
 }
 
