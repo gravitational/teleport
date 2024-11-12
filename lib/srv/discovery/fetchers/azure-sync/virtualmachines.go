@@ -20,37 +20,34 @@ package azure_sync
 
 import (
 	"context"
-	"fmt"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (a *Fetcher) fetchRoleAssignments(ctx context.Context) ([]*accessgraphv1alpha.AzureRoleAssignment, error) {
-	// Get the Role Assignments client
-	cli, err := a.CloudClients.GetAzureRoleAssignmentsClient(a.GetSubscriptionID())
+func (a *Fetcher) fetchVirtualMachines(ctx context.Context) ([]*accessgraphv1alpha.AzureVirtualMachine, error) {
+	// Get the VM client
+	cli, err := a.CloudClients.GetAzureVirtualMachinesClient(a.GetSubscriptionID())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// List the role definitions
-	roleAssigns, err := cli.ListRoleAssignments(ctx, fmt.Sprintf("/subscriptions/%s", a.SubscriptionID))
+	// Fetch the VMs
+	vms, err := cli.ListVirtualMachines(ctx, "*")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Convert to protobuf format
-	pbRoleAssigns := make([]*accessgraphv1alpha.AzureRoleAssignment, 0, len(roleAssigns))
-	for _, roleAssign := range roleAssigns {
-		pbRoleAssign := &accessgraphv1alpha.AzureRoleAssignment{
-			Id:               *roleAssign.ID,
-			SubscriptionId:   a.SubscriptionID,
-			LastSyncTime:     timestamppb.Now(),
-			PrincipalId:      *roleAssign.Properties.PrincipalID,
-			RoleDefinitionId: *roleAssign.Properties.RoleDefinitionID,
-			Scope:            *roleAssign.Properties.Scope,
+	// Return the VMs as protobuf messages
+	pbVms := make([]*accessgraphv1alpha.AzureVirtualMachine, 0, len(vms))
+	for _, vm := range vms {
+		pbVm := accessgraphv1alpha.AzureVirtualMachine{
+			Id:             *vm.ID,
+			SubscriptionId: a.GetSubscriptionID(),
+			LastSyncTime:   timestamppb.Now(),
+			Name:           *vm.Name,
 		}
-		pbRoleAssigns = append(pbRoleAssigns, pbRoleAssign)
+		pbVms = append(pbVms, &pbVm)
 	}
-	return pbRoleAssigns, nil
+	return pbVms, nil
 }

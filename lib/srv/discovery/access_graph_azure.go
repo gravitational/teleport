@@ -178,16 +178,16 @@ func azurePush(
 }
 
 // getAllTAGSyncAzureFetchers returns both static and dynamic TAG Azure fetchers
-func (s *Server) getAllTAGSyncAzureFetchers() []azure_sync.Fetcher {
-	allFetchers := make([]azure_sync.Fetcher, 0, len(s.dynamicTAGSyncFetchers))
+func (s *Server) getAllTAGSyncAzureFetchers() []*azure_sync.Fetcher {
+	allFetchers := make([]*azure_sync.Fetcher, 0, len(s.dynamicTAGAWSFetchers))
 
-	s.muDynamicTAGSyncAzureFetchers.RLock()
-	for _, fetcherSet := range s.dynamicTAGSyncAzureFetchers {
+	s.muDynamicTAGAzureFetchers.RLock()
+	for _, fetcherSet := range s.dynamicTAGAzureFetchers {
 		allFetchers = append(allFetchers, fetcherSet...)
 	}
-	s.muDynamicTAGSyncAzureFetchers.RUnlock()
+	s.muDynamicTAGAzureFetchers.RUnlock()
 
-	allFetchers = append(allFetchers, s.staticTAGSyncAzureFetchers...)
+	allFetchers = append(allFetchers, s.staticTAGAzureFetchers...)
 	return allFetchers
 }
 
@@ -320,7 +320,7 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		s.Log.ErrorContext(ctx, "Error initializing access graph fetchers", "error", err)
 	}
-	s.staticTAGSyncAzureFetchers = staticFetchers
+	s.staticTAGAzureFetchers = staticFetchers
 	if cfg.AccessGraphConfig.Enabled {
 		go func() {
 			reloadCh := s.newDiscoveryConfigChangedSub()
@@ -356,22 +356,21 @@ func (s *Server) initTAGAzureWatchers(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (s *Server) accessGraphAzureFetchersFromMatchers(matchers Matchers, discoveryConfigName string) ([]azure_sync.Fetcher, error) {
-	var fetchers []azure_sync.Fetcher
+func (s *Server) accessGraphAzureFetchersFromMatchers(matchers Matchers, discoveryConfigName string) ([]*azure_sync.Fetcher, error) {
+	var fetchers []*azure_sync.Fetcher
 	var errs []error
 	if matchers.AccessGraph == nil {
 		return fetchers, nil
 	}
 	for _, matcher := range matchers.AccessGraph.Azure {
-		fetcher, err := azure_sync.NewFetcher(
-			azure_sync.Config{
-				CloudClients:        s.CloudClients,
-				SubscriptionID:      matcher.SubscriptionID,
-				Regions:             matcher.Regions,
-				Integration:         matcher.Integration,
-				DiscoveryConfigName: discoveryConfigName,
-			},
-		)
+		fetcherCfg := azure_sync.Config{
+			CloudClients:        s.CloudClients,
+			SubscriptionID:      matcher.SubscriptionID,
+			Regions:             matcher.Regions,
+			Integration:         matcher.Integration,
+			DiscoveryConfigName: discoveryConfigName,
+		}
+		fetcher, err := azure_sync.NewFetcher(fetcherCfg, s.ctx)
 		if err != nil {
 			errs = append(errs, err)
 			continue

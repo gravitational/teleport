@@ -19,50 +19,24 @@
 package azure_sync
 
 import (
+	"context"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"sync"
 )
 
-/*
- * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-package azure_sync
-
-import (
-"context"
-accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-"github.com/gravitational/teleport/lib/cloud"
-"github.com/gravitational/teleport/lib/srv/discovery/common"
-"github.com/gravitational/trace"
-"golang.org/x/sync/errgroup"
-"sync"
-)
-
 const (
-	featNamePrincipals       = "azure/principals"
-	featNameRoleDefinitions  = "azure/roledefinitions"
-	featNameRoleAssignments  = "azure/roleassignments"
-	featNameVms              = "azure/virtualmachines"
-	featNameManagedDatabases = "azure/databases"
-	featNameAKSClusters      = "azure/aksclusters"
+	featNamePrincipals      = "azure/principals"
+	featNameRoleDefinitions = "azure/roledefinitions"
+	featNameRoleAssignments = "azure/roleassignments"
+	featNameVms             = "azure/virtualmachines"
 )
 
 const FetcherConcurrency = 5
@@ -82,6 +56,50 @@ type Resources struct {
 	VirtualMachines []*accessgraphv1alpha.AzureVirtualMachine
 }
 
+type RoleDefinitionsClient interface{}
+
+type RoleAssignmentsClient interface{}
+
+type VirtualMachinesClient interface {
+	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
+}
+
+type Fetcher struct {
+	Config
+	lastError               error
+	lastDiscoveredResources uint64
+	lastResult              *Resources
+
+	graphClient      *GraphClient
+	vmClient         VirtualMachinesClient
+	roleDefClient    RoleDefinitionsClient
+	roleAssignClient RoleAssignmentsClient
+}
+
+func NewFetcher(cfg Config, ctx context.Context) (*Fetcher, error) {
+	cred, err := azidentity.NewManagedIdentityCredential(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	staticCred := azure.NewStaticCredential(token)
+
+	// Create the clients
+	vmClient, err := azure.NewVirtualMachinesClient(cfg.SubscriptionID, staticCred, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Fetcher{
+		Config:     cfg,
+		lastResult: &Resources{},
+		vmClient:   vmClient,
+	}, nil
+}
+
 type Features struct {
 	Principals       bool
 	RoleDefinitions  bool
@@ -89,28 +107,6 @@ type Features struct {
 	VirtualMachines  bool
 	ManagedDatabases bool
 	AKSClusters      bool
-}
-
-type Fetcher interface {
-	Poll(context.Context, Features) (*Resources, error)
-	Status() (uint64, error)
-	DiscoveryConfigName() string
-	IsFromDiscoveryConfig() bool
-	GetSubscriptionID() string
-}
-
-type azureFetcher struct {
-	Config
-	lastError               error
-	lastDiscoveredResources uint64
-	lastResult              *Resources
-}
-
-func NewFetcher(cfg Config) (Fetcher, error) {
-	return &azureFetcher{
-		Config:     cfg,
-		lastResult: &Resources{},
-	}, nil
 }
 
 // BuildFeatures builds the feature flags based on supported types returned by Access Graph
@@ -127,16 +123,13 @@ func BuildFeatures(values ...string) Features {
 			features.RoleDefinitions = true
 		case featNameRoleAssignments:
 			features.RoleAssignments = true
-		case featNameManagedDatabases:
-			features.ManagedDatabases = true
-		case featNameAKSClusters:
 			features.AKSClusters = true
 		}
 	}
 	return features
 }
 
-func (a *azureFetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {
+func (a *Fetcher) Poll(ctx context.Context, feats Features) (*Resources, error) {
 	res, err := a.fetch(ctx, feats)
 	if res == nil {
 		return nil, err
@@ -148,7 +141,7 @@ func (a *azureFetcher) Poll(ctx context.Context, feats Features) (*Resources, er
 	return res, trace.Wrap(err)
 }
 
-func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, error) {
+func (a *Fetcher) fetch(ctx context.Context, feats Features) (*Resources, error) {
 	// Accumulate Azure resources
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(FetcherConcurrency)
@@ -224,16 +217,16 @@ func (a *azureFetcher) fetch(ctx context.Context, feats Features) (*Resources, e
 	return result, nil
 }
 
-func (a *azureFetcher) Status() (uint64, error) {
+func (a *Fetcher) Status() (uint64, error) {
 	return a.lastDiscoveredResources, a.lastError
 }
-func (a *azureFetcher) DiscoveryConfigName() string {
+func (a *Fetcher) DiscoveryConfigName() string {
 	return a.Config.DiscoveryConfigName
 }
-func (a *azureFetcher) IsFromDiscoveryConfig() bool {
+func (a *Fetcher) IsFromDiscoveryConfig() bool {
 	return a.Config.DiscoveryConfigName != ""
 }
-func (a *azureFetcher) GetSubscriptionID() string {
+func (a *Fetcher) GetSubscriptionID() string {
 	return a.Config.SubscriptionID
 }
 
