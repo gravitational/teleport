@@ -169,8 +169,10 @@ type grpcClientConn struct {
 	cc      *grpc.ClientConn
 	metrics *clientMetrics
 
-	id   string
-	addr string
+	id    string
+	addr  string
+	host  string
+	group string
 
 	// if closing is set, count is not allowed to increase from zero; upon
 	// reaching zero, cond should be broadcast
@@ -178,6 +180,8 @@ type grpcClientConn struct {
 	cond    sync.Cond
 	closing bool
 	count   int
+
+	pingCancel context.CancelFunc
 }
 
 var _ internal.ClientConn = (*grpcClientConn)(nil)
@@ -211,7 +215,7 @@ func (c *grpcClientConn) maybeAcquire() (release func()) {
 
 // Shutdown implements [internal.ClientConn].
 func (c *grpcClientConn) Shutdown(ctx context.Context) {
-	defer c.cc.Close()
+	defer c.Close()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -232,6 +236,7 @@ func (c *grpcClientConn) Shutdown(ctx context.Context) {
 
 // Close implements [internal.ClientConn].
 func (c *grpcClientConn) Close() error {
+	c.pingCancel()
 	return c.cc.Close()
 }
 
@@ -476,7 +481,14 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 
 		// establish new connections
 		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
+		proxyGroup, _ := proxy.GetLabel(types.ProxyGroupIDLabel)
+		conn, err := c.connect(connectParams{
+			peerID:       id,
+			peerAddr:     proxy.GetPeerAddr(),
+			peerHost:     proxy.GetHostname(),
+			peerGroup:    proxyGroup,
+			supportsQUIC: supportsQUIC == "yes",
+		})
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
 			c.config.Log.DebugContext(c.ctx, "error dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
@@ -677,7 +689,14 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 		}
 
 		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
-		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQUIC == "yes")
+		proxyGroup, _ := proxy.GetLabel(types.ProxyGroupIDLabel)
+		conn, err := c.connect(connectParams{
+			peerID:       id,
+			peerAddr:     proxy.GetPeerAddr(),
+			peerHost:     proxy.GetHostname(),
+			peerGroup:    proxyGroup,
+			supportsQUIC: supportsQUIC == "yes",
+		})
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
 			c.config.Log.DebugContext(c.ctx, "error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
@@ -704,9 +723,17 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 	return conns, false, nil
 }
 
-// connect dials a new connection to proxyAddr.
-func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (internal.ClientConn, error) {
-	if supportsQUIC && c.config.QUICTransport != nil {
+type connectParams struct {
+	peerID       string
+	peerAddr     string
+	peerHost     string
+	peerGroup    string
+	supportsQUIC bool
+}
+
+// connect dials a new connection to a peer proxy with the given ID and address.
+func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
+	if params.supportsQUIC && c.config.QUICTransport != nil {
 		panic("QUIC proxy peering is not implemented")
 	}
 	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
@@ -721,11 +748,11 @@ func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (int
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
 
-	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
+	expectedPeer := authclient.HostFQDN(params.peerID, c.config.ClusterName)
 
 	conn, err := grpc.Dial(
-		peerAddr,
-		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
+		params.peerAddr,
+		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, params.peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
 		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
 		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -736,14 +763,29 @@ func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (int
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "Error dialing proxy %q", peerID)
+		return nil, trace.Wrap(err, "Error dialing proxy %q", params.peerID)
 	}
 
-	return &grpcClientConn{
+	pingCtx, pingCancel := context.WithCancel(context.Background())
+	cc := &grpcClientConn{
 		cc:      conn,
 		metrics: c.metrics,
 
-		id:   peerID,
-		addr: peerAddr,
-	}, nil
+		id:    params.peerID,
+		addr:  params.peerAddr,
+		host:  params.peerHost,
+		group: params.peerGroup,
+
+		pingCancel: pingCancel,
+	}
+
+	pings, pingFailures := internal.ClientPingsMetrics(internal.ClientPingsMetricsParams{
+		LocalID:   c.config.ID,
+		PeerID:    params.peerID,
+		PeerHost:  params.peerHost,
+		PeerGroup: params.peerGroup,
+	})
+	go internal.RunClientPing(pingCtx, cc, pings, pingFailures)
+
+	return cc, nil
 }
