@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -360,7 +359,7 @@ func (h *HeartbeatV2) run() {
 					} else {
 						h.testEvent(hbv2FallbackErr)
 						// announce failed, enter a backoff state.
-						h.fallbackBackoffTime = time.Now().Add(utils.SeventhJitter(h.fallbackBackoff))
+						h.fallbackBackoffTime = time.Now().Add(retryutils.SeventhJitter(h.fallbackBackoff))
 						h.onHeartbeat(h.fallbackFailed)
 					}
 				} else {
@@ -418,7 +417,7 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 	// can sometimes mean that the last announce failed "silently" from our perspective.
 	if t, ok := h.announce.LastTick(); ok {
 		elapsed := time.Since(t)
-		dai := utils.SeventhJitter(h.disruptionAnnounceInterval)
+		dai := retryutils.SeventhJitter(h.disruptionAnnounceInterval)
 		if elapsed >= dai {
 			h.shouldAnnounce = true
 		} else {

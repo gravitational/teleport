@@ -29,11 +29,6 @@ import (
 // Deprecated: use retryutils.HalfJitter.
 func HalfJitter(d time.Duration) time.Duration { return retryutils.HalfJitter(d) }
 
-// SeventhJitter is [retryutils.SeventhJitter].
-//
-// Deprecated: use retryutils.SeventhJitter.
-func SeventhJitter(d time.Duration) time.Duration { return retryutils.SeventhJitter(d) }
-
 // FullJitter is [retryutils.FullJitter].
 //
 // Deprecated: use retryutils.FullJitter.
