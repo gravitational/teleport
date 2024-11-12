@@ -19,7 +19,7 @@
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import Logger, { NullService } from 'teleterm/logger';
 import AppContext from 'teleterm/ui/appContext';
-import { Dialog } from 'teleterm/ui/services/modals';
+import { RegularDialog } from 'teleterm/ui/services/modals';
 
 import { showStartupModalsAndNotifications } from './showStartupModalsAndNotifications';
 
@@ -144,7 +144,7 @@ function mockUsageReportingEnabled(
 
 function mockOpenRegularDialog(
   mockedAppContext: AppContext,
-  implementation?: (dialog: Dialog) => void
+  implementation?: (dialog: RegularDialog) => void
 ) {
   jest
     .spyOn(mockedAppContext.modalsService, 'openRegularDialog')
