@@ -169,7 +169,7 @@ export function RequestCheckout<T extends PendingListItem>({
   startTime,
   onStartTimeChange,
   fetchKubeNamespaces,
-  bulkToggleKubeResources,
+  updateNamespacesForKubeCluster,
 }: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
 
@@ -265,7 +265,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 kubeClusterItem={item}
                 savedResourceItems={pendingAccessRequests}
                 fetchKubeNamespaces={fetchKubeNamespaces}
-                bulkToggleKubeResources={bulkToggleKubeResources}
+                updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
               />
             </Flex>
           </Flex>
@@ -935,7 +935,7 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     startTime: Date;
     onStartTimeChange(t?: Date): void;
     fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
-    bulkToggleKubeResources(
+    updateNamespacesForKubeCluster(
       kubeResources: PendingKubeResourceItem[],
       kubeCluster: T
     ): void;
