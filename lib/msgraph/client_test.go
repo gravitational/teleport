@@ -538,7 +538,7 @@ func TestGetApplication(t *testing.T) {
 		OptionalClaims: &OptionalClaims{
 			SAML2Token: []OptionalClaim{
 				{
-					AdditionalProperties: &[]string{"sam_account_name"},
+					AdditionalProperties: []string{"sam_account_name"},
 					Essential:            toPtr(false),
 					Name:                 toPtr("groups"),
 					Source:               nil,
