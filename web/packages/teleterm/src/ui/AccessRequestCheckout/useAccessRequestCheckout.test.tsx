@@ -29,7 +29,9 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 
 import { mapRequestToKubeNamespaceUri } from '../services/workspacesService/accessRequestsService';
 
-import useAccessRequestCheckout from './useAccessRequestCheckout';
+import useAccessRequestCheckout, {
+  PendingListKubeClusterWithOriginalItem,
+} from './useAccessRequestCheckout';
 
 test('fetching requestable roles for servers uses UUID, not hostname', async () => {
   const server = makeServer();
@@ -135,18 +137,21 @@ test(`fetching requestable roles for a kube cluster's namespaces only creates re
 
   await appContext.workspacesService
     .getWorkspaceAccessRequestsService(rootClusterUri)
-    .addOrRemoveKubeNamespaces([
-      mapRequestToKubeNamespaceUri({
-        clusterUri: rootClusterUri,
-        id: kube1.name,
-        name: 'namespace1',
-      }),
-      mapRequestToKubeNamespaceUri({
-        clusterUri: rootClusterUri,
-        id: kube1.name,
-        name: 'namespace2',
-      }),
-    ]);
+    .updateNamespacesForKubeCluster(
+      [
+        mapRequestToKubeNamespaceUri({
+          clusterUri: rootClusterUri,
+          id: kube1.name,
+          name: 'namespace1',
+        }),
+        mapRequestToKubeNamespaceUri({
+          clusterUri: rootClusterUri,
+          id: kube1.name,
+          name: 'namespace2',
+        }),
+      ],
+      kube1.uri
+    );
 
   jest.spyOn(appContext.tshd, 'getRequestableRoles');
 
@@ -282,4 +287,148 @@ test('after creating an access request, pending requests and specifiable fields 
       suggestedReviewers: [],
     });
   });
+});
+
+test(`updating kube namespaces`, async () => {
+  const kube1 = makeKube();
+
+  const cluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootClusterUri, cluster);
+  });
+  await appContext.workspacesService.setActiveWorkspace(rootClusterUri);
+  await appContext.workspacesService
+    .getWorkspaceAccessRequestsService(rootClusterUri)
+    .addOrRemoveResource({
+      kind: 'kube',
+      resource: kube1,
+    });
+
+  const wrapper = ({ children }) => (
+    <MockAppContextProvider appContext={appContext}>
+      {children}
+    </MockAppContextProvider>
+  );
+
+  let { result } = renderHook(useAccessRequestCheckout, {
+    wrapper,
+  });
+
+  const kubeItem: PendingListKubeClusterWithOriginalItem = {
+    kind: 'kube_cluster',
+    clusterName: 'local',
+    id: kube1.name,
+    name: kube1.name,
+    originalItem: {
+      kind: 'kube',
+      resource: {
+        uri: kube1.uri,
+      },
+    },
+  };
+
+  // Test order of request are retained.
+  await waitFor(() => {
+    result.current.updateNamespacesForKubeCluster(
+      [
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: kube1.name,
+          name: 'n3',
+          subResourceName: 'n3',
+        },
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: kube1.name,
+          name: 'n2',
+          subResourceName: 'n2',
+        },
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: kube1.name,
+          name: 'n1',
+          subResourceName: 'n1',
+        },
+      ],
+      kubeItem
+    );
+
+    const savaedRequestIds = result.current.pendingAccessRequests
+      .filter(r => r.kind === 'namespace')
+      .map(r => r.subResourceName);
+    expect(savaedRequestIds).toEqual(['n3', 'n2', 'n1']);
+  });
+
+  // Test order of request are retained a second time.
+  await waitFor(() => {
+    result.current.updateNamespacesForKubeCluster(
+      [
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: kube1.name,
+          name: 'n2',
+          subResourceName: 'n2',
+        },
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: kube1.name,
+          name: 'n1',
+          subResourceName: 'n1',
+        },
+        {
+          kind: 'namespace',
+          clusterName: 'local',
+          id: kube1.name,
+          name: 'n3',
+          subResourceName: 'n3',
+        },
+      ],
+      kubeItem
+    );
+
+    const savaedRequestIds = result.current.pendingAccessRequests
+      .filter(r => r.kind === 'namespace')
+      .map(r => r.subResourceName);
+    expect(savaedRequestIds).toEqual(['n2', 'n1', 'n3']);
+  });
+
+  // Test empty request clears request.
+  await waitFor(() => {
+    result.current.updateNamespacesForKubeCluster([], kubeItem);
+
+    const savaedRequestIds = result.current.pendingAccessRequests
+      .filter(r => r.kind === 'namespace')
+      .map(r => r.subResourceName);
+    expect(savaedRequestIds).toEqual([]);
+  });
+
+  // Test invalid request.
+  await expect(
+    async () =>
+      await result.current.updateNamespacesForKubeCluster(
+        [
+          {
+            kind: 'namespace',
+            clusterName: 'local',
+            id: kube1.name,
+            name: 'n2',
+            subResourceName: 'n2',
+          },
+          {
+            kind: 'namespace',
+            clusterName: 'local',
+            id: 'some-id-of-different-kube-cluster-which-is-invalid',
+            name: 'n1',
+            subResourceName: 'n1',
+          },
+        ],
+        kubeItem
+      )
+  ).rejects.toThrow();
 });

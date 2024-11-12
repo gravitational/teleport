@@ -32,7 +32,7 @@ export function KubeNamespaceSelector({
   kubeClusterItem,
   fetchKubeNamespaces,
   savedResourceItems,
-  bulkToggleKubeResources,
+  updateNamespacesForKubeCluster,
 }: {
   kubeClusterItem: PendingListItem;
   fetchKubeNamespaces(
@@ -40,7 +40,7 @@ export function KubeNamespaceSelector({
     kubeCluster: PendingListItem
   ): Promise<string[]>;
   savedResourceItems: PendingListItem[];
-  bulkToggleKubeResources: (
+  updateNamespacesForKubeCluster: (
     resources: PendingKubeResourceItem[],
     resource: PendingListItem
   ) => void;
@@ -78,22 +78,11 @@ export function KubeNamespaceSelector({
 
     switch (actionMeta.action) {
       case 'clear':
-        bulkToggleKubeResources(
-          currKubeClustersNamespaceItems,
-          kubeClusterItem
-        );
+        updateNamespacesForKubeCluster([], kubeClusterItem);
         return;
       case 'remove-value':
-        bulkToggleKubeResources(
-          [
-            {
-              kind: 'namespace',
-              id: kubeClusterItem.id,
-              subResourceName: actionMeta.removedValue.value,
-              clusterName: kubeClusterItem.clusterName,
-              name: actionMeta.removedValue.value,
-            },
-          ],
+        updateNamespacesForKubeCluster(
+          getPendingNamespaces(options),
           kubeClusterItem
         );
         return;
@@ -102,33 +91,24 @@ export function KubeNamespaceSelector({
 
   const handleMenuClose = () => {
     setIsMenuOpen(false);
-
-    const currNamespaces = currKubeClustersNamespaceItems.map(
-      n => n.subResourceName
-    );
-    const selectedNamespaceIds = selectedOpts.map(o => o.value);
-    const toKeep = selectedNamespaceIds.filter(id =>
-      currNamespaces.includes(id)
-    );
-
-    const toInsert = selectedNamespaceIds.filter(o => !toKeep.includes(o));
-    const toRemove = currNamespaces.filter(n => !toKeep.includes(n));
-
-    if (!toInsert.length && !toRemove.length) {
-      return;
-    }
-
-    bulkToggleKubeResources(
-      [...toRemove, ...toInsert].map(namespace => ({
-        kind: 'namespace',
-        id: kubeClusterItem.id,
-        subResourceName: namespace,
-        clusterName: kubeClusterItem.clusterName,
-        name: namespace,
-      })),
+    updateNamespacesForKubeCluster(
+      getPendingNamespaces(selectedOpts),
       kubeClusterItem
     );
   };
+
+  function getPendingNamespaces(
+    selectedOptions: Option[]
+  ): PendingKubeResourceItem[] {
+    const selectedNamespaceIds = selectedOptions?.map(o => o.value) || [];
+    return selectedNamespaceIds.map(namespace => ({
+      kind: 'namespace',
+      id: kubeClusterItem.id,
+      subResourceName: namespace,
+      clusterName: kubeClusterItem.clusterName,
+      name: namespace,
+    }));
+  }
 
   async function handleLoadOptions(input: string) {
     const namespaces = await fetchKubeNamespaces(input, kubeClusterItem);

@@ -257,18 +257,19 @@ export default function useAccessRequestCheckout() {
     );
   }
 
-  async function bulkToggleKubeResources(
+  async function updateNamespacesForKubeCluster(
     items: PendingKubeResourceItem[],
     kubeCluster: PendingListKubeClusterWithOriginalItem
   ) {
-    await workspaceAccessRequest.addOrRemoveKubeNamespaces(
+    await workspaceAccessRequest.updateNamespacesForKubeCluster(
       items.map(item =>
         mapRequestToKubeNamespaceUri({
           id: item.id,
           name: item.subResourceName,
           clusterUri: kubeCluster.originalItem.resource.uri,
         })
-      )
+      ),
+      kubeCluster.originalItem.resource.uri
     );
   }
 
@@ -462,7 +463,7 @@ export default function useAccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     fetchKubeNamespaces,
-    bulkToggleKubeResources,
+    updateNamespacesForKubeCluster,
   };
 }
 
@@ -489,7 +490,10 @@ type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
       }
   );
 
-type PendingListKubeClusterWithOriginalItem = Omit<PendingListItem, 'kind'> & {
+export type PendingListKubeClusterWithOriginalItem = Omit<
+  PendingListItem,
+  'kind'
+> & {
   kind: Extract<ResourceKind, 'kube_cluster'>;
   originalItem: Extract<ResourceRequest, { kind: 'kube' }>;
 };

@@ -99,7 +99,10 @@ export class AccessRequestsService {
     });
   }
 
-  async addOrRemoveKubeNamespaces(namespaceUris: KubeResourceNamespaceUri[]) {
+  async updateNamespacesForKubeCluster(
+    namespaceUris: KubeResourceNamespaceUri[],
+    kubeClusterUri: string
+  ) {
     this.setState(draftState => {
       if (draftState.pending.kind !== 'resource') {
         throw new Error('Cannot add a kube namespace to a role access request');
@@ -107,26 +110,29 @@ export class AccessRequestsService {
 
       const { resources } = draftState.pending;
 
+      // Validate each namespace uri's.
       namespaceUris.forEach(resourceUri => {
-        const requestedResource = resources.get(
+        const kubeRequestedResource = resources.get(
           routing.getKubeUri(
             routing.parseKubeResourceNamespaceUri(resourceUri).params
           )
         );
-        if (!requestedResource || requestedResource.kind !== 'kube') {
+        if (!kubeRequestedResource || kubeRequestedResource.kind !== 'kube') {
           throw new Error('Cannot add a kube namespace to a non-kube resource');
         }
-        const kubeResource = requestedResource.resource;
-
-        if (!kubeResource.namespaces) {
-          kubeResource.namespaces = new Set();
-        }
-        if (kubeResource.namespaces.has(resourceUri)) {
-          kubeResource.namespaces.delete(resourceUri);
-        } else {
-          kubeResource.namespaces.add(resourceUri);
+        if (kubeRequestedResource.resource.uri != kubeClusterUri) {
+          throw new Error(
+            'Only namespace belonging to the same requested kube cluster can be updated'
+          );
         }
       });
+
+      const kubeRequestedResource = resources.get(kubeClusterUri);
+      // This will always be true, since we validated each namespace
+      // URIs before this. Check is required to access namespace field
+      if (kubeRequestedResource.kind === 'kube') {
+        kubeRequestedResource.resource.namespaces = new Set(namespaceUris);
+      }
     });
   }
 
