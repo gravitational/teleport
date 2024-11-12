@@ -1173,6 +1173,7 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	}
 	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
 	cfg.Auth.KeyStore.AWSKMS.MultiRegion = kmsConfig.MultiRegion
+	cfg.Auth.KeyStore.AWSKMS.Tags = kmsConfig.Tags
 	return nil
 }
 
@@ -2585,7 +2586,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		// based on the FIPS and HSM settings, and any already persisted auth preference.
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
-			UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
+			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
 			Cloud:         modules.GetModules().Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)

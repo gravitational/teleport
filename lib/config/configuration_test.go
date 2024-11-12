@@ -5159,8 +5159,10 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}
 			if tc.hsm {
-				cfg.Auth.KeyStore.AWSKMS.AWSAccount = "123456789012"
-				cfg.Auth.KeyStore.AWSKMS.AWSRegion = "us-west-2"
+				cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+				}
 			} else {
 				cfg.Auth.KeyStore = servicecfg.KeystoreConfig{}
 			}

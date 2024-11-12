@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -77,8 +78,6 @@ type Config struct {
 	Endpoint string
 	// ACL is the canned ACL to send to S3
 	ACL string
-	// AWSConfig is an optional existing AWS client configuration
-	AWSConfig *aws.Config
 	// CredentialsProvider if supplied is used in tests or with External Audit Storage.
 	CredentialsProvider aws.CredentialsProvider
 	// SSEKMSKey specifies the optional custom CMK used for KMS SSE.
@@ -157,40 +156,6 @@ func (s *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Bucket")
 	}
 
-	if s.AWSConfig == nil {
-		var err error
-		opts := []func(*config.LoadOptions) error{
-			config.WithRegion(s.Region),
-		}
-
-		if s.Insecure {
-			opts = append(opts, config.WithHTTPClient(&http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				},
-			}))
-		} else {
-			hc, err := defaults.HTTPClient()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			opts = append(opts, config.WithHTTPClient(hc))
-		}
-
-		if s.CredentialsProvider != nil {
-			opts = append(opts, config.WithCredentialsProvider(s.CredentialsProvider))
-		}
-
-		opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
-
-		awsConfig, err := config.LoadDefaultConfig(context.Background(), opts...)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		s.AWSConfig = &awsConfig
-	}
 	return nil
 }
 
@@ -200,12 +165,57 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create S3 client with custom options
-	client := s3.NewFromConfig(*cfg.AWSConfig, func(o *s3.Options) {
-		if cfg.Endpoint != "" {
-			o.UsePathStyle = true
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(cfg.Region),
+	}
+
+	if cfg.Insecure {
+		opts = append(opts, config.WithHTTPClient(&http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}))
+	} else {
+		hc, err := defaults.HTTPClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-	})
+
+		opts = append(opts, config.WithHTTPClient(hc))
+	}
+
+	if cfg.CredentialsProvider != nil {
+		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
+	}
+
+	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
+
+	var s3Opts []func(*s3.Options)
+	if cfg.Endpoint != "" {
+		if _, err := url.Parse(cfg.Endpoint); err != nil {
+			return nil, trace.BadParameter("configured S3 endpoint is invalid: %s", err.Error())
+		}
+
+		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
+
+		s3Opts = append(s3Opts, func(options *s3.Options) {
+			options.UsePathStyle = true
+		})
+	}
+
+	if modules.GetModules().IsBoringBinary() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
+		s3Opts = append(s3Opts, func(options *s3.Options) {
+			options.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
+	}
+
+	awsConfig, err := config.LoadDefaultConfig(context.Background(), opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create S3 client with custom options
+	client := s3.NewFromConfig(awsConfig, s3Opts...)
 
 	uploader := manager.NewUploader(client)
 	downloader := manager.NewDownloader(client)
@@ -382,14 +392,17 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		Bucket: aws.String(h.Bucket),
 	})
 	err = awsutils.ConvertS3Error(err)
-	// assumes that bucket is administered by other entity
-	if err == nil {
+	switch {
+	case err == nil:
+		// assumes that bucket is administered by other entity
 		return nil
-	}
-	if !trace.IsNotFound(err) {
+	case trace.IsBadParameter(err):
+		return trace.Wrap(err)
+	case !trace.IsNotFound(err):
 		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", "bucket", h.Bucket, "error", err)
 		return nil
 	}
+
 	input := &s3.CreateBucketInput{
 		Bucket: aws.String(h.Bucket),
 		ACL:    awstypes.BucketCannedACLPrivate,
