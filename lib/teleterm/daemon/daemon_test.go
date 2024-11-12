@@ -522,8 +522,8 @@ func TestImportantModalSemaphore(t *testing.T) {
 	// Claim the important modal semaphore.
 
 	customWaitDuration := 10 * time.Millisecond
-	daemon.importantModalSemaphore.waitDuration = customWaitDuration
-	err = daemon.importantModalSemaphore.Acquire(ctx)
+	daemon.singleImportantModalSemaphore.waitDuration = customWaitDuration
+	err = daemon.singleImportantModalSemaphore.Acquire(ctx)
 	require.NoError(t, err)
 
 	// relogin and sending pending headless authentications should be blocked.
@@ -560,7 +560,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 	// complete successfully after a short delay between each semaphore release.
 
 	releaseTime := time.Now()
-	daemon.importantModalSemaphore.Release()
+	daemon.singleImportantModalSemaphore.Release()
 
 	var otherC chan error
 	select {

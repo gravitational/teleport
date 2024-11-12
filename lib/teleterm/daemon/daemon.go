@@ -114,10 +114,10 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 	}
 	defer s.reloginMu.Unlock()
 
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := s.singleImportantModalSemaphore.Acquire(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	defer s.importantModalSemaphore.Release()
+	defer s.singleImportantModalSemaphore.Release()
 
 	const reloginUserTimeout = time.Minute
 	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
@@ -892,7 +892,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	client := api.NewTshdEventsServiceClient(conn)
 
 	s.tshdEventsClient = client
-	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
+	s.singleImportantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
 	return nil
 }
@@ -1191,15 +1191,15 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// tshdEventsClient is a client to send events to the Electron App.
 	tshdEventsClient api.TshdEventsServiceClient
-	// The Electron App can only display one important Modal at a time. tshd events
-	// that trigger an important modal (relogin, headless login) should use this
-	// lock to ensure it doesn't overwrite existing tshd-initiated important modals.
+	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
+	// However, we should use this feature only when necessary (for example, for hardware key prompts
+	// while relogin is in progress). In any other case, we should open one modal at a time.
 	//
 	// We use a semaphore instead of a mutex in order to cancel important modals that
 	// are no longer relevant before acquisition.
 	//
 	// We use a waitSemaphore in order to make sure there is a clear transition between modals.
-	importantModalSemaphore *waitSemaphore
+	singleImportantModalSemaphore *waitSemaphore
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
 	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the

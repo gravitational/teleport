@@ -41,10 +41,10 @@ type hardwareKeyPrompter struct {
 
 // Touch prompts the user to touch the hardware key.
 func (h *hardwareKeyPrompter) Touch(ctx context.Context) error {
-	if err := h.s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := h.s.singleImportantModalSemaphore.Acquire(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	defer h.s.importantModalSemaphore.Release()
+	defer h.s.singleImportantModalSemaphore.Release()
 	_, err := h.s.tshdEventsClient.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
 		RootClusterUri: h.rootClusterURI.String(),
 	})
@@ -56,10 +56,10 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context) error {
 
 // AskPIN prompts the user for a PIN.
 func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPromptRequirement) (string, error) {
-	if err := h.s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := h.s.singleImportantModalSemaphore.Acquire(ctx); err != nil {
 		return "", trace.Wrap(err)
 	}
-	defer h.s.importantModalSemaphore.Release()
+	defer h.s.singleImportantModalSemaphore.Release()
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		RootClusterUri: h.rootClusterURI.String(),
 		PinOptional:    requirement == keys.PINOptional,
@@ -74,10 +74,10 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPr
 // The Electron app prompt must handle default values for PIN and PUK,
 // preventing the user from submitting empty/default values.
 func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context) (*keys.PINAndPUK, error) {
-	if err := h.s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := h.s.singleImportantModalSemaphore.Acquire(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer h.s.importantModalSemaphore.Release()
+	defer h.s.singleImportantModalSemaphore.Release()
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
 		RootClusterUri: h.rootClusterURI.String(),
 	})
@@ -93,10 +93,10 @@ func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context) (*keys.PINAndPUK, e
 
 // ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
 func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
-	if err := h.s.importantModalSemaphore.Acquire(ctx); err != nil {
+	if err := h.s.singleImportantModalSemaphore.Acquire(ctx); err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer h.s.importantModalSemaphore.Release()
+	defer h.s.singleImportantModalSemaphore.Release()
 	res, err := h.s.tshdEventsClient.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
 		RootClusterUri: h.rootClusterURI.String(),
 		Message:        message,
