@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -107,7 +106,7 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(ctx context.Context, commands []CLICommand) {
+func Run(ctx context.Context, commands []CLICommand, commandsWithoutAuth []CLICommand) {
 	// The user has typed a command like `tsh ssh ...` without being logged in,
 	// if the running binary needs to be updated, update and re-exec.
 	//
@@ -143,7 +142,7 @@ func Run(ctx context.Context, commands []CLICommand) {
 		}
 	}
 
-	err = TryRun(commands, os.Args[1:])
+	err = TryRun(commands, commandsWithoutAuth, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
@@ -155,7 +154,7 @@ func Run(ctx context.Context, commands []CLICommand) {
 
 // TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
 // This is useful for testing tctl, because we can capture the returned error in tests.
-func TryRun(commands []CLICommand, args []string) error {
+func TryRun(commands []CLICommand, commandsWithoutAuth []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
 	// app is the command line parser
@@ -167,8 +166,9 @@ func TryRun(commands []CLICommand, args []string) error {
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
-	for i := range commands {
-		commands[i].Initialize(app, cfg)
+	commandsAgg := append(commands, commandsWithoutAuth...)
+	for i := range commandsAgg {
+		commandsAgg[i].Initialize(app, cfg)
 	}
 
 	var ccf GlobalCLIFlags
@@ -205,9 +205,6 @@ func TryRun(commands []CLICommand, args []string) error {
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
-
-	// "version" command is always available:
-	ver := app.Command("version", "Print the version of your tctl binary.")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -225,12 +222,6 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.BadParameter("tctl --identity also requires --auth-server")
 	}
 
-	// "version" command?
-	if selectedCmd == ver.FullCommand() {
-		modules.GetModules().PrintVersion()
-		return nil
-	}
-
 	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
 	if cfg.TeleportHome != "" {
 		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
@@ -238,13 +229,23 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	cfg.Debug = ccf.Debug
 
+	ctx := context.Background()
+	var match bool
+	for _, c := range commandsWithoutAuth {
+		match, err = c.TryRun(ctx, selectedCmd, nil)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if match {
+			return nil
+		}
+	}
+
 	// configure all commands with Teleport configuration (they share 'cfg')
 	clientConfig, err := ApplyConfig(&ccf, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	ctx := context.Background()
 
 	resolver, err := reversetunnelclient.CachingResolver(
 		ctx,
@@ -310,7 +311,6 @@ func TryRun(commands []CLICommand, args []string) error {
 	})
 
 	// execute whatever is selected:
-	var match bool
 	for _, c := range commands {
 		match, err = c.TryRun(ctx, selectedCmd, client)
 		if err != nil {

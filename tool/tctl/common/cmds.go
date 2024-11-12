@@ -66,3 +66,10 @@ func Commands() []CLICommand {
 		&TerraformCommand{},
 	}
 }
+
+// CommandsWithoutAuth returns the set of available subcommands for tctl not require auth client.
+func CommandsWithoutAuth() []CLICommand {
+	return []CLICommand{
+		&VersionCommand{},
+	}
+}
