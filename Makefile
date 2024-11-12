@@ -374,7 +374,21 @@ ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
 TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 endif
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
+
+.PHONY: teleport-lessflags
+teleport-lessflags: bpf-bytecode
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport-lessflags $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
+
+.PHONY: teleport-debug
+teleport-debug: bpf-bytecode
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -debug-actiongraph=compile.json -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport-debug -trimpath -buildmode=pie ./tool/teleport
+
+.PHONY: tpsizes
+tpsizes:
+	@du -sh build/teleport
+	@du -sh build/teleport-lessflags
+	@du -sh build/teleport-debug
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.

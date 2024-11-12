@@ -112,3 +112,4 @@ yarn.lock
 # mockServiceWorker.js is generated on each start of Storybook instead of being vendored into the
 # repo, see web/scripts/run-storybook.sh.
 web/.storybook/public/mockServiceWorker.js
+.pnpm-store/
