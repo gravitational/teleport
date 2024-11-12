@@ -36,13 +36,6 @@ type ServerConfig struct {
 	// of the peer proxies. Required.
 	Dialer peerdial.Dialer
 
-	// CipherSuites is the set of TLS ciphersuites to be used by the server.
-	//
-	// Note: it won't actually have an effect, since QUIC always uses (the DTLS
-	// equivalent of) TLS 1.3, and TLS 1.3 ciphersuites can't be configured in
-	// crypto/tls, but for consistency's sake this should be passed along from
-	// the agent configuration.
-	CipherSuites []uint16
 	// GetCertificate should return the server certificate at time of use. It
 	// should be a certificate with the Proxy host role. Required.
 	GetCertificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)
