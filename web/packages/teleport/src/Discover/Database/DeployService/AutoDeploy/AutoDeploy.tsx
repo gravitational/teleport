@@ -246,7 +246,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
 
             <StyledBox mb={5}>
               <header>
-                <H3>Step 3 (Optional)</H3>
+                <H3>Step 3</H3>
               </header>
               <SelectSecurityGroups
                 selectedSecurityGroups={selectedSecurityGroups}
