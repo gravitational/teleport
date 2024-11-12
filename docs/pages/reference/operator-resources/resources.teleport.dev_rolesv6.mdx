@@ -34,6 +34,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|account_assignments|[][object](#specallowaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
 |app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
@@ -73,6 +74,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
 
+### spec.allow.account_assignments items
+
+|Field|Type|Description|
+|---|---|---|
+|account|string||
+|permission_set|string||
+
 ### spec.allow.db_permissions items
 
 |Field|Type|Description|
@@ -101,7 +109,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|kind|string|Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.|
+|kind|string|Kind specifies the Kubernetes Resource type.|
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
@@ -110,8 +118,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specallowrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
+|kubernetes_resources|[][object](#specallowrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
@@ -125,6 +134,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claim|string|Claim is a claim name.|
 |roles|[]string|Roles is a list of static teleport roles to match.|
 |value|string|Value is a claim value to match.|
+
+### spec.allow.request.kubernetes_resources items
+
+|Field|Type|Description|
+|---|---|---|
+|kind|string|kind specifies the Kubernetes Resource type.|
 
 ### spec.allow.request.thresholds items
 
@@ -184,6 +199,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|account_assignments|[][object](#specdenyaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
 |app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
@@ -223,6 +239,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |windows_desktop_labels_expression|string|WindowsDesktopLabelsExpression is a predicate expression used to allow/deny access to Windows desktops.|
 |windows_desktop_logins|[]string|WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.|
 
+### spec.deny.account_assignments items
+
+|Field|Type|Description|
+|---|---|---|
+|account|string||
+|permission_set|string||
+
 ### spec.deny.db_permissions items
 
 |Field|Type|Description|
@@ -251,7 +274,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|kind|string|Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.|
+|kind|string|Kind specifies the Kubernetes Resource type.|
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
@@ -260,8 +283,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending access requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
+|annotations|object|Annotations is a collection of annotations to be programmatically appended to pending Access Requests at the time of their creation. These annotations serve as a mechanism to propagate extra information to plugins.  Since these annotations support variable interpolation syntax, they also offer a mechanism for forwarding claims from an external identity provider, to a plugin via `{{external.trait_name}}` style substitutions.|
 |claims_to_roles|[][object](#specdenyrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
+|kubernetes_resources|[][object](#specdenyrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
@@ -275,6 +299,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claim|string|Claim is a claim name.|
 |roles|[]string|Roles is a list of static teleport roles to match.|
 |value|string|Value is a claim value to match.|
+
+### spec.deny.request.kubernetes_resources items
+
+|Field|Type|Description|
+|---|---|---|
+|kind|string|kind specifies the Kubernetes Resource type.|
 
 ### spec.deny.request.thresholds items
 
@@ -340,7 +370,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |create_db_user|boolean|CreateDatabaseUser enabled automatic database user creation.|
 |create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
 |create_desktop_user|boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
-|create_host_user|boolean|CreateHostUser allows users to be automatically created on a host|
+|create_host_user|boolean|Deprecated: use CreateHostUserMode instead.|
 |create_host_user_default_shell|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|
 |create_host_user_mode|string or integer|CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop". Can be either the string or the integer representation of each option.|
 |desktop_clipboard|boolean|DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|

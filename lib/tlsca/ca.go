@@ -21,6 +21,7 @@ package tlsca
 import (
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -457,6 +458,10 @@ var (
 	// the list of allowed GCP service accounts into a certificate.
 	GCPServiceAccountsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 19}
 
+	// UserTypeASN1ExtensionOID is an extension that encodes the user type.
+	// Its value is either local or sso.
+	UserTypeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 20}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -828,6 +833,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.UserType != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  UserTypeASN1ExtensionOID,
+				Value: string(id.UserType),
+			},
+		)
+	}
+
 	if len(id.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
 		if err != nil {
@@ -1108,6 +1122,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if val, ok := attr.Value.(string); ok {
 				id.PinnedIP = val
 			}
+		case attr.Type.Equal(UserTypeASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.UserType = types.UserType(val)
+			}
 		}
 	}
 
@@ -1199,7 +1217,12 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter NotAfter")
 	}
 	if c.KeyUsage == 0 {
-		c.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		c.KeyUsage = x509.KeyUsageDigitalSignature
+		if _, isRSA := c.PublicKey.(*rsa.PublicKey); isRSA {
+			// The KeyEncipherment bit is necessary for RSA key exchanges
+			// https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3
+			c.KeyUsage |= x509.KeyUsageKeyEncipherment
+		}
 	}
 
 	c.DNSNames = utils.Deduplicate(c.DNSNames)

@@ -30,7 +30,7 @@ import Select, {
 } from 'shared/components/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { ResourceMap, ResourceKind } from '../resource';
+import { ResourceMap, RequestableResourceKind } from '../resource';
 
 import { ListProps, StyledTable } from './ResourceList';
 
@@ -125,7 +125,7 @@ function ActionCell({
   agent: App;
   addedResources: ResourceMap;
   addOrRemoveResource: (
-    kind: ResourceKind,
+    kind: RequestableResourceKind,
     resourceId: string,
     resourceName?: string
   ) => void;
@@ -282,8 +282,7 @@ const StyledSelect = styled(Select)`
 
   &.hasSelectedGroups {
     .react-select__control {
-      background: ${p =>
-        p.theme.colors.interactive.solid.primary.default.background};
+      background: ${p => p.theme.colors.interactive.solid.primary.default};
       border: transparent;
     }
 

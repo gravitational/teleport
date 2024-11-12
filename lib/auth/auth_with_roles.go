@@ -297,12 +297,12 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 	return tracker, nil
 }
 
-func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
+func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker types.SessionTracker, verb string) bool {
 	// Apply RFD 45 RBAC rules to the session if it's SSH.
 	// This is a bit of a hack. It converts to the old legacy format
 	// which we don't have all data for, luckily the fields we don't have aren't made available
 	// to the RBAC filter anyway.
-	if tracker.GetKind() == types.KindSSHSession {
+	if tracker.GetSessionKind() == types.SSHSessionKind {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
 			Kind:           tracker.GetSessionKind(),
@@ -453,7 +453,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	ok := a.filterSessionTracker(ctx, joinerRoles, tracker, types.VerbRead)
+	ok := a.filterSessionTracker(joinerRoles, tracker, types.VerbRead)
 	if !ok {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
@@ -480,7 +480,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -508,7 +508,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 	}
 
 	for _, sess := range sessions {
-		ok := a.filterSessionTracker(ctx, joinerRoles, sess, types.VerbList)
+		ok := a.filterSessionTracker(joinerRoles, sess, types.VerbList)
 		if ok {
 			filteredSessions = append(filteredSessions, sess)
 		}
@@ -538,7 +538,7 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
-	// authentication request has it's own authentication, however this limits the requests
+	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -549,7 +549,7 @@ func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclien
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
 func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
-	// authentication request has it's own authentication, however this limits the requests
+	// authentication request has its own authentication, however this limits the requests
 	// types to proxies to make it harder to break
 	if !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
@@ -591,6 +591,11 @@ func (a *ServerWithRoles) GetClusterCACert(
 	return a.authServer.GetClusterCACert(ctx)
 }
 
+// Deprecated: This method only exists to service the RegisterUsingToken HTTP
+// RPC, which has been replaced by an RPC on the JoinServiceServer.
+// JoinServiceServer directly invokes auth.Server and performs its own checks
+// on metadata.
+// TODO(strideynet): DELETE IN V18.0.0
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	isProxy := a.hasBuiltinRole(types.RoleProxy)
 
@@ -631,48 +636,6 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
-}
-
-// RegisterUsingIAMMethod registers the caller using the IAM join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingIAMMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
-	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
-	return certs, trace.Wrap(err)
-}
-
-// RegisterUsingAzureMethod registers the caller using the Azure join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingAzureMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
-	certs, err := a.authServer.RegisterUsingAzureMethod(ctx, challengeResponse)
-	return certs, trace.Wrap(err)
-}
-
-// RegisterUsingTPMMethod registers the caller using the TPM join method and
-// returns signed certs to join the cluster.
-//
-// See (*Server).RegisterUsingTPMMethod for further documentation.
-//
-// This wrapper does not do any extra authz checks, as the register method has
-// its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingTPMMethod(
-	ctx context.Context,
-	initReq *proto.RegisterUsingTPMMethodInitialRequest,
-	solveChallenge client.RegisterTPMChallengeResponseFunc,
-) (*proto.Certs, error) {
-	certs, err := a.authServer.registerUsingTPMMethod(
-		ctx, initReq, solveChallenge,
-	)
-	return certs, trace.Wrap(err)
 }
 
 // GenerateHostCerts generates new host certificates (signed
@@ -1205,12 +1168,6 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error 
 		var filter types.WebSessionFilter
 		if err := filter.FromMap(kind.Filter); err != nil {
 			return trace.Wrap(err)
-		}
-
-		// TODO (Joerger): DELETE IN 17.0.0
-		// Set LoadSecrets to true for requests from old proxies.
-		if a.hasBuiltinRole(types.RoleProxy) {
-			kind.LoadSecrets = true
 		}
 
 		// Allow reading Snowflake sessions to DB service.
@@ -2248,11 +2205,7 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
-func emitTokenEvent(
-	ctx context.Context,
-	e apievents.Emitter,
-	roles types.SystemRoles,
-	joinMethod types.JoinMethod,
+func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
 ) {
 	userMetadata := authz.ClientUserMetadata(ctx)
 	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
@@ -2260,9 +2213,14 @@ func emitTokenEvent(
 			Type: events.ProvisionTokenCreateEvent,
 			Code: events.ProvisionTokenCreateCode,
 		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      token.GetSafeName(),
+			Expires:   token.Expiry(),
+			UpdatedBy: userMetadata.GetUser(),
+		},
 		UserMetadata: userMetadata,
-		Roles:        roles,
-		JoinMethod:   joinMethod,
+		Roles:        token.GetRoles(),
+		JoinMethod:   token.GetJoinMethod(),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit join token create event.")
 	}
@@ -2286,12 +2244,11 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2308,7 +2265,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
+	emitTokenEvent(ctx, a.authServer.emitter, token)
 	return nil
 }
 
@@ -2786,42 +2743,6 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 	return a.authServer.DeleteAccessRequest(ctx, name)
 }
 
-// GetUsers returns all existing users
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.ListUsers] instead.
-func (a *ServerWithRoles) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	if withSecrets {
-		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
-		// migrated to that model.
-		if !a.hasBuiltinRole(types.RoleAdmin) {
-			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
-			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
-				Metadata: apievents.Metadata{
-					Type: events.UserLoginEvent,
-					Code: events.UserLocalLoginFailureCode,
-				},
-				Method: events.LoginMethodClientCert,
-				Status: apievents.Status{
-					Success:     false,
-					Error:       trace.Unwrap(err).Error(),
-					UserMessage: err.Error(),
-				},
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit local login failure event.")
-			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
-		}
-	} else {
-		if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	users, err := a.authServer.GetUsers(ctx, withSecrets)
-	return users, trace.Wrap(err)
-}
-
 // GetCurrentUserRoles returns current user's roles.
 func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
 	roleNames := a.context.User.GetRoles()
@@ -3226,64 +3147,38 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	appSessionID := req.RouteToApp.SessionID
+	var appSessionID string
 	if req.RouteToApp.Name != "" {
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
-		if req.RouteToApp.SessionID == "" {
-			ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
-				NewWebSessionRequest: NewWebSessionRequest{
-					User:           req.Username,
-					LoginIP:        a.context.Identity.GetIdentity().LoginIP,
-					SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
-					Traits:         accessInfo.Traits,
-					Roles:          accessInfo.Roles,
-					AccessRequests: req.AccessRequests,
-					// App sessions created through generateUserCerts are securely contained
-					// to the Proxy and Auth roles, and thus should pass hardware key requirements
-					// through the "web_session" attestation. User's will be required to provide
-					// MFA instead.
-					AttestWebSession: true,
-				},
-				PublicAddr:        req.RouteToApp.PublicAddr,
-				ClusterName:       req.RouteToApp.ClusterName,
-				AWSRoleARN:        req.RouteToApp.AWSRoleARN,
-				AzureIdentity:     req.RouteToApp.AzureIdentity,
-				GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
-				MFAVerified:       verifiedMFADeviceID,
-				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
-				AppName:           req.RouteToApp.Name,
-				AppURI:            req.RouteToApp.URI,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			appSessionID = ws.GetName()
-		} else {
-			// TODO (Joerger): DELETE IN 17.0.0
-			// Old clients will pass a session ID of an existing App session instead of a
-			// single GenerateUserCerts call. This is allowed, but ensure new clients cannot
-			// generate certs for MFA verified app sessions without an additional MFA check.
-			ws, err := a.GetAppSession(ctx, types.GetAppSessionRequest{
-				SessionID: req.RouteToApp.SessionID,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			// If the app session is MFA verified and this request is not MFA verified, deny the request.
-			x509Cert, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			wsIdentity, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if wsIdentity.IsMFAVerified() && verifiedMFADeviceID == "" {
-				return nil, trace.BadParameter("mfa verification required to sign app certs for mfa-verified session")
-			}
+		ws, err := a.authServer.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+			NewWebSessionRequest: NewWebSessionRequest{
+				User:           req.Username,
+				LoginIP:        a.context.Identity.GetIdentity().LoginIP,
+				SessionTTL:     req.Expires.Sub(a.authServer.GetClock().Now()),
+				Traits:         accessInfo.Traits,
+				Roles:          accessInfo.Roles,
+				AccessRequests: req.AccessRequests,
+				// App sessions created through generateUserCerts are securely contained
+				// to the Proxy and Auth roles, and thus should pass hardware key requirements
+				// through the "web_session" attestation. User's will be required to provide
+				// MFA instead.
+				AttestWebSession: true,
+			},
+			PublicAddr:        req.RouteToApp.PublicAddr,
+			ClusterName:       req.RouteToApp.ClusterName,
+			AWSRoleARN:        req.RouteToApp.AWSRoleARN,
+			AzureIdentity:     req.RouteToApp.AzureIdentity,
+			GCPServiceAccount: req.RouteToApp.GCPServiceAccount,
+			MFAVerified:       verifiedMFADeviceID,
+			DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
+			AppName:           req.RouteToApp.Name,
+			AppURI:            req.RouteToApp.URI,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		appSessionID = ws.GetName()
 	}
 
 	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
@@ -3468,7 +3363,7 @@ func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID str
 
 // ChangeUserAuthentication is implemented by AuthService.ChangeUserAuthentication.
 func (a *ServerWithRoles) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
-	// Token is it's own authentication, no need to double check.
+	// Token is its own authentication, no need to double check.
 	resp, err := a.authServer.ChangeUserAuthentication(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3544,53 +3439,6 @@ func hasOneNonPresetUser(users []types.User) bool {
 	}
 
 	return qtyNonPreset == 1
-}
-
-// UpdateUser updates an existing user in a backend.
-// Captures the auth user who modified the user record.
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.UpdateUser] instead.
-func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, user.GetName(), types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	updated, err := a.authServer.UpdateUser(ctx, user)
-	return updated, trace.Wrap(err)
-}
-
-// UpsertUser create or updates an existing user.
-// TODO(tross): DELETE IN 17.0.0
-// Deprecated: use [usersv1.Service.UpdateUser] instead.
-func (a *ServerWithRoles) UpsertUser(ctx context.Context, u types.User) (types.User, error) {
-	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := okta.CheckOrigin(&a.context, u); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkOktaUserAccess(ctx, &a.context, a.authServer, u.GetName(), types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	createdBy := u.GetCreatedBy()
-	if createdBy.IsEmpty() {
-		u.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{Name: a.context.User.GetName()},
-		})
-	}
-	user, err := a.authServer.UpsertUser(ctx, u)
-	return user, trace.Wrap(err)
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the
@@ -3756,7 +3604,7 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 }
 
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3815,7 +3663,7 @@ func (a *ServerWithRoles) CreateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3911,7 +3759,7 @@ func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, samlResponse
 		clientIP = "" // We only trust IP information coming from the Proxy.
 	}
 
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4128,7 +3976,7 @@ func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, stateToken s
 }
 
 func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
-	// auth callback is it's own authz, no need to check extra permissions
+	// auth callback is its own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateGithubAuthCallback(ctx, q)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4704,9 +4552,6 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		msg = err.Error()
 	}
 
-	oldSecondFactor := storedAuthPref.GetSecondFactor()
-	newSecondFactor := newAuthPref.GetSecondFactor()
-
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4719,7 +4564,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 			Error:       msg,
 			UserMessage: msg,
 		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, newAuthPref),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -4757,9 +4602,6 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		msg = err.Error()
 	}
 
-	oldSecondFactor := storedAuthPref.GetSecondFactor()
-	newSecondFactor := defaultAuthPref.GetSecondFactor()
-
 	if auditErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -4772,7 +4614,7 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 			Error:       msg,
 			UserMessage: msg,
 		},
-		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
+		AdminActionsMFA: clusterconfigv1.GetAdminActionsMFAStatus(storedAuthPref, defaultAuthPref),
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit auth preference update event event.")
 	}
@@ -5100,7 +4942,7 @@ func (a *ServerWithRoles) ValidateTrustedCluster(ctx context.Context, validateRe
 		return nil, trace.NotImplemented("leaf clusters cannot be added to cloud tenants")
 	}
 
-	// the token provides it's own authorization and authentication
+	// the token provides its own authorization and authentication
 	return a.authServer.validateTrustedCluster(ctx, validateRequest)
 }
 
@@ -5520,17 +5362,6 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req types.GetAppSes
 
 	// Users can fetch their own app sessions without secrets.
 	if err := a.currentUserAction(session.GetUser()); err == nil {
-		// TODO (Joerger): DELETE IN 17.0.0
-		// App Session secrets should not be returned to the user. We only do this
-		// here for backwards compatibility with `tsh proxy azure`, which uses the
-		// app session key to sign JWT tokens with Azure claims. This check means
-		// that `tsh proxy azure` will fail for old clients when used with Per-session
-		// MFA or Hardware Key support, which is planned for release in v16.0.0.
-		identity := a.context.Identity.GetIdentity()
-		if !identity.IsMFAVerified() && identity.PrivateKeyPolicy != keys.PrivateKeyPolicyWebSession {
-			return session, nil
-		}
-
 		return session.WithoutSecrets(), nil
 	}
 
@@ -7665,21 +7496,6 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
-}
-
-// checkOktaUserAccess gates access to update operations on user records based
-// on the origin label on the supplied user record.
-//
-// # See okta.CheckAccess() for the actual access rules
-//
-// TODO(tcsc): Delete in 16.0.0 when user management is removed from `ServerWithRoles`
-func checkOktaUserAccess(ctx context.Context, authzCtx *authz.Context, users services.UsersService, existingUsername string, verb string) error {
-	existingUser, err := users.GetUser(ctx, existingUsername, false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	return okta.CheckAccess(authzCtx, existingUser, verb)
 }
 
 // checkOktaLockTarget prevents the okta service from locking users that are not

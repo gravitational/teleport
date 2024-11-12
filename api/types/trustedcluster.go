@@ -21,8 +21,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -61,6 +62,8 @@ type TrustedCluster interface {
 	SetReverseTunnelAddress(string)
 	// CanChangeStateTo checks the TrustedCluster can transform into another.
 	CanChangeStateTo(TrustedCluster) error
+	// Clone returns a deep copy of the TrustedCluster.
+	Clone() TrustedCluster
 }
 
 // NewTrustedCluster is a convenience way to create a TrustedCluster resource.
@@ -249,9 +252,8 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if !slices.Equal(c.GetRoles(), t.GetRoles()) {
 		return immutableFieldErr("roles")
 	}
-	roleMapUpdated := !cmp.Equal(c.GetRoleMap(), t.GetRoleMap())
 
-	if c.GetEnabled() == t.GetEnabled() && !roleMapUpdated {
+	if c.GetEnabled() == t.GetEnabled() && c.GetRoleMap().IsEqual(t.GetRoleMap()) {
 		if t.GetEnabled() {
 			return trace.AlreadyExists("leaf cluster is already enabled, this update would have no effect")
 		}
@@ -259,6 +261,10 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	}
 
 	return nil
+}
+
+func (c *TrustedClusterV2) Clone() TrustedCluster {
+	return utils.CloneProtoMsg(c)
 }
 
 // String represents a human readable version of trusted cluster settings.
@@ -269,6 +275,13 @@ func (c *TrustedClusterV2) String() string {
 
 // RoleMap is a list of mappings
 type RoleMap []RoleMapping
+
+// IsEqual validates that two roles maps are equivalent.
+func (r RoleMap) IsEqual(other RoleMap) bool {
+	return slices.EqualFunc(r, other, func(a RoleMapping, b RoleMapping) bool {
+		return a.Remote == b.Remote && slices.Equal(a.Local, b.Local)
+	})
+}
 
 // SortedTrustedCluster sorts clusters by name
 type SortedTrustedCluster []TrustedCluster

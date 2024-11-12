@@ -328,13 +328,13 @@ func withFips(fips bool) iamRegisterOption {
 	}
 }
 
-// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// RegisterUsingIAMMethodWithOpts registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(
+func (a *Server) RegisterUsingIAMMethodWithOpts(
 	ctx context.Context,
 	challengeResponse client.RegisterIAMChallengeResponseFunc,
 	opts ...iamRegisterOption,
@@ -387,4 +387,17 @@ func (a *Server) RegisterUsingIAMMethod(
 	}
 	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
 	return certs, trace.Wrap(err, "generating certs")
+}
+
+// RegisterUsingIAMMethod registers the caller using the IAM join method and
+// returns signed certs to join the cluster.
+//
+// The caller must provide a ChallengeResponseFunc which returns a
+// *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
+// including the challenge as a signed header.
+func (a *Server) RegisterUsingIAMMethod(
+	ctx context.Context,
+	challengeResponse client.RegisterIAMChallengeResponseFunc,
+) (certs *proto.Certs, err error) {
+	return a.RegisterUsingIAMMethodWithOpts(ctx, challengeResponse)
 }

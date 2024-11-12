@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
 import {
   getCurrentTheme,
   getNextTheme,
   updateFavicon,
-} from 'design/ThemeProvider';
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+} from 'teleport/ThemeProvider';
 
 import {
   BackendUserPreferences,

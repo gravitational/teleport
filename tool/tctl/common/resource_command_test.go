@@ -1419,6 +1419,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindAutoUpdateVersion,
 			create: testCreateAutoUpdateVersion,
 		},
+		{
+			kind:   types.KindDynamicWindowsDesktop,
+			create: testCreateDynamicWindowsDesktop,
+		},
 	}
 
 	for _, test := range tests {
@@ -1832,7 +1836,7 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: off
+  second_factors: [otp, sso]
   type: local
 version: v2
 `
@@ -1849,16 +1853,18 @@ version: v2
 	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
 
-	var expected types.AuthPreferenceV2
-	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
+	expectInitialSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP} // second factors defaults to [otp]
+	require.Equal(t, expectInitialSecondFactors, initial.GetSecondFactors())
 
-	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
-	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+	var revised types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &revised))
+	expectRevisedSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO}
+	require.Equal(t, expectRevisedSecondFactors, revised.GetSecondFactors())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.
-	expected.SetRevision(uuid.NewString())
-	raw, err := services.MarshalAuthPreference(&expected, services.PreserveRevision())
+	revised.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&revised, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
 
@@ -2291,7 +2297,8 @@ metadata:
   name: autoupdate-config
   revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
-  tools_autoupdate: true
+  tools:
+    mode: enabled
 version: v1
 `
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
@@ -2326,7 +2333,8 @@ metadata:
   name: autoupdate-version
   revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
 spec:
-  tools_version: 1.2.3
+  tools:
+    target_version: 1.2.3
 version: v1
 `
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
@@ -2353,6 +2361,35 @@ version: v1
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
+}
+
+func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: dynamic_windows_desktop
+metadata:
+  name: test
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  addr: test
+version: v1
+`
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindDynamicWindowsDesktop, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]types.DynamicWindowsDesktopV1](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected types.DynamicWindowsDesktopV1
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expected.SetRevision(resources[0].GetRevision())
+
+	require.Empty(t, cmp.Diff([]types.DynamicWindowsDesktopV1{expected}, resources, protocmp.Transform()))
 }
 
 func TestPluginResourceWrapper(t *testing.T) {

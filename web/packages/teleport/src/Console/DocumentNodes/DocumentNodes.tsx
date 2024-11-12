@@ -23,7 +23,7 @@ import { Danger } from 'design/Alert';
 
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
-import NodeList from 'teleport/components/NodeList';
+import { NodeList } from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import Document from 'teleport/Console/Document';
 

@@ -29,6 +29,7 @@ import (
 	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_label_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_userprovisioning_v2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	github_com_gravitational_teleport_integrations_terraform_tfschema "github.com/gravitational/teleport/integrations/terraform/tfschema"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -65,7 +66,11 @@ func GenSchemaStaticHostUser(ctx context.Context) (github_com_hashicorp_terrafor
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx),
+				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "expires is a global expiry time header can be set on any resource in the system.",
+					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+				}),
 				"labels": {
 					Description: "labels is a set of labels.",
 					Optional:    true,

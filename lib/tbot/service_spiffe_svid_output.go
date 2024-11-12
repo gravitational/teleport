@@ -68,7 +68,7 @@ func (s *SPIFFESVIDOutputService) String() string {
 }
 
 func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
-	res, privateKey, err := s.requestSVID(ctx)
+	res, privateKey, jwtSVIDs, err := s.requestSVID(ctx)
 	if err != nil {
 		return trace.Wrap(err, "requesting SVID")
 	}
@@ -84,7 +84,7 @@ func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
 		return trace.Wrap(err, "fetching trust bundle set")
 
 	}
-	return s.render(ctx, bundleSet, res, privateKey)
+	return s.render(ctx, bundleSet, res, privateKey, jwtSVIDs)
 }
 
 func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
@@ -96,6 +96,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 	jitter := retryutils.NewJitter()
 	var res *machineidv1pb.SignX509SVIDsResponse
 	var privateKey crypto.Signer
+	var jwtSVIDs map[string]string
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
@@ -142,14 +143,14 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 
 		if res == nil || privateKey == nil {
 			var err error
-			res, privateKey, err = s.requestSVID(ctx)
+			res, privateKey, jwtSVIDs, err = s.requestSVID(ctx)
 			if err != nil {
 				s.log.ErrorContext(ctx, "Failed to request SVID", "error", err)
 				failures++
 				continue
 			}
 		}
-		if err := s.render(ctx, bundleSet, res, privateKey); err != nil {
+		if err := s.render(ctx, bundleSet, res, privateKey, jwtSVIDs); err != nil {
 			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
 			failures++
 			continue
@@ -160,7 +161,12 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 
 func (s *SPIFFESVIDOutputService) requestSVID(
 	ctx context.Context,
-) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
+) (
+	*machineidv1pb.SignX509SVIDsResponse,
+	crypto.Signer,
+	map[string]string,
+	error,
+) {
 	ctx, span := tracer.Start(
 		ctx,
 		"SPIFFESVIDOutputService/requestSVID",
@@ -169,7 +175,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 
 	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching roles")
+		return nil, nil, nil, trace.Wrap(err, "fetching roles")
 	}
 
 	id, err := generateIdentity(
@@ -181,14 +187,14 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		nil,
 	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "generating identity")
+		return nil, nil, nil, trace.Wrap(err, "generating identity")
 	}
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
 	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	defer impersonatedClient.Close()
 
@@ -199,9 +205,20 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		s.botCfg.CertificateTTL,
 	)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
 	}
-	return res, privateKey, nil
+
+	jwtSvids, err := generateJWTSVIDs(
+		ctx,
+		impersonatedClient,
+		s.cfg.SVID,
+		s.cfg.JWTs,
+		s.botCfg.CertificateTTL)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
+	}
+
+	return res, privateKey, jwtSvids, nil
 }
 
 func (s *SPIFFESVIDOutputService) render(
@@ -209,6 +226,7 @@ func (s *SPIFFESVIDOutputService) render(
 	bundleSet *spiffe.BundleSet,
 	res *machineidv1pb.SignX509SVIDsResponse,
 	privateKey crypto.Signer,
+	jwtSVIDs map[string]string,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -277,7 +295,63 @@ func (s *SPIFFESVIDOutputService) render(
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
 
+	for fileName, jwt := range jwtSVIDs {
+		if err := s.cfg.Destination.Write(ctx, fileName, []byte(jwt)); err != nil {
+			return trace.Wrap(err, "writing JWT SVID")
+		}
+	}
+
 	return nil
+}
+
+func generateJWTSVIDs(
+	ctx context.Context,
+	clt *authclient.Client,
+	svid config.SVIDRequest,
+	reqs []config.JWTSVID,
+	ttl time.Duration,
+) (map[string]string, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"generateJWTSVIDs",
+	)
+	defer span.End()
+
+	requestedAudiences := map[string]bool{}
+	for _, jwt := range reqs {
+		requestedAudiences[jwt.Audience] = true
+	}
+
+	jwtReqs := make([]*machineidv1pb.JWTSVIDRequest, 0, len(requestedAudiences))
+	for audience := range requestedAudiences {
+		jwtReqs = append(jwtReqs, &machineidv1pb.JWTSVIDRequest{
+			Audiences:    []string{audience},
+			Ttl:          durationpb.New(ttl),
+			SpiffeIdPath: svid.Path,
+		})
+	}
+
+	if len(jwtReqs) == 0 {
+		return nil, nil
+	}
+
+	jwtRes, err := clt.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+		Svids: jwtReqs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "requesting JWT SVIDs")
+	}
+
+	jwtFiles := map[string]string{}
+	for _, req := range reqs {
+		for _, jwtSVID := range jwtRes.Svids {
+			if len(jwtSVID.Audiences) == 1 && jwtSVID.Audiences[0] == req.Audience {
+				jwtFiles[req.FileName] = jwtSVID.Jwt
+				break
+			}
+		}
+	}
+	return jwtFiles, nil
 }
 
 // generateSVID generates the pre-requisites and makes a SVID generation RPC

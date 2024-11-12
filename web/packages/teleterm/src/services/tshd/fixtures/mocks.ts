@@ -20,6 +20,7 @@ import {
   makeRootCluster,
   makeAppGateway,
 } from 'teleterm/services/tshd/testHelpers';
+import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
 
 import { VnetClient, TshdClient } from '../createClient';
 import { MockedUnaryCall } from '../cloneableClient';
@@ -27,18 +28,6 @@ import { MockedUnaryCall } from '../cloneableClient';
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
-  getKubes = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getDatabases = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
   listDatabaseUsers = () =>
     new MockedUnaryCall({
       users: [],
@@ -51,12 +40,6 @@ export class MockTshClient implements TshdClient {
       applicableRoles: [],
     });
   getServers = () =>
-    new MockedUnaryCall({
-      agents: [],
-      totalCount: 0,
-      startKey: '',
-    });
-  getApps = () =>
     new MockedUnaryCall({
       agents: [],
       totalCount: 0,
@@ -105,12 +88,21 @@ export class MockTshClient implements TshdClient {
   getConnectMyComputerNodeName = () => new MockedUnaryCall({ name: '' });
   listUnifiedResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
-  getUserPreferences = () => new MockedUnaryCall({});
+  listKubernetesResources = () =>
+    new MockedUnaryCall({ resources: [], nextKey: '' });
+  getUserPreferences = () =>
+    new MockedUnaryCall({
+      userPreferences: {
+        unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
+        clusterPreferences: { pinnedResources: { resourceIds: [] } },
+      },
+    });
   updateUserPreferences = () => new MockedUnaryCall({});
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
   promoteAccessRequest = () => new MockedUnaryCall({});
   updateTshdEventsServerAddress = () => new MockedUnaryCall({});
   authenticateWebDevice = () => new MockedUnaryCall({});
+  startHeadlessWatcher = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {

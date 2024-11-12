@@ -386,8 +386,9 @@ func (s *Service) GenerateHostCert(
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO (Joerger): in v16.0.0, this endpoint should require admin action authorization
-	// once the deprecated http endpoint is removed in use.
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Call through to the underlying implementation on auth.Server. At some
 	// point in the future, we may wish to pull more of that implementation

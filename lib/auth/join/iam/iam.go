@@ -41,8 +41,8 @@ const (
 )
 
 type stsIdentityRequestOptions struct {
-	fipsEndpointOption aws.FIPSEndpointState
-	imdsClient         imdsClient
+	useFIPS    bool
+	imdsClient imdsClient
 }
 
 type stsIdentityRequestOption func(cfg *stsIdentityRequestOptions)
@@ -51,11 +51,7 @@ type stsIdentityRequestOption func(cfg *stsIdentityRequestOptions)
 // regions, this will use the us-east-1 FIPS endpoint.
 func WithFIPSEndpoint(useFIPS bool) stsIdentityRequestOption {
 	return func(opts *stsIdentityRequestOptions) {
-		if useFIPS {
-			opts.fipsEndpointOption = aws.FIPSEndpointStateEnabled
-		} else {
-			opts.fipsEndpointOption = aws.FIPSEndpointStateUnset
-		}
+		opts.useFIPS = useFIPS
 	}
 }
 
@@ -87,11 +83,30 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 		return nil, trace.Wrap(err, "loading default AWS config")
 	}
 
+	if awsConfig.Region == "" {
+		// We can try to get the local region from IMDSv2 if running on EC2.
+		region, err := getEC2LocalRegion(ctx, &options)
+		if err != nil {
+			slog.InfoContext(ctx, "Failed to resolve local AWS region from environment or IMDS. Using us-east-1 by default. This will fail in non-default AWS partitions. Consider setting AWS_REGION or enabling IMDSv2.",
+				slog.Any("error", err))
+			region = "us-east-1"
+		}
+		awsConfig.Region = region
+	}
+
+	if options.useFIPS && !slices.Contains(FIPSSTSRegions(), awsConfig.Region) {
+		slog.InfoContext(ctx, "AWS region does not have a FIPS STS endpoint, attempting to use us-east-1 instead. This will fail in non-default AWS partitions.",
+			slog.String("region", awsConfig.Region))
+		awsConfig.Region = "us-east-1"
+	}
+
 	var signedRequest bytes.Buffer
 	stsClient := sts.NewFromConfig(awsConfig,
-		sts.WithEndpointResolverV2(newCustomResolver(challenge, &options)),
+		sts.WithEndpointResolverV2(newCustomResolver(challenge)),
 		func(stsOpts *sts.Options) {
-			stsOpts.EndpointOptions.UseFIPSEndpoint = options.fipsEndpointOption
+			if options.useFIPS {
+				stsOpts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+			}
 			// Use a fake HTTP client to record the request.
 			stsOpts.HTTPClient = &httpRequestRecorder{&signedRequest}
 			// httpRequestRecorder intentionally records the request and returns
@@ -132,43 +147,20 @@ func getEC2LocalRegion(ctx context.Context, opts *stsIdentityRequestOptions) (st
 type customResolver struct {
 	defaultResolver sts.EndpointResolverV2
 	challenge       string
-	opts            *stsIdentityRequestOptions
 }
 
-func newCustomResolver(challenge string, opts *stsIdentityRequestOptions) *customResolver {
+func newCustomResolver(challenge string) *customResolver {
 	return &customResolver{
 		defaultResolver: sts.NewDefaultEndpointResolverV2(),
 		challenge:       challenge,
-		opts:            opts,
 	}
 }
 
 // ResolveEndpoint implements [sts.EndpointResolverV2].
 func (r customResolver) ResolveEndpoint(ctx context.Context, params sts.EndpointParameters) (smithyendpoints.Endpoint, error) {
-	if aws.ToString(params.Region) == "" {
-		// If we don't have a region from the environment here this will fail to
-		// resolve. We can try to get the local region from IMDSv2 if running on EC2.
-		region, err := getEC2LocalRegion(ctx, r.opts)
-		switch {
-		case trace.IsNotFound(err):
-			params.Region = aws.String("aws-global")
-			params.UseGlobalEndpoint = aws.Bool(true)
-		case err != nil:
-			return smithyendpoints.Endpoint{}, trace.Wrap(err, "failed to resolve local AWS region from environment or IMDS")
-		default:
-			params.Region = aws.String(region)
-		}
-	}
 	endpoint, err := r.defaultResolver.ResolveEndpoint(ctx, params)
 	if err != nil {
-		return smithyendpoints.Endpoint{}, trace.Wrap(err)
-	}
-	if aws.ToBool(params.UseFIPS) && !slices.Contains(FIPSSTSEndpoints(), endpoint.URI.Host) {
-		// The default resolver will return non-existent endpoints if FIPS was
-		// requested in regions outside the USA. Use the FIPS endpoint in
-		// us-east-1 instead.
-		slog.InfoContext(ctx, "The AWS SDK resolved an invalid FIPS STS endpoint, attempting to use the us-east-1 FIPS STS endpoint instead. This will fail in non-default AWS partitions.", "resolved", endpoint.URI.Host)
-		endpoint.URI.Host = fipsSTSEndpointUSEast1
+		return endpoint, trace.Wrap(err)
 	}
 	// Add challenge as a header to be signed.
 	endpoint.Headers.Add(challengeHeaderKey, r.challenge)

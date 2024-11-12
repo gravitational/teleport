@@ -130,9 +130,10 @@ The login
 <nobr>`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`</nobr>
 configures Teleport to look at the
 `http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname`
-ADFS claim and use that field as an allowed login for each user. Note the
-double quotes (`"`) and square brackets (`[]`) around the claim name—these are
-important.
+attribute and use that field as an allowed login for each user. Since the name
+of the attribute contains characters besides letters, numbers, and underscores,
+you must use double quotes (`"`) and square brackets (`[]`) around the name of
+the attribute.
 
 ## Step 3/3. Create a SAML connector
 

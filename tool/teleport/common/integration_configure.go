@@ -152,11 +152,12 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 	}
 
 	confReq := awsoidc.IdPIAMConfigureRequest{
-		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
-		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
-		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
-		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
-		AutoConfirm:        clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
+		Cluster:                 clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:         clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:         clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
+		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -250,7 +251,7 @@ func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.Integratio
 
 	fmt.Println("Teleport is setting up the Azure integration. This may take a few minutes.")
 
-	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName)
+	appID, tenantID, err := azureoidc.SetupEnterpriseApp(ctx, params.ProxyPublicAddr, params.AuthConnectorName, params.SkipOIDCConfiguration)
 	if err != nil {
 		return trace.Wrap(err)
 	}

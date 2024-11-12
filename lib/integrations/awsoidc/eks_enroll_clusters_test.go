@@ -98,6 +98,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 			Tags:                 map[string]string{"label1": "value1"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
+			AccessConfig: &eksTypes.AccessConfigResponse{
+				AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+			},
 		},
 		{
 			Name: aws.String("EKS2"),
@@ -108,6 +111,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 			Tags:                 map[string]string{"label2": "value2"},
 			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 			Status:               eksTypes.ClusterStatusActive,
+			AccessConfig: &eksTypes.AccessConfigResponse{
+				AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+			},
 		},
 	}
 
@@ -163,7 +169,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
 				require.Len(t, response.Results, 1)
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 			},
 		},
@@ -179,10 +185,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 					return strings.Compare(a.ClusterName, b.ClusterName)
 				})
 				require.Equal(t, "EKS1", response.Results[0].ClusterName)
-				require.Empty(t, response.Results[0].Error)
+				require.NoError(t, response.Results[0].Error)
 				require.NotEmpty(t, response.Results[0].ResourceId)
 				require.Equal(t, "EKS2", response.Results[1].ClusterName)
-				require.Empty(t, response.Results[1].Error)
+				require.NoError(t, response.Results[1].Error)
 				require.NotEmpty(t, response.Results[1].ResourceId)
 			},
 		},
@@ -238,6 +244,29 @@ func TestEnrollEKSClusters(t *testing.T) {
 			},
 		},
 		{
+			name:         "cluster with CONFIG_MAP authentication mode is not enrolled",
+			enrollClient: baseClient,
+			eksClusters: []eksTypes.Cluster{
+				{
+					Name:                 aws.String("EKS1"),
+					Arn:                  aws.String(clustersBaseArn + "1"),
+					Tags:                 map[string]string{"label1": "value1"},
+					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeConfigMap,
+					},
+				},
+			},
+			request:             baseRequest,
+			requestClusterNames: []string{"EKS1"},
+			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
+				require.Len(t, response.Results, 1)
+				require.ErrorContains(t, response.Results[0].Error,
+					`can't enroll "EKS1" because its access config's authentication mode is "CONFIG_MAP", only [API API_AND_CONFIG_MAP] are supported`)
+			},
+		},
+		{
 			name:         "private cluster in cloud is not enrolled",
 			enrollClient: baseClient,
 			eksClusters: []eksTypes.Cluster{
@@ -250,6 +279,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 					Tags:                 map[string]string{"label3": "value3"},
 					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+					},
 				},
 			},
 			request: EnrollEKSClustersRequest{
@@ -279,6 +311,9 @@ func TestEnrollEKSClusters(t *testing.T) {
 					Tags:                 map[string]string{"label3": "value3"},
 					CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
 					Status:               eksTypes.ClusterStatusActive,
+					AccessConfig: &eksTypes.AccessConfigResponse{
+						AuthenticationMode: eksTypes.AuthenticationModeApiAndConfigMap,
+					},
 				},
 			},
 			request: EnrollEKSClustersRequest{

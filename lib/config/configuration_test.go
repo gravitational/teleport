@@ -1827,8 +1827,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: false,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -1855,8 +1854,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2177,8 +2175,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2206,8 +2203,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -3677,6 +3673,10 @@ func TestAuthHostedPlugins(t *testing.T) {
 				require.NotNil(t, p.OAuthProviders.Slack)
 				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
 				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+
+				require.NotNil(t, p.OAuthProviders.SlackCredentials)
+				require.Equal(t, "foo", p.OAuthProviders.SlackCredentials.ClientID)
+				require.Equal(t, "bar", p.OAuthProviders.SlackCredentials.ClientSecret)
 			},
 		},
 	}
@@ -4119,8 +4119,7 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 			},
 		},
@@ -4167,8 +4166,7 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 			},
 		},
@@ -4350,6 +4348,53 @@ func TestDiscoveryConfig(t *testing.T) {
 				},
 				ProjectIDs: []string{"p1", "p2"},
 			}},
+		},
+		{
+			desc:          "GCP section is filled with wildcard project ids",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"*"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"gke"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				ProjectIDs: []string{"*"},
+			}},
+		},
+		{
+			desc:          "GCP section mixes wildcard and specific project ids",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"gke"},
+						"locations": []string{"eucentral1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"project_ids": []string{"p1", "*"},
+					},
+				}
+			},
 		},
 		{
 			desc:          "GCP section is filled with installer",
@@ -5051,7 +5096,6 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
-
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
@@ -5119,8 +5163,10 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}
 			if tc.hsm {
-				cfg.Auth.KeyStore.AWSKMS.AWSAccount = "123456789012"
-				cfg.Auth.KeyStore.AWSKMS.AWSRegion = "us-west-2"
+				cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+				}
 			} else {
 				cfg.Auth.KeyStore = servicecfg.KeystoreConfig{}
 			}

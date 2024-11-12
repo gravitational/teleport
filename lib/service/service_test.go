@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 func TestMain(m *testing.M) {
@@ -383,7 +384,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 			inDNS:         []string{},
 			outRegenerate: false,
 		},
-		// Don't regenerate certificate if the node does not know it's own address.
+		// Don't regenerate certificate if the node does not know its own address.
 		{
 			inPrincipals:  []string{"0.0.0.0"},
 			inDNS:         []string{},
@@ -503,7 +504,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 	oidcIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: "aws-integration-1"},
 		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "role1",
+			RoleARN: "arn:aws:iam::account:role/role1",
 		},
 	)
 	require.NoError(t, err)
@@ -1167,7 +1168,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			dataDir := t.TempDir()
 			// write host_uuid file to temp dir.
 			if len(tt.args.hostIDContent) > 0 {
-				err := utils.WriteHostUUID(dataDir, tt.args.hostIDContent)
+				err := hostid.WriteFile(dataDir, tt.args.hostIDContent)
 				require.NoError(t, err)
 			}
 
@@ -1782,12 +1783,16 @@ func TestInitDatabaseService(t *testing.T) {
 
 			cfg := servicecfg.MakeDefaultConfig()
 			cfg.DataDir = t.TempDir()
+			cfg.DebugService = servicecfg.DebugConfig{
+				Enabled: false,
+			}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Hostname = "default.example.com"
 			cfg.Auth.Enabled = true
 			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 			cfg.Proxy.Enabled = true
 			cfg.Proxy.DisableWebInterface = true
 			cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}

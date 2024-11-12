@@ -38,6 +38,12 @@ variable "node_instance_type" {
   default = "t4g.medium"
 }
 
+// Instance type used for bastion server
+variable "bastion_instance_type" {
+  type    = string
+  default = "t4g.medium"
+}
+
 // SSH key name to provision instances withx
 variable "key_name" {
   type = string

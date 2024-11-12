@@ -32,7 +32,7 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import { getPrefersDark } from 'design/ThemeProvider';
+import { getPrefersDark } from 'teleport/ThemeProvider';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';

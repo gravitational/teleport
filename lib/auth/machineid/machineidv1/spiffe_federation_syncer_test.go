@@ -152,7 +152,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 			return
 		}
 		assert.Equal(t, string(marshaledBundle1), got.Status.CurrentBundle)
-	}, time.Second*5, time.Millisecond*100)
+	}, time.Second*10, time.Millisecond*200)
 
 	// Create a second SPIFFEFederation and wait for it to be synced
 	created2, err := store.CreateSPIFFEFederation(ctx, &machineidv1pb.SPIFFEFederation{
@@ -184,7 +184,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 			return
 		}
 		assert.Equal(t, string(marshaledBundle2), got.Status.CurrentBundle)
-	}, time.Second*5, time.Millisecond*100)
+	}, time.Second*10, time.Millisecond*200)
 
 	cancel()
 	select {

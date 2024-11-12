@@ -81,6 +81,12 @@ func (s *Store) AddKeyRing(keyRing *KeyRing) error {
 	return nil
 }
 
+// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
+// used to interact with a YubiKey private key.
+func (s *Store) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+	s.KeyStore.SetCustomHardwareKeyPrompt(prompt)
+}
+
 var (
 	// ErrNoCredentials is returned by the client store when a specific key is not found.
 	// This error can be used to determine whether a client should retrieve new credentials,
@@ -196,6 +202,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 				// Set ValidUntil to now to show that the keys are not available.
 				ValidUntil:              time.Now(),
 				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+				SSOHost:                 profile.SSOHost,
 			}, nil
 		}
 		return nil, trace.Wrap(err)
@@ -211,6 +218,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		SiteName:                profile.SiteName,
 		KubeProxyAddr:           profile.KubeProxyAddr,
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
 		IsVirtual:               !onDisk,
 	})
 }

@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -66,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -216,7 +214,7 @@ func newAuthSuite(t *testing.T) *testPack {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	cryptosuites.PrecomputeRSATestKeys(m)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
@@ -670,6 +668,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
 		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -704,6 +703,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -749,6 +749,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -782,6 +783,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
 		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -814,6 +816,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
 		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+		UserType:          "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -847,6 +850,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
 		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		UserType:         "local",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -880,7 +884,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	// Configure auth preferences.
 	authPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err, "GetAuthPreference")
-	authPref.SetSecondFactor(constants.SecondFactorOptional) // good enough
+	authPref.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 	authPref.SetWebauthn(&types.Webauthn{
 		RPID: "localhost",
 	})
@@ -1227,60 +1231,6 @@ func TestUpdateConfig(t *testing.T) {
 	}}))
 }
 
-func TestCreateAndUpdateUserEventsEmitted(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	user, err := types.NewUser("some-user")
-	require.NoError(t, err)
-
-	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-
-	// test create user, happy path
-	user.SetCreatedBy(types.CreatedBy{
-		User: types.UserRef{Name: "some-auth-user"},
-	})
-	user, err = s.a.CreateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
-	createEvt := s.mockEmitter.LastEvent().(*apievents.UserCreate)
-	require.Equal(t, "some-auth-user", createEvt.User)
-	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
-	s.mockEmitter.Reset()
-
-	// test create user with existing user
-	_, err = s.a.CreateUser(ctx, user)
-	require.True(t, trace.IsAlreadyExists(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test createdBy gets set to default
-	user2, err := types.NewUser("some-other-user")
-	require.NoError(t, err)
-	_, err = s.a.CreateUser(ctx, user2)
-	require.NoError(t, err)
-	require.Equal(t, events.UserCreateEvent, s.mockEmitter.LastEvent().GetType())
-	createEvt = s.mockEmitter.LastEvent().(*apievents.UserCreate)
-	require.Equal(t, teleport.UserSystem, createEvt.User)
-	require.Equal(t, clientAddr.String(), createEvt.ConnectionMetadata.RemoteAddr)
-	s.mockEmitter.Reset()
-
-	// test update on non-existent user
-	user3, err := types.NewUser("non-existent-user")
-	require.NoError(t, err)
-	_, err = s.a.UpdateUser(ctx, user3)
-	require.True(t, trace.IsNotFound(err))
-	require.Nil(t, s.mockEmitter.LastEvent())
-
-	// test update user
-	_, err = s.a.UpdateUser(ctx, user)
-	require.NoError(t, err)
-	require.Equal(t, events.UserUpdatedEvent, s.mockEmitter.LastEvent().GetType())
-	updateEvt := s.mockEmitter.LastEvent().(*apievents.UserUpdate)
-	require.Equal(t, teleport.UserSystem, updateEvt.User)
-	require.Equal(t, clientAddr.String(), updateEvt.ConnectionMetadata.RemoteAddr)
-}
-
 func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -1397,7 +1347,8 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 
 	ctx := context.Background()
 	oidc, err := types.NewOIDCConnector("test", types.OIDCConnectorSpecV3{
-		ClientID: "a",
+		ClientID:     "a",
+		ClientSecret: "b",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "dummy",
@@ -1449,7 +1400,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
 	testClock := clockwork.NewFakeClock()
@@ -2634,7 +2585,7 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	role, ok := r.(*types.RoleV6)
 	require.True(t, ok)
 
-	priv, err := native.GeneratePrivateKey()
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
 	reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
@@ -2746,7 +2697,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 	hostID := uuid.New().String()
 	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
+	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
@@ -4387,6 +4338,68 @@ func TestCleanupNotifications(t *testing.T) {
 		// No notifications nor states should remain.
 		verifyNotificationCounts(collectT, 0, 0, 0)
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+func TestServer_GetAnonymizationKey(t *testing.T) {
+	tests := []struct {
+		name        string
+		testModules *modules.TestModules
+		license     *license.License
+		want        string
+		errCheck    require.ErrorAssertionFunc
+	}{
+		{
+			name: "returns CloudAnonymizationKey if present",
+			testModules: &modules.TestModules{
+				TestFeatures: modules.Features{CloudAnonymizationKey: []byte("cloud-key")},
+			},
+			license: &license.License{
+				AnonymizationKey: []byte("license-key"),
+			},
+			want:     "cloud-key",
+			errCheck: require.NoError,
+		},
+		{
+			name:        "Returns license AnonymizationKey if no Cloud Key is present",
+			testModules: &modules.TestModules{},
+			license: &license.License{
+				AnonymizationKey: []byte("license-key"),
+			},
+			want:     "license-key",
+			errCheck: require.NoError,
+		},
+		{
+			name:        "Returns clusterID if no cloud key nor license key is present",
+			testModules: &modules.TestModules{},
+			license:     &license.License{},
+			want:        "cluster-id",
+			errCheck:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+				Dir:       t.TempDir(),
+				Clock:     clockwork.NewFakeClock(),
+				ClusterID: "cluster-id",
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			testTLSServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
+
+			modules.SetTestModules(t, tt.testModules)
+
+			testTLSServer.AuthServer.AuthServer.SetLicense(tt.license)
+
+			got, err := testTLSServer.AuthServer.AuthServer.GetAnonymizationKey(context.Background())
+			tt.errCheck(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func newUserNotificationWithExpiry(t *testing.T, username string, title string, expires *timestamppb.Timestamp) *notificationsv1.Notification {

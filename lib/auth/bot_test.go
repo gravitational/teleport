@@ -353,6 +353,7 @@ func TestRegisterBotInstance(t *testing.T) {
 		},
 			cmpopts.IgnoreFields(events.Metadata{}, "Time"),
 			cmpopts.IgnoreFields(events.Identity{}, "Logins", "Expires"),
+			cmpopts.IgnoreFields(events.ClientMetadata{}, "UserAgent"),
 			cmpopts.EquateEmpty(),
 		),
 	)
@@ -599,7 +600,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 		require.NoError(t, err)
 
-		certs, err := a.RegisterUsingAzureMethod(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+		certs, err := a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 			ad := attestedData{
 				Nonce:          challenge,
 				SubscriptionID: subID,

@@ -979,10 +979,14 @@ manualy testing.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
-  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis/Valkey.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
   - [ ] Self-hosted MSSQL with PKINIT authentication.
+  - [ ] Self-hosted Elasticsearch.
+  - [ ] Self-hosted Cassandra/ScyllaDB.
+  - [ ] Self-hosted Oracle.
+  - [ ] Self-hosted ClickHouse.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
     - [ ] MySQL server version reported by Teleport is correct.
@@ -992,32 +996,36 @@ manualy testing.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
+  - [ ] AWS OpenSearch.
+  - [ ] AWS Dynamodb.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
+  - [ ] AWS DocumentDB
+  - [ ] AWS Keyspaces
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
-  - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
-  - [ ] Azure flexible-server MySQL and Postgres
-  - [ ] Elasticsearch.
-  - [ ] OpenSearch.
-  - [ ] Cassandra/ScyllaDB.
-    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
-  - [ ] Dynamodb.
-    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
+  - [ ] Azure flexible-server MySQL
+  - [ ] Azure flexible-server Postgres
   - [ ] Azure SQL Server.
-  - [ ] Oracle.
-  - [ ] ClickHouse.
+  - [ ] Snowflake.
+  - [ ] MongoDB Atlas.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
-  - [ ] Self-hosted Redis.
+  - [ ] Self-hosted Redis/Valkey.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
   - [ ] Self-hosted MSSQL with PKINIT authentication.
+  - [ ] Self-hosted Elasticsearch.
+  - [ ] Self-hosted Cassandra/ScyllaDB.
+  - [ ] Self-hosted Oracle.
+  - [ ] Self-hosted ClickHouse.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
   - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
@@ -1025,20 +1033,20 @@ manualy testing.
   - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
+  - [ ] AWS OpenSearch.
+  - [ ] AWS Dynamodb.
+  - [ ] AWS DocumentDB
+  - [ ] AWS Keyspaces
   - [ ] GCP Cloud SQL Postgres.
   - [ ] GCP Cloud SQL MySQL.
   - [ ] GCP Cloud Spanner.
-  - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
   - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
-  - [ ] Azure flexible-server MySQL and Postgres
-  - [ ] Elasticsearch.
-  - [ ] OpenSearch.
-  - [ ] Cassandra/ScyllaDB.
-  - [ ] Dynamodb.
+  - [ ] Azure flexible-server MySQL
+  - [ ] Azure flexible-server Postgres
   - [ ] Azure SQL Server.
-  - [ ] Oracle.
-  - [ ] ClickHouse.
+  - [ ] Snowflake.
+  - [ ] MongoDB Atlas.
 - [ ] Verify auto user provisioning.
   Verify all supported modes: `keep`, `best_effort_drop`
   - [ ] Self-hosted Postgres.
@@ -1084,6 +1092,7 @@ manualy testing.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
+      - [ ] Can detect and register DocumentDB clusters.
     - [ ] Azure
       - [ ] Can detect and register MySQL and Postgres single-server instances.
       - [ ] Can detect and register MySQL and Postgres flexible-server instances.
@@ -1098,6 +1107,11 @@ manualy testing.
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
 - [ ] `tsh bench` load tests (instructions on Notion -> Database Access -> Load test)
+- [ ] Verify database session player
+  - [ ] Web UI
+    - [ ] Postgres
+  - [ ] `tsh play`
+    - [ ] Postgres
 
 ## TLS Routing
 
@@ -1335,6 +1349,17 @@ manualy testing.
   - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5 (check occurs every 5 minutes so you may need to wait to confirm)
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
+- Dynamic registration
+  - [ ] Dynamic Windows desktop resources can be added, removed, and updated using `tctl`
+  - [ ] `tctl get dynamic_windows_desktop` works with all supported formats
+  - [ ] Adding dynamic Windows desktop that doesn't match labels for any Windows Desktop Service does not create any
+      Windows desktop
+  - [ ] Adding dynamic Windows desktop that matches some `windows_desktop_services`s creates Windows desktops for each
+      matching WDS
+  - [ ] Updating dynamic Windows desktop updates corresponding Windows desktops
+  - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
+      corresponding Windows desktops
+  - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
 
 ## Binaries / OS compatibility
 
@@ -1501,7 +1526,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 ## Azure Discovery
 
-[Azure Discovery docs](https://goteleport.com/docs/server-access/guides/azure-discovery/)
+[Azure Discovery docs](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-discovery/)
 - Verify Azure VM discovery
   - [ ] Only Azure VMs matching given Azure tags have the installer executed on them
   - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation
@@ -1563,13 +1588,21 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
   - [ ] Verify that users can run custom audit queries.
   - [ ] Verify that the Privileged Access Report is generated and periodically refreshed.
 
-- [ ] Access List
+- [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
-    - [ ] Verify permissions granted by Access List membership.
-    - [ ] Verify permissions granted by Access List ownership.
-    - [ ] Verify Access List Review.
-    - [ ] verify Access LIst Promotion.
-    - [ ] Verify that owners can only add/remove members and not change other properties.
+  - [ ] Verify permissions granted by Access List membership.
+  - [ ] Verify permissions granted by Access List ownership.
+  - [ ] Verify Access List Review.
+  - [ ] verify Access LIst Promotion.
+  - [ ] Verify that owners can only add/remove members and not change other properties.
+  - [ ] Nested Access Lists
+    - [ ] Verify that Access Lists can be added as members or owners of other Access Lists.
+    - [ ] Verify that member grants from ancestor lists are inherited by members of nested Access Lists added as members.
+    - [ ] Verify that owner grants from ancestor lists are inherited by members of nested Access Lists added as owners.
+    - [ ] Verify that Access List Review and Promotion work with nested Access Lists.
+    - [ ] Verify that manually deleting a nested Access List used as a member or owner does not break UserLoginState generation or listing Access Lists.
+    - [ ] Verify that an Access List can be added as a member or owner of another Access List using `tctl`.
+    - [ ] Verify that Access Lists added as members or owners of other Access Lists using `tctl` are validated (no circular references, no nesting > 10 levels).
 
 - [ ] Verify Okta Sync Service
   - [ ] Verify Okta Plugin configuration.
@@ -1579,6 +1612,7 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
+    - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
   - [ ] Verify that a user is locked/removed from Teleport when the user is Suspended/Deactivated in Okta.
   - [ ] Verify access to Okta apps granted by access_list/access_request.
 

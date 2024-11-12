@@ -9,6 +9,13 @@ Perform the following checks on the Teleport documentation whenever we roll out
 a new major version of Teleport on Teleport Cloud. Use `/docs/upcoming-releases`
 to determine the rollout date.
 
+## Is the internal documentation coverage record up to date?
+
+- [ ] Identify features within the new release that we want to include as topics
+  in our measurement of documentation coverage. Update our internal
+  documentation coverage record to include the new topics. See our internal
+  knowledge base for the location of the coverage record.
+
 ## Is the docs site configuration accurate?
 
 > [!IMPORTANT] 
@@ -29,10 +36,14 @@ to determine the rollout date.
     git submodule add https://github.com/gravitational/teleport content/<VERSION>.x
     ```
 
-## Is the docs site up to date with the new release?
+## Is the docs site content up to date with the new release?
 
 - [ ] Verify that Teleport version variables are correct and reflect the upcoming
   release. Check `docs/config.json` for this.
+
+- [ ] Ensure that redirects (as configured in `docs/config.json`) only exist for
+  the default version of the docs site, and have been removed from other
+  versions.
 
 - [ ] Remove version warnings in the docs that mention a version we no longer
   support _except_ for the last EOL version. E.g., if we no longer support

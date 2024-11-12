@@ -70,8 +70,8 @@ spec:
                       type: array
                     aws_role:
                       description: AWSRole is used for the EC2 join method and is
-                        the ARN of the AWS role that the auth server will assume in
-                        order to call the ec2 API.
+                        the ARN of the AWS role that the Auth Service will assume
+                        in order to call the ec2 API.
                       type: string
                   type: object
                 nullable: true
@@ -192,7 +192,7 @@ spec:
                       against host.  This value should be the hostname of the GHES
                       instance, and should not include the scheme or a path. The instance
                       must be accessible over HTTPS at this hostname and the certificate
-                      must be trusted by the Auth Server.
+                      must be trusted by the Auth Service.
                     type: string
                   enterprise_slug:
                     description: EnterpriseSlug allows the slug of a GitHub Enterprise

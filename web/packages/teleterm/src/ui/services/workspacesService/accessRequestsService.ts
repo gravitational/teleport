@@ -24,6 +24,7 @@ import {
   DatabaseUri,
   KubeUri,
   AppUri,
+  KubeResourceNamespaceUri,
 } from 'teleterm/ui/uri';
 import { ModalsService } from 'teleterm/ui/services/modals';
 
@@ -98,7 +99,44 @@ export class AccessRequestsService {
     });
   }
 
-  async addOrRemoveResources(requestedResources: ResourceRequest[]) {
+  async addOrRemoveKubeNamespaces(namespaceUris: KubeResourceNamespaceUri[]) {
+    this.setState(draftState => {
+      if (draftState.pending.kind !== 'resource') {
+        throw new Error('Cannot add a kube namespace to a role access request');
+      }
+
+      const { resources } = draftState.pending;
+
+      namespaceUris.forEach(resourceUri => {
+        const requestedResource = resources.get(
+          routing.getKubeUri(
+            routing.parseKubeResourceNamespaceUri(resourceUri).params
+          )
+        );
+        if (!requestedResource || requestedResource.kind !== 'kube') {
+          throw new Error('Cannot add a kube namespace to a non-kube resource');
+        }
+        const kubeResource = requestedResource.resource;
+
+        if (!kubeResource.namespaces) {
+          kubeResource.namespaces = new Set();
+        }
+        if (kubeResource.namespaces.has(resourceUri)) {
+          kubeResource.namespaces.delete(resourceUri);
+        } else {
+          kubeResource.namespaces.add(resourceUri);
+        }
+      });
+    });
+  }
+
+  /**
+   * Removes all requested resources, if all the requested resources were already added
+   * or adds all requested resources, if not all requested resources were added.
+   *
+   * Typically used when user "selects all or deselects all"
+   */
+  async addAllOrRemoveAllResources(requestedResources: ResourceRequest[]) {
     if (!(await this.canUpdateRequest('resource'))) {
       return;
     }
@@ -258,6 +296,7 @@ export type ResourceRequest =
       kind: 'kube';
       resource: {
         uri: KubeUri;
+        namespaces?: Set<KubeResourceNamespaceUri>;
       };
     }
   | {
@@ -287,8 +326,7 @@ export function extractResourceRequestProperties({
   kind: SharedResourceAccessRequestKind;
   id: string;
   /**
-   * Pretty name of the resource (can be the same as `id`).
-   * For example, for nodes, we want to show hostname instead of its id.
+   * Can refer to a pretty name of the resource (can be the same as `id`)
    */
   name: string;
 } {
@@ -315,6 +353,42 @@ export function extractResourceRequestProperties({
     default:
       kind satisfies never;
   }
+}
+
+export function mapRequestToKubeNamespaceUri({
+  clusterUri,
+  id,
+  name,
+}: {
+  clusterUri: ClusterUri;
+  /** kubeId */
+  id: string;
+  /** kubeNamespaceId */
+  name: string;
+}) {
+  const {
+    params: { rootClusterId, leafClusterId },
+  } = routing.parseClusterUri(clusterUri);
+  return routing.getKubeResourceNamespaceUri({
+    rootClusterId,
+    leafClusterId,
+    kubeId: id,
+    kubeNamespaceId: name,
+  });
+}
+
+export function mapKubeNamespaceUriToRequest(
+  kubeNamespaceUri: KubeResourceNamespaceUri
+): {
+  kind: 'namespace';
+  /** kubeId */
+  id: string;
+  /** kubeNamespaceId */
+  name: string;
+} {
+  const { kubeNamespaceId, kubeId } =
+    routing.parseKubeResourceNamespaceUri(kubeNamespaceUri).params;
+  return { kind: 'namespace', id: kubeId, name: kubeNamespaceId };
 }
 
 /**

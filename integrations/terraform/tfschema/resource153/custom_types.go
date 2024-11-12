@@ -29,10 +29,11 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
-func GenSchemaTimestamp(_ context.Context) tfsdk.Attribute {
+func GenSchemaTimestamp(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
-		Optional: true,
-		Type:     tfschema.UseRFC3339Time(),
+		Optional:    true,
+		Type:        tfschema.UseRFC3339Time(),
+		Description: attr.Description,
 	}
 }
 
@@ -66,10 +67,11 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 	return value
 }
 
-func GenSchemaDuration(_ context.Context) tfsdk.Attribute {
+func GenSchemaDuration(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
-		Optional: true,
-		Type:     tfschema.DurationType{},
+		Optional:    true,
+		Type:        tfschema.DurationType{},
+		Description: attr.Description,
 	}
 }
 

@@ -142,6 +142,9 @@ type Role interface {
 	// SetKubeResources configures the Kubernetes Resources for the RoleConditionType.
 	SetKubeResources(rct RoleConditionType, pods []KubernetesResource)
 
+	// SetRequestKubernetesResources sets the request kubernetes resources.
+	SetRequestKubernetesResources(rct RoleConditionType, resources []RequestKubernetesResource)
+
 	// GetAccessRequestConditions gets allow/deny conditions for access requests.
 	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
@@ -490,6 +493,18 @@ func (r *RoleV6) SetKubeResources(rct RoleConditionType, pods []KubernetesResour
 	} else {
 		r.Spec.Deny.KubernetesResources = pods
 	}
+}
+
+// SetRequestKubernetesResources sets the request kubernetes resources.
+func (r *RoleV6) SetRequestKubernetesResources(rct RoleConditionType, resources []RequestKubernetesResource) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.Request == nil {
+		roleConditions.Request = &AccessRequestConditions{}
+	}
+	roleConditions.Request.KubernetesResources = resources
 }
 
 // GetKubeUsers returns kubernetes users
@@ -1133,6 +1148,18 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
+	}
+
+	// Validate request.kubernetes_resources fields are all valid.
+	if r.Spec.Allow.Request != nil {
+		if err := validateRequestKubeResources(r.Version, r.Spec.Allow.Request.KubernetesResources); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if r.Spec.Deny.Request != nil {
+		if err := validateRequestKubeResources(r.Version, r.Spec.Deny.Request.KubernetesResources); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Validate that enhanced recording options are all valid.
@@ -1791,6 +1818,31 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 	return nil
 }
 
+// validateRequestKubeResources validates each kubeResources entry for `allow.request.kubernetes_resources` field.
+// Currently the only supported field for this particular field is:
+//   - Kind (belonging to KubernetesResourcesKinds)
+//
+// Mimics types.KubernetesResource data model, but opted to create own type as we don't support other fields yet.
+func validateRequestKubeResources(roleVersion string, kubeResources []RequestKubernetesResource) error {
+	for _, kubeResource := range kubeResources {
+		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
+			return trace.BadParameter("request.kubernetes_resource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
+		}
+
+		// Only Pod resources are supported in role version <=V6.
+		// This is mandatory because we must append the other resources to the
+		// kubernetes resources.
+		switch roleVersion {
+		// Teleport does not support role versions < v3.
+		case V6, V5, V4, V3:
+			if kubeResource.Kind != KindKubePod {
+				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
+			}
+		}
+	}
+	return nil
+}
+
 // ClusterResource returns the resource name in the following format
 // <namespace>/<name>.
 func (k *KubernetesResource) ClusterResource() string {
@@ -1854,6 +1906,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 	case KindDatabaseService:
 		return LabelMatchers{cond.DatabaseServiceLabels, cond.DatabaseServiceLabelsExpression}, nil
 	case KindWindowsDesktop:
+		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindDynamicWindowsDesktop:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindWindowsDesktopService:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil

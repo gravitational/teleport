@@ -288,7 +288,7 @@ const RefTypeSelect = styled(Select<RefTypeOption>)`
 
   .react-select__control--is-focused {
     border-left-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+      props.theme.colors.interactive.solid.primary.default};
   }
 `;
 

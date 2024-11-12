@@ -22,6 +22,7 @@ import { NotificationItem } from 'shared/components/Notification';
 import { throttle } from 'shared/utils/highbar';
 
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
+import { makeDefaultMfaState } from 'teleport/lib/useMfa';
 
 import { State } from './useDesktopSession';
 import { DesktopSession } from './DesktopSession';
@@ -81,13 +82,7 @@ const props: State = {
   canvasOnFocusOut: () => {},
   clientOnClipboardData: async () => {},
   setTdpConnection: () => {},
-  webauthn: {
-    errorText: '',
-    requested: false,
-    authenticate: () => {},
-    setState: () => {},
-    addMfaToScpUrls: false,
-  },
+  mfa: makeDefaultMfaState(),
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
   alerts: [],
@@ -265,12 +260,15 @@ export const WebAuthnPrompt = () => (
       writeState: 'granted',
     }}
     wsConnection={{ status: 'open' }}
-    webauthn={{
+    mfa={{
       errorText: '',
       requested: true,
-      authenticate: () => {},
-      setState: () => {},
+      setErrorText: () => null,
       addMfaToScpUrls: false,
+      onWebauthnAuthenticate: () => null,
+      onSsoAuthenticate: () => null,
+      webauthnPublicKey: null,
+      ssoChallenge: null,
     }}
   />
 );

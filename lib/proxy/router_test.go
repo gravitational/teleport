@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -51,7 +51,7 @@ func (t testSite) GetClusterNetworkingConfig(ctx context.Context) (types.Cluster
 	return t.cfg, nil
 }
 
-func (t testSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
+func (t testSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
 	var out []types.Server
 	for _, s := range t.nodes {
 		if fn(s) {
@@ -651,7 +651,7 @@ func TestRouter_DialHost(t *testing.T) {
 	agentGetter := func() (teleagent.Agent, error) {
 		return nil, nil
 	}
-	createSigner := func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
+	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
 		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 		if err != nil {
 			return nil, err

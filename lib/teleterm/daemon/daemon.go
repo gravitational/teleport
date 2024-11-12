@@ -33,11 +33,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -264,6 +266,8 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
 	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI)
+	clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+
 	return cluster, clusterClient, nil
 }
 
@@ -793,24 +797,37 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
-// GetKubes accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
+	cluster, tc, err := s.ResolveClusterURI(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var resources *kubeproto.ListKubernetesResourcesResponse
 
-	response, err := cluster.GetKubes(ctx, proxyClient.CurrentCluster(), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		kubenetesServiceClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	return response, nil
+		resources, err = kubenetesServiceClient.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
+			ResourceType:        req.GetResourceType(),
+			Limit:               req.GetLimit(),
+			StartKey:            req.GetNextKey(),
+			PredicateExpression: req.GetPredicateExpression(),
+			SearchKeywords:      client.ParseSearchKeywords(req.GetSearchKeywords(), ' '),
+			UseSearchAsRoles:    req.GetUseSearchAsRoles(),
+			KubernetesCluster:   req.GetKubernetesCluster(),
+			KubernetesNamespace: req.GetKubernetesNamespace(),
+			TeleportCluster:     cluster.Name,
+		})
+		return trace.Wrap(err)
+	})
+
+	return resources, trace.Wrap(err)
 }
 
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
@@ -876,11 +893,6 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 
 	s.tshdEventsClient = client
 	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
-
-	// Resume headless watchers for any active login sessions.
-	if err := s.StartHeadlessWatchers(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	return nil
 }
@@ -1072,7 +1084,6 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
 		return trace.Wrap(err)
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

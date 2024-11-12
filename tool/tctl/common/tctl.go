@@ -44,15 +44,19 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -103,8 +107,43 @@ type CLICommand interface {
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand) {
-	err := TryRun(commands, os.Args[1:])
+func Run(ctx context.Context, commands []CLICommand) {
+	// The user has typed a command like `tsh ssh ...` without being logged in,
+	// if the running binary needs to be updated, update and re-exec.
+	//
+	// If needed, download the new version of {tsh, tctl} and re-exec. Make
+	// sure to exit this process with the same exit code as the child process.
+	//
+	toolsDir, err := tools.Dir()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	updater := tools.NewUpdater(tools.DefaultClientTools(), toolsDir, teleport.Version)
+	toolsVersion, reExec, err := updater.CheckLocal()
+	if err != nil {
+		utils.FatalError(err)
+	}
+	if reExec {
+		ctxUpdate, cancel := signal.GetSignalHandler().NotifyContext(ctx)
+		defer cancel()
+		// Download the version of client tools required by the cluster. This
+		// is required if the user passed in the TELEPORT_TOOLS_VERSION
+		// explicitly.
+		err := updater.UpdateWithLock(ctxUpdate, toolsVersion)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			utils.FatalError(err)
+		}
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("Failed to re-exec client tool: %v.", err)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
+		}
+	}
+
+	err = TryRun(commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
@@ -253,7 +292,21 @@ func TryRun(commands []CLICommand, args []string) error {
 	proxyAddr := resp.ProxyPublicAddr
 	client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
+	})
+	client.SetSSOMFACeremonyConstructor(func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+		rdConfig := sso.RedirectorConfig{
+			ProxyAddr: proxyAddr,
+		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return sso.NewCLIMFACeremony(rd), nil
 	})
 
 	// execute whatever is selected:
@@ -380,16 +433,16 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	authConfig := new(authclient.Config)
 	// read the host UUID only in case the identity was not provided,
 	// because it will be used for reading local auth server identity
-	cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
+	cfg.HostUUID, err = hostid.ReadFile(cfg.DataDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
 				"Please make sure that a Teleport Auth Service instance is running on this host prior to using tctl or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+				filepath.Join(cfg.DataDir, hostid.FileName))
 		} else if errors.Is(err, fs.ErrPermission) {
 			return nil, trace.Wrap(err, "Teleport does not have permission to read Teleport host UUID file at %s. "+
 				"Ensure that you are running as a user with appropriate permissions or provide credentials by logging in with tsh first.",
-				filepath.Join(cfg.DataDir, utils.HostUUIDFile))
+				filepath.Join(cfg.DataDir, hostid.FileName))
 		}
 		return nil, trace.Wrap(err)
 	}

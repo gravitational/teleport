@@ -78,7 +78,8 @@ func NewTestDeviceFromChallenge(c *proto.MFARegisterChallenge, opts ...TestDevic
 // RegisterTestDevice creates and registers a TestDevice.
 // TOTP devices require a clock option.
 func RegisterTestDevice(
-	ctx context.Context, clt authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt) (*TestDevice, error) {
+	ctx context.Context, clt authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice, opts ...TestDeviceOpt,
+) (*TestDevice, error) {
 	dev := &TestDevice{} // Remaining parameters set during registration
 	for _, opt := range opts {
 		opt(dev)
@@ -104,10 +105,12 @@ type authClientI interface {
 
 func (d *TestDevice) registerDevice(ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
 	mfaCeremony := &mfa.Ceremony{
-		CreateAuthenticateChallenge: authClient.CreateAuthenticateChallenge,
-		SolveAuthenticateChallenge: func(_ context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return authenticator.SolveAuthn(chal)
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return authenticator.SolveAuthn(chal)
+			})
 		},
+		CreateAuthenticateChallenge: authClient.CreateAuthenticateChallenge,
 	}
 
 	authnSolved, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -212,7 +215,6 @@ func (d *TestDevice) solveRegister(c *proto.MFARegisterChallenge) (*proto.MFAReg
 	default:
 		return nil, trace.BadParameter("unexpected challenge type: %T", c.Request)
 	}
-
 }
 
 func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*proto.MFARegisterResponse, error) {

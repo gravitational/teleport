@@ -17,25 +17,24 @@ limitations under the License.
 package sshutils
 
 import (
+	"crypto"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 const defaultPrincipal = "127.0.0.1"
 
 // MakeTestSSHCA generates a new SSH certificate authority for tests.
 func MakeTestSSHCA() (ssh.Signer, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := ssh.NewSignerFromKey(privateKey)
+	ca, err := ssh.NewSignerFromSigner(privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -49,33 +48,41 @@ func MakeSpoofedHostCert(realCA ssh.Signer) (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return makeHostCert(realCA.PublicKey(), fakeCA, defaultPrincipal)
+	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return makeHostCert(hostKey, realCA.PublicKey(), fakeCA, defaultPrincipal)
 }
 
 // MakeRealHostCert makes an SSH host certificate that is signed by the
 // provided CA.
 func MakeRealHostCert(realCA ssh.Signer) (ssh.Signer, error) {
-	return makeHostCert(realCA.PublicKey(), realCA, defaultPrincipal)
+	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return makeHostCert(hostKey, realCA.PublicKey(), realCA, defaultPrincipal)
+}
+
+// MakeRealHostCertWithKey makes an SSH host certificate with the provided key that is
+// signed by the provided CA.
+func MakeRealHostCertWithKey(hostKey crypto.Signer, realCA ssh.Signer) (ssh.Signer, error) {
+	return makeHostCert(hostKey, realCA.PublicKey(), realCA, defaultPrincipal)
 }
 
 // MakeRealHostCertWithPrincipals makes an SSH host certificate that is signed by the
 // provided CA for the provided principals.
 func MakeRealHostCertWithPrincipals(realCA ssh.Signer, principals ...string) (ssh.Signer, error) {
-	return makeHostCert(realCA.PublicKey(), realCA, principals...)
+	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return makeHostCert(hostKey, realCA.PublicKey(), realCA, principals...)
 }
 
-func makeHostCert(signKey ssh.PublicKey, signer ssh.Signer, principals ...string) (ssh.Signer, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privSigner, err := ssh.NewSignerFromKey(priv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pub, err := ssh.NewPublicKey(priv.Public())
+func makeHostCert(hostKey crypto.Signer, caPublicKey ssh.PublicKey, caSigner ssh.Signer, principals ...string) (ssh.Signer, error) {
+	hostSigner, err := ssh.NewSignerFromSigner(hostKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,9 +94,9 @@ func makeHostCert(signKey ssh.PublicKey, signer ssh.Signer, principals ...string
 
 	cert := &ssh.Certificate{
 		Nonce:           nonce,
-		Key:             pub,
+		Key:             hostSigner.PublicKey(),
 		CertType:        ssh.HostCert,
-		SignatureKey:    signKey,
+		SignatureKey:    caPublicKey,
 		ValidPrincipals: principals,
 		ValidBefore:     uint64(time.Now().Add(time.Hour).Unix()),
 	}
@@ -104,12 +111,12 @@ func makeHostCert(signKey ssh.PublicKey, signer ssh.Signer, principals ...string
 	bytesForSigning := cert.Marshal()
 	bytesForSigning = bytesForSigning[:len(bytesForSigning)-4]
 
-	cert.Signature, err = signer.Sign(rand.Reader, bytesForSigning)
+	cert.Signature, err = caSigner.Sign(rand.Reader, bytesForSigning)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certSigner, err := ssh.NewCertSigner(cert, privSigner)
+	certSigner, err := ssh.NewCertSigner(cert, hostSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

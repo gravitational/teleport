@@ -18,10 +18,10 @@
 
 import React, { ReactNode } from 'react';
 
-import { FieldRadio } from 'shared/components/FieldRadio';
+import { FieldRadio } from 'design/FieldRadio';
 
 import { Flex } from 'design';
-import { RadioButton, RadioButtonSize } from 'design/RadioButton/RadioButton';
+import { RadioButton, RadioButtonSize } from 'design/RadioButton';
 import { FlexProps } from 'design/Flex';
 
 interface RadioObjectOption {

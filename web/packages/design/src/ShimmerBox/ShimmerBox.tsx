@@ -19,7 +19,7 @@
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
 
-import { Box } from 'design';
+import Box, { BoxProps } from 'design/Box';
 
 const loading = keyframes`
   0% {
@@ -52,7 +52,7 @@ const Shimmer = styled.div`
   animation: ${loading} 1.5s infinite;
 `;
 
-export const ShimmerBox = props => {
+export const ShimmerBox = (props: BoxProps) => {
   return (
     <Box {...props}>
       <ShimmerWrapper>

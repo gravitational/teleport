@@ -20,9 +20,9 @@ package dbobjectv1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +43,7 @@ type Backend interface {
 type DatabaseObjectServiceConfig struct {
 	Authorizer authz.Authorizer
 	Backend    Backend
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 }
 
 // NewDatabaseObjectService returns a new instance of the DatabaseObjectService.
@@ -55,7 +55,7 @@ func NewDatabaseObjectService(cfg DatabaseObjectServiceConfig) (*DatabaseObjectS
 		return nil, trace.BadParameter("backend service is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "db_object")
+		cfg.Logger = slog.With(teleport.ComponentKey, "db_object")
 	}
 	return &DatabaseObjectService{
 		logger:     cfg.Logger,
@@ -72,7 +72,7 @@ type DatabaseObjectService struct {
 
 	backend    Backend
 	authorizer authz.Authorizer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 }
 
 func (rs *DatabaseObjectService) authorize(ctx context.Context, adminAction bool, verb string, additionalVerbs ...string) error {

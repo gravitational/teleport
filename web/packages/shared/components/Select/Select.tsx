@@ -22,6 +22,7 @@ import ReactSelect, {
   DropdownIndicatorProps,
   GroupBase,
   MultiValueRemoveProps,
+  components,
 } from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import CreatableSelect from 'react-select/creatable';
@@ -165,39 +166,27 @@ export function SelectCreatableAsync<
   );
 }
 
-function DropdownIndicator({ selectProps }: DropdownIndicatorProps) {
-  const { size = 'medium' } = selectProps.customProps;
-  const { indicatorPadding } = selectGeometry[size];
+function DropdownIndicator(props: DropdownIndicatorProps) {
   return (
-    <ChevronDown
-      className="react-select__indicator react-select__dropdown-indicator"
-      size={18}
-      p={`${indicatorPadding}px`}
-    />
+    <components.DropdownIndicator {...props}>
+      <ChevronDown size={18} />
+    </components.DropdownIndicator>
   );
 }
 
-function ClearIndicator({ selectProps, clearValue }: ClearIndicatorProps) {
-  const { size = 'medium' } = selectProps.customProps;
-  const { indicatorPadding } = selectGeometry[size];
+function ClearIndicator(props: ClearIndicatorProps) {
   return (
-    <Cross
-      className="react-select__indicator react-select__clear-indicator"
-      size={18}
-      p={`${indicatorPadding}px`}
-      onClick={clearValue}
-    />
+    <components.ClearIndicator {...props}>
+      <Cross size={18} />
+    </components.ClearIndicator>
   );
 }
 
 function MultiValueRemove(props: MultiValueRemoveProps) {
   return (
-    <Cross
-      className="react-select__multi-value__remove"
-      padding="0 12px 0 6px"
-      size={14}
-      onClick={props.innerProps.onClick}
-    />
+    <components.MultiValueRemove {...props}>
+      <Cross padding="0 8px 0 2px" size={14} />
+    </components.MultiValueRemove>
   );
 }
 
@@ -243,9 +232,9 @@ function error({ hasError, theme }: { hasError?: boolean; theme: Theme }) {
   return {
     borderRadius: 'inherit !important',
     borderWidth: '1px !important',
-    borderColor: theme.colors.interactive.solid.danger.default.background,
+    borderColor: theme.colors.interactive.solid.danger.default,
     '&:hover': {
-      borderColor: `${theme.colors.interactive.solid.danger.default.background} !important`,
+      borderColor: `${theme.colors.interactive.solid.danger.default} !important`,
     },
   };
 }
@@ -279,8 +268,7 @@ const StyledSelect = styled.div<{
     min-height: ${props => selectGeometry[props.selectSize].height}px;
     height: fit-content;
     border: 1px solid;
-    border-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[2].background};
+    border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
     border-radius: 4px;
     background-color: transparent;
     box-shadow: none;
@@ -288,6 +276,7 @@ const StyledSelect = styled.div<{
     ${error}
 
     .react-select__dropdown-indicator {
+      padding: ${props => selectGeometry[props.selectSize].indicatorPadding}px;
       color: ${props =>
         props.isDisabled
           ? props.theme.colors.text.disabled
@@ -301,7 +290,7 @@ const StyledSelect = styled.div<{
 
   .react-select__control--is-focused {
     border-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+      props.theme.colors.interactive.solid.primary.default};
     cursor: pointer;
 
     .react-select__dropdown-indicator {
@@ -310,7 +299,7 @@ const StyledSelect = styled.div<{
 
     &:hover {
       border-color: ${props =>
-        props.theme.colors.interactive.solid.primary.default.background};
+        props.theme.colors.interactive.solid.primary.default};
     }
   }
 
@@ -328,10 +317,19 @@ const StyledSelect = styled.div<{
 
   .react-select__multi-value {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     border-radius: 1000px;
     padding: 0 0 0 12px;
     overflow: hidden;
+
+    /* 
+     * These margins keep the height of item rows consistent when the select
+     * goes multiline. They do so by keeping flex line height consistent between
+     * the lines containing only value pills and those with the input container.
+     */
+    margin-top: 6px;
+    margin-bottom: 6px;
+
     .react-select__multi-value__label {
       color: ${props => props.theme.colors.text.main};
       padding: 0 2px 0 0;
@@ -344,9 +342,8 @@ const StyledSelect = styled.div<{
       color: ${props => props.theme.colors.text.slightlyMuted};
       &:hover {
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.neutral[0].background};
-        color: ${props =>
-          props.theme.colors.interactive.solid.danger.default.background};
+          props.theme.colors.interactive.tonal.neutral[0]};
+        color: ${props => props.theme.colors.interactive.solid.danger.default};
       }
     }
   }
@@ -362,42 +359,43 @@ const StyledSelect = styled.div<{
     cursor: pointer;
     &:hover {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
     }
   }
 
   .react-select__option--is-focused {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     &:hover {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
     }
   }
 
   .react-select__option--is-selected {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[1].background};
+      props.theme.colors.interactive.tonal.neutral[1]};
     color: inherit;
     font-weight: 500;
 
     &:hover {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1].background};
+        props.theme.colors.interactive.tonal.neutral[1]};
     }
   }
 
   .react-select__clear-indicator {
     color: ${props => props.theme.colors.text.slightlyMuted};
+    padding: ${props => selectGeometry[props.selectSize].indicatorPadding}px;
     &:hover,
     &:focus {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
-      color: ${props =>
-        props.theme.colors.interactive.solid.danger.default.background};
+        props.theme.colors.interactive.tonal.neutral[0]};
+      color: ${props => props.theme.colors.interactive.solid.danger.default};
     }
   }
   .react-select__menu {
+    z-index: 10;
     margin-top: 0px;
     // If the component is on an elevated platform (such as a dialog), use a lighter background.
     background-color: ${props =>
@@ -412,8 +410,7 @@ const StyledSelect = styled.div<{
         : props.theme.typography.body2}
 
     .react-select__menu-list::-webkit-scrollbar-thumb {
-      background: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1].background};
+      background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
       border-radius: 4px;
     }
   }
@@ -428,7 +425,7 @@ const StyledSelect = styled.div<{
 
   .react-select__control--is-disabled {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     color: ${props => props.theme.colors.text.disabled};
     border: 1px solid transparent;
     .react-select__single-value,

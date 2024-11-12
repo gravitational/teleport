@@ -35,6 +35,17 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -249,7 +260,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -298,7 +308,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -323,6 +333,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -561,6 +586,17 @@ spec:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -775,7 +811,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -824,7 +859,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -849,6 +884,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -1133,8 +1183,7 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
                   create_host_user_default_shell:
                     description: CreateHostUserDefaultShell is used to configure the
@@ -1367,6 +1416,17 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1581,7 +1641,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -1630,7 +1689,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -1655,6 +1714,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -1893,6 +1967,17 @@ spec:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -2107,7 +2192,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -2156,7 +2240,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -2181,6 +2265,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -2465,8 +2564,7 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
                   create_host_user_default_shell:
                     description: CreateHostUserDefaultShell is used to configure the

@@ -69,6 +69,8 @@ import (
 type TestAuthServerConfig struct {
 	// ClusterName is cluster name
 	ClusterName string
+	// ClusterID is the cluster ID; optional - sets to random UUID string if not present
+	ClusterID string
 	// Dir is directory for local backend
 	Dir string
 	// AcceptedUsage is an optional list of restricted
@@ -285,6 +287,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: cfg.ClusterName,
+		ClusterID:   cfg.ClusterID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -342,6 +345,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			DiscoveryConfigs:        svces.DiscoveryConfigs,
 			DynamicAccess:           svces.DynamicAccessExt,
 			Events:                  svces.Events,
+			IdentityCenter:          svces.IdentityCenter,
 			Integrations:            svces.Integrations,
 			KubeWaitingContainers:   svces.KubeWaitingContainer,
 			Kubernetes:              svces.Kubernetes,
@@ -349,6 +353,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			Okta:                    svces.Okta,
 			Presence:                svces.PresenceInternal,
 			Provisioner:             svces.Provisioner,
+			ProvisioningStates:      svces.ProvisioningStates,
 			Restrictions:            svces.Restrictions,
 			SAMLIdPServiceProviders: svces.SAMLIdPServiceProviders,
 			SAMLIdPSession:          svces.Identity,
@@ -364,6 +369,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			WebSession:              svces.Identity.WebSessions(),
 			WebToken:                svces.WebTokens(),
 			WindowsDesktops:         svces.WindowsDesktops,
+			DynamicWindowsDesktops:  svces.DynamicWindowsDesktops,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -883,8 +889,7 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 	// use very permissive limiter configuration by default
 	if cfg.Limiter == nil {
 		cfg.Limiter = &limiter.Config{
-			MaxConnections:   1000,
-			MaxNumberOfUsers: 1000,
+			MaxConnections: 1000,
 		}
 	}
 	return nil
@@ -1093,7 +1098,8 @@ func (t *TestTLSServer) CloneClient(tt *testing.T, clt *authclient.Client) *auth
 	// shared between all clients that use the same TLS config.
 	// Reusing the cache will skip the TLS handshake and may introduce a weird
 	// behavior in tests.
-	if !tlsConfig.SessionTicketsDisabled {
+	if tlsConfig.ClientSessionCache != nil {
+		tlsConfig = tlsConfig.Clone()
 		tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(utils.DefaultLRUCapacity)
 	}
 

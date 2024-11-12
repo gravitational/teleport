@@ -102,8 +102,8 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 		m.Locations = []string{Wildcard}
 	}
 
-	if slices.Contains(m.ProjectIDs, Wildcard) {
-		return trace.BadParameter("GCP discovery service project_ids does not support wildcards; please specify at least one value in project_ids.")
+	if slices.Contains(m.ProjectIDs, Wildcard) && len(m.ProjectIDs) > 1 {
+		return trace.BadParameter("GCP discovery service either supports wildcard project_ids or multiple values, but not both.")
 	}
 	if len(m.ProjectIDs) == 0 {
 		return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")

@@ -31,6 +31,8 @@ service UserTaskService {
   rpc GetUserTask(GetUserTaskRequest) returns (teleport.usertasks.v1.UserTask);
   // ListUserTasks returns a list of UserTasks. It supports pagination and filters.
   rpc ListUserTasks(ListUserTasksRequest) returns (ListUserTasksResponse);
+  // ListUserTasksByIntegration returns a list of UserTasks filtered by an integration and other optional fields. It supports pagination.
+  rpc ListUserTasksByIntegration(ListUserTasksByIntegrationRequest) returns (ListUserTasksResponse);
   // UpdateUserTask updates an existing User Task.
   rpc UpdateUserTask(UpdateUserTaskRequest) returns (teleport.usertasks.v1.UserTask);
   // DeleteUserTask deletes a User Task.
@@ -60,6 +62,17 @@ message ListUserTasksRequest {
   int64 page_size = 1;
   // page_token is the next_page_token value returned from a previous List request, if any.
   string page_token = 2;
+}
+
+// ListUserTasksByIntegrationRequest is a request to get a list of User Tasks filtered by an Integration.
+message ListUserTasksByIntegrationRequest {
+  // page_size is the maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int64 page_size = 1;
+  // page_token is the next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // integration is the integration name that will be used to filter the returned list.
+  string integration = 3;
 }
 
 // ListUserTasksResponse is a response to ListUserTasks.

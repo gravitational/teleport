@@ -110,7 +110,10 @@ class TeleportContext implements types.Context {
 
     if (user.acl.accessGraph.list) {
       // If access graph is enabled, check what features are enabled and store them in local storage.
-      userService
+      // We await this so it is done by the time the page renders, otherwise the local storage event
+      // wouldn't trigger a re-render and Policy could end up not being displayed until the navigation
+      // is re-rendered.
+      await userService
         .fetchAccessGraphFeatures()
         .then(features => {
           for (let key in features) {
@@ -178,6 +181,16 @@ class TeleportContext implements types.Context {
       );
     }
 
+    function hasAccessGraphIntegrationsAccess() {
+      return (
+        userContext.getIntegrationsAccess().list &&
+        userContext.getIntegrationsAccess().read &&
+        userContext.getPluginsAccess().read &&
+        userContext.getDiscoveryConfigAccess().list &&
+        userContext.getDiscoveryConfigAccess().read
+      );
+    }
+
     return {
       audit: userContext.getEventAccess().list,
       recordings: userContext.getSessionsAccess().list,
@@ -221,6 +234,7 @@ class TeleportContext implements types.Context {
       accessMonitoring: hasAccessMonitoringAccess(),
       managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
+      accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
       tokens: userContext.getTokenAccess().create,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
@@ -261,6 +275,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   managementSection: false,
   accessMonitoring: false,
   accessGraph: false,
+  accessGraphIntegrations: false,
   externalAuditStorage: false,
   addBots: false,
   listBots: false,

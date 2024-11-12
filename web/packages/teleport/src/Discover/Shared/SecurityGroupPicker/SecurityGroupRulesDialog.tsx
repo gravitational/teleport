@@ -55,11 +55,10 @@ export function SecurityGroupRulesDialog({
             {
               altKey: 'portRange',
               headerText: 'Port Range',
-              render: ({ fromPort, toPort }) => {
-                // If they are the same, only show one number.
-                const portRange =
-                  fromPort === toPort ? fromPort : `${fromPort} - ${toPort}`;
-                return <Cell>{portRange}</Cell>;
+              render: ({ ipProtocol, fromPort, toPort }) => {
+                return (
+                  <Cell>{getPortRange(ipProtocol, fromPort, toPort)}</Cell>
+                );
               },
             },
             {
@@ -124,3 +123,17 @@ const StyledTable = styled(Table)`
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
 ` as typeof Table;
+
+function getPortRange(
+  ipProtocol: string,
+  fromPort: string,
+  toPort: string
+): string {
+  if (ipProtocol === 'all') {
+    // fromPort and toPort are irrelevant and AWS currently returns 0 for both
+    // in this case.
+    return 'all';
+  }
+  // If they are the same, only show one number.
+  return fromPort === toPort ? fromPort : `${fromPort} - ${toPort}`;
+}

@@ -25,7 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -448,6 +450,9 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &usageeventsv1.AccessListMetadata{
 						Id: "someid",
 					},
+					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER,
+					},
 				},
 			}},
 			identityUsername: "myuser",
@@ -458,6 +463,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1a.AccessListMetadata{
 						Id: expectedAnonymizedAccessListIDString,
 					},
+					MemberKind: accesslist.MembershipKindUser,
 				},
 			}},
 		},
@@ -467,6 +473,9 @@ func TestConvertUsageEvent(t *testing.T) {
 				AccessListMemberUpdate: &usageeventsv1.AccessListMemberUpdate{
 					Metadata: &usageeventsv1.AccessListMetadata{
 						Id: "someid",
+					},
+					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER,
 					},
 				},
 			}},
@@ -478,6 +487,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1a.AccessListMetadata{
 						Id: expectedAnonymizedAccessListIDString,
 					},
+					MemberKind: accesslist.MembershipKindUser,
 				},
 			}},
 		},
@@ -487,6 +497,9 @@ func TestConvertUsageEvent(t *testing.T) {
 				AccessListMemberDelete: &usageeventsv1.AccessListMemberDelete{
 					Metadata: &usageeventsv1.AccessListMetadata{
 						Id: "someid",
+					},
+					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER,
 					},
 				},
 			}},
@@ -498,6 +511,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1a.AccessListMetadata{
 						Id: expectedAnonymizedAccessListIDString,
 					},
+					MemberKind: accesslist.MembershipKindUser,
 				},
 			}},
 		},
@@ -505,17 +519,21 @@ func TestConvertUsageEvent(t *testing.T) {
 			name: "access list grants to user event",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_AccessListGrantsToUser{
 				AccessListGrantsToUser: &usageeventsv1.AccessListGrantsToUser{
-					CountRolesGranted:  5,
-					CountTraitsGranted: 6,
+					CountRolesGranted:           5,
+					CountTraitsGranted:          6,
+					CountInheritedRolesGranted:  0,
+					CountInheritedTraitsGranted: 0,
 				},
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
 			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListGrantsToUser{
 				AccessListGrantsToUser: &prehogv1a.AccessListGrantsToUserEvent{
-					UserName:           expectedAnonymizedUserString,
-					CountRolesGranted:  5,
-					CountTraitsGranted: 6,
+					UserName:                    expectedAnonymizedUserString,
+					CountRolesGranted:           5,
+					CountTraitsGranted:          6,
+					CountInheritedRolesGranted:  0,
+					CountInheritedTraitsGranted: 0,
 				},
 			}},
 		},

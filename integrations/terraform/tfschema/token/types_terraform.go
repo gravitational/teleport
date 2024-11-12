@@ -124,7 +124,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"aws_role": {
-							Description: "AWSRole is used for the EC2 join method and is the ARN of the AWS role that the auth server will assume in order to call the ec2 API.",
+							Description: "AWSRole is used for the EC2 join method and is the ARN of the AWS role that the Auth Service will assume in order to call the ec2 API.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -265,7 +265,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 						},
 						"enterprise_server_host": {
-							Description: "EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Server.",
+							Description: "EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -302,9 +302,12 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"environment_protected": GenSchemaBoolOptionNullable(ctx),
+								"environment_protected": GenSchemaBoolOptionNullable(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "EnvironmentProtected is true if the Git ref is protected, false otherwise.",
+									Optional:    true,
+								}),
 								"namespace_path": {
-									Description: "NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports simple \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Description: "NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -314,7 +317,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"project_path": {
-									Description: "ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports simple \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Description: "ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -324,18 +327,21 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"ref": {
-									Description: "Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Description: "Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"ref_protected": GenSchemaBoolOptionNullable(ctx),
+								"ref_protected": GenSchemaBoolOptionNullable(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "RefProtected is true if the Git ref is protected, false otherwise.",
+									Optional:    true,
+								}),
 								"ref_type": {
 									Description: "RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sub": {
-									Description: "Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports simple \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Description: "Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -443,8 +449,14 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					Description: "Spacelift allows the configuration of options specific to the \"spacelift\" join method.",
 					Optional:    true,
 				},
-				"suggested_agent_matcher_labels": GenSchemaLabels(ctx),
-				"suggested_labels":               GenSchemaLabels(ctx),
+				"suggested_agent_matcher_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.",
+					Optional:    true,
+				}),
+				"suggested_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+					Description: "SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.",
+					Optional:    true,
+				}),
 				"terraform_cloud": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {

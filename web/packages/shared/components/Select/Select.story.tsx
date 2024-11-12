@@ -144,6 +144,7 @@ export function Selects() {
             options={options}
             placeholder="Click to select a role"
             isMulti={true}
+            isClearable={true}
           />
         </Flex>
         <Flex flex="1" flexDirection="column" gap={3} mt={3}>
@@ -162,6 +163,7 @@ export function Selects() {
             options={options}
             placeholder="Click to select a role"
             isMulti={true}
+            isClearable={true}
           />
         </Flex>
         <Flex flex="1" flexDirection="column" gap={3} mt={3}>
@@ -180,6 +182,7 @@ export function Selects() {
             options={options}
             placeholder="Click to select a role"
             isMulti={true}
+            isClearable={true}
           />
         </Flex>
       </Flex>

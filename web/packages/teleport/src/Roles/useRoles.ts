@@ -17,7 +17,6 @@
  */
 
 import TeleportContext from 'teleport/teleportContext';
-
 import { RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';

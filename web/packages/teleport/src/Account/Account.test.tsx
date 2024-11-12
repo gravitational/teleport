@@ -243,6 +243,11 @@ test('adding an MFA device', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testPasskey]);
+  jest.spyOn(auth, 'getChallenge').mockResolvedValue({
+    webauthnPublicKey: null,
+    totpChallenge: true,
+    ssoChallenge: null,
+  });
   jest
     .spyOn(auth, 'createNewWebAuthnDevice')
     .mockResolvedValueOnce(dummyCredential);
@@ -322,6 +327,11 @@ test('removing an MFA method', async () => {
   const user = userEvent.setup();
   const ctx = createTeleportContext();
   jest.spyOn(ctx.mfaService, 'fetchDevices').mockResolvedValue([testMfaMethod]);
+  jest.spyOn(auth, 'getChallenge').mockResolvedValue({
+    webauthnPublicKey: null,
+    totpChallenge: false,
+    ssoChallenge: null,
+  });
   jest
     .spyOn(auth, 'createPrivilegeTokenWithWebauthn')
     .mockResolvedValueOnce('webauthn-privilege-token');

@@ -32,7 +32,10 @@ export enum IamPolicyStatus {
 }
 
 export type Aws = {
-  rds: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets' | 'vpcId'>;
+  rds: Pick<
+    AwsRdsDatabase,
+    'resourceId' | 'region' | 'subnets' | 'vpcId' | 'securityGroups'
+  >;
   iamPolicyStatus: IamPolicyStatus;
 };
 

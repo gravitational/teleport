@@ -269,7 +269,7 @@ const session = {
   },
 };
 
-function receiveMessage(event) {
+function receiveMessage(event: StorageEvent) {
   const { key, newValue } = event;
 
   // check if logout was triggered from other tabs

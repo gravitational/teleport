@@ -20,8 +20,6 @@ package kubernetestoken
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"testing"
 	"time"
@@ -40,6 +38,7 @@ import (
 	ctest "k8s.io/client-go/testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 var userGroups = []string{"system:serviceaccounts", "system:serviceaccounts:namespace", "system:authenticated"}
@@ -286,10 +285,10 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 }
 
 func testSigner(t *testing.T) ([]byte, jose.Signer) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.RS256, Key: key},
+		jose.SigningKey{Algorithm: jose.ES256, Key: key},
 		(&jose.SignerOptions{}).
 			WithType("JWT").
 			WithHeader("kid", "foo"),
@@ -300,7 +299,7 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 		{
 			Key:       key.Public(),
 			Use:       "sig",
-			Algorithm: string(jose.RS256),
+			Algorithm: string(jose.ES256),
 			KeyID:     "foo",
 		},
 	}}

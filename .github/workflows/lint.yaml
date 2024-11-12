@@ -63,7 +63,6 @@ jobs:
               - 'docs/pages/admin-guides/**'
               - 'docs/pages/enroll-resources/**'
               - 'docs/pages/reference/operator-resources/**'
-              - 'docs/pages/reference/terraform-provider.mdx'
               - 'docs/pages/reference/terraform-provider/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
 
@@ -104,41 +103,41 @@ jobs:
       # Run various golangci-lint checks.
       # TODO(codingllama): Using go.work could save a bunch of repetition here.
       - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --out-format=colored-line-number --build-tags libfido2,piv
           skip-cache: true
       - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/terraform)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/terraform
           args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/event-handler)
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.1
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
@@ -204,7 +203,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@62ee92603c244ad0da98bab36a834a999a5329e6 # v1.43.0
+      - uses: bufbuild/buf-setup-action@5d38b66514ec5b6b7b753e133245555ea664d0ac # v1.46.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
@@ -231,4 +230,4 @@ jobs:
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
-        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@08768262d29336b8ae0915ef41bb6d9768518c66 && make terraform-resources-up-to-date
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@c91cc3ef4d7d0046c36cb96b1cd337e466c61225 && make terraform-resources-up-to-date

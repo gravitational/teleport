@@ -20,11 +20,16 @@ package generic
 
 import (
 	"context"
+	"fmt"
+	"math/rand/v2"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -39,6 +44,7 @@ import (
 // testResource for testing the generic service.
 type testResource struct {
 	types.ResourceHeader
+	Spec testResourceSpec
 }
 
 func newTestResource(name string) *testResource {
@@ -49,6 +55,28 @@ func newTestResource(name string) *testResource {
 			},
 			Kind:    "test_resource",
 			Version: types.V1,
+		},
+	}
+
+	tr.CheckAndSetDefaults()
+	return tr
+}
+
+type testResourceSpec struct {
+	PropA string
+}
+
+func newTestResourceWithSpec(name string, specPropA string) *testResource {
+	tr := &testResource{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: name,
+			},
+			Kind:    "test_resource",
+			Version: types.V1,
+		},
+		Spec: testResourceSpec{
+			PropA: specPropA,
 		},
 	}
 
@@ -434,6 +462,81 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Equal(t, "", nextKey)
+}
+
+func TestGenericListResourcesWithFilterForScale(t *testing.T) {
+	ctx := context.Background()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("my-prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	totalResourcesPerProp := 100
+	totalProps := 100
+	var totalResources []*testResource
+	for i := 0; i < totalResourcesPerProp; i++ {
+		for j := 0; j < totalProps; j++ {
+			r := newTestResourceWithSpec(uuid.NewString(), strconv.Itoa(j))
+			totalResources = append(totalResources, r)
+		}
+	}
+
+	r := rand.New(rand.NewPCG(uint64(82), uint64(123)))
+	r.Shuffle(len(totalResources), func(i, j int) {
+		totalResources[i], totalResources[j] = totalResources[j], totalResources[i]
+	})
+
+	for _, r := range totalResources {
+		_, err = service.UpsertResource(ctx, r)
+		require.NoError(t, err)
+	}
+
+	pageSizes := []int{1, 2, 3, 5, 7, 100_000}
+	for _, pageSize := range pageSizes {
+		testingProp := strconv.Itoa(r.IntN(totalProps))
+		t.Run(fmt.Sprintf("pageSize=%d,prop=%s", pageSize, testingProp), func(t *testing.T) {
+			var startingKey string
+			var foundResourcesPropAEquals []*testResource
+			for {
+				var totalMatchedElements atomic.Uint64
+				page, nextKey, err := service.ListResourcesWithFilter(ctx, pageSize, startingKey, func(r *testResource) bool {
+					if r.Spec.PropA == testingProp {
+						totalMatchedElements.Add(1)
+						return true
+					}
+
+					return false
+				})
+				require.NoError(t, err)
+				// At most, there's an extra comparison to ensure the next key is valid and there are actually more elements.
+				require.LessOrEqual(t, totalMatchedElements.Load(), uint64(pageSize+1))
+				foundResourcesPropAEquals = append(foundResourcesPropAEquals, page...)
+
+				// A page must never contain more items than the page size limit.
+				require.LessOrEqual(t, len(page), pageSize)
+				if nextKey == "" {
+					// A page can contain 0 elements but only when there's no matching elements.
+					// This is never true for our current test setup.
+					require.NotEmpty(t, page)
+					break
+				}
+				startingKey = nextKey
+			}
+			require.Len(t, foundResourcesPropAEquals, totalResourcesPerProp)
+		})
+	}
 }
 
 func TestGenericValidation(t *testing.T) {

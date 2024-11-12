@@ -21,6 +21,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -132,6 +134,11 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 	require.Contains(t, config.Clusters, contextName)
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
+
+	// Sanity check we're using an ECDSA client key.
+	key, err := keys.ParsePrivateKey(config.AuthInfos[contextName].ClientKeyData)
+	require.NoError(t, err)
+	require.IsType(t, (*ecdsa.PrivateKey)(nil), key.Signer)
 
 	tlsClientConfig := rest.TLSClientConfig{
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,

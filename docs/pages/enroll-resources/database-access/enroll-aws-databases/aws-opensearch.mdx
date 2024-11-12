@@ -184,9 +184,6 @@ Use the token provided by the output of this command in the next step.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<Tabs>
-<TabItem label="Generating a new Teleport Config file">
-
 On the host where you will run the Teleport Database Service, start Teleport
 with the appropriate configuration.
 
@@ -213,59 +210,6 @@ $ sudo teleport db configure create \
 ```
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
-
-</TabItem>
-
-<TabItem label="Modifying the existing Database Service Config">
-Modify your Teleport Database Service static configuration file:
-
-```yaml
-db_service:
-  enabled: "yes"
-  databases:
-  - name: example-opensearch
-    aws:
-      account_id: "(=aws.aws_access_key=)"
-    protocol: opensearch
-    uri: <Var name="opensearch-uri" />:443
-    static_labels:
-      env: dev
-```
-
-Restart the Teleport Database Service for the configuration file changes to take
-effect.
-
-</TabItem>
-<TabItem label="Dynamic Config">
-Create a dynamic database resource to dynamically register an AWS database
-in an external account and proxy connections to it.
-
-```yaml
-kind: db
-version: v3
-metadata:
-  name: "example-opensearch"
-  description: "Example dynamic database resource"
-  labels:
-    env: "dev"
-spec:
-  protocol: "opensearch"
-  uri: <Var name="opensearch-uri" />:443
-  aws:
-    account_id: "(=aws.aws_access_key=)"
-```
-
-Save the configuration to a file like `database.yaml` and create it with `tctl`:
-
-```code
-$ tctl create database.yaml
-```
-
-For more information about database registration using dynamic database
-resources, see: [Dynamic Registration](../guides/dynamic-registration.mdx).
-
-</TabItem>
-</Tabs>
 
 ## Step 4/4. Connect
 

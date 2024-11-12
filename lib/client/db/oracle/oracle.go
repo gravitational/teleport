@@ -21,7 +21,6 @@ package oracle
 import (
 	"bytes"
 	"crypto"
-	"crypto/x509"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,8 +42,8 @@ import (
 // wallet.jks   - Java Wallet format used by JDBC Drivers.
 // sqlnet.ora   - Generic Oracle Client Configuration File allowing to specify Wallet Location.
 // tnsnames.ora - Oracle Net Service mapped to connections descriptors.
-func GenerateClientConfiguration(signer crypto.Signer, db tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
-	walletPath := profile.OracleWalletDir(profile.Cluster, db.ServiceName)
+func GenerateClientConfiguration(signer crypto.Signer, db tlsca.RouteToDatabase, profile *client.ProfileStatus, siteName string) error {
+	walletPath := profile.OracleWalletDir(siteName, db.ServiceName)
 	if err := os.MkdirAll(walletPath, teleport.PrivateDirMode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -86,7 +86,7 @@ func createClientWallet(signer crypto.Signer, certPem []byte, password string, w
 }
 
 func createJKSWallet(signer crypto.Signer, certPEM, caPEM []byte, password string) ([]byte, error) {
-	privateKey, err := x509.MarshalPKCS8PrivateKey(signer)
+	privateKey, err := keys.MarshalSoftwarePrivateKeyPKCS8DER(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

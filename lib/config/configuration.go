@@ -297,6 +297,9 @@ type IntegrationConfAzureOIDC struct {
 	// When this is true, the integration script will produce
 	// a cache file necessary for TAG synchronization.
 	AccessGraphEnabled bool
+
+	// SkipOIDCConfiguration is a flag indicating that OIDC configuration should be skipped.
+	SkipOIDCConfiguration bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -395,6 +398,9 @@ type IntegrationConfAWSOIDCIdP struct {
 	ProxyPublicURL string
 	// AutoConfirm skips user confirmation of the operation plan if true.
 	AutoConfirm bool
+	// PolicyPreset is the name of a pre-defined policy statement which will be
+	// assigned to the AWS Role associate with the OIDC integration.
+	PolicyPreset string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -630,9 +636,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if fc.Limits.MaxConnections > 0 {
 			l.MaxConnections = fc.Limits.MaxConnections
 		}
-		if fc.Limits.MaxUsers > 0 {
-			l.MaxNumberOfUsers = fc.Limits.MaxUsers
-		}
+
 		for _, rate := range fc.Limits.Rates {
 			l.Rates = append(l.Rates, limiter.Rate{
 				Period:  rate.Period,
@@ -1168,6 +1172,8 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 		return trace.BadParameter("must set region in ca_key_params.aws_kms")
 	}
 	cfg.Auth.KeyStore.AWSKMS.AWSRegion = kmsConfig.Region
+	cfg.Auth.KeyStore.AWSKMS.MultiRegion = kmsConfig.MultiRegion
+	cfg.Auth.KeyStore.AWSKMS.Tags = kmsConfig.Tags
 	return nil
 }
 
@@ -2245,6 +2251,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.WindowsDesktop.HostLabels = servicecfg.NewHostLabelRules(hlrs...)
 
+	for _, matcher := range fc.WindowsDesktop.ResourceMatchers {
+		cfg.WindowsDesktop.ResourceMatchers = append(cfg.WindowsDesktop.ResourceMatchers, services.ResourceMatcher{
+			Labels: matcher.Labels,
+		})
+	}
+
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
@@ -2349,7 +2361,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// pass the value of --insecure flag to the runtime
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
-	// load /etc/teleport.yaml and apply it's values:
+	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2574,7 +2586,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		// based on the FIPS and HSM settings, and any already persisted auth preference.
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
-			UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
+			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
 			Cloud:         modules.GetModules().Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)

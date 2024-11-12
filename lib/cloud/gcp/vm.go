@@ -46,8 +46,8 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // sshUser is the user to log in as on GCP VMs.
@@ -473,6 +473,8 @@ type RunCommandRequest struct {
 	Script string
 	// SSHPort is the ssh server port to connect to. Defaults to 22.
 	SSHPort string
+	// SSHKeyAlgo is the algorithm to use for generated SSH keys.
+	SSHKeyAlgo cryptosuites.Algorithm
 
 	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -487,6 +489,9 @@ func (req *RunCommandRequest) CheckAndSetDefaults() error {
 	if req.SSHPort == "" {
 		req.SSHPort = "22"
 	}
+	if req.SSHKeyAlgo == cryptosuites.Algorithm(0) {
+		return trace.BadParameter("ssh key algorithm must be set")
+	}
 	if req.dialContext == nil {
 		dialer := net.Dialer{
 			Timeout: sshDefaultTimeout,
@@ -496,20 +501,13 @@ func (req *RunCommandRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-func generateKeyPair() (ssh.Signer, ssh.PublicKey, error) {
-	rawPriv, rawPub, err := native.GenerateKeyPair()
+func generateKeyPair(keyAlgo cryptosuites.Algorithm) (ssh.Signer, error) {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(keyAlgo)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	signer, err := ssh.ParsePrivateKey(rawPriv)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(rawPub)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return signer, publicKey, nil
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	return sshSigner, trace.Wrap(err)
 }
 
 // RunCommand runs a command on an instance.
@@ -519,7 +517,7 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	}
 
 	// Generate keys and add them to the instance.
-	signer, publicKey, err := generateKeyPair()
+	signer, err := generateKeyPair(req.SSHKeyAlgo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -543,7 +541,7 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	}
 	keyReq := &SSHKeyRequest{
 		Instance:  instance,
-		PublicKey: publicKey,
+		PublicKey: signer.PublicKey(),
 	}
 	if err := req.Client.AddSSHKey(ctx, keyReq); err != nil {
 		return trace.Wrap(err)

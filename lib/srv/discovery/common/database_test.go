@@ -294,6 +294,11 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			},
 			VpcId: aws.String("vpc-asd"),
 		},
+		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
+			{VpcSecurityGroupId: aws.String("")},
+			{VpcSecurityGroupId: aws.String("sg-1")},
+			{VpcSecurityGroupId: aws.String("sg-2")},
+		},
 	}
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "instance-1",
@@ -324,6 +329,10 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 					"subnet-1234567890abcdef0",
 					"subnet-1234567890abcdef1",
 					"subnet-1234567890abcdef2",
+				},
+				SecurityGroups: []string{
+					"sg-1",
+					"sg-2",
 				},
 				VPCID: "vpc-asd",
 			},
@@ -563,6 +572,11 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 		Endpoint:                         aws.String("localhost"),
 		ReaderEndpoint:                   aws.String("reader.host"),
 		Port:                             aws.Int32(3306),
+		VpcSecurityGroups: []rdsTypesV2.VpcSecurityGroupMembership{
+			{VpcSecurityGroupId: aws.String("")},
+			{VpcSecurityGroupId: aws.String("sg-1")},
+			{VpcSecurityGroupId: aws.String("sg-2")},
+		},
 		CustomEndpoints: []string{
 			"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
 			"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
@@ -580,6 +594,10 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			ClusterID:  "cluster-1",
 			ResourceID: "resource-1",
 			IAMAuth:    true,
+			SecurityGroups: []string{
+				"sg-1",
+				"sg-2",
+			},
 		},
 	}
 
@@ -664,7 +682,11 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 					ResourceID: "resource-1",
 					IAMAuth:    true,
 					Subnets:    []string{"subnet-123", "subnet-456"},
-					VPCID:      "vpc-123",
+					SecurityGroups: []string{
+						"sg-1",
+						"sg-2",
+					},
+					VPCID: "vpc-123",
 				},
 			},
 		})

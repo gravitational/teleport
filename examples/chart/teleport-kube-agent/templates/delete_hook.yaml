@@ -118,3 +118,6 @@ spec:
         {{- if .Values.securityContext }}
         securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
         {{- end }}
+        {{- if .Values.resources }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
+        {{- end }}

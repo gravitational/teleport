@@ -21,6 +21,23 @@ TF_VAR_license_path ?=
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
 TF_VAR_ami_name ?=
 
+
+# Instance types used for authentication server auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_auth_instance_type ?= m7g.large
+
+# Instance types used for proxy server auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_proxy_instance_type ?= m7g.large
+
+# Instance types used for Teleport node auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_node_instance_type ?= t4g.medium
+
+# Instance type used for bastion server
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_bastion_instance_type ?= t4g.medium
+
 # Route 53 zone to use, should be the zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?=
 

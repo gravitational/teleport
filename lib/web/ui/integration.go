@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 // IntegrationAWSOIDCSpec contain the specific fields for the `aws-oidc` subkind integration.
@@ -37,6 +38,14 @@ type IntegrationAWSOIDCSpec struct {
 	IssuerS3Bucket string `json:"issuerS3Bucket,omitempty"`
 	// IssuerS3Prefix is the prefix for the bucket above.
 	IssuerS3Prefix string `json:"issuerS3Prefix,omitempty"`
+
+	// Audience is used to record a name of a plugin or a discover service in Teleport
+	// that depends on this integration.
+	// Audience value can be empty or configured with supported preset audience type.
+	// Preset audience may impose specific behavior on the integration CRUD API,
+	// such as preventing integration from update or deletion. Empty audience value
+	// should be treated as a default and backward-compatible behavior of the integration.
+	Audience string `json:"audience,omitempty"`
 }
 
 // CheckAndSetDefaults for the aws oidc integration spec.
@@ -150,6 +159,7 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
+			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
 		}
 	}
 
@@ -213,7 +223,7 @@ type AWSOIDCDeployServiceRequest struct {
 
 	// DatabaseAgentMatcherLabels are the labels to be used when deploying a Database Service.
 	// Those are the resource labels that the Service will monitor and proxy connections to.
-	DatabaseAgentMatcherLabels []Label `json:"databaseAgentMatcherLabels"`
+	DatabaseAgentMatcherLabels []ui.Label `json:"databaseAgentMatcherLabels"`
 }
 
 // AWSOIDCDeployServiceResponse contains the resources that were used to deploy a Teleport Service.
@@ -514,4 +524,12 @@ type AWSOIDCPingResponse struct {
 	ARN string `json:"arn"`
 	// UserID is the unique identifier of the calling entity.
 	UserID string `json:"userId"`
+}
+
+// AWSOIDCPingRequest contains ping request fields.
+type AWSOIDCPingRequest struct {
+	// RoleARN is optional, and used for cases such as
+	// pinging to check validity before upserting an
+	// AWS OIDC integration.
+	RoleARN string `json:"roleArn,omitempty"`
 }

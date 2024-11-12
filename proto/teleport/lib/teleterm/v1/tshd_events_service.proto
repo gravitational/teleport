@@ -38,11 +38,31 @@ service TshdEventsService {
   // which it can use to initiate headless authentication resolution in the UI.
   rpc SendPendingHeadlessAuthentication(SendPendingHeadlessAuthenticationRequest) returns (SendPendingHeadlessAuthenticationResponse);
 
-  // PromptMFA notifies the Electron app that the daemon is waiting for the user to answer an MFA prompt.
-  // If Webauthn is supported, tsh daemon starts another goroutine which readies the hardware key.
-  // If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
-  // code.
+  // PromptMFA notifies the Electron app that the daemon wants to prompt for MFA.
+  // If TOTP is supported, the Electron app can return a totp code to complete the ceremony.
+  // If Webauthn or SSO are supported, tsh daemon waits for the Electron App to choose
+  // an option in the response before prompting for either.
+  //
+  // In order for the WebAuthn and SSO prompts to be reflected in the Electron App, the
+  // Electron app can display a waiting screen and listen for the tsh daemon to send a
+  // notification to close the screen.
   rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
+
+  // PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
+  // provide the hardware key PIN.
+  rpc PromptHardwareKeyPIN(PromptHardwareKeyPINRequest) returns (PromptHardwareKeyPINResponse);
+
+  // PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to touch the hardware key.
+  // When the daemon detects the touch, it cancels the prompt.
+  rpc PromptHardwareKeyTouch(PromptHardwareKeyTouchRequest) returns (PromptHardwareKeyTouchResponse);
+
+  // PromptHardwareKeyPINChange notifies the Electron app that the daemon is waiting for the user to
+  // change the hardware key PIN.
+  rpc PromptHardwareKeyPINChange(PromptHardwareKeyPINChangeRequest) returns (PromptHardwareKeyPINChangeResponse);
+
+  // ConfirmHardwareKeySlotOverwrite displays a dialog prompting the user to confirm whether
+  // the slot's private key and certificate should be overwritten.
+  rpc ConfirmHardwareKeySlotOverwrite(ConfirmHardwareKeySlotOverwriteRequest) returns (ConfirmHardwareKeySlotOverwriteResponse);
 
   // GetUsageReportingSettings returns the current state of usage reporting.
   // At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
@@ -139,11 +159,70 @@ message PromptMFARequest {
   bool totp = 3;
   bool webauthn = 4;
   string cluster_uri = 5;
+  SSOChallenge sso = 6;
+}
+
+// SSOChallenge contains SSO challenge details.
+message SSOChallenge {
+  string connector_id = 1;
+  string connector_type = 2;
+  string display_name = 3;
+  string redirect_url = 4;
 }
 
 // Response for PromptMFA.
 message PromptMFAResponse {
   string totp_code = 1;
+}
+
+// Request for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINRequest {
+  string root_cluster_uri = 1;
+  // Specifies if a PIN is optional, allowing the user to set it up if left empty.
+  bool pin_optional = 2;
+}
+
+// Response for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINResponse {
+  // pin as inputted by the user in the Electron app.
+  string pin = 1;
+}
+
+// Request for PromptHardwareKeyTouchRequest.
+message PromptHardwareKeyTouchRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeyTouch.
+message PromptHardwareKeyTouchResponse {}
+
+// Response for PromptHardwareKeyPINChange.
+message PromptHardwareKeyPINChangeRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeyPINChange.
+message PromptHardwareKeyPINChangeResponse {
+  // New pin set by the user.
+  string pin = 1;
+  // PUK is needed to change the PIN.
+  // This is a new PUK if it has not been changed from the default PUK.
+  string puk = 2;
+  // puk_changed is true if the user changed the default PUK.
+  bool puk_changed = 3;
+}
+
+// Request for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteRequest {
+  string root_cluster_uri = 1;
+  // Message to display in the prompt.
+  string message = 2;
+}
+
+// Response for ConfirmHardwareKeySlotOverwrite.
+message ConfirmHardwareKeySlotOverwriteResponse {
+  // If true, the slot will be overridden.
+  bool confirmed = 1;
 }
 
 // Request for GetUsageReportingSettings.

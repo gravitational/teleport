@@ -65,14 +65,13 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   const $errors = hasError && (
     <Flex flexDirection="column" gap={2} mb={3}>
       {props.changeDbNameAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the database name:{' '}
-          {props.changeDbNameAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changeDbNameAttempt.statusText}>
+          Could not change the database name
         </Alerts.Danger>
       )}
       {props.changePortAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the port number: {props.changePortAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changePortAttempt.statusText}>
+          Could not change the port number
         </Alerts.Danger>
       )}
     </Flex>

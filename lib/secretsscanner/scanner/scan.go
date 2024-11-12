@@ -113,6 +113,10 @@ func (s *Scanner) findPrivateKeys(ctx context.Context, root, deviceID string, pr
 	logger := s.log.With("root", root)
 
 	err := filepath.WalkDir(root, func(path string, info fs.DirEntry, err error) error {
+		// check if the context is done before processing the file.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if err != nil {
 			logger.DebugContext(ctx, "error walking directory", "path", path, "error", err)
 			return fs.SkipDir

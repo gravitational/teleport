@@ -419,7 +419,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 
 			vmClient := &mockAzureVMClient{vm: vmResult}
 
-			_, err = a.RegisterUsingAzureMethod(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+			_, err = a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 				cfg := &azureChallengeResponseConfig{Challenge: challenge}
 				for _, opt := range tc.challengeResponseOptions {
 					opt(cfg)

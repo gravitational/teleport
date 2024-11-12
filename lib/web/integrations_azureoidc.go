@@ -37,7 +37,7 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	ctx := r.Context()
 	queryParams := r.URL.Query()
 
-	oidcIssuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	oidcIssuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

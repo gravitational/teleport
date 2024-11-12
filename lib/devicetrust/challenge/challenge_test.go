@@ -17,72 +17,43 @@
 package challenge_test
 
 import (
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/rsa"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
 
 func TestSignAndVerify(t *testing.T) {
-	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("GenerateKey failed: %v", err)
-	}
-	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048 /* bits */)
-	if err != nil {
-		t.Fatalf("GenerateKey failed: %v", err)
-	}
-	edPub, edPriv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("GenerateKey failed: %v", err)
-	}
+	for _, algo := range []cryptosuites.Algorithm{
+		cryptosuites.RSA2048,
+		cryptosuites.ECDSAP256,
+		cryptosuites.Ed25519,
+	} {
+		t.Run(algo.String(), func(t *testing.T) {
+			t.Parallel()
 
-	tests := []struct {
-		name   string
-		signer crypto.Signer
-		pubKey crypto.PublicKey
-	}{
-		{
-			name:   "ecdsa key",
-			signer: ecKey,
-			pubKey: ecKey.Public(),
-		},
-		{
-			name:   "rsa key",
-			signer: rsaKey,
-			pubKey: rsaKey.Public(),
-		},
-		{
-			name:   "ed25519 key",
-			signer: edPriv,
-			pubKey: edPub,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
 			chal, err := challenge.New()
 			if err != nil {
 				t.Fatalf("New failed: %v", err)
 			}
 
-			sig, err := challenge.Sign(chal, test.signer)
+			signer, err := cryptosuites.GenerateKeyWithAlgorithm(algo)
+			require.NoError(t, err)
+			sig, err := challenge.Sign(chal, signer)
 			if err != nil {
 				t.Fatalf("Sign failed: %v", err)
 			}
 
 			// Verify correct challenge signature.
-			if err := challenge.Verify(chal, sig, test.pubKey); err != nil {
+			if err := challenge.Verify(chal, sig, signer.Public()); err != nil {
 				t.Errorf("Verify returned err=%v, want nil", err)
 			}
 
 			// Verify bad challenge signature.
 			sig = []byte("invalid sig")
-			if err := challenge.Verify(chal, sig, test.pubKey); err == nil {
+			if err := challenge.Verify(chal, sig, signer.Public()); err == nil {
 				t.Error("Verify returned nil err, want non-nil")
 			}
 		})

@@ -100,11 +100,7 @@ export default function useUsers({
       );
   }
 
-  function onInviteCollaboratorsClose(newUsers?: User[]) {
-    if (newUsers && newUsers.length > 0) {
-      setUsers([...newUsers, ...users]);
-    }
-
+  function onInviteCollaboratorsClose() {
     setInviteCollaboratorsOpen(false);
     setOperation({ type: 'none' });
   }

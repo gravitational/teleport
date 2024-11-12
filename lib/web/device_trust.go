@@ -18,6 +18,9 @@ package web
 
 import (
 	"net/http"
+	"net/url"
+	"path"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -44,6 +47,8 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	confirmToken := &devicepb.DeviceConfirmationToken{}
 	confirmToken.Id = query.Get("id")
 	confirmToken.Token = query.Get("token")
+	unsafeRedirectURI := query.Get("redirect_uri")
+
 	switch {
 	case confirmToken.Id == "":
 		return nil, trace.BadParameter("parameter id required")
@@ -76,7 +81,44 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 
 	// Always redirect back to the dashboard, regardless of outcome.
 	app.SetRedirectPageHeaders(w.Header(), "" /* nonce */)
-	http.Redirect(w, r, "/web", http.StatusSeeOther)
+
+	redirectTo, err := h.getRedirectPath(unsafeRedirectURI)
+	if err != nil {
+		h.log.
+			WithError(err).
+			WithField("redirect_uri", unsafeRedirectURI).
+			Debug("Unable to parse redirectURI")
+	}
+	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 
 	return nil, nil
+}
+
+// getRedirectPath tries to parse the given redirectURI. It will always return a redirect url
+// even if the parse fails (in case of failture, the returned string is "/web")
+func (h *Handler) getRedirectPath(redirectURI string) (string, error) {
+	const basePath = "/web"
+
+	if redirectURI == "" {
+		return basePath, nil
+	}
+
+	parsedURL, err := url.Parse(redirectURI)
+	if err != nil {
+		return basePath, trace.Wrap(err)
+	}
+
+	cleanPath := path.Clean(parsedURL.Path)
+	// helps in situations where there is no path such as https://example.com
+	if cleanPath == "." || cleanPath == ".." {
+		cleanPath = "/"
+	} else if !strings.HasPrefix(cleanPath, "/") {
+		cleanPath = "/" + cleanPath
+	}
+
+	// Prepend "/web" only if it's not already present
+	if !strings.HasPrefix(cleanPath, basePath) {
+		return path.Join(basePath, cleanPath), nil
+	}
+	return cleanPath, nil
 }

@@ -3,6 +3,7 @@
 # Please note that the SAML connector will work in Teleport Enterprise only.
 
 resource "teleport_saml_connector" "example" {
+  version = "v2"
   # This block will tell Terraform to never update private key from our side if a keys are managed 
   # from an outside of Terraform.
 

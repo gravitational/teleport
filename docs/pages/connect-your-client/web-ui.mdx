@@ -40,9 +40,6 @@ interacted with any Web UI browser tab, either through keyboard input or mouse m
 To change the default idle timeout of 10 minutes, ask your cluster admin to adjust the
 `web_idle_timeout` setting in the Auth Service configuration.
 
-<Tabs>
-<TabItem scope={["cloud", "team"]} label="Dynamic Resources (All Editions)">
-
 Use `tctl` to edit the `cluster_networking_config` value:
 
 ```code
@@ -68,15 +65,3 @@ After you save and exit the editor, `tctl` will update the resource:
 cluster networking configuration has been updated
 ```
 
-</TabItem>
-<TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
-
-Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
-
-```yaml
-auth_service:
-  web_idle_timeout: 10m0s
-```
-
-</TabItem>
-</Tabs>

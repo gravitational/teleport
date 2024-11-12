@@ -18,6 +18,8 @@ package mfa
 
 import (
 	"context"
+	"log/slog"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -28,13 +30,26 @@ import (
 // Ceremony is an MFA ceremony.
 type Ceremony struct {
 	// CreateAuthenticateChallenge creates an authentication challenge.
-	CreateAuthenticateChallenge func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	CreateAuthenticateChallenge CreateAuthenticateChallengeFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
-	// SolveAuthenticateChallenge solves an authentication challenge. Used in non-interactive settings,
-	// such as the WebUI with layers abstracting user interaction, and tests.
-	SolveAuthenticateChallenge func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
+	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge.
+	SSOMFACeremonyConstructor SSOMFACeremonyConstructor
 }
+
+// SSOMFACeremony is an SSO MFA ceremony.
+type SSOMFACeremony interface {
+	GetClientCallbackURL() string
+	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	Close()
+}
+
+// SSOMFACeremonyConstructor constructs a new SSO MFA ceremony.
+type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
+
+// CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
+type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
 // Run the MFA ceremony.
 //
@@ -44,8 +59,6 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 	switch {
 	case c.CreateAuthenticateChallenge == nil:
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
-	case c.SolveAuthenticateChallenge != nil && c.PromptConstructor != nil:
-		return nil, trace.BadParameter("mfa ceremony should have SolveAuthenticateChallenge or PromptConstructor set, not both")
 	case req == nil:
 		// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
 		// its own req or uses a different rpc, e.g. moderated sessions.
@@ -53,6 +66,21 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.BadParameter("missing challenge extensions")
 	case req.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED:
 		return nil, trace.BadParameter("mfa challenge scope must be specified")
+	}
+
+	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
+	// request to request an SSO challenge in addition to other challenges.
+	if c.SSOMFACeremonyConstructor != nil {
+		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
+		if err != nil {
+			// We may fail to start the SSO MFA flow in cases where the Proxy is down or broken. Fall
+			// back to skipping SSO MFA, especially since SSO MFA may not even be allowed on the server.
+			slog.DebugContext(ctx, "Failed to attempt SSO MFA, continuing with other MFA methods", "error", err)
+		} else {
+			defer ssoMFACeremony.Close()
+			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
+		}
 	}
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)
@@ -72,13 +100,14 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, &ErrMFANotRequired
 	}
 
-	if c.SolveAuthenticateChallenge == nil && c.PromptConstructor == nil {
-		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have SolveAuthenticateChallenge or PromptConstructor set in order to succeed")
+	if c.PromptConstructor == nil {
+		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
 	}
 
-	if c.SolveAuthenticateChallenge != nil {
-		resp, err := c.SolveAuthenticateChallenge(ctx, chal)
-		return resp, trace.Wrap(err)
+	// Set challenge extensions in the prompt, if present, but set it first so the
+	// caller can still override it.
+	if req != nil && req.ChallengeExtensions != nil {
+		promptOpts = slices.Insert(promptOpts, 0, WithPromptChallengeExtensions(req.ChallengeExtensions))
 	}
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)

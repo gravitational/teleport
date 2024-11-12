@@ -153,7 +153,7 @@ with that command executed.
 Teleport Connect supports launching applications in the browser, as well as creating
 authenticated tunnels for web and TCP applications.
 
-When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis.mdx),
+When it comes to [cloud APIs secured with Application Access](../enroll-resources/application-access/cloud-apis/cloud-apis.mdx),
 Teleport Connect supports launching the AWS console in the browser, but other CLI applications can
 be used only through tsh in [a local terminal tab](#opening-a-local-terminal).
 
@@ -437,6 +437,27 @@ During installation, Teleport Connect automatically adds the `resources\bin` fol
 installation directory to the `Path` user environment variable.
 </TabItem>
 </Tabs>
+
+## Hardware key support
+
+Teleport Connect supports authenticating with hardware-based keys.
+Keys are generated and stored directly on a hardware device, providing greater security than storing
+them on a file system. For more details, see [Hardware Key Support guide](../admin-guides/access-controls/guides/hardware-key-support.mdx).
+
+<Admonition type="note" title="PIV support">
+  Hardware key support requires users to use a PIV-compatible hardware key.
+  Currently, this feature is only guaranteed to support YubiKey series 5+.
+</Admonition>
+
+To log in with a hardware key, your role or cluster configuration must enable it.
+Once enforced, Teleport Connect will require you to keep the hardware key plugged in and may also prompt for a tap and/or PIV PIN:
+
+![Logging in with a hardware key](../../img/use-teleport/connect-hardware-keys@2x.png)
+
+When logging in for the first time, you’ll be prompted to log in again immediately.
+
+If your key is set to the default PIV PIN, you may be prompted to change it at this step.
+Entering a default or empty PIN will open a dialog to update it.
 
 ## Configuration
 

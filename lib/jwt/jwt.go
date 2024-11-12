@@ -32,7 +32,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/cryptosigner"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -277,6 +276,9 @@ type SignParamsJWTSVID struct {
 	Audiences []string
 	// TTL is the time to live for the token.
 	TTL time.Duration
+	// Issuer is the value that should be included in the `iss` claim of the
+	// created token.
+	Issuer string
 }
 
 // SignJWTSVID signs a JWT SVID token.
@@ -302,6 +304,11 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 		// > noted that JWT-SVID validators are not required to track jti
 		// > uniqueness.
 		ID: p.JTI,
+		// The SPIFFE specification makes no comment on the inclusion of `iss`,
+		// however, we provide this value so that the issued token can be a
+		// valid OIDC ID token and used with non-SPIFFE aware systems that do
+		// understand OIDC.
+		Issuer: p.Issuer,
 	}
 
 	// > 2.2. Key ID:
@@ -631,11 +638,18 @@ type Claims struct {
 	Traits wrappers.Traits `json:"traits"`
 }
 
+// IDToken allows introspecting claims from an OpenID Connect
+// ID Token.
+type IDToken interface {
+	// Claims unmarshals the raw JSON payload of the ID Token into a provided struct.
+	Claims(v any) error
+}
+
 // CheckNotBefore ensures the token was not issued in the future.
 // https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
 // 4.1.5.  "nbf" (Not Before) Claim
 // TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-func CheckNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
+func CheckNotBefore(now time.Time, leeway time.Duration, token IDToken) error {
 	claims := struct {
 		NotBefore *JSONTime `json:"nbf"`
 	}{}

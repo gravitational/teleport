@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -50,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
@@ -314,7 +314,7 @@ type Server struct {
 	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]srv.HeartbeatI
 	// watcher monitors changes to database resources.
-	watcher *services.DatabaseWatcher
+	watcher *services.GenericWatcher[types.Database, readonly.Database]
 	// proxiedDatabases contains databases this server currently is proxying.
 	// Proxied databases are reconciled against monitoredDatabases below.
 	proxiedDatabases map[string]types.Database
@@ -325,9 +325,6 @@ type Server struct {
 	reconcileCh chan struct{}
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
-	// logrusLogger is used for logging.
-	// Deprecated: use log (*slog.Logger) instead.
-	logrusLogger *logrus.Entry
 	// logger is used for logging.
 	log *slog.Logger
 	// activeConnections counts the number of database active connections.
@@ -419,7 +416,6 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
-		logrusLogger:     logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase),
 		log:              slog.With(teleport.ComponentKey, teleport.ComponentDatabase),
 		closeContext:     closeCtx,
 		closeFunc:        closeCancelFunc,

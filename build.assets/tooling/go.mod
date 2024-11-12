@@ -1,12 +1,12 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.23.2
+go 1.23.3
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/alecthomas/kingpin/v2 v2.4.0 // replaced
 	github.com/awalterschulze/goderive v0.0.0-20240309134105-e3f2fdff7d5e
-	github.com/bmatcuk/doublestar/v4 v4.6.1
+	github.com/bmatcuk/doublestar/v4 v4.7.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.6.0 // indirect
@@ -19,9 +19,9 @@ require (
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
 	golang.org/x/mod v0.21.0
 	golang.org/x/oauth2 v0.23.0
-	helm.sh/helm/v3 v3.16.1
+	helm.sh/helm/v3 v3.16.2
 	howett.net/plist v1.0.1
-	k8s.io/apiextensions-apiserver v0.31.1
+	k8s.io/apiextensions-apiserver v0.31.2
 )
 
 require (
@@ -53,15 +53,15 @@ require (
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
+	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.31.1 // indirect
+	k8s.io/apimachinery v0.31.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect

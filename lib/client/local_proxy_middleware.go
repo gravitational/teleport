@@ -21,8 +21,6 @@ package client
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -35,9 +33,8 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -304,16 +301,6 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		// TODO (Joerger): DELETE IN v17.0.0
-		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.Client.Username, appCertParams.RouteToApp)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
@@ -392,7 +379,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	certKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,7 +393,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 	subject.CommonName = host
 
 	certPem, err := certAuthority.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: &certKey.PublicKey,
+		PublicKey: certKey.Public(),
 		Subject:   subject,
 		NotAfter:  certAuthority.Cert.NotAfter,
 		DNSNames:  []string{host},
