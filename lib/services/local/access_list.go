@@ -33,6 +33,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/accesslists"
@@ -731,6 +732,9 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 					}
 					if existingMember.Spec.Reason != "" {
 						newMember.Spec.Reason = existingMember.Spec.Reason
+					}
+					if existingMember.Origin() == common.OriginAWSIdentityCenter {
+						newMember.Metadata.Labels = existingMember.GetAllLabels()
 					}
 					newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
