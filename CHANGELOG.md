@@ -7,7 +7,7 @@
 #### Mac Package Changes
 
 To support a more consistent user experience, Mac packages have been restructured so that all packages will provide a 
-`tsh` and `tctl` capable of utilizing TouchID
+`tsh` and `tctl` capable of utilizing TouchID.
 
 All Mac packages now include `tsh.app` and `tctl.app` bundles and the standalone binaries for `tsh` and `tctl` have been removed. 
 The standalone `tsh.pkg` that installs a `tsh.app` bundle has also been removed as part of these changes since it is now included 
