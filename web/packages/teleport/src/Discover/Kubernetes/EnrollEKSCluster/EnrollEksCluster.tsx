@@ -95,7 +95,13 @@ export type CheckedEksCluster = AwsEksCluster & {
 };
 
 type EKSClusterEnrollmentState = {
-  status: 'notStarted' | 'enrolling' | 'awaitingAgent' | 'success' | 'error';
+  status:
+    | 'notStarted'
+    | 'enrolling'
+    | 'awaitingAgent'
+    | 'success'
+    | 'error'
+    | 'alreadyExists';
   error?: string;
 };
 
@@ -302,16 +308,15 @@ export function EnrollEksCluster(props: AgentStepProps) {
         emitErrorEvent(
           'unknown error: no results came back from enrolling the EKS cluster.'
         );
-      } else if (
-        result.error &&
-        !result.error.includes(
-          'teleport-kube-agent is already installed on the cluster'
-        )
-      ) {
-        setEnrollmentState({
+      } else if (result.error) {
+        const errorState: EKSClusterEnrollmentState = {
           status: 'error',
           error: `Cluster enrollment error: ${result.error}`,
-        });
+        };
+        if (result.error.includes('teleport-kube-agent is already installed')) {
+          errorState.status = 'alreadyExists';
+        }
+        setEnrollmentState(errorState);
         emitErrorEvent(`failed to enroll EKS cluster: ${result.error}`);
       } else {
         setEnrollmentState({ status: 'awaitingAgent' });
@@ -515,7 +520,8 @@ export function EnrollEksCluster(props: AgentStepProps) {
         </Box>
       )}
       {(enrollmentState.status === 'enrolling' ||
-        enrollmentState.status === 'error') && (
+        enrollmentState.status === 'error' ||
+        enrollmentState.status === 'alreadyExists') && (
         <EnrollmentDialog
           clusterName={selectedCluster.name}
           close={closeEnrollmentDialog}
