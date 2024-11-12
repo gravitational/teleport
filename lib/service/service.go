@@ -4750,9 +4750,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if peerQUICTransport != nil {
 			peerQUICServer, err := peerquic.NewServer(peerquic.ServerConfig{
-				Log:          process.logger,
-				Dialer:       reversetunnelclient.NewPeerDialer(tsrv),
-				CipherSuites: cfg.CipherSuites,
+				Log:    process.logger,
+				Dialer: reversetunnelclient.NewPeerDialer(tsrv),
 				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 					return conn.serverGetCertificate()
 				},
