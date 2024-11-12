@@ -1,9 +1,12 @@
 name: "CLA Assistant"
 on:
   issue_comment:
-    types: [created]
+    types:
+      - created # PR comments are considered issue_comments
   pull_request_target:
-    types: [opened, synchronize]
+    types:
+      - opened
+      - synchronize # Run on any diff changes to the PR (e.g. code updates)
 # explicitly configure permissions, in case your GITHUB_TOKEN workflow permissions are set to read-only in repository settings
 permissions:
   actions: read
@@ -11,6 +14,9 @@ permissions:
   pull-requests: write
 jobs:
   cla-assistant:
+    # Only do job for pull requests. For issues this is skipped making workflow a no-op
+    if: ${{ github.event.issue.pull_request }}
+    name: "Check Contributor License Agreement Signed"
     runs-on: ubuntu-latest
     steps:
       - name: Fetch installation token
@@ -30,7 +36,20 @@ jobs:
         # If the user is a member of the org expect a 204 HTTP Status Code
         # If the above is success the process will exit 0
         run: |
-          gh api "orgs/gravitational/members/${USER}"
+          gh api "orgs/gravitational/members/${USER}" > /dev/null
+      # This step runs the CLA Assistant GHA
+      # If the creator of the PR is someone in the 'gravitational' org this step is skipped
+      # Otherwise for those out of the gravitational org:
+      # * CLA Assistant gathers authors from commits made to the PR
+      # * Will determine if authors have already signed the CLA
+      # 
+      # To sign the CLA a user can reply to the PR with the comment:
+      # * 'I have read the CLA Document and I hereby sign the CLA'
+      #
+      # The workflow will be rerun again to perform a recheck on:
+      # * Any code changes to the PR
+      # * PR comment with the body being 'recheck' - In the event of a transient failure
+      # * PR comment with body 'I have read the CLA Document and I hereby sign the CLA' 
       - name: "CLA Assistant"
         if: steps.get-membership.outcome != 'success' && ((github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target')
         uses: contributor-assistant/github-action@v2.3.1
