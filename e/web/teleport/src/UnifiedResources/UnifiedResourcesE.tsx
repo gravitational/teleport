@@ -231,7 +231,8 @@ const CheckoutWrapper = styled(Box)`
 `;
 
 const ResizingResourceWrapper = styled(Box)<{ showCheckout?: boolean }>`
-  width: ${props => (props.showCheckout ? 'calc(100vw - 514px)' : '100%')};
+  width: ${props =>
+    props.showCheckout ? 'calc(100vw - 514px - var(--sidenav-width))' : '100%'};
   padding-right: ${props => props.theme.space[3]}px;
 `;
 
