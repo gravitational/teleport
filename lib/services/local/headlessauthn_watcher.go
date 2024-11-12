@@ -101,7 +101,7 @@ func NewHeadlessAuthenticationWatcher(ctx context.Context, cfg HeadlessAuthentic
 		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 		Clock:  cfg.Clock,
 	})
 	if err != nil {

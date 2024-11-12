@@ -168,7 +168,7 @@ func NewExporter[C contextLike](cfg ExporterConfig[C]) (*Exporter[C], error) {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		Driver: retryutils.NewExponentialDriver(cfg.UnhealthyThreshold / 16),
 		Max:    cfg.UnhealthyThreshold,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 
 	if err != nil {

@@ -165,7 +165,7 @@ func NewDateExporter(cfg DateExporterConfig) (*DateExporter, error) {
 		First:  utils.FullJitter(cfg.MaxBackoff / 16),
 		Driver: retryutils.NewExponentialDriver(cfg.MaxBackoff / 16),
 		Max:    cfg.MaxBackoff,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

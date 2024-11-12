@@ -51,7 +51,7 @@ func NewDefaultLinear() *retryutils.Linear {
 		First:     FullJitter(time.Second * 10),
 		Step:      time.Second * 15,
 		Max:       time.Second * 90,
-		Jitter:    retryutils.NewHalfJitter(),
+		Jitter:    retryutils.HalfJitter,
 		AutoReset: 5,
 	})
 	if err != nil {

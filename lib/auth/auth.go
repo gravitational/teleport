@@ -1395,7 +1395,7 @@ func (a *Server) runPeriodicOperations() {
 			Key:           localReleaseCheckKey,
 			Duration:      10 * time.Minute,
 			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewHalfJitter(),
+			Jitter:        retryutils.HalfJitter,
 		})
 	}
 
@@ -1404,7 +1404,7 @@ func (a *Server) runPeriodicOperations() {
 			Key:           desktopCheckKey,
 			Duration:      OSSDesktopsCheckPeriod,
 			FirstDuration: utils.HalfJitter(10 * time.Second),
-			Jitter:        retryutils.NewHalfJitter(),
+			Jitter:        retryutils.HalfJitter,
 		})
 	} else if err := a.DeleteClusterAlert(a.closeCtx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
 		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
