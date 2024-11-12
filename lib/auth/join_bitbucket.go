@@ -21,9 +21,10 @@ package auth
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/bitbucket"
-	"github.com/gravitational/trace"
 )
 
 type bitbucketIDTokenValidator interface {
