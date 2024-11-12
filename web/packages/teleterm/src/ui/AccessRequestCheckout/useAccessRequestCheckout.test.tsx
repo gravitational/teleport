@@ -192,6 +192,10 @@ test(`fetching requestable roles for a kube cluster's namespaces only creates re
 
 test('after creating an access request, pending requests and specifiable fields are reset', async () => {
   const kube = makeKube();
+  const kube2 = makeKube({
+    name: 'kube2',
+    uri: `${rootClusterUri}/kubes/kube2`,
+  });
   const cluster = makeRootCluster();
   const appContext = new MockAppContext();
   appContext.clustersService.setState(draftState => {
@@ -203,6 +207,12 @@ test('after creating an access request, pending requests and specifiable fields 
     .addOrRemoveResource({
       kind: 'kube',
       resource: kube,
+    });
+  await appContext.workspacesService
+    .getWorkspaceAccessRequestsService(rootClusterUri)
+    .addOrRemoveResource({
+      kind: 'kube',
+      resource: kube2,
     });
 
   let mockedCreateAccessRequestFn = jest.spyOn(
@@ -248,11 +258,18 @@ test('after creating an access request, pending requests and specifiable fields 
           name: kube.name,
           subResourceName: '',
         },
+        {
+          clusterName: 'teleport-local',
+          kind: 'kube_cluster',
+          name: kube2.name,
+          subResourceName: '',
+        },
       ],
       roles: ['apple', 'banana'],
       suggestedReviewers: ['bob'],
     });
   });
+  expect(result.current.requestedCount).toBe(2);
 
   // Call create again, should've cleared reviewers and previous roles.
   mockedCreateAccessRequestFn.mockClear();
