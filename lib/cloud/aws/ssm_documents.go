@@ -24,11 +24,34 @@ import (
 	"github.com/google/uuid"
 )
 
+// EC2DiscoverySSMDocumentOptions are options for generating the EC2 SSM discovery document.
+type EC2DiscoverySSMDocumentOptions struct {
+	// InsecureSkipInstallPathRandomization skips randomizing the Teleport installation script file path.
+	InsecureSkipInstallPathRandomization bool
+}
+
+// WithInsecureSkipInstallPathRandomization returns an option func that
+// sets the InsecureSkipInstallPathRandomization option.
+func WithInsecureSkipInstallPathRandomization(setting bool) func(*EC2DiscoverySSMDocumentOptions) {
+	return func(options *EC2DiscoverySSMDocumentOptions) {
+		options.InsecureSkipInstallPathRandomization = setting
+	}
+}
+
 // EC2DiscoverySSMDocument receives the proxy address and returns an SSM Document.
 // This document downloads and runs a Teleport installer.
 // Requires the proxy endpoint URL, example: https://tenant.teleport.sh
-func EC2DiscoverySSMDocument(proxy string) string {
-	randString := uuid.NewString() // Secure random so the filename can not be guessed to avoid possible script injection
+func EC2DiscoverySSMDocument(proxy string, opts ...func(*EC2DiscoverySSMDocumentOptions)) string {
+	var options EC2DiscoverySSMDocumentOptions
+	for _, optFn := range opts {
+		optFn(&options)
+	}
+
+	installTeleportPath := "/tmp/installTeleport.sh"
+	if !options.InsecureSkipInstallPathRandomization {
+		// Randomize the install path so the filename can not be guessed to avoid possible script injection
+		installTeleportPath = fmt.Sprintf("/tmp/installTeleport-%s.sh", uuid.NewString())
+	}
 
 	return fmt.Sprintf(`
 schemaVersion: '2.2'
@@ -45,7 +68,7 @@ mainSteps:
   name: downloadContent
   inputs:
     sourceType: "HTTP"
-    destinationPath: "/tmp/installTeleport-%s.sh"
+    destinationPath: %q
     sourceInfo:
       url: "%s/webapi/scripts/installer/{{ scriptName }}"
 - action: aws:runShellScript
@@ -53,8 +76,15 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport-%s.sh "{{ token }}"
-`, randString, proxy, randString)
+      - /bin/sh %s "{{ token }}"
+`, installTeleportPath, proxy, installTeleportPath)
 }
 
 const EC2DiscoveryPolicyName = "TeleportEC2Discovery"
+
+// EC2DiscoverySSMDocumentSteps is the list of Steps defined in the default SSM Document for Teleport Discovery.
+// Used to query step results after executing a command using SSM.
+var EC2DiscoverySSMDocumentSteps = []string{
+	"downloadContent",
+	"runShellScript",
+}

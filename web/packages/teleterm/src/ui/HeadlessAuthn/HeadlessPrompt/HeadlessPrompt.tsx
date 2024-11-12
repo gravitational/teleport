@@ -18,7 +18,15 @@
 
 import React, { useState } from 'react';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, ButtonSecondary, Image, Flex, Box } from 'design';
+import {
+  ButtonIcon,
+  Text,
+  ButtonSecondary,
+  Image,
+  Flex,
+  Box,
+  H2,
+} from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogHeader,
@@ -27,8 +35,10 @@ import DialogConfirmation, {
 import { Attempt } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
 
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import { P, P3 } from 'design/Text/Text';
+
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
@@ -76,9 +86,9 @@ export function HeadlessPrompt({
       open={true}
     >
       <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
-        <Text typography="h4">
+        <H2 mb={4}>
           Headless command on <b>{cluster.name}</b>
-        </Text>
+        </H2>
         <ButtonIcon
           type="button"
           color="text.slightlyMuted"
@@ -91,19 +101,16 @@ export function HeadlessPrompt({
         </ButtonIcon>
       </DialogHeader>
       {updateHeadlessStateAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          {updateHeadlessStateAttempt.statusText}
+        <Alerts.Danger mb={0} details={updateHeadlessStateAttempt.statusText}>
+          Could not update the headless command state
         </Alerts.Danger>
       )}
       <DialogContent>
-        <Text color="text.slightlyMuted">
+        <P color="text.slightlyMuted">
           Someone initiated a headless command from <b>{clientIp}</b>.
-          <br />
-          If it was not you, click Reject and contact your administrator.
-        </Text>
-        <Text color="text.muted" mt={1} fontSize="12px">
-          Request ID: {headlessAuthenticationId}
-        </Text>
+        </P>
+        <P>If it was not you, click Reject and contact your administrator.</P>
+        <P3 color="text.muted">Request ID: {headlessAuthenticationId}</P3>
       </DialogContent>
       {waitForMfa && (
         <DialogContent mb={2}>

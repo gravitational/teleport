@@ -23,11 +23,11 @@ import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import auth, { DeviceUsage } from 'teleport/services/auth';
 import { MfaDevice } from 'teleport/services/mfa';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export default function useManageDevices(ctx: Ctx) {
   const [devices, setDevices] = useState<MfaDevice[]>([]);
-  const [isDialogVisible, setIsDialogVisible] = useState(false);
-  const [deviceToRemove, setDeviceToRemove] = useState<DeviceToRemove>();
+  const [deviceToRemove, setDeviceToRemove] = useState<MfaDevice>();
   const [token, setToken] = useState('');
   const fetchDevicesAttempt = useAttempt('');
   const [newDeviceUsage, setNewDeviceUsage] =
@@ -38,8 +38,6 @@ export default function useManageDevices(ctx: Ctx) {
   // the user has no devices yet and thus can't authenticate using the ReAuthenticate dialog
   const createRestrictedTokenAttempt = useAttempt('');
 
-  const isReAuthenticateVisible = !token && isDialogVisible;
-  const isRemoveDeviceVisible = token && deviceToRemove && isDialogVisible;
   const isReauthenticationRequired = !token;
 
   function fetchDevices() {
@@ -48,16 +46,16 @@ export default function useManageDevices(ctx: Ctx) {
     );
   }
 
-  function removeDevice() {
-    return ctx.mfaService.removeDevice(token, deviceToRemove.name).then(() => {
-      fetchDevices();
-      hideRemoveDevice();
-    });
-  }
-
-  function onAddDevice(usage: DeviceUsage) {
+  async function onAddDevice(usage: DeviceUsage) {
     setNewDeviceUsage(usage);
-    if (devices.length === 0) {
+    const response = await auth.getChallenge({
+      scope: MfaChallengeScope.MANAGE_DEVICES,
+    });
+    // If the user doesn't receieve any challenges from the backend, that means
+    // they have no valid devices to be challenged and should instead use a privilege token
+    // to add a new device.
+    // TODO (avatus): add SSO challenge here as well when we add SSO for MFA
+    if (!response.webauthnPublicKey?.challenge && !response.totpChallenge) {
       createRestrictedTokenAttempt.run(() =>
         auth.createRestrictedPrivilegeToken().then(token => {
           setToken(token);
@@ -75,19 +73,17 @@ export default function useManageDevices(ctx: Ctx) {
     setToken(null);
   }
 
-  function onRemoveDevice(device: DeviceToRemove) {
+  function onRemoveDevice(device: MfaDevice) {
     setDeviceToRemove(device);
-    setIsDialogVisible(true);
+  }
+
+  function onDeviceRemoved() {
+    fetchDevices();
+    hideRemoveDevice();
   }
 
   function hideRemoveDevice() {
-    setIsDialogVisible(false);
     setDeviceToRemove(null);
-    setToken(null);
-  }
-
-  function hideReAuthenticate() {
-    setIsDialogVisible(false);
   }
 
   function closeAddDeviceWizard() {
@@ -99,26 +95,20 @@ export default function useManageDevices(ctx: Ctx) {
   return {
     devices,
     token,
-    setToken,
     onAddDevice,
     onRemoveDevice,
     onDeviceAdded,
+    onDeviceRemoved,
     deviceToRemove,
-    removeDevice,
     fetchDevicesAttempt: fetchDevicesAttempt.attempt,
     createRestrictedTokenAttempt: createRestrictedTokenAttempt.attempt,
-    isReAuthenticateVisible,
-    isRemoveDeviceVisible,
     isReauthenticationRequired,
     addDeviceWizardVisible,
-    hideReAuthenticate,
     hideRemoveDevice,
     closeAddDeviceWizard,
     mfaDisabled: cfg.getAuth2faType() === 'off',
     newDeviceUsage,
   };
 }
-
-type DeviceToRemove = Pick<MfaDevice, 'id' | 'name'>;
 
 export type State = ReturnType<typeof useManageDevices>;

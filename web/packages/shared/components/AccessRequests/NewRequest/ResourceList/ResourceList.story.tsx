@@ -33,7 +33,16 @@ export default {
   title: 'Shared/AccessRequests/ResourceList',
 };
 
-export const Apps = () => <ResourceList {...props} agents={apps} />;
+export const Apps = () => (
+  <ResourceList
+    {...props}
+    agents={apps}
+    addedResources={{
+      ...props.addedResources,
+      app: { [apps[1].name]: apps[1].name },
+    }}
+  />
+);
 
 export const Databases = () => (
   <ResourceList {...props} agents={dbs} selectedResource="db" />
@@ -66,6 +75,8 @@ export const Roles = () => (
 export const UserGroups = () => (
   <ResourceList {...props} agents={userGroups} selectedResource="user_group" />
 );
+
+export const SamlApps = () => <ResourceList {...props} agents={samlApp} />;
 
 const props: ResourceListProps = {
   agents: [],
@@ -101,6 +112,31 @@ const apps: App[] = [
     id: 'one-aws-console-1-awsconsole-1.teleport-proxy.com',
     launchUrl: '',
     userGroups: [],
+  },
+  {
+    name: 'aws-console-2',
+    kind: 'app',
+    uri: 'https://console.aws.amazon.com/ec2/v2/home',
+    publicAddr: 'awsconsole-2.teleport-proxy.com',
+    addrWithProtocol: 'https://awsconsole-2.teleport-proxy.com',
+    labels: [
+      {
+        name: 'aws_account_id',
+        value: 'A1235',
+      },
+    ],
+    description: 'This is another AWS Console app',
+    awsConsole: true,
+    samlApp: false,
+    awsRoles: [],
+    clusterId: 'one',
+    fqdn: 'awsconsole-2.com',
+    id: 'one-aws-console-2-awsconsole-2.teleport-proxy.com',
+    launchUrl: '',
+    userGroups: [
+      { name: 'admins', description: 'Admins' },
+      { name: 'users', description: 'Regular users' },
+    ],
   },
 ];
 
@@ -166,5 +202,30 @@ const userGroups: UserGroup[] = [
     name: 'group id 2',
     description: 'admin group',
     labels: [{ name: 'env', value: 'dev' }],
+  },
+];
+
+const samlApp: App[] = [
+  {
+    name: 'app_saml',
+    kind: 'app',
+    uri: 'https://example.com/saml',
+    publicAddr: 'example.com',
+    addrWithProtocol: 'https://example.com/saml',
+    labels: [
+      {
+        name: 'env',
+        value: 'dev',
+      },
+    ],
+    description: 'This is a SAML app',
+    awsConsole: false,
+    samlApp: true,
+    awsRoles: [],
+    clusterId: 'one',
+    fqdn: 'example.com',
+    id: 'example.com/saml',
+    launchUrl: '',
+    userGroups: [],
   },
 ];

@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -66,7 +66,7 @@ type ProxyConfig struct {
 	// IdentityTLSConfig is the TLS ProxyRole identity used in servers with localhost SANs values.
 	IdentityTLSConfig *tls.Config
 	// AccessPoint is the auth server client.
-	AccessPoint auth.ReadProxyAccessPoint
+	AccessPoint authclient.CAGetter
 	// ClusterName is the name of the teleport cluster.
 	ClusterName string
 	// PingInterval defines the ping interval for ping-wrapped connections.
@@ -190,15 +190,21 @@ type HandlerDecs struct {
 	// terminating the TLS connection.
 	HandlerWithConnInfo HandlerFuncWithInfo
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
-	// TLS termination to the protocol handler (Used in Kube handler case)
+	// TLS termination to the protocol handler (Used in Kube handler case).
+	//
+	// It is the upstream servers responsibility to provide the appropriate [tls.Config.NextProtos]
+	// to confirm the negotiated protocol.
 	ForwardTLS bool
 	// MatchFunc is a routing route match function based on ALPN SNI TLS values.
 	// If is evaluated to true the current HandleDesc will be used
 	// for connection handling.
 	MatchFunc MatchFunc
 	// TLSConfig is TLS configuration that allows switching TLS settings for the handle.
-	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
-	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
+	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connections,
+	// but if [HandlerDecs.TLSConfig] is present, it will take precedence over [ProxyConfig.WebTLSConfig].
+	//
+	// It is the responsibility of the creator of the [tls.Config] to provide the appropriate [tls.Config.NextProtos]
+	// to confirm the negotiated protocol.
 	TLSConfig *tls.Config
 }
 
@@ -280,7 +286,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	}
 	c.IdentityTLSConfig = c.IdentityTLSConfig.Clone()
 	c.IdentityTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	fn := auth.WithClusterCAs(c.IdentityTLSConfig, c.AccessPoint, c.ClusterName, c.Log)
+	fn := authclient.WithClusterCAs(c.IdentityTLSConfig, c.AccessPoint, c.ClusterName, c.Log)
 	c.IdentityTLSConfig.GetConfigForClient = fn
 
 	return nil

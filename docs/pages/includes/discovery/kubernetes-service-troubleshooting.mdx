@@ -1,0 +1,18 @@
+### Kubernetes Service troubleshooting
+
+If the `tctl get kube_cluster` command returns the discovered clusters, but the 
+`tctl kube ls` command does not include them, check that you have set the 
+`kubernetes_service.resources` section correctly.
+
+```yaml
+kubernetes_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "env": "prod"
+```
+
+If the section is correctly configured, but clusters still do not appear or 
+return authentication errors, please check if permissions have been correctly configured 
+in your target cluster or that you have the correct permissions to list Kubernetes clusters 
+in Teleport.

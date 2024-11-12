@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -65,7 +67,7 @@ func TestBotResourceName(t *testing.T) {
 // TestCreateBot is an integration test that uses a real gRPC client/server.
 func TestCreateBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botCreator, _, err := auth.CreateUserAndRole(
@@ -104,6 +106,7 @@ func TestCreateBot(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	expiry := time.Now().Add(time.Hour)
 
 	tests := []struct {
 		name string
@@ -204,6 +207,118 @@ func TestCreateBot(t *testing.T) {
 						types.BotLabel: "success",
 					},
 					Description: "Automatically generated role for bot success",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessionTTL: types.Duration(12 * time.Hour),
+					},
+					Allow: types.RoleConditions{
+						Impersonate: &types.ImpersonateConditions{
+							Roles: []string{testRole.GetName()},
+						},
+						Rules: []types.Rule{
+							types.NewRule(
+								types.KindCertAuthority,
+								[]string{types.VerbReadNoSecrets},
+							),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "success with expiry",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "success-with-expiry",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
+						Expires: timestamppb.New(expiry),
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+						Traits: []*machineidv1pb.Trait{
+							{
+								Name:   constants.TraitLogins,
+								Values: []string{"root"},
+							},
+							{
+								Name:   constants.TraitKubeUsers,
+								Values: []string{},
+							},
+						},
+					},
+				},
+			},
+
+			assertError: require.NoError,
+			want: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "success-with-expiry",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
+					Expires: timestamppb.New(expiry),
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+					Traits: []*machineidv1pb.Trait{
+						{
+							Name:   constants.TraitLogins,
+							Values: []string{"root"},
+						},
+					},
+				},
+				Status: &machineidv1pb.BotStatus{
+					UserName: "bot-success-with-expiry",
+					RoleName: "bot-success-with-expiry",
+				},
+			},
+			wantUser: &types.UserV2{
+				Kind:    types.KindUser,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "bot-success-with-expiry",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel:           "success-with-expiry",
+						types.BotGenerationLabel: "0",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
+					},
+					Expires: &expiry,
+				},
+				Spec: types.UserSpecV2{
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
+					Roles: []string{"bot-success-with-expiry"},
+					Traits: map[string][]string{
+						constants.TraitLogins: {"root"},
+					},
+				},
+				Status: types.UserStatusV2{
+					PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
+				},
+			},
+			wantRole: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:      "bot-success-with-expiry",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "success-with-expiry",
+					},
+					Description: "Automatically generated role for bot success-with-expiry",
+					Expires:     &expiry,
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -340,8 +455,9 @@ func TestCreateBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+						cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice"),
 					),
 				)
 			}
@@ -353,7 +469,7 @@ func TestCreateBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})
@@ -363,7 +479,7 @@ func TestCreateBot(t *testing.T) {
 // TestUpdateBot is an integration test that uses a real gRPC client/server.
 func TestUpdateBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botUpdaterUser, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-updater", []string{}, []types.Rule{
@@ -704,8 +820,9 @@ func TestUpdateBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+						cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice"),
 					),
 				)
 			}
@@ -716,7 +833,7 @@ func TestUpdateBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})
@@ -726,7 +843,7 @@ func TestUpdateBot(t *testing.T) {
 // TestUpsertBot is an integration test that uses a real gRPC client/server.
 func TestUpsertBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botCreator, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
@@ -759,6 +876,7 @@ func TestUpsertBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	expiry := time.Now().Add(time.Hour)
 
 	// We find the user associated with the Bot and set the generation label. This allows us to ensure that the
 	// generation label is preserved when UpsertBot is called.
@@ -864,6 +982,108 @@ func TestUpsertBot(t *testing.T) {
 						types.BotLabel: "new",
 					},
 					Description: "Automatically generated role for bot new",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessionTTL: types.Duration(12 * time.Hour),
+					},
+					Allow: types.RoleConditions{
+						Impersonate: &types.ImpersonateConditions{
+							Roles: []string{testRole.GetName()},
+						},
+						Rules: []types.Rule{
+							types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "new with expiry",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "new-with-expiry",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
+						Expires: timestamppb.New(expiry),
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+						Traits: []*machineidv1pb.Trait{
+							{
+								Name:   constants.TraitLogins,
+								Values: []string{"root"},
+							},
+						},
+					},
+				},
+			},
+
+			assertError: require.NoError,
+			want: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "new-with-expiry",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
+					Expires: timestamppb.New(expiry),
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+					Traits: []*machineidv1pb.Trait{
+						{
+							Name:   constants.TraitLogins,
+							Values: []string{"root"},
+						},
+					},
+				},
+				Status: &machineidv1pb.BotStatus{
+					UserName: "bot-new-with-expiry",
+					RoleName: "bot-new-with-expiry",
+				},
+			},
+			wantUser: &types.UserV2{
+				Kind:    types.KindUser,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "bot-new-with-expiry",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel:           "new-with-expiry",
+						types.BotGenerationLabel: "0",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
+					},
+					Expires: &expiry,
+				},
+				Spec: types.UserSpecV2{
+					Roles: []string{"bot-new-with-expiry"},
+					Traits: map[string][]string{
+						constants.TraitLogins: {"root"},
+					},
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
+				},
+			},
+			wantRole: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:      "bot-new-with-expiry",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "new-with-expiry",
+					},
+					Description: "Automatically generated role for bot new-with-expiry",
+					Expires:     &expiry,
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -1029,8 +1249,9 @@ func TestUpsertBot(t *testing.T) {
 					cmp.Diff(
 						tt.wantUser,
 						gotUser,
-						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+						cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice"),
 					),
 				)
 			}
@@ -1041,7 +1262,7 @@ func TestUpsertBot(t *testing.T) {
 				require.Empty(t, cmp.Diff(
 					tt.wantRole,
 					gotUser,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")),
 				)
 			}
 		})
@@ -1051,7 +1272,7 @@ func TestUpsertBot(t *testing.T) {
 // TestGetBot is an integration test that uses a real gRPC client/server.
 func TestGetBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botGetterUser, _, err := auth.CreateUserAndRole(
@@ -1162,7 +1383,7 @@ func TestGetBot(t *testing.T) {
 // TestListBots is an integration test that uses a real gRPC client/server.
 func TestListBots(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botListerUser, _, err := auth.CreateUserAndRole(
@@ -1273,7 +1494,7 @@ func TestListBots(t *testing.T) {
 // TestDeleteBot is an integration test that uses a real gRPC client/server.
 func TestDeleteBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botDeleterUser, _, err := auth.CreateUserAndRole(
@@ -1413,14 +1634,17 @@ func TestDeleteBot(t *testing.T) {
 	}
 }
 
-func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
+func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 
-	srv, err := as.NewTestTLSServer()
+	emitter := &eventstest.MockRecorderEmitter{}
+	srv, err := as.NewTestTLSServer(func(config *auth.TestTLSServerConfig) {
+		config.APIConfig.Emitter = emitter
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -1431,5 +1655,5 @@ func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
 		require.NoError(t, err)
 	})
 
-	return srv
+	return srv, emitter
 }

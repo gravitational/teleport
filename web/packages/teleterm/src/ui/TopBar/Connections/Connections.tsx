@@ -36,7 +36,7 @@ export function Connections() {
   const { status: vnetStatus } = useVnetContext();
   const isAnyConnectionActive =
     connectionTracker.getConnections().some(c => c.connected) ||
-    vnetStatus === 'running';
+    vnetStatus.value === 'running';
 
   useKeyboardShortcuts(
     useMemo(
@@ -75,6 +75,7 @@ export function Connections() {
         */}
         <Box width="324px" bg="levels.elevated">
           <StepSlider
+            tDuration={250}
             currFlow="default"
             flows={stepSliderFlows}
             defaultStepIndex={stepToIndex(stepToOpen)}

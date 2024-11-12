@@ -55,7 +55,7 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 }
 
 // SendReviewReminders will send a review reminder that an access list needs to be reviewed.
-func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessList *accesslist.AccessList) error {
+func (b Bot) SendReviewReminders(ctx context.Context, recipients []common.Recipient, accessLists []*accesslist.AccessList) error {
 	return trace.NotImplemented("access list review reminder is not yet implemented")
 }
 
@@ -129,9 +129,18 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 
 // FetchRecipient returns the recipient for the given raw recipient.
 func (b *Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient, error) {
+	return createScheduleRecipient(ctx, name)
+}
+
+func createScheduleRecipient(ctx context.Context, name string) (*common.Recipient, error) {
 	return &common.Recipient{
 		Name: name,
 		ID:   name,
 		Kind: common.RecipientKindSchedule,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }

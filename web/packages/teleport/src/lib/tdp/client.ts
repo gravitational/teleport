@@ -24,7 +24,7 @@ import init, {
 } from 'teleport/ironrdp/pkg/ironrdp';
 
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import Codec, {
@@ -93,7 +93,7 @@ export enum LogType {
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterWebAuthnSender {
+export default class Client extends EventEmitterMfaSender {
   protected codec: Codec;
   protected socket: AuthenticatedWebSocket | undefined;
   private socketAddr: string;
@@ -220,8 +220,8 @@ export default class Client extends EventEmitterWebAuthnSender {
             TdpClientEvent.TDP_ERROR
           );
           break;
-        case MessageType.NOTIFICATION:
-          this.handleTdpNotification(buffer);
+        case MessageType.ALERT:
+          this.handleTdpAlert(buffer);
           break;
         case MessageType.MFA_JSON:
           this.handleMfaChallenge(buffer);
@@ -297,17 +297,15 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleTdpNotification(buffer: ArrayBuffer) {
-    const notification = this.codec.decodeNotification(buffer);
-    if (notification.severity === Severity.Error) {
-      this.handleError(
-        new Error(notification.message),
-        TdpClientEvent.TDP_ERROR
-      );
-    } else if (notification.severity === Severity.Warning) {
-      this.handleWarning(notification.message, TdpClientEvent.TDP_WARNING);
+  handleTdpAlert(buffer: ArrayBuffer) {
+    const alert = this.codec.decodeAlert(buffer);
+    // TODO(zmb3): info and warning should use the same handler
+    if (alert.severity === Severity.Error) {
+      this.handleError(new Error(alert.message), TdpClientEvent.TDP_ERROR);
+    } else if (alert.severity === Severity.Warning) {
+      this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
-      this.handleInfo(notification.message);
+      this.handleInfo(alert.message);
     }
   }
 
@@ -376,7 +374,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        this.emit(TermEvent.MFA_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -394,31 +392,21 @@ export default class Client extends EventEmitterWebAuthnSender {
     }
   }
 
-  private wasSuccessful(errCode: SharedDirectoryErrCode) {
-    if (errCode === SharedDirectoryErrCode.Nil) {
-      return true;
-    }
-
-    this.handleError(
-      new Error(`Encountered shared directory error: ${errCode}`),
-      TdpClientEvent.CLIENT_ERROR
-    );
-    return false;
-  }
-
   handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
     const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
-
-    if (!this.wasSuccessful(ack.errCode)) {
+    if (ack.errCode !== SharedDirectoryErrCode.Nil) {
+      // A failure in the acknowledge message means the directory
+      // share operation failed (likely due to server side configuration).
+      // Since this is not a fatal error, we emit a warning but otherwise
+      // keep the sesion alive.
+      this.handleWarning(
+        `Failed to share directory '${this.sdManager.getName()}', drive redirection may be disabled on the RDP server.`,
+        TdpClientEvent.TDP_WARNING
+      );
       return;
     }
-    try {
-      this.logger.info(
-        'Started sharing directory: ' + this.sdManager.getName()
-      );
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+
+    this.logger.info('Started sharing directory: ' + this.sdManager.getName());
   }
 
   async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
@@ -602,10 +590,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       return;
     }
 
-    this.handleError(
-      new Error('websocket unavailable'),
-      TdpClientEvent.CLIENT_ERROR
-    );
+    this.logger.warn('websocket is not open');
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
@@ -715,7 +700,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
-  // Emits an errType event, closing the socket if the error was fatal.
+  // Emits an errType event and closes the websocket connection.
+  // Should only be used for fatal errors.
   private handleError(
     err: Error,
     errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR
@@ -725,7 +711,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket?.close();
   }
 
-  // Emits an warnType event
+  // Emits a warning event, but keeps the socket open.
   private handleWarning(
     warning: string,
     warnType: TdpClientEvent.TDP_WARNING | TdpClientEvent.CLIENT_WARNING

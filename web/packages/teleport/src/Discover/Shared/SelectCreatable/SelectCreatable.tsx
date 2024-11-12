@@ -21,7 +21,7 @@ import { useTheme } from 'styled-components';
 import ReactSelectCreatable from 'react-select/creatable';
 import { Cross } from 'design/Icon';
 
-const styles = theme => ({
+export const styles = theme => ({
   multiValue: (base, state) => {
     return state.data.isFixed
       ? { ...base, backgroundColor: `${theme.colors.spotBackground[2]}` }
@@ -33,7 +33,7 @@ const styles = theme => ({
     }
 
     if (state.isDisabled) {
-      return { ...base, paddingRight: 6 };
+      return { ...base, paddingRight: 6, color: theme.colors.text.main };
     }
 
     return { ...base, color: theme.colors.text.primary };
@@ -99,6 +99,8 @@ export type SelectCreatableProps = {
   autoFocus?: boolean;
 };
 
+// TODO(bl-nero): There's no need for this to be a separate component. Migrate
+// it to the shared component.
 export const SelectCreatable = ({
   isMulti = true,
   isClearable = true,

@@ -1,6 +1,6 @@
 ### Certificate error
 
-If your `tsh db connect` error includes the following text, you likely have an RDS database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
+If your `tsh db connect` error includes the following text, you likely have an RDS or DocumentDB database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
 
 ```text
 x509: certificate relies on legacy Common Name field, use SANs instead
@@ -25,30 +25,35 @@ $ nc -zv postgres-instance-1.sadas.us-east-1.rds.amazonaws.com 5432
 
 The Database Service assumes an IAM role in one of following situations:
 
-- An IAM role is used as `db_user` when accessing AWS services that require IAM
-  roles as database users, such as DynamoDB, Keyspaces, Opensearch, and
-  Redshift Serverless.
+- A Teleport user specifies an IAM role as the database user they wish to use
+  when accessing AWS services that require IAM roles as database users.
+  Databases that support using an IAM role as a database user include: DynamoDB,
+  Keyspaces, Opensearch, Redshift, and Redshift Serverless.
 - The `assume_role_arn` field is specified for the database resources or
   dynamic resource matchers.
 
-<Details title="Role chaining">
+<Details title="What if both situations apply? (role chaining)">
 When both of the above conditions are true for a database connection, the
 Database Service performs a role chaining by assuming the IAM role specified
-`assume_role_arn` first then using that IAM role to assume the IAM role for
-`db_user`.
+in `assume_role_arn` first, then using that IAM role to assume the IAM role for
+the database user.
 </Details>
 
 You may encounter the following error if the trust relationship is not
 configured properly between the IAM roles:
 ```text
-AccessDenied: User: arn:aws:sts::111111111111:assumed-role/database-service-role/i-* is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111111111111:role/database-user-role
+AccessDenied: User: arn:aws:sts::111111111111:assumed-role/teleport-db-service-role/i-* is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::111111111111:role/db-user-role
 ```
 
-(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx!)
+<Details title="how to properly configure the trust relationship?">
 
-You can test the trust relationship by running this AWS CLI command as `role1`:
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="db-user-role" !)
+
+</Details>
+
+You can test the trust relationship by running this AWS CLI command as `teleport-db-service-role`:
 ```code
-aws sts assume-role --role-arn arn:aws:iam::111111111111:role/role2 --role-session-name test-trust-relationship
+$ aws sts assume-role --role-arn arn:aws:iam::111111111111:role/db-user-role --role-session-name test-trust-relationship
 ```
 
 Learn more on [how to use trust policies with IAM

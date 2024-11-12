@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -52,7 +53,8 @@ func (s *Server) startDatabaseWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(newDatabases, types.Database.GetName)
 			},
-			Log:      s.Log.WithField("kind", types.KindDatabase),
+			// TODO(tross): update to use the server logger once it is converted to use slog
+			Logger:   slog.With("kind", types.KindDatabase),
 			OnCreate: s.onDatabaseCreate,
 			OnUpdate: s.onDatabaseUpdate,
 			OnDelete: s.onDatabaseDelete,
@@ -64,7 +66,7 @@ func (s *Server) startDatabaseWatchers() error {
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn:     s.getAllDatabaseFetchers,
-		Log:            s.Log.WithField("kind", types.KindDatabase),
+		Log:            s.LegacyLogger.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
@@ -94,7 +96,7 @@ func (s *Server) startDatabaseWatchers() error {
 				mu.Unlock()
 
 				if err := reconciler.Reconcile(s.ctx); err != nil {
-					s.Log.WithError(err).Warn("Unable to reconcile database resources.")
+					s.Log.WarnContext(s.ctx, "Unable to reconcile database resources", "error", err)
 				} else if s.onDatabaseReconcile != nil {
 					s.onDatabaseReconcile()
 				}
@@ -126,7 +128,7 @@ func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 func (s *Server) getCurrentDatabases() map[string]types.Database {
 	databases, err := s.AccessPoint.GetDatabases(s.ctx)
 	if err != nil {
-		s.Log.WithError(err).Warn("Failed to get databases from cache.")
+		s.Log.WarnContext(s.ctx, "Failed to get databases from cache", "error", err)
 		return nil
 	}
 
@@ -136,17 +138,18 @@ func (s *Server) getCurrentDatabases() map[string]types.Database {
 }
 
 func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) error {
-	s.Log.Debugf("Creating database %s.", database.GetName())
+	s.Log.DebugContext(ctx, "Creating database", "database", database.GetName())
 	err := s.AccessPoint.CreateDatabase(ctx, database)
-	// If the database already exists but has an empty discovery group, update it.
-	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
-		func() (types.ResourceWithLabels, error) {
-			return s.AccessPoint.GetDatabase(ctx, database.GetName())
-		}) {
-		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
-	}
+	// If the database already exists but has cloud origin and an empty
+	// discovery group, then update it.
 	if err != nil {
-		return trace.Wrap(err)
+		err := s.resolveCreateErr(err, types.OriginCloud, func() (types.ResourceWithLabels, error) {
+			return s.AccessPoint.GetDatabase(ctx, database.GetName())
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		databaseEventPrefix + database.GetName(): {
@@ -160,18 +163,18 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 		},
 	})
 	if err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
+		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, database, _ types.Database) error {
-	s.Log.Debugf("Updating database %s.", database.GetName())
+	s.Log.DebugContext(ctx, "Updating database", "database", database.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateDatabase(ctx, database))
 }
 
 func (s *Server) onDatabaseDelete(ctx context.Context, database types.Database) error {
-	s.Log.Debugf("Deleting database %s.", database.GetName())
+	s.Log.DebugContext(ctx, "Deleting database", "database", database.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteDatabase(ctx, database.GetName()))
 }
 

@@ -19,9 +19,17 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -75,6 +83,60 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_CrownJewel{
 				CrownJewel: r,
 			}
+		case *dbobjectv1.DatabaseObject:
+			out.Resource = &proto.Event_DatabaseObject{
+				DatabaseObject: r,
+			}
+		case *machineidv1.BotInstance:
+			out.Resource = &proto.Event_BotInstance{
+				BotInstance: r,
+			}
+		case *clusterconfigpb.AccessGraphSettings:
+			out.Resource = &proto.Event_AccessGraphSettings{
+				AccessGraphSettings: r,
+			}
+		case *machineidv1.SPIFFEFederation:
+			out.Resource = &proto.Event_SPIFFEFederation{
+				SPIFFEFederation: r,
+			}
+		case *userprovisioningpb.StaticHostUser:
+			out.Resource = &proto.Event_StaticHostUserV2{
+				StaticHostUserV2: r,
+			}
+		case *autoupdate.AutoUpdateConfig:
+			out.Resource = &proto.Event_AutoUpdateConfig{
+				AutoUpdateConfig: r,
+			}
+		case *autoupdate.AutoUpdateVersion:
+			out.Resource = &proto.Event_AutoUpdateVersion{
+				AutoUpdateVersion: r,
+			}
+		case *usertasksv1.UserTask:
+			out.Resource = &proto.Event_UserTask{
+				UserTask: r,
+			}
+		case *provisioningv1.PrincipalState:
+			out.Resource = &proto.Event_ProvisioningPrincipalState{
+				ProvisioningPrincipalState: r,
+			}
+		case *autoupdate.AutoUpdateAgentRollout:
+			out.Resource = &proto.Event_AutoUpdateAgentRollout{
+				AutoUpdateAgentRollout: r,
+			}
+		case *identitycenterv1.Account:
+			out.Resource = &proto.Event_IdentityCenterAccount{
+				IdentityCenterAccount: r,
+			}
+		case *identitycenterv1.PrincipalAssignment:
+			out.Resource = &proto.Event_IdentityCenterPrincipalAssignment{
+				IdentityCenterPrincipalAssignment: r,
+			}
+		case *identitycenterv1.AccountAssignment:
+			out.Resource = &proto.Event_IdentityCenterAccountAssignment{
+				IdentityCenterAccountAssignment: r,
+			}
+		default:
+			return nil, trace.BadParameter("resource type %T is not supported", r)
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -208,6 +270,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.WindowsDesktopV3:
 		out.Resource = &proto.Event_WindowsDesktop{
 			WindowsDesktop: r,
+		}
+	case *types.DynamicWindowsDesktopV1:
+		out.Resource = &proto.Event_DynamicWindowsDesktop{
+			DynamicWindowsDesktop: r,
 		}
 	case *types.InstallerV1:
 		out.Resource = &proto.Event_Installer{
@@ -399,6 +465,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetWindowsDesktop(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetDynamicWindowsDesktop(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else if r := in.GetKubernetesServer(); r != nil {
 		out.Resource = r
 		return &out, nil
@@ -433,7 +502,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAccessList(); r != nil {
-		out.Resource, err = accesslistv1conv.FromProto(r)
+		out.Resource, err = accesslistv1conv.FromProto(
+			r,
+			accesslistv1conv.WithOwnersIneligibleStatusField(r.GetSpec().GetOwners()),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -445,7 +517,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		}
 		return &out, nil
 	} else if r := in.GetAccessListMember(); r != nil {
-		out.Resource, err = accesslistv1conv.FromMemberProto(r)
+		out.Resource, err = accesslistv1conv.FromMemberProto(
+			r,
+			accesslistv1conv.WithMemberIneligibleStatusField(r),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -493,6 +568,45 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetCrownJewel(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetDatabaseObject(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetBotInstance(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAccessGraphSettings(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetSPIFFEFederation(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetStaticHostUserV2(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateConfig(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateVersion(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateAgentRollout(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetUserTask(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetProvisioningPrincipalState(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterAccount(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterPrincipalAssignment(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetIdentityCenterAccountAssignment(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

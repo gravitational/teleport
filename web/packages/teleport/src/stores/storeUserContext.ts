@@ -125,6 +125,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.clipboardSharingEnabled;
   }
 
+  getReviewRequests() {
+    return this.state.acl.reviewRequests;
+  }
+
   getNodeAccess() {
     return this.state.acl.nodes;
   }
@@ -151,6 +155,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getAccessGraphAccess() {
     return this.state.acl.accessGraph;
+  }
+
+  getSamlIdPServiceProviderAccess() {
+    return this.state.acl.samlIdpServiceProvider;
   }
 
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
@@ -204,6 +212,10 @@ export default class StoreUserContext extends Store<UserContext> {
     );
   }
 
+  getDiscoveryConfigAccess() {
+    return this.state.acl.discoverConfigs;
+  }
+
   getPluginsAccess() {
     return this.state.acl.plugins;
   }
@@ -214,10 +226,6 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getIntegrationsAccess() {
     return this.state.acl.integrations;
-  }
-
-  getAssistantAccess() {
-    return this.state.acl.assist;
   }
 
   getAllowedSearchAsRoles() {

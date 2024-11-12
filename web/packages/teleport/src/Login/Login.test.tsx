@@ -33,6 +33,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
   jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
+  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
   user = userEvent.setup();
 });
 
@@ -183,5 +184,14 @@ describe('test MOTD', () => {
     expect(
       screen.queryByText('Welcome to cluster, your activity will be recorded.')
     ).not.toBeInTheDocument();
+  });
+
+  test('access changed message renders when the URL param is set', () => {
+    jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => true);
+
+    render(<Login />);
+
+    expect(screen.getByText(/sign in to teleport/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your access has changed/i)).toBeInTheDocument();
   });
 });

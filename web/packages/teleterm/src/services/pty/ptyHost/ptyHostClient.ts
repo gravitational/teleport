@@ -41,6 +41,7 @@ export function createPtyHostClient(
         args: ptyOptions.args,
         path: ptyOptions.path,
         env: Struct.fromJson(ptyOptions.env),
+        useConpty: ptyOptions.useConpty,
       });
 
       if (ptyOptions.cwd) {

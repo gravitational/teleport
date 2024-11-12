@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'xterm/css/xterm.css';
-import { ITheme, Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import { WebglAddon } from 'xterm-addon-webgl';
+import '@xterm/xterm/css/xterm.css';
+import { ITheme, Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { ImageAddon } from '@xterm/addon-image';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import { debounce, isInteger } from 'shared/utils/highbar';
-import { WebLinksAddon } from 'xterm-addon-web-links';
-import { CanvasAddon } from 'xterm-addon-canvas';
 import Logger from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
@@ -47,8 +48,10 @@ export default class TtyTerminal {
   _scrollBack: number;
   _fontFamily: string;
   _fontSize: number;
+  _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
+  _imageAddon = new ImageAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon;
   _canvasAddon = new CanvasAddon();
@@ -57,13 +60,14 @@ export default class TtyTerminal {
     tty: Tty,
     private options: Options
   ) {
-    const { el, scrollBack, fontFamily, fontSize } = options;
+    const { el, scrollBack, fontFamily, fontSize, convertEol } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
     this._fontSize = fontSize || 14;
     // Passing scrollback will overwrite the default config. This is to support ttyplayer.
     // Default to the config when not passed anything, which is the normal usecase
     this._scrollBack = scrollBack || cfg.ui.scrollbackLines;
+    this._convertEol = convertEol || false;
     this.tty = tty;
     this.term = null;
 
@@ -78,6 +82,7 @@ export default class TtyTerminal {
       fontFamily: this._fontFamily,
       fontSize: this._fontSize,
       scrollback: this._scrollBack,
+      convertEol: this._convertEol,
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
       theme: this.options.theme,
@@ -85,6 +90,7 @@ export default class TtyTerminal {
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
+    this.term.loadAddon(this._imageAddon);
     // handle context loss and load webgl addon
     try {
       // try to create a new WebglAddon. If webgl is not supported, this
@@ -152,6 +158,7 @@ export default class TtyTerminal {
     this._disconnect();
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
+    this._imageAddon.dispose();
     this._webglAddon?.dispose();
     this._canvasAddon?.dispose();
     this._el.innerHTML = null;
@@ -233,4 +240,5 @@ type Options = {
   scrollBack?: number;
   fontFamily?: string;
   fontSize?: number;
+  convertEol?: boolean;
 };

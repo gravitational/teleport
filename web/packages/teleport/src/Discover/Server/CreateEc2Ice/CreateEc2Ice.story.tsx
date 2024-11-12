@@ -19,8 +19,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 
 import { Info } from 'design/Alert';
 
@@ -41,10 +40,7 @@ import { CreateEc2Ice } from './CreateEc2Ice';
 
 export default {
   title: 'Teleport/Discover/Server/EC2/CreateEICE',
-  loaders: [mswLoader],
 };
-
-initialize();
 
 const mockedCreatedEc2Ice: Ec2InstanceConnectEndpoint = {
   name: 'test-eice',
@@ -55,29 +51,25 @@ const mockedCreatedEc2Ice: Ec2InstanceConnectEndpoint = {
   vpcId: 'test',
 };
 
-const deployEndpointSuccess = rest.post(
+const deployEndpointSuccess = http.post(
   cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'),
-  (req, res, ctx) => res(ctx.json({ name: 'test-eice' }))
+  () => HttpResponse.json({ name: 'test-eice' })
 );
 
 let tick = 0;
-const ec2IceEndpointWithTick = rest.post(
+const ec2IceEndpointWithTick = http.post(
   cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'),
-  (req, res, ctx) => {
+  () => {
     if (tick == 1) {
       tick = 0; // reset, the polling will be finished by this point.
-      return res(
-        ctx.json({
-          ec2Ices: [mockedCreatedEc2Ice],
-        })
-      );
+      return HttpResponse.json({
+        ec2Ices: [mockedCreatedEc2Ice],
+      });
     }
     tick += 1;
-    return res(
-      ctx.json({
-        ec2Ices: [{ ...mockedCreatedEc2Ice, state: 'create-in-progress' }],
-      })
-    );
+    return HttpResponse.json({
+      ec2Ices: [{ ...mockedCreatedEc2Ice, state: 'create-in-progress' }],
+    });
   }
 );
 
@@ -101,8 +93,8 @@ export const ListSecurityGroupsLoading = () => <Component />;
 ListSecurityGroupsLoading.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.getListSecurityGroupsUrl('test-oidc'), (req, res, ctx) =>
-        res(ctx.delay('infinite'))
+      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+        delay('infinite')
       ),
     ],
   },
@@ -113,12 +105,12 @@ export const ListSecurityGroupsFail = () => <Component />;
 ListSecurityGroupsFail.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.getListSecurityGroupsUrl('test-oidc'), (req, res, ctx) =>
-        res(
-          ctx.status(403),
-          ctx.json({
+      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+        HttpResponse.json(
+          {
             message: 'some error when trying to list security groups',
-          })
+          },
+          { status: 403 }
         )
       ),
     ],
@@ -135,18 +127,16 @@ export const DeployEiceFail = () => (
 DeployEiceFail.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.getListSecurityGroupsUrl('test-oidc'), (req, res, ctx) =>
-        res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
-      rest.post(
-        cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'),
-        (req, res, ctx) =>
-          res(
-            ctx.status(403),
-            ctx.json({
-              message: 'some error when trying to initiate the deployment',
-            })
-          )
+      http.post(cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'), () =>
+        HttpResponse.json(
+          {
+            message: 'some error when trying to initiate the deployment',
+          },
+          { status: 403 }
+        )
       ),
     ],
   },
@@ -162,26 +152,22 @@ export const CreatingInProgress = () => (
 CreatingInProgress.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.getListSecurityGroupsUrl('test-oidc'), (req, res, ctx) =>
-        res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
-      rest.post(
-        cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'),
-        (req, res, ctx) =>
-          res(
-            ctx.json({
-              ec2Ices: [
-                {
-                  name: 'test-eice',
-                  state: 'create-in-progress',
-                  stateMessage: '',
-                  dashboardLink: 'goteleport.com',
-                  subnetId: 'test-subnetid',
-                },
-              ],
-              nextToken: '',
-            })
-          )
+      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+        HttpResponse.json({
+          ec2Ices: [
+            {
+              name: 'test-eice',
+              state: 'create-in-progress',
+              stateMessage: '',
+              dashboardLink: 'goteleport.com',
+              subnetId: 'test-subnetid',
+            },
+          ],
+          nextToken: '',
+        })
       ),
       deployEndpointSuccess,
     ],
@@ -201,26 +187,22 @@ export const CreatingFailed = () => (
 CreatingFailed.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.getListSecurityGroupsUrl('test-oidc'), (req, res, ctx) =>
-        res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
-      rest.post(
-        cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'),
-        (req, res, ctx) =>
-          res(
-            ctx.json({
-              ec2Ices: [
-                {
-                  name: 'test-eice',
-                  state: 'create-failed',
-                  stateMessage: '',
-                  dashboardLink: 'goteleport.com',
-                  subnetId: 'test-subnetid',
-                },
-              ],
-              nextToken: '',
-            })
-          )
+      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+        HttpResponse.json({
+          ec2Ices: [
+            {
+              name: 'test-eice',
+              state: 'create-failed',
+              stateMessage: '',
+              dashboardLink: 'goteleport.com',
+              subnetId: 'test-subnetid',
+            },
+          ],
+          nextToken: '',
+        })
       ),
       deployEndpointSuccess,
     ],
@@ -239,55 +221,48 @@ export const CreatingComplete = () => (
 CreatingComplete.parameters = {
   msw: {
     handlers: [
-      rest.post(cfg.getListSecurityGroupsUrl('test-oidc'), (req, res, ctx) =>
-        res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.getListSecurityGroupsUrl('test-oidc'), () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
-      rest.post(
-        cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'),
-        (req, res, ctx) => res(ctx.json({ name: 'test-eice' }))
+      http.post(cfg.getDeployEc2InstanceConnectEndpointUrl('test-oidc'), () =>
+        HttpResponse.json({ name: 'test-eice' })
       ),
-      rest.post(
-        cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'),
-        (req, res, ctx) =>
-          res(
-            ctx.json({
-              ec2Ices: [
-                {
-                  name: 'test-eice',
-                  state: 'create-complete',
-                  stateMessage: '',
-                  dashboardLink: 'goteleport.com',
-                  subnetId: 'test-subnetid',
-                },
-              ],
-              nextToken: '',
-            })
-          )
-      ),
-      rest.post(cfg.getClusterNodesUrlNoParams('localhost'), (req, res, ctx) =>
-        res(
-          ctx.delay(2000), // delay by 2 seconds
-          ctx.json({
-            id: 'ec2-instance-1',
-            kind: 'node',
-            clusterId: 'cluster',
-            hostname: 'ec2-hostname-1',
-            labels: [{ name: 'instance', value: 'ec2-1' }],
-            addr: 'ec2.1.com',
-            tunnel: false,
-            subKind: 'openssh-ec2-ice',
-            sshLogins: ['test'],
-            aws: {
-              accountId: 'test-account',
-              instanceId: 'instance-ec2-1',
-              region: 'us-east-1',
-              vpcId: 'test',
-              integration: 'test',
-              subnetId: 'test',
+      http.post(cfg.getListEc2InstanceConnectEndpointsUrl('test-oidc'), () =>
+        HttpResponse.json({
+          ec2Ices: [
+            {
+              name: 'test-eice',
+              state: 'create-complete',
+              stateMessage: '',
+              dashboardLink: 'goteleport.com',
+              subnetId: 'test-subnetid',
             },
-          })
-        )
+          ],
+          nextToken: '',
+        })
       ),
+      http.post(cfg.getClusterNodesUrlNoParams('localhost'), async () => {
+        await delay(2000);
+        return HttpResponse.json({
+          id: 'ec2-instance-1',
+          kind: 'node',
+          clusterId: 'cluster',
+          hostname: 'ec2-hostname-1',
+          labels: [{ name: 'instance', value: 'ec2-1' }],
+          addr: 'ec2.1.com',
+          tunnel: false,
+          subKind: 'openssh-ec2-ice',
+          sshLogins: ['test'],
+          aws: {
+            accountId: 'test-account',
+            instanceId: 'instance-ec2-1',
+            region: 'us-east-1',
+            vpcId: 'test',
+            integration: 'test',
+            subnetId: 'test',
+          },
+        });
+      }),
     ],
   },
 };

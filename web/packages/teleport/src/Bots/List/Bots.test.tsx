@@ -40,13 +40,21 @@ test('fetches bots on load', async () => {
   jest.spyOn(api, 'get').mockResolvedValueOnce({ ...botsApiResponseFixture });
   renderWithContext(<Bots />);
 
-  expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {
     expect(
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
   expect(api.get).toHaveBeenCalledTimes(1);
+});
+
+test('shows empty state when bots are empty', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({ items: [] });
+  renderWithContext(<Bots />);
+
+  await waitFor(() => {
+    expect(screen.getByTestId('bots-empty-state')).toBeInTheDocument();
+  });
 });
 
 test('calls edit endpoint', async () => {
@@ -57,14 +65,13 @@ test('calls edit endpoint', async () => {
   jest.spyOn(api, 'put').mockResolvedValue({});
   renderWithContext(<Bots />);
 
-  expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {
     expect(
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
 
-  const actionCells = screen.queryAllByRole('button', { name: 'OPTIONS' });
+  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
   expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
   await userEvent.click(actionCells[0]);
 
@@ -89,14 +96,13 @@ test('calls delete endpoint', async () => {
   jest.spyOn(api, 'delete').mockResolvedValue({});
   renderWithContext(<Bots />);
 
-  expect(screen.getByText('Bots')).toBeInTheDocument();
   await waitFor(() => {
     expect(
       screen.getByText(botsApiResponseFixture.items[0].metadata.name)
     ).toBeInTheDocument();
   });
 
-  const actionCells = screen.queryAllByRole('button', { name: 'OPTIONS' });
+  const actionCells = screen.queryAllByRole('button', { name: 'Options' });
   expect(actionCells).toHaveLength(botsApiResponseFixture.items.length);
   await userEvent.click(actionCells[0]);
 

@@ -44,6 +44,17 @@ func TestCompareResources(t *testing.T) {
 	compareTestCase(t, "cmp equal with equal IneligibleStatus", newAccessListMemberSpec("status1", "accessList1"), newAccessListMemberSpec("status1", "accessList1"), Equal)
 	compareTestCase(t, "cmp equal with different IneligibleStatus", newAccessListMemberSpec("status1", "accessList1"), newAccessListMemberSpec("status2", "accessList1"), Equal)
 	compareTestCase(t, "cmp not equal", newAccessListMemberSpec("status1", "accessList1"), newAccessListMemberSpec("status1", "accessList2"), Different)
+
+	// These results compare the IneligibleStatus field in accesslist.Owner, which should be ignored.
+	newAccessListOwner := func(ineligibleStatus, name string) accesslist.Owner {
+		return accesslist.Owner{
+			Name:             name,
+			IneligibleStatus: ineligibleStatus,
+		}
+	}
+	compareTestCase(t, "cmp equal with equal IneligibleStatus", newAccessListOwner("status1", "alice"), newAccessListOwner("status1", "alice"), Equal)
+	compareTestCase(t, "cmp equal with different IneligibleStatus", newAccessListOwner("status1", "alice"), newAccessListOwner("status2", "alice"), Equal)
+	compareTestCase(t, "cmp different when name differs", newAccessListOwner("status1", "alice"), newAccessListOwner("status1", "bob"), Different)
 }
 
 func compareTestCase[T any](t *testing.T, name string, resA, resB T, expected int) {

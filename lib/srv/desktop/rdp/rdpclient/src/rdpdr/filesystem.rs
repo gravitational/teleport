@@ -1,16 +1,18 @@
-// Copyright 2023 Gravitational, Inc
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{
     path::UnixPath,
@@ -77,10 +79,19 @@ impl FilesystemBackend {
         &mut self,
         res: efs::ServerDeviceAnnounceResponse,
     ) -> PduResult<()> {
+        // TODO(zmb3): send the underlying NTSTATUS code instead
+        // of converting everything to 0 or 1.
         let err_code = match res.result_code {
             NtStatus::SUCCESS => TdpErrCode::Nil,
             _ => TdpErrCode::Failed,
         };
+
+        if err_code == TdpErrCode::Failed {
+            warn!(
+                "Directory sharing failed, server sent error {:?}",
+                res.result_code
+            )
+        }
 
         self.send_tdp_sd_acknowledge(tdp::SharedDirectoryAcknowledge {
             err_code,
@@ -940,7 +951,7 @@ impl FilesystemBackend {
         self.send_rdp_set_info_response(&rdp_req, NtStatus::UNSUCCESSFUL)
     }
 
-    /// Sends a [`tdp::SharedDirectoryInfoRequest`] to the browser.
+    /// Sends a [`tdp::SharedDirectoryAcknowledge`] to the browser.
     fn send_tdp_sd_acknowledge(
         &self,
         mut tdp_req: tdp::SharedDirectoryAcknowledge,
@@ -1684,7 +1695,7 @@ impl FileCacheObject {
 /// FileCacheObject is used as an iterator for the implementation of
 /// IRP_MJ_DIRECTORY_CONTROL, which requires that we iterate through
 /// all the files of a directory one by one. In this case, the directory
-/// is the FileCacheObject itself, with it's own fso field representing
+/// is the FileCacheObject itself, with its own fso field representing
 /// the directory, and its contents being represented by tdp::FileSystemObject's
 /// in its contents field.
 ///

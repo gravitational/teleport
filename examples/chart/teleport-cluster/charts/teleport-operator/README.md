@@ -13,7 +13,7 @@ operator version is deployed, use the `--version` Helm flag.
 
 The chart can be deployed in two ways:
 - in standalone mode by running
-  ```shell
+  ```code
   helm install teleport/teleport-operator teleport-operator --set authAddr=teleport.example.com:443 --set token=my-operator-token
   ```
   See [the standalone guide](https://goteleport.com/docs/management/dynamic-resources/teleport-operator-standalone/) for more details.

@@ -35,8 +35,8 @@ export default function Pager({
   return (
     <Flex m={2} justifyContent="flex-end">
       <Flex alignItems="center" ml={2}>
-        <Text typography="body2">
-          SHOWING <strong>{initialStartFrom}</strong> - <strong>{endAt}</strong>{' '}
+        <Text typography="body3">
+          Showing <strong>{initialStartFrom}</strong> - <strong>{endAt}</strong>{' '}
           of <strong>{totalRows}</strong>
         </Text>
       </Flex>

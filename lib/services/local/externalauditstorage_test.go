@@ -61,7 +61,7 @@ func TestExternalAuditStorageService(t *testing.T) {
 	require.NoError(t, err)
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	}
 
 	t.Run("promote failed without draft", func(t *testing.T) {

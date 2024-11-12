@@ -60,10 +60,10 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
   updateSessionDataPath();
   let devRelaunchScheduled = false;
-  const settings = getRuntimeSettings();
+  const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const {
@@ -76,7 +76,7 @@ function initializeApp(): void {
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
-    platform: settings.platform,
+    settings,
   });
 
   nativeTheme.themeSource = configService.get('theme').value;
@@ -150,9 +150,6 @@ function initializeApp(): void {
   // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
   // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
   // window before processing the listener for deep links.
-  //
-  // The setup must be done synchronously when starting the app, otherwise the listeners won't get
-  // triggered on macOS if the app is not already running when the user opens a deep link.
   setUpDeepLinks(logger, windowsManager, settings);
 
   const rootClusterProxyHostAllowList = new Set<string>();

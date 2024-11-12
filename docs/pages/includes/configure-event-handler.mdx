@@ -29,7 +29,7 @@ Service or Proxy Service:
 
 ```code
 $ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 
 In order to export audit events, you'll need to have the root certificate and the
@@ -42,6 +42,15 @@ $ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca
 
 This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
 secret so the Helm chart can mount them to their appropriate path.
+
+</TabItem>
+<TabItem label="Local Docker test">
+
+Run the `configure` command to generate a sample configuration:
+
+```code
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure .
+```
 
 </TabItem>
 </Tabs>

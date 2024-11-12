@@ -22,10 +22,15 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 )
 
-// VnetConfigService is an interface for the VnetConfig service.
-type VnetConfigService interface {
+// VnetConfigGetter is an interface for getting the cluster singleton VnetConfig.
+type VnetConfigGetter interface {
 	// GetVnetConfig returns the singleton VnetConfig resource.
 	GetVnetConfig(context.Context) (*vnet.VnetConfig, error)
+}
+
+// VnetConfigService is an interface for the VnetConfig service.
+type VnetConfigService interface {
+	VnetConfigGetter
 
 	// CreateVnetConfig does basic validation and creates a VnetConfig resource.
 	CreateVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error)

@@ -19,16 +19,11 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { setupServer } from 'msw/node';
-import { rest } from 'msw';
-
 import {
   render as testingRender,
   screen,
   fireEvent,
 } from 'design/utils/testing';
-
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 
@@ -45,24 +40,7 @@ import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserConte
 
 import { UserMenuNav } from './UserMenuNav';
 
-const server = setupServer(
-  rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-    return res(
-      ctx.json({
-        theme: Theme.LIGHT,
-        assist: {},
-      })
-    );
-  })
-);
-
-beforeAll(() => server.listen());
-
 beforeEach(() => mockUserContextProviderWith(makeTestUserContext()));
-
-afterEach(() => server.resetHandlers());
-
-afterAll(() => server.close());
 
 describe('navigation items rendering', () => {
   test.each`
@@ -100,7 +78,7 @@ function render(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <TeleportContextProvider ctx={ctx}>
         <FeaturesContextProvider value={getOSSFeatures()}>
-          <UserMenuNav iconSize={24} username="llama" />
+          <UserMenuNav username="llama" />
         </FeaturesContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>

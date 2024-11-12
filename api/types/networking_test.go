@@ -19,10 +19,13 @@ package types
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 func TestProxyListenerModeMarshalYAML(t *testing.T) {
@@ -88,4 +91,40 @@ func TestProxyListenerModeUnmarshalYAML(t *testing.T) {
 			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestSSHDialTimeout(t *testing.T) {
+	cfg := DefaultClusterNetworkingConfig()
+
+	// Validate that the default config, which has no dial timeout set
+	// returns the default value.
+	require.Equal(t, defaults.DefaultIOTimeout, cfg.GetSSHDialTimeout())
+
+	// A zero value can be set, but retrieving a zero value will result
+	// in the default value since we cannot distinguish between an
+	// old config prior to the addition of the ssh dial timeout being added
+	// and an explicitly set value of zero.
+	cfg.SetSSHDialTimeout(0)
+	require.Equal(t, defaults.DefaultIOTimeout, cfg.GetSSHDialTimeout())
+
+	// Validate that a non-zero value is honored.
+	cfg.SetSSHDialTimeout(time.Minute)
+	require.Equal(t, time.Minute, cfg.GetSSHDialTimeout())
+
+	// Validate that unmarshaling a config without a timeout set
+	// returns the default value.
+	raw, err := yaml.Marshal(DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	var cnc ClusterNetworkingConfigV2
+	require.NoError(t, yaml.Unmarshal(raw, &cnc))
+	require.Equal(t, defaults.DefaultIOTimeout, cnc.GetSSHDialTimeout())
+
+	// Validate that unmarshaling a config with a valid timeout
+	// set returns the correct duration.
+	raw, err = yaml.Marshal(cfg)
+	require.NoError(t, err)
+
+	require.NoError(t, yaml.Unmarshal(raw, &cnc))
+	require.Equal(t, time.Minute, cnc.GetSSHDialTimeout())
 }

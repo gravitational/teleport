@@ -19,23 +19,32 @@
 package auth
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	_ "embed"
+	"encoding/base64"
+	"encoding/pem"
+	"fmt"
 	"strconv"
+	"text/template"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
 func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
-	if !modules.GetModules().Features().Desktop {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Desktop).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
 	}
@@ -71,8 +80,13 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		NotAfter:        a.clock.Now().UTC().Add(req.TTL.Get()),
 		ExtraExtensions: csr.Extensions,
 		KeyUsage:        x509.KeyUsageDigitalSignature,
-		// CRL is required for Windows smartcard certs.
-		CRLDistributionPoints: []string{req.CRLEndpoint},
+	}
+
+	// CRL Distribution Points (CDP) are required for Windows smartcard certs
+	// for users wanting to RDP. They are not required for the service account
+	// cert that Teleport itself uses to authenticate for LDAP.
+	if req.CRLEndpoint != "" {
+		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
 	}
 
 	limitExceeded, err := a.desktopsLimitExceeded(ctx)
@@ -92,5 +106,52 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	}
 	return &proto.WindowsDesktopCertResponse{
 		Cert: cert,
+	}, nil
+}
+
+// desktopAccessConfigureScript is the script that will run on the windows
+// machine and configure Active Directory
+//
+//go:embed windows/configure-ad.ps1
+var desktopAccessScriptConfigure string
+var DesktopAccessScriptConfigure = template.Must(template.New("desktop-access-configure-ad").Parse(desktopAccessScriptConfigure))
+
+func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopBootstrapScriptResponse, error) {
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := a.GetCertAuthority(
+		ctx,
+		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+		false,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(certAuthority.GetActiveKeys().TLS) != 1 {
+		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	}
+
+	keyPair := certAuthority.GetActiveKeys().TLS[0]
+	block, _ := pem.Decode(keyPair.Cert)
+	if block == nil {
+		return nil, trace.BadParameter("no PEM data in CA data")
+	}
+
+	var buf bytes.Buffer
+	err = DesktopAccessScriptConfigure.Execute(&buf, map[string]string{
+		"caCertPEM":    string(keyPair.Cert),
+		"caCertSHA1":   fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+		"caCertBase64": base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.DesktopBootstrapScriptResponse{
+		Script: buf.String(),
 	}, nil
 }

@@ -1,0 +1,167 @@
+---
+title: Troubleshooting Database Access
+description: Common issues and resolutions for Teleport's Database Access
+---
+
+Common issues and resolution steps.
+
+## Connection attempts fail
+
+### Certificate expired or is not yet valid
+
+Attempts to connect to the database fail, and the error message returned is
+similar to: **"Database service could not validate database’s certificate:
+certificate expired."**.
+
+**Solution:** Renew the database certificate.
+
+The Teleport Database Service uses a Teleport-issued certificate to authenticate
+with the Database. This error happens when Teleport cannot authenticate, often
+due to expired certificates.
+
+The command used to generate a new certificate is `tctl auth sign`. For example,
+to create a certificate for PostgreSQL, the command looks like this:
+
+```code
+# Export Teleport's certificate authority and a generate certificate/key pair
+# for host db.example.com with a 3-month validity period.
+
+$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
+```
+
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the PostgreSQL server.
+
+Each database uses a different format. You can check your database guide for more
+details and examples:
+
+- [PostgreSQL](./enroll-self-hosted-databases/postgres-self-hosted.mdx#step-25-create-a-certificatekey-pair)
+- [MySQL/MariaDB](./enroll-self-hosted-databases/mysql-self-hosted.mdx#step-24-create-a-certificatekey-pair)
+- [MongoDB](./enroll-self-hosted-databases/mongodb-self-hosted.mdx#set-up-mutual-tls)
+- [CockroachDB](./enroll-self-hosted-databases/cockroachdb-self-hosted.mdx#set-up-mutual-tls)
+- [Redis](./enroll-self-hosted-databases/redis.mdx#step-45-set-up-mutual-tls)
+- [Redis Cluster](./enroll-self-hosted-databases/redis-cluster.mdx#step-46-set-up-mutual-tls)
+
+After the new certificate is issued, update your database to make it take effect.
+
+## Access to db denied
+
+Attempts to connect to the database fail with an error message
+similar to: **"access to db denied"**.
+
+**Solution:** Configure the database instance and Teleport role-based access control (RBAC) to allow the user 
+access.
+
+Check that the database user and database name (aka schema) you are trying to access via `tsh` exist in the database instance.
+When referring to "database name" or `db_names`, this is not the same as the `name` field in the `db_service` section of your Database Service configuration;
+this is referring to database names or schemas within a particular database instance.
+
+Once your database instance is configured, Teleport RBAC must be configured to allow access.
+Assign the Teleport user a role that **allows** `db_users`, `db_names`, and `db_labels` matching the 
+database user, database name, and Teleport static or dynamic labels for the database. Additionally, check that 
+the user does not have role(s) that **deny** the corresponding `db_users`, `db_names`, or `db_labels`.
+
+<Admonition type="warning">
+  Database names are only enforced for PostgreSQL and MongoDB databases.
+  When connecting to a PostgreSQL or MongoDB instance, be sure to specify `--db-name`:
+  ```sh
+  $ tsh db connect --db-user=exampleuser --db-name=exampledb
+  ```
+</Admonition>
+
+For example, the following `user` and `role` resources allow the Teleport user `alice@example.com` to
+access any database name or database user
+within a production database except for the `admin` database user or
+the `postgres` database name:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: db-developer
+  description: "Example role that grants restricted access to production databases"
+spec:
+  allow:
+    db_labels:
+      environment: ["prod"] # for this example, assume production databases have this label in your Teleport cluster
+    db_users: ["{{internal.db_users}}"]
+    db_names: ["{{internal.db_names}}"]
+  deny:
+    db_users: ["admin"]
+    db_names: ["postgres"]
+---
+kind: user
+metadata:
+  name: alice@example.com
+spec:
+  roles: ["db-developer"]
+  traits:
+    db_users: ["*"]
+    db_names: ["*"]
+```
+
+The `internal.db_users` and `internal.db_names` traits are
+replaced with values from the Teleport local user database. For full details on
+how traits work in Teleport roles, see the [Teleport Access
+Controls Reference](../../reference/access-controls/roles.mdx).
+
+Now suppose we want to grant Alice more permissive access.
+To keep this example simple, let's just assign Alice a different role.
+Update Alice's roles to include just the default Teleport role `access`, which allows access to all resources.
+We can update a user's roles from the command-line by using either `tctl users update` or `tctl create`:
+<Tabs>
+  <TabItem label="tctl users update">
+  ```sh
+  $ tctl users update alice@example.com --set-roles=access
+  ```
+  </TabItem>
+  <TabItem label="tctl create">
+
+    Open Alice's user resource in your text editor:
+
+    ```code
+    $ tctl edit users/alice@example.com
+    ```
+
+    Then modify the resource to assign the `access` role:
+
+    ```yaml
+    kind: user
+    metadata:
+      name: alice@example.com
+    spec:
+      roles: ["access"]
+      traits:
+        db_users: ["*"]
+        db_names: ["*"]
+    ```
+
+    Save and close the file to apply your changes.
+
+  </TabItem>
+</Tabs>
+
+Now Alice can connect to any database in the Teleport cluster using any database user or database name.
+
+This example is intentionally simple; we could have configured Alice's permissions using more fine-grained control.
+For more detailed information about database access controls and how to restrict
+access see the [RBAC](../database-access/rbac.mdx) documentation.
+
+## Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
+
+When TLS Routing is disable by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
+
+One way to solve this issue is to [use the TLS Routing
+feature](../../admin-guides/management/operations/tls-routing.mdx), where the Teleport Proxy
+Service propagates the correct MySQL server version via TLS Routing extensions.
+
+If migration to TLS Routing is not possible, another way to bypass this error is
+to use the [Teleport local proxy
+command](../../connect-your-client/gui-clients.mdx#get-connection-information),
+which allows you to establish a TLS Routing connection to the Teleport Proxy
+Service even if TLS Routing was not enabled on the Teleport cluster.
+
+```yaml
+proxy_service:
+  mysql_server_version: "8.0.4"
+```

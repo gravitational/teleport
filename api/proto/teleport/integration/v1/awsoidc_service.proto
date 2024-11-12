@@ -44,6 +44,16 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSecurityGroups.html
   rpc ListSecurityGroups(ListSecurityGroupsRequest) returns (ListSecurityGroupsResponse);
 
+  // ListSubnets returns a list of AWS VPC subnets.
+  // It uses the following API:
+  // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeSubnets.html
+  rpc ListSubnets(ListSubnetsRequest) returns (ListSubnetsResponse);
+
+  // ListVPCs returns a list of AWS VPCs.
+  // It uses the following API:
+  // https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVpcs.html
+  rpc ListVPCs(ListVPCsRequest) returns (ListVPCsResponse);
+
   // DeployDatabaseService deploys a Database Services to Amazon ECS.
   rpc DeployDatabaseService(DeployDatabaseServiceRequest) returns (DeployDatabaseServiceResponse);
 
@@ -63,6 +73,12 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
   rpc ListEKSClusters(ListEKSClustersRequest) returns (ListEKSClustersResponse);
+
+  // Ping does an health check for the integration.
+  // Returns the caller identity.
+  // It uses the following APIs:
+  // https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+  rpc Ping(PingRequest) returns (PingResponse);
 }
 
 // ListEICERequest is a request for a paginated list of AWS EC2 Instance Connect Endpoints.
@@ -160,6 +176,9 @@ message ListDatabasesRequest {
   // NextToken is the token to be used to fetch the next page.
   // If empty, the first page is fetched.
   string next_token = 5;
+  // VPCID filters databases to only include those deployed in the VPC.
+  // If empty, no filtering is done.
+  string vpc_id = 6;
 }
 
 // ListDatabasesResponse contains a page of AWS Databases.
@@ -195,6 +214,15 @@ message SecurityGroupRuleCIDR {
   string description = 2;
 }
 
+// SecurityGroupRuleGroupID has an allowed security group ID and a description
+// for the rule.
+message SecurityGroupRuleGroupID {
+  // GroupID is the allowed security group ID.
+  string group_id = 1;
+  // Description contains a small text describing the allowed security group.
+  string description = 2;
+}
+
 // SecurityGroupRule is a representation of a SecurityGroupRule.
 // Either for Inbound or Outbound rules.
 message SecurityGroupRule {
@@ -209,6 +237,9 @@ message SecurityGroupRule {
   int32 to_port = 3;
   // CIDRs contains a list of IP ranges that this rule applies to and a description for the value.
   repeated SecurityGroupRuleCIDR cidrs = 4;
+  // GroupIds is a list of rules that allow another security group referenced
+  // by ID.
+  repeated SecurityGroupRuleGroupID group_ids = 5;
 }
 
 // SecurityGroup is a representation of a SecurityGroup
@@ -231,6 +262,71 @@ message SecurityGroup {
 message ListSecurityGroupsResponse {
   // SecurityGroups contains the page of SecurityGroups.
   repeated SecurityGroup security_groups = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
+}
+
+// ListSubnetsRequest is a request for a paginated list of AWS VPC subnets.
+message ListSubnetsRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // VPCID is the VPC ID for listing subnets.
+  // Required.
+  string vpc_id = 3;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 4;
+}
+
+// Subnet is a representation of an AWS VPC subnet.
+message Subnet {
+  // Name is the subnet name. Can be empty.
+  string name = 1;
+  // ID is the subnet ID.
+  string id = 2;
+  // AvailabilityZone is the availability zone of the subnet.
+  string availability_zone = 3;
+}
+
+// ListSubnetsResponse contains a page of AWS VPC subnets.
+message ListSubnetsResponse {
+  // Subnets contains the page of subnets.
+  repeated Subnet subnets = 1;
+  // NextToken is used for pagination.
+  // If non-empty, it can be used to request the next page.
+  string next_token = 2;
+}
+
+// ListVPCsRequest is a request for a paginated list of AWS VPCs.
+message ListVPCsRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+  // Region is the AWS Region
+  // Required.
+  string region = 2;
+  // NextToken is the token to be used to fetch the next page.
+  // If empty, the first page is fetched.
+  string next_token = 3;
+}
+
+// VPC is a representation of an AWS VPC.
+message VPC {
+  // Name is the VPC name. Can be empty.
+  string name = 1;
+  // ID is the VPC ID.
+  string id = 2;
+}
+
+// ListVPCsResponse contains a page of AWS VPCs.
+message ListVPCsResponse {
+  // VPCs contains the page of VPCs.
+  repeated VPC vpcs = 1;
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;
@@ -281,7 +377,8 @@ message DeployDatabaseServiceDeployment {
 message DeployDatabaseServiceResponse {
   // ClusterArn identifies the cluster where the deployment was made.
   string cluster_arn = 1;
-  // ClusterDashboardUrl is the URL for Amazon Web Console that links directly to the Amazon ECS Cluster.
+  // ClusterDashboardURL is a link to the Amazon ECS cluster dashboard or a
+  // specific cluster service if a single deployment was requested.
   string cluster_dashboard_url = 2;
 }
 
@@ -418,6 +515,13 @@ message EKSCluster {
   // Known values are:
   // CREATING | ACTIVE | DELETING | FAILED | UPDATING | PENDING
   string status = 6;
+  // EndpointPublicAccess indicates whether this EKS Cluster is accessible publicly.
+  // If only private access is available, then the EKS Cluster can't be enrolled from Teleport Cloud.
+  bool endpoint_public_access = 7;
+  // AuthenticationMode is the allowed authentication mode for the cluster.
+  // Known values are:
+  // API | API_AND_CONFIG_MAP | CONFIG_MAP
+  string authentication_mode = 8;
 }
 
 // ListEKSClustersResponse contains a page of AWS EKS Clusters.
@@ -427,4 +531,26 @@ message ListEKSClustersResponse {
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;
+}
+
+// PingRequest is a request for doing an health check against the configured integration.
+message PingRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required if ARN is empty.
+  string integration = 1;
+
+  // The AWS Role ARN to be used when generating the token.
+  // This is used to test another ARN before saving the Integration.
+  // Required if integration is empty.
+  string role_arn = 2;
+}
+
+// PingResponse contains the response for the Ping operation.
+message PingResponse {
+  // The AWS account ID number of the account that owns or contains the calling entity.
+  string account_id = 1;
+  // The AWS ARN associated with the calling entity.
+  string arn = 2;
+  // The unique identifier of the calling entity.
+  string user_id = 3;
 }

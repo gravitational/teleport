@@ -42,4 +42,4 @@ jobs:
         shell: bash
         run: |
           export OS="windows"
-          make build/tsh build/tctl
+          make build/tsh build/tctl build/tbot

@@ -20,12 +20,16 @@ package aws_sync
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	awsutil "github.com/gravitational/teleport/lib/utils/aws"
@@ -50,6 +54,7 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 	var s3s []*accessgraphv1alpha.AWSS3BucketV1
 	var errs []error
 	var mu sync.Mutex
+	var existing = a.lastResult
 	eG, ctx := errgroup.WithContext(ctx)
 	// Set the limit to 5 to avoid too many concurrent requests.
 	// This is a temporary solution until we have a better way to limit the
@@ -83,46 +88,87 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 		ctx,
 		&s3.ListBucketsInput{},
 	)
+	if err != nil {
+		return existing.S3Buckets, trace.Wrap(err)
+	}
 
 	for _, bucket := range rsp.Buckets {
 		bucket := bucket
 		eG.Go(func() error {
+			var failedReqs failedRequests
+			var errs []error
+			existingBucket := sliceFilterPickFirst(existing.S3Buckets, func(b *accessgraphv1alpha.AWSS3BucketV1) bool {
+				return b.Name == aws.ToString(bucket.Name) && b.AccountId == a.AccountID
+			},
+			)
 			policy, err := s3Client.GetBucketPolicyWithContext(ctx, &s3.GetBucketPolicyInput{
 				Bucket: bucket.Name,
 			})
 			if err != nil {
-				collect(nil, trace.Wrap(err, "failed to fetch bucket %q inline policy", aws.ToString(bucket.Name)))
+				errs = append(errs,
+					trace.Wrap(err, "failed to fetch bucket %q inline policy", aws.ToString(bucket.Name)),
+				)
+				failedReqs.policyFailed = true
 			}
 
 			policyStatus, err := s3Client.GetBucketPolicyStatusWithContext(ctx, &s3.GetBucketPolicyStatusInput{
 				Bucket: bucket.Name,
 			})
 			if err != nil {
-				collect(nil, trace.Wrap(err, "failed to fetch bucket %q policy status", aws.ToString(bucket.Name)))
+				errs = append(errs,
+					trace.Wrap(err, "failed to fetch bucket %q policy status", aws.ToString(bucket.Name)),
+				)
+				failedReqs.failedPolicyStatus = true
 			}
 
 			acls, err := s3Client.GetBucketAclWithContext(ctx, &s3.GetBucketAclInput{
 				Bucket: bucket.Name,
 			})
 			if err != nil {
-				collect(nil, trace.Wrap(err, "failed to fetch bucket %q acls policies", aws.ToString(bucket.Name)))
+				errs = append(errs,
+					trace.Wrap(err, "failed to fetch bucket %q acls policies", aws.ToString(bucket.Name)),
+				)
+				failedReqs.failedAcls = true
 			}
-			collect(
-				awsS3Bucket(aws.ToString(bucket.Name), policy, policyStatus, acls, a.AccountID),
-				nil)
+
+			tagsOutput, err := s3Client.GetBucketTaggingWithContext(ctx, &s3.GetBucketTaggingInput{
+				Bucket: bucket.Name,
+			})
+			var awsErr awserr.Error
+			const noSuchTagSet = "NoSuchTagSet" // error code when there are no tags or the bucket does not support them
+			if errors.As(err, &awsErr) && awsErr.Code() == noSuchTagSet {
+				// If there are no tags, set the error to nil.
+				err = nil
+			}
+			if err != nil {
+				errs = append(errs,
+					trace.Wrap(err, "failed to fetch bucket %q tags", aws.ToString(bucket.Name)),
+				)
+				failedReqs.failedTags = true
+			}
+
+			newBucket := awsS3Bucket(aws.ToString(bucket.Name), policy, policyStatus, acls, tagsOutput, a.AccountID)
+			collect(mergeS3Protos(existingBucket, newBucket, failedReqs), trace.NewAggregate(errs...))
 			return nil
 		})
 	}
 	// always discard the error
 	_ = eG.Wait()
 
-	return s3s, trace.Wrap(err)
+	return s3s, trace.NewAggregate(errs...)
 }
 
-func awsS3Bucket(name string, policy *s3.GetBucketPolicyOutput, policyStatus *s3.GetBucketPolicyStatusOutput, acls *s3.GetBucketAclOutput, accountID string) *accessgraphv1alpha.AWSS3BucketV1 {
+func awsS3Bucket(name string,
+	policy *s3.GetBucketPolicyOutput,
+	policyStatus *s3.GetBucketPolicyStatusOutput,
+	acls *s3.GetBucketAclOutput,
+	tags *s3.GetBucketTaggingOutput,
+	accountID string,
+) *accessgraphv1alpha.AWSS3BucketV1 {
 	s3 := &accessgraphv1alpha.AWSS3BucketV1{
-		Name:      name,
-		AccountId: accountID,
+		Name:         name,
+		AccountId:    accountID,
+		LastSyncTime: timestamppb.Now(),
 	}
 	if policy != nil {
 		s3.PolicyDocument = []byte(aws.ToString(policy.Policy))
@@ -132,6 +178,14 @@ func awsS3Bucket(name string, policy *s3.GetBucketPolicyOutput, policyStatus *s3
 	}
 	if acls != nil {
 		s3.Acls = awsACLsToProtoACLs(acls.Grants)
+	}
+	if tags != nil {
+		for _, tag := range tags.TagSet {
+			s3.Tags = append(s3.Tags, &accessgraphv1alpha.AWSTag{
+				Key:   aws.ToString(tag.Key),
+				Value: strPtrToWrapper(tag.Value),
+			})
+		}
 	}
 	return s3
 }
@@ -151,4 +205,35 @@ func awsACLsToProtoACLs(grants []*s3.Grant) []*accessgraphv1alpha.AWSS3BucketACL
 		})
 	}
 	return acls
+}
+
+type failedRequests struct {
+	policyFailed       bool
+	failedPolicyStatus bool
+	failedAcls         bool
+	failedTags         bool
+}
+
+func mergeS3Protos(existing, new *accessgraphv1alpha.AWSS3BucketV1, failedReqs failedRequests) *accessgraphv1alpha.AWSS3BucketV1 {
+	if existing == nil {
+		return new
+	}
+	if new == nil {
+		return existing
+	}
+	clone := proto.Clone(new).(*accessgraphv1alpha.AWSS3BucketV1)
+	if failedReqs.policyFailed {
+		clone.PolicyDocument = existing.PolicyDocument
+	}
+	if failedReqs.failedPolicyStatus {
+		clone.IsPublic = existing.IsPublic
+	}
+	if failedReqs.failedAcls {
+		clone.Acls = existing.Acls
+	}
+	if failedReqs.failedTags {
+		clone.Tags = existing.Tags
+	}
+
+	return clone
 }

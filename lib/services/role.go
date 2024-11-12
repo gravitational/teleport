@@ -20,9 +20,9 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"path"
 	"regexp"
@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"golang.org/x/crypto/ssh"
@@ -46,6 +47,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -71,8 +73,13 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindApp, RO()),
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
+	types.NewRule(types.KindDynamicWindowsDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
+	types.NewRule(types.KindVnetConfig, RO()),
+	types.NewRule(types.KindSPIFFEFederation, RO()),
+	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
+	types.NewRule(types.KindIdentityCenter, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -262,7 +269,7 @@ func ValidateRole(r types.Role, opts ...validateRoleOption) error {
 	// be used, only log expression parse errors as a warning.
 	if err := validateRoleExpressions(r); err != nil {
 		options.warningReporter(err)
-		log.Warnf("Detected invalid role %q: %v", r.GetName(), err)
+		slog.WarnContext(context.Background(), "Detected invalid role", "role", r.GetName(), "error", err)
 	}
 	return nil
 }
@@ -297,7 +304,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"db_names", r.GetDatabaseNames(condition.condition)},
 			{"db_users", r.GetDatabaseUsers(condition.condition)},
 			{"host_groups", r.GetHostGroups(condition.condition)},
-			{"host_sudeoers", r.GetHostSudoers(condition.condition)},
+			{"host_sudoers", r.GetHostSudoers(condition.condition)},
 			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
 			{"impersonate.users", r.GetImpersonateConditions(condition.condition).Users},
 			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
@@ -306,6 +313,26 @@ func validateRoleExpressions(r types.Role) error {
 				_, err := parse.NewTraitsTemplateExpression(value)
 				if err != nil {
 					err = trace.BadParameter("parsing %s.%s expression: %v", condition.name, values.name, err)
+					errs = append(errs, err)
+				}
+			}
+		}
+
+		for _, ks := range r.GetKubeResources(condition.condition) {
+			_, err := parse.NewTraitsTemplateExpression(ks.Namespace)
+			if err != nil {
+				err = trace.BadParameter("parsing %s.kubernetes_resources.namespace expression: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+			_, err = parse.NewTraitsTemplateExpression(ks.Name)
+			if err != nil {
+				err = trace.BadParameter("parsing %s.kubernetes_resources.name expression: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+			for _, verb := range ks.Verbs {
+				_, err = parse.NewTraitsTemplateExpression(verb)
+				if err != nil {
+					err = trace.BadParameter("parsing %s.kubernetes_resources.verbs expression: %v", condition.name, err)
 					errs = append(errs, err)
 				}
 			}
@@ -389,7 +416,7 @@ func filterInvalidUnixLogins(candidates []string) []string {
 		// Log any invalid logins which were added by a user but ignore any
 		// Teleport internal logins which are known to be invalid.
 		if candidate != teleport.SSHSessionJoinPrincipal && !strings.HasPrefix(candidate, "no-login-") {
-			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+			slog.DebugContext(context.Background(), "Skipping invalid Unix login.", "login", candidate)
 		}
 	}
 	return output
@@ -403,7 +430,7 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 
 	for _, candidate := range candidates {
 		if strings.ContainsAny(candidate, invalidChars) {
-			log.Debugf("Skipping Windows login %v, not a valid Windows login.", candidate)
+			slog.DebugContext(context.Background(), "Skipping invalid Windows login.", "login", candidate)
 			continue
 		}
 
@@ -416,7 +443,7 @@ func filterInvalidWindowsLogins(candidates []string) []string {
 func warnInvalidAzureIdentities(candidates []string) {
 	for _, candidate := range candidates {
 		if !MatchValidAzureIdentity(candidate) {
-			log.Warningf("Invalid format of Azure identity %q", candidate)
+			slog.WarnContext(context.Background(), "Invalid format of Azure identity", "identity", candidate)
 		}
 	}
 }
@@ -485,6 +512,33 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
+		var out []types.KubernetesResource
+		// we access the resources in the role using the role conditions
+		// to avoid receiving the compatibility resources added in GetKubernetesResources
+		// for roles <v7
+		for _, rec := range r.GetRoleConditions(condition).KubernetesResources {
+			namespaces := applyValueTraitsSlice([]string{rec.Namespace}, traits, "kubernetes resource namespace")
+			if rec.Namespace == "" {
+				namespaces = []string{""}
+			}
+			names := applyValueTraitsSlice([]string{rec.Name}, traits, "kubernetes resource name")
+			if rec.Name == "" {
+				names = []string{""}
+			}
+			verbs := applyValueTraitsSlice(rec.Verbs, traits, "kubernetes resource verb")
+			for _, namespace := range namespaces {
+				for _, name := range names {
+					out = append(out, types.KubernetesResource{
+						Kind:      rec.Kind,
+						Namespace: namespace,
+						Name:      name,
+						Verbs:     verbs,
+					})
+				}
+			}
+		}
+		r.SetKubeResources(condition, out)
+
 		for _, kind := range []string{
 			types.KindRemoteCluster,
 			types.KindNode,
@@ -525,7 +579,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		for i, ext := range options.CertExtensions {
 			vals, err := ApplyValueTraits(ext.Value, traits)
 			if err != nil && !trace.IsNotFound(err) {
-				log.Warnf("Did not apply trait to cert_extensions.value: %v", err)
+				slog.WarnContext(context.Background(), "Failed to apply trait to cert_extensions.value", "error", err)
 				continue
 			}
 			if len(vals) != 0 {
@@ -555,7 +609,7 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 		outputs, err := ApplyValueTraits(value, traits)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				log.WithError(err).Debugf("Skipping %s %q.", fieldName, value)
+				slog.DebugContext(context.Background(), "Skipping trait value.", "field", fieldName, "value", value, "error", err)
 			}
 			continue
 		}
@@ -585,7 +639,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 		keyVars, err := ApplyValueTraits(key, traits)
 		if err != nil {
 			// empty key will not match anything
-			log.Debugf("Setting empty node label pair %q -> %q: %v", key, vals, err)
+			slog.DebugContext(context.Background(), "Setting empty node label pair", "key", key, "values", vals, "error", err)
 			keyVars = []string{""}
 		}
 
@@ -593,7 +647,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 		for _, val := range vals {
 			valVars, err := ApplyValueTraits(val, traits)
 			if err != nil {
-				log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
+				slog.DebugContext(context.Background(), "Setting empty node label value", "key", key, "value", val, "error", err)
 				// empty value will not match anything
 				valVars = []string{""}
 			}
@@ -624,19 +678,24 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, teleport.TraitJWT:
+				constants.TraitGCPServiceAccounts, constants.TraitJWT:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
 		}
-		// TODO: return a not found error if the variable namespace is not
-		// the namespace of `traits`.
-		// If e.g. the `traits` belong to the "internal" namespace (as the
-		// validation above suggests), and "foo" is a key in `traits`, then
-		// "external.foo" will return the value of "internal.foo". This is
-		// incorrect, and a not found error should be returned instead.
-		// This would be similar to the var validation done in getPAMConfig
-		// (lib/srv/ctx.go).
+		// The "external" trait namespace is explicitly allowed to reference
+		// "internal" traits listed above. This is for multiple reasons:
+		// - back compat, it's always been this way
+		// - IdPs are allowed to set those trait names so it wouldn't make
+		//   sense to block them when referenced via "external"
+		// - The user resource spec.traits can include the "internal" trait
+		//   names listed above, as well as any other trait name - but other
+		//   trait names must be referenced in the "external" namespace. It
+		//   wouldn't make a lot of sense to change the namespace
+		//   based only on the trait name, especially given that we tend to
+		//   expand the list of "internal" traits, and that would be a breaking
+		//   change if someone already referred to one of the "new" internal
+		//   traits in the "external" namespace.
 		return nil
 	}
 	interpolated, err := expr.Interpolate(varValidation, traits)
@@ -869,10 +928,10 @@ func ExtractFromIdentity(ctx context.Context, access UserGetter, identity tlsca.
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
-			"from backend. If the identity provider allows username changes, this can "+
-			"potentially allow an attacker to change the role of the existing user.",
-			identity.Username)
+		const msg = "Failed to find roles in x509 identity. Fetching " +
+			"from backend. If the identity provider allows username changes, this can " +
+			"potentially allow an attacker to change the role of the existing user."
+		slog.WarnContext(ctx, msg, "username", identity.Username)
 		return u.GetRoles(), u.GetTraits(), nil
 	}
 
@@ -1068,9 +1127,13 @@ func MatchDatabaseName(selectors []string, name string) (bool, string) {
 }
 
 // MatchDatabaseUser returns true if provided database user matches selectors.
-func MatchDatabaseUser(selectors []string, user string, matchWildcard bool) (bool, string) {
+func MatchDatabaseUser(selectors []string, user string, matchWildcard, caseFold bool) (bool, string) {
 	for _, u := range selectors {
-		if u == user {
+		if caseFold {
+			if strings.EqualFold(u, user) {
+				return true, "matched"
+			}
+		} else if u == user {
 			return true, "matched"
 		}
 		if matchWildcard && u == types.Wildcard {
@@ -1193,7 +1256,7 @@ func (set RoleSet) PinSourceIP() bool {
 
 // GetAccessState returns the AccessState, setting [AccessState.MFARequired]
 // according to the user's roles and cluster auth preference.
-func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+func (set RoleSet) GetAccessState(authPref readonly.AuthPreference) AccessState {
 	return AccessState{
 		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
 		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
@@ -1244,6 +1307,21 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if maxSessionTTL != 0 && ttl > maxSessionTTL {
 			ttl = maxSessionTTL
+		}
+	}
+	return ttl
+}
+
+// AdjustMFAVerificationInterval will reduce the requested ttl to the lowest mfa verification interval
+// for this role set if the role forces MFA tap, otherwise it returns ttl unchanged
+func (set RoleSet) AdjustMFAVerificationInterval(ttl time.Duration, enforce bool) time.Duration {
+	for _, role := range set {
+		mfaVerificationInterval := role.GetOptions().MFAVerificationInterval
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_OFF && !enforce {
+			continue
+		}
+		if mfaVerificationInterval != 0 && ttl > mfaVerificationInterval {
+			ttl = mfaVerificationInterval
 		}
 	}
 	return ttl
@@ -1519,21 +1597,14 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
-// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
-//
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference, states ...AccessState) error {
+func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
 	_, debugf := rbacDebugLogger()
 
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
 		}
-	}
-
-	var state AccessState
-	if len(states) == 1 {
-		state = states[0]
 	}
 
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
@@ -2144,6 +2215,8 @@ type databaseUserMatcher struct {
 	user string
 	// alternativeNames is a list of alternative names for the database user.
 	alternativeNames []string
+	// caseInsensitive specifies if the username is case insensitive.
+	caseInsensitive bool
 }
 
 // NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
@@ -2153,6 +2226,7 @@ func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
 		return &databaseUserMatcher{
 			user:             user,
 			alternativeNames: makeUsernamesForAWSRoleARN(db, user),
+			caseInsensitive:  db.IsUsernameCaseInsensitive(),
 		}
 	}
 
@@ -2160,21 +2234,26 @@ func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
 		return &databaseUserMatcher{
 			user:             user,
 			alternativeNames: makeAlternativeNamesForAWSRole(db, user),
+			caseInsensitive:  db.IsUsernameCaseInsensitive(),
 		}
 	}
 
-	return &databaseUserMatcher{user: user}
+	return &databaseUserMatcher{
+		user:            user,
+		caseInsensitive: db.IsUsernameCaseInsensitive(),
+	}
 }
 
 // Match matches database account name against provided role and condition.
 func (m *databaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	selectors := role.GetDatabaseUsers(condition)
-	if match, _ := MatchDatabaseUser(selectors, m.user, true); match {
+
+	if match, _ := MatchDatabaseUser(selectors, m.user, true /*matchWildcard*/, m.caseInsensitive); match {
 		return true, nil
 	}
 
 	for _, altName := range m.alternativeNames {
-		if match, _ := MatchDatabaseUser(selectors, altName, false); match {
+		if match, _ := MatchDatabaseUser(selectors, altName, false /*matchWildcard*/, m.caseInsensitive); match {
 			return true, nil
 		}
 	}
@@ -2294,6 +2373,27 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	return false, nil
 }
 
+type awsAppLoginMatcher struct {
+	awsRole string
+}
+
+// NewAppAWSLoginMatcher creates a RoleMatcher that checks whether the role's
+// AWS Role ARN match the specified condition.
+func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
+	return &awsAppLoginMatcher{awsRole: awsRole}
+}
+
+// Match matches an AWS Role ARN login against a role.
+func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	awsRoles := role.GetAWSRoleARNs(typ)
+	for _, awsRole := range awsRoles {
+		if l.awsRole == awsRole {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
 	userTraits    wrappers.Traits
@@ -2385,7 +2485,7 @@ func NewKubernetesResourceMatcher(resource types.KubernetesResource) *Kubernetes
 
 // Match matches a Kubernetes Resource against provided role and condition.
 func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition))
+	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition), condition)
 
 	return result, trace.Wrap(err)
 }
@@ -2407,7 +2507,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := checkLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
+	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
@@ -2630,10 +2730,10 @@ func checkRoleLabelsMatch(
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	return checkLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
+	return CheckLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
 }
 
-// checkLabelsMatch checks if the [labelMatchers] match the labels of [resource]
+// CheckLabelsMatch checks if the [labelMatchers] match the labels of [resource]
 // for [condition].
 // It considers both [labelMatchers.Labels] and [labelMatchers.Expression].
 //
@@ -2646,7 +2746,7 @@ func checkRoleLabelsMatch(
 // match it's not considered a match.
 //
 // If neither is set, it's not a match in either case.
-func checkLabelsMatch(
+func CheckLabelsMatch(
 	condition types.RoleConditionType,
 	labelMatchers types.LabelMatchers,
 	userTraits wrappers.Traits,
@@ -3177,8 +3277,11 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
 }
 
+// SearchAsRolesOption is a functional option for filtering SearchAsRoles.
+type SearchAsRolesOption func(role types.Role) bool
+
 // GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
-func (set RoleSet) GetAllowedSearchAsRoles() []string {
+func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string {
 	denied := make(map[string]struct{})
 	var allowed []string
 	for _, role := range set {
@@ -3187,13 +3290,53 @@ func (set RoleSet) GetAllowedSearchAsRoles() []string {
 		}
 	}
 	for _, role := range set {
+		if slices.ContainsFunc(allowFilters, func(filter SearchAsRolesOption) bool {
+			return !filter(role)
+		}) {
+			// Don't consider this base role if it's filtered out.
+			continue
+		}
 		for _, a := range role.GetSearchAsRoles(types.Allow) {
-			if _, ok := denied[a]; !ok {
-				allowed = append(allowed, a)
+			if _, isDenied := denied[a]; isDenied {
+				continue
 			}
+			allowed = append(allowed, a)
 		}
 	}
 	return apiutils.Deduplicate(allowed)
+}
+
+// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+// that allowed requesting to the requested Kubernetes resource kind.
+func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string {
+	// Return no results if encountering any denies since its globally matched.
+	for _, role := range set {
+		for _, kr := range role.GetAccessRequestConditions(types.Deny).KubernetesResources {
+			if kr.Kind == types.Wildcard || kr.Kind == requestedKubeResourceKind {
+				return nil
+			}
+		}
+	}
+	return set.GetAllowedSearchAsRoles(WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
+}
+
+// WithAllowedKubernetesResourceKindFilter returns a SearchAsRolesOption func
+// that will check that the requestedKubeResourceKind exists in the allow list
+// for the current role.
+func WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind string) SearchAsRolesOption {
+	return func(role types.Role) bool {
+		allowed := role.GetAccessRequestConditions(types.Allow).KubernetesResources
+		// any kind is allowed if nothing was configured.
+		if len(allowed) == 0 {
+			return true
+		}
+		for _, kr := range role.GetAccessRequestConditions(types.Allow).KubernetesResources {
+			if kr.Kind == types.Wildcard || kr.Kind == requestedKubeResourceKind {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
@@ -3274,50 +3417,38 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 
 // UnmarshalRoleV6 unmarshals the RoleV6 resource from JSON.
 func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error) {
-	var h types.ResourceHeader
-	err := json.Unmarshal(bytes, &h)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch h.Version {
-	case types.V7:
-		fallthrough
-	case types.V6:
-		fallthrough
-	case types.V5:
-		fallthrough
-	case types.V4:
-		// V4 roles are identical to V3 except for their defaults
-		fallthrough
-	case types.V3:
-		var role types.RoleV6
-		if err := utils.FastUnmarshal(bytes, &role); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-
-		if err := ValidateRole(&role); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if cfg.ID != 0 {
-			role.SetResourceID(cfg.ID)
-		}
-		if cfg.Revision != "" {
-			role.SetRevision(cfg.Revision)
-		}
-		if !cfg.Expires.IsZero() {
-			role.SetExpiry(cfg.Expires)
-		}
-		return &role, nil
+	version := jsoniter.Get(bytes, "version").ToString()
+	switch version {
+	// these are all backed by the same shape of data, they just have different semantics and defaults
+	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	default:
+		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
 
-	return nil, trace.BadParameter("role version %q is not supported", h.Version)
+	var role types.RoleV6
+	if err := utils.FastUnmarshal(bytes, &role); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	if role.Version != version {
+		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
+	}
+
+	if err := ValidateRole(&role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cfg.Revision != "" {
+		role.SetRevision(cfg.Revision)
+	}
+	if !cfg.Expires.IsZero() {
+		role.SetExpiry(cfg.Expires)
+	}
+	return &role, nil
 }
 
 // MarshalRole marshals the Role resource to JSON.
@@ -3333,7 +3464,7 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 
 	switch role := role.(type) {
 	case *types.RoleV6:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, role))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, role))
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}

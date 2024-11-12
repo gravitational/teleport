@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -95,7 +94,7 @@ func TestSessionWriter(t *testing.T) {
 				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 					event := pe.GetAuditEvent()
 					if event.GetIndex() > 1 && terminateConnection.CompareAndSwap(1, 0) == true {
-						log.Debugf("Terminating connection at event %v", event.GetIndex())
+						t.Logf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
 					return nil
@@ -107,7 +106,7 @@ func TestSessionWriter(t *testing.T) {
 						// simulate status update loss
 						select {
 						case <-stream.Status():
-							log.Debugf("Stealing status update.")
+							t.Log("Stealing status update.")
 						case <-time.After(time.Second):
 							return nil, trace.BadParameter("timeout")
 						}
@@ -137,7 +136,7 @@ func TestSessionWriter(t *testing.T) {
 			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
-		log.Debugf("Emitted %v events in %v.", len(inEvents), time.Since(start))
+		t.Logf("Emitted %v events in %v.", len(inEvents), time.Since(start))
 		err := test.writer.Complete(test.ctx)
 		require.NoError(t, err)
 
@@ -160,7 +159,7 @@ func TestSessionWriter(t *testing.T) {
 				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 					event := pe.GetAuditEvent()
 					if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-						log.Debugf("Terminating connection at event %v", event.GetIndex())
+						t.Logf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
 					return nil
@@ -194,7 +193,7 @@ func TestSessionWriter(t *testing.T) {
 			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
-		log.Debugf("Emitted all events in %v.", time.Since(start))
+		t.Logf("Emitted all events in %v.", time.Since(start))
 		err := test.writer.Complete(test.ctx)
 		require.NoError(t, err)
 
@@ -221,7 +220,7 @@ func TestSessionWriter(t *testing.T) {
 				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 					event := pe.GetAuditEvent()
 					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CompareAndSwap(1, 0) == true {
-						log.Debugf("Locking connection at event %v", event.GetIndex())
+						t.Logf("Locking connection at event %v", event.GetIndex())
 						<-hangCtx.Done()
 						return trace.ConnectionProblem(hangCtx.Err(), "stream hangs")
 					}
@@ -257,7 +256,7 @@ func TestSessionWriter(t *testing.T) {
 			require.NoError(t, err)
 		}
 		elapsedTime := time.Since(start)
-		log.Debugf("Emitted all events in %v.", elapsedTime)
+		t.Logf("Emitted all events in %v.", elapsedTime)
 		require.Less(t, elapsedTime, time.Second)
 		hangCancel()
 		err := test.writer.Complete(test.ctx)
@@ -406,7 +405,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	var uploadID string
 	select {
 	case event := <-a.eventsCh:
-		log.Debugf("Got status update, upload %v in %v.", event.UploadID, time.Since(start))
+		t.Logf("Got status update, upload %v in %v.", event.UploadID, time.Since(start))
 		require.Equal(t, string(a.sid), event.SessionID)
 		require.NoError(t, event.Error)
 		uploadID = event.UploadID
@@ -424,7 +423,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	reader := events.NewProtoReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(a.ctx)
 	require.NoError(t, err, "failed to read")
-	log.WithFields(reader.GetStats().ToFields()).Debugf("Reader stats.")
+	t.Logf("Reader stats :%v", reader.GetStats().ToFields())
 
 	return outEvents
 }

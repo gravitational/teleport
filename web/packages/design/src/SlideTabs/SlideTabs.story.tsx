@@ -81,3 +81,14 @@ export const LoadingTab = () => {
     />
   );
 };
+
+export const DisabledTab = () => {
+  return (
+    <SlideTabs
+      tabs={['aws', 'automatically', 'manually']}
+      onChange={() => null}
+      activeIndex={1}
+      disabled={true}
+    />
+  );
+};

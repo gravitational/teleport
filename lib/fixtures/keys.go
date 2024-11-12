@@ -29,11 +29,6 @@ import (
 )
 
 var PEMBytes = map[string][]byte{
-	"ecdsa": []byte(`-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEINGWx0zo6fhJ/0EAfrPzVFyFC9s18lBt3cRoEDhS3ARooAoGCCqGSM49
-AwEHoUQDQgAEi9Hdw6KvZcWxfg2IDhA7UkpDtzzt6ZqJXSsFdLd+Kx4S3Sx4cVO+
-6/ZOXRnPmNAlLUqjShUsUBBngG0u2fqEqA==
------END EC PRIVATE KEY-----`),
 	"rsa": []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAz1MArBKUGR4pHEwGS8PC6buJcjY7IHd5E8N7bDezVlmkZhz3
 2bMLCkKpoHGrcgL5UmiyTjcMZkfp/mVVkqGGQo+7ufiSbrUMgWhXpy0JL+ec2THY
@@ -60,7 +55,8 @@ MHeDg2Bs7/XZsIrn6vo7kXmQSoQKA8O2E7rYSigUayBKa/+5thbnjKlEP+slBzmp
 1zVRrQKBgHmGNSOpSuQiHRn9YuzZ/h5dX8jCLf+wHJzymCC1wVur8IxJjhhSuOIp
 7JPquig/B6L2pNoxPa41VDGawQjJY5m4l3ap/oJj61HBB+Auf29BWXqg7V7B7XMB
 NFJgTFxC2o3mVBkQ/s6FeDl62hpMheCuO6jRYbZjsM2tUeAKORws
------END RSA PRIVATE KEY-----`),
+-----END RSA PRIVATE KEY-----
+`),
 	"rsa-db-client": []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEA3scV81B4bpa0qkpBsJDUf3UOIs6A4+WZnf5eXJcJg7zDi5/J
 2vtBuk8CTvp8eQhu4Pq2G0RhHZzrYiBMWLf/ORzBSKrN+bQi9pRKNzN/hJ7SOq+T
@@ -128,6 +124,14 @@ f9Oeos0UUothgiDktdQHxdNEwLjQf7lJJBzV+5OtwswCWA==
 -----END RSA TESTING KEY-----`))
 
 func testingKey(s string) string { return strings.ReplaceAll(s, "TESTING KEY", "PRIVATE KEY") }
+
+var LocalhostTLSCertificate = func() tls.Certificate {
+	c, err := tls.X509KeyPair(LocalhostCert, LocalhostKey)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}()
 
 // TLSConfig is TLS configuration for running local TLS tests
 type TLSConfig struct {

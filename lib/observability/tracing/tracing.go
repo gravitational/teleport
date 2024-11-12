@@ -21,13 +21,13 @@ package tracing
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -73,7 +73,7 @@ type Config struct {
 	// DialTimeout is the timeout for dialing the exporter.
 	DialTimeout time.Duration
 	// Logger is the logger to use.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 	// Client is the client to use to export traces. This takes precedence over creating a
 	// new client with the ExporterURL. Ownership of the client is transferred to the
 	// tracing provider. It should **NOT** be closed by the caller.
@@ -99,7 +99,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(teleport.ComponentKey, teleport.ComponentTracing)
+		c.Logger = slog.With(teleport.ComponentKey, teleport.ComponentTracing)
 	}
 
 	if c.Client != nil {
@@ -218,7 +218,7 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	// override the global logging handled with one that uses the
 	// configured logger instead
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		cfg.Logger.WithError(err).Warnf("failed to export traces.")
+		cfg.Logger.WarnContext(ctx, "Failed to export traces", "error", err)
 	}))
 
 	// set global provider to our provider wrapper to have all tracers use the common TracerOptions

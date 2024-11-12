@@ -24,7 +24,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const kubernetesDefaultTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+const (
+	kubernetesDefaultTokenPath      = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	EnvVarCustomKubernetesTokenPath = "KUBERNETES_TOKEN_PATH"
+)
 
 type getEnvFunc func(key string) string
 type readFileFunc func(name string) ([]byte, error)
@@ -33,7 +36,7 @@ func GetIDToken(getEnv getEnvFunc, readFile readFileFunc) (string, error) {
 	// We check if we should use a custom location instead of the default one. This env var is not standard.
 	// This is useful when the operator wants to use a custom projected token, or another service account.
 	path := kubernetesDefaultTokenPath
-	if customPath := getEnv("KUBERNETES_TOKEN_PATH"); customPath != "" {
+	if customPath := getEnv(EnvVarCustomKubernetesTokenPath); customPath != "" {
 		path = customPath
 	}
 

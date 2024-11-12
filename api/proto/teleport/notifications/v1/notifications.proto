@@ -119,6 +119,8 @@ message UserNotificationState {
 message UserNotificationStateSpec {
   // notification_id is the ID of the notification this state is for.
   string notification_id = 1;
+  // username is the username of the user this notification state is for.
+  string username = 2;
 }
 
 // NotificationState the state of a notification for a user. This can represent either "clicked" or "dismissed".

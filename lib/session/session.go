@@ -54,17 +54,22 @@ func (s *ID) Check() error {
 
 // ParseID parses ID and checks if it's correct.
 func ParseID(id string) (*ID, error) {
-	_, err := uuid.Parse(id)
+	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return nil, trace.BadParameter("%v is not a valid UUID", id)
 	}
-	uid := ID(id)
+	// use the parsed UUID to build the ID instead of the string that
+	// was passed in. id is user controlled and uuid.Parse accepts
+	// several UUID formats that are not supported correctly across
+	// Teleport. (uuid.UUID).String always uses the same format that
+	// is supported by Teleport everywhere, so use that.
+	uid := ID(parsed.String())
 	return &uid, nil
 }
 
 // NewID returns new session ID. The session ID is based on UUIDv4.
 func NewID() ID {
-	return ID(uuid.New().String())
+	return ID(uuid.NewString())
 }
 
 // Session is a session of any kind (SSH, Kubernetes, Desktop, etc)
@@ -144,7 +149,7 @@ func (s *Session) Participants() []string {
 	return participants
 }
 
-// RemoveParty helper allows to remove a party by it's ID from the
+// RemoveParty helper allows to remove a party by its ID from the
 // session's list. Returns 'false' if pid couldn't be found
 func (s *Session) RemoveParty(pid ID) bool {
 	for i := range s.Parties {

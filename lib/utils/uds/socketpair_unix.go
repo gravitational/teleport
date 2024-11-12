@@ -21,13 +21,15 @@
 package uds
 
 import (
+	"net"
 	"os"
 
 	"github.com/gravitational/trace"
 )
 
-// NewSocketpair creates a unix socket pair, returning the halves as files.
-func NewSocketpair(t SocketType) (left, right *Conn, err error) {
+// NewSocketpair creates a unix socket pair, returning the halves as
+// [*net.UnixConn]s.
+func NewSocketpair(t SocketType) (left, right *net.UnixConn, err error) {
 	lfd, rfd, err := cloexecSocketpair(t)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

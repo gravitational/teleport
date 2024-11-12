@@ -35,7 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -55,7 +56,7 @@ type ServerHandler interface {
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
 	proxyClient  reversetunnelclient.Tunnel
-	accessPoint  auth.ReadProxyAccessPoint
+	accessPoint  authclient.ReadProxyAccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
 	servers      []types.AppServer
@@ -288,7 +289,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	clientJWTKey, err := jwt.New(&jwt.Config{
 		Clock:       t.c.clock,
 		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -296,14 +296,13 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	}
 
 	// Create a new jwt key using the web session private key to sign a new token.
-	wsPrivateKey, err := utils.ParsePrivateKey(t.c.ws.GetPriv())
+	wsPrivateKey, err := keys.ParsePrivateKey(t.c.ws.GetTLSPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	wsJWTKey, err := jwt.New(&jwt.Config{
 		Clock:       t.c.clock,
 		PrivateKey:  wsPrivateKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -312,15 +311,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 
 	claims, err := clientJWTKey.VerifyAzureToken(token)
 	if err != nil {
-		// If we fail to parse the token using the client's public key,
-		// that likely means the client is on an old version and is
-		// signing the token with the web session key directly, meaning
-		// we don't need to resign it, just let it through.
-		// TODO (Joerger): DELETE IN 17.0.0
-		if _, err := wsJWTKey.VerifyAzureToken(token); err == nil {
-			return nil
-		}
-
 		// jwt signed by unknown key.
 		return trace.Wrap(err, "azure jwt signed by unknown key")
 	}
@@ -386,12 +376,18 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		break
 	}
 
-	// eliminate any servers from the head of the list that were unreachable
 	t.mu.Lock()
-	if i < len(servers) {
-		t.c.servers = t.c.servers[i:]
-	} else {
-		t.c.servers = nil
+	// Only attempt to tidy up the list of servers if they weren't altered
+	// while the dialing happened. Since the lock is only held initially when
+	// making the servers copy and released during the dials, another dial attempt
+	// may have already happened and modified the list of servers.
+	if len(servers) == len(t.c.servers) {
+		// eliminate any servers from the head of the list that were unreachable
+		if i < len(t.c.servers) {
+			t.c.servers = t.c.servers[i:]
+		} else {
+			t.c.servers = nil
+		}
 	}
 	t.mu.Unlock()
 
@@ -462,7 +458,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 
 	// Configure the identity that will be used to connect to the server. This
 	// allows the server to verify the identity of the caller.
-	certificate, err := tls.X509KeyPair(c.ws.GetTLSCert(), c.ws.GetPriv())
+	certificate, err := tls.X509KeyPair(c.ws.GetTLSCert(), c.ws.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse certificate or key")
 	}

@@ -4,4 +4,4 @@ deps:
   - remote: buf.build
     owner: gogo
     repository: protobuf
-    commit: b03c65ea87cdc3521ede29f62fe3ce239267c1bc
+    commit: 4df00b267f944190a229ce3695781e99

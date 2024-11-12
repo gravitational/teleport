@@ -21,6 +21,7 @@ package secrets
 import (
 	"context"
 	"errors"
+	"maps"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -43,6 +44,8 @@ type AWSSecretsManagerConfig struct {
 	KMSKeyID string `yaml:"kms_key_id,omitempty"`
 	// Client is the AWS API client for Secrets Manager.
 	Client secretsmanageriface.SecretsManagerAPI
+	// ClusterName is the name of the Teleport cluster (for tagging purpose).
+	ClusterName string
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -52,6 +55,9 @@ func (c *AWSSecretsManagerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Client == nil {
 		return trace.BadParameter("missing client")
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
 	}
 	return nil
 }
@@ -87,12 +93,7 @@ func (s *AWSSecretsManager) CreateOrUpdate(ctx context.Context, key string, valu
 		SecretBinary:       []byte(value),
 
 		// Add tags to make it is easier to search Teleport resources.
-		Tags: []*secretsmanager.Tag{
-			{
-				Key:   aws.String(libaws.TagKeyTeleportCreated),
-				Value: aws.String(libaws.TagValueTrue),
-			},
-		},
+		Tags: s.makeTags(),
 	}
 	if s.cfg.KMSKeyID != "" {
 		input.KmsKeyId = aws.String(s.cfg.KMSKeyID)
@@ -116,6 +117,19 @@ func (s *AWSSecretsManager) CreateOrUpdate(ctx context.Context, key string, valu
 		}
 	}
 	return nil
+}
+
+func (s *AWSSecretsManager) makeTags() []*secretsmanager.Tag {
+	return []*secretsmanager.Tag{
+		{
+			Key:   aws.String(libaws.TagKeyTeleportCreated),
+			Value: aws.String(libaws.TagValueTrue),
+		},
+		{
+			Key:   aws.String(libaws.TagKeyTeleportCluster),
+			Value: aws.String(s.cfg.ClusterName),
+		},
+	}
 }
 
 // Delete deletes the secret for the provided path. Implements Secrets.
@@ -213,6 +227,10 @@ func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
 		return trace.Wrap(convertSecretsManagerError(err))
 	}
 
+	if err := s.maybeUpdateTags(ctx, secret); err != nil {
+		return trace.Wrap(err)
+	}
+
 	configKMSKeyID := s.cfg.KMSKeyID
 	if aws.StringValue(secret.KmsKeyId) == configKMSKeyID {
 		return nil
@@ -234,6 +252,18 @@ func (s *AWSSecretsManager) update(ctx context.Context, key string) error {
 	_, err = s.cfg.Client.UpdateSecretWithContext(ctx, &secretsmanager.UpdateSecretInput{
 		SecretId: secretID,
 		KmsKeyId: aws.String(configKMSKeyID),
+	})
+	return trace.Wrap(convertSecretsManagerError(err))
+}
+
+func (s *AWSSecretsManager) maybeUpdateTags(ctx context.Context, secert *secretsmanager.DescribeSecretOutput) error {
+	wantTags := s.makeTags()
+	if maps.Equal(libaws.TagsToLabels(wantTags), libaws.TagsToLabels(secert.Tags)) {
+		return nil
+	}
+	_, err := s.cfg.Client.TagResource(&secretsmanager.TagResourceInput{
+		SecretId: secert.ARN,
+		Tags:     wantTags,
 	})
 	return trace.Wrap(convertSecretsManagerError(err))
 }

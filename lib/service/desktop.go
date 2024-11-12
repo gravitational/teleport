@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -117,12 +117,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:            teleport.ComponentWindowsDesktop,
-				HostUUID:             conn.ServerIdentity.ID.HostUUID,
+				HostUUID:             conn.HostID(),
 				Resolver:             conn.TunnelProxyResolver(),
 				Client:               conn.Client,
 				AccessPoint:          accessPoint,
-				HostSigner:           conn.ServerIdentity.KeySigner,
-				Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				AuthMethods:          conn.ClientAuthMethods(),
+				Cluster:              conn.ClusterName(),
 				Server:               shtl,
 				FIPS:                 process.Config.FIPS,
 				ConnectedProxyGetter: proxyGetter,
@@ -144,7 +144,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
-			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 			Clock:     cfg.Clock,
 			Client:    conn.Client,
 		},
@@ -153,7 +153,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+	clusterName := conn.ClusterName()
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
@@ -170,7 +170,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 
-	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
+	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -185,7 +185,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 				logger.DebugContext(process.ExitContext(), "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := auth.DefaultClientCertPool(accessPoint, clusterName)
+		pool, _, err := authclient.DefaultClientCertPool(info.Context(), accessPoint, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -194,10 +194,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return tlsCopy, nil
 	}
 
-	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	connLimiter := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter.MaxConnections)
+
 	var publicAddr string
 	switch {
 	case useTunnel:
@@ -231,12 +229,14 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		KDCAddr:                      cfg.WindowsDesktop.KDCAddr,
 		PKIDomain:                    cfg.WindowsDesktop.PKIDomain,
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
 		Hostname:                     cfg.Hostname,
 		ConnectedProxyGetter:         proxyGetter,
+		ResourceMatchers:             cfg.WindowsDesktop.ResourceMatchers,
 	})
 	if err != nil {
 		return trace.Wrap(err)

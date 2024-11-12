@@ -17,25 +17,35 @@
  */
 
 import React, { PropsWithChildren, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { Popover, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { Position } from 'design/Popover/Popover';
+
+import { anchorOriginForPosition, transformOriginForPosition } from './shared';
+
+type ToolTipKind = 'info' | 'warning' | 'error';
 
 export const ToolTipInfo: React.FC<
   PropsWithChildren<{
     trigger?: 'click' | 'hover';
+    position?: Position;
     muteIconColor?: boolean;
     sticky?: boolean;
     maxWidth?: number;
+    kind?: ToolTipKind;
   }>
 > = ({
   children,
   trigger = 'hover',
-  muteIconColor,
+  position = 'bottom',
+  muteIconColor = false,
   sticky = false,
   maxWidth = 350,
+  kind = 'info',
 }) => {
+  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
 
@@ -63,7 +73,7 @@ export const ToolTipInfo: React.FC<
         {...(trigger === 'hover' && triggerOnHoverProps)}
         {...(trigger === 'click' && triggerOnClickProps)}
         css={`
-          :hover {
+          &:hover {
             cursor: pointer;
           }
           vertical-align: middle;
@@ -71,23 +81,23 @@ export const ToolTipInfo: React.FC<
           height: 18px;
         `}
       >
-        <InfoIcon $muteIconColor={muteIconColor} size="medium" />
+        <ToolTipIcon kind={kind} muteIconColor={muteIconColor} />
       </span>
       <Popover
         modalCss={() =>
           trigger === 'hover' && `pointer-events: ${sticky ? 'auto' : 'none'}`
         }
+        popoverCss={() => ({
+          background: theme.colors.tooltip.background,
+          backdropFilter: 'blur(2px)',
+        })}
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
+        anchorOrigin={anchorOriginForPosition(position)}
+        transformOrigin={transformOriginForPosition(position)}
+        arrow
+        popoverMargin={4}
       >
         <StyledOnHover px={3} py={2} $maxWidth={maxWidth}>
           {children}
@@ -97,14 +107,50 @@ export const ToolTipInfo: React.FC<
   );
 };
 
-const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
+const ToolTipIcon = ({
+  kind,
+  muteIconColor,
+}: {
+  kind: ToolTipKind;
+  muteIconColor: boolean;
+}) => {
+  switch (kind) {
+    case 'info':
+      return <InfoIcon $muteIconColor={muteIconColor} size="medium" />;
+    case 'warning':
+      return <WarningIcon $muteIconColor={muteIconColor} size="medium" />;
+    case 'error':
+      return <ErrorIcon $muteIconColor={muteIconColor} size="medium" />;
+    default:
+      kind satisfies never;
+  }
+};
+
+const StyledOnHover = styled(Text)<{ $maxWidth: number }>`
+  color: ${props => props.theme.colors.text.primaryInverse};
   max-width: ${p => p.$maxWidth}px;
 `;
 
-const InfoIcon = styled(Icons.Info)`
+const InfoIcon = styled(Icons.Info)<{ $muteIconColor?: boolean }>`
   height: 18px;
   width: 18px;
   color: ${p => (p.$muteIconColor ? p.theme.colors.text.disabled : 'inherit')};
+`;
+
+const WarningIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
+  height: 18px;
+  width: 18px;
+  color: ${p =>
+    p.$muteIconColor
+      ? p.theme.colors.text.disabled
+      : p.theme.colors.interactive.solid.alert.default};
+`;
+
+const ErrorIcon = styled(Icons.WarningCircle)<{ $muteIconColor?: boolean }>`
+  height: 18px;
+  width: 18px;
+  color: ${p =>
+    p.$muteIconColor
+      ? p.theme.colors.text.disabled
+      : p.theme.colors.interactive.solid.danger.default};
 `;

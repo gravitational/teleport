@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Alert from './Alert';
+import { Alert, Banner } from './Alert';
 import Box from './Box';
-import Button, {
+import {
+  Button,
   ButtonPrimary,
   ButtonWarning,
   ButtonSecondary,
@@ -30,16 +31,26 @@ import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
-import DocumentTitle from './DocumentTitle';
-import Indicator from './Indicator';
+import { Indicator } from './Indicator';
 import Input from './Input';
 import Label from './Label';
 import LabelInput from './LabelInput';
 import LabelState from './LabelState';
 import Link from './Link';
+import { Mark } from './Mark';
 import Image from './Image';
-import Text from './Text';
-import SideNav, { SideNavItem } from './SideNav';
+import Text, {
+  H1,
+  H2,
+  H3,
+  H4,
+  P1,
+  P2,
+  P3,
+  Subtitle1,
+  Subtitle2,
+  Subtitle3,
+} from './Text';
 import { StepSlider } from './StepSlider';
 import TopNav from './TopNav';
 import Flex from './Flex';
@@ -53,41 +64,50 @@ import { Toggle } from './Toggle';
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
+  Banner,
   Box,
   Button,
+  ButtonBorder,
   ButtonIcon,
   ButtonLink,
-  ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
+  ButtonText,
   ButtonWarning,
   ButtonWithMenu,
-  ButtonText,
   Card,
   CardSuccess,
   CardSuccessLogin,
-  DocumentTitle,
   Flex,
+  H1,
+  H2,
+  H3,
+  H4,
+  Image,
   Indicator,
   Input,
   Label,
   LabelInput,
   LabelState,
   Link,
-  Pill,
-  Popover,
-  Image,
-  ResourceIcon,
-  SideNav,
-  SideNavItem,
-  StepSlider,
-  Text,
-  TopNav,
+  Mark,
   Menu,
   MenuItem,
   MenuItemIcon,
+  P1,
+  P2,
+  P3,
+  Pill,
+  Popover,
+  ResourceIcon,
+  StepSlider,
+  Subtitle1,
+  Subtitle2,
+  Subtitle3,
+  Text,
   TextArea,
   Toggle,
+  TopNav,
 };
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';

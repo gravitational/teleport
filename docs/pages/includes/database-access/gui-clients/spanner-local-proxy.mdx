@@ -1,0 +1,21 @@
+The Cloud Spanner integration works only in the local proxy tunnel mode.
+Start a local proxy tunnel for connections to your Spanner database by using the
+command below:
+
+```code
+$ tsh proxy db --tunnel --port 1443 spanner --db-user=<service-account-name> --db-name=<spanner database name>
+```
+
+The database user specified in `--db-user` should be the name of a GCP service
+account that can access the Spanner database.
+The name of the service account should be everything before the "@" of the
+service account email address, e.g. the name for
+`llama@example-project-123456.iam.gserviceaccount.com` is just "llama".
+
+<Notice type="tip">
+This command uses the local port 1443, but you can choose any port, or let
+`tsh` pick a local port at random if you omit the `--port` flag.
+You should specify a port to avoid the need to reconfigure your GUI client again
+later.
+</Notice>
+

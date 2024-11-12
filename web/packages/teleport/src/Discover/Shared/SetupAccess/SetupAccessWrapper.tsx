@@ -18,8 +18,10 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Box, Indicator, Flex } from 'design';
+import { Box, Indicator, Flex } from 'design';
 import * as Icons from 'design/Icon';
+
+import { P } from 'design/Text/Text';
 
 import {
   Header,
@@ -47,6 +49,8 @@ export type Props = {
   children: React.ReactNode;
   infoContent?: React.ReactNode;
   wantAutoDiscover?: boolean;
+  /** A component below the header and above the main content. */
+  preContent?: React.ReactNode;
 };
 
 export function SetupAccessWrapper({
@@ -62,6 +66,7 @@ export function SetupAccessWrapper({
   onPrev,
   children,
   infoContent,
+  preContent,
   wantAutoDiscover = false,
 }: Props) {
   const canAddTraits = !isSsoUser && canEditUser;
@@ -69,11 +74,12 @@ export function SetupAccessWrapper({
   let $content;
   switch (attempt.status) {
     case 'failed':
+      // TODO(bl-nero): Migrate this to an alert with embedded retry button.
       $content = (
         <>
           <Flex my={3}>
             <Icons.Warning ml={1} mr={2} color="error.main" size="medium" />
-            <Text>Encountered Error: {attempt.statusText}</Text>
+            <P>Encountered Error: {attempt.statusText}</P>
           </Flex>
           <ButtonBlueText ml={1} onClick={fetchUserTraits}>
             Retry
@@ -137,6 +143,7 @@ export function SetupAccessWrapper({
     <Box maxWidth="700px">
       <Header>Set Up Access</Header>
       <HeaderSubtitle>{headerSubtitle}</HeaderSubtitle>
+      {preContent}
       <Box mb={3}>{$content}</Box>
       {infoContent}
       <ActionButtons

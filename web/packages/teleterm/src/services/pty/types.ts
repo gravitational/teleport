@@ -17,12 +17,14 @@
  */
 
 import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { Shell } from 'teleterm/mainProcess/shell';
 
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
 export enum PtyProcessCreationStatus {
   Ok = 'Ok',
   ResolveShellEnvTimeout = 'ResolveShellEnvTimeout',
+  ShellNotResolved = 'ShellNotResolved',
 }
 
 export interface PtyHostClient {
@@ -37,8 +39,21 @@ export type PtyServiceClient = {
   createPtyProcess: (cmd: PtyCommand) => Promise<{
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
+    windowsPty: WindowsPty;
+    shell: Shell;
   }>;
 };
+
+/**
+ * Pty information for Windows.
+ * undefined for non-Windows OS.
+ */
+export type WindowsPty =
+  | {
+      useConpty: boolean;
+      buildNumber: number;
+    }
+  | undefined;
 
 export type ShellCommand = PtyCommandBase & {
   kind: 'pty.shell';
@@ -52,6 +67,8 @@ export type ShellCommand = PtyCommandBase & {
   // The initMessage is rendered on the terminal UI without being written or
   // read by the underlying PTY.
   initMessage?: string;
+  /** Shell identifier. */
+  shellId: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {
@@ -106,4 +123,12 @@ export type SshOptions = {
    * (by adding the `--no-resume` option).
    */
   noResume: boolean;
+  /**
+   * Enables agent forwarding when running `tsh ssh` by adding the --forward-agent option.
+   */
+  forwardAgent: boolean;
+};
+
+export type TerminalOptions = {
+  windowsBackend: 'auto' | 'winpty';
 };

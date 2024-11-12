@@ -222,6 +222,49 @@ func TestNotifications(t *testing.T) {
 				},
 			}),
 		},
+		{
+			userNotification: &notificationsv1.Notification{
+				SubKind: "test-subkind",
+				Spec: &notificationsv1.NotificationSpec{
+					Username: managerUsername,
+				},
+				Metadata: &headerv1.Metadata{
+					Labels: map[string]string{
+						types.NotificationTitleLabel: "manager-7-expires",
+					},
+					// Expires in 15 minutes.
+					Expires: timestamppb.New(fakeClock.Now().Add(15 * time.Minute)),
+				},
+			},
+		},
+		{
+			globalNotification: &notificationsv1.GlobalNotification{
+				Spec: &notificationsv1.GlobalNotificationSpec{
+					Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
+						ByPermissions: &notificationsv1.ByPermissions{
+							RoleConditions: []*types.RoleConditions{
+								{
+									ReviewRequests: &types.AccessReviewConditions{
+										Roles: []string{"intern"},
+									},
+								},
+							},
+						},
+					},
+					Notification: &notificationsv1.Notification{
+						SubKind: "test-subkind",
+						Spec:    &notificationsv1.NotificationSpec{},
+						Metadata: &headerv1.Metadata{
+							Labels: map[string]string{
+								types.NotificationTitleLabel: "manager-8-expires",
+							},
+							// Expires in 10 minutes.
+							Expires: timestamppb.New(fakeClock.Now().Add(10 * time.Minute)),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	notificationIdMap := map[string]string{}
@@ -282,7 +325,7 @@ func TestNotifications(t *testing.T) {
 
 	// Fetch the next 3 notifications, starting from the previously received startKeys.
 	// After this fetch, there should be no more global notifications for auditor, so the next page token
-	// for global notifications should be "end".
+	// for global notifications should be "".
 	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
 		PageSize:  3,
 		PageToken: resp.NextPageToken,
@@ -290,6 +333,16 @@ func TestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	expectedNextKeys = fmt.Sprintf("%s,", notificationIdMap["auditor-2"])
 
+	require.Equal(t, expectedNextKeys, resp.NextPageToken)
+	finalOut = append(finalOut, resp.Notifications...)
+
+	// Fetch a page of 1 notification, starting from the previously received startKeys.
+	resp, err = auditorClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
+		PageSize:  1,
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	expectedNextKeys = fmt.Sprintf("%s,", notificationIdMap["auditor-1"])
 	require.Equal(t, expectedNextKeys, resp.NextPageToken)
 	finalOut = append(finalOut, resp.Notifications...)
 
@@ -338,7 +391,7 @@ func TestNotifications(t *testing.T) {
 	require.NoError(t, err)
 	defer managerClient.Close()
 
-	managerExpectedNotifications := []string{"auditor-8,manager-6", "manager-5", "manager-4", "manager-3", "auditor-5,manager-2", "manager-1"}
+	managerExpectedNotifications := []string{"manager-8-expires", "manager-7-expires", "auditor-8,manager-6", "manager-5", "manager-4", "manager-3", "auditor-5,manager-2", "manager-1"}
 
 	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
 		PageSize: 10,
@@ -349,10 +402,10 @@ func TestNotifications(t *testing.T) {
 	// Verify that we've reached the end of both lists.
 	require.Equal(t, "", resp.NextPageToken)
 
-	// Mark "auditor-8,manager-6" as clicked.
+	// Mark "manager-8-expires" as clicked.
 	_, err = managerClient.UpsertUserNotificationState(ctx, managerUsername, &notificationsv1.UserNotificationState{
 		Spec: &notificationsv1.UserNotificationStateSpec{
-			NotificationId: notificationIdMap["auditor-8,manager-6"],
+			NotificationId: notificationIdMap["manager-8-expires"],
 		},
 		Status: &notificationsv1.UserNotificationStateStatus{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
@@ -366,9 +419,25 @@ func TestNotifications(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clickedNotification := resp.Notifications[0] // "auditor-8,manager-6" is the first item in the list
+	clickedNotification := resp.Notifications[0] // "manager-8-expires" is the first item in the list
 	clickedLabelValue := clickedNotification.GetMetadata().GetLabels()[types.NotificationClickedLabel]
 	require.Equal(t, "true", clickedLabelValue)
+
+	// Advance 11 minutes.
+	fakeClock.Advance(11 * time.Minute)
+
+	// Verify that notification "manager-8-expires" is now no longer returned.
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, managerExpectedNotifications[1:], notificationsToTitlesList(t, resp.Notifications))
+
+	// Advance 16 minutes.
+	fakeClock.Advance(16 * time.Minute)
+
+	// Verify that notification "manager-7-expires" is now no longer returned either.
+	resp, err = managerClient.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
+	require.NoError(t, err)
+	require.Equal(t, managerExpectedNotifications[2:], notificationsToTitlesList(t, resp.Notifications))
 
 	// Verify that manager can't upsert a notification state for auditor
 	_, err = managerClient.UpsertUserNotificationState(ctx, auditorUsername, &notificationsv1.UserNotificationState{

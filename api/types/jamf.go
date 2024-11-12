@@ -40,13 +40,8 @@ var JamfOnMissingActions = []string{
 
 // ValidateJamfSpecV1 validates a [JamfSpecV1] instance.
 func ValidateJamfSpecV1(s *JamfSpecV1) error {
-	switch {
-	case s == nil:
+	if s == nil {
 		return trace.BadParameter("spec required")
-	case s.Username == "":
-		return trace.BadParameter("username required")
-	case s.Password == "":
-		return trace.BadParameter("password required")
 	}
 
 	switch u, err := url.Parse(s.ApiEndpoint); {

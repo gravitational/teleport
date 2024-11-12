@@ -8,8 +8,8 @@ metadata:
   # the name of the connector
   name: okta
 spec:
-  # connector display name that will be appended to the title of "Login with"
-  # button on the cluster login screen so it will say "Login with Okta"
+  # Connector display name that will become the title of an SSO login button on
+  # the cluster login screen.
   display: Okta
   # SAML provider will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at.
@@ -28,4 +28,18 @@ spec:
     - access
   # Provides a path to the IdP metadata.
   entity_descriptor_url: https://example.okta.com/app/your-app-id/sso/saml/metadata
+  # Optional SAML Single Logout endpoint. If set, logging out of Teleport
+  # will also log the user out of the SAML provider session.
+  single_logout_url: https://example.okta.com/app/your-app-id/slo/saml
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'
   

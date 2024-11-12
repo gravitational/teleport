@@ -36,9 +36,15 @@ proxy_service:
     # v1: defaults to 0.0.0.0:3024
     tunnel_listen_addr: 0.0.0.0:3024
 
-    # Proxy Peering listening address. Teleport Proxy Services will advertise this address
-    # for dialing agents in Proxy Peering mode.
+    # Proxy Peering listening address. Teleport Proxy Services will bind to this address
+    # to listen for incoming connections from dialing agents in Proxy Peering mode.
     peer_listen_addr: 0.0.0.0:3021
+
+    # Proxy Peering public address. Teleport Proxy Services will advertise this address
+    # for dialing agents in Proxy Peering mode.
+    # NOTE: This address should be unique to each proxy and should not point to a load balancer.
+    # Using a load balancer address here will lead to unpredictable results and connection delays.
+    peer_public_addr: teleport-proxy-host-1.example.com:3021
 
     # The HTTPS listen address to serve the Web UI and authenticate users.
     # Handles the PostgreSQL proxy if the Database Service is enabled.
@@ -49,10 +55,8 @@ proxy_service:
     # proxies behind a load balancer, this name must point to the load balancer
     # If application access is enabled, public_addr is used to write correct
     # redirects
-    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
     # If database access is enabled, Database clients will connect to the Proxy
     # over this hostname
-    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
@@ -113,7 +117,7 @@ proxy_service:
     # Address advertised to MySQL clients. If not set, public_addr is used.
     mysql_public_addr: "mysql.teleport.example.com:3306"
 
-    # Address advertised to PostgresSQL clients. If not set, public_addr is
+    # Address advertised to PostgreSQL clients. If not set, public_addr is
     # used.
     postgres_public_addr: "postgres.teleport.example.com:443"
 
@@ -148,6 +152,11 @@ proxy_service:
       # rows that are retained when lines are scrolled beyond the initial
       # viewport. Does not apply to session recording view.
       scrollback_lines: 1000
+      # Which resources should be shown in the web UI resources page; resources the user
+      # has access to, and resources the user can request access to. By default, both types
+      # are included. If you wish for users to only see resources they have access to, set
+      # this to "accessible_only".
+      show_resources: 'requestable'
 
     # Enables the Proxy service to take client source IPs from the
     # "X-Forwarded-For" headers for web APIs.
@@ -157,13 +166,6 @@ proxy_service:
     # sets client IPs in the "X-Forwarded-For" headers. Requests with more than
     # one IPs will be rejected.
     trust_x_forwarded_for: false
-
-    # Configuration for the Teleport Assist functionality
-    assist:
-      openai:
-        # An absolute path to the file containing the API token for OpenAI.
-        # This is required for Assist functionality.
-        api_token_path: /etc/teleport/openai_key
 
     # Configuration for the built-in version server for agent automatic updates.
     # If you leave this configuration unset, a default channel is created and

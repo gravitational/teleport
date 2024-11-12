@@ -19,7 +19,9 @@
 package services
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -34,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -81,9 +84,8 @@ type AccessChecker interface {
 
 	// CheckAccessToSAMLIdP checks access to the SAML IdP.
 	//
-	// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(types.AuthPreference, ...AccessState) error
+	CheckAccessToSAMLIdP(readonly.AuthPreference, AccessState) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -180,7 +182,11 @@ type AccessChecker interface {
 	CertificateExtensions() []*types.CertExtension
 
 	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
-	GetAllowedSearchAsRoles() []string
+	GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string
+
+	// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+	// that allowed requesting to the requested Kubernetes resource kind.
+	GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string
 
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
@@ -225,7 +231,7 @@ type AccessChecker interface {
 	// GetAccessState returns the AccessState for the user given their roles, the
 	// cluster auth preference, and whether MFA and the user's device were
 	// verified.
-	GetAccessState(authPref types.AuthPreference) AccessState
+	GetAccessState(authPref readonly.AuthPreference) AccessState
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error)
@@ -258,8 +264,8 @@ type AccessChecker interface {
 	// Supports the following resource types:
 	//
 	// - types.Server with GetKind() == types.KindNode
-	//
 	// - types.KindWindowsDesktop
+	// - types.KindApp with IsAWSConsole() == true
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
 
 	// CheckSPIFFESVID checks if the role set has access to generating the
@@ -766,13 +772,15 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 // Supports the following resource types:
 //
 // - types.Server with GetKind() == types.KindNode
-//
 // - types.KindWindowsDesktop
+// - types.KindApp with IsAWSConsole() == true
 func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
 	// Create a map indexed by all logins in the RoleSet,
 	// mapped to false if any role has it in its deny section,
 	// true otherwise.
 	mapped := make(map[string]bool)
+
+	resourceAsApp, resourceIsApp := resource.(interface{ IsAWSConsole() bool })
 
 	for _, role := range a.RoleSet {
 		var loginGetter func(types.RoleConditionType) []string
@@ -782,6 +790,16 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			loginGetter = role.GetLogins
 		case types.KindWindowsDesktop:
 			loginGetter = role.GetWindowsLogins
+		case types.KindApp:
+			if !resourceIsApp {
+				return nil, trace.BadParameter("received unsupported resource type for Application kind: %T", resource)
+			}
+			// For Apps, only AWS currently supports listing the possible logins.
+			if !resourceAsApp.IsAWSConsole() {
+				return nil, nil
+			}
+
+			loginGetter = role.GetAWSRoleARNs
 		default:
 			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
 		}
@@ -812,6 +830,12 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 		newLoginMatcher = NewLoginMatcher
 	case types.KindWindowsDesktop:
 		newLoginMatcher = NewWindowsLoginMatcher
+	case types.KindApp:
+		if !resourceIsApp || !resourceAsApp.IsAWSConsole() {
+			return nil, trace.BadParameter("received unsupported resource type for Application: %T", resource)
+		}
+
+		newLoginMatcher = NewAppAWSLoginMatcher
 	default:
 		return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
 	}
@@ -947,6 +971,34 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 	return utils.StringsSliceFromSet(groups), nil
 }
 
+// HostUserMode determines how host users should be created.
+type HostUserMode int
+
+const (
+	// HostUserModeUndefined is the default mode, for when the mode couldn't be
+	// determined from a types.CreateHostUserMode.
+	HostUserModeUndefined HostUserMode = iota
+	// HostUserModeKeep creates a home directory and persists after a session ends.
+	HostUserModeKeep
+	// HostUserModeDrop does not create a home directory, and it is removed after
+	// a session ends.
+	HostUserModeDrop
+	// HostUserModeStatic creates a home directory and exists independently of a
+	// session.
+	HostUserModeStatic
+)
+
+func convertHostUserMode(mode types.CreateHostUserMode) HostUserMode {
+	switch mode {
+	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+		return HostUserModeKeep
+	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+		return HostUserModeDrop
+	default:
+		return HostUserModeUndefined
+	}
+}
+
 // HostUsersInfo keeps information about groups and sudoers entries
 // for a particular host user
 type HostUsersInfo struct {
@@ -954,17 +1006,26 @@ type HostUsersInfo struct {
 	Groups []string
 	// Mode determines if a host user should be deleted after a session
 	// ends or not.
-	Mode types.CreateHostUserMode
+	Mode HostUserMode
 	// UID is the UID that the host user will be created with
 	UID string
 	// GID is the GID that the host user will be created with
 	GID string
+	// Shell is the default login shell for a host user
+	Shell string
+	// TakeOwnership determines whether or not an existing user should be
+	// taken over by teleport. This currently only applies to 'static' mode
+	// users, 'keep' mode users still need to assign 'teleport-keep' in the
+	// Groups slice in order to take ownership.
+	TakeOwnership bool
 }
 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
+	shellToRoles := make(map[string][]string)
+	var shell string
 	var mode types.CreateHostUserMode
 
 	for _, role := range a.RoleSet {
@@ -978,6 +1039,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		}
 
 		createHostUserMode := role.GetOptions().CreateHostUserMode
+		//nolint:staticcheck // this field is preserved for existing deployments, but shouldn't be used going forward
 		createHostUser := role.GetOptions().CreateHostUser
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF
@@ -989,7 +1051,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		// if any of the matching roles do not enable create host
 		// user, the user should not be allowed on
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
-			return nil, trace.AccessDenied("user is not allowed to create host users")
+			return nil, trace.AccessDenied("role %q prevents creating host users", role.GetName())
 		}
 
 		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
@@ -1001,9 +1063,24 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
 		}
 
+		hostUserShell := role.GetOptions().CreateHostUserDefaultShell
+		shell = cmp.Or(shell, hostUserShell)
+		if hostUserShell != "" {
+			shellToRoles[hostUserShell] = append(shellToRoles[hostUserShell], role.GetName())
+		}
+
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
+	}
+
+	if len(shellToRoles) > 1 {
+		b := &strings.Builder{}
+		for shell, roles := range shellToRoles {
+			fmt.Fprintf(b, "%s=%v ", shell, roles)
+		}
+
+		log.Warnf("Host user shell resolution is ambiguous due to conflicting roles. %q will be used, but consider unifying roles around a single shell. Current shell assignments: %s", shell, b)
 	}
 
 	for _, role := range a.RoleSet {
@@ -1033,9 +1110,10 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 	return &HostUsersInfo{
 		Groups: utils.StringsSliceFromSet(groups),
-		Mode:   mode,
+		Mode:   convertHostUserMode(mode),
 		UID:    uid,
 		GID:    gid,
+		Shell:  shell,
 	}, nil
 }
 
@@ -1209,14 +1287,15 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Set internal traits for the remote user. This allows Teleport to work by
-	// passing exact logins, Kubernetes users/groups and database users/names
-	// to the remote cluster.
+	// passing exact logins, Kubernetes users/groups, database users/names, and
+	// AWS Role ARNs to the remote cluster.
 	traits := map[string][]string{
-		constants.TraitLogins:     identity.Principals,
-		constants.TraitKubeGroups: identity.KubernetesGroups,
-		constants.TraitKubeUsers:  identity.KubernetesUsers,
-		constants.TraitDBNames:    identity.DatabaseNames,
-		constants.TraitDBUsers:    identity.DatabaseUsers,
+		constants.TraitLogins:      identity.Principals,
+		constants.TraitKubeGroups:  identity.KubernetesGroups,
+		constants.TraitKubeUsers:   identity.KubernetesUsers,
+		constants.TraitDBNames:     identity.DatabaseNames,
+		constants.TraitDBUsers:     identity.DatabaseUsers,
+		constants.TraitAWSRoleARNs: identity.AWSRoleARNs,
 	}
 	// Prior to Teleport 6.2 no user traits were passed to remote clusters
 	// except for the internal ones specified above.

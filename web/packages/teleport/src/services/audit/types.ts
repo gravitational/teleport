@@ -163,20 +163,8 @@ export const eventCodes = {
   SCP_DISALLOWED: 'T3010E',
   SFTP_OPEN_FAILURE: 'TS001E',
   SFTP_OPEN: 'TS001I',
-  SFTP_CLOSE_FAILURE: 'TS002E',
-  SFTP_CLOSE: 'TS002I',
-  SFTP_READ_FAILURE: 'TS003E',
-  SFTP_READ: 'TS003I',
-  SFTP_WRITE_FAILURE: 'TS004E',
-  SFTP_WRITE: 'TS004I',
-  SFTP_LSTAT_FAILURE: 'TS005E',
-  SFTP_LSTAT: 'TS005I',
-  SFTP_FSTAT_FAILURE: 'TS006E',
-  SFTP_FSTAT: 'TS006I',
   SFTP_SETSTAT_FAILURE: 'TS007E',
   SFTP_SETSTAT: 'TS007I',
-  SFTP_FSETSTAT_FAILURE: 'TS008E',
-  SFTP_FSETSTAT: 'TS008I',
   SFTP_OPENDIR_FAILURE: 'TS009E',
   SFTP_OPENDIR: 'TS009I',
   SFTP_READDIR_FAILURE: 'TS010E',
@@ -187,19 +175,14 @@ export const eventCodes = {
   SFTP_MKDIR: 'TS012I',
   SFTP_RMDIR_FAILURE: 'TS013E',
   SFTP_RMDIR: 'TS013I',
-  SFTP_REALPATH_FAILURE: 'TS014E',
-  SFTP_REALPATH: 'TS014I',
-  SFTP_STAT_FAILURE: 'TS015E',
-  SFTP_STAT: 'TS015I',
   SFTP_RENAME_FAILURE: 'TS016E',
   SFTP_RENAME: 'TS016I',
-  SFTP_READLINK_FAILURE: 'TS017E',
-  SFTP_READLINK: 'TS017I',
   SFTP_SYMLINK_FAILURE: 'TS018E',
   SFTP_SYMLINK: 'TS018I',
   SFTP_LINK: 'TS019I',
   SFTP_LINK_FAILURE: 'TS019E',
   SFTP_DISALLOWED: 'TS020E',
+  SFTP_SUMMARY: 'TS021I',
   SESSION_COMMAND: 'T4000I',
   SESSION_DATA: 'T2006I',
   SESSION_DISK: 'T4001I',
@@ -298,8 +281,28 @@ export const eventCodes = {
   AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
+  ACCESS_GRAPH_PATH_CHANGED: 'TAG001I',
   SPANNER_RPC: 'TSPN001I',
   SPANNER_RPC_DENIED: 'TSPN001W',
+  DISCOVERY_CONFIG_CREATE: 'DC001I',
+  DISCOVERY_CONFIG_UPDATE: 'DC002I',
+  DISCOVERY_CONFIG_DELETE: 'DC003I',
+  DISCOVERY_CONFIG_DELETE_ALL: 'DC004I',
+  INTEGRATION_CREATE: 'IG001I',
+  INTEGRATION_UPDATE: 'IG002I',
+  INTEGRATION_DELETE: 'IG003I',
+  STATIC_HOST_USER_CREATE: 'SHU001I',
+  STATIC_HOST_USER_UPDATE: 'SHU002I',
+  STATIC_HOST_USER_DELETE: 'SHU003I',
+  CROWN_JEWEL_CREATE: 'CJ001I',
+  CROWN_JEWEL_UPDATE: 'CJ002I',
+  CROWN_JEWEL_DELETE: 'CJ003I',
+  USER_TASK_CREATE: 'UT001I',
+  USER_TASK_UPDATE: 'UT002I',
+  USER_TASK_DELETE: 'UT003I',
+  PLUGIN_CREATE: 'PG001I',
+  PLUGIN_UPDATE: 'PG002I',
+  PLUGIN_DELETE: 'PG003I',
 } as const;
 
 /**
@@ -440,33 +443,9 @@ export type RawEvents = {
   [eventCodes.SFTP_OPEN_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_OPEN_FAILURE
   >;
-  [eventCodes.SFTP_CLOSE]: RawEventSFTP<typeof eventCodes.SFTP_CLOSE>;
-  [eventCodes.SFTP_CLOSE_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_CLOSE_FAILURE
-  >;
-  [eventCodes.SFTP_READ]: RawEventSFTP<typeof eventCodes.SFTP_READ>;
-  [eventCodes.SFTP_READ_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_READ_FAILURE
-  >;
-  [eventCodes.SFTP_WRITE]: RawEventSFTP<typeof eventCodes.SFTP_WRITE>;
-  [eventCodes.SFTP_WRITE_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_WRITE_FAILURE
-  >;
-  [eventCodes.SFTP_LSTAT]: RawEventSFTP<typeof eventCodes.SFTP_LSTAT>;
-  [eventCodes.SFTP_LSTAT_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_LSTAT_FAILURE
-  >;
-  [eventCodes.SFTP_FSTAT]: RawEventSFTP<typeof eventCodes.SFTP_FSTAT>;
-  [eventCodes.SFTP_FSTAT_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_FSTAT_FAILURE
-  >;
   [eventCodes.SFTP_SETSTAT]: RawEventSFTP<typeof eventCodes.SFTP_SETSTAT>;
   [eventCodes.SFTP_SETSTAT_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_SETSTAT_FAILURE
-  >;
-  [eventCodes.SFTP_FSETSTAT]: RawEventSFTP<typeof eventCodes.SFTP_FSETSTAT>;
-  [eventCodes.SFTP_FSETSTAT_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_FSETSTAT_FAILURE
   >;
   [eventCodes.SFTP_OPENDIR]: RawEventSFTP<typeof eventCodes.SFTP_OPENDIR>;
   [eventCodes.SFTP_OPENDIR_FAILURE]: RawEventSFTP<
@@ -488,21 +467,9 @@ export type RawEvents = {
   [eventCodes.SFTP_RMDIR_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_RMDIR_FAILURE
   >;
-  [eventCodes.SFTP_REALPATH]: RawEventSFTP<typeof eventCodes.SFTP_REALPATH>;
-  [eventCodes.SFTP_REALPATH_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_REALPATH_FAILURE
-  >;
-  [eventCodes.SFTP_STAT]: RawEventSFTP<typeof eventCodes.SFTP_STAT>;
-  [eventCodes.SFTP_STAT_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_STAT_FAILURE
-  >;
   [eventCodes.SFTP_RENAME]: RawEventSFTP<typeof eventCodes.SFTP_RENAME>;
   [eventCodes.SFTP_RENAME_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_RENAME_FAILURE
-  >;
-  [eventCodes.SFTP_READLINK]: RawEventSFTP<typeof eventCodes.SFTP_READLINK>;
-  [eventCodes.SFTP_READLINK_FAILURE]: RawEventSFTP<
-    typeof eventCodes.SFTP_READLINK_FAILURE
   >;
   [eventCodes.SFTP_SYMLINK]: RawEventSFTP<typeof eventCodes.SFTP_SYMLINK>;
   [eventCodes.SFTP_SYMLINK_FAILURE]: RawEventSFTP<
@@ -1143,6 +1110,7 @@ export type RawEvents = {
     {
       desktop_addr: string;
       desktop_name: string;
+      sid: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1161,6 +1129,7 @@ export type RawEvents = {
     {
       desktop_addr: string;
       desktop_name: string;
+      sid: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1651,9 +1620,100 @@ export type RawEvents = {
       user: string;
     }
   >;
+  [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: RawEvent<
+    typeof eventCodes.ACCESS_GRAPH_PATH_CHANGED,
+    {
+      change_id: string;
+      affected_resource_name: string;
+      affected_resource_source: string;
+      affected_resource_kind: string;
+    }
+  >;
   [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
   [eventCodes.SPANNER_RPC_DENIED]: RawSpannerRPCEvent<
     typeof eventCodes.SPANNER_RPC_DENIED
+  >;
+  [eventCodes.DISCOVERY_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.DISCOVERY_CONFIG_DELETE_ALL]: RawEvent<
+    typeof eventCodes.DISCOVERY_CONFIG_DELETE_ALL
+  >;
+  [eventCodes.INTEGRATION_CREATE]: RawEvent<
+    typeof eventCodes.INTEGRATION_CREATE,
+    HasName
+  >;
+  [eventCodes.INTEGRATION_UPDATE]: RawEvent<
+    typeof eventCodes.INTEGRATION_UPDATE,
+    HasName
+  >;
+  [eventCodes.INTEGRATION_DELETE]: RawEvent<
+    typeof eventCodes.INTEGRATION_DELETE,
+    HasName
+  >;
+  [eventCodes.STATIC_HOST_USER_CREATE]: RawEvent<
+    typeof eventCodes.STATIC_HOST_USER_CREATE,
+    HasName
+  >;
+  [eventCodes.STATIC_HOST_USER_UPDATE]: RawEvent<
+    typeof eventCodes.STATIC_HOST_USER_UPDATE,
+    HasName
+  >;
+  [eventCodes.STATIC_HOST_USER_DELETE]: RawEvent<
+    typeof eventCodes.STATIC_HOST_USER_DELETE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_CREATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_CREATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_UPDATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_DELETE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_DELETE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_CREATE]: RawEvent<
+    typeof eventCodes.USER_TASK_CREATE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_UPDATE]: RawEvent<
+    typeof eventCodes.USER_TASK_UPDATE,
+    HasName
+  >;
+  [eventCodes.USER_TASK_DELETE]: RawEvent<
+    typeof eventCodes.USER_TASK_DELETE,
+    HasName
+  >;
+  [eventCodes.PLUGIN_CREATE]: RawEvent<
+    typeof eventCodes.PLUGIN_CREATE,
+    Merge<HasName, { plugin_type: string }>
+  >;
+  [eventCodes.PLUGIN_UPDATE]: RawEvent<
+    typeof eventCodes.PLUGIN_UPDATE,
+    Merge<HasName, { plugin_type: string }>
+  >;
+  [eventCodes.PLUGIN_DELETE]: RawEvent<
+    typeof eventCodes.PLUGIN_DELETE,
+    Merge<HasName, { user: string }>
+  >;
+  [eventCodes.SFTP_SUMMARY]: RawEvent<
+    typeof eventCodes.SFTP_SUMMARY,
+    {
+      user: string;
+      server_hostname: string;
+    }
   >;
 };
 

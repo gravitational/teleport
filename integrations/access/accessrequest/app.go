@@ -21,12 +21,15 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -50,6 +53,11 @@ type App struct {
 	pluginData *pd.CompareAndSwap[PluginData]
 	bot        MessagingBot
 	job        lib.ServiceJob
+
+	accessMonitoringRules *accessmonitoring.RuleHandler
+	// teleportUser is the name of the Teleport user that will act as the
+	// access request approver.
+	teleportUser string
 }
 
 // NewApp will create a new access request application.
@@ -77,6 +85,14 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 	if !ok {
 		return trace.BadParameter("bot does not implement access request bot methods")
 	}
+
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:                 a.apiClient,
+		PluginType:             a.pluginType,
+		PluginName:             a.pluginName,
+		FetchRecipientCallback: a.bot.FetchRecipient,
+	})
+	a.teleportUser = baseApp.Conf.GetTeleportUser()
 
 	return nil
 }
@@ -108,13 +124,24 @@ func (a *App) Err() error {
 func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
 
-	job, err := watcherjob.NewJob(
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	job, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -125,6 +152,17 @@ func (a *App) run(ctx context.Context) error {
 	ok, err := job.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(acceptedWatchKinds) == 0 {
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
 	}
 
 	a.job.SetReady(ok)
@@ -139,9 +177,16 @@ func (a *App) run(ctx context.Context) error {
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
-	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
-		return trace.Errorf("unexpected kind %s", kind)
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAcessRequest(ctx, event))
 	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 	op := event.Type
 	reqID := event.Resource.GetName()
 	ctx, _ = logger.WithField(ctx, "request_id", reqID)
@@ -151,7 +196,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		ctx, _ = logger.WithField(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
-			return trace.Errorf("unexpected resource type %T", event.Resource)
+			return trace.BadParameter("unexpected resource type %T", event.Resource)
 		}
 		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
 
@@ -195,12 +240,20 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return trace.Wrap(err)
 	}
 
+	loginsByRole, err := a.getLoginsByRole(ctx, req)
+	if trace.IsAccessDenied(err) {
+		log.Warnf("Missing permissions to get logins by role. Please add role.read to the associated role. error: %s", err)
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
 	reqData := pd.AccessRequestData{
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
 		RequestReason:     req.GetRequestReason(),
 		SystemAnnotations: req.GetSystemAnnotations(),
 		Resources:         resourceNames,
+		LoginsByRole:      loginsByRole,
 	}
 
 	_, err = a.pluginData.Create(ctx, reqID, PluginData{AccessRequestData: reqData})
@@ -213,6 +266,11 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 			}
 		} else {
 			log.Warning("No channel to post")
+		}
+
+		// Try to approve the request if user is currently on-call.
+		if err := a.tryApproveRequest(ctx, reqID, req); err != nil {
+			log.Warningf("Failed to auto approve request: %v", err)
 		}
 	case trace.IsAlreadyExists(err):
 		// The messages were already sent, nothing to do, we can update the reviews
@@ -345,6 +403,14 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := common.NewRecipientSet()
 
+	recipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	recipients.ForEach(func(r common.Recipient) {
+		recipientSet.Add(r)
+	})
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice()
+	}
+
 	switch a.pluginType {
 	case types.PluginTypeServiceNow:
 		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
@@ -441,6 +507,20 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	return nil
 }
 
+func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	loginsByRole := make(map[string][]string, len(req.GetRoles()))
+
+	for _, role := range req.GetRoles() {
+		currentRole, err := a.apiClient.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		loginsByRole[role] = currentRole.GetLogins(types.Allow)
+	}
+
+	return loginsByRole, nil
+}
+
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
 	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
@@ -460,4 +540,45 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 		}
 	}
 	return resourceNames, nil
+}
+
+// tryApproveRequest attempts to automatically approve the access request if the
+// user is on call for the configured service/team.
+func (a *App) tryApproveRequest(ctx context.Context, reqID string, req types.AccessRequest) error {
+	log := logger.Get(ctx).
+		WithField("req_id", reqID).
+		WithField("user", req.GetUser())
+
+	oncallUsers, err := a.bot.FetchOncallUsers(ctx, req)
+	if trace.IsNotImplemented(err) {
+		log.Debugf("Skipping auto-approval because %q bot does not support automatic approvals.", a.pluginName)
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !slices.Contains(oncallUsers, req.GetUser()) {
+		log.Debug("Skipping approval because user is not on-call.")
+		return nil
+	}
+
+	if _, err := a.apiClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: reqID,
+		Review: types.AccessReview{
+			Author:        a.teleportUser,
+			ProposedState: types.RequestState_APPROVED,
+			Reason:        fmt.Sprintf("Access request has been automatically approved by %q plugin because user %q is on-call.", a.pluginName, req.GetUser()),
+			Created:       time.Now(),
+		},
+	}); err != nil {
+		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
+			log.Debug("Request has already been reviewed.")
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	log.Info("Successfully submitted a request approval.")
+	return nil
 }

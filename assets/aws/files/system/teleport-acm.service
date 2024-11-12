@@ -10,8 +10,12 @@ Type=simple
 Restart=always
 RestartSec=5
 RuntimeDirectory=teleport
+EnvironmentFile=-/etc/default/teleport
 ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 # systemd before 239 needs an absolute path
 ExecReload=/bin/sh -c "exec pkill -HUP -L -F /run/teleport/teleport.pid"
 PIDFile=/run/teleport/teleport.pid
 LimitNOFILE=524288
+
+[Install]
+WantedBy=multi-user.target

@@ -38,6 +38,17 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -252,7 +263,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -301,7 +311,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -326,6 +336,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -564,6 +589,17 @@ spec:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
+                  account_assignments:
+                    description: AccountAssignments holds the list of account assignments
+                      affected by this condition.
+                    items:
+                      properties:
+                        account:
+                          type: string
+                        permission_set:
+                          type: string
+                      type: object
+                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -778,7 +814,6 @@ spec:
                       properties:
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
-                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -827,7 +862,7 @@ spec:
                             type: string
                           type: array
                         description: Annotations is a collection of annotations to
-                          be programmatically appended to pending access requests
+                          be programmatically appended to pending Access Requests
                           at the time of their creation. These annotations serve as
                           a mechanism to propagate extra information to plugins.  Since
                           these annotations support variable interpolation syntax,
@@ -852,6 +887,21 @@ spec:
                               type: array
                             value:
                               description: Value is a claim value to match.
+                              type: string
+                          type: object
+                        type: array
+                      kubernetes_resources:
+                        description: 'kubernetes_resources can optionally enforce
+                          a requester to request only certain kinds of kube resources.
+                          Eg: Users can make request to either a resource kind "kube_cluster"
+                          or any of its subresources like "namespaces". This field
+                          can be defined such that it prevents a user from requesting
+                          "kube_cluster" and enforce requesting any of its subresources.'
+                        items:
+                          properties:
+                            kind:
+                              description: kind specifies the Kubernetes Resource
+                                type.
                               type: string
                           type: object
                         type: array
@@ -1136,9 +1186,12 @@ spec:
                       created on a Windows desktop
                     type: boolean
                   create_host_user:
-                    description: CreateHostUser allows users to be automatically created
-                      on a host
+                    description: 'Deprecated: use CreateHostUserMode instead.'
                     type: boolean
+                  create_host_user_default_shell:
+                    description: CreateHostUserDefaultShell is used to configure the
+                      default shell for newly provisioned host users.
+                    type: string
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
                       created on a host when not set to off. 0 is "unspecified"; 1
@@ -1158,7 +1211,6 @@ spec:
                   device_trust_mode:
                     description: DeviceTrustMode is the device authorization mode
                       used for the resources associated with the role. See DeviceTrust.Mode.
-                      Reserved for future use, not yet used by Teleport.
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
@@ -1214,6 +1266,16 @@ spec:
                       sessions per connection.
                     format: int64
                     type: integer
+                  mfa_verification_interval:
+                    description: MFAVerificationInterval optionally defines the maximum
+                      duration that can elapse between successive MFA verifications.
+                      This variable is used to ensure that users are periodically
+                      prompted to verify their identity, enhancing security by preventing
+                      prolonged sessions without re-authentication when using tsh
+                      proxy * derivatives. It's only effective if the session requires
+                      MFA. If not set, defaults to `max_session_ttl`.
+                    format: duration
+                    type: string
                   permit_x11_forwarding:
                     description: PermitX11Forwarding authorizes use of X11 forwarding.
                     type: boolean
@@ -1245,8 +1307,8 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request strategy
-                      (optional|note|always) where optional is the default.
+                    description: RequestAccess defines the request strategy (optional|note|always)
+                      where optional is the default.
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
@@ -1271,16 +1333,8 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource.\n---\nThis struct is intended for
-                    direct use as an array at the field path .status.conditions.  For
-                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
-                    observations of a foo's current state.\n\t    // Known .status.conditions.type
-                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
-                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
-                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                    \   // other fields\n\t}"
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -1321,12 +1375,7 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        ---
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                        useful (see .node.status.conditions), the ability to deconflict is important.
-                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

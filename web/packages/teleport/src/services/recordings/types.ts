@@ -28,7 +28,7 @@ export type RecordingsResponse = {
   startKey: string;
 };
 
-export type RecordingType = 'ssh' | 'desktop' | 'k8s';
+export type RecordingType = 'ssh' | 'desktop' | 'k8s' | 'database';
 
 export type Recording = {
   duration: number;

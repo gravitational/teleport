@@ -157,6 +157,10 @@ func newSession(ctx context.Context,
 		}
 		// new session!
 	} else {
+		// TODO(capnspacehook): DELETE IN 17.0.0
+		// clients shouldn't set TELEPORT_SESSION when they aren't joining
+		// a session, and won't need to once all supported Proxy/Node
+		// versions set the session ID for new sessions
 		sid, ok := ns.env[sshutils.SessionEnvVar]
 		if !ok {
 			sid = string(session.NewID())
@@ -188,7 +192,7 @@ func (ns *NodeSession) NodeClient() *NodeClient {
 	return ns.nodeClient
 }
 
-func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *tracessh.Session) error) error {
+func (ns *NodeSession) regularSession(ctx context.Context, chanReqCallback tracessh.ChannelRequestCallback, sessionCallback func(s *tracessh.Session) error) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/regularSession",
@@ -196,19 +200,19 @@ func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *trac
 	)
 	defer span.End()
 
-	session, err := ns.createServerSession(ctx)
+	session, err := ns.createServerSession(ctx, chanReqCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	session.Stdout = ns.terminal.Stdout()
 	session.Stderr = ns.terminal.Stderr()
 	session.Stdin = ns.terminal.Stdin()
-	return trace.Wrap(callback(session))
+	return trace.Wrap(sessionCallback(session))
 }
 
 type interactiveCallback func(serverSession *tracessh.Session, shell io.ReadWriteCloser) error
 
-func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Session, error) {
+func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback tracessh.ChannelRequestCallback) (*tracessh.Session, error) {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/createServerSession",
@@ -216,7 +220,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 	)
 	defer span.End()
 
-	sess, err := ns.nodeClient.Client.NewSession(ctx)
+	sess, err := ns.nodeClient.Client.NewSessionWithRequestCallback(ctx, chanReqCallback)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,7 +288,7 @@ func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, callback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback tracessh.ChannelRequestCallback, sessionCallback interactiveCallback) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/interactiveSession",
@@ -298,7 +302,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 		termType = teleport.SafeTerminalType
 	}
 	// create the server-side session:
-	sess, err := ns.createServerSession(ctx)
+	sess, err := ns.createServerSession(ctx, chanReqCallback)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -311,7 +315,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 
 	// call the passed callback and give them the established
 	// ssh session:
-	if err := callback(sess, remoteTerm); err != nil {
+	if err := sessionCallback(sess, remoteTerm); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -514,8 +518,8 @@ func (s *sessionWriter) Write(p []byte) (int, error) {
 }
 
 // runShell executes user's shell on the remote node under an interactive session
-func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, beforeStart func(io.Writer), callback ShellCreatedCallback) error {
-	return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
+func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback tracessh.ChannelRequestCallback, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
+	return ns.interactiveSession(ctx, mode, chanReqCallback, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
 		w := &sessionWriter{
 			tshOut:  ns.nodeClient.TC.Stdout,
 			session: s,
@@ -531,8 +535,8 @@ func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipa
 		}
 
 		// call the client-supplied callback
-		if callback != nil {
-			exit, err := callback(s, ns.nodeClient.Client, shell)
+		if shellCallback != nil {
+			exit, err := shellCallback(s, ns.nodeClient.Client, shell)
 			if exit {
 				return trace.Wrap(err)
 			}
@@ -543,7 +547,7 @@ func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipa
 
 // runCommand executes a "exec" request either in interactive mode (with a
 // TTY attached) or non-intractive mode (no TTY).
-func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, callback ShellCreatedCallback, interactive bool) error {
+func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionParticipantMode, cmd []string, chanReqCallback tracessh.ChannelRequestCallback, shellCallback ShellCreatedCallback, interactive bool) error {
 	ctx, span := ns.nodeClient.Tracer.Start(
 		ctx,
 		"nodeClient/runCommand",
@@ -551,26 +555,19 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	)
 	defer span.End()
 
-	// If stdin is not a terminal, refuse to allocate terminal on the server and
-	// fallback to non-interactive mode
-	if interactive && !ns.terminal.IsAttached() {
-		interactive = false
-		fmt.Fprintf(ns.nodeClient.TC.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
-	}
-
 	// Start a interactive session ("exec" request with a TTY).
 	//
 	// Note that because a TTY was allocated, the terminal is in raw mode and any
 	// keyboard based signals will be propogated to the TTY on the server which is
 	// where all signal handling will occur.
 	if interactive {
-		return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, term io.ReadWriteCloser) error {
+		return ns.interactiveSession(ctx, mode, chanReqCallback, func(s *tracessh.Session, term io.ReadWriteCloser) error {
 			err := s.Start(ctx, strings.Join(cmd, " "))
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if callback != nil {
-				exit, err := callback(s, ns.NodeClient().Client, term)
+			if shellCallback != nil {
+				exit, err := shellCallback(s, ns.NodeClient().Client, term)
 				if exit {
 					return trace.Wrap(err)
 				}
@@ -591,7 +588,7 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	// Unfortunately at the moment the Go SSH library Teleport uses does not
 	// support sending SSH_MSG_DISCONNECT. Instead we close the SSH channel and
 	// SSH client, and try and exit as gracefully as possible.
-	return ns.regularSession(ctx, func(s *tracessh.Session) error {
+	return ns.regularSession(ctx, chanReqCallback, func(s *tracessh.Session) error {
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- s.Run(ctx, strings.Join(cmd, " "))
@@ -643,7 +640,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 			case <-ctrlCSignal:
 				_, err := shell.Write([]byte{ctrlCharC})
 				if err != nil {
-					log.Errorf(err.Error())
+					log.Error(err.Error())
 				}
 			case <-ns.closer.C:
 				return
@@ -659,7 +656,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 			if _, ok := event.(terminal.StopEvent); ok {
 				_, err := shell.Write([]byte{ctrlCharZ})
 				if err != nil {
-					log.Errorf(err.Error())
+					log.Error(err.Error())
 				}
 			}
 		}
@@ -732,7 +729,7 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 		defer ns.closer.Close()
 		_, err := io.Copy(ns.terminal.Stdout(), shell)
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Error(err.Error())
 		}
 	}()
 

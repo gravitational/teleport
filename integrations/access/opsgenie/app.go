@@ -31,12 +31,14 @@ import (
 	tp "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -66,6 +68,8 @@ type App struct {
 	opsgenie   *Client
 	mainJob    lib.ServiceJob
 	conf       Config
+
+	accessMonitoringRules *accessmonitoring.RuleHandler
 }
 
 // NewOpsgenieApp initializes a new teleport-opsgenie app and returns it.
@@ -74,6 +78,16 @@ func NewOpsgenieApp(ctx context.Context, conf *Config) (*App, error) {
 		PluginName: pluginName,
 		conf:       *conf,
 	}
+	teleClient, err := conf.GetTeleportClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	opsgenieApp.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:                 teleClient,
+		PluginType:             string(conf.BaseConfig.PluginType),
+		PluginName:             pluginName,
+		FetchRecipientCallback: createScheduleRecipient,
+	})
 	opsgenieApp.mainJob = lib.NewServiceJob(opsgenieApp.run)
 	return opsgenieApp, nil
 }
@@ -110,7 +124,10 @@ func (a *App) run(ctx context.Context) error {
 	watcherJob, err := watcherjob.NewJob(
 		a.teleport,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
+			Watch: types.Watch{Kinds: []types.WatchKind{
+				{Kind: types.KindAccessRequest},
+				{Kind: types.KindAccessMonitoringRule},
+			}},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
@@ -121,6 +138,10 @@ func (a *App) run(ctx context.Context) error {
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -176,11 +197,23 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
+// onWatcherEvent is called for every cluster Event. It will call the handlers
+// for access request and access monitoring rule events.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAcessRequest(ctx, event))
+	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -228,11 +261,6 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 }
 
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
-	if len(req.GetSystemAnnotations()) == 0 {
-		logger.Get(ctx).Debug("Cannot proceed further. Request is missing any annotations")
-		return nil
-	}
-
 	// First, try to create a notification alert.
 	isNew, notifyErr := a.tryNotifyService(ctx, req)
 
@@ -274,20 +302,39 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.resolveAlert(ctx, reqID, Resolution{Tag: ResolvedExpired})
 }
 
-func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	annotationKey := types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
-	return common.GetServiceNamesFromAnnotations(req, annotationKey)
+// getNotifySchedulesAndTeams get schedules and teams to notify from both
+// annotations: /notify-services and /teams, returns an error if both are empty.
+func (a *App) getNotifySchedulesAndTeams(ctx context.Context, req types.AccessRequest) (schedules []string, teams []string, err error) {
+	log := logger.Get(ctx)
+
+	scheduleAnnotationKey := types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
+	schedules, err = common.GetNamesFromAnnotations(req, scheduleAnnotationKey)
+	if err != nil {
+		log.Debugf("No schedules to notify in %s", scheduleAnnotationKey)
+	}
+
+	teamAnnotationKey := types.TeleportNamespace + types.ReqAnnotationTeamsLabel
+	teams, err = common.GetNamesFromAnnotations(req, teamAnnotationKey)
+	if err != nil {
+		log.Debugf("No teams to notify in %s", teamAnnotationKey)
+	}
+
+	if len(schedules) == 0 && len(teams) == 0 {
+		return nil, nil, trace.NotFound("no schedules or teams to notify")
+	}
+
+	return schedules, teams, nil
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
-	return common.GetServiceNamesFromAnnotations(req, annotationKey)
+	return common.GetNamesFromAnnotations(req, annotationKey)
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
 	log := logger.Get(ctx)
 
-	serviceNames, err := a.getNotifyServiceNames(req)
+	recipientSchedules, recipientTeams, err := a.getMessageRecipients(ctx, req)
 	if err != nil {
 		log.Debugf("Skipping the notification: %s", err)
 		return false, trace.Wrap(errMissingAnnotation)
@@ -298,6 +345,22 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 	for k, v := range req.GetSystemAnnotations() {
 		annotations[k] = v
 	}
+
+	if len(recipientTeams) != 0 {
+		teams := make([]string, 0, len(recipientTeams))
+		for _, t := range recipientTeams {
+			teams = append(teams, t.Name)
+		}
+		annotations[types.TeleportNamespace+types.ReqAnnotationTeamsLabel] = teams
+	}
+	if len(recipientSchedules) != 0 {
+		schedules := make([]string, 0, len(recipientSchedules))
+		for _, s := range recipientSchedules {
+			schedules = append(schedules, s.Name)
+		}
+		annotations[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel] = schedules
+	}
+
 	reqData := RequestData{
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
@@ -318,12 +381,8 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 	}
 
 	if isNew {
-		for _, serviceName := range serviceNames {
-			alertCtx, _ := logger.WithField(ctx, "opsgenie_service_name", serviceName)
-
-			if err = a.createAlert(alertCtx, serviceName, reqID, reqData); err != nil {
-				return isNew, trace.Wrap(err, "creating Opsgenie alert")
-			}
+		if err = a.createAlert(ctx, reqID, reqData); err != nil {
+			return isNew, trace.Wrap(err, "creating Opsgenie alert")
 		}
 
 		if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
@@ -335,8 +394,42 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 	return isNew, nil
 }
 
+func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest) ([]common.Recipient, []common.Recipient, error) {
+	recipientSetSchedules := common.NewRecipientSet()
+	recipientSchedules := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	recipientSchedules.ForEach(func(r common.Recipient) {
+		recipientSetSchedules.Add(r)
+	})
+	// Access Monitoring Rules recipients does not have a way to handle separate recipient types currently.
+	// Recipients from Access Monitoring Rules will be schedules only currently.
+	if recipientSetSchedules.Len() != 0 {
+		return recipientSetSchedules.ToSlice(), nil, nil
+	}
+	rawSchedules, rawTeams, err := a.getNotifySchedulesAndTeams(ctx, req)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	for _, rawSchedule := range rawSchedules {
+		recipientSetSchedules.Add(common.Recipient{
+			Name: rawSchedule,
+			ID:   rawSchedule,
+			Kind: common.RecipientKindSchedule,
+		})
+	}
+
+	recipientSetTeams := common.NewRecipientSet()
+	for _, rawTeam := range rawTeams {
+		recipientSetTeams.Add(common.Recipient{
+			Name: rawTeam,
+			ID:   rawTeam,
+			Kind: common.RecipientKindTeam,
+		})
+	}
+	return recipientSetSchedules.ToSlice(), nil, nil
+}
+
 // createAlert posts an alert with request information.
-func (a *App) createAlert(ctx context.Context, serviceID, reqID string, reqData RequestData) error {
+func (a *App) createAlert(ctx context.Context, reqID string, reqData RequestData) error {
 	data, err := a.opsgenie.CreateAlert(ctx, reqID, reqData)
 	if err != nil {
 		return trace.Wrap(err)

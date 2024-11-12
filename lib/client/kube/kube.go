@@ -34,7 +34,7 @@ var log = logrus.WithFields(logrus.Fields{
 // defined. If not, it returns an error.
 // This is a safety check in order to print a better message to the user even
 // before hitting Teleport Kubernetes Proxy.
-func CheckIfCertsAreAllowedToAccessCluster(k *client.Key, rootCluster, teleportCluster, kubeCluster string) error {
+func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, teleportCluster, kubeCluster string) error {
 	// This is a safety check in order to print a better message to the user even
 	// before hitting Teleport Kubernetes Proxy.
 	// We only enforce this check for root clusters, since we don't have knowledge
@@ -42,15 +42,13 @@ func CheckIfCertsAreAllowedToAccessCluster(k *client.Key, rootCluster, teleportC
 	if rootCluster != teleportCluster {
 		return nil
 	}
-	for k8sCluster, cert := range k.KubeTLSCerts {
-		if k8sCluster != kubeCluster {
-			continue
-		}
-		log.Debugf("Got TLS cert for Kubernetes cluster %q", k8sCluster)
-		exist, err := checkIfCertHasKubeGroupsAndUsers(cert)
+	if cred, ok := k.KubeTLSCredentials[kubeCluster]; ok {
+		log.Debugf("Got TLS cert for Kubernetes cluster %q", kubeCluster)
+		exist, err := checkIfCertHasKubeGroupsAndUsers(cred.Cert)
 		if err != nil {
 			return trace.Wrap(err)
-		} else if exist {
+		}
+		if exist {
 			return nil
 		}
 	}

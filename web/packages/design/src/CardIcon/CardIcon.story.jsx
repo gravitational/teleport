@@ -18,10 +18,16 @@
 
 import React from 'react';
 
+import { Apple } from '../Icon';
+
 import CardIcon from './index';
 
 export default {
-  title: 'Design/Card/Icon',
+  title: 'Design/Card',
 };
 
-export const Cards = () => <CardIcon />;
+export const WithIcon = () => (
+  <CardIcon title="Card Icon Title" icon={<Apple />}>
+    Some Children
+  </CardIcon>
+);

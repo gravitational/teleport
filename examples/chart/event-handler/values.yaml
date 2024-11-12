@@ -14,6 +14,22 @@ eventHandler:
   storagePath: "/var/lib/teleport/plugins/event-handler/storage"
   timeout: "10s"
   batch: 20
+  # The window size configures the duration of the time window for the event handler
+  # to request events from Teleport. By default, this is set to 24 hours.
+  # Reduce the window size if the events backend cannot manage the event volume 
+  # for the default window size.
+  # The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
+  windowSize: "24h"
+  # Optional setting to enable debug logging
+  # debug: true
+  # Optional setting for event types to forward
+  # types: ["TYPE1", "TYPE2"]
+  # Optional setting for event types to skip
+  # skipEventTypes: ["TYPE1"]
+  # Optional setting for session types to skip
+  # skipSessionTypes: ["TYPE1"]
+
+  
 
 fluentd:
   url: ""
@@ -53,6 +69,21 @@ securityContext: {}
 resources: {}
 
 nodeSelector: {}
+
+# tls -- contains settings for mounting your own TLS material in the event-handler pod.
+# The event-handler does not expose a TLS server, so this is only used to trust CAs.
+tls:
+  # tls.existingCASecretName(string) -- sets the `SSL_CERT_FILE` environment
+  # variable to load a trusted CA or bundle in PEM format into Teleport pods.
+  # The injected CA will be used to validate TLS communications with the Proxy
+  # Service.
+  #
+  # You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
+  #
+  # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+  #
+  #   The key containing the root CA in the secret must be `ca.pem`.
+  existingCASecretName: ""
 
 tolerations: []
 

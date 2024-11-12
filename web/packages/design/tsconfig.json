@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "include": ["src", "@types", "../../../web/@types"],
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "../../../build.assets/.cache/ts/design",
+    "emitDeclarationOnly": true,
+    "declarationMap": true,
+    "strict": true,
+    "noImplicitReturns": true
+  }
+}

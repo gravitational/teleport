@@ -21,7 +21,10 @@ package aws_sync
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestMergeResources(t *testing.T) {
@@ -42,11 +45,11 @@ func TestMergeResources(t *testing.T) {
 
 	result := MergeResources(&oldResults, &newResults)
 	expected := Resources{
-		Users:     append(oldUsers, newUsers...),
-		Roles:     append(oldRoles, newRoles...),
-		Instances: append(oldEC2, newEC2...),
+		Users:     deduplicateSlice(append(oldUsers, newUsers...), usersKey),
+		Roles:     deduplicateSlice(append(oldRoles, newRoles...), roleKey),
+		Instances: deduplicateSlice(append(oldEC2, newEC2...), instanceKey),
 	}
-	require.Equal(t, &expected, result)
+	require.Empty(t, cmp.Diff(&expected, result, protocmp.Transform(), cmpopts.EquateEmpty()))
 }
 
 func TestCount(t *testing.T) {

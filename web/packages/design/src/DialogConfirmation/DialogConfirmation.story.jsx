@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { ButtonPrimary } from './../Button';
+import { ButtonPrimary } from '../Button';
 
 import DialogConfirmation, {
   DialogHeader,

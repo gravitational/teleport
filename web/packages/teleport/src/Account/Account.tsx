@@ -17,11 +17,15 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, Indicator, Text } from 'design';
+import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
 import styled, { useTheme } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import * as Icon from 'design/Icon';
-import { Notification, NotificationItem } from 'shared/components/Notification';
+import {
+  Notification,
+  NotificationItem,
+  NotificationSeverity,
+} from 'shared/components/Notification';
 
 import { useStore } from 'shared/libs/stores';
 
@@ -31,8 +35,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import ReAuthenticate from 'teleport/components/ReAuthenticate';
-import { RemoveDialog } from 'teleport/components/MfaDeviceList';
 
 import cfg from 'teleport/config';
 
@@ -46,16 +48,16 @@ import useManageDevices, {
 } from './ManageDevices/useManageDevices';
 import { ActionButtonPrimary, ActionButtonSecondary, Header } from './Header';
 import { PasswordBox } from './PasswordBox';
-import { AddAuthDeviceWizard } from './ManageDevices/AddAuthDeviceWizard';
+import {
+  AddAuthDeviceWizard,
+  DeleteAuthDeviceWizard,
+} from './ManageDevices/wizards';
 import { StatePill } from './StatePill';
 
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
   // unifying them between this screen and the unified resources screen.
-  addNotification: (
-    severity: NotificationItem['severity'],
-    content: string
-  ) => void;
+  addNotification: (severity: NotificationSeverity, content: string) => void;
 }
 
 export interface AccountPageProps {
@@ -99,18 +101,14 @@ export interface AccountProps extends ManageDevicesState, AccountPageProps {
 export function Account({
   devices,
   token,
-  setToken,
   onAddDevice,
   onRemoveDevice,
   onDeviceAdded,
+  onDeviceRemoved,
   deviceToRemove,
-  removeDevice,
   fetchDevicesAttempt,
   createRestrictedTokenAttempt,
-  isReAuthenticateVisible,
-  isRemoveDeviceVisible,
   addDeviceWizardVisible,
-  hideReAuthenticate,
   hideRemoveDevice,
   closeAddDeviceWizard,
   isSso,
@@ -138,10 +136,7 @@ export function Account({
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
   const [prevTokenStatus, setPrevTokenStatus] = useState<Attempt['status']>('');
 
-  function addNotification(
-    severity: NotificationItem['severity'],
-    content: string
-  ) {
+  function addNotification(severity: NotificationSeverity, content: string) {
     setNotifications(n => [
       ...n,
       {
@@ -180,9 +175,18 @@ export function Account({
     const message =
       newDeviceUsage === 'passwordless'
         ? 'Passkey successfully saved.'
-        : 'MFA device successfully saved.';
+        : 'MFA method successfully saved.';
     addNotification('info', message);
     onDeviceAdded();
+  }
+
+  function onDeleteDeviceSuccess() {
+    const message =
+      deviceToRemove.usage === 'passwordless'
+        ? 'Passkey successfully deleted.'
+        : 'MFA method successfully deleted.';
+    addNotification('info', message);
+    onDeviceRemoved();
   }
 
   return (
@@ -223,7 +227,7 @@ export function Account({
               header={
                 <Header
                   title={
-                    <Flex gap={2}>
+                    <Flex gap={2} alignItems="center">
                       Multi-factor Authentication
                       <StatePill
                         data-testid="mfa-state-pill"
@@ -257,34 +261,30 @@ export function Account({
               onRemove={onRemoveDevice}
             />
           </Box>
-          {isReAuthenticateVisible && (
-            <ReAuthenticate
-              onAuthenticated={setToken}
-              onClose={hideReAuthenticate}
-              actionText="registering a new device"
-            />
-          )}
           {EnterpriseComponent && (
             <EnterpriseComponent addNotification={addNotification} />
           )}
         </Flex>
       </FeatureBox>
 
-      {isRemoveDeviceVisible && (
-        <RemoveDialog
-          name={deviceToRemove.name}
-          onRemove={removeDevice}
-          onClose={hideRemoveDevice}
-        />
-      )}
-
       {addDeviceWizardVisible && (
         <AddAuthDeviceWizard
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
           privilegeToken={token}
+          devices={devices}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
+        />
+      )}
+
+      {deviceToRemove && (
+        <DeleteAuthDeviceWizard
+          auth2faType={cfg.getAuth2faType()}
+          devices={devices}
+          deviceToDelete={deviceToRemove}
+          onClose={hideRemoveDevice}
+          onSuccess={onDeleteDeviceSuccess}
         />
       )}
 
@@ -297,11 +297,9 @@ export function Account({
       <NotificationContainer>
         {notifications.map(item => (
           <Notification
-            style={{ marginBottom: '12px' }}
+            mb={3}
             key={item.id}
             item={item}
-            Icon={notificationIcon(item.severity)}
-            getColor={notificationColor(item.severity)}
             onRemove={() => removeNotification(item.id)}
             isAutoRemovable={item.severity === 'info'}
           />
@@ -354,16 +352,15 @@ function PasskeysHeader({
         >
           <Icon.Key />
         </Box>
-        <Text typography="h4">Passwordless sign-in using Passkeys</Text>
-        <Text
-          typography="body1"
+        <H2 mb={1}>Passwordless sign-in using Passkeys</H2>
+        <Subtitle2
           color={theme.colors.text.slightlyMuted}
           textAlign="center"
           mb={3}
         >
           Passkeys are a password replacement that validates your identity using
           touch, facial recognition, a device password, or a PIN.
-        </Text>
+        </Subtitle2>
         <RelativeBox>
           {fetchDevicesAttempt.status === 'processing' && (
             // This trick allows us to maintain center alignment of the button
@@ -381,7 +378,7 @@ function PasskeysHeader({
   return (
     <Header
       title={
-        <Flex gap={2}>
+        <Flex gap={2} alignItems="center">
           Passkeys
           <StatePill
             data-testid="passwordless-state-pill"
@@ -418,25 +415,3 @@ const NotificationContainer = styled.div`
 const Relative = styled.div`
   position: relative;
 `;
-
-function notificationIcon(severity: NotificationItem['severity']) {
-  switch (severity) {
-    case 'info':
-      return Icon.Info;
-    case 'warn':
-      return Icon.Warning;
-    case 'error':
-      return Icon.WarningCircle;
-  }
-}
-
-function notificationColor(severity: NotificationItem['severity']) {
-  switch (severity) {
-    case 'info':
-      return theme => theme.colors.info;
-    case 'warn':
-      return theme => theme.colors.warning.main;
-    case 'error':
-      return theme => theme.colors.error.main;
-  }
-}

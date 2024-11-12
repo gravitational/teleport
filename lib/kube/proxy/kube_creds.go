@@ -42,7 +42,7 @@ type kubeCreds interface {
 	getTransportConfig() *transport.Config
 	getTargetAddr() string
 	getKubeRestConfig() *rest.Config
-	getKubeClient() *kubernetes.Clientset
+	getKubeClient() kubernetes.Interface
 	getTransport() http.RoundTripper
 	wrapTransport(http.RoundTripper) (http.RoundTripper, error)
 	close() error
@@ -65,7 +65,7 @@ type staticKubeCreds struct {
 	transportConfig *transport.Config
 	// targetAddr is a kubernetes API address.
 	targetAddr string
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	// clientRestCfg is the Kubernetes Rest config for the cluster.
 	clientRestCfg *rest.Config
 	transport     http.RoundTripper
@@ -87,7 +87,7 @@ func (s *staticKubeCreds) getTargetAddr() string {
 	return s.targetAddr
 }
 
-func (s *staticKubeCreds) getKubeClient() *kubernetes.Clientset {
+func (s *staticKubeCreds) getKubeClient() kubernetes.Interface {
 	return s.kubeClient
 }
 
@@ -257,7 +257,7 @@ func (d *dynamicKubeCreds) getTargetAddr() string {
 	return d.staticCreds.targetAddr
 }
 
-func (d *dynamicKubeCreds) getKubeClient() *kubernetes.Clientset {
+func (d *dynamicKubeCreds) getKubeClient() kubernetes.Interface {
 	d.RLock()
 	defer d.RUnlock()
 	return d.staticCreds.kubeClient

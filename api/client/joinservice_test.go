@@ -34,7 +34,7 @@ import (
 )
 
 type mockJoinServiceServer struct {
-	*proto.UnimplementedJoinServiceServer
+	proto.UnimplementedJoinServiceServer
 	registerUsingTPMMethod func(srv proto.JoinService_RegisterUsingTPMMethodServer) error
 }
 
@@ -116,9 +116,14 @@ func TestJoinServiceClient_RegisterUsingTPMMethod(t *testing.T) {
 		cancel()
 	}()
 
-	c, err := grpc.NewClient("unused.com", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-		return lis.DialContext(ctx)
-	}), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// grpc.NewClient attempts to DNS resolve addr, whereas grpc.Dial doesn't.
+	c, err := grpc.Dial(
+		"bufconn",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 
 	joinClient := NewJoinServiceClient(proto.NewJoinServiceClient(c))

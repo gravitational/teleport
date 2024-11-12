@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useState } from 'react';
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { render, fireEvent } from 'design/utils/testing';
 
-import Modal from './Modal';
+import Modal, { ModalProps } from './Modal';
 
-const renderModal = props => {
+const renderModal = (props: Omit<ModalProps, 'open'>) => {
   return render(
     <Modal open={true} {...props}>
       <div>Hello</div>
@@ -141,4 +142,43 @@ describe('design/Modal', () => {
       'background-color': 'transparent',
     });
   });
+
+  it('restores focus on close', async () => {
+    const user = userEvent.setup();
+    render(<ToggleableModal />);
+    const toggleModalButton = screen.getByRole('button', { name: 'Toggle' });
+
+    await user.click(toggleModalButton);
+    // Type in the input inside the modal to shift focus into another element.
+    const input = screen.getByLabelText('Input in modal');
+    await user.type(input, 'a');
+
+    const closeModal = screen.getByRole('button', { name: 'Close modal' });
+    await user.click(closeModal);
+
+    expect(toggleModalButton).toHaveFocus();
+  });
 });
+
+const ToggleableModal = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <button type="button" onClick={() => setIsOpen(!isOpen)}>
+        Toggle
+      </button>
+      <Modal open={isOpen}>
+        <form>
+          <label>
+            Input in modal
+            <input />
+          </label>
+          <button type="button" onClick={() => setIsOpen(false)}>
+            Close modal
+          </button>
+        </form>
+      </Modal>
+    </>
+  );
+};

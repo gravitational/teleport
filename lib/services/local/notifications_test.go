@@ -160,6 +160,9 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	_, err = service.CreateGlobalNotification(ctx, globalNotificationLateExpiry)
 	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
 
+	// Verify that the Metada.Expires on the global notification wrapper is the same as in the inner notification.
+	require.Equal(t, notification.Metadata.Expires, notification.Spec.Notification.Metadata.Expires)
+
 	// Test deleting a notification.
 	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
 	require.NoError(t, err)
@@ -252,7 +255,7 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	}
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
 
@@ -319,6 +322,31 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+
+	// Create a global notification.
+	globalNotification, err := service.CreateGlobalNotification(ctx, newGlobalNotification(t, "test-global"))
+	require.NoError(t, err)
+
+	// Create a notification state for this notification
+	userNotificationStateGlobal := &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
+			NotificationId: globalNotification.GetMetadata().GetName(),
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
+			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+		},
+	}
+	// Upsert a notification state for user 1
+	_, err = service.UpsertUserNotificationState(ctx, testUsername, userNotificationStateGlobal)
+	require.NoError(t, err)
+	// Upsert the notification state for user 2
+	_, err = service.UpsertUserNotificationState(ctx, "test-username-2", userNotificationStateGlobal)
+	require.NoError(t, err)
+
+	// Test that getting all notification states works.
+	uns, _, err := service.ListNotificationStatesForAllUsers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, uns, 2)
 }
 
 // TestUserLastSeenNotificationCRUD tests backend operations for user last seen notification resources.
@@ -349,7 +377,7 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "got error %T, expected a not found error due to user_last_seen_notification for test-username not existing", err)
 
 	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	}
 

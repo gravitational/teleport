@@ -21,20 +21,15 @@ import React, {
   useEffect,
   useImperativeHandle,
   useRef,
-  useState,
 } from 'react';
 import { Flex } from 'design';
-import { ITheme } from 'xterm';
+import { ITheme } from '@xterm/xterm';
 
 import { getPlatformType } from 'design/platform';
 
 import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
-
-import { TerminalAssist } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssist';
-import { ActionBar } from 'teleport/Console/DocumentSsh/TerminalAssist/ActionBar';
-import { useTerminalAssist } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssistContext';
 
 import StyledXterm from '../../StyledXterm';
 
@@ -46,26 +41,14 @@ export interface TerminalProps {
   tty: Tty;
   fontFamily: string;
   theme: ITheme;
-  assistEnabled: boolean;
-}
-
-interface ActionBarState {
-  visible: boolean;
-  left: number;
-  top: number;
+  // convertEol when set to true cursor will be set to the beginning of the next line with every received new line symbol.
+  // This is equivalent to replacing each '\n' with '\r\n'.
+  convertEol?: boolean;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const termCtrlRef = useRef<XTermCtrl>();
-  const elementRef = useRef<HTMLElement>();
-
-  const assist = useTerminalAssist();
-
-  const [actionBarState, setActionBarState] = useState<ActionBarState | null>({
-    top: 0,
-    left: 0,
-    visible: false,
-  });
+  const elementRef = useRef<HTMLDivElement>();
 
   useImperativeHandle(
     ref,
@@ -84,6 +67,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       fontFamily: props.fontFamily,
       fontSize,
       theme: props.theme,
+      convertEol: props.convertEol,
     });
     termCtrlRef.current = termCtrl;
 
@@ -96,102 +80,25 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       }
     });
 
-    if (props.assistEnabled) {
-      termCtrl.term.onSelectionChange(() => {
-        const term = termCtrl.term;
-
-        const position = term.getSelectionPosition();
-        const selection = term.getSelection().trim();
-
-        if (position && selection) {
-          const charWidth = Math.ceil(term.element.offsetWidth / term.cols);
-          const charHeight = Math.ceil(term.element.offsetHeight / term.rows);
-
-          const left = Math.round(
-            ((position.start.x + position.end.x) / 2) * charWidth
-          );
-          const top = Math.round((position.end.y + 2) * charHeight) + 15;
-
-          setActionBarState({
-            visible: true,
-            left,
-            top,
-          });
-
-          return;
-        }
-
-        setActionBarState(position => ({
-          ...position,
-          visible: false,
-        }));
-      });
-    }
-
     return () => termCtrl.destroy();
     // do not re-initialize xterm when theme changes, use specialized handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.assistEnabled]);
-
-  function handleUseCommand(command: string) {
-    termCtrlRef.current.term.paste(command);
-  }
-
-  function handleAssistClose() {
-    termCtrlRef.current.term.focus();
-  }
-
-  function handleAskAssist() {
-    assist.explainSelection(termCtrlRef.current.term.getSelection());
-  }
-
-  function handleActionBarClose() {
-    setActionBarState(position => ({
-      ...position,
-      visible: false,
-    }));
-  }
-
-  function handleActionBarCopy() {
-    const selection = termCtrlRef.current.term.getSelection();
-
-    if (selection) {
-      void navigator.clipboard.writeText(selection);
-    }
-  }
+  }, []);
 
   useEffect(() => {
     termCtrlRef.current?.updateTheme(props.theme);
   }, [props.theme]);
 
   return (
-    <>
-      <Flex
-        flexDirection="column"
-        height="100%"
-        width="100%"
-        px="2"
-        style={{ overflow: 'auto' }}
-      >
-        <StyledXterm ref={elementRef} />
-      </Flex>
-
-      {props.assistEnabled && (
-        <>
-          <ActionBar
-            position={actionBarState}
-            visible={actionBarState.visible}
-            onClose={handleActionBarClose}
-            onCopy={handleActionBarCopy}
-            onAskAssist={handleAskAssist}
-          />
-
-          <TerminalAssist
-            onUseCommand={handleUseCommand}
-            onClose={handleAssistClose}
-          />
-        </>
-      )}
-    </>
+    <Flex
+      flexDirection="column"
+      height="100%"
+      width="100%"
+      px="2"
+      style={{ overflow: 'auto' }}
+      data-testid="terminal"
+    >
+      <StyledXterm ref={elementRef} />
+    </Flex>
   );
 });

@@ -25,6 +25,8 @@ import {
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 
+import { NavigationCategory as SideNavigationCategory } from './Navigation/SideNavigation/categories';
+
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
@@ -43,6 +45,8 @@ export interface TeleportFeatureNavigationItem {
    * in the "selected" state in the navigation
    */
   isSelected?: (clusterId: string, pathname: string) => boolean;
+  /** searchableTags is a list of strings by which this feature should be searchable in the nav search. */
+  searchableTags?: string[];
 }
 
 export enum NavTitle {
@@ -59,11 +63,14 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
-  Roles = 'User Roles',
+  Roles = 'Roles',
+  JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
   Integrations = 'Integrations',
-  EnrollNewResource = 'Enroll New Resource',
-  EnrollNewIntegration = 'Enroll New Integration',
+  EnrollNewResource = 'Resource',
+  EnrollNewIntegration = 'Integration',
+  NewAccessList = 'Access List',
+  NewBot = 'Bot',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
@@ -74,20 +81,24 @@ export enum NavTitle {
   // Resources Requests
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
-  AccessGraph = 'Access Graph',
+
+  // Access Graph
+  AccessGraphDashboard = 'Dashboard',
+  AccessGraphBrowse = 'Browse',
+  AccessGraphCrownJewels = 'Crown Jewels',
+  AccessGraphGraphExplorer = 'Graph Explorer',
+  AccessGraphSQLEditor = 'SQL Editor',
 
   // Activity
   SessionRecordings = 'Session Recordings',
   AuditLog = 'Audit Log',
 
   // Billing
-  BillingSummary = 'Summary',
-  PaymentsAndInvoices = 'Payments and Invoices',
-  InvoiceSettings = 'Invoice Settings',
+  BillingSummary = 'Billing Summary',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
-  TrustedClusters = 'Trusted Clusters',
+  TrustedClusters = 'Trusted Root Clusters',
 
   // Account
   AccountSettings = 'Account Settings',
@@ -107,6 +118,10 @@ export interface TeleportFeatureRoute {
 export interface TeleportFeature {
   parent?: new () => TeleportFeature | null;
   category?: NavigationCategory;
+  // TODO(rudream): Delete category field above and rename sideNavCategory field to category once old nav is removed.
+  sideNavCategory?: SideNavigationCategory;
+  /** standalone is whether this feature has no subsections */
+  standalone?: boolean;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
@@ -180,11 +195,12 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
-  assist: boolean;
+  tokens: boolean;
   accessMonitoring: boolean;
   // Whether or not the management section should be available.
   managementSection: boolean;
   accessGraph: boolean;
+  accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
   addBots: boolean;

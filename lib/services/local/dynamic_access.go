@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"slices"
 	"time"
@@ -261,7 +260,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 	}
 	var requests []types.AccessRequest
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -331,7 +330,7 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 
 	startKey := backend.ExactKey(accessRequestsPrefix)
 	if req.StartKey != "" {
-		startKey = backend.Key(accessRequestsPrefix, req.StartKey)
+		startKey = backend.NewKey(accessRequestsPrefix, req.StartKey)
 	}
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
@@ -341,7 +340,7 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 				return true, nil
 			}
 
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -452,7 +451,6 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
 		Expires:  req.Expiry(),
-		ID:       req.GetResourceID(),
 		Revision: rev,
 	}, nil
 }
@@ -466,7 +464,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 		Key:      AccessRequestAllowedPromotionKey(req.GetName()),
 		Value:    value,
 		Expires:  req.Expiry(), // expire the promotion at the same time as the access request
-		ID:       req.GetResourceID(),
 		Revision: req.GetRevision(),
 	}, nil
 }
@@ -474,7 +471,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
-		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
@@ -488,12 +484,12 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*ty
 	return req, nil
 }
 
-func accessRequestKey(name string) []byte {
-	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
+func accessRequestKey(name string) backend.Key {
+	return backend.NewKey(accessRequestsPrefix, name, paramsPrefix)
 }
 
-func AccessRequestAllowedPromotionKey(name string) []byte {
-	return backend.Key(accessRequestPromotionPrefix, name, paramsPrefix)
+func AccessRequestAllowedPromotionKey(name string) backend.Key {
+	return backend.NewKey(accessRequestPromotionPrefix, name, paramsPrefix)
 }
 
 const (

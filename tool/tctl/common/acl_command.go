@@ -49,12 +49,19 @@ type ACLCommand struct {
 
 	// Used for managing a particular access list.
 	accessListName string
+	// Used to add an access list to another one
+	memberKind string
 
 	// Used for managing membership to an access list.
 	userName string
 	expires  string
 	reason   string
 }
+
+const (
+	memberKindUser = "user"
+	memberKindList = "list"
+)
 
 // Initialize allows ACLCommand to plug itself into the CLI parser
 func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
@@ -70,6 +77,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 	users := acl.Command("users", "Manage user membership to access lists.")
 
 	c.usersAdd = users.Command("add", "Add a user to an access list.")
+	c.usersAdd.Flag("kind", "Access list member kind, 'user' or 'list'").Default(memberKindUser).EnumVar(&c.memberKind, memberKindUser, memberKindList)
 	c.usersAdd.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
 	c.usersAdd.Arg("user", "The user to add to the access list.").Required().StringVar(&c.userName)
 	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339). Defaults to the expiration time of the access list.").StringVar(&c.expires)
@@ -81,6 +89,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 
 	c.usersList = users.Command("ls", "List users that are members of an access list.")
 	c.usersList.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
+	c.usersList.Flag("format", "Output format 'json', or 'text'").Default(teleport.Text).EnumVar(&c.format, teleport.JSON, teleport.Text)
 }
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
@@ -150,6 +159,14 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 		}
 	}
 
+	var membershipKind string
+	switch c.memberKind {
+	case memberKindList:
+		membershipKind = accesslist.MembershipKindList
+	case "", memberKindUser:
+		membershipKind = accesslist.MembershipKindUser
+	}
+
 	member, err := accesslist.NewAccessListMember(header.Metadata{
 		Name: c.userName,
 	}, accesslist.AccessListMemberSpec{
@@ -159,8 +176,9 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 		Expires:    expires,
 
 		// The following fields will be updated in the backend, so their values here don't matter.
-		Joined:  time.Now(),
-		AddedBy: "dummy",
+		Joined:         time.Now(),
+		AddedBy:        "dummy",
+		MembershipKind: membershipKind,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -190,33 +208,44 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client)
 
 // UsersList will list the users in an access list.
 func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) error {
-	members, nextToken, err := client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var (
+		allMembers []*accesslist.AccessListMember
+		nextToken  string
+		err        error
+		members    []*accesslist.AccessListMember
+	)
 
-	if len(members) == 0 {
-		fmt.Printf("No members found for access list %s.\nYou may not have access to see the members for this list.\n", c.accessListName)
-		return nil
-	}
-
-	fmt.Printf("Members of %s:\n", c.accessListName)
 	for {
-		for _, member := range members {
-			fmt.Printf("- %s\n", member.Spec.Name)
-		}
-
-		if nextToken == "" {
-			break
-		}
-
 		members, nextToken, err = client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, nextToken)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		allMembers = append(allMembers, members...)
+		if nextToken == "" {
+			break
+		}
 	}
 
-	return nil
+	switch c.format {
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, allMembers))
+	case teleport.Text:
+		if len(allMembers) == 0 {
+			fmt.Printf("No members found for access list %s.\nYou may not have access to see the members for this list.\n", c.accessListName)
+			return nil
+		}
+		fmt.Printf("Members of %s:\n", c.accessListName)
+		for _, member := range allMembers {
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				fmt.Printf("- (Access List) %s \n", member.Spec.Name)
+			} else {
+				fmt.Printf("- %s\n", member.Spec.Name)
+			}
+		}
+		return nil
+	default:
+		return trace.BadParameter("unsupported output format %q", c.format)
+	}
 }
 
 func displayAccessLists(format string, accessLists ...*accesslist.AccessList) error {
@@ -241,6 +270,7 @@ func displayAccessListsText(accessLists ...*accesslist.AccessList) error {
 		for k, values := range accessList.GetGrants().Traits {
 			traitStrings = append(traitStrings, fmt.Sprintf("%s:{%s}", k, strings.Join(values, ",")))
 		}
+
 		grantedTraits := strings.Join(traitStrings, ",")
 		table.AddRow([]string{
 			accessList.GetName(),

@@ -1,0 +1,102 @@
+{
+  "kind": "Table",
+  "apiVersion": "meta.k8s.io/v1",
+  "metadata": {
+    "resourceVersion": "98657"
+  },
+  "columnDefinitions": [
+    {
+      "name": "Name",
+      "type": "string",
+      "format": "name",
+      "description": "Name must be unique within a namespace. Is required when creating resources, although some resources may allow a client to request the generation of an appropriate name automatically. Name is primarily intended for creation idempotence and configuration definition. Cannot be updated. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names",
+      "priority": 0
+    },
+    {
+      "name": "Ready",
+      "type": "string",
+      "format": "",
+      "description": "The aggregate readiness state of this pod for accepting traffic.",
+      "priority": 0
+    },
+    {
+      "name": "Status",
+      "type": "string",
+      "format": "",
+      "description": "The aggregate status of the containers in this pod.",
+      "priority": 0
+    },
+    {
+      "name": "Restarts",
+      "type": "string",
+      "format": "",
+      "description": "The number of times the containers in this pod have been restarted and when the last container in this pod has restarted.",
+      "priority": 0
+    },
+    {
+      "name": "Age",
+      "type": "string",
+      "format": "",
+      "description": "CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+      "priority": 0
+    },
+    {
+      "name": "IP",
+      "type": "string",
+      "format": "",
+      "description": "podIP address allocated to the pod. Routable at least within the cluster. Empty if not yet allocated.",
+      "priority": 1
+    },
+    {
+      "name": "Node",
+      "type": "string",
+      "format": "",
+      "description": "NodeName indicates in which node this pod is scheduled. If empty, this pod is a candidate for scheduling by the scheduler defined in schedulerName. Once this field is set, the kubelet for this node becomes responsible for the lifecycle of this pod. This field should not be used to express a desire for the pod to be scheduled on a specific node. https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodename",
+      "priority": 1
+    },
+    {
+      "name": "Nominated Node",
+      "type": "string",
+      "format": "",
+      "description": "nominatedNodeName is set only when this pod preempts other pods on the node, but it cannot be scheduled right away as preemption victims receive their graceful termination periods. This field does not guarantee that the pod will be scheduled on this node. Scheduler may decide to place the pod elsewhere if other nodes become available sooner. Scheduler may also decide to give the resources on this node to a higher priority pod that is created after preemption. As a result, this field may be different than PodSpec.nodeName when the pod is scheduled.",
+      "priority": 1
+    },
+    {
+      "name": "Readiness Gates",
+      "type": "string",
+      "format": "",
+      "description": "If specified, all readiness gates will be evaluated for pod readiness. A pod is ready when all its containers are ready AND all conditions specified in the readiness gates have status equal to \"True\" More info: https://git.k8s.io/enhancements/keps/sig-network/580-pod-readiness-gates",
+      "priority": 1
+    }
+  ],
+  "rows": [
+    {
+      "cells": [
+        "kubernetes",
+        "1/1",
+        "Running",
+        "0",
+        "33h",
+        "10.244.29.7",
+        "minikube",
+        "<none>",
+        "<none>"
+      ],
+      "object": {
+        "kind": "Pod",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "kubernetes",
+          "namespace": "default",
+          "labels": {
+            "run": "alpine"
+          }
+        },
+        "spec": {        },
+        "status": {
+          "phase": "Running"
+        }
+      }
+    }
+  ]
+}

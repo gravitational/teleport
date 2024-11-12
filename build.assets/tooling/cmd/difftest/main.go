@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -244,7 +243,7 @@ func inspect(repoPath string, ref string, changedFiles []string, fn func(string,
 			}
 		}
 
-		head, err := parseMethodMap(path.Join(repoPath, filename), nil, runners)
+		head, err := parseMethodMap(filepath.Join(repoPath, filename), nil, runners)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -246,6 +246,69 @@ func TestNewDiscoveryConfig(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name: "tag aws sync with invalid region",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions: []string{"us<random>&-west-2"},
+						},
+					},
+				},
+			},
+			errCheck: require.Error,
+		},
+		{
+			name: "tag aws sync with empty region",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions: []string{""},
+						},
+					},
+				},
+			},
+			errCheck: require.Error,
+		},
+		{
+			name: "tag aws sync with region not set",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions: nil,
+						},
+					},
+				},
+			},
+			errCheck: require.Error,
+		},
+		{
 			name: "fills in kube matcher default values",
 			inMetadata: header.Metadata{
 				Name: "my-first-dc",

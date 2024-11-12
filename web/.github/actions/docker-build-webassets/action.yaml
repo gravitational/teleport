@@ -8,4 +8,4 @@ runs:
   entrypoint: sh
   args:
     - -c
-    - yarn install && yarn run build-teleport
+    - pnpm install --frozen-lockfile && pnpm build-teleport

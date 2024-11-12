@@ -1,0 +1,657 @@
+---
+title: Teleport GKE Auto-Discovery
+description: How to configure auto-discovery of Google Kubernetes Engine clusters in Teleport.
+---
+
+The Teleport Discovery Service can automatically register your Google Kubernetes
+Engine (GKE) clusters with Teleport. With Teleport Kubernetes Discovery,
+you can configure the Teleport Kubernetes Service and Discovery Service once,
+then create GKE clusters without needing to register them with Teleport after
+each creation.
+
+In this guide, we will show you how to get started with Teleport Kubernetes
+Discovery for GKE.
+
+## Overview
+
+(!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
+
+(!docs/pages/includes/discovery/same-host-tip.mdx serviceName="Kubernetes" resourceDesc="cluster" !)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Google Cloud account with permissions to create GKE clusters, IAM roles, and
+  service accounts.
+- The `gcloud` CLI tool. Follow the [Google Cloud documentation
+  page](https://cloud.google.com/sdk/docs/install-sdk) to install and
+  authenticate to `gcloud`.
+- One or more GKE clusters running. Your Kubernetes user must have permissions
+  to create `ClusterRole` and `ClusterRoleBinding` resources in your clusters.
+- A Linux host where you will run the Teleport Discovery and Kubernetes
+  services. You can run this host on any cloud provider or even use a local
+  machine.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Obtain Google Cloud credentials
+
+The Teleport Discovery Service and Kubernetes Service use a Google Cloud service
+account to discover GKE clusters and manage access from Teleport users. In this
+step, you will create a service account and download a credentials file for the
+Teleport Discovery Service.
+
+### Create an IAM role for the Discovery Service
+
+The Teleport Discovery Service needs permissions to retrieve GKE clusters
+associated with your Google Cloud project.
+
+To grant these permissions, create a file called `GKEKubernetesAutoDisc.yaml`
+with the following content:
+
+```yaml
+title: GKE Cluster Discoverer
+description: "Get and list GKE clusters"
+stage: GA
+includedPermissions:
+- container.clusters.get
+- container.clusters.list
+```
+
+Create the role, assigning the `--project` flag to the name of your Google Cloud
+project:
+
+```code
+$ gcloud iam roles create GKEKubernetesAutoDisc \
+  --project=<Var name="google-cloud-project" /> \
+  --file=GKEKubernetesAutoDisc.yaml
+```
+
+### Create an IAM role for the Kubernetes Service
+
+The Teleport Kubernetes Service needs Google Cloud IAM permissions in order to
+forward user traffic to your GKE clusters.
+
+Create a file called `GKEAccessManager.yaml` with the following content:
+
+```yaml
+title: GKE Cluster Access Manager
+description: "Manage access to GKE clusters"
+stage: GA
+includedPermissions:
+- container.clusters.get
+- container.clusters.impersonate
+- container.pods.get
+- container.selfSubjectAccessReviews.create
+- container.selfSubjectRulesReviews.create
+```
+
+Create the role, assigning the `--project` flag to the name of your Google Cloud
+project. If you receive a prompt indicating that certain permissions are in
+`TESTING`, enter `y`:
+
+```code
+$ gcloud iam roles create GKEAccessManager \
+  --project=<Var name="google-cloud-project" /> \
+  --file=GKEAccessManager.yaml
+```
+
+### Create a service account
+
+Now that you have declared roles for the Discovery Service and Kubernetes
+Service, create a service account so you can assign these roles.
+
+Run the following command to create a service account called
+`teleport-discovery-kubernetes`:
+
+```code
+$ gcloud iam service-accounts create teleport-discovery-kubernetes \
+  --description="Teleport Discovery Service and Kubernetes Service" \
+  --display-name="teleport-discovery-kubernetes"
+```
+
+Grant the roles you defined earlier to your service account, assigning
+`PROJECT_ID` to the name of your Google Cloud project:
+
+```code
+$ PROJECT_ID=<Var name="google-cloud-project" />
+$ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
+   --member="serviceAccount:teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com" \
+   --role="projects/${PROJECT_ID?}/roles/GKEKubernetesAutoDisc"
+$ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
+   --member="serviceAccount:teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com" \
+   --role="projects/${PROJECT_ID?}/roles/GKEAccessManager"
+```
+
+<Details title="Deploying the Kubernetes Service and Discovery Service
+separately?">
+
+Create a service account for each service:
+
+```code
+$ gcloud iam service-accounts create teleport-discovery-service \
+  --description="Teleport Discovery Service" \
+  --display-name="teleport-discovery-service"
+$ gcloud iam service-accounts create teleport-kubernetes-service \
+  --description="Teleport Kubernetes Service" \
+  --display-name="teleport-kubernetes-service"
+```
+
+Grant the roles you defined earlier to your service account, assigning
+`PROJECT_ID` to the name of your Google Cloud project:
+
+```code
+$ PROJECT_ID=<Var name="google-cloud-project" />
+$ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
+   --member="serviceAccount:teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com" \
+   --role="projects/${PROJECT_ID?}/roles/GKEKubernetesAutoDisc"
+$ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
+   --member="serviceAccount:teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com" \
+   --role="projects/${PROJECT_ID?}/roles/GKEAccessManager"
+```
+</Details>
+
+### Retrieve credentials for your Teleport services
+
+Now that you have created a Google Cloud service account and attached roles to
+it, associate your service account with the Teleport Kubernetes Service and
+Discovery Service.
+
+The process is different depending on whether you are deploying the Teleport
+Kubernetes Service and Discovery Service on Google Cloud or some other way
+(e.g., via Amazon EC2 or on a local network).
+
+<Tabs>
+<TabItem label="Google Cloud">
+
+Stop your VM so you can attach your service account to it:
+
+```code
+$ gcloud compute instances stop <Var name="vm-name" /> --zone=<Var name="google-cloud-region" />
+```
+
+Attach your service account to the instance, assigning the name of your VM to <Var name="vm-name" />
+and the name of your Google Cloud region to <Var name="google-cloud-region" />:
+
+```code
+$ gcloud compute instances set-service-account <Var name="vm-name" /> \
+   --service-account teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com \
+   --zone <Var name="google-cloud-region" /> \
+   --scopes=cloud-platform
+```
+
+<Details title="Running the Kubernetes and Discovery Services separately?">
+
+Stop each VM you plan to use to run the Teleport Kubernetes Service and
+Discovery Service.
+
+Attach the `teleport-kubernetes-service` service account to the VM running the
+Kubernetes Service:
+
+```code
+$ gcloud compute instances set-service-account ${VM1_NAME?} \
+   --service-account teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com \
+   --zone <Var name="google-cloud-region" /> \
+   --scopes=cloud-platform
+```
+
+Attach the `teleport-discovery-service` service account to the VM running the
+Discovery Service:
+
+```code
+$ gcloud compute instances set-service-account ${VM2_NAME?} \
+   --service-account teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com \
+   --zone <Var name="google-cloud-region" /> \
+   --scopes=cloud-platform
+```
+
+</Details>
+
+<Notice type="warning">
+
+You must use the `scopes` flag in the `gcloud compute instances
+set-service-account` command. Otherwise, your Google Cloud VM will fail to
+obtain the required authorization to access the GKE API.
+
+</Notice>
+
+Once you have attached the service account, restart your VM:
+
+```code
+$ gcloud compute instances start <Var name="vm-name" /> --zone <Var name="google-cloud-region" />
+```
+</TabItem>
+<TabItem label="Other Platform">
+
+Download a credentials file for the service account used by the Discovery
+Service and Kubernetes Service:
+
+```code
+$ PROJECT_ID=<Var name="google-cloud-project" />
+$ gcloud iam service-accounts keys create google-cloud-credentials.json \
+    --iam-account=teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com
+```
+
+Move your credentials file to the host running the Teleport Discovery Service
+and Kubernetes Service the path
+`/var/lib/teleport/google-cloud-credentials.json`. We will use this credentials
+file when running this service later in this guide.
+
+<Details title="Deploying the Kubernetes Service and Discovery Service
+separately?">
+
+Download separate credentials files for each service:
+
+```code
+$ PROJECT_ID=<Var name="google-cloud-project" />
+$ gcloud iam service-accounts keys create discovery-service-credentials.json \
+    --iam-account=teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com
+$ gcloud iam service-accounts keys create kube-service-credentials.json \
+    --iam-account=teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com
+```
+
+Move `discovery-service-credentials.json` to the host running the Teleport
+Discovery Service at the path `/var/lib/teleport/google-cloud-credentials.json`.
+
+Move `kubernetes-service-credentials.json` to the host running the Teleport
+Kubernetes Service at the path
+`/var/lib/teleport/google-cloud-credentials.json`.
+
+We will use these credentials files when running this services later in this
+guide.
+
+</Details>
+
+</TabItem>
+</Tabs>
+
+## Step 2/3. Configure Teleport to discover GKE clusters
+
+Now that you have created a service account that can discover GKE clusters and a
+cluster role that can manage access, configure the Teleport Discovery Service to
+detect GKE clusters and the Kubernetes Service to proxy user traffic.
+
+### Install Teleport
+
+Install Teleport on the host you are using to run the Kubernetes Service and
+Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Create a join token
+
+The Teleport Discovery Service and Kubernetes Service require an authentication
+token in order to to join the cluster. Generate one by running the following
+`tctl` command:
+
+```code
+$ tctl tokens add --type=discovery,kube --format=text
+(=presets.tokens.first=)
+```
+
+Copy the token (e.g., `(=presets.tokens.first=)` above) and save the token in
+`/tmp/token` on the machine that will run the Discovery Service and Kubernetes
+Service, for example:
+
+```code
+$ echo (=presets.tokens.first=) | sudo tee /tmp/token
+# (=presets.tokens.first=)
+```
+
+<Details title="Running the Kubernetes and Discovery Services separately?">
+
+Generate separate tokens for the Kubernetes Service and Discovery Service by
+running the following `tctl` commands:
+
+```code
+$ tctl tokens add --type=discovery --format=text
+# (=presets.tokens.second=)
+$ tctl tokens add --type=kube --format=text
+# (=presets.tokens.third=)
+```
+
+Copy each token (e.g., `(=presets.tokens.second=)` and
+`(=presets.tokens.third=)` above) and save it in `/tmp/token` on the machine
+that will run the appropriate service.
+
+</Details>
+
+### Configure the Kubernetes Service and Discovery Service
+
+On the host running the Kubernetes Service and Discovery Service, create a
+Teleport configuration file with the following content at `/etc/teleport.yaml`:
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+discovery_service:
+  enabled: "yes"
+  discovery_group: "gke-myproject"
+  gcp:
+    - types: ["gke"]
+      locations: ["*"]
+      project_ids: ["myproject"] # replace with my project ID
+      tags:
+        "*" : "*"
+kubernetes_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+<Details title="Running the Kubernetes Service and Discovery Service on
+separate hosts?">
+
+Follow the instructions in this section with two configuration files. The
+configuration file you will save at `/etc/teleport.yaml` on the Kubernetes
+Service host will include the following:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: <Var name="teleport.example.com" />:443    
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+kubernetes_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+On the Discovery Service host, the file will include the following:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: <Var name="teleport.example.com" />:443    
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+discovery_service:
+  enabled: "yes"
+  discovery_group: "gke-myproject"
+  gcp:
+    - types: ["gke"]
+      locations: ["*"]
+      project_ids: ["myproject"] # replace with my project ID
+      tags:
+        "*" : "*"
+```
+
+</Details>
+
+Edit this configuration for your environment as explained below.
+
+#### `proxy_server`
+
+Replace `teleport.example.com:443` with the host and port of your Teleport
+Proxy Service (e.g., `mytenant.teleport.sh:443` for a Teleport Cloud tenant).
+
+#### `discovery_service.gcp`
+
+Each item in `discovery_service.gcp` is a **matcher** for Kubernetes clusters
+running on GKE. The Discovery Service periodically executes a request to the
+Google Cloud API based on each matcher to list GKE clusters. In this case, we
+have declared a single matcher.
+
+Each matcher searches for clusters that match *all* properties of the matcher,
+i.e., that belong to the specified locations and projects and have the
+specified tags. The Discovery Service registers GKE clusters that match *any*
+configured matcher.
+
+This means that if you declare the following two matchers, the Discovery Service
+will register clusters in project `myproj-dev` running in `us-east1`, as well as
+clusters in project `myproj-prod` running in `us-east2`, but *not* clusters in
+`myproj-dev` running in `us-east2`:
+
+```yaml
+discovery_service:
+  enabled: "yes"
+  discovery_group: "gke-myproject"
+  gcp:
+    - types: ["gke"]
+      locations: ["us-east1"]
+      project_ids: ["myproj-dev"]
+      tags:
+        "*" : "*"
+    - types: ["gke"]
+      locations: ["us-east2"]
+      project_ids: ["myproj-prod"]
+      tags:
+        "*" : "*"
+```
+
+#### `discovery_service.gcp[0].types`
+
+Each matcher's `types` field must be set to an array with a single string
+value, `gke`.
+
+#### `discovery_service.gcp[0].project_ids`
+
+In your matcher, replace `myproject` with the ID of your Google Cloud project.
+
+Ensure that the `project_ids` field follows these rules:
+- It must include at least one value.
+- It must not combine the wildcard character (`*`) with other values.
+
+##### Examples of valid configurations
+- `["p1", "p2"]`
+- `["*"]`
+- `["p1"]`
+
+##### Example of an invalid configuration
+- `["p1", "*"]`
+
+#### `discovery_service.gcp[0].locations`
+
+Each matcher's `locations` field contains an array of Google Cloud region or
+zone names that the matcher will search for GKE clusters. The wildcard
+character, `*`, configures the matcher to search all locations.
+
+#### `discovery_service.gcp[0].tags`
+
+Like `locations`, `tags` consists of a map where each key is a string that
+represents the key of a tag, and each value is either a single string or an
+array of strings, representing one tag value or a list of tag values.
+
+A wildcard key or value matches any tag key or value in your Google Cloud
+account. If you include another value, the matcher will match all GKE clusters
+with the provided tag.
+
+### Start the Kubernetes Service and Discovery Service
+
+On the host where you will run the Kubernetes Service, execute the following
+command, depending on:
+
+- Whether you installed Teleport using a package manager or via a TAR archive
+- Whether you are running the Discovery and Kubernetes Service on Google Cloud
+  or another platform
+
+<Tabs dropdownCaption="How your host is running:"
+dropdownSelected="Google Cloud">
+<TabItem options="Google Cloud" label="Package Manager ">
+
+On the host where you will run the Teleport Kubernetes Service and Discovery
+Service, start the Teleport service:
+
+```code
+$ sudo systemctl start teleport
+```
+</TabItem>
+<TabItem options="Google Cloud" label="TAR Archive ">
+
+On the host where you will run the Teleport Kubernetes Service and Discovery
+Service, create a systemd service configuration for Teleport, enable the
+Teleport service, and start Teleport:
+
+```code
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+</TabItem>
+<TabItem options="Other Platform" label="Package Manager">
+
+When you installed Teleport via package manager, the installation process
+created a configuration for the init system `systemd` to run Teleport as a
+daemon.
+
+This service reads environment variables from a file at the path
+`/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
+credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
+variable.
+
+Ensure that `/etc/default/teleport` has the following content:
+
+```
+GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
+```
+
+Start the Teleport service:
+
+```code
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+</TabItem>
+<TabItem options="Other Platform" label="TAR Archive">
+
+On the host where you are running the Teleport Discovery Service and Kubernetes
+Service, create a systemd configuration that you can use to run Teleport in the
+background:
+
+```code
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+```
+
+This service reads environment variables from a file at the path
+`/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
+credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
+variable.
+
+Ensure that `/etc/default/teleport` has the following content:
+
+```
+GOOGLE_APPLICATION_CREDENTIALS="/var/lib/teleport/google-cloud-credentials.json"
+```
+
+Start the Discovery Service and Kubernetes Service:
+
+```code
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+</Tabs>
+
+## Step 3/3. Connect to your GKE cluster
+
+### Allow access to your Kubernetes cluster
+
+Ensure that you are in the correct Kubernetes context for the cluster you would
+like to enable access to:
+
+```code
+$ kubectl config current-context
+```
+
+<Details title="Using the wrong context?">
+
+Retrieve all available contexts:
+
+```code
+$ kubectl config get-contexts
+```
+
+Switch to your context, replacing `CONTEXT_NAME` with the name of your chosen
+context:
+
+```code
+$ kubectl config use-context CONTEXT_NAME
+Switched to context CONTEXT_NAME
+```
+
+</Details>
+
+(!docs/pages/includes/kubernetes-access/rbac.mdx!)
+
+### Access your cluster
+
+When you ran the Discovery Service, it discovered your GKE cluster and
+registered the cluster with Teleport. You can confirm this by running the
+following `tctl` command:
+
+```code
+$ tctl get kube_clusters
+kind: kube_cluster
+metadata:
+  description: GKE cluster "mycluster-gke" in us-east1
+  id: 0000000000000000000
+  labels:
+    location: us-east1
+    project-id: myproject
+    teleport.dev/cloud: GCP
+    teleport.dev/origin: cloud
+  name: mycluster-gke
+spec:
+  aws: {}
+  azure: {}
+version: v3
+```
+
+Run the following command to list the Kubernetes clusters that your Teleport
+user has access to. The list should now include your GKE cluster:
+
+```code
+$ tsh kube ls
+Kube Cluster Name   Labels                                                                                                   Selected
+------------------- -------------------------------------------------------------------------------------------------------- --------
+mycluster-gke location=us-east1 project-id=myproject teleport.dev/cloud=GCP teleport.dev/origin=cloud
+```
+
+Log in to your cluster, replacing `mycluster-gke` with the name of a cluster
+you listed previously:
+
+```code
+$ tsh kube login mycluster-gke
+Logged into kubernetes cluster "mycluster-gke". Try 'kubectl version' to test the connection.
+```
+
+As you can see, Teleport GKE Auto-Discovery enabled you to access a GKE cluster
+in your Google Cloud account without requiring you to register that cluster
+manually within Teleport. When you create or remove clusters in GKE, Teleport
+will update its state to reflect the available clusters in your account.
+
+## Troubleshooting
+
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="Kubernetes cluster" tctlResource="kube_cluster" !)
+
+(!docs/pages/includes/discovery/kubernetes-service-troubleshooting.mdx!)

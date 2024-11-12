@@ -50,4 +50,5 @@ export const ToolTipNoPermBadge: React.FC<PropsWithChildren<Props>> = ({
 export enum BadgeTitle {
   LackingPermissions = 'Lacking Permissions',
   LackingEnterpriseLicense = 'Enterprise Only',
+  LackingIgs = 'Teleport Identity Only',
 }

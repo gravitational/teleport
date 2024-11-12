@@ -46,102 +46,33 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
-
-func TestGetAgentVersion(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	testCases := []struct {
-		desc            string
-		ping            func(ctx context.Context) (proto.PingResponse, error)
-		clusterFeatures proto.Features
-		channelVersion  string
-		expectedVersion string
-		errorAssert     require.ErrorAssertionFunc
-	}{
-		{
-			desc: "ping error",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{}, trace.BadParameter("ping error")
-			},
-			expectedVersion: "",
-			errorAssert:     require.Error,
-		},
-		{
-			desc: "no automatic upgrades",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{ServerVersion: "1.2.3"}, nil
-			},
-			expectedVersion: "1.2.3",
-			errorAssert:     require.NoError,
-		},
-		{
-			desc: "automatic upgrades",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{ServerVersion: "10"}, nil
-			},
-			clusterFeatures: proto.Features{AutomaticUpgrades: true},
-			channelVersion:  "v1.2.3",
-			expectedVersion: "1.2.3",
-			errorAssert:     require.NoError,
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.desc, func(t *testing.T) {
-			server := Server{
-				ctx: ctx,
-				Config: &Config{
-					AccessPoint: &fakeAccessPoint{ping: tt.ping},
-					ClusterFeatures: func() proto.Features {
-						return tt.clusterFeatures
-					},
-				},
-			}
-
-			var channel *automaticupgrades.Channel
-			if tt.channelVersion != "" {
-				channel = &automaticupgrades.Channel{StaticVersion: tt.channelVersion}
-				err := channel.CheckAndSetDefaults()
-				require.NoError(t, err)
-			}
-			releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: channel}
-
-			version, err := server.getKubeAgentVersion(releaseChannels)
-
-			tt.errorAssert(t, err)
-			require.Equal(t, tt.expectedVersion, version)
-		})
-	}
-}
 
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		EKSClientGetter: &cloud.TestCloudClients{},
-		FilterLabels:    types.Labels{"l1": []string{"v1"}},
-		Region:          "region1",
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
 	})
 	require.NoError(t, err)
 	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		EKSClientGetter: &cloud.TestCloudClients{},
-		FilterLabels:    types.Labels{"l1": []string{"v1"}},
-		Region:          "region1",
-		Integration:     "aws1"})
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
+		Integration:  "aws1"})
 	require.NoError(t, err)
 	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		EKSClientGetter: &cloud.TestCloudClients{},
-		FilterLabels:    types.Labels{"l1": []string{"v1"}},
-		Region:          "region1",
-		Integration:     "aws1"})
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
+		Integration:  "aws1"})
 	require.NoError(t, err)
 
 	aks1, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
@@ -285,7 +216,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		existingKubeServers          []types.KubeServer
 		awsMatchers                  []types.AWSMatcher
 		expectedServersToExistInAuth []types.KubeServer
-		accessPoint                  func(*testing.T, *auth.Server, authclient.ClientI) auth.DiscoveryAccessPoint
+		accessPoint                  func(*testing.T, *auth.Server, authclient.ClientI) authclient.DiscoveryAccessPoint
 		discoveryConfig              func(*testing.T) *discoveryconfig.DiscoveryConfig
 	}{
 		{
@@ -293,7 +224,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -321,7 +252,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -351,7 +282,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
 				return getDc()
 			},
-			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) auth.DiscoveryAccessPoint {
+			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
@@ -450,7 +381,8 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						AWS: tc.awsMatchers,
 					},
 					Emitter:        authClient,
-					Log:            logrus.New(),
+					Log:            libutils.NewSlogLoggerForTests(),
+					LegacyLogger:   logrus.New(),
 					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
@@ -458,7 +390,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 
 			if tc.discoveryConfig != nil {
 				dc := tc.discoveryConfig(t)
-				_, err := tlsServer.Auth().DiscoveryConfigClient().CreateDiscoveryConfig(ctx, dc)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
 				require.NoError(t, err)
 
 				// Wait for the DiscoveryConfig to be added to the dynamic fetchers
@@ -499,7 +431,7 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *eksV1.Cluster, resou
 	eksCluster.Tags[types.OriginLabel] = aws.String(types.OriginCloud)
 	eksCluster.Tags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
+	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
 	assert.NoError(t, err)
 
 	kubeClusterV3 := kubeCluster.(*types.KubernetesClusterV3)
@@ -518,7 +450,7 @@ func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, re
 	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	eksTags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
-	kubeCluster, err := services.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
+	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
 	assert.NoError(t, err)
 
 	kubeClusterV3 := kubeCluster.(*types.KubernetesClusterV3)
@@ -530,7 +462,7 @@ func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, re
 }
 
 type accessPointWrapper struct {
-	auth.DiscoveryAccessPoint
+	authclient.DiscoveryAccessPoint
 
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
@@ -572,15 +504,16 @@ func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Contex
 }
 
 type mockEnrollEKSClusterClient struct {
-	createAccessEntry          func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
-	associateAccessPolicy      func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
-	listAccessEntries          func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
-	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
-	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
-	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
-	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, awsoidc.EnrollEKSClustersRequest) error
-	createToken                func(context.Context, types.ProvisionToken) error
+	createAccessEntry           func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
+	associateAccessPolicy       func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
+	listAccessEntries           func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
+	deleteAccessEntry           func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
+	describeCluster             func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+	getCallerIdentity           func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent            func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, awsoidc.EnrollEKSClustersRequest) error
+	createToken                 func(context.Context, types.ProvisionToken) error
+	presignGetCallerIdentityURL func(ctx context.Context, clusterName string) (string, error)
 }
 
 func (m *mockEnrollEKSClusterClient) CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -644,6 +577,13 @@ func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token type
 		return m.createToken(ctx, token)
 	}
 	return nil
+}
+
+func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
+	if m.presignGetCallerIdentityURL != nil {
+		return m.presignGetCallerIdentityURL(ctx, clusterName)
+	}
+	return "", nil
 }
 
 var _ awsoidc.EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}

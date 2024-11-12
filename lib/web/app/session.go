@@ -20,15 +20,11 @@ package app
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -136,90 +132,4 @@ func appServerMatcher(proxyClient reversetunnelclient.Tunnel, publicAddr string,
 		// application servers that match the requested application.
 		MatchHealthy(proxyClient, clusterName),
 	)
-}
-
-// sessionCache holds a cache of sessions that are used to forward requests.
-type sessionCache struct {
-	mu    sync.Mutex
-	cache *ttlmap.TTLMap
-
-	closeContext context.Context
-
-	log *logrus.Entry
-}
-
-// newSessionCache creates a new session cache.
-func newSessionCache(ctx context.Context, log *logrus.Entry) (*sessionCache, error) {
-	var err error
-
-	s := &sessionCache{
-		closeContext: ctx,
-		log:          log,
-	}
-
-	// Cache of request forwarders. Set an expire function that can be used to
-	// close any open resources.
-	s.cache, err = ttlmap.New(defaults.ClientCacheSize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	go s.expireSessions()
-
-	return s, nil
-}
-
-// cacheGet will fetch the forwarder from the cache.
-func (s *sessionCache) get(key string) (*session, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if f, ok := s.cache.Get(key); ok {
-		if fwd, fok := f.(*session); fok {
-			return fwd, nil
-		}
-		return nil, trace.BadParameter("invalid type stored in cache: %T", f)
-	}
-	return nil, trace.NotFound("forwarder not found")
-}
-
-// cacheSet will add the forwarder to the cache.
-func (s *sessionCache) set(key string, value *session, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.cache.Set(key, value, ttl); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// remove immediately removes a single session from the cache.
-func (s *sessionCache) remove(key string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	_, _ = s.cache.Remove(key)
-}
-
-// expireSessions ticks every second trying to close expired sessions.
-func (s *sessionCache) expireSessions() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.expireSession()
-		case <-s.closeContext.Done():
-			return
-		}
-	}
-}
-
-// expiredSession tries to expire sessions in the cache.
-func (s *sessionCache) expireSession() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.cache.RemoveExpired(10)
 }

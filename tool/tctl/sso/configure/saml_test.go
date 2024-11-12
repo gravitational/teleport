@@ -19,7 +19,7 @@ package configure
 import (
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -50,10 +50,10 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 
 	dir := t.TempDir()
 
-	edBadFile := path.Join(dir, "entity_descriptor_bad.xml")
+	edBadFile := filepath.Join(dir, "entity_descriptor_bad.xml")
 	require.NoError(t, os.WriteFile(edBadFile, []byte("foo bar baz"), 0777))
 
-	edGoodFile := path.Join(dir, "entity_descriptor_good.xml")
+	edGoodFile := filepath.Join(dir, "entity_descriptor_good.xml")
 	require.NoError(t, os.WriteFile(edGoodFile, []byte(edOk), 0777))
 
 	tests := []struct {

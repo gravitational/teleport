@@ -24,9 +24,9 @@ export type BotOptionsCellProps = {
   bot: FlatBot;
   disabledEdit: boolean;
   disabledDelete: boolean;
-  onClickEdit: (bot: FlatBot) => void;
-  onClickDelete: (bot: FlatBot) => void;
-  onClickView: (bot: FlatBot) => void;
+  onClickEdit: () => void;
+  onClickDelete: () => void;
+  onClickView: () => void;
 };
 
 export type BotListProps = {

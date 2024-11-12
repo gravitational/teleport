@@ -200,6 +200,9 @@ resource "aws_lb_target_group" "proxy_proxy" {
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
   count    = var.use_tls_routing ? 0 : 1
+  // required to allow the use of IP pinning
+  // this can only be enabled when ACM is not being used
+  proxy_protocol_v2 = var.use_acm ? false : true
 }
 
 resource "aws_lb_listener" "proxy_proxy" {
@@ -223,6 +226,9 @@ resource "aws_lb_target_group" "proxy_tunnel" {
   protocol = "TCP"
   // only create this if TLS routing is disabled
   count = var.use_tls_routing ? 0 : 1
+  // required to allow the use of IP pinning
+  // this can only be enabled when ACM is not being used
+  proxy_protocol_v2 = var.use_acm ? false : true
 }
 
 resource "aws_lb_listener" "proxy_tunnel" {
@@ -245,6 +251,9 @@ resource "aws_lb_target_group" "proxy_kube" {
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
   count    = var.use_tls_routing ? 0 : 1
+  // required to allow the use of IP pinning
+  // this can only be enabled when ACM is not being used
+  proxy_protocol_v2 = var.use_acm ? false : true
 }
 
 resource "aws_lb_listener" "proxy_kube" {
@@ -332,6 +341,8 @@ resource "aws_lb_target_group" "proxy_web" {
   vpc_id   = aws_vpc.teleport.id
   count    = var.use_acm ? 0 : 1
   protocol = "TCP"
+  // required to allow the use of IP pinning
+  proxy_protocol_v2 = "true"
 }
 
 // Proxy web listener (using Let's Encrypt)

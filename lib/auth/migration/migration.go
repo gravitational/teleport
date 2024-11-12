@@ -22,16 +22,15 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -50,10 +49,6 @@ func withMigrations(m []migration) func(c *applyConfig) {
 		c.migrations = m
 	}
 }
-
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentAuth,
-})
 
 var tracer = tracing.NewTracer("migrations")
 
@@ -77,7 +72,7 @@ type migration interface {
 }
 
 // Apply executes any outstanding registered migrations.
-func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig)) (err error) {
+func Apply(ctx context.Context, log *slog.Logger, b backend.Backend, opts ...func(c *applyConfig)) (err error) {
 	cfg := applyConfig{
 		migrations: []migration{
 			createDBAuthority{},
@@ -120,7 +115,8 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 			continue
 		}
 
-		log.Infof("Starting migration %d %s", version, m.Name())
+		log := log.With("version", version, "name", m.Name())
+		log.InfoContext(ctx, "Starting migration.")
 		span.AddEvent("Starting migration", oteltrace.WithAttributes(attribute.Int("migration", version)))
 
 		started := time.Now().UTC()
@@ -140,7 +136,7 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 			return trace.Wrap(err)
 		}
 
-		log.Infof("Completed migration %d %s", version, m.Name())
+		log.InfoContext(ctx, "Completed migration.")
 		span.AddEvent("Completed migration", oteltrace.WithAttributes(attribute.Int("migration", version)))
 	}
 
@@ -163,7 +159,7 @@ type migrationStatus struct {
 	Completed time.Time      `json:"completed"`
 }
 
-var key = backend.Key("migrations", "current")
+var key = backend.NewKey("migrations", "current")
 
 func setCurrentMigration(ctx context.Context, b backend.Backend, status migrationStatus) error {
 	value, err := json.Marshal(status)

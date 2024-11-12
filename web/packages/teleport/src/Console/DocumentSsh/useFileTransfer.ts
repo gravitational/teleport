@@ -33,6 +33,7 @@ export type FileTransferRequest = {
   sid: string;
   requestID: string;
   requester: string;
+  /** A list of accounts that approved this request. */
   approvers: string[];
   location: string;
   filename?: string;

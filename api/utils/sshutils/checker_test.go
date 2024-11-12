@@ -17,83 +17,97 @@ limitations under the License.
 package sshutils
 
 import (
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 )
 
-// TestCheckerValidate checks what algorithm are supported in regular (non-FIPS) mode.
-func TestCheckerValidate(t *testing.T) {
-	checker := CertChecker{}
-
-	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	require.NoError(t, err)
-	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	require.NoError(t, err)
-	ellipticKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	// 2048-bit RSA keys are valid.
-	cryptoKey := rsaKey.Public()
-	sshKey, err := ssh.NewPublicKey(cryptoKey)
-	require.NoError(t, err)
-	err = checker.validateFIPS(sshKey)
-	require.NoError(t, err)
-
-	// 1024-bit RSA keys are valid.
-	cryptoKey = smallRSAKey.Public()
-	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	require.NoError(t, err)
-	err = checker.validateFIPS(sshKey)
-	require.NoError(t, err)
-
-	// ECDSA keys are valid.
-	cryptoKey = ellipticKey.Public()
-	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	require.NoError(t, err)
-	err = checker.validateFIPS(sshKey)
-	require.NoError(t, err)
-}
-
 // TestCheckerValidateFIPS makes sure the public key is a valid algorithm
 // that Teleport supports while in FIPS mode.
 func TestCheckerValidateFIPS(t *testing.T) {
-	checker := CertChecker{
+	regularChecker := CertChecker{}
+	fipsChecker := CertChecker{
 		FIPS: true,
 	}
 
+	//nolint:forbidigo // Generating RSA keys allowed for key check test.
 	rsaKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
+	//nolint:forbidigo // Generating RSA keys allowed for key check test.
 	smallRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	ellipticKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ellipticKeyP224, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	require.NoError(t, err)
+	ellipticKeyP256, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	ellipticKeyP384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	_, ed25519Key, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	// 2048-bit RSA keys are valid.
-	cryptoKey := rsaKey.Public()
-	sshKey, err := ssh.NewPublicKey(cryptoKey)
-	require.NoError(t, err)
-	err = checker.validateFIPS(sshKey)
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		desc            string
+		key             crypto.Signer
+		expectSSHError  bool
+		expectFIPSError bool
+	}{
+		{
+			desc: "RSA2048",
+			key:  rsaKey,
+		},
+		{
+			desc:            "RSA1024",
+			key:             smallRSAKey,
+			expectFIPSError: true,
+		},
+		{
+			desc:            "ECDSAP224",
+			key:             ellipticKeyP224,
+			expectSSHError:  true,
+			expectFIPSError: true,
+		},
+		{
+			desc: "ECDSAP256",
+			key:  ellipticKeyP256,
+		},
+		{
+			desc: "ECDSAP384",
+			key:  ellipticKeyP384,
+		},
+		{
+			desc:            "Ed25519",
+			key:             ed25519Key,
+			expectFIPSError: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			cryptoKey := tc.key.Public()
+			sshKey, err := ssh.NewPublicKey(cryptoKey)
+			if tc.expectSSHError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 
-	// 1024-bit RSA keys are not valid.
-	cryptoKey = smallRSAKey.Public()
-	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	require.NoError(t, err)
-	err = checker.validateFIPS(sshKey)
-	require.Error(t, err)
+			err = regularChecker.validateFIPS(sshKey)
+			assert.NoError(t, err)
 
-	// ECDSA keys are not valid.
-	cryptoKey = ellipticKey.Public()
-	sshKey, err = ssh.NewPublicKey(cryptoKey)
-	require.NoError(t, err)
-	err = checker.validateFIPS(sshKey)
-	require.Error(t, err)
+			err = fipsChecker.validateFIPS(sshKey)
+			if tc.expectFIPSError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

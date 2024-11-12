@@ -17,10 +17,11 @@
  */
 
 import React from 'react';
-import Table, { Cell, LabelCell } from 'design/DataTable';
+import { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { User, UserOrigin } from 'teleport/services/user';
+import { ClientSearcheableTableWithQueryParamSupport } from 'teleport/components/ClientSearcheableTableWithQueryParamSupport';
 
 export default function UserList({
   users = [],
@@ -30,7 +31,7 @@ export default function UserList({
   onReset,
 }: Props) {
   return (
-    <Table
+    <ClientSearcheableTableWithQueryParamSupport
       data={users}
       columns={[
         {
@@ -42,9 +43,9 @@ export default function UserList({
           key: 'roles',
           headerText: 'Roles',
           isSortable: true,
-          onSort: (a: string[], b: string[]) => {
-            const aStr = a.toString();
-            const bStr = b.toString();
+          onSort: (a, b) => {
+            const aStr = a.roles.toString();
+            const bStr = b.roles.toString();
 
             if (aStr < bStr) {
               return -1;
@@ -61,9 +62,9 @@ export default function UserList({
           key: 'authType',
           headerText: 'Type',
           isSortable: true,
-          render: ({ authType, origin }) => (
+          render: ({ authType, origin, isBot }) => (
             <Cell style={{ textTransform: 'capitalize' }}>
-              {renderAuthType(authType, origin)}
+              {renderAuthType(authType, origin, isBot)}
             </Cell>
           ),
         },
@@ -80,12 +81,19 @@ export default function UserList({
         },
       ]}
       emptyText="No Users Found"
-      isSearchable
       pagination={{ pageSize }}
     />
   );
 
-  function renderAuthType(authType: string, origin: UserOrigin) {
+  function renderAuthType(
+    authType: string,
+    origin: UserOrigin,
+    isBot?: boolean
+  ) {
+    if (isBot) {
+      return 'Bot';
+    }
+
     switch (authType) {
       case 'github':
         return 'GitHub';
@@ -116,7 +124,7 @@ const ActionCell = ({
   onReset: (user: User) => void;
   onDelete: (user: User) => void;
 }) => {
-  if (!user.isLocal) {
+  if (user.isBot || !user.isLocal) {
     return <Cell align="right" />;
   }
 

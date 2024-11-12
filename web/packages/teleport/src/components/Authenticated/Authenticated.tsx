@@ -27,6 +27,7 @@ import session from 'teleport/services/websession';
 import { storageService } from 'teleport/services/storageService';
 import { ApiError } from 'teleport/services/api/parseError';
 import { StyledIndicator } from 'teleport/Main';
+import { TrustedDeviceRequirement } from 'teleport/DeviceTrust/types';
 
 import { ErrorDialog } from './ErrorDialogue';
 
@@ -53,7 +54,7 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
     const checkIfUserIsAuthenticated = async () => {
       if (!session.isValid()) {
         logger.warn('invalid session');
-        session.logout(true /* rememberLocation */);
+        session.clearBrowserSession(true /* rememberLocation */);
         return;
       }
 
@@ -62,11 +63,14 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
         if (result.hasDeviceExtensions) {
           session.setIsDeviceTrusted();
         }
+        if (result.requiresDeviceTrust === TrustedDeviceRequirement.REQUIRED) {
+          session.setDeviceTrustRequired();
+        }
         setAttempt({ status: 'success' });
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {
           logger.warn('invalid session');
-          session.logout(true /* rememberLocation */);
+          session.clearBrowserSession(true /* rememberLocation */);
           // No need to update attempt, as `logout` will
           // redirect user to login page.
           return;
@@ -125,7 +129,7 @@ function startActivityChecker(ttl = 0) {
   // ie. browser still openend but all app tabs closed.
   if (isInactive(adjustedTtl)) {
     logger.warn('inactive session');
-    session.logout();
+    session.logoutWithoutSlo();
     return;
   }
 
@@ -135,7 +139,7 @@ function startActivityChecker(ttl = 0) {
   const intervalId = setInterval(() => {
     if (isInactive(adjustedTtl)) {
       logger.warn('inactive session');
-      session.logout();
+      session.logoutWithoutSlo();
     }
   }, ACTIVITY_CHECKER_INTERVAL_MS);
 

@@ -27,6 +27,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -49,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -103,7 +104,7 @@ type SessionContextConfig struct {
 	// This access point should only be used if the identity of the caller will
 	// not affect the result of the RPC. For example, never use it to call
 	// "GetNodes".
-	UnsafeCachedAuthClient auth.ReadProxyAccessPoint
+	UnsafeCachedAuthClient authclient.ReadProxyAccessPoint
 
 	Parent *sessionCache
 	// Resources is a persistent resource store this context is bound to.
@@ -383,7 +384,7 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 	}
 
 	tlsConfig := utils.TLSConfig(c.cfg.Parent.cipherSuites)
-	tlsCert, err := tls.X509KeyPair(c.cfg.Session.GetTLSCert(), c.cfg.Session.GetPriv())
+	tlsCert, err := tls.X509KeyPair(c.cfg.Session.GetTLSCert(), c.cfg.Session.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -420,7 +421,7 @@ func (c *SessionContext) GetUser() string {
 // extendWebSession creates a new web session for this user
 // based on the previous session
 func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionRequest) (types.WebSession, error) {
-	session, err := c.cfg.RootClient.ExtendWebSession(ctx, auth.WebSessionReq{
+	session, err := c.cfg.RootClient.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:            c.cfg.User,
 		PrevSessionID:   c.cfg.Session.GetName(),
 		AccessRequestID: req.AccessRequestID,
@@ -444,7 +445,7 @@ func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, erro
 	if len(cert.ValidPrincipals) == 0 {
 		return nil, nil, trace.BadParameter("expected at least valid principal in certificate")
 	}
-	privateKey, err := ssh.ParseRawPrivateKey(c.cfg.Session.GetPriv())
+	privateKey, err := ssh.ParseRawPrivateKey(c.cfg.Session.GetSSHPriv())
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
@@ -620,7 +621,7 @@ const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
 	proxyClient  authclient.ClientI
-	accessPoint  auth.ReadProxyAccessPoint
+	accessPoint  authclient.ReadProxyAccessPoint
 	servers      []utils.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
@@ -680,7 +681,7 @@ type sessionCache struct {
 	log         logrus.FieldLogger
 	proxyClient authclient.ClientI
 	authServers []utils.NetAddr
-	accessPoint auth.ReadProxyAccessPoint
+	accessPoint authclient.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
 	clock       clockwork.Clock
@@ -901,12 +902,12 @@ func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(user, sessionID stri
 func (s *sessionCache) AuthWithOTP(
 	ctx context.Context,
 	user, pass, otpToken string,
-	clientMeta *auth.ForwardedClientMetadata,
+	clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass:     &auth.PassCreds{Password: []byte(pass)},
-		OTP: &auth.OTPCreds{
+		Pass:     &authclient.PassCreds{Password: []byte(pass)},
+		OTP: &authclient.OTPCreds{
 			Password: []byte(pass),
 			Token:    otpToken,
 		},
@@ -917,11 +918,11 @@ func (s *sessionCache) AuthWithOTP(
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(
-	ctx context.Context, user, pass string, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, user, pass string, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	return s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Pass: &auth.PassCreds{
+		Pass: &authclient.PassCreds{
 			Password: []byte(pass),
 		},
 		ClientMetadata: clientMeta,
@@ -929,9 +930,9 @@ func (s *sessionCache) AuthWithoutOTP(
 }
 
 func (s *sessionCache) AuthenticateWebUser(
-	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *auth.ForwardedClientMetadata,
+	ctx context.Context, req *client.AuthenticateWebUserRequest, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
-	authReq := auth.AuthenticateUserRequest{
+	authReq := authclient.AuthenticateUserRequest{
 		Username:       req.User,
 		ClientMetadata: clientMeta,
 	}
@@ -942,32 +943,34 @@ func (s *sessionCache) AuthenticateWebUser(
 }
 
 func (s *sessionCache) AuthenticateSSHUser(
-	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
-) (*auth.SSHLoginResponse, error) {
-	authReq := auth.AuthenticateUserRequest{
+	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
+) (*authclient.SSHLoginResponse, error) {
+	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
-		PublicKey:      c.PubKey,
+		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
+		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
 	}
 	if c.Password != "" {
-		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
+		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}
 	}
 	if c.WebauthnChallengeResponse != nil {
 		authReq.Webauthn = c.WebauthnChallengeResponse
 	}
 	if c.TOTPCode != "" {
-		authReq.OTP = &auth.OTPCreds{
+		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
 		}
 	}
-	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
+	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
-		AttestationStatement:    c.AttestationStatement,
+		SSHAttestationStatement: c.UserPublicKeys.SSHAttestationStatement,
+		TLSAttestationStatement: c.UserPublicKeys.TLSAttestationStatement,
 	})
 }
 
@@ -976,7 +979,7 @@ func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
 }
 
-func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateRequest *auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error) {
+func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateRequest *authclient.ValidateTrustedClusterRequest) (*authclient.ValidateTrustedClusterResponse, error) {
 	return s.proxyClient.ValidateTrustedCluster(ctx, validateRequest)
 }
 
@@ -1005,7 +1008,6 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	}
 
 	return sctx, nil
-
 }
 
 func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionContext) error {
@@ -1022,13 +1024,7 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: sctx.GetUser()}); err != nil {
 		sessionDeletionErrs = err
 	}
-	if samlSession := sctx.cfg.Session.GetSAMLSession(); samlSession != nil && samlSession.ID != "" {
-		if err := clt.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
-			SessionID: samlSession.ID,
-		}); err != nil && !trace.IsNotFound(err) {
-			sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
-		}
-	}
+
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
 	if err := clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
@@ -1038,14 +1034,7 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 		sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
 	}
 
-	if sessionDeletionErrs != nil {
-		return trace.Wrap(sessionDeletionErrs)
-	}
-
-	if err := s.releaseResources(sctx.GetUser(), sctx.GetSessionID()); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(sessionDeletionErrs)
 }
 
 func (s *sessionCache) getContext(key string) (*SessionContext, bool) {
@@ -1124,9 +1113,9 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 
 // newSessionContext creates a new web session context for the specified user/session ID
 func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID string) (*SessionContext, error) {
-	session, err := s.proxyClient.AuthenticateWebUser(ctx, auth.AuthenticateUserRequest{
+	session, err := s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
-		Session: &auth.SessionCreds{
+		Session: &authclient.SessionCreds{
 			ID: sessionID,
 		},
 	})
@@ -1138,7 +1127,7 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 }
 
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
-	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetPriv())
+	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1326,4 +1315,85 @@ func (c *remoteClientCache) Close() error {
 	c.clients = nil
 
 	return trace.NewAggregate(errors...)
+}
+
+// sessionIDStatus indicates whether the session ID was received from
+// the server or not, and if not why
+type sessionIDStatus int
+
+const (
+	// sessionIDReceived indicates the the session ID was received
+	sessionIDReceived sessionIDStatus = iota + 1
+	// sessionIDNotSent indicates that the server set the session ID
+	// but didn't send it to us
+	sessionIDNotSent
+	// sessionIDNotModified indicates that the server used the session
+	// ID that was set by us
+	sessionIDNotModified
+)
+
+// prepareToReceiveSessionID configures the TeleportClient to listen for
+// the server to send the session ID it's using. The returned function
+// will return the current session ID from the server or a reason why
+// one wasn't received.
+func prepareToReceiveSessionID(ctx context.Context, log *logrus.Entry, nc *client.NodeClient) func() (session.ID, sessionIDStatus) {
+	// send the session ID received from the server
+	var gotSessionID atomic.Bool
+	sessionIDFromServer := make(chan session.ID, 1)
+	nc.TC.OnChannelRequest = func(req *ssh.Request) *ssh.Request {
+		// ignore unrelated requests and handle only the first session
+		// ID request
+		if req.Type != teleport.CurrentSessionIDRequest || gotSessionID.Load() {
+			return req
+		}
+
+		sid, err := session.ParseID(string(req.Payload))
+		if err != nil {
+			log.WithError(err).Warn("Unable to parse session ID.")
+			return nil
+		}
+
+		if gotSessionID.CompareAndSwap(false, true) {
+			sessionIDFromServer <- *sid
+		}
+
+		return nil
+	}
+
+	// If the session is about to close and we haven't received a session
+	// ID yet, ask if the server even supports sending one. Send the
+	// request in a new goroutine so session establishment won't be
+	// blocked on making this request
+	serverWillSetSessionID := make(chan bool, 1)
+	go func() {
+		resp, _, err := nc.Client.SendRequest(ctx, teleport.SessionIDQueryRequest, true, nil)
+		if err != nil {
+			log.WithError(err).Warn("Failed to send session ID query request")
+			serverWillSetSessionID <- false
+		} else {
+			serverWillSetSessionID <- resp
+		}
+	}()
+
+	return func() (session.ID, sessionIDStatus) {
+		timer := time.NewTimer(10 * time.Second)
+		defer timer.Stop()
+
+		for {
+			select {
+			case sessionID := <-sessionIDFromServer:
+				return sessionID, sessionIDReceived
+			case sessionIDIsComing := <-serverWillSetSessionID:
+				if !sessionIDIsComing {
+					return session.ID(""), sessionIDNotModified
+				}
+				// the server will send the session ID, continue
+				// waiting for it
+			case <-ctx.Done():
+				return session.ID(""), sessionIDNotSent
+			case <-timer.C:
+				return session.ID(""), sessionIDNotSent
+			}
+		}
+	}
 }

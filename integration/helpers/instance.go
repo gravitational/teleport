@@ -21,7 +21,6 @@ package helpers
 import (
 	"bytes"
 	"context"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -47,14 +46,16 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -69,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
+	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
 const (
@@ -83,10 +85,10 @@ func fatalIf(err error) {
 }
 
 type User struct {
-	Username      string       `json:"username"`
-	AllowedLogins []string     `json:"logins"`
-	Key           *client.Key  `json:"key"`
-	Roles         []types.Role `json:"-"`
+	Username      string          `json:"username"`
+	AllowedLogins []string        `json:"logins"`
+	KeyRing       *client.KeyRing `json:"key"`
+	Roles         []types.Role    `json:"-"`
 }
 
 type InstanceSecrets struct {
@@ -255,8 +257,8 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 	return []*InstanceSecrets{s}
 }
 
-func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
+func (s *InstanceSecrets) GetIdentity() *state.Identity {
+	i, err := state.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
 		SSH:        s.Cert,
 		TLS:        s.TLSCert,
 		TLSCACerts: [][]byte{s.TLSCACert},
@@ -295,6 +297,13 @@ type TeleInstance struct {
 	Log utils.Logger
 	InstanceListeners
 	Fds []*servicecfg.FileDescriptor
+	// ProcessProvider creates a Teleport process (OSS or Enterprise)
+	ProcessProvider teleportProcProvider
+}
+
+type teleportProcProvider interface {
+	// NewTeleport Create a teleport process OSS or Enterprise.
+	NewTeleport(cfg *servicecfg.Config) (*service.TeleportProcess, error)
 }
 
 // InstanceConfig is an instance configuration
@@ -335,24 +344,27 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	// generate instance secrets (keys):
-	keygen := keygen.New(context.TODO())
 	if cfg.Priv == nil || cfg.Pub == nil {
-		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair()
+		privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		fatalIf(err)
+		cfg.Priv = privateKey.PrivateKeyPEM()
+		cfg.Pub = privateKey.MarshalSSHPublicKey()
 	}
-	rsaKey, err := ssh.ParseRawPrivateKey(cfg.Priv)
+	key, err := keys.ParsePrivateKey(cfg.Priv)
 	fatalIf(err)
 
-	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(rsaKey.(*rsa.PrivateKey), pkix.Name{
+	tlsCACert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
 		CommonName:   cfg.ClusterName,
 		Organization: []string{cfg.ClusterName},
 	}, nil, defaults.CATTL)
 	fatalIf(err)
 
-	signer, err := ssh.ParsePrivateKey(cfg.Priv)
+	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
+	keygen := keygen.New(context.TODO())
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
-		CASigner:      signer,
+		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
 		HostID:        cfg.HostID,
 		NodeName:      cfg.NodeName,
@@ -433,7 +445,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -450,7 +462,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 		tconf = servicecfg.MakeDefaultConfig()
 	}
 	if tconf.InstanceMetadataClient == nil {
-		tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+		tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	}
 	tconf.Log = i.Log
 	tconf.DataDir = dataDir
@@ -596,11 +608,26 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 	return i.CreateWithConf(t, tconf)
 }
 
+func (i *TeleInstance) createTeleportProcess(tconf *servicecfg.Config) (*service.TeleportProcess, error) {
+	if i.ProcessProvider == nil {
+		p, err := service.NewTeleport(tconf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return p, nil
+	}
+	p, err := i.ProcessProvider.NewTeleport(tconf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return p, nil
+}
+
 // CreateWithConf creates a new instance of Teleport using the supplied config
 func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
 	i.Config = tconf
 	var err error
-	i.Process, err = service.NewTeleport(tconf)
+	i.Process, err = i.createTeleportProcess(tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1005,7 +1032,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 		},
 	}
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -1098,7 +1125,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
 	// apply options
 	for _, o := range opts {
@@ -1558,7 +1585,7 @@ func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 // SSH establishes an SSH connection via the web api in the same manner that
 // the web UI does. The returned [web.TerminalStream] should be used as stdin/stdout
 // for the session.
-func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error) {
+func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 	u := url.URL{
 		Host:   w.i.Web,
 		Scheme: client.WSS,
@@ -1594,7 +1621,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 	}
 
 	defer resp.Body.Close()
-	return web.NewTerminalStream(context.Background(), web.TerminalStreamConfig{WS: ws}), nil
+	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.
@@ -1617,7 +1644,7 @@ func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg Clien
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	err = tc.AddKey(&creds.Key)
+	err = tc.AddKeyRing(&creds.KeyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

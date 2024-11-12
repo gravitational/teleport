@@ -22,14 +22,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 
@@ -138,62 +136,7 @@ func TestUpsertServer(t *testing.T) {
 			addServers(s.GetAuthServers())
 			addServers(s.GetNodes(ctx, apidefaults.Namespace))
 			addServers(s.GetProxies())
-			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
-		})
-	}
-}
-
-func TestUpsertUser(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-
-	role, err := types.NewRole("role-that-exists", types.RoleSpecV6{})
-	require.NoError(t, err)
-	role, err = testSrv.Auth().CreateRole(ctx, role)
-	require.NoError(t, err)
-
-	c, err := testSrv.NewClient(TestAdmin())
-	require.NoError(t, err)
-	defer c.Close()
-
-	tests := []struct {
-		desc      string
-		role      string
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			desc:      "existing role",
-			role:      role.GetName(),
-			assertErr: require.NoError,
-		}, {
-			desc: "role that doesn't exist",
-			role: "some-other-role",
-			assertErr: func(t require.TestingT, err error, args ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
-			},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
-
-			inUsr, err := services.MarshalUser(&types.UserV2{
-				Metadata: types.Metadata{Name: fmt.Sprintf("test-user-%s", tt.role), Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindUser,
-				Spec: types.UserSpecV2{
-					Roles: []string{tt.role},
-				},
-			})
-			require.NoError(t, err)
-
-			_, err = c.HTTPClient.PostJSON(ctx, c.Endpoint("users"), &upsertUserRawReq{
-				User: inUsr,
-			})
-			tt.assertErr(t, err)
+			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 		})
 	}
 }

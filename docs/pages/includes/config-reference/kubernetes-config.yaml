@@ -11,10 +11,10 @@ kubernetes_service:
     # Optional kubeconfig_file and kube_cluster_name. Exactly one of these must
     # be set.
     #
-    # When running teleport outside of the kubernetes cluster, use
+    # When running teleport outside of the Kubernetes cluster, use
     # kubeconfig_file to provide teleport with cluster credentials.
     #
-    # When running teleport inside of the kubernetes cluster pod, use
+    # When running teleport inside of the Kubernetes cluster pod, use
     # kube_cluster_name to provide a user-visible name. Teleport uses the pod
     # service account credentials to authenticate to its local kubernetes API.
     kubeconfig_file: /secrets/kubeconfig
@@ -24,6 +24,11 @@ kubernetes_service:
     resources:
     - labels:
         "*": "*"
+      # Optional AWS role that the Teleport Kubernetes Service will assume to access
+      # EKS clusters.
+      aws:
+        assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+        external_id: "example-external-id"
     # Optional labels: These can be used in combination with RBAC rules
     # to limit access to applications.
     # When using kubeconfig_file above, these labels apply to all kubernetes

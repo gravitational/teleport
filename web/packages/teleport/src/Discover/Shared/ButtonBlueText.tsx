@@ -20,10 +20,13 @@ import styled from 'styled-components';
 
 import { ButtonText } from 'design';
 
+// TODO(bl-nero): These buttons are used in a situation where there's an error
+// message and the button is responsible for retrying the operation. Convert
+// this to the new alert-with-button UI pattern.
 export const ButtonBlueText = styled(ButtonText)`
   color: ${({ theme }) => theme.colors.buttons.link.default};
   font-weight: normal;
-  padding-left: 0;
+  padding: 0;
   font-size: inherit;
   min-height: auto;
 `;

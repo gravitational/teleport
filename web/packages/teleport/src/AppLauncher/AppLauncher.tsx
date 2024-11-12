@@ -35,12 +35,37 @@ export function AppLauncher() {
   const pathParams = useParams<UrlLauncherParams>();
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
+  const isRedirectFlow = queryParams.get('required-apps');
 
   const createAppSession = useCallback(async (params: UrlLauncherParams) => {
     let fqdn = params.fqdn;
     const port = location.port ? `:${location.port}` : '';
 
     try {
+      // TODO (avatus): see if we can get appDetails inside the initial /web/launch
+      // fetch request and remove the need for this second request.
+
+      // Attempt to resolve the fqdn of the app, if we can't then an error
+      // will be returned preventing a redirect to a potentially arbitrary
+      // address. Compare the resolved fqdn with the one that was passed,
+      // if they don't match then the public address was used to find the
+      // resolved fqdn, and the passed fdqn isn't valid.
+      const resolvedApp = await service.getAppDetails({
+        fqdn: params.fqdn,
+        clusterId: params.clusterId,
+        publicAddr: params.publicAddr,
+        arn: params.arn,
+      });
+      // Because the ports are stripped from the FQDNs before they are
+      // compared, an attacker can pass a FQDN with a different port than
+      // what the app's public address is configured with and have Teleport
+      // redirect to the public address with an arbitrary port. But because
+      // the attacker can't control what domain is redirected to this has
+      // a low risk factor.
+      if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
+        throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
+      }
+
       let path = '';
       if (queryParams.has('path')) {
         path = queryParams.get('path');
@@ -54,15 +79,25 @@ export function AppLauncher() {
         }
       }
 
+      let requiredApps = resolvedApp.requiredAppFQDNs || [];
+      if (isRedirectFlow !== null) {
+        requiredApps = isRedirectFlow.split(',');
+      }
+
       // Let the target app know of a new auth exchange.
       const stateToken = queryParams.get('state');
       if (!stateToken) {
-        initiateNewAuthExchange({ fqdn, port, path, params });
+        initiateNewAuthExchange({
+          fqdn,
+          port,
+          path,
+          params,
+          requiredApps,
+        });
         return;
       }
 
       // Continue the auth exchange.
-
       if (params.arn) {
         params.arn = decodeURIComponent(params.arn);
       }
@@ -72,6 +107,9 @@ export function AppLauncher() {
       const url = getXTeleportAuthUrl({ fqdn, port });
       url.searchParams.set('state', stateToken);
       url.searchParams.set('subject', session.subjectCookieValue);
+      if (requiredApps.length > 1) {
+        url.searchParams.set('required-apps', requiredApps.join(','));
+      }
       url.hash = `#value=${session.cookieValue}`;
 
       if (path) {
@@ -87,6 +125,8 @@ export function AppLauncher() {
       if (err instanceof TypeError) {
         // `fetch` returns `TypeError` when there is a network error.
         statusText = `Unable to access "${fqdn}". This may happen if your Teleport Proxy is using untrusted or self-signed certificate. Please ensure Teleport Proxy service uses valid certificate or access the application domain directly (https://${fqdn}${port}) and accept the certificate exception from your browser.`;
+      } else if (isRedirectFlow) {
+        statusText = `Error while authenticating a required app: ${err.message}`;
       } else if (err instanceof Error) {
         statusText = err.message;
       }
@@ -125,8 +165,30 @@ export function AppLauncherAccessDenied(props: AppLauncherAccessDeniedProps) {
   return <AccessDenied message={props.statusText} />;
 }
 
+// prepareFqdn removes the port from the FQDN if it has one and ensures
+// the FQDN is lowercase. This is to prevent issues matching the
+// resolved fqdn with the one that was passed. Apps generally aren't
+// supposed to have a port in the public address but some integrations
+// create apps that do. The FQDN is also lowercased to prevent
+// issues with case sensitivity.
+function prepareFqdn(fqdn: string) {
+  try {
+    const fqdnUrl = new URL('https://' + fqdn);
+    fqdnUrl.port = '';
+    // The returned FQDN will have a scheme added to it, but that's
+    // fine because we're just using it to compare the FQDNs.
+    return fqdnUrl.toString().toLowerCase();
+  } catch (err) {
+    throwFailedToParseUrlError(err);
+  }
+}
+
 function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
-  return new URL(`https://${fqdn}${port}/x-teleport-auth`);
+  try {
+    return new URL(`https://${fqdn}${port}/x-teleport-auth`);
+  } catch (err) {
+    throwFailedToParseUrlError(err);
+  }
 }
 
 // initiateNewAuthExchange is the first step to gaining access to an
@@ -143,6 +205,7 @@ function initiateNewAuthExchange({
   port,
   params,
   path,
+  requiredApps,
 }: {
   fqdn: string;
   port: string;
@@ -156,11 +219,16 @@ function initiateNewAuthExchange({
   // The path preserves both the path and query params of
   // the original request.
   path: string;
+  requiredApps: string[];
 }) {
   const url = getXTeleportAuthUrl({ fqdn, port });
 
   if (path) {
     url.searchParams.set('path', path);
+  }
+
+  if (requiredApps.length > 1) {
+    url.searchParams.set('required-apps', requiredApps.join(','));
   }
 
   // Preserve "params" so that the initial auth exchange can
@@ -181,4 +249,8 @@ function initiateNewAuthExchange({
   }
 
   window.location.replace(url.toString());
+}
+
+function throwFailedToParseUrlError(err: TypeError) {
+  throw Error(`Failed to parse URL: ${err.message}`);
 }

@@ -78,14 +78,16 @@ export interface App {
      * under the proxy hostname of the cluster to which the app belongs, e.g.,
      * dumper.root-cluster.com, example-app.leaf-cluster.org.
      *
-     * In both cases public_addr does not include a port number. An app resource cannot include a port
-     * number in its public_addr, as the backend will (wrongly) reject such resource with an error
-     * saying "public_addr "example.com:1337" can not contain a port, applications will be available
-     * on the same port as the web proxy". This is obviously not the case for custom public addresses.
-     * Ultimately, it means that public_addr alone is not enough to access the app, unless either the
-     * cluster or the custom domain use the default port of 443.
+     * In both cases public_addr does not include a port number. This is all cool and fine if the
+     * actual public address and the proxy service share the default port 443. In a scenario where the
+     * proxy uses a non-standard port like 3080 and the public address uses 443, it might cause
+     * problems. public_addr of an app resource cannot include a port number. The backend will reject
+     * such app resource with an error saying "public_addr "example.com:1337" can not contain a port,
+     * applications will be available on the same port as the web proxy". This is not always the case
+     * for custom public addresses. Ultimately, it means that public_addr alone might not be enough to
+     * access the app if either the cluster or the custom address use a port number other than 443.
      *
-     * Always empty for SAML applications.
+     * public_addr is always empty for SAML applications.
      *
      * @generated from protobuf field: string public_addr = 6;
      */

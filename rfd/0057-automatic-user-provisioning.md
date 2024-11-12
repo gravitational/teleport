@@ -412,3 +412,29 @@ spec:
     node_labels:
       - 'env': 'example'
 ```
+
+## Update: tag `keep` users and reconcile groups for existing users
+
+This will add a new teleport system group named `teleport-keep` which
+will be assigned to host users created with `create_host_user_mode: keep`.
+Adding a new group will make it possible to differentiate between
+`insecure-drop` users, `keep` users, and users not managed by Teleport.
+This makes it possible to apply any group changes made against the role to
+previously created `keep` users without risk of modifying unmanaged users.
+
+This requires a migration of existing `keep` users created with prior
+versions of Teleport. In order to make this easier, we can support
+automatic migration of users on login by assigning the `teleport-keep`
+group directly in the role.
+
+```yaml
+kind: role
+version: v5
+spec:
+  options:
+    host_groups: [teleport-keep ubuntu ec2-user]
+```
+
+The `teleport-system` group, used to identify `insecure-drop` users, will
+_not_ be directly assignable as this would effectively flag a host user for
+deletion.

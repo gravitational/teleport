@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 func TestDeployServiceRequest(t *testing.T) {
@@ -152,7 +153,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				TaskName:                stringPointer("mycluster-teleport-database-service"),
 				DeploymentJoinTokenName: "discover-aws-oidc-iam-token",
 				IntegrationName:         "teleportdev",
-				ResourceCreationTags: AWSTags{
+				ResourceCreationTags: tags.AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "teleportdev",
@@ -237,7 +238,9 @@ func TestUpsertTask(t *testing.T) {
 		},
 	}
 
-	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{})
+	semVer := *teleport.SemVersion
+	semVer.PreRelease = ""
+	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{TeleportVersionTag: semVer.String()})
 	require.NoError(t, err)
 	require.Equal(t, expected, taskDefinition.ContainerDefinitions[0].Environment)
 }

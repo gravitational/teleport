@@ -72,7 +72,7 @@ describe('connectGitHub Component', () => {
       screen.getByText('Name of the GitHub Actions Workflow')
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText('cd')).toBeInTheDocument();
-    expect(screen.getByText('Environmnet')).toBeInTheDocument();
+    expect(screen.getByText('Environment')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('development')).toBeInTheDocument();
     expect(screen.getByText('Restrict to a GitHub User')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('octocat')).toBeInTheDocument();

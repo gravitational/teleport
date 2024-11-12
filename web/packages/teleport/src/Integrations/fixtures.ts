@@ -132,6 +132,46 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'entra-id',
+    details: '',
+    kind: 'entra-id',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'datadog',
+    details: '',
+    kind: 'datadog',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'pagerduty',
+    details: '',
+    kind: 'pagerduty',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'email',
+    details: '',
+    kind: 'email',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'msteams',
+    details: '',
+    kind: 'msteams',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [
@@ -144,14 +184,10 @@ export const integrations: Integration[] = [
   },
   {
     resourceType: 'integration',
-    name: 'aws',
-    kind: IntegrationKind.AwsOidc,
+    name: 'azure',
+    kind: IntegrationKind.AzureOidc,
     statusCode: IntegrationStatusCode.Running,
-    spec: {
-      roleArn: 'some-role-arn',
-      issuerS3Prefix: 'some-prefix',
-      issuerS3Bucket: 'some-bucket',
-    },
+    spec: { roleArn: '' },
   },
 ];
 

@@ -17,18 +17,19 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Text, Box, Flex } from 'design';
+import { Text, Box, Flex, Mark } from 'design';
 
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
+import { P } from 'design/Text/Text';
+
 import {
   ActionButtons,
   HeaderSubtitle,
   LabelsCreater,
-  Mark,
   Header,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
@@ -57,6 +58,7 @@ export function CreateDatabaseView({
   isDbCreateErr,
   prevStep,
   nextStep,
+  handleOnTimeout,
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
@@ -74,7 +76,10 @@ export function CreateDatabaseView({
     }
   }, [isDbCreateErr]);
 
-  function handleOnProceed(validator: Validator, retry = false) {
+  function handleOnProceed(
+    validator: Validator,
+    { overwriteDb = false, retry = false } = {}
+  ) {
     if (!validator.validate()) {
       return;
     }
@@ -85,12 +90,15 @@ export function CreateDatabaseView({
       return;
     }
 
-    registerDatabase({
-      labels,
-      name: dbName,
-      uri: `${dbUri}:${dbPort}`,
-      protocol: getDatabaseProtocol(dbEngine),
-    });
+    registerDatabase(
+      {
+        labels,
+        name: dbName,
+        uri: `${dbUri}:${dbPort}`,
+        protocol: getDatabaseProtocol(dbEngine),
+      },
+      { overwriteDb }
+    );
   }
 
   return (
@@ -103,12 +111,11 @@ export function CreateDatabaseView({
           </HeaderSubtitle>
           {!canCreateDatabase && (
             <Box>
-              <Text>
-                You don't have permission to register a database.
-                <br />
+              <P>You don't have permission to register a database.</P>
+              <P>
                 Please ask your Teleport administrator to update your role and
                 add the <Mark>db</Mark> rule:
-              </Text>
+              </P>
               <Flex minHeight="195px" mt={3}>
                 <TextEditor
                   readOnly={true}
@@ -188,7 +195,11 @@ export function CreateDatabaseView({
             <CreateDatabaseDialog
               pollTimeout={pollTimeout}
               attempt={attempt}
-              retry={() => handleOnProceed(validator, true /* retry */)}
+              retry={() => handleOnProceed(validator, { retry: true })}
+              onOverwrite={() =>
+                handleOnProceed(validator, { overwriteDb: true })
+              }
+              onTimeout={handleOnTimeout}
               close={clearAttempt}
               dbName={dbName}
               next={nextStep}

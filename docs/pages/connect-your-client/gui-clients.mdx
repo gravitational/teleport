@@ -14,23 +14,44 @@ work with Teleport.
 
 - (!docs/pages/includes/tctl.mdx!)
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../database-access/guides.mdx) for how to set up the Teleport
+  [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
 ### Get connection information
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+Get information about the host and port where your database is available so you
+can configure your GUI client to access the database.
 
-<Tabs>
-<TabItem label="Authenticated Proxy">
+#### Using a local proxy server
+
+Use the `tsh proxy db` command to start a local TLS proxy your GUI database
+client will be connecting to. This command requires that you use Teleport
+Enterprise (Cloud) or, if self-hosting Teleport, have enabled [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx) mode.
+
+Run a command similar to the following::
+
+```code
+$ tsh proxy db <database-name>
+Started DB proxy on 127.0.0.1:61740
+
+Use following credentials to connect to the <database-name> proxy:
+  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
+```
+
+Use the displayed local proxy host/port and credentials paths when configuring
+your GUI client below. When entering the hostname, use `localhost` rather than
+`127.0.0.1`.
+
 Starting the local database proxy with the `--tunnel` flag will create an
 authenticated tunnel that you can use to connect to your database instances.
 You won't need to configure any credentials when connecting to this tunnel.
 
 Here is an example on how to start the proxy:
 
-```bash
+```code
 # Start the local proxy.
 $ tsh proxy db --tunnel <database-name>
 Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
@@ -46,30 +67,11 @@ $ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database
 Now, you can connect to the address the proxy command returns. In our example it
 is `127.0.0.1:62652`.
 
-</TabItem>
-<TabItem label="TLS routing">
-If you're using Teleport in [TLS routing](../management/operations/tls-routing.mdx)
-mode where each database protocol is multiplexed on the same web proxy port, use
-the following command to start a local TLS proxy your GUI database client will
-be connecting to:
+#### Using a remote host and port
 
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-</TabItem>
-<TabItem label="Separate ports">
-If you're not using TLS routing, run the following command to see the database
-connection information:
+If you are self-hosting Teleport and not using [TLS
+routing](../admin-guides/management/operations/tls-routing.mdx), run the
+following command to see the database connection information:
 
 ```code
 # View configuration for the database you're logged in to.
@@ -94,32 +96,6 @@ Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
-</TabItem>
-</Tabs>
-
-</TabItem>
-<TabItem scope="cloud" label="Teleport Enterprise Cloud">
-
-Use the following command to start a local TLS proxy your GUI database client
-will be connecting to:
-
-```code
-$ tsh proxy db <database-name>
-Started DB proxy on 127.0.0.1:61740
-
-Use following credentials to connect to the <database-name> proxy:
-  ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
-  key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
-```
-
-Use the displayed local proxy host/port and credentials paths when configuring
-your GUI client below. When entering the hostname, use `localhost` rather than
-`127.0.0.1`.
-
-</TabItem>
-
-</Tabs>
 
 ## MongoDB Compass
 
@@ -143,6 +119,15 @@ provided and be able to validate the certificate presented by your Teleport
 Proxy Service's web endpoint.
 
 ![MongoDB Compass more options](../../img/database-access/compass-more-options@2x.png)
+
+The following fields in the More Options tab must correspond to paths printed by
+the `tsh proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|Certificate Authority|`ca_file`|
+|Client Certificate|`cert_file`|
+|Client Private Key|`key_file`|
 
 Click on the "Connect" button.
 
@@ -191,6 +176,15 @@ paths to your CA, certificate, and private key files (see
 [Get connection information](./gui-clients.mdx#get-connection-information)):
 
 ![MySQL Workbench SSL](../../img/database-access/workbench-ssl@2x.png)
+
+The following fields in the SSL tab must correspond to paths printed by the `tsh
+proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|SSL Key File|`key_file`|
+|SSL CERT File|`cert_file`|
+|SSL CA File|`ca_file`|
 
 Optionally, click "Test Connection" to verify connectivity:
 
@@ -270,6 +264,15 @@ certificate, key and root certificate from the configuration above:
 
 ![pgAdmin SSL](../../img/database-access/pgadmin-ssl@2x.png)
 
+The following fields in the SSL tab must correspond to paths printed by the `tsh
+proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|Client certificate|`cert_file`|
+|Client certificate key|`key_file`|
+|Root certificate|`ca_file`|
+
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
 
@@ -317,8 +320,16 @@ Provide your Redis username as `Username` and password as `Password`.
 
 ![Redis Insight Configuration](../../img/database-access/guides/redis/redisinsight-add-config.png)
 
-Next, check the `Use TLS` and `Verify TLS Certificates` boxes and copy the CA certificate returned by `tsh proxy db`.
-Copy the private key and certificate to corresponding fields.
+Next, check the `Use TLS` and `Verify TLS Certificates` boxes. Copy the contents
+of the files at the paths returned by the `tsh proxy db` command you ran earlier
+and paste them into their corresponding fields. See the table below for the
+Redis Insight fields that correspond to each path:
+
+|Field|Path|
+|---|---|
+|CA Certificate|`ca_file`|
+|Client Certificate|`cert_file`|
+|Private Key|`key_file`|
 
 Click `Add Redis Database`.
 
@@ -422,3 +433,88 @@ Use the SQL Server Authentication option and keep the Password field empty:
 
 Click OK to connect.
 
+## Cloud Spanner DataGrip
+
+(!docs/pages/includes/database-access/gui-clients/spanner-local-proxy.mdx!)
+
+From the DataGrip menu, click "File > New > Data Source from URL", then copy and
+paste the JDBC URL that was output by `tsh proxy db`:
+
+![Create DataGrip Spanner Data Source From JDBC URL](../../img/database-access/spanner-gui/datagrip-data-source-from-jdbc-url@2x.png)
+
+The "Google Cloud Spanner" driver should be automatically selected.
+Click "Ok".
+
+DataGrip does not need GCP credentials - those are already provided by Teleport.
+On the "General" tab of the new data source, select the "Authentication"
+dropdown setting and choose "No auth":
+
+![Choose No Auth For DataGrip Spanner Data Source](../../img/database-access/spanner-gui/datagrip-choose-no-auth@2x.png)
+
+Click "Test connection" to ensure the connection is configured correctly, then
+click "Ok" to create the data source.
+
+(!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
+
+## Cloud Spanner DBeaver
+
+(!docs/pages/includes/database-access/gui-clients/spanner-local-proxy.mdx!)
+
+From the menu, click "Database > Driver Manager":
+
+![Open DBeaver Driver Manager](../../img/database-access/spanner-gui/dbeaver-open-driver-manager@2x.png)
+
+Search for the "Google Cloud Spanner" driver, select it, and click the "Copy"
+button to make a custom driver configuration:
+
+![Copy DBeaver Google Spanner Driver](../../img/database-access/spanner-gui/dbeaver-copy-spanner-driver@2x.png)
+
+Give the custom driver a name, e.g. "Teleport Spanner", then set "URL Template"
+to this pattern string:
+
+```code
+jdbc:cloudspanner://127.0.0.1:{port}/projects/{server}/instances/{host}/databases/{database};usePlainText=true
+```
+
+![Create Custom DBeaver Google Spanner Driver](../../img/database-access/spanner-gui/dbeaver-create-spanner-driver@2x.png)
+
+Click "Ok", then click "Close"
+
+From the menu, click "Database > New Connection from JDBC URL":
+
+Now copy the JDBC URL that was output by `tsh proxy db` and paste it:
+
+![Create DBeaver Spanner Connection From JDBC URL](../../img/database-access/spanner-gui/dbeaver-connection-from-jdbc-url@2x.png)
+
+Click "Proceed", then click "Finish".
+
+(!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
+
+## Oracle SQL Developer
+
+The Oracle integration works only in the authenticated proxy mode. Start a local proxy for connections to your Oracle database by using the command below:
+```
+tsh proxy db --tunnel --port 1521 --db-user=<user> --db-name=<db-name> oracle
+```
+
+<Notice type="tip">
+This command uses the local port 1521, but you can choose any port, or let
+`tsh` pick a local port at random if you omit the `--port` flag.
+You should specify a port to avoid the need to reconfigure your GUI client again
+later.
+</Notice>
+
+In "Connections" click the "+" button for a new database connection:
+
+![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/oracle-sql-developer-add-database.png)
+
+Next, set the name and username from the `--db-user` parameter. Set connection type to "Custom JDBC" and 
+set the "Custom JDBC URL" from the `tsh proxy db` command.
+
+![Oracle SQL Developer](../../img/database-access/guides/oracle/oracle-sql-developer-general.png)
+
+Now you can click "Test" to check your configuration.
+
+![Oracle SQL Developer Success](../../img/database-access/guides/oracle/oracle-sql-developer-success.png)
+
+Congratulations! You have just connected to your Oracle instance.

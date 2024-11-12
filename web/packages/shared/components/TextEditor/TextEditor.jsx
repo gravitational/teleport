@@ -55,6 +55,9 @@ class TextEditor extends React.Component {
     if (prevProps.activeIndex !== this.props.activeIndex) {
       this.setActiveSession(this.props.activeIndex);
     }
+    if (prevProps.readOnly !== this.props.readOnly) {
+      this.editor.setReadOnly(this.props.readOnly);
+    }
 
     this.editor.resize();
   }

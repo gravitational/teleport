@@ -18,7 +18,7 @@
 
 import React, { useMemo, useRef } from 'react';
 import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
+import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
 
@@ -65,14 +65,13 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   const $errors = hasError && (
     <Flex flexDirection="column" gap={2} mb={3}>
       {props.changeDbNameAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the database name:{' '}
-          {props.changeDbNameAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changeDbNameAttempt.statusText}>
+          Could not change the database name
         </Alerts.Danger>
       )}
       {props.changePortAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the port number: {props.changePortAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changePortAttempt.statusText}>
+          Could not change the port number
         </Alerts.Danger>
       )}
     </Flex>
@@ -81,14 +80,12 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
-        <Text typography="h3">Database Connection</Text>
+        <H1>Database Connection</H1>
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
       </Flex>
-      <Text typography="h4" mb={1}>
-        Connect with CLI
-      </Text>
+      <H2 mb={2}>Connect with CLI</H2>
       <Flex as="form" ref={formRef}>
         <Validation>
           <PortFieldInput
@@ -113,9 +110,9 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         onButtonClick={props.runCliCommand}
       />
       {$errors}
-      <Text typography="h4" mt={3} mb={1}>
+      <H2 mt={3} mb={2}>
         Connect with GUI
-      </Text>
+      </H2>
       <Text
         // Break long usernames rather than putting an ellipsis.
         css={`

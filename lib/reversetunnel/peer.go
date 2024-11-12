@@ -30,10 +30,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 func newClusterPeers(clusterName string) *clusterPeers {
@@ -83,7 +83,7 @@ func (p *clusterPeers) removePeer(connInfo types.TunnelConnection) {
 	delete(p.peers, connInfo.GetName())
 }
 
-func (p *clusterPeers) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (p *clusterPeers) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,7 +91,7 @@ func (p *clusterPeers) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error)
 	return peer.CachingAccessPoint()
 }
 
-func (p *clusterPeers) NodeWatcher() (*services.NodeWatcher, error) {
+func (p *clusterPeers) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,11 +199,11 @@ func (s *clusterPeer) setConnInfo(ci types.TunnelConnection) {
 	s.connInfo = ci
 }
 
-func (s *clusterPeer) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *clusterPeer) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
+func (s *clusterPeer) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 

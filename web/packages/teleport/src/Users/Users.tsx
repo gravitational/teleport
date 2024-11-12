@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Indicator, Box, ButtonPrimary, Alert } from 'design';
+import { Indicator, Box, Alert, Button, Link } from 'design';
 
 import {
   FeatureBox,
@@ -46,6 +46,8 @@ export function Users(props: State) {
     onStartDelete,
     onStartEdit,
     onStartReset,
+    showMauInfo,
+    onDismissUsersMauNotice,
     onClose,
     onCreate,
     onUpdate,
@@ -65,18 +67,30 @@ export function Users(props: State) {
         {attempt.isSuccess && (
           <>
             {!InviteCollaborators && (
-              <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
-                Create New User
-              </ButtonPrimary>
-            )}
-            {InviteCollaborators && (
-              <ButtonPrimary
+              <Button
+                intent="primary"
+                fill="border"
                 ml="auto"
                 width="240px"
-                onClick={onStartInviteCollaborators}
+                onClick={onStartCreate}
+              >
+                Create New User
+              </Button>
+            )}
+            {InviteCollaborators && (
+              <Button
+                intent="primary"
+                fill="border"
+                ml="auto"
+                width="240px"
+                // TODO(bl-nero): There may be a bug here that used to be hidden
+                // by inadequate type checking; investigate and fix.
+                onClick={
+                  onStartInviteCollaborators as any as React.MouseEventHandler<HTMLButtonElement>
+                }
               >
                 Enroll Users
-              </ButtonPrimary>
+              </Button>
             )}
           </>
         )}
@@ -85,6 +99,40 @@ export function Users(props: State) {
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
+      )}
+      {showMauInfo && (
+        <Alert
+          data-testid="users-not-mau-alert"
+          dismissible
+          onDismiss={onDismissUsersMauNotice}
+          kind="info"
+          css={`
+            a.external-link {
+              color: ${({ theme }) => theme.colors.buttons.link.default};
+            }
+          `}
+        >
+          The users displayed here are not an accurate reflection of Monthly
+          Active Users (MAU). For example, users who log in through Single
+          Sign-On (SSO) providers such as Okta may only appear here temporarily
+          and disappear once their sessions expire. For more information, read
+          our documentation on{' '}
+          <Link
+            target="_blank"
+            href="https://goteleport.com/docs/usage-billing/#monthly-active-users"
+            className="external-link"
+          >
+            MAU
+          </Link>{' '}
+          and{' '}
+          <Link
+            href="https://goteleport.com/docs/reference/user-types/"
+            className="external-link"
+          >
+            User Types
+          </Link>
+          .
+        </Alert>
       )}
       {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}
       {attempt.isSuccess && (

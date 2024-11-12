@@ -22,6 +22,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { Validator, useValidation } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import * as Icons from 'design/Icon';
+import { inputGeometry } from 'design/Input/Input';
 
 export type Label = {
   name: string;
@@ -93,15 +94,19 @@ export function LabelsInput({
 
   const requiredUniqueKey = value => () => {
     // Check for empty length and duplicate key.
+    // TODO(bl-nero): This function doesn't really check for uniqueness; it
+    // needs to be fixed. This control should probably be merged with
+    // `LabelsCreater`, which has this feature working correctly.
     let notValid = !value || value.length === 0;
 
     return {
       valid: !notValid,
-      message: '', // err msg doesn't matter as it isn't diaplsyed.
+      message: 'required',
     };
   };
 
   const width = `${inputWidth}px`;
+  const inputSize = 'medium';
   return (
     <>
       {labels.length > 0 && (
@@ -118,9 +123,9 @@ export function LabelsInput({
         {labels.map((label, index) => {
           return (
             <Box mb={2} key={index}>
-              <Flex alignItems="center">
+              <Flex alignItems="start">
                 <FieldInput
-                  Input
+                  size={inputSize}
                   rule={requiredUniqueKey}
                   autoFocus={autoFocus}
                   value={label.name}
@@ -132,6 +137,7 @@ export function LabelsInput({
                   readonly={disableBtns}
                 />
                 <FieldInput
+                  size={inputSize}
                   rule={requiredField('required')}
                   value={label.value}
                   placeholder={labelVal.placeholder}
@@ -141,20 +147,29 @@ export function LabelsInput({
                   onChange={e => handleChange(e, index, 'value')}
                   readonly={disableBtns}
                 />
-                <ButtonIcon
-                  size={1}
-                  title={`Remove ${adjective}`}
-                  onClick={() => removeLabel(index)}
-                  css={`
-                    &:disabled {
-                      opacity: 0.65;
-                      pointer-events: none;
-                    }
-                  `}
-                  disabled={disableBtns}
+                {/* Force the trash button container to be the same height as an
+                    input. We can't just set `alignItems="center"` on the parent
+                    flex container above, because the field can expand when
+                    showing a validation error. */}
+                <Flex
+                  alignItems="center"
+                  height={inputGeometry[inputSize].height}
                 >
-                  <Icons.Trash size="medium" />
-                </ButtonIcon>
+                  <ButtonIcon
+                    size={1}
+                    title={`Remove ${adjective}`}
+                    onClick={() => removeLabel(index)}
+                    css={`
+                      &:disabled {
+                        opacity: 0.65;
+                        pointer-events: none;
+                      }
+                    `}
+                    disabled={disableBtns}
+                  >
+                    <Icons.Trash size="medium" />
+                  </ButtonIcon>
+                </Flex>
               </Flex>
             </Box>
           );
@@ -165,18 +180,6 @@ export function LabelsInput({
           e.preventDefault();
           addLabel();
         }}
-        css={`
-          text-transform: none;
-          font-weight: normal;
-          &:disabled {
-            .icon-add {
-              opacity: 0.35;
-            }
-            pointer-events: none;
-          }
-          &:hover {
-          }
-        `}
         disabled={disableBtns}
         gap={1}
       >

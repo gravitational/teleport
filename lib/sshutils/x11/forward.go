@@ -22,49 +22,18 @@ package x11
 
 import (
 	"context"
-	"io"
-	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/lib/sshutils"
 )
 
-// forwardIO forwards io between two XServer connections until
-// one of the connections is closed. If the ctx is closed early,
-// the function will return, but forwarding will continue until
-// the XServer connnections are closed.
-func Forward(ctx context.Context, client, server XServerConn) error {
-	errs := make(chan error)
-	var wg sync.WaitGroup
+const (
+	// ForwardRequest is a request to initiate X11 forwarding.
+	ForwardRequest = "x11-req"
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, err := io.Copy(client, server)
-		errs <- trace.Wrap(err)
-		// Send other goroutine an EOF
-		err = client.CloseWrite()
-		errs <- trace.Wrap(err)
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, err := io.Copy(server, client)
-		errs <- trace.Wrap(err)
-		// Send other goroutine an EOF
-		err = server.CloseWrite()
-		errs <- trace.Wrap(err)
-	}()
-
-	go func() {
-		wg.Wait()
-		close(errs)
-	}()
-
-	return trace.NewAggregateFromChannel(errs, ctx)
-}
+	// ChannelRequest is the type of an X11 forwarding channel.
+	ChannelRequest = "x11"
+)
 
 // ForwardRequestPayload according to http://www.ietf.org/rfc/rfc4254.txt
 type ForwardRequestPayload struct {
@@ -93,7 +62,7 @@ func RequestForwarding(sess *ssh.Session, xauthEntry *XAuthEntry) error {
 		ScreenNumber: uint32(xauthEntry.Display.ScreenNumber),
 	}
 
-	ok, err := sess.SendRequest(sshutils.X11ForwardRequest, true, ssh.Marshal(payload))
+	ok, err := sess.SendRequest(ForwardRequest, true, ssh.Marshal(payload))
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
@@ -116,7 +85,7 @@ type x11ChannelHandler func(ctx context.Context, nch ssh.NewChannel)
 // ServeChannelRequests opens an X11 channel handler and starts a
 // goroutine to serve any channels received with the handler provided.
 func ServeChannelRequests(ctx context.Context, clt *ssh.Client, handler x11ChannelHandler) error {
-	channels := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
+	channels := clt.HandleChannelOpen(ChannelRequest)
 	if channels == nil {
 		return trace.Wrap(trace.AlreadyExists("X11 forwarding channel already open"))
 	}

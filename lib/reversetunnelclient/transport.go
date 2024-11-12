@@ -21,11 +21,10 @@ package reversetunnelclient
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
@@ -52,19 +51,21 @@ type TunnelAuthDialerConfig struct {
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
 	// Log is used for logging.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
-	// ClusterCAs contains cluster CAs.
-	ClusterCAs *x509.CertPool
+	// GetClusterCAs contains cluster CAs.
+	GetClusterCAs client.GetClusterCAsFunc
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
-	if c.Resolver == nil {
+	switch {
+	case c.Resolver == nil:
 		return trace.BadParameter("missing tunnel address resolver")
-	}
-	if c.ClusterCAs == nil {
-		return trace.BadParameter("missing cluster CAs")
+	case c.GetClusterCAs == nil:
+		return trace.BadParameter("missing cluster CA getter")
+	case c.Log == nil:
+		return trace.BadParameter("missing log")
 	}
 	return nil
 }
@@ -84,7 +85,10 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	addr, mode, err := t.Resolver(ctx)
 	if err != nil {
-		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
+		t.Log.ErrorContext(
+			ctx, "Failed to resolve tunnel address",
+			"error", err,
+		)
 		return nil, trace.Wrap(err)
 	}
 
@@ -99,7 +103,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 			},
 			DialTimeout:             t.ClientConfig.Timeout,
 			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(ctx, addr.Addr, t.InsecureSkipTLSVerify),
-			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
+			GetClusterCAs:           t.GetClusterCAs,
 		}))
 	}
 

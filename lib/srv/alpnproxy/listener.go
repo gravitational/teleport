@@ -20,7 +20,8 @@ package alpnproxy
 
 import (
 	"context"
-	"crypto/rand"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/tls"
 	"net"
@@ -28,7 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -227,7 +229,20 @@ func (r *CertGenListener) generateCertFor(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	// Copy the key algorithm from the CA instead of asking Auth for the current
+	// signature algorithm suite for every new cert.
+	var alg cryptosuites.Algorithm
+	switch r.certAuthority.Signer.Public().(type) {
+	case *rsa.PublicKey:
+		alg = cryptosuites.RSA2048
+	case *ecdsa.PublicKey:
+		alg = cryptosuites.ECDSAP256
+	case ed25519.PublicKey:
+		alg = cryptosuites.Ed25519
+	default:
+		return nil, trace.BadParameter("unsupported public key type for CA signer: %T", r.certAuthority.Signer.Public())
+	}
+	certKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -236,7 +251,7 @@ func (r *CertGenListener) generateCertFor(host string) (*tls.Certificate, error)
 	subject.CommonName = host
 
 	certPem, err := r.certAuthority.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: &certKey.PublicKey,
+		PublicKey: certKey.Public(),
 		Subject:   subject,
 		NotAfter:  r.certAuthority.Cert.NotAfter,
 		DNSNames:  []string{host},
@@ -245,7 +260,11 @@ func (r *CertGenListener) generateCertFor(host string) (*tls.Certificate, error)
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := tls.X509KeyPair(certPem, tlsca.MarshalPrivateKeyPEM(certKey))
+	keyPem, err := keys.MarshalPrivateKey(certKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := tls.X509KeyPair(certPem, keyPem)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

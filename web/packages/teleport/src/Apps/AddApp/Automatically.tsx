@@ -84,7 +84,7 @@ export function Automatically(props: Props) {
       {({ validator }) => (
         <>
           <DialogContent minHeight="254px" flex="0 0 auto">
-            <Flex alignItems="center" flexDirection="row">
+            <Flex alignItems="top" flexDirection="row">
               <FieldInput
                 rule={requiredAppName}
                 label="App Name"

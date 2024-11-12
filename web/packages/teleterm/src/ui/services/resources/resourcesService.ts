@@ -42,13 +42,6 @@ export class ResourcesService {
 
   constructor(private tshClient: TshdClient) {}
 
-  async fetchServers(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getServers(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
-  }
-
   // TODO(ravicious): Refactor it to use logic similar to that in the Web UI.
   // https://github.com/gravitational/teleport/blob/2a2b08dbfdaf71706a5af3812d3a7ec843d099b4/lib/web/apiserver.go#L2471
   async getServerByHostname(
@@ -56,39 +49,22 @@ export class ResourcesService {
     hostname: string
   ): Promise<types.Server | undefined> {
     const query = `name == "${hostname}"`;
-    const { agents: servers } = await this.fetchServers({
-      clusterUri,
-      query,
-      limit: 2,
-      sort: null,
-    });
+    const {
+      response: { agents: servers },
+    } = await this.tshClient.getServers(
+      makeGetResourcesParamsRequest({
+        clusterUri,
+        query,
+        limit: 2,
+        sort: null,
+      })
+    );
 
     if (servers.length > 1) {
       throw new AmbiguousHostnameError(hostname);
     }
 
     return servers[0];
-  }
-
-  async fetchDatabases(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getDatabases(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
-  }
-
-  async fetchKubes(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getKubes(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
-  }
-
-  async fetchApps(params: types.GetResourcesParams) {
-    const { response } = await this.tshClient.getApps(
-      makeGetResourcesParamsRequest(params)
-    );
-    return response;
   }
 
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
@@ -111,11 +87,13 @@ export class ResourcesService {
     search,
     filters,
     limit,
+    includeRequestable,
   }: {
     clusterUri: uri.ClusterUri;
     search: string;
     filters: ResourceTypeFilter[];
     limit: number;
+    includeRequestable: boolean;
   }): Promise<SearchResult[]> {
     try {
       const { resources } = await this.listUnifiedResources({
@@ -128,6 +106,7 @@ export class ResourcesService {
         pinnedOnly: false,
         startKey: '',
         sortBy: { field: 'name', isDesc: true },
+        includeRequestable,
       });
       return resources.map(r => {
         if (r.kind === 'app') {
@@ -161,6 +140,7 @@ export class ResourcesService {
             return {
               kind: 'server' as const,
               resource: p.resource.server,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -168,6 +148,7 @@ export class ResourcesService {
             return {
               kind: 'database' as const,
               resource: p.resource.database,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -175,6 +156,7 @@ export class ResourcesService {
             return {
               kind: 'app' as const,
               resource: p.resource.app,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -182,6 +164,7 @@ export class ResourcesService {
             return {
               kind: 'kube' as const,
               resource: p.resource.kube,
+              requiresRequest: p.requiresRequest,
             };
           }
 
@@ -233,15 +216,25 @@ export class ResourceSearchError extends Error {
   }
 }
 
-export type SearchResultServer = { kind: 'server'; resource: types.Server };
+export type SearchResultServer = {
+  kind: 'server';
+  resource: types.Server;
+  requiresRequest: boolean;
+};
 export type SearchResultDatabase = {
   kind: 'database';
   resource: types.Database;
+  requiresRequest: boolean;
 };
-export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
+export type SearchResultKube = {
+  kind: 'kube';
+  resource: types.Kube;
+  requiresRequest: boolean;
+};
 export type SearchResultApp = {
   kind: 'app';
   resource: types.App & { addrWithProtocol: string };
+  requiresRequest: boolean;
 };
 
 export type SearchResult =
@@ -275,10 +268,11 @@ function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
 }
 
 export type UnifiedResourceResponse =
-  | { kind: 'server'; resource: types.Server }
+  | { kind: 'server'; resource: types.Server; requiresRequest: boolean }
   | {
       kind: 'database';
       resource: types.Database;
+      requiresRequest: boolean;
     }
-  | { kind: 'kube'; resource: types.Kube }
-  | { kind: 'app'; resource: types.App };
+  | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
+  | { kind: 'app'; resource: types.App; requiresRequest: boolean };

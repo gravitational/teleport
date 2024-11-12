@@ -17,16 +17,19 @@
  */
 
 import TeleportContext from 'teleport/teleportContext';
+import { RoleWithYaml } from 'teleport/services/resources';
+import { yamlService } from 'teleport/services/yaml';
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import type { UrlListRolesParams } from 'teleport/config';
 
 export function useRoles(ctx: TeleportContext) {
-  function save(name: string, yaml: string, isNew: boolean) {
-    if (isNew) {
-      return ctx.resourceService.createRole(yaml);
-    }
+  async function create(role: Partial<RoleWithYaml>) {
+    return ctx.resourceService.createRole(await toYaml(role));
+  }
 
-    return ctx.resourceService.updateRole(name, yaml);
+  async function update(name: string, role: Partial<RoleWithYaml>) {
+    return ctx.resourceService.updateRole(name, await toYaml(role));
   }
 
   function remove(name: string) {
@@ -39,9 +42,19 @@ export function useRoles(ctx: TeleportContext) {
 
   return {
     fetch,
-    save,
+    create,
+    update,
     remove,
   };
+}
+
+async function toYaml(role: Partial<RoleWithYaml>): Promise<string> {
+  return (
+    role.yaml ||
+    (await yamlService.stringify(YamlSupportedResourceKind.Role, {
+      resource: role.object,
+    }))
+  );
 }
 
 export type State = ReturnType<typeof useRoles>;

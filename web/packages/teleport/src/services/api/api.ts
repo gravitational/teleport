@@ -18,6 +18,7 @@
 
 import 'whatwg-fetch';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import websession from 'teleport/services/websession';
 
 import { storageService } from '../storageService';
 import { WebauthnAssertionResponse } from '../auth';
@@ -27,7 +28,7 @@ import parseError, { ApiError } from './parseError';
 export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
-  get(url, abortSignal?) {
+  get(url: string, abortSignal?: AbortSignal) {
     return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 
@@ -77,12 +78,47 @@ const api = {
     );
   },
 
+  deleteWithHeaders(
+    url,
+    headers?: Record<string, string>,
+    signal?,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        method: 'DELETE',
+        headers,
+        signal,
+      },
+      webauthnResponse
+    );
+  },
+
+  // TODO (avatus) add abort signal to this
   put(url, data, webauthnResponse?: WebauthnAssertionResponse) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'PUT',
+      },
+      webauthnResponse
+    );
+  },
+
+  putWithHeaders(
+    url,
+    data,
+    headers?: Record<string, string>,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'PUT',
+        headers,
       },
       webauthnResponse
     );
@@ -120,6 +156,18 @@ const api = {
 
     if (response.ok) {
       return json;
+    }
+
+    /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
+    const isRoleNotFoundErr = isRoleNotFoundError(parseError(json));
+    if (isRoleNotFoundErr) {
+      websession.logoutWithoutSlo({
+        /* Don't remember location after login, since they may no longer have access to the page they were on. */
+        rememberLocation: false,
+        /* Show "access changed" notice on login page. */
+        withAccessChangedMessage: true,
+      });
+      return;
     }
 
     // Retry with MFA if we get an admin action missing MFA error.
@@ -264,6 +312,12 @@ function isAdminActionRequiresMfaError(errMessage) {
   return errMessage.includes(
     'admin-level API request requires MFA verification'
   );
+}
+
+/** isRoleNotFoundError returns true if the error message is due to a role not being found. */
+export function isRoleNotFoundError(errMessage: string): boolean {
+  // This error message format should be kept in sync with the NotFound error message returned in lib/services/local/access.GetRole
+  return /role \S+ is not found/.test(errMessage);
 }
 
 export default api;

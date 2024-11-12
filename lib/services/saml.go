@@ -41,6 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type SAMLConnectorGetter interface {
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+}
+
+const ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
+
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
 func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
@@ -48,33 +54,51 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		return trace.Wrap(err)
 	}
 
-	if sc.GetEntityDescriptorURL() != "" {
-		resp, err := http.Get(sc.GetEntityDescriptorURL())
+	getEntityDescriptorFromURL := func(url string) (string, error) {
+		resp, err := http.Get(url)
 		if err != nil {
-			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+			return "", trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", url, sc.GetName())
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
+			return "", trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, url, sc.GetName())
 		}
 		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
-		sc.SetEntityDescriptor(string(body))
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+		return string(body), nil
 	}
 
-	if sc.GetEntityDescriptor() != "" {
+	getEntityDescriptorMetadata := func(ed string) (*samltypes.EntityDescriptor, error) {
 		metadata := &samltypes.EntityDescriptor{}
-		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
-			return trace.Wrap(err, "failed to parse entity_descriptor")
+		if err := xml.Unmarshal([]byte(ed), metadata); err != nil {
+			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
+		}
+		return metadata, nil
+	}
+
+	// Validate standard settings.
+	if url := sc.GetEntityDescriptorURL(); url != "" {
+		entityDescriptor, err := getEntityDescriptorFromURL(url)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		sc.SetIssuer(metadata.EntityID)
-		if metadata.IDPSSODescriptor != nil && len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
-			sc.SetSSO(metadata.IDPSSODescriptor.SingleSignOnServices[0].Location)
+		sc.SetEntityDescriptor(entityDescriptor)
+		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", url, sc.GetName())
+	}
+
+	if ed := sc.GetEntityDescriptor(); ed != "" {
+		md, err := getEntityDescriptorMetadata(ed)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		sc.SetIssuer(md.EntityID)
+		if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
+			sc.SetSSO(md.IDPSSODescriptor.SingleSignOnServices[0].Location)
 		}
 	}
 
@@ -119,6 +143,34 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 				}
 			}
 		}
+	}
+
+	// Validate MFA settings.
+	if mfa := sc.GetMFASettings(); mfa != nil {
+		if mfa.EntityDescriptorUrl != "" {
+			if mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL() {
+				// we got the entity descriptor above, skip the redundant round trip.
+				mfa.EntityDescriptor = sc.GetEntityDescriptor()
+			} else {
+				entityDescriptor, err := getEntityDescriptorFromURL(mfa.EntityDescriptorUrl)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				mfa.EntityDescriptor = entityDescriptor
+			}
+		}
+		if mfa.EntityDescriptor != "" {
+			md, err := getEntityDescriptorMetadata(mfa.EntityDescriptor)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			mfa.Issuer = md.EntityID
+			if md.IDPSSODescriptor != nil && len(md.IDPSSODescriptor.SingleSignOnServices) > 0 {
+				mfa.Sso = md.IDPSSODescriptor.SingleSignOnServices[0].Location
+			}
+		}
+		sc.SetMFASettings(mfa)
 	}
 
 	log.Debugf("[SAML] SSO: %v", sc.GetSSO())
@@ -253,6 +305,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 		SPKeyStore:                     keyStore,
 		Clock:                          dsig.NewFakeClock(clock),
 		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+		ForceAuthn:                     sc.GetForceAuthn(),
 	}
 
 	// Provider specific settings for ADFS and JumpCloud. Specifically these
@@ -299,9 +352,6 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.Wrap(err)
 		}
 
-		if cfg.ID != 0 {
-			c.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			c.SetRevision(cfg.Revision)
 		}
@@ -328,8 +378,28 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 
 	switch samlConnector := samlConnector.(type) {
 	case *types.SAMLConnectorV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, samlConnector))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, samlConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized SAML connector version %T", samlConnector)
 	}
+}
+
+// FillSAMLSigningKeyFromExisting looks up the existing SAML connector and populates the signing key if it's missing.
+// This must be called only if the SAML Connector signing key pair has been initialized (ValidateSAMLConnector) and
+// the private key is still empty.
+func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
+	existing, err := sg.GetSAMLConnector(ctx, connector.GetName(), true /* with secrets */)
+	switch {
+	case trace.IsNotFound(err):
+		return trace.BadParameter("failed to create SAML connector, the SAML connector has no signing key set. " + ErrMsgHowToFixMissingPrivateKey)
+	case err != nil:
+		return trace.BadParameter("failed to update SAML connector, the SAML connector has no signing key set and looking up the existing connector failed with the error: %s. %s", err.Error(), ErrMsgHowToFixMissingPrivateKey)
+	}
+
+	existingSkp := existing.GetSigningKeyPair()
+	if existingSkp == nil || existingSkp.Cert != connector.GetSigningKeyPair().Cert {
+		return trace.BadParameter("failed to update the SAML connector, the SAML connector has no signing key and its signing certificate does not match the existing one. " + ErrMsgHowToFixMissingPrivateKey)
+	}
+	connector.SetSigningKeyPair(existingSkp)
+	return nil
 }

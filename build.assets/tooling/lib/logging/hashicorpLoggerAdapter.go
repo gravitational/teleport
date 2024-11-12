@@ -133,7 +133,7 @@ func (h *HCLogLogrusAdapter) Name() string {
 
 // Create a logger that will prepend the name string on the front of all messages.
 // If the logger already has a name, the new value will be appended to the current
-// name. That way, a major subsystem can use this to decorate all it's own logs
+// name. That way, a major subsystem can use this to decorate all its own logs
 // without losing context.
 func (h *HCLogLogrusAdapter) Named(name string) hclog.Logger {
 	if h.name != "" {

@@ -1,0 +1,27 @@
+### Discovery Service troubleshooting
+
+First, check if any {{ resourceKind }}s have been discovered.
+To do this, you can use the `tctl get {{ tctlResource }}` command and check if the
+expected {{ resourceKind }}s have already been registered with your Teleport
+cluster.
+
+If some {{ resourceKind }}s do not appear in the list, check if the Discovery
+Service selector labels match the missing {{ resourceKind }} tags or look into
+the Discovery Service logs for permission errors.
+
+Check that the Discovery Service is running with credentials for the correct AWS
+account. It can discover resources in another AWS account, but it must be
+configured to assume a role in the other AWS account if that's the case.
+
+Check if there is more than one Discovery Services running:
+
+```code
+$ tctl inventory status --connected
+```
+
+If you are running multiple Discovery Services, you must ensure that each
+service is configured with the same `discovery_group` value if they are watching
+the same cloud {{ resourceKind }}s or a different value if they are watching different
+cloud {{ resourceKind }}s.
+If this is not configured correctly, a typical symptom is `{{ tctlResource }}`
+resources being intermittently deleted from your Teleport cluster's registry.

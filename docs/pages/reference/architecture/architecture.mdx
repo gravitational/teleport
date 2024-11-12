@@ -1,0 +1,126 @@
+---
+title: Teleport Architecture
+description: Provides detailed information about how Teleport works.
+---
+
+This guide explains the technical architecture of Teleport. Before reading this
+guide, we recommend that you read the [Core Concepts](../../core-concepts.mdx)
+page, which describes the components of a Teleport cluster.
+
+## Teleport control plane
+
+The Teleport **control plane** consists of the Teleport Auth Service and
+Teleport Proxy Service. On Teleport Enterprise (Cloud), the control plane is
+fully managed on Teleport infrastructure. Read about [Teleport Enterprise
+(Cloud) Architecture](teleport-cloud-architecture.mdx).
+
+### Teleport Auth Service
+
+The Teleport Auth Service performs three main functions:
+- **Maintains certificate authorities** that sign host and client certificates
+  for components of your Teleport cluster as well as (for certain self-hosted
+  resources) your own infrastructure. 
+- **Stores cluster configurations** as dynamic resources, including roles, local
+  users, and certain kinds of Teleport-protected infrastructure resources.
+- **Collects cluster data** such as audit events and session recordings.
+
+Cluster components communicate with the Auth Service to manage certificates,
+dynamic resources, audit events, and session recordings through a [gRPC
+API](api-architecture.mdx).
+
+For more information about the Teleport Auth Service, read the following guides:
+
+- [Authentication](authentication.mdx)
+- [Authorization](authorization.mdx)
+
+### Teleport Proxy Service
+
+The Teleport Proxy Service enables components in a Teleport cluster to
+communicate securely with the Teleport Auth Service. With the Proxy Service,
+users can use the public internet to access infrastructure in private networks.
+
+The Proxy Service implements an SSH server. Teleport Agents establish reverse
+tunnels with the SSH server to receive traffic from (and return traffic to)
+Teleport users. Auth Service clients like the Event Handler and Access Request
+plugins also route traffic through the Proxy Service's SSH server, and
+authenticate to the Proxy Service with an SSH client certificate.
+
+The Proxy Service serves the Teleport Web UI, which in Teleport Enterprise
+(Cloud), is available at the address of your Teleport account (e.g.,
+`example.teleport.sh`).
+
+Read more about [Teleport Proxy Service Architecture](proxy.mdx). You can also
+read about the architecture of Teleport Proxy Service features:
+
+- [TLS Routing](tls-routing.mdx)
+- [Proxy Peering](proxy-peering.mdx)
+
+## Enrolling resources
+
+Administrators can **enroll** infrastructure resources with a Teleport cluster
+to provide secure access, RBAC, and auditing. There are three ways to enroll
+infrastructure resources with a Teleport cluster:
+
+- **Teleport Agents** proxy traffic from human users to and from
+  Teleport-protected infrastructure resources.
+- **Machine ID Bots** receive short-lived credentials from the `tbot` binary so
+  service accounts can access infrastructure.
+- **Trusted clusters** allow a user of one Teleport cluster to access
+  infrastructure that is enrolled with another Teleport cluster by federating
+  trust across multiple Teleport clusters.
+
+### Teleport Agents
+
+Teleport Agents proxy traffic from users to resources in your infrastructure.
+Agents are instances of the `teleport` binary configured to run certain
+services, e.g., the Teleport SSH Service and Teleport Kubernetes Service, and
+administrators deploy Agents on their own infrastructure.
+
+Agents verify a user's certificate against a certificate authority maintained by
+the Teleport Auth Service. Since a user's Teleport roles are encoded in their
+certificate, a Teleport Agent can check a user's Teleport roles and permit or
+deny access to a resource. 
+
+Agents must establish trust with the Teleport Auth Service when first joining a
+cluster, and there is are [variety of
+methods](../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) that
+Agents use for this.
+
+Read more about [Teleport Agent Architecture](agents.mdx). You can also read
+about the architecture of Teleport Agent features:
+
+- [Automatic Agent updates](agent-update-management.mdx): How a
+  Teleport cluster ensures that Agents run the most up-to-date version of the
+  `teleport` binary.
+- [Automatically discovering Kubernetes
+  applications](../../reference/architecture/kubernetes-applications-architecture.mdx):
+  The Teleport Discovery Service queries your Kubernetes cluster and registers
+  applications with the Teleport Auth Service.
+- [Session recordings](session-recording.mdx): Teleport Agents record user
+  sessions and send the data to the Auth Service for storage.
+
+### Machine ID
+
+Machine ID is a Teleport system that enables automated services to access
+Teleport-protected infrastructure with regularly updated credentials.
+Administrators register a Bot user with Teleport that, like a human user, is
+assigned Teleport roles. 
+
+Instances of the `tbot` binary communicate with the Teleport Auth Service to
+continuously refresh credentials. As with Agents, administrators must deploy
+`tbot` instances on their own infrastructure, including on CI/CD platforms such
+as GitHub Actions, and [join
+them](../../enroll-resources/machine-id/deployment/deployment.mdx) to a cluster.
+
+Read more about [Machine ID Architecture](machine-id-architecture.mdx).
+
+### Trusted clusters
+
+On self-hosted Teleport clusters, you can federate access between Teleport
+clusters by enrolling a **trusted cluster** with the Teleport Auth Service.
+Users can access resources in a trusted cluster, also called a **leaf cluster**
+, by authenticating with a **root cluster**. 
+
+When an administrator joins a leaf cluster to a root cluster, Auth Service
+instances of the two clusters communicate to establish trust. Read more about
+[Trusted Cluster Architecture](trustedclusters.mdx).

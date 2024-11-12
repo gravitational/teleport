@@ -49,7 +49,7 @@ func (s *TerraformSuiteOSS) TestUser() {
 					resource.TestCheckResourceAttr(name, "kind", "user"),
 					resource.TestCheckResourceAttr(name, "version", "v2"),
 					resource.TestCheckResourceAttr(name, "metadata.expires", "2035-10-12T07:20:50Z"),
-					resource.TestCheckResourceAttr(name, "spec.roles.0", "terraform"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "terraform-provider"),
 					resource.TestCheckResourceAttr(name, "spec.traits.logins1.0", "example"),
 					resource.TestCheckResourceAttr(name, "spec.traits.logins2.0", "example"),
 					resource.TestCheckResourceAttr(name, "spec.oidc_identities.0.connector_id", "oidc"),
@@ -69,7 +69,7 @@ func (s *TerraformSuiteOSS) TestUser() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "user"),
 					resource.TestCheckResourceAttr(name, "metadata.expires", "2035-10-12T07:20:52Z"),
-					resource.TestCheckResourceAttr(name, "spec.roles.0", "terraform"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "terraform-provider"),
 					resource.TestCheckResourceAttr(name, "spec.traits.logins2.0", "example"),
 					resource.TestCheckNoResourceAttr(name, "spec.traits.logins1"),
 					resource.TestCheckResourceAttr(name, "spec.oidc_identities.0.connector_id", "oidc-2"),

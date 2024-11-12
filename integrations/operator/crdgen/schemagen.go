@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package crdgen
 
 import (
 	"fmt"
@@ -280,6 +280,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	generator.memo[name] = schema
 
 	for _, field := range message.Fields {
+		// Skip the ignored fields
 		if _, ok := ignoredFields[message.Name()][field.Name()]; ok {
 			continue
 		}
@@ -296,11 +297,17 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 			continue
 		}
 
-		var err error
-		schema.Properties[jsonName], err = generator.prop(field)
+		prop, err := generator.prop(field)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// If the field has custom additional description, we append it.
+		if desc, ok := additionalDescription[message.Name()][field.Name()]; ok {
+			prop.Description = prop.Description + " " + desc
+		}
+
+		schema.Properties[jsonName] = prop
 	}
 	schema.built = true
 
@@ -315,7 +322,7 @@ func handleEmptyJSONTag(schema *Schema, message *Message, field *Field) bool {
 		return false
 	}
 
-	// Handle MaxAge as a special case. It's type is a message that is embedded.
+	// Handle MaxAge as a special case. Its type is a message that is embedded.
 	// Because the message is embedded, MaxAge itself explicitly sets its json
 	// name to an empty string, but the embedded message type has a single field
 	// with a json name, so use that instead.

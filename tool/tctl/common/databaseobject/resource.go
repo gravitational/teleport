@@ -78,9 +78,7 @@ func ResourceToProto(r *Resource) *databaseobjectv1.DatabaseObject {
 			Namespace:   defaults.Namespace,
 			Labels:      md.Labels,
 			Expires:     expires,
-			//nolint:staticcheck // SA1019. Id is deprecated.
-			Id:       md.ID,
-			Revision: md.Revision,
+			Revision:    md.Revision,
 		},
 		Spec: r.Spec,
 	}

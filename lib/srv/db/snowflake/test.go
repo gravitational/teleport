@@ -213,7 +213,6 @@ func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token st
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
 		PublicKey:   cert.PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 	})
 	if err != nil {

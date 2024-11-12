@@ -22,7 +22,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/config/openssh"
@@ -39,7 +38,6 @@ Host *.test-cluster localhost
     UserKnownHostsFile "/tmp/know_host"
     IdentityFile "/tmp/alice"
     CertificateFile "/tmp/localhost-cert.pub"
-    HostKeyAlgorithms rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
 
 # Flags for all test-cluster hosts except the proxy
 Host *.test-cluster !localhost
@@ -59,8 +57,6 @@ Host *.test-cluster !localhost
 		ProxyHost:           "localhost",
 		ProxyPort:           "3080",
 		ExecutablePath:      "/bin/tsh",
-	}, func() (*semver.Version, error) {
-		return semver.New("9.0.0"), nil
 	})
 	require.NoError(t, err)
 	require.Equal(t, want, sb.String())

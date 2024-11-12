@@ -26,6 +26,8 @@ jobs:
             changed:
               - '.github/workflows/unit-tests-helm.yaml'
               - 'examples/chart/**'
+              - 'Makefile'
+              - 'docs/pages/reference/helm-reference/*'
 
   test:
     name: Unit Tests (Helm)
@@ -37,7 +39,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
       env:
         # TODO(hugoShaka) remove the '-new' prefix when updating to teleport13 buildbox
         HELM_PLUGINS: /home/ci/.local/share/helm/plugins-new
@@ -46,6 +48,10 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v4
 
+      - name: Lint helm
+        timeout-minutes: 10
+        run: make lint-helm
+
       - name: Run tests
-        timeout-minutes: 40
+        timeout-minutes: 10
         run: make test-helm

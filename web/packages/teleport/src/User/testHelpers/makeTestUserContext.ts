@@ -27,10 +27,6 @@ export const makeTestUserContext = (
     {
       preferences: {
         theme: 1,
-        assist: {
-          preferredLogins: [],
-          viewMode: 1,
-        },
         onboard: {
           preferredResources: [],
         },

@@ -30,7 +30,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Email](../../../access-controls/access-request-plugins/ssh-approval-email.mdx) guide
+  # Email](../../admin-guides/access-controls/access-request-plugins/ssh-approval-email.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret

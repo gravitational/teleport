@@ -17,12 +17,11 @@
  */
 
 import { useStore } from 'shared/libs/stores';
+import * as tshdEventsApi from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import * as types from 'teleterm/services/tshd/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-
-import { PromptMfaRequest } from 'teleterm/services/tshdEvents';
 
 import { ImmutableStore } from '../immutableStore';
 
@@ -149,7 +148,13 @@ export interface ClusterConnectReasonGatewayCertExpired {
   gateway: types.Gateway | undefined;
 }
 
-export type ClusterConnectReason = ClusterConnectReasonGatewayCertExpired;
+export type ClusterConnectReasonVnetCertExpired = {
+  kind: 'reason.vnet-cert-expired';
+} & tshdEventsApi.VnetCertExpired;
+
+export type ClusterConnectReason =
+  | ClusterConnectReasonGatewayCertExpired
+  | ClusterConnectReasonVnetCertExpired;
 
 export interface DialogClusterLogout {
   kind: 'cluster-logout';
@@ -204,8 +209,42 @@ export interface DialogHeadlessAuthentication {
 
 export interface DialogReAuthenticate {
   kind: 'reauthenticate';
-  promptMfaRequest: PromptMfaRequest;
+  promptMfaRequest: tshdEventsApi.PromptMFARequest;
   onSuccess(totpCode: string): void;
+  onSsoContinue(redirectUrl: string): void;
+  onCancel(): void;
+}
+
+export interface DialogChangeAccessRequestKind {
+  kind: 'change-access-request-kind';
+  onConfirm(): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyPin {
+  kind: 'hardware-key-pin';
+  req: tshdEventsApi.PromptHardwareKeyPINRequest;
+  onSuccess(pin: string): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyTouch {
+  kind: 'hardware-key-touch';
+  req: tshdEventsApi.PromptHardwareKeyTouchRequest;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeyPinChange {
+  kind: 'hardware-key-pin-change';
+  req: tshdEventsApi.PromptHardwareKeyPINChangeRequest;
+  onSuccess(res: tshdEventsApi.PromptHardwareKeyPINChangeResponse): void;
+  onCancel(): void;
+}
+
+export interface DialogHardwareKeySlotOverwrite {
+  kind: 'hardware-key-slot-overwrite';
+  req: tshdEventsApi.ConfirmHardwareKeySlotOverwriteRequest;
+  onConfirm(): void;
   onCancel(): void;
 }
 
@@ -219,4 +258,9 @@ export type Dialog =
   | DialogResourceSearchErrors
   | DialogHeadlessAuthentication
   | DialogReAuthenticate
+  | DialogChangeAccessRequestKind
+  | DialogHardwareKeyPin
+  | DialogHardwareKeyTouch
+  | DialogHardwareKeyPinChange
+  | DialogHardwareKeySlotOverwrite
   | DialogNone;

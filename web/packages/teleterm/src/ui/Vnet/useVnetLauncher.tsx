@@ -27,7 +27,7 @@ export const useVnetLauncher = (): (() => Promise<[void, Error]>) => {
   const { open } = useConnectionsContext();
 
   return useCallback(() => {
-    if (status === 'running' || startAttempt.status === 'processing') {
+    if (status.value === 'running' || startAttempt.status === 'processing') {
       return Promise.resolve([undefined, undefined]);
     }
 

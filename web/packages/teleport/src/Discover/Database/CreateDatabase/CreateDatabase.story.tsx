@@ -79,4 +79,5 @@ const props: State = {
   prevStep: () => null,
   nextStep: () => null,
   createdDb: {} as any,
+  handleOnTimeout: () => null,
 };

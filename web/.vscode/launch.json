@@ -16,14 +16,6 @@
       "internalConsoleOptions": "neverOpen",
       "port": 9229,
       "skipFiles": ["<node_internals>/**"]
-    },
-    {
-      "name": "Electron: Main",
-      "type": "node",
-      "request": "launch",
-      "protocol": "inspector",
-      "runtimeExecutable": "yarn",
-      "runtimeArgs": ["start-electron --inspect=5858 --remote-debugging-port=9223"]
     }
   ]
 }

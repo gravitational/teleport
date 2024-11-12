@@ -464,17 +464,18 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 	const dbName = "mysql"
 	info := getRDSAdminInfo(t, ctx, instanceID)
 
-	opt := func(conn *mysqlclient.Conn) {
+	opt := func(conn *mysqlclient.Conn) error {
 		conn.SetTLSConfig(&tls.Config{
 			ServerName: info.address,
 			RootCAs:    awsCertPool.Clone(),
 		})
+		return nil
 	}
 	endpoint := fmt.Sprintf("%s:%d", info.address, info.port)
 	conn, err := mysqlclient.Connect(endpoint, info.username, info.password, dbName, opt)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = conn.Close()
+		_ = conn.Quit()
 	})
 	return &mySQLConn{conn: conn}
 }

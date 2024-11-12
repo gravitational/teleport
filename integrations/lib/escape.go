@@ -26,15 +26,29 @@ import "strings"
 // Backticks are escaped and thus count as two runes for the purpose of the
 // truncation.
 func MarkdownEscape(t string, n int) string {
+	return markdownEscape(t, n, "```\n", "```")
+}
+
+// MarkdownEscapeInLine wraps some text `t` in backticks (escaping any backtick
+// inside the message), limiting the length of the message to `n` runes (inside
+// the single preformatted block). The text is trimmed before escaping.
+// Backticks are escaped and thus count as two runes for the purpose of the
+// truncation.
+func MarkdownEscapeInLine(t string, n int) string {
+	return markdownEscape(t, n, "`", "`")
+}
+
+func markdownEscape(t string, n int, startBackticks, endBackticks string) string {
 	t = strings.TrimSpace(t)
 	if t == "" {
 		return "(empty)"
 	}
+
 	var b strings.Builder
-	b.WriteString("```\n")
+	b.WriteString(startBackticks)
 	for i, r := range t {
 		if i >= n {
-			b.WriteString("``` (truncated)")
+			b.WriteString(endBackticks + " (truncated)")
 			return b.String()
 		}
 		b.WriteRune(r)
@@ -45,6 +59,6 @@ func MarkdownEscape(t string, n int) string {
 			n--
 		}
 	}
-	b.WriteString("```")
+	b.WriteString(endBackticks)
 	return b.String()
 }

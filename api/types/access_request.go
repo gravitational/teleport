@@ -458,16 +458,6 @@ func (r *AccessRequestV3) GetMetadata() Metadata {
 	return r.Metadata
 }
 
-// GetResourceID gets ResourceID
-func (r *AccessRequestV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-// SetResourceID sets ResourceID
-func (r *AccessRequestV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
-}
-
 // GetRevision returns the revision
 func (r *AccessRequestV3) GetRevision() string {
 	return r.Metadata.GetRevision()
@@ -606,6 +596,11 @@ func (s AccessReview) GetAccessListTitle() string {
 		return ""
 	}
 	return s.AccessList.Title
+}
+
+// IsEqual t is equivalent to the provide AccessReviewThreshold.
+func (t *AccessReviewThreshold) IsEqual(o *AccessReviewThreshold) bool {
+	return deriveTeleportEqualAccessReviewThreshold(t, o)
 }
 
 // AccessRequestUpdate encompasses the parameters of a

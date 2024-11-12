@@ -33,12 +33,13 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -158,7 +159,11 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	// This test cannot run in parallel as set module changes the global state.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  modules.Features{DB: true},
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.DB: {Enabled: true},
+			},
+		},
 	})
 
 	p := newProxyTunnelStrategy(t, "proxy-tunnel-proxy-peer",
@@ -228,7 +233,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 		client.Stdout = output
 
 		cmd := []string{"echo", "hello world"}
-		err = client.SSH(context.Background(), cmd, false)
+		err = client.SSH(context.Background(), cmd)
 		require.NoError(t, err)
 		require.Equal(t, "hello world\n", output.String())
 	}
@@ -320,7 +325,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 }
 
 // makeProxy bootstraps a new teleport proxy instance.
-// It's public address points to a load balancer.
+// Its public address points to a load balancer.
 func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	proxy := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,
@@ -336,7 +341,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = proxy.Log
-	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -381,7 +386,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = node.Log
-	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -426,7 +431,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 	conf.Log = db.Log
-	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false

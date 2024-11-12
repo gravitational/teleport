@@ -19,11 +19,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { ChevronRightIcon } from 'design/SVGIcon';
-
 import { NavLink } from 'react-router-dom';
 
 import { matchPath, useHistory } from 'react-router';
+
+import { ChevronRight } from 'design/Icon';
 
 import {
   commonNavigationItemStyles,
@@ -136,7 +136,7 @@ export function NavigationDropdown(props: NavigationDropdownProps) {
   const history = useHistory();
 
   const ref = useRef<HTMLDivElement>();
-  const firstLinkRef = useRef<HTMLDivElement>();
+  const firstLinkRef = useRef<HTMLAnchorElement>();
 
   const clusterId = ctx.storeUser.getClusterId();
 
@@ -293,7 +293,7 @@ export function NavigationDropdown(props: NavigationDropdownProps) {
           {props.feature.navigationItem.title}
 
           <DropdownArrow open={open}>
-            <ChevronRightIcon />
+            <ChevronRight />
           </DropdownArrow>
         </LinkContent>
       </Container>

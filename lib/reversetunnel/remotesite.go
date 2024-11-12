@@ -20,6 +20,8 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"sync"
@@ -37,10 +39,10 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -78,13 +80,13 @@ type remoteSite struct {
 	remoteClient authclient.ClientI
 	// localAccessPoint provides access to a cached subset of the Auth Server API of
 	// the local cluster.
-	localAccessPoint auth.ProxyAccessPoint
+	localAccessPoint authclient.ProxyAccessPoint
 	// remoteAccessPoint provides access to a cached subset of the Auth Server API of
 	// the remote cluster this site belongs to.
-	remoteAccessPoint auth.RemoteProxyAccessPoint
+	remoteAccessPoint authclient.RemoteProxyAccessPoint
 
 	// nodeWatcher provides access the node set for the remote site
-	nodeWatcher *services.NodeWatcher
+	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -107,36 +109,45 @@ func (s *remoteSite) getRemoteClient() (authclient.ClientI, bool, error) {
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
-	keys := ca.GetTrustedTLSKeyPairs()
-
+	if len(ca.GetTrustedTLSKeyPairs()) == 0 {
+		return nil, false, trace.BadParameter("no TLS keys found")
+	}
 	// The fact that cluster has keys to remote CA means that the key exchange
 	// has completed.
-	if len(keys) != 0 {
-		s.logger.Debug("Using TLS client to remote cluster.")
-		pool, err := services.CertPool(ca)
-		if err != nil {
-			return nil, false, trace.Wrap(err)
-		}
-		tlsConfig := s.srv.ClientTLS.Clone()
-		tlsConfig.RootCAs = pool
-		// encode the name of this cluster to identify this cluster,
-		// connecting to the remote one (it is used to find the right certificate
-		// authority to verify)
-		tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
-		clt, err := authclient.NewClient(client.Config{
-			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
-			Credentials: []client.Credentials{
-				client.LoadTLS(tlsConfig),
-			},
-			CircuitBreakerConfig: s.srv.CircuitBreakerConfig,
-		})
-		if err != nil {
-			return nil, false, trace.Wrap(err)
-		}
-		return clt, false, nil
-	}
 
-	return nil, false, trace.BadParameter("no TLS keys found")
+	s.logger.Debug("Using TLS client to remote cluster.")
+	tlsConfig := utils.TLSConfig(s.srv.ClientTLSCipherSuites)
+	// encode the name of this cluster to identify this cluster,
+	// connecting to the remote one (it is used to find the right certificate
+	// authority to verify)
+	tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		tlsCert, err := s.srv.GetClientTLSCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsCert, nil
+	}
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(func() (*x509.CertPool, error) {
+		pool, _, err := authclient.ClientCertPool(s.ctx, s.srv.localAccessPoint, s.domainName, types.HostCA)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pool, nil
+	})
+
+	clt, err := authclient.NewClient(client.Config{
+		Dialer: client.ContextDialerFunc(s.authServerContextDialer),
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+		CircuitBreakerConfig: s.srv.CircuitBreakerConfig,
+	})
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+	return clt, false, nil
 }
 
 func (s *remoteSite) authServerContextDialer(ctx context.Context, network, address string) (net.Conn, error) {
@@ -149,12 +160,12 @@ func (s *remoteSite) GetTunnelsCount() int {
 	return s.connectionCount()
 }
 
-func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+func (s *remoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return s.remoteAccessPoint, nil
 }
 
 // NodeWatcher returns the services.NodeWatcher for the remote cluster.
-func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
+func (s *remoteSite) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.nodeWatcher, nil
 }
 
@@ -419,7 +430,11 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
+			proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+			if err != nil {
+				logger.WithError(err).Warn("Failed to get proxy set")
+			}
+			req.SetProxies(proxies)
 
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -448,9 +463,12 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			if firstHeartbeat {
 				// as soon as the agent connects and sends a first heartbeat
 				// send it the list of current proxies back
-				current := s.srv.proxyWatcher.GetCurrent()
-				if len(current) > 0 {
-					conn.updateProxies(current)
+				proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
+				if err != nil {
+					logger.WithError(err).Warn("Failed to get proxy set")
+				}
+				if len(proxies) > 0 {
+					conn.updateProxies(proxies)
 				}
 				firstHeartbeat = false
 			}

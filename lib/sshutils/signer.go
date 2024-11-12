@@ -63,9 +63,9 @@ func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 	return ssh.NewCertSigner(cert, keySigner)
 }
 
-// CryptoPublicKey extracts public key from RSA public key in authorized_keys format
+// CryptoPublicKey extracts a crypto.PublicKey from any public key in
+// authorized_keys format.
 func CryptoPublicKey(publicKey []byte) (crypto.PublicKey, error) {
-	// reuse the same RSA keys for SSH and TLS keys
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(publicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)

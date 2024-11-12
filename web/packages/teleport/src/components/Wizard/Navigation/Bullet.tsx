@@ -61,7 +61,7 @@ export const ActiveBullet = styled(BulletContainer)`
   border-color: ${props => props.theme.colors.brand};
   background: ${props => props.theme.colors.brand};
 
-  :before {
+  &:before {
     content: '';
     height: 8px;
     width: 8px;
@@ -75,7 +75,7 @@ export const CheckedBullet = styled(BulletContainer)`
   border-color: ${props => props.theme.colors.brand};
   background: ${props => props.theme.colors.brand};
 
-  :before {
+  &:before {
     content: '✓';
     color: ${props => props.theme.colors.levels.popout};
   }

@@ -36,7 +36,8 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 
-import { Notifications } from './Notifications';
+import { Notifications } from 'teleport/Notifications';
+
 import { ButtonIconContainer } from './Shared';
 
 import type * as history from 'history';
@@ -151,21 +152,27 @@ export function TopBar({ CustomLogo }: TopBarProps) {
                   Icon={Server}
                 />
               )}
-              <MainNavItem
-                name="Access Management"
-                to={
-                  previousManagementRoute ||
-                  getFirstRouteForCategory(
-                    features,
-                    NavigationCategory.Management
-                  )
-                }
-                size={iconSize}
-                isSelected={managementTabSelected}
-                Icon={SlidersVertical}
-              />
+              {ctx.getFeatureFlags().managementSection && (
+                <MainNavItem
+                  name="Access Management"
+                  to={
+                    previousManagementRoute ||
+                    getFirstRouteForCategory(
+                      features,
+                      NavigationCategory.Management
+                    )
+                  }
+                  size={iconSize}
+                  isSelected={managementTabSelected}
+                  Icon={SlidersVertical}
+                />
+              )}
 
-              {topBarLinks.map(({ topMenuItem, navigationItem }) => {
+              {topBarLinks.map(({ topMenuItem, navigationItem, hasAccess }) => {
+                const canAccess = hasAccess(ctx.getFeatureFlags());
+                if (!canAccess) {
+                  return;
+                }
                 const link = navigationItem.getLink(clusterId);
                 const currentPath = history.location.pathname;
                 const selected =
@@ -202,10 +209,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
           <Notifications iconSize={iconSize} />
-          <UserMenuNav
-            username={ctx.storeUser.state.username}
-            iconSize={iconSize}
-          />
+          <UserMenuNav username={ctx.storeUser.state.username} />
         </Flex>
       )}
     </TopBarContainer>
@@ -258,7 +262,8 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           cursor: pointer;
           display: flex;
           transition: background-color 0.1s linear;
-          &:hover {
+          &:hover,
+          &:focus-visible {
             background-color: ${p =>
               p.theme.colors.interactive.tonal.primary[0]};
           }
@@ -337,12 +342,14 @@ const NavigationButton = ({
           }
           border-bottom: ${selected ? selectedBorder : 'none'};
           background-color: ${selected ? selectedBackground : 'inherit'};
-          &:hover {
+          &:hover,
+          &:focus-visible {
             background-color: ${selected
               ? selectedBackground
               : theme.colors.buttons.secondary.default};
           }
         `}
+        aria-label={title || undefined}
         {...props}
       >
         <Flex

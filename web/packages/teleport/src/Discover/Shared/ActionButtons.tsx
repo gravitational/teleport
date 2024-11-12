@@ -86,9 +86,8 @@ export const AlternateInstructionButton: React.FC<
     <ButtonText
       disabled={disabled}
       onClick={onClick}
+      compact
       css={`
-        padding-left: 1px;
-        padding-right: 1px;
         color: ${p => p.theme.colors.buttons.link.default};
         text-decoration: underline;
         font-weight: normal;

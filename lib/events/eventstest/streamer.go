@@ -22,8 +22,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -69,12 +67,4 @@ func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session
 	}()
 
 	return events, errors
-}
-
-func (f fakeStreamer) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("GetSessionChunk")
-}
-
-func (f fakeStreamer) GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error) {
-	return nil, trace.NotImplemented("GetSessionEvents")
 }

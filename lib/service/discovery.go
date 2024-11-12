@@ -63,17 +63,6 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// tlsConfig is the DiscoveryService's TLS certificate signed by the cluster's
-	// Host certificate authority.
-	// It is used to authenticate the DiscoveryService to the Access Graph service.
-	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if tlsConfig != nil {
-		tlsConfig.ServerName = "" /* empty the server name to avoid SNI collisions with access graph addr */
-	}
 
 	accessGraphCfg, err := buildAccessGraphFromTAGOrFallbackToAuth(
 		process.ExitContext(),
@@ -98,11 +87,12 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		Emitter:           asyncEmitter,
 		AccessPoint:       accessPoint,
 		ServerID:          process.Config.HostUUID,
-		Log:               process.log,
-		ClusterName:       conn.ClientIdentity.ClusterName,
+		Log:               process.logger,
+		LegacyLogger:      process.log,
+		ClusterName:       conn.ClusterName(),
 		ClusterFeatures:   process.GetClusterFeatures,
 		PollInterval:      process.Config.Discovery.PollInterval,
-		ServerCredentials: tlsConfig,
+		GetClientCert:     conn.ClientGetCertificate,
 		AccessGraphConfig: accessGraphCfg,
 	})
 	if err != nil {
@@ -127,6 +117,11 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 	logger.InfoContext(process.ExitContext(), "Discovery service has successfully started")
+
+	// The Discovery service doesn't have heartbeats so we cannot use them to check health.
+	// For now, we just mark ourselves ready all the time on startup.
+	// If we don't, a process only running the Discovery service will never report ready.
+	process.OnHeartbeat(teleport.ComponentDiscovery)(nil)
 
 	if err := discoveryService.Wait(); err != nil {
 		return trace.Wrap(err)

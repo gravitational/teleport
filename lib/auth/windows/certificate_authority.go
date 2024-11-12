@@ -25,7 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // NewCertificateStoreClient returns a new structure for modifying windows certificates in a Windows CA.
@@ -41,7 +41,7 @@ type CertificateStoreClient struct {
 // CertificateStoreConfig is a config structure for a Windows Certificate Authority
 type CertificateStoreConfig struct {
 	// AccessPoint is the Auth API client (with caching).
-	AccessPoint auth.WindowsDesktopAccessPoint
+	AccessPoint authclient.WindowsDesktopAccessPoint
 	// LDAPConfig is the ldap configuration
 	LDAPConfig
 	// Log is the logging sink for the service

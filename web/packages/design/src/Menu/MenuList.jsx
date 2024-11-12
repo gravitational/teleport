@@ -22,9 +22,9 @@ import styled from 'styled-components';
 
 class MenuList extends React.Component {
   render() {
-    const { children, ...other } = this.props;
+    const { children, innerRef, ...other } = this.props;
     return (
-      <StyledMenuList role="menu" {...other}>
+      <StyledMenuList ref={innerRef} role="menu" {...other}>
         {children}
       </StyledMenuList>
     );
@@ -55,4 +55,6 @@ MenuList.propTypes = {
   menuListCss: PropTypes.func,
 };
 
-export default MenuList;
+export default React.forwardRef((props, ref) => (
+  <MenuList innerRef={ref} {...props} />
+));

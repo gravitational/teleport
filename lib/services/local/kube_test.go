@@ -69,14 +69,14 @@ func TestKubernetesCRUD(t *testing.T) {
 	out, err = service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.KubeCluster{kubeCluster1, kubeCluster2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Fetch a specific Kubernetes.
 	cluster, err := service.GetKubernetesCluster(ctx, kubeCluster2.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(kubeCluster2, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Try to fetch a Kubernetes that doesn't exist.
@@ -94,7 +94,7 @@ func TestKubernetesCRUD(t *testing.T) {
 	cluster, err = service.GetKubernetesCluster(ctx, kubeCluster1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(kubeCluster1, cluster,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Delete a Kubernetes.
@@ -103,7 +103,7 @@ func TestKubernetesCRUD(t *testing.T) {
 	out, err = service.GetKubernetesClusters(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.KubeCluster{kubeCluster2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Try to delete a Kubernetes that doesn't exist.

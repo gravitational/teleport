@@ -40,7 +40,7 @@ import { ButtonLockedFeature } from '../ButtonLockedFeature';
 export const ExternalAuditStorageCta = () => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
-  const featureEnabled = !cfg.externalAuditStorage;
+  const featureEnabled = cfg.externalAuditStorage;
   const userHasAccess = ctx.getFeatureFlags().enrollIntegrationsOrPlugins;
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export const ExternalAuditStorageCta = () => {
         cfg.isCloud &&
         !storageService.getExternalAuditStorageCtaDisabled()
     );
-  }, [cfg.isCloud]);
+  }, [ctx.hasExternalAuditStorage]);
 
   function handleDismiss() {
     storageService.disableExternalAuditStorageCta();
@@ -61,8 +61,17 @@ export const ExternalAuditStorageCta = () => {
   }
 
   return (
-    <CtaContainer mb="4">
-      <Flex justifyContent="space-between">
+    <CtaContainer mb={3}>
+      <Flex
+        justifyContent="space-between"
+        css={`
+          @media screen and (max-width: ${props =>
+              props.theme.breakpoints.mobile}px) {
+            flex-direction: column;
+            gap: ${props => props.theme.space[3]}px;
+          }
+        `}
+      >
         <Flex mr="4" alignItems="center">
           <Icons.Server size="medium" mr="3" />
           <Box>

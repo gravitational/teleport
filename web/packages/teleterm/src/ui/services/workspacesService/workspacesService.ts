@@ -17,16 +17,14 @@
  */
 
 import { z } from 'zod';
-import { useStore } from 'shared/libs/stores';
 import { arrayObjectIsEqual } from 'shared/utils/highbar';
-
-import { ResourceKind } from 'shared/components/AccessRequests/NewRequest';
 
 import {
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
+  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -46,8 +44,14 @@ import {
 } from 'teleterm/ui/uri';
 
 import {
+  identitySelector,
+  useStoreSelector,
+} from 'teleterm/ui/hooks/useStoreSelector';
+
+import {
   AccessRequestsService,
   getEmptyPendingAccessRequest,
+  PendingAccessRequest,
 } from './accessRequestsService';
 
 import {
@@ -94,6 +98,9 @@ export interface Workspace {
   connectMyComputer?: {
     autoStart: boolean;
   };
+  //TODO(gzdunek): Make this property required.
+  // This requires updating many of tests
+  // where we construct the workspace manually.
   unifiedResourcePreferences?: UnifiedResourcePreferences;
   previous?: {
     documents: Document[];
@@ -189,6 +196,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.accessRequestsServicesCache.set(
         clusterUri,
         new AccessRequestsService(
+          this.modalsService,
           () => {
             return this.state.workspaces[clusterUri].accessRequests;
           },
@@ -214,10 +222,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       this.state.rootClusterUri &&
       routing.belongsToProfile(this.state.rootClusterUri, resourceUri)
     );
-  }
-
-  useState() {
-    return useStore(this);
   }
 
   setState(nextState: (draftState: WorkspacesState) => WorkspacesState | void) {
@@ -258,8 +262,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
   getUnifiedResourcePreferences(
     rootClusterUri: RootClusterUri
-  ): UnifiedResourcePreferences | undefined {
-    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+  ): UnifiedResourcePreferences {
+    return (
+      this.state.workspaces[rootClusterUri].unifiedResourcePreferences ||
+      getDefaultUnifiedResourcePreferences()
+    );
   }
 
   /**
@@ -270,7 +277,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
    *
    * setActiveWorkspace never returns a rejected promise on its own.
    */
-  setActiveWorkspace(
+  async setActiveWorkspace(
     clusterUri: RootClusterUri,
     /**
      * Prefill values to be used in ClusterConnectDialog if the cluster is in the state but there's
@@ -312,7 +319,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       return Promise.resolve({ isAtDesiredWorkspace: true });
     }
 
-    const cluster = this.clustersService.findCluster(clusterUri);
+    let cluster = this.clustersService.findCluster(clusterUri);
     if (!cluster) {
       this.notificationsService.notifyError({
         title: 'Could not set cluster as active',
@@ -322,6 +329,28 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         `Could not find cluster with uri ${clusterUri} when changing active cluster`
       );
       return Promise.resolve({ isAtDesiredWorkspace: false });
+    }
+
+    if (cluster.profileStatusError) {
+      await this.clustersService.syncRootClustersAndCatchErrors();
+      // Update the cluster.
+      cluster = this.clustersService.findCluster(clusterUri);
+      // If the problem persists (because, for example, the user still hasn't
+      // connected the hardware key) show a notification and return early.
+      if (cluster.profileStatusError) {
+        const notificationId = this.notificationsService.notifyError({
+          title: 'Could not set cluster as active',
+          description: cluster.profileStatusError,
+          action: {
+            content: 'Retry',
+            onClick: () => {
+              this.notificationsService.removeNotification(notificationId);
+              this.setActiveWorkspace(clusterUri);
+            },
+          },
+        });
+        return { isAtDesiredWorkspace: false };
+      }
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -429,10 +458,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   // TODO(gzdunek): Parse the entire workspace state read from disk like below.
   private parseUnifiedResourcePreferences(
     unifiedResourcePreferences: unknown
-    // TODO(gzdunek): DELETE IN 16.0.0. See comment in useUserPreferences.ts.
-  ): Partial<UnifiedResourcePreferences> | undefined {
+  ): UnifiedResourcePreferences | undefined {
     try {
-      return unifiedResourcePreferencesSchema.parse(unifiedResourcePreferences);
+      return unifiedResourcePreferencesSchema.parse(
+        unifiedResourcePreferences
+      ) as UnifiedResourcePreferencesSchemaAsRequired;
     } catch (e) {
       this.logger.error('Failed to parse unified resource preferences', e);
     }
@@ -529,6 +559,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       localClusterUri,
       location: defaultDocument.uri,
       documents: [defaultDocument],
+      unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
     };
   }
 
@@ -551,12 +582,49 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   }
 }
 
-const unifiedResourcePreferencesSchema = z.object({
-  defaultTab: z.nativeEnum(DefaultTab),
-  viewMode: z.nativeEnum(ViewMode),
-  labelsViewMode: z.nativeEnum(LabelsViewMode),
-});
+// Best to keep in sync with lib/services/local/userpreferences.go.
+export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferences {
+  return {
+    defaultTab: DefaultTab.ALL,
+    viewMode: ViewMode.CARD,
+    labelsViewMode: LabelsViewMode.COLLAPSED,
+    availableResourceMode: AvailableResourceMode.NONE,
+  };
+}
 
-export type PendingAccessRequest = {
-  [k in Exclude<ResourceKind, 'resource'>]: Record<string, string>;
+const unifiedResourcePreferencesSchema = z
+  .object({
+    defaultTab: z
+      .nativeEnum(DefaultTab)
+      .default(getDefaultUnifiedResourcePreferences().defaultTab),
+    viewMode: z
+      .nativeEnum(ViewMode)
+      .default(getDefaultUnifiedResourcePreferences().viewMode),
+    labelsViewMode: z
+      .nativeEnum(LabelsViewMode)
+      .default(getDefaultUnifiedResourcePreferences().labelsViewMode),
+    availableResourceMode: z
+      .nativeEnum(AvailableResourceMode)
+      .default(getDefaultUnifiedResourcePreferences().availableResourceMode),
+  })
+  // Assign the default values if undefined is passed.
+  .default({});
+
+// Because we don't have `strictNullChecks` enabled, zod infers
+// all properties as optional.
+// With this helper, we can enforce the schema to contain all properties.
+type UnifiedResourcePreferencesSchemaAsRequired = Required<
+  z.infer<typeof unifiedResourcePreferencesSchema>
+>;
+
+/**
+ * useWorkspaceServiceState is a replacement for the legacy useStore hook. Many components within
+ * teleterm depend on the behavior of useStore which re-renders the component on any change within
+ * the store. Most of the time, those components don't even use the state returned by useStore.
+ *
+ * @deprecated Prefer useStoreSelector with a selector that picks only what the callsite is going
+ * to use. useWorkspaceServiceState re-renders the component on any change within any workspace.
+ */
+export const useWorkspaceServiceState = () => {
+  return useStoreSelector('workspacesService', identitySelector);
 };

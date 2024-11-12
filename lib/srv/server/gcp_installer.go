@@ -28,6 +28,8 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // GCPInstaller handles running commands that install Teleport on GCP
@@ -40,12 +42,13 @@ type GCPInstaller struct {
 // virtual machines.
 type GCPRunRequest struct {
 	Client          gcp.InstancesClient
-	Instances       []*gcp.Instance
+	Instances       []*gcpimds.Instance
 	Params          []string
 	Zone            string
 	ProjectID       string
 	ScriptName      string
 	PublicProxyAddr string
+	SSHKeyAlgo      cryptosuites.Algorithm
 }
 
 // Run runs a command on a set of virtual machines and then blocks until the
@@ -60,13 +63,18 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 		inst := inst
 		g.Go(func() error {
 			runRequest := gcp.RunCommandRequest{
-				Client:          req.Client,
-				InstanceRequest: inst.InstanceRequest(),
+				Client: req.Client,
+				InstanceRequest: gcpimds.InstanceRequest{
+					ProjectID: inst.ProjectID,
+					Zone:      inst.Zone,
+					Name:      inst.Name,
+				},
 				Script: getGCPInstallerScript(
 					req.ScriptName,
 					req.PublicProxyAddr,
 					req.Params,
 				),
+				SSHKeyAlgo: req.SSHKeyAlgo,
 			}
 			return trace.Wrap(gcp.RunCommand(ctx, &runRequest))
 		})

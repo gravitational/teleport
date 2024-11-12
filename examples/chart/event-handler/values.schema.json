@@ -225,6 +225,20 @@
             "default": {},
             "additionalProperties": true
         },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },        
         "tolerations": {
             "$id": "#/properties/tolerations",
             "type": "array",
@@ -268,7 +282,8 @@
                 {
                     "address": "auth.example.com:3025",
                     "identitySecretName": "teleport-plugin-event-handler-auth-id",
-                    "identitySecretPath": "auth_id"
+                    "identitySecretPath": "auth_id",
+                    "debug": false
                 }
             ],
             "required": [
@@ -307,13 +322,16 @@
             "default": {
                 "storagePath": "/var/lib/teleport/plugins/event-handler/storage",
                 "timeout": "10s",
-                "batch": 20
+                "batch": 20,
+                "window-size": "24h"
             },
             "examples": [
                 {
                     "storagePath": "/var/lib/teleport/plugins/event-handler/storage",
                     "timeout": "10s",
-                    "batch": 20
+                    "batch": 20,
+                    "window-size": "12h",
+                    "debug": false
                 }
             ],
             "required": [
@@ -339,6 +357,43 @@
                     "$id": "#/properties/eventHandler/properties/batch",
                     "type": "number",
                     "default": 20
+                },
+                "window-size": {
+                    "$id": "#/properties/eventHandler/properties/window-size",
+                    "type": "string",
+                    "default": "24h"
+                },
+                "debug": {
+                    "$id": "#/properties/eventHandler/properties/debug",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        false
+                    ]
+                },
+                "types": {
+                    "$id": "#/properties/eventHandler/properties/types",
+                    "type": "array",
+                    "default": "",
+                    "examples": [
+                        ["TYPE1,TYPE2"]
+                    ]
+                },
+                "skipEventTypes": {
+                    "$id": "#/properties/eventHandler/properties/skipEventTypes",
+                    "type": "array",
+                    "default": "",
+                    "examples": [
+                        ["TYPE1"]
+                    ]
+                },
+                "skipSessionTypes": {
+                    "$id": "#/properties/eventHandler/properties/skipSessionTypes",
+                    "type": "array",
+                    "default": "",
+                    "examples": [
+                        ["print"]
+                    ]
                 }
             },
             "additionalProperties": true

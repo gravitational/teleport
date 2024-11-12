@@ -25,7 +25,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -280,7 +280,7 @@ type fakeConfigureExternalAuditStorageClient struct {
 func (f *fakeConfigureExternalAuditStorageClient) PutRolePolicy(ctx context.Context, input *iam.PutRolePolicyInput, opts ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	roleName := aws.ToString(input.RoleName)
 	if _, roleExists := f.rolePolicies[roleName]; !roleExists {
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: aws.String(fmt.Sprintf("role %q does not exist", roleName)),
 		}
 	}

@@ -21,12 +21,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	tlib "github.com/gravitational/teleport/integrations/lib"
 )
@@ -40,10 +40,11 @@ const (
 type FluentdClient struct {
 	// client HTTP client to send requests
 	client *http.Client
+	log    *slog.Logger
 }
 
 // NewFluentdClient creates new FluentdClient
-func NewFluentdClient(c *FluentdConfig) (*FluentdClient, error) {
+func NewFluentdClient(c *FluentdConfig, log *slog.Logger) (*FluentdClient, error) {
 	var certs []tls.Certificate
 	if c.FluentdCert != "" && c.FluentdKey != "" {
 		cert, err := tls.LoadX509KeyPair(c.FluentdCert, c.FluentdKey)
@@ -70,7 +71,7 @@ func NewFluentdClient(c *FluentdConfig) (*FluentdClient, error) {
 		Timeout: httpTimeout,
 	}
 
-	return &FluentdClient{client: client}, nil
+	return &FluentdClient{client: client, log: log}, nil
 }
 
 // getCertPool reads CA certificate and returns CA cert pool if passed
@@ -91,7 +92,7 @@ func getCertPool(c *FluentdConfig) (*x509.CertPool, error) {
 
 // Send sends event to fluentd
 func (f *FluentdClient) Send(ctx context.Context, url string, b []byte) error {
-	log.WithField("json", string(b)).Debug("JSON to send")
+	f.log.DebugContext(ctx, "Sending event to Fluentd", "payload", string(b))
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {

@@ -30,38 +30,40 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-// databaseObjectService manages database objects in the backend.
-type databaseObjectService struct {
+// DatabaseObjectService manages database objects in the backend.
+type DatabaseObjectService struct {
 	service *generic.ServiceWrapper[*dbobjectv1.DatabaseObject]
 }
 
-var _ services.DatabaseObjects = (*databaseObjectService)(nil)
+func (s *DatabaseObjectService) DeleteAllDatabaseObjects(ctx context.Context) error {
+	return trace.Wrap(s.service.DeleteAllResources(ctx))
+}
 
-func (s *databaseObjectService) UpsertDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
+func (s *DatabaseObjectService) UpsertDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.UpsertResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 
-func (s *databaseObjectService) UpdateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
-	out, err := s.service.UpdateResource(ctx, object)
+func (s *DatabaseObjectService) UpdateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
+	out, err := s.service.UnconditionalUpdateResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 
-func (s *databaseObjectService) CreateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
+func (s *DatabaseObjectService) CreateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.CreateResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 
-func (s *databaseObjectService) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+func (s *DatabaseObjectService) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
 	out, err := s.service.GetResource(ctx, name)
 	return out, trace.Wrap(err)
 }
 
-func (s *databaseObjectService) DeleteDatabaseObject(ctx context.Context, name string) error {
+func (s *DatabaseObjectService) DeleteDatabaseObject(ctx context.Context, name string) error {
 	return trace.Wrap(s.service.DeleteResource(ctx, name))
 }
 
-func (s *databaseObjectService) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+func (s *DatabaseObjectService) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
 	out, next, err := s.service.ListResources(ctx, size, pageToken)
 	return out, next, trace.Wrap(err)
 }
@@ -70,17 +72,19 @@ const (
 	databaseObjectPrefix = "databaseObjectPrefix"
 )
 
-func NewDatabaseObjectService(backend backend.Backend) (services.DatabaseObjects, error) {
-	service, err := generic.NewServiceWrapper(backend,
-		types.KindDatabaseObject,
-		databaseObjectPrefix,
-		//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
-		services.FastMarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
-		//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
-		services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
-	)
+func NewDatabaseObjectService(b backend.Backend) (*DatabaseObjectService, error) {
+	service, err := generic.NewServiceWrapper(
+		generic.ServiceWrapperConfig[*dbobjectv1.DatabaseObject]{
+			Backend:       b,
+			ResourceKind:  types.KindDatabaseObject,
+			BackendPrefix: backend.NewKey(databaseObjectPrefix),
+			//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
+			MarshalFunc: services.FastMarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
+			//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
+			UnmarshalFunc: services.FastUnmarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &databaseObjectService{service: service}, nil
+	return &DatabaseObjectService{service: service}, nil
 }

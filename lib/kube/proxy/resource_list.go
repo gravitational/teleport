@@ -53,7 +53,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	req = req.WithContext(ctx)
 
-	isLocalKubeCluster := f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
+	isLocalKubeCluster := sess.isLocalKubernetesCluster
 	supportsType := false
 	resourceKind := ""
 	if isLocalKubeCluster {
@@ -71,7 +71,6 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		status = rw.Status()
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
-
 		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)

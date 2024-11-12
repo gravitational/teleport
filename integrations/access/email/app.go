@@ -24,11 +24,11 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -122,11 +122,12 @@ func (a *App) run(ctx context.Context) error {
 
 // init inits plugin
 func (a *App) init(ctx context.Context) error {
+	log := logger.Get(ctx)
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 
 	var err error
-	if a.apiClient, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
+	if a.apiClient, err = a.conf.GetTeleportClient(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -145,6 +146,11 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	log.Debug("Starting client connection health check...")
+	if err = a.client.CheckHealth(ctx); err != nil {
+		return trace.Wrap(err, "client connection health check failed")
+	}
+	log.Debug("Client connection health check finished ok")
 	return nil
 }
 
@@ -160,7 +166,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 

@@ -23,13 +23,15 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
-	"os"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -42,25 +44,25 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/ai"
-	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
@@ -74,17 +76,28 @@ var log = logrus.WithFields(logrus.Fields{
 	teleport.ComponentKey: teleport.ComponentAuth,
 })
 
+// VersionStorage local storage for saving the version.
+type VersionStorage interface {
+	// GetTeleportVersion reads the last known Teleport version from storage.
+	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	// WriteTeleportVersion writes the last known Teleport version to the storage.
+	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+}
+
 // InitConfig is auth server init config
 type InitConfig struct {
 	// Backend is auth backend to use
 	Backend backend.Backend
+
+	// VersionStorage is a version storage for local process
+	VersionStorage VersionStorage
 
 	// Authority is key generator that we use
 	Authority sshca.Authority
 
 	// KeyStoreConfig is the config for the KeyStore which handles private CA
 	// keys that may be held in an HSM.
-	KeyStoreConfig keystore.Config
+	KeyStoreConfig servicecfg.KeystoreConfig
 
 	// HostUUID is a UUID of this host
 	HostUUID string
@@ -147,6 +160,9 @@ type InitConfig struct {
 	// ClusterConfiguration is a services that holds cluster wide configuration.
 	ClusterConfiguration services.ClusterConfiguration
 
+	// AutoUpdateService is a service of autoupdate configuration and version.
+	AutoUpdateService services.AutoUpdateService
+
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
 
@@ -161,9 +177,6 @@ type InitConfig struct {
 
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
-
-	// Assist is a service that implements the Teleport Assist functionality.
-	Assist services.Assistant
 
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
@@ -205,8 +218,11 @@ type InitConfig struct {
 	// session related streams
 	Streamer events.Streamer
 
-	// WindowsServices is a service that manages Windows desktop resources.
+	// WindowsDesktops is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
+
+	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
+	DynamicWindowsDesktops services.DynamicWindowsDesktops
 
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
@@ -220,11 +236,11 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// UserTasks is a service that manages UserTasks.
+	UserTasks services.UserTasks
+
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
-
-	// Embeddings is a service that manages Embeddings
-	Embeddings services.Embeddings
 
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
@@ -279,12 +295,6 @@ type InitConfig struct {
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
 
-	// EmbeddingRetriever is a retriever for embeddings.
-	EmbeddingRetriever *ai.SimpleRetriever
-
-	// EmbeddingClient is a client that allows generating embeddings.
-	EmbeddingClient embedding.Embedder
-
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
 
@@ -304,6 +314,27 @@ type InitConfig struct {
 
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
+
+	// BotInstance is a service that manages Machine ID bot instances
+	BotInstance services.BotInstance
+
+	// SPIFFEFederations is a service that manages storing SPIFFE federations.
+	SPIFFEFederations services.SPIFFEFederations
+
+	// StaticHostUsers is a service that manages host users that should be
+	// created on SSH nodes.
+	StaticHostUsers services.StaticHostUser
+
+	// ProvisioningStates is a service that manages the storage and retrieval of
+	// downstream User and Access List provisioning records
+	ProvisioningStates services.ProvisioningStates
+
+	// Logger is the logger instance for the auth service to use.
+	Logger *slog.Logger
+
+	// IdentityCenter is the Identity Center state storage service to use in
+	// this node.
+	IdentityCenter services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -327,9 +358,9 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err := backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:  cfg.Backend,
-				LockName: domainName,
-				TTL:      30 * time.Second,
+				Backend:            cfg.Backend,
+				LockNameComponents: []string{domainName},
+				TTL:                30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}, func(ctx context.Context) error {
@@ -349,6 +380,9 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion, firstStart); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -409,7 +443,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+		if err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
@@ -432,6 +466,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeSessionRecordingConfig")
 		defer span.End()
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
+	})
+
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
+		defer span.End()
+		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
 	})
 
 	g.Go(func() error {
@@ -479,12 +519,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		if cn.GetClusterName() != cfg.ClusterName.GetClusterName() {
-			warnMessage := "Cannot rename cluster to %q: continuing with %q. Teleport " +
+			msg := "Cannot rename cluster: continuing with current cluster name. Teleport " +
 				"clusters can not be renamed once they are created. You are seeing this " +
-				"warning for one of two reasons. Either you have not set \"cluster_name\" in " +
+				"message for one of two reasons. Either you have not set \"cluster_name\" in " +
 				"Teleport configuration and changed the hostname of the auth server or you " +
 				"are trying to change the value of \"cluster_name\"."
-			log.Warnf(warnMessage, cfg.ClusterName.GetClusterName(), cn.GetClusterName())
+			log.WithFields(logrus.Fields{
+				"current_cluster_name":    cn.GetClusterName(),
+				"configured_cluster_name": cfg.ClusterName.GetClusterName(),
+			}).Error(msg)
 		}
 
 		log.Debugf("Cluster configuration: %v.", cn.GetClusterName())
@@ -499,7 +542,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	cfg.ClusterName = cn
 
 	// Apply any outstanding migrations.
-	if err := migration.Apply(ctx, cfg.Backend); err != nil {
+	if err := migration.Apply(ctx, asrv.logger, cfg.Backend); err != nil {
 		return trace.Wrap(err, "applying migrations")
 	}
 
@@ -709,6 +752,20 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
+var secondFactorUpgradeInstructions = `
+Teleport requires second factor authentication for local users.
+The auth_service configuration should be updated to enable it.
+
+auth_service:
+  authentication:
+    second_factor: on
+    webauthn:
+      rp_id: example.com
+
+For more information:
+- https://goteleport.com/docs/access-controls/guides/webauthn/
+`
+
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
@@ -723,10 +780,41 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				return trace.Wrap(modules.ValidateResource(storedAuthPref))
+			if err := modules.ValidateResource(storedAuthPref); err != nil {
+				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+					return trace.Wrap(err, secondFactorUpgradeInstructions)
+				}
+
+				return trace.Wrap(err)
 			}
+
 			return nil
+		}
+
+		switch {
+		case storedAuthPref == nil:
+			// This is a brand new cluster with no stored auth pref, set a
+			// default signature algorithm suite.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+				FIPS:          asrv.fips,
+				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+				Cloud:         modules.GetModules().Features().Cloud,
+			})
+		case newAuthPref.Origin() == types.OriginDefaults:
+			// There is a stored auth preference which we are overwriting with a
+			// default auth preference. Maintain the stored signature algorithm
+			// suite to avoid automatically changing it on version upgrades, new
+			// suites should always be opt-in for existing clusters.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
+		case newAuthPref.GetSignatureAlgorithmSuite() == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED:
+			// There is a stored auth preference and the new auth preference is
+			// coming from a config file where the signature_algorithm_suite is
+			// unset. Maintain the stored signature algorithm suite otherwise we
+			// would unset the default suite after the first auth restart.
+			newAuthPref = newAuthPref.Clone()
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
 		}
 
 		if storedAuthPref == nil {
@@ -735,7 +823,6 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
-
 			return trace.Wrap(err)
 		}
 
@@ -743,6 +830,9 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
 		if trace.IsCompareFailed(err) {
 			continue
+		}
+		if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+			return trace.Wrap(err, secondFactorUpgradeInstructions)
 		}
 
 		return trace.Wrap(err)
@@ -831,6 +921,31 @@ func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecC
 	return trace.LimitExceeded("failed to initialize session recording config in %v iterations", iterationLimit)
 }
 
+func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
+	stored, err := asrv.Services.GetAccessGraphSettings(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if stored != nil {
+		return nil
+	}
+
+	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Creating access graph settings: %v.", stored)
+	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+
+	return trace.Wrap(err)
+}
+
 // shouldInitReplaceResourceWithOrigin determines whether the candidate
 // resource should be used to replace the stored resource during auth server
 // initialization.  Dynamically configured resources must not be overwritten
@@ -909,6 +1024,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetRequireTrustedDeviceRole(),
 		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
+		services.NewPresetTerraformProviderRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -982,12 +1098,23 @@ type PresetUsers interface {
 	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
+// getPresetUsers returns a list of all preset users expected to be available on
+// this cluster.
+func getPresetUsers() []types.User {
+	presets := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}
+
+	// Certain `New$FooUser()` functions will return a nil role if the
+	// corresponding feature is disabled. They should be filtered out as they
+	// are not actually made available on the cluster.
+	return slices.DeleteFunc(presets, func(u types.User) bool { return u == nil })
+}
+
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
 func createPresetUsers(ctx context.Context, um PresetUsers) error {
-	users := []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
-	}
+	users := getPresetUsers()
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped
@@ -1018,6 +1145,25 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 		return trace.Wrap(err, "failed listing available database object import rules")
 	}
 	if len(importRules) > 0 {
+		// If the single rule is the old preset, we assume the user hasn't used
+		// DB DAC feature yet since the old preset alone is usually not enough
+		// to make things work. Replace it with the new preset.
+		//
+		// Creating and updating the database object import rule is handled on
+		// a best-effort basis, so it’s not included in backend migrations.
+		//
+		// TODO(greedy52) DELETE in 18.0
+		if len(importRules) == 1 && databaseobjectimportrule.IsOldImportAllObjectsRulePreset(importRules[0]) {
+			rule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
+			if rule == nil {
+				return nil
+			}
+
+			_, err = rules.UpsertDatabaseObjectImportRule(ctx, rule)
+			if err != nil {
+				return trace.Wrap(err, "failed to update the default database object import rule")
+			}
+		}
 		return nil
 	}
 
@@ -1070,7 +1216,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA:
+			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -1107,13 +1253,18 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 }
 
 // GenerateIdentity generates identity for the auth server
-func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsNames []string) (*state.Identity, error) {
+	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1125,67 +1276,18 @@ func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames [
 			Role:                 id.Role,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PublicSSHKey:         pub,
+			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ReadIdentityFromKeyPair(priv, certs)
-}
 
-// Identity is collection of certificates and signers that represent server identity
-type Identity struct {
-	// ID specifies server unique ID, name and role
-	ID IdentityID
-	// KeyBytes is a PEM encoded private key
-	KeyBytes []byte
-	// CertBytes is a PEM encoded SSH host cert
-	CertBytes []byte
-	// TLSCertBytes is a PEM encoded TLS x509 client certificate
-	TLSCertBytes []byte
-	// TLSCACertBytes is a list of PEM encoded TLS x509 certificate of certificate authority
-	// associated with auth server services
-	TLSCACertsBytes [][]byte
-	// SSHCACertBytes is a list of SSH CAs encoded in the authorized_keys format.
-	SSHCACertBytes [][]byte
-	// KeySigner is an SSH host certificate signer
-	KeySigner ssh.Signer
-	// Cert is a parsed SSH certificate
-	Cert *ssh.Certificate
-	// XCert is X509 client certificate
-	XCert *x509.Certificate
-	// ClusterName is a name of host's cluster
-	ClusterName string
-	// SystemRoles is a list of additional system roles.
-	SystemRoles []string
-}
-
-// HasSystemRole checks if this identity encompasses the supplied system role.
-func (i *Identity) HasSystemRole(role types.SystemRole) bool {
-	// check identity's primary system role
-	if i.ID.Role == role {
-		return true
+	priv, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	return slices.Contains(i.SystemRoles, string(role))
-}
-
-// String returns user-friendly representation of the identity.
-func (i *Identity) String() string {
-	var out []string
-	if i.XCert != nil {
-		out = append(out, fmt.Sprintf("cert(%v issued by %v:%v)", i.XCert.Subject.CommonName, i.XCert.Issuer.CommonName, i.XCert.Issuer.SerialNumber))
-	}
-	for j := range i.TLSCACertsBytes {
-		cert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
-		if err != nil {
-			out = append(out, err.Error())
-		} else {
-			out = append(out, fmt.Sprintf("trust root(%v:%v)", cert.Subject.CommonName, cert.Subject.SerialNumber))
-		}
-	}
-	return fmt.Sprintf("Identity(%v, %v)", i.ID.Role, strings.Join(out, ","))
+	return state.ReadIdentityFromKeyPair(priv, certs)
 }
 
 // CertInfo returns diagnostic information about certificate
@@ -1214,265 +1316,6 @@ func CertAuthorityInfo(ca types.CertAuthority) string {
 		}
 	}
 	return fmt.Sprintf("cert authority(state: %v, phase: %v, roots: %v)", ca.GetRotation().State, ca.GetRotation().Phase, strings.Join(out, ", "))
-}
-
-// HasTLSConfig returns true if this identity has TLS certificate and private
-// key.
-func (i *Identity) HasTLSConfig() bool {
-	return len(i.TLSCACertsBytes) != 0 && len(i.TLSCertBytes) != 0
-}
-
-// HasPrincipals returns whether identity has principals
-func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	set := utils.StringsSet(i.Cert.ValidPrincipals)
-	for _, principal := range additionalPrincipals {
-		if _, ok := set[principal]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-// HasDNSNames returns true if TLS certificate has required DNS names
-func (i *Identity) HasDNSNames(dnsNames []string) bool {
-	if i.XCert == nil {
-		return false
-	}
-	set := utils.StringsSet(i.XCert.DNSNames)
-	for _, dnsName := range dnsNames {
-		if _, ok := set[dnsName]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-// TLSConfig returns TLS config for mutual TLS authentication
-// can return NotFound error if there are no TLS credentials setup for identity
-func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(cipherSuites)
-	if !i.HasTLSConfig() {
-		return nil, trace.NotFound("no TLS credentials setup for this identity")
-	}
-
-	tlsCert, err := keys.X509KeyPair(i.TLSCertBytes, i.KeyBytes)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse private key: %v", err)
-	}
-	certPool := x509.NewCertPool()
-	for j := range i.TLSCACertsBytes {
-		parsedCert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse CA certificate")
-		}
-		certPool.AddCert(parsedCert)
-	}
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
-	return tlsConfig, nil
-}
-
-func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
-	checkers, err := apisshutils.ParseAuthorizedKeys(i.SSHCACertBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return checkers, nil
-}
-
-// SSHClientConfig returns a ssh.ClientConfig used by nodes to connect to
-// the reverse tunnel server.
-func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
-	callback, err := apisshutils.NewHostKeyCallback(
-		apisshutils.HostKeyCallbackConfig{
-			GetHostCheckers: i.getSSHCheckers,
-			FIPS:            fips,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &ssh.ClientConfig{
-		User:            i.ID.HostUUID,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
-		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultIOTimeout,
-	}, nil
-}
-
-// IdentityID is a combination of role, host UUID, and node name.
-type IdentityID struct {
-	Role     types.SystemRole
-	HostUUID string
-	NodeName string
-}
-
-// HostID is host ID part of the host UUID that consists cluster name
-func (id *IdentityID) HostID() string {
-	return strings.SplitN(id.HostUUID, ".", 2)[0]
-}
-
-// Equals returns true if two identities are equal
-func (id *IdentityID) Equals(other IdentityID) bool {
-	return id.Role == other.Role && id.HostUUID == other.HostUUID
-}
-
-// String returns debug friendly representation of this identity
-func (id *IdentityID) String() string {
-	return fmt.Sprintf("Identity(hostuuid=%v, role=%v)", id.HostUUID, id.Role)
-}
-
-// ReadIdentityFromKeyPair reads SSH and TLS identity from key pair.
-func ReadIdentityFromKeyPair(privateKey []byte, certs *proto.Certs) (*Identity, error) {
-	identity, err := ReadSSHIdentityFromKeyPair(privateKey, certs.SSH)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(certs.SSHCACerts) != 0 {
-		identity.SSHCACertBytes = certs.SSHCACerts
-	}
-
-	if len(certs.TLSCACerts) != 0 {
-		// Parse the key pair to verify that identity parses properly for future use.
-		i, err := ReadTLSIdentityFromKeyPair(privateKey, certs.TLS, certs.TLSCACerts)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		identity.XCert = i.XCert
-		identity.TLSCertBytes = certs.TLS
-		identity.TLSCACertsBytes = certs.TLSCACerts
-		identity.SystemRoles = i.SystemRoles
-	}
-
-	return identity, nil
-}
-
-// ReadTLSIdentityFromKeyPair reads TLS identity from key pair
-func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byte) (*Identity, error) {
-	if len(keyBytes) == 0 {
-		return nil, trace.BadParameter("missing private key")
-	}
-
-	if len(certBytes) == 0 {
-		return nil, trace.BadParameter("missing certificate")
-	}
-
-	cert, err := tlsca.ParseCertificatePEM(certBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse TLS certificate")
-	}
-
-	id, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(cert.Issuer.Organization) == 0 {
-		return nil, trace.BadParameter("missing CA organization")
-	}
-
-	clusterName := cert.Issuer.Organization[0]
-	if clusterName == "" {
-		return nil, trace.BadParameter("missing cluster name")
-	}
-	identity := &Identity{
-		ID:              IdentityID{HostUUID: id.Username, Role: types.SystemRole(id.Groups[0])},
-		ClusterName:     clusterName,
-		KeyBytes:        keyBytes,
-		TLSCertBytes:    certBytes,
-		TLSCACertsBytes: caCertsBytes,
-		XCert:           cert,
-		SystemRoles:     id.SystemRoles,
-	}
-	// The passed in ciphersuites don't appear to matter here since the returned
-	// *tls.Config is never actually used?
-	_, err = identity.TLSConfig(utils.DefaultCipherSuites())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return identity, nil
-}
-
-// ReadSSHIdentityFromKeyPair reads identity from initialized keypair
-func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
-	if len(keyBytes) == 0 {
-		return nil, trace.BadParameter("PrivateKey: missing private key")
-	}
-
-	if len(certBytes) == 0 {
-		return nil, trace.BadParameter("Cert: missing parameter")
-	}
-
-	cert, err := apisshutils.ParseCertificate(certBytes)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse server certificate: %v", err)
-	}
-
-	signer, err := ssh.ParsePrivateKey(keyBytes)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse private key: %v", err)
-	}
-	// this signer authenticates using certificate signed by the cert authority
-	// not only by the public key
-	certSigner, err := ssh.NewCertSigner(cert, signer)
-	if err != nil {
-		return nil, trace.BadParameter("unsupported private key: %v", err)
-	}
-
-	// check principals on certificate
-	if len(cert.ValidPrincipals) < 1 {
-		return nil, trace.BadParameter("valid principals: at least one valid principal is required")
-	}
-	for _, validPrincipal := range cert.ValidPrincipals {
-		if validPrincipal == "" {
-			return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
-		}
-	}
-
-	// check permissions on certificate
-	if len(cert.Permissions.Extensions) == 0 {
-		return nil, trace.BadParameter("extensions: missing needed extensions for host roles")
-	}
-	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
-	if roleString == "" {
-		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionRole)
-	}
-	roles, err := types.ParseTeleportRoles(roleString)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	foundRoles := len(roles)
-	if foundRoles != 1 {
-		return nil, trace.Errorf("expected one role per certificate. found %d: '%s'",
-			foundRoles, roles.String())
-	}
-	role := roles[0]
-	clusterName := cert.Permissions.Extensions[utils.CertExtensionAuthority]
-	if clusterName == "" {
-		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
-	}
-
-	return &Identity{
-		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
-		ClusterName: clusterName,
-		KeyBytes:    keyBytes,
-		CertBytes:   certBytes,
-		KeySigner:   certSigner,
-		Cert:        cert,
-	}, nil
-}
-
-// ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
-// key storage (dataDir).
-func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
-	storage, err := NewProcessStorage(context.TODO(), dataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer storage.Close()
-	return storage.ReadIdentity(IdentityCurrent, id.Role)
 }
 
 // DELETE IN: 2.7.0

@@ -34,7 +34,7 @@ export function useAssumeAccess() {
 
   const [assumeRoleAttempt, runAssumeRole] = useAsync((requestId: string) =>
     retryWithRelogin(ctx, clusterUri, async () => {
-      await ctx.clustersService.assumeRole(rootClusterUri, [requestId], []);
+      await ctx.clustersService.assumeRoles(rootClusterUri, [requestId]);
       // refresh the current resource tabs
       requestResourcesRefresh();
     })

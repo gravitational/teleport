@@ -71,6 +71,9 @@ const (
 	// JoinMethodTPM indicates that the node will join with the TPM join method.
 	// The core implementation of this join method can be found in lib/tpm.
 	JoinMethodTPM JoinMethod = "tpm"
+	// JoinMethodTerraformCloud indicates that the node will join using the Terraform
+	// join method. See lib/terraformcloud for more.
+	JoinMethodTerraformCloud JoinMethod = "terraform_cloud"
 )
 
 var JoinMethods = []JoinMethod{
@@ -85,6 +88,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodSpacelift,
 	JoinMethodToken,
 	JoinMethodTPM,
+	JoinMethodTerraformCloud,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -121,13 +125,16 @@ type ProvisionToken interface {
 	GetAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
+	// GetGCPRules will return the GCP rules within this token.
+	GetGCPRules() *ProvisionTokenSpecV2GCP
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
 	GetJoinMethod() JoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
-
+	// IsStatic returns true if the token is statically configured
+	IsStatic() bool
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
 	GetSuggestedLabels() Labels
 
@@ -345,6 +352,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.validate(); err != nil {
 			return trace.Wrap(err, "spec.tpm: failed validation")
 		}
+	case JoinMethodTerraformCloud:
+		providerCfg := p.Spec.TerraformCloud
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.terraform_cloud: must be configured for the join method %q",
+				JoinMethodTerraformCloud,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.terraform_cloud: failed validation")
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -384,6 +402,11 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
 }
 
+// GetGCPRules will return the GCP rules within this token.
+func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
+	return p.Spec.GCP
+}
+
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
@@ -392,6 +415,11 @@ func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 // GetJoinMethod returns joining method that must be used with this token.
 func (p *ProvisionTokenV2) GetJoinMethod() JoinMethod {
 	return p.Spec.JoinMethod
+}
+
+// IsStatic returns true if the token is statically configured
+func (p *ProvisionTokenV2) IsStatic() bool {
+	return p.Origin() == OriginConfigFile
 }
 
 // GetBotName returns the BotName field which must be set for joining bots.
@@ -412,16 +440,6 @@ func (p *ProvisionTokenV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (p *ProvisionTokenV2) SetSubKind(s string) {
 	p.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (p *ProvisionTokenV2) GetResourceID() int64 {
-	return p.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (p *ProvisionTokenV2) SetResourceID(id int64) {
-	p.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -545,14 +563,16 @@ func ProvisionTokensToV1(in []ProvisionToken) []ProvisionTokenV1 {
 	return out
 }
 
-// ProvisionTokensFromV1 converts V1 provision tokens to resource list
-func ProvisionTokensFromV1(in []ProvisionTokenV1) []ProvisionToken {
+// ProvisionTokensFromStatic converts static tokens to resource list
+func ProvisionTokensFromStatic(in []ProvisionTokenV1) []ProvisionToken {
 	if in == nil {
 		return nil
 	}
 	out := make([]ProvisionToken, len(in))
 	for i := range in {
-		out[i] = in[i].V2()
+		tok := in[i].V2()
+		tok.SetOrigin(OriginConfigFile)
+		out[i] = tok
 	}
 	return out
 }
@@ -810,5 +830,35 @@ func (a *ProvisionTokenSpecV2TPM) validate() error {
 			)
 		}
 	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2TerraformCloud) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodTerraformCloud)
+	}
+
+	// Note: an empty audience will fall back to the cluster name.
+
+	for i, allowRule := range a.Allow {
+		orgSet := allowRule.OrganizationID != "" || allowRule.OrganizationName != ""
+		projectSet := allowRule.ProjectID != "" || allowRule.ProjectName != ""
+		workspaceSet := allowRule.WorkspaceID != "" || allowRule.WorkspaceName != ""
+
+		if !orgSet {
+			return trace.BadParameter(
+				"allow[%d]: one of ['organization_id', 'organization_name'] must be set",
+				i,
+			)
+		}
+
+		if !projectSet && !workspaceSet {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['project_id', 'project_name', 'workspace_id', 'workspace_name'] must be set",
+				i,
+			)
+		}
+	}
+
 	return nil
 }

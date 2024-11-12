@@ -68,6 +68,9 @@ type Config struct {
 	Timeout time.Duration
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
+	// UpdateGroup is used to vary the webapi response based on the
+	// client's auto-update group.
+	UpdateGroup string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -169,9 +172,18 @@ func Find(cfg *Config) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/find",
+	}
+	if cfg.UpdateGroup != "" {
+		endpoint.RawQuery = url.Values{
+			"group": []string{cfg.UpdateGroup},
+		}.Encode()
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,12 +217,21 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Ping")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/ping", cfg.ProxyAddr)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/ping",
+	}
+	if cfg.UpdateGroup != "" {
+		endpoint.RawQuery = url.Values{
+			"group": []string{cfg.UpdateGroup},
+		}.Encode()
+	}
 	if cfg.ConnectorName != "" {
-		endpoint = fmt.Sprintf("%s/%s", endpoint, cfg.ConnectorName)
+		endpoint = endpoint.JoinPath(cfg.ConnectorName)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,12 +318,18 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+	// AutoUpdateSettings contains the auto update settings.
+	AutoUpdate AutoUpdateSettings `json:"auto_update"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
 
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
+	// Edition represents the Teleport edition. Possible values are "oss", "ent", and "community".
+	Edition string `json:"edition"`
+	// FIPS represents if Teleport is using FIPS-compliant cryptography.
+	FIPS bool `json:"fips"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
@@ -326,8 +353,20 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
-	// AssistEnabled is true when Teleport Assist is enabled.
-	AssistEnabled bool `json:"assist_enabled"`
+}
+
+// AutoUpdateSettings contains information about the auto update requirements.
+type AutoUpdateSettings struct {
+	// ToolsVersion defines the version of {tsh, tctl} for client auto update.
+	ToolsVersion string `json:"tools_version"`
+	// ToolsAutoUpdate indicates if the requesting tools client should be updated.
+	ToolsAutoUpdate bool `json:"tools_auto_update"`
+	// AgentVersion defines the version of teleport that agents enrolled into autoupdates should run.
+	AgentVersion string `json:"agent_version"`
+	// AgentAutoUpdate indicates if the requesting agent should attempt to update now.
+	AgentAutoUpdate bool `json:"agent_auto_update"`
+	// AgentUpdateJitterSeconds defines the jitter time an agent should wait before updating.
+	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -362,6 +401,9 @@ type SSHProxySettings struct {
 
 	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
 	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
+
+	// DialTimeout indicates the SSH timeout clients should use.
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // DBProxySettings contains database access specific proxy settings.
@@ -422,6 +464,9 @@ type AuthenticationSettings struct {
 	// DefaultSessionTTL is the TTL requested for user certs if
 	// a TTL is not otherwise specified.
 	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
+	// SignatureAlgorithmSuite is the configured signature algorithm suite for
+	// the cluster.
+	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.
@@ -448,6 +493,10 @@ type SAMLSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
+	// SingleLogoutEnabled is whether SAML SLO (single logout) is enabled for this auth connector.
+	SingleLogoutEnabled bool `json:"singleLogoutEnabled,omitempty"`
+	// SSO is the URL of the identity provider's SSO service.
+	SSO string
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.
@@ -456,6 +505,8 @@ type OIDCSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
+	// Issuer URL is the endpoint of the provider
+	IssuerURL string
 }
 
 // GithubSettings contains the Name and Display string for Github connector.
@@ -464,6 +515,8 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+	// EndpointURL is the endpoint URL.
+	EndpointURL string
 }
 
 // DeviceTrustSettings holds cluster-wide device trust settings that are liable

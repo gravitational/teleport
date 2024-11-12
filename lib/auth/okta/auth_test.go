@@ -19,6 +19,7 @@ package okta
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -26,7 +27,7 @@ import (
 )
 
 func userWithOrigin(t *testing.T, origin string) types.User {
-	user, err := types.NewUser(t.Name())
+	user, err := types.NewUser(uuid.NewString())
 	require.NoError(t, err)
 	if origin != "" {
 		user.SetOrigin(origin)

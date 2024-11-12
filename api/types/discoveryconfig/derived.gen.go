@@ -116,7 +116,8 @@ func deriveTeleportEqual_5(this, that []types.KubernetesMatcher) bool {
 func deriveTeleportEqual_6(this, that *types.AccessGraphSync) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
-			deriveTeleportEqual_12(this.AWS, that.AWS)
+			deriveTeleportEqual_12(this.AWS, that.AWS) &&
+			this.PollInterval == that.PollInterval
 }
 
 // deriveTeleportEqual_7 returns whether this and that are equal.
@@ -150,7 +151,8 @@ func deriveTeleportEqual_8(this, that *types.AWSMatcher) bool {
 			deriveTeleportEqual_16(this.Params, that.Params) &&
 			deriveTeleportEqual_17(this.SSM, that.SSM) &&
 			this.Integration == that.Integration &&
-			this.KubeAppDiscovery == that.KubeAppDiscovery
+			this.KubeAppDiscovery == that.KubeAppDiscovery &&
+			this.SetupAccessForARN == that.SetupAccessForARN
 }
 
 // deriveTeleportEqual_9 returns whether this and that are equal.

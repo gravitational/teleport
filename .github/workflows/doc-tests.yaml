@@ -27,6 +27,7 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/doc-tests.yaml'
+              - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
 
@@ -45,6 +46,27 @@ jobs:
         with:
           repository: "gravitational/docs"
           path: "docs"
+
+      # Cache node_modules. Unlike the example in the actions/cache repo, this
+      # caches the node_modules directory instead of the yarn cache. This is
+      # because yarn needs to build fresh packages even when it copies files
+      # from the yarn cache into node_modules.
+      # See:
+      # https://github.com/actions/cache/blob/main/examples.md#node---yarn
+      - uses: actions/cache@v4
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: '${{ github.workspace }}/docs/node_modules'
+          key: ${{ runner.os }}-yarn-${{ hashFiles(format('{0}/docs/yarn.lock', github.workspace)) }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install docs site dependencies
+        working-directory: docs
+        if: ${{ steps.yarn-cache.outputs.cache-hit != 'true' }}
+        # Prevent occasional `yarn install` executions that run indefinitely
+        timeout-minutes: 10
+        run: yarn install
 
       - name: Prepare docs site configuration
         # The environment we use for linting the docs differs from the one we
@@ -82,7 +104,6 @@ jobs:
           git submodule add --force -b $BRANCH -- https://github.com/gravitational/teleport
           cd $GITHUB_WORKSPACE/docs
           echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$BRANCH\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
-          yarn install
           yarn build-node
 
       - name: Check spelling
@@ -92,7 +113,8 @@ jobs:
         run: cd $GITHUB_WORKSPACE/docs && yarn markdown-lint
 
       - name: Test the docs build
-        run: cd $GITHUB_WORKSPACE/docs && yarn install && yarn build
+        working-directory: docs
+        run: yarn build
 
   stylecheck:
     name: Lint docs prose style
@@ -108,7 +130,7 @@ jobs:
           repository: "gravitational/teleport"
 
       - name: Run the linter
-        uses: errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018 # v2.1.0
+        uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
         with:
           version: 2.30.0
           # Take the comma-separated list of files returned by the "Check for
@@ -119,4 +141,5 @@ jobs:
           # changed files.
           filter_mode: added
           fail_on_error: true
+          vale_flags: "--config=docs/.vale.ini"
 

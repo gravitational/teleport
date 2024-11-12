@@ -70,17 +70,16 @@ func parsePortString(pString string) (uint16, error) {
 // runPortForwardingHTTPStreams upgrades the clients using SPDY protocol.
 // It supports multiplexing and HTTP streams and can be used per-request.
 func runPortForwardingHTTPStreams(req portForwardRequest) error {
-	_, err := httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{PortForwardProtocolV1Name})
+	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
-	if err != nil {
-		return trace.ConnectionProblem(err, "error upgrading connection")
-	}
 	defer targetConn.Close()
 
+	_, err = httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{PortForwardProtocolV1Name})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	streamChan := make(chan httpstream.Stream, 1)
 
 	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)

@@ -30,6 +30,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -92,7 +93,7 @@ type addMFADeviceRequest struct {
 // addMFADeviceHandle adds a new mfa device for the user defined in the token.
 func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req addMFADeviceRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -143,7 +144,7 @@ type createAuthenticateChallengeRequest struct {
 // Used when users need to re-authenticate their second factors.
 func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
 	var req createAuthenticateChallengeRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -175,6 +176,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			AllowReuse:                  allowReuse,
 			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
+		SSOClientRedirectURL: sso.WebMFARedirect,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -186,7 +188,13 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
 func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	chal, err := h.cfg.ProxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: p.ByName("token")},
+		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+			RecoveryStartTokenID: p.ByName("token"),
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY,
+		},
+		SSOClientRedirectURL: sso.WebMFARedirect,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -436,28 +444,39 @@ type isMfaRequiredResponse struct {
 	Required bool `json:"required"`
 }
 
+// isMFARequired is the [ClusterHandler] implementer for checking if MFA is required for a given target.
 func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var httpReq *isMFARequiredRequest
-	if err := httplib.ReadJSON(r, &httpReq); err != nil {
+	if err := httplib.ReadResourceJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	protoReq, err := h.checkAndGetProtoRequest(r.Context(), sctx, httpReq)
+	required, err := h.checkMFARequired(r.Context(), httpReq, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	return isMfaRequiredResponse{Required: required}, nil
+}
+
+// checkMFARequired checks if MFA is required for the target specified in the [isMFARequiredRequest].
+func (h *Handler) checkMFARequired(ctx context.Context, req *isMFARequiredRequest, sctx *SessionContext, site reversetunnelclient.RemoteSite) (bool, error) {
+	protoReq, err := h.checkAndGetProtoRequest(ctx, sctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
-	res, err := clt.IsMFARequired(r.Context(), protoReq)
+	clt, err := sctx.GetUserClient(ctx, site)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 
-	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
+	res, err := clt.IsMFARequired(ctx, protoReq)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return res.GetRequired(), nil
 }
 
 // makeAuthenticateChallenge converts proto to JSON format.
@@ -467,6 +486,9 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *clien
 	}
 	if protoChal.GetWebauthnChallenge() != nil {
 		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+	if protoChal.GetSSOChallenge() != nil {
+		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
 	}
 	return chal
 }

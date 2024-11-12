@@ -348,6 +348,212 @@ func TestRole_GetKubeResources(t *testing.T) {
 	}
 }
 
+func TestRole_AllowRequestKubernetesResource(t *testing.T) {
+	type args struct {
+		version   string
+		resources []RequestKubernetesResource
+	}
+	tests := []struct {
+		name                string
+		args                args
+		want                []RequestKubernetesResource
+		assertErrorCreation require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid single value",
+			args: args{
+				version: V7,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: KindKubePod,
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: []RequestKubernetesResource{
+				{
+					Kind: KindKubePod,
+				},
+			},
+		},
+		{
+			name: "valid no values",
+			args: args{
+				version: V7,
+			},
+			assertErrorCreation: require.NoError,
+		},
+		{
+			name: "valid wildcard value",
+			args: args{
+				version: V7,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: Wildcard,
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: []RequestKubernetesResource{
+				{
+					Kind: Wildcard,
+				},
+			},
+		},
+		{
+			name: "valid multi values",
+			args: args{
+				version: V7,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: KindKubeNamespace,
+					},
+					{
+						Kind: KindKubePod,
+					},
+					{
+						Kind: KindKubeSecret,
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: []RequestKubernetesResource{
+				{
+					Kind: KindKubeNamespace,
+				},
+				{
+					Kind: KindKubePod,
+				},
+				{
+					Kind: KindKubeSecret,
+				},
+			},
+		},
+		{
+			name: "valid multi values with wildcard",
+			args: args{
+				version: V7,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: KindKubeNamespace,
+					},
+					{
+						Kind: Wildcard,
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: []RequestKubernetesResource{
+				{
+					Kind: KindKubeNamespace,
+				},
+				{
+					Kind: Wildcard,
+				},
+			},
+		},
+		{
+			name: "invalid kind (kube_cluster is not part of Kubernetes subresources)",
+			args: args{
+				version: V7,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: KindKubernetesCluster,
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "invalid multi value",
+			args: args{
+				version: V7,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: Wildcard,
+					},
+					{
+						Kind: KindKubeNamespace,
+					},
+					{
+						Kind: KindKubernetesCluster,
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "invalid kinds not supported for v6",
+			args: args{
+				version: V6,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: Wildcard,
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "invalid kinds not supported for v5",
+			args: args{
+				version: V6,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: Wildcard,
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "invalid kinds not supported for v4",
+			args: args{
+				version: V6,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: Wildcard,
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "invalid kinds not supported for v3",
+			args: args{
+				version: V6,
+				resources: []RequestKubernetesResource{
+					{
+						Kind: Wildcard,
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := NewRoleWithVersion(
+				"test",
+				tt.args.version,
+				RoleSpecV6{
+					Allow: RoleConditions{
+						Request: &AccessRequestConditions{
+							KubernetesResources: tt.args.resources,
+						},
+					},
+				},
+			)
+			tt.assertErrorCreation(t, err)
+			if err != nil {
+				return
+			}
+			got := r.GetRoleConditions(Allow).Request.KubernetesResources
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func appendV7KubeResources() []KubernetesResource {
 	resources := []KubernetesResource{}
 	// append other kubernetes resources

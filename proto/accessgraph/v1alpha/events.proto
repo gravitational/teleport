@@ -37,4 +37,7 @@ message AccessPathChanged {
 
   // affected_resource_source is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
   string affected_resource_source = 4;
+
+  // affected_resource_kind is the kind of the affected resource, ex: user, role, etc.
+  string affected_resource_kind = 5;
 }

@@ -41,7 +41,7 @@ joinMethod: "kubernetes"
 
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
-# [Kubernetes JWKS](../../join-methods.mdx#kubernetes-jwks) join method.
+# [Kubernetes JWKS](../../reference/join-methods.mdx#kubernetes-jwks) join method.
 teleportClusterName: ""
 
 # token(string) -- is the name of the token used by the operator to join the Teleport cluster.
@@ -180,7 +180,7 @@ tls:
   # certs in the same namespace as the Teleport Kubernetes Operator using a
   # command such as:
   #
-  # ```shell
+  # ```code
   # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
   # ```
   existingCASecretName: ""

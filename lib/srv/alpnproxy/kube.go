@@ -81,7 +81,8 @@ type KubeMiddleware struct {
 	// headless controls whether proxy is working in headless login mode.
 	headless bool
 
-	logger logrus.FieldLogger
+	logger       logrus.FieldLogger
+	closeContext context.Context
 
 	// isCertReissuingRunning is used to only ever have one concurrent cert reissuing session requiring user input.
 	isCertReissuingRunning atomic.Bool
@@ -97,6 +98,7 @@ type KubeMiddlewareConfig struct {
 	Headless     bool
 	Clock        clockwork.Clock
 	Logger       logrus.FieldLogger
+	CloseContext context.Context
 }
 
 // NewKubeMiddleware creates a new KubeMiddleware.
@@ -107,6 +109,7 @@ func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 		headless:     cfg.Headless,
 		clock:        cfg.Clock,
 		logger:       cfg.Logger,
+		closeContext: cfg.CloseContext,
 	}
 }
 
@@ -120,6 +123,9 @@ func (m *KubeMiddleware) CheckAndSetDefaults() error {
 	}
 	if m.logger == nil {
 		m.logger = logrus.WithField(teleport.ComponentKey, "local_proxy_kube")
+	}
+	if m.closeContext == nil {
+		return trace.BadParameter("missing close context")
 	}
 	return nil
 }
@@ -245,7 +251,7 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 			if identity.RouteToCluster != "" {
 				cluster = identity.RouteToCluster
 			}
-			newCert, err := m.certReissuer(ctx, cluster, identity.KubernetesCluster)
+			newCert, err := m.certReissuer(m.closeContext, cluster, identity.KubernetesCluster)
 			if err == nil {
 				m.certsMu.Lock()
 				m.certs[serverName] = newCert

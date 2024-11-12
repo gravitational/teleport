@@ -17,13 +17,14 @@
 package databaseobjectimportrule
 
 import (
+	"context"
+	"log/slog"
 	"regexp"
 	"sort"
 	"strings"
 	"unicode"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -35,30 +36,21 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-// ApplyDatabaseObjectImportRules applies the given set of rules onto a set of objects coming from a same database.
-// Returns a fresh copy of a subset of supplied objects, filtered and modified.
-// For the object to be returned, it must match at least one rule.
-// The modification consists of application of extra labels, per matching mappings.
-// If there are any errors due to invalid label template, the corresponding objects will be dropped.
-// Final error count is returned.
-func ApplyDatabaseObjectImportRules(logger logrus.FieldLogger, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, int) {
+// ApplyDatabaseObjectImportRules applies the specified set of rules to a collection of objects from the same database.
+// It returns a new copy of a subset of the provided objects, filtered and labeled according to the rules.
+// An object is included in the return set only if it matches at least one rule.
+// Objects with errors due to invalid label templates are excluded.
+// The function returns the final count of errors encountered.
+func ApplyDatabaseObjectImportRules(ctx context.Context, logger *slog.Logger, rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database, objs []*dbobjectv1.DatabaseObject) ([]*dbobjectv1.DatabaseObject, int) {
 	// sort: rules with higher priorities are applied last.
 	sort.Slice(rules, func(i, j int) bool {
 		return rules[i].Spec.Priority < rules[j].Spec.Priority
 	})
 
-	// filter rules: keep those with matching labels
-	// we only need mappings from the rules, so extract those.
+	// get mappings from rules matching database labels
 	var mappings []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping
-	for _, rule := range rules {
-		dbLabels := make(types.Labels)
-		mapLabel := label.ToMap(rule.Spec.GetDatabaseLabels())
-		for k, v := range mapLabel {
-			dbLabels[k] = v
-		}
-		if ok, _, _ := services.MatchLabels(dbLabels, database.GetAllLabels()); ok {
-			mappings = append(mappings, rule.Spec.Mappings...)
-		}
+	for _, rule := range filterRulesForDatabase(rules, database) {
+		mappings = append(mappings, rule.Spec.Mappings...)
 	}
 
 	var objects []*dbobjectv1.DatabaseObject
@@ -82,7 +74,7 @@ func ApplyDatabaseObjectImportRules(logger logrus.FieldLogger, rules []*dbobject
 		for _, mapping := range mappings {
 			match, err := applyMappingToObject(mapping, objClone.GetSpec(), objClone.Metadata.Labels)
 			if err != nil {
-				logger.WithField("name", obj.GetMetadata().GetName()).WithError(err).Debug("failed to apply label due to template error")
+				logger.DebugContext(ctx, "failed to apply label due to template error", "name", obj.GetMetadata().GetName(), "error", err)
 				errCount++
 				hadError = true
 				break
@@ -98,6 +90,47 @@ func ApplyDatabaseObjectImportRules(logger logrus.FieldLogger, rules []*dbobject
 	}
 
 	return objects, errCount
+}
+
+type DbNameFilter func(string) bool
+
+// CalculateDatabaseNameFilter returns a function that checks if the given database name will be accepted by any of the rules.
+// This can be used to skip the import from the given database if we can tell already that none of the objects will be accepted.
+func CalculateDatabaseNameFilter(rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database) DbNameFilter {
+	var patterns []string
+	for _, rule := range filterRulesForDatabase(rules, database) {
+		spec := rule.GetSpec()
+		for _, mapping := range spec.Mappings {
+			names := mapping.GetScope().GetDatabaseNames()
+			// empty list of database names means "any database name".
+			if len(names) == 0 {
+				return func(_ string) bool {
+					return true
+				}
+			}
+			patterns = append(patterns, names...)
+		}
+	}
+	return func(dbName string) bool {
+		return matchAny(patterns, dbName)
+	}
+}
+
+// filterRulesForDatabase returns the set of rules whose labels match the database used as an argument.
+func filterRulesForDatabase(rules []*dbobjectimportrulev1.DatabaseObjectImportRule, database types.Database) []*dbobjectimportrulev1.DatabaseObjectImportRule {
+	var out []*dbobjectimportrulev1.DatabaseObjectImportRule
+	for _, rule := range rules {
+		dbLabels := make(types.Labels)
+		mapLabel := label.ToMap(rule.Spec.GetDatabaseLabels())
+		for k, v := range mapLabel {
+			dbLabels[k] = v
+		}
+
+		if ok, _, _ := services.MatchLabels(dbLabels, database.GetAllLabels()); ok {
+			out = append(out, rule)
+		}
+	}
+	return out
 }
 
 // validateTemplate evaluates the template, checking for potential errors.

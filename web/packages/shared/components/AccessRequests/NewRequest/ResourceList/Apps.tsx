@@ -28,10 +28,9 @@ import Select, {
   Option as BaseOption,
   CustomSelectComponentProps,
 } from 'shared/components/Select';
-import { StyledSelect as BaseStyledSelect } from 'shared/components/Select/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { ResourceMap, ResourceKind } from '../resource';
+import { ResourceMap, RequestableResourceKind } from '../resource';
 
 import { ListProps, StyledTable } from './ResourceList';
 
@@ -126,7 +125,7 @@ function ActionCell({
   agent: App;
   addedResources: ResourceMap;
   addOrRemoveResource: (
-    kind: ResourceKind,
+    kind: RequestableResourceKind,
     resourceId: string,
     resourceName?: string
   ) => void;
@@ -187,7 +186,12 @@ function ActionCell({
   if (!isAppAdded && !hasSelectedGroups) {
     return (
       <Cell align="right">
-        <ButtonBorder width="123px" size="small" onClick={toggleApp}>
+        <ButtonBorder
+          width="123px"
+          size="small"
+          onClick={toggleApp}
+          textTransform="none"
+        >
           + Add to request
         </ButtonBorder>
       </Cell>
@@ -197,7 +201,12 @@ function ActionCell({
   if (isAppAdded && agent.userGroups.length === 0) {
     return (
       <Cell align="right">
-        <ButtonPrimary width="123px" size="small" onClick={toggleApp}>
+        <ButtonPrimary
+          width="123px"
+          size="small"
+          onClick={toggleApp}
+          textTransform="none"
+        >
           Remove
         </ButtonPrimary>
       </Cell>
@@ -211,60 +220,56 @@ function ActionCell({
   return (
     <Cell align="right">
       {showRemoveButton && (
-        <ButtonPrimary width="123px" size="small" onClick={toggleApp}>
+        <ButtonPrimary
+          width="123px"
+          size="small"
+          onClick={toggleApp}
+          textTransform="none"
+        >
           Remove
         </ButtonPrimary>
       )}
-      <Flex alignItems="center" justifyContent="end">
+      <Flex alignItems="center" justifyContent="end" mt={1}>
         <ToolTipInfo muteIconColor={true}>
           This application {agent.name} can be alternatively requested by
           members of user groups. You can alternatively select user groups
           instead to access this application.
         </ToolTipInfo>
-        <StyledSelect className={hasSelectedGroups ? 'hasSelectedGroups' : ''}>
-          <Select
-            placeholder={
-              hasSelectedGroups
-                ? `${selectedGroups.length} User Groups Added`
-                : 'Alternatively Select User Groups'
-            }
-            value={selectedGroups}
-            options={userGroupOptions}
-            isSearchable={false}
-            isClearable={false}
-            isMulti={true}
-            hideSelectedOptions={false}
-            controlShouldRenderValue={false}
-            onChange={handleSelectedGroups}
-            components={{
-              Option: OptionComponent,
-            }}
-            customProps={{ toggleUserGroup }}
-          />
-        </StyledSelect>
+        <StyledSelect
+          className={hasSelectedGroups ? 'hasSelectedGroups' : ''}
+          size="small"
+          placeholder={
+            hasSelectedGroups
+              ? `${selectedGroups.length} User Groups Added`
+              : 'Alternatively Select User Groups'
+          }
+          value={selectedGroups}
+          options={userGroupOptions}
+          isSearchable={false}
+          isClearable={false}
+          isMulti={true}
+          hideSelectedOptions={false}
+          controlShouldRenderValue={false}
+          onChange={handleSelectedGroups}
+          components={{
+            Option: OptionComponent,
+          }}
+          customProps={{ toggleUserGroup }}
+        />
       </Flex>
     </Cell>
   );
 }
 
-const StyledSelect = styled(BaseStyledSelect)`
+const StyledSelect = styled(Select)`
   margin-left: 8px;
+
   input[type='checkbox'] {
     cursor: pointer;
   }
 
   .react-select__control {
-    font-size: 12px;
-    width: 225px;
-    height: 26px;
-    min-height: 24px;
-    border: 2px solid ${p => p.theme.colors.buttons.secondary.default};
-  }
-
-  .react-select__menu {
-    font-size: 12px;
-    width: 275px;
-    right: 0;
+    width: 260px;
   }
 
   .react-select__option {
@@ -275,17 +280,15 @@ const StyledSelect = styled(BaseStyledSelect)`
     position: static;
   }
 
-  .react-select__dropdown-indicator {
-    padding-top: 0px;
-  }
-
   &.hasSelectedGroups {
-    .react-select-container {
-      background: ${p => p.theme.colors.buttons.primary.default};
+    .react-select__control {
+      background: ${p => p.theme.colors.interactive.solid.primary.default};
+      border: transparent;
     }
+
     .react-select__placeholder,
     .react-select__dropdown-indicator {
-      color: ${p => p.theme.colors.buttons.primary.text};
+      color: ${p => p.theme.colors.text.primaryInverse};
     }
   }
 `;

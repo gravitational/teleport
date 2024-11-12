@@ -25,20 +25,32 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// MeetsVersion returns true if gotVer is empty or at least minVer.
-func MeetsVersion(gotVer, minVer string) bool {
+// MeetsMinVersion returns true if gotVer is empty or at least minVer.
+func MeetsMinVersion(gotVer, minVer string) bool {
 	if gotVer == "" {
 		return true // Ignore empty versions.
 	}
 
-	err := CheckVersion(gotVer, minVer)
+	err := CheckMinVersion(gotVer, minVer)
 
 	// Non BadParameter errors are semver parsing errors.
 	return !trace.IsBadParameter(err)
 }
 
-// CheckVersion compares a version with a minimum version supported.
-func CheckVersion(currentVersion, minVersion string) error {
+// MeetsMaxVersion returns true if gotVer is empty or at most maxVer.
+func MeetsMaxVersion(gotVer, maxVer string) bool {
+	if gotVer == "" {
+		return true // Ignore empty versions.
+	}
+
+	err := CheckMaxVersion(gotVer, maxVer)
+
+	// Non BadParameter errors are semver parsing errors.
+	return !trace.IsBadParameter(err)
+}
+
+// CheckMinVersion compares a version with a minimum version supported.
+func CheckMinVersion(currentVersion, minVersion string) error {
 	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)
 	if err != nil {
 		return trace.Wrap(err)
@@ -46,6 +58,20 @@ func CheckVersion(currentVersion, minVersion string) error {
 
 	if currentSemver.LessThan(*minSemver) {
 		return trace.BadParameter("incompatible versions: %v < %v", currentVersion, minVersion)
+	}
+
+	return nil
+}
+
+// CheckMaxVersion compares a version with a maximum version supported.
+func CheckMaxVersion(currentVersion, maxVersion string) error {
+	currentSemver, maxSemver, err := versionStringToSemver(currentVersion, maxVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if maxSemver.LessThan(*currentSemver) {
+		return trace.BadParameter("incompatible versions: %v > %v", currentVersion, maxVersion)
 	}
 
 	return nil
@@ -80,6 +106,16 @@ func MajorSemver(version string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return fmt.Sprintf("%d.0.0", ver.Major), nil
+}
+
+// MajorSemverWithWildcards returns the major version as a semver string.
+// Ex: 13.4.3 -> 13.x.x
+func MajorSemverWithWildcards(version string) (string, error) {
+	ver, err := semver.NewVersion(version)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("%d.x.x", ver.Major), nil
 }
 
 func versionStringToSemver(ver1, ver2 string) (*semver.Version, *semver.Version, error) {

@@ -20,6 +20,10 @@ package gateway
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/tls"
 	"encoding/pem"
 
@@ -28,8 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,7 +65,7 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 
 	// Generate a new private key for the proxy. The client's existing private key may be
 	// a hardware-backed private key, which cannot be added to the local proxy kube config.
-	key, err := native.GeneratePrivateKey()
+	key, err := newKubeCAKey(cfg.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,6 +87,31 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 		return nil, trace.NewAggregate(err, k.Close())
 	}
 	return k, nil
+}
+
+func newKubeCAKey(kubeCert tls.Certificate) (*keys.PrivateKey, error) {
+	// Use the same key algorithm as the existing kubeCert instead of re-finding
+	// the current signature algorithm suite here.
+	var alg cryptosuites.Algorithm
+	switch kubeCert.PrivateKey.(crypto.Signer).Public().(type) {
+	case *rsa.PublicKey:
+		alg = cryptosuites.RSA2048
+	case *ecdsa.PublicKey:
+		alg = cryptosuites.ECDSAP256
+	case ed25519.PublicKey:
+		alg = cryptosuites.Ed25519
+	default:
+		return nil, trace.BadParameter("unsupported key type in k8s cert: %T", kubeCert.PrivateKey)
+	}
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKey, err := keys.NewSoftwarePrivateKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return privateKey, nil
 }
 
 func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
@@ -131,8 +160,9 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 			cert, err := k.cfg.OnExpiredCert(ctx, k)
 			return cert, trace.Wrap(err)
 		},
-		Clock:  k.cfg.Clock,
-		Logger: k.cfg.Log,
+		Clock:        k.cfg.Clock,
+		Logger:       k.cfg.Log,
+		CloseContext: k.closeContext,
 	}), nil
 }
 

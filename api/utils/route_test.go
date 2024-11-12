@@ -323,3 +323,66 @@ func TestSSHRouteMatcherScoring(t *testing.T) {
 		})
 	}
 }
+
+type recordingHostResolver struct {
+	didLookup bool
+}
+
+func (r *recordingHostResolver) LookupHost(ctx context.Context, host string) (addrs []string, err error) {
+	r.didLookup = true
+	return nil, nil
+}
+
+// TestDisableUnqualifiedLookups verifies that unqualified lookups being disabled results
+// in single-element/tld style hostname targets not being resolved.
+func TestDisableUnqualifiedLookups(t *testing.T) {
+	tts := []struct {
+		desc   string
+		target string
+		lookup bool
+	}{
+		{
+			desc:   "qualified hostname",
+			target: "example.com",
+			lookup: true,
+		},
+		{
+			desc:   "unqualified hostname",
+			target: "example",
+			lookup: false,
+		},
+		{
+			desc:   "localhost",
+			target: "localhost",
+			lookup: false,
+		},
+		{
+			desc:   "foo.localhost",
+			target: "foo.localhost",
+			lookup: true,
+		},
+		{
+			desc:   "uuid",
+			target: uuid.NewString(),
+			lookup: false,
+		},
+		{
+			desc:   "qualified uuid",
+			target: "foo." + uuid.NewString(),
+			lookup: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			resolver := &recordingHostResolver{}
+			_, err := NewSSHRouteMatcherFromConfig(SSHRouteMatcherConfig{
+				Host:                      tt.target,
+				Resolver:                  resolver,
+				DisableUnqualifiedLookups: true,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.lookup, resolver.didLookup)
+		})
+	}
+}

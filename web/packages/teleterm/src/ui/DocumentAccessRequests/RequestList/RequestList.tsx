@@ -36,6 +36,7 @@ import {
   BlockedByStartTimeButton,
   ButtonPromotedInfo,
 } from 'shared/components/AccessRequests/Shared/Shared';
+import { requestMatcher } from 'shared/components/AccessRequests/NewRequest/matcher';
 
 export function RequestList({
   attempt,
@@ -50,10 +51,14 @@ export function RequestList({
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       {attempt.status === 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} />
+        <Alert kind="danger" details={attempt.statusText}>
+          Could not fetch access requests
+        </Alert>
       )}
       {assumeRoleAttempt.status === 'error' && (
-        <Alert kind="danger" children={assumeRoleAttempt.statusText} />
+        <Alert kind="danger" details={assumeRoleAttempt.statusText}>
+          Could not assume the role
+        </Alert>
       )}
       <Flex justifyContent="end" pb={4}>
         <ButtonPrimary
@@ -140,24 +145,6 @@ export function RequestList({
       />
     </Layout>
   );
-}
-
-function requestMatcher(
-  targetValue: any,
-  searchValue: string,
-  propName: keyof AccessRequest & string
-) {
-  if (propName === 'roles') {
-    return targetValue.some((role: string) =>
-      role.toUpperCase().includes(searchValue)
-    );
-  }
-
-  if (propName === 'resources') {
-    return targetValue.some((r: any) =>
-      Object.keys(r).some(k => r[k].toUpperCase().includes(searchValue))
-    );
-  }
 }
 
 const renderActionCell = (
@@ -252,7 +239,7 @@ const Layout = styled(Box)`
   flex: 1;
   max-width: 1248px;
 
-  ::after {
+  &::after {
     content: ' ';
     padding-bottom: 24px;
   }

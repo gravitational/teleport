@@ -27,7 +27,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -148,44 +147,6 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 func (p *pinCancelPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 	// 2nd touch never happens
 	return func() error { return nil }, nil
-}
-
-func TestIsFIDO2Available(t *testing.T) {
-	const fido2Key = "TELEPORT_FIDO2"
-	tests := []struct {
-		name   string
-		setenv func()
-		want   bool
-	}{
-		{
-			name: "env var unset",
-			setenv: func() {
-				_ = os.Unsetenv(fido2Key)
-			},
-			want: true,
-		},
-		{
-			name: "env var set to 1",
-			setenv: func() {
-				t.Setenv(fido2Key, "1")
-			},
-			want: true,
-		},
-		{
-			name: "env var set to 0",
-			setenv: func() {
-				t.Setenv(fido2Key, "0")
-			},
-			want: false,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.setenv()
-			got := wancli.IsFIDO2Available()
-			require.Equal(t, test.want, got, "IsFIDO2Available")
-		})
-	}
 }
 
 func TestFIDO2Login(t *testing.T) {
@@ -1993,6 +1954,102 @@ func TestFIDO2Register_u2fExcludedCredentials(t *testing.T) {
 	require.NoError(t, err, "FIDO2Register errored, expected a successful registration")
 }
 
+// TestFIDO2Login_u2fInternalError tests the scenario described by issue
+// https://github.com/gravitational/teleport/issues/44912.
+func TestFIDO2Login_u2fInternalError(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	dev1 := mustNewFIDO2Device("/dev1", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+	dev2 := mustNewFIDO2Device("/dev2", "" /* pin */, &libfido2.DeviceInfo{
+		Options: authOpts,
+	})
+	u2fDev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
+	u2fDev.u2fOnly = true
+	u2fDev.errorOnUnknownCredential = true
+
+	f2 := newFakeFIDO2(dev1, dev2, u2fDev)
+	f2.setCallbacks()
+
+	const origin = "https://example.com"
+	ctx := context.Background()
+
+	// Register all authenticators.
+	cc := &wantypes.CredentialCreation{
+		Response: wantypes.PublicKeyCredentialCreationOptions{
+			Challenge: make([]byte, 32),
+			RelyingParty: wantypes.RelyingPartyEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "example.com",
+				},
+				ID: "example.com",
+			},
+			User: wantypes.UserEntity{
+				CredentialEntity: protocol.CredentialEntity{
+					Name: "alpaca",
+				},
+				DisplayName: "Alpaca",
+				ID:          []byte{1, 2, 3, 4, 5}, // arbitrary
+			},
+			Parameters: []wantypes.CredentialParameter{
+				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
+			},
+			AuthenticatorSelection: wantypes.AuthenticatorSelection{
+				RequireResidentKey: protocol.ResidentKeyNotRequired(),
+				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
+				UserVerification:   protocol.VerificationDiscouraged,
+			},
+			Attestation: protocol.PreferNoAttestation,
+		},
+	}
+	allowedCreds := make([]wantypes.CredentialDescriptor, 0, len(f2.devices))
+	for _, dev := range f2.devices {
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		mfaResp, err := wancli.FIDO2Register(ctx, origin, cc, dev)
+		cancel()
+		require.NoError(t, err, "FIDO2Register failed")
+
+		allowedCreds = append(allowedCreds, wantypes.CredentialDescriptor{
+			Type:         protocol.PublicKeyCredentialType,
+			CredentialID: mfaResp.GetWebauthn().RawId,
+		})
+	}
+
+	// Sanity check: authenticator errors in the presence of unknown credentials.
+	u2fDev.open()
+	_, err := u2fDev.Assertion(
+		"example.com",
+		[]byte(`55cde2973243a946b85a477d2e164a35d2e4f3daaeb11ac5e9a1c4cf3297033e`), // clientDataHash
+		[][]byte{
+			u2fDev.credentialID(),
+			bytes.Repeat([]byte("A"), 96),
+		},
+		"", // pin
+		&libfido2.AssertionOpts{UP: libfido2.False},
+	)
+	require.ErrorIs(t, err, libfido2.ErrInternal, "u2fDev.Assert error mismatch")
+	u2fDev.Close()
+
+	t.Run("login with multiple credentials", func(t *testing.T) {
+		assertion := &wantypes.CredentialAssertion{
+			Response: wantypes.PublicKeyCredentialRequestOptions{
+				Challenge:          make([]byte, 32),
+				RelyingPartyID:     "example.com",
+				AllowedCredentials: allowedCreds,
+				UserVerification:   protocol.VerificationDiscouraged,
+			},
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		_, _, err := wancli.FIDO2Login(ctx, origin, assertion, u2fDev, &wancli.LoginOpts{
+			User: "alpaca",
+		})
+		require.NoError(t, err, "FIDO2Login failed")
+	})
+}
+
 func resetFIDO2AfterTests(t *testing.T) {
 	pollInterval := wancli.FIDO2PollInterval
 	devLocations := wancli.FIDODeviceLocations
@@ -2053,6 +2110,10 @@ type fakeFIDO2Device struct {
 	// Set to true to simulate an U2F-only device.
 	// Causes libfido2.ErrNotFIDO2 on Info.
 	u2fOnly bool
+
+	// errorOnUnknownCredential makes the device fail assertions if an unknown
+	// credential is present.
+	errorOnUnknownCredential bool
 
 	// assertionErrors is a chain of errors to return from Assertion.
 	// Errors are returned from start to end and removed, one-by-one, on each
@@ -2330,6 +2391,9 @@ func (f *fakeFIDO2Device) Assertion(
 				found = true
 				break
 			}
+			if f.errorOnUnknownCredential {
+				return nil, fmt.Errorf("failed to get assertion: %w", libfido2.ErrInternal)
+			}
 		}
 		if !found {
 			return nil, libfido2.ErrNoCredentials
@@ -2355,6 +2419,13 @@ func (f *fakeFIDO2Device) Assertion(
 	credIDs := make(map[string]struct{})
 	for _, cred := range credentialIDs {
 		credIDs[string(cred)] = struct{}{}
+
+		// Simulate "internal error" on unknown credential handles.
+		// Sometimes happens with Yubikeys firmware 4.1.8.
+		// Requires a tap to happen.
+		if f.errorOnUnknownCredential && !bytes.Equal(cred, f.key.KeyHandle) {
+			return nil, fmt.Errorf("failed to get assertion: %w", libfido2.ErrInternal)
+		}
 	}
 
 	// Assemble one assertion for each allowed credential we hold.

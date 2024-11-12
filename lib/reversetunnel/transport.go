@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -63,7 +63,7 @@ type transport struct {
 	component    string
 	log          logrus.FieldLogger
 	closeContext context.Context
-	authClient   auth.ProxyAccessPoint
+	authClient   authclient.ProxyAccessPoint
 	authServers  []string
 	channel      ssh.Channel
 	requestCh    <-chan *ssh.Request

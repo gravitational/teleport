@@ -41,12 +41,12 @@ type DiscoveryConfigService struct {
 }
 
 // NewDiscoveryConfigService creates a new DiscoveryConfigService.
-func NewDiscoveryConfigService(backend backend.Backend) (*DiscoveryConfigService, error) {
+func NewDiscoveryConfigService(b backend.Backend) (*DiscoveryConfigService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[*discoveryconfig.DiscoveryConfig]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     defaults.MaxIterationLimit,
 		ResourceKind:  types.KindDiscoveryConfig,
-		BackendPrefix: discoveryConfigPrefix,
+		BackendPrefix: backend.NewKey(discoveryConfigPrefix),
 		MarshalFunc:   services.MarshalDiscoveryConfig,
 		UnmarshalFunc: services.UnmarshalDiscoveryConfig,
 	})

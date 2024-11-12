@@ -24,7 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -115,7 +115,9 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		defer clusterClient.Close()
 
 		// Generate keypair to use in SVID
-		privateKey, err := native.GenerateRSAPrivateKey()
+		privateKey, err := cryptosuites.GenerateKey(ctx,
+			tc.GetCurrentSignatureAlgorithmSuite,
+			cryptosuites.BotSVID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -150,7 +152,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		keyPath := path.Join(c.outputDirectory, svidKeyPEMPath)
+		keyPath := filepath.Join(c.outputDirectory, svidKeyPEMPath)
 		err = os.WriteFile(
 			keyPath,
 			pem.EncodeToMemory(&pem.Block{
@@ -164,7 +166,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		}
 
 		// Write SVID
-		svidPath := path.Join(c.outputDirectory, svidPEMPath)
+		svidPath := filepath.Join(c.outputDirectory, svidPEMPath)
 		err = os.WriteFile(
 			svidPath,
 			pem.EncodeToMemory(&pem.Block{
@@ -193,7 +195,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 				}
 			}
 		}
-		trustBundlePath := path.Join(c.outputDirectory, svidTrustBundlePEMPath)
+		trustBundlePath := filepath.Join(c.outputDirectory, svidTrustBundlePEMPath)
 		err = os.WriteFile(
 			trustBundlePath,
 			trustBundleBytes.Bytes(),

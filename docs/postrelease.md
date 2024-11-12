@@ -12,9 +12,6 @@ Our GitHub Actions workflows will create two PRs when a release is published:
 
 The AWS AMI ID PR can be merged right away.
 
-The docs version PR should be merged after the `gravitational/teleport-plugins` release
-is published, since the PR will include an update to the plugins version as well.
-
 ### Major releases only
 
 - [ ] Update support matrix in docs FAQ page

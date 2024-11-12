@@ -78,7 +78,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				Time: time.Now(),
 			},
 			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
-			ServerMetadata: serverCtx.GetServerMetadata(),
+			ServerMetadata: serverCtx.GetServer().TargetMetadata(),
 			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
 		})
 		return srv.ErrNodeFileCopyingNotPermitted
@@ -169,7 +169,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 		defer auditPipeOut.Close()
 
 		// Create common fields for events
-		serverMeta := serverCtx.GetServerMetadata()
+		serverMeta := serverCtx.GetServer().TargetMetadata()
 		sessionMeta := serverCtx.GetSessionMetadata()
 		userMeta := serverCtx.Identity.GetUserMetadata()
 		connectionMeta := apievents.ConnectionMetadata{
@@ -189,20 +189,35 @@ func (s *sftpSubsys) Start(ctx context.Context,
 				return
 			}
 
-			var sftpEvent apievents.SFTP
-			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &sftpEvent)
+			var oneOfEvent apievents.OneOf
+			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &oneOfEvent)
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to unmarshal SFTP event.")
 				continue
 			}
+			event, err := apievents.FromOneOf(oneOfEvent)
+			if err != nil {
+				s.log.WithError(err).Warn("Failed to convert SFTP event from OneOf.")
+				continue
+			}
 
-			sftpEvent.Metadata.ClusterName = serverCtx.ClusterName
-			sftpEvent.ServerMetadata = serverMeta
-			sftpEvent.SessionMetadata = sessionMeta
-			sftpEvent.UserMetadata = userMeta
-			sftpEvent.ConnectionMetadata = connectionMeta
+			event.SetClusterName(serverCtx.ClusterName)
+			switch e := event.(type) {
+			case *apievents.SFTP:
+				e.ServerMetadata = serverMeta
+				e.SessionMetadata = sessionMeta
+				e.UserMetadata = userMeta
+				e.ConnectionMetadata = connectionMeta
+			case *apievents.SFTPSummary:
+				e.ServerMetadata = serverMeta
+				e.SessionMetadata = sessionMeta
+				e.UserMetadata = userMeta
+				e.ConnectionMetadata = connectionMeta
+			default:
+				s.log.WithError(err).Warnf("Unknown event type received from SFTP server process: %q", event.GetType())
+			}
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, &sftpEvent); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(ctx, event); err != nil {
 				log.WithError(err).Warn("Failed to emit SFTP event.")
 			}
 		}

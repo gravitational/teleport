@@ -1,6 +1,6 @@
 ---
-    authors: Anton Miniailo (anton@goteleport.com)
-    state: draft
+authors: Anton Miniailo (anton@goteleport.com)
+state: implemented (v13.0)
 ---
 
 # RFD 0121 - Kubernetes MFA sessions

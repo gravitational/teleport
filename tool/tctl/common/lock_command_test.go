@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestLocks(t *testing.T) {
@@ -55,13 +56,14 @@ func TestLocks(t *testing.T) {
 
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	t.Run("create", func(t *testing.T) {
-		err := runLockCommand(t, fileConfig, []string{"--user=bad@actor", "--message=Come see me"})
+		err := runLockCommand(t, clt, []string{"--user=bad@actor", "--message=Come see me"})
 		require.NoError(t, err)
 
-		buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindLock, "--format=json"})
 		require.NoError(t, err)
 		out := mustDecodeJSON[[]*types.LockV2](t, buf)
 

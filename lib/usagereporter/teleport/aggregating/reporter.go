@@ -21,13 +21,13 @@ package aggregating
 import (
 	"context"
 	"encoding/binary"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -51,20 +51,19 @@ const (
 type ReporterConfig struct {
 	// Backend is the backend used to store reports. Required
 	Backend backend.Backend
-	// Log is the logger used for logging. Required.
-	Log logrus.FieldLogger
+	// Logger is the used for emitting log messages.
+	Logger *slog.Logger
 	// Clock is the clock used for timestamping reports and deciding when to
 	// persist them to the backend. Optional, defaults to the real clock.
 	Clock clockwork.Clock
-
 	// ClusterName is the ClusterName resource for the current cluster, used for
 	// anonymization and to report the cluster name itself. Required.
 	ClusterName types.ClusterName
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
-	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
-	AnonymizationKey string
+	// Anonymizer is used to anonymize data user or resource names. Required.
+	Anonymizer utils.Anonymizer
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -73,9 +72,6 @@ type ReporterConfig struct {
 func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")
-	}
-	if cfg.Log == nil {
-		return trace.BadParameter("missing Log")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -86,8 +82,12 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if cfg.AnonymizationKey == "" {
-		return trace.BadParameter("missing AnonymizationKey")
+	if cfg.Anonymizer == nil {
+		return trace.BadParameter("missing Anonymizer")
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 	return nil
 }
@@ -100,25 +100,20 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	baseCtx, baseCancel := context.WithCancel(ctx)
 
 	r := &Reporter{
-		anonymizer: anonymizer,
+		anonymizer: cfg.Anonymizer,
 		svc:        reportService{cfg.Backend},
-		log:        cfg.Log,
+		logger:     cfg.Logger,
 		clock:      cfg.Clock,
 
 		ingest:  make(chan usagereporter.Anonymizable),
 		closing: make(chan struct{}),
 		done:    make(chan struct{}),
 
-		clusterName: anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
-		hostID:      anonymizer.AnonymizeNonEmpty(cfg.HostID),
+		clusterName: cfg.ClusterName.GetClusterName(),
+		hostID:      cfg.HostID,
 
 		baseCancel: baseCancel,
 	}
@@ -132,7 +127,7 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 type Reporter struct {
 	anonymizer utils.Anonymizer
 	svc        reportService
-	log        logrus.FieldLogger
+	logger     *slog.Logger
 	clock      clockwork.Clock
 
 	// ingest collects events from calls to [AnonymizeAndSubmit] to the
@@ -145,10 +140,10 @@ type Reporter struct {
 	// done is closed at the end of the background goroutine.
 	done chan struct{}
 
-	// clusterName is the anonymized cluster name.
-	clusterName []byte
-	// hostID is the anonymized host ID of the reporter (this instance).
-	hostID []byte
+	// clusterName is the un-anonymized cluster name.
+	clusterName string
+	// hostID is the un-anonymized host ID of the reporter (this instance).
+	hostID string
 
 	// baseCancel cancels the context used by the background goroutine.
 	baseCancel context.CancelFunc
@@ -269,10 +264,7 @@ func (r *Reporter) run(ctx context.Context) {
 			default:
 				// Otherwise, update and log a warning. Flipping between
 				// bot/human is a programming error.
-				r.log.WithFields(logrus.Fields{
-					"from": record.UserKind,
-					"to":   v1UserKind,
-				}).Warn("Record user_kind has changed unexpectedly")
+				r.logger.WarnContext(ctx, "Record user_kind has changed unexpectedly", "from", record.UserKind, "to", v1UserKind)
 				record.UserKind = v1UserKind
 			}
 		}
@@ -303,7 +295,6 @@ Ingest:
 		select {
 		case <-ticker.Chan():
 		case ae = <-r.ingest:
-
 		case <-ctx.Done():
 			r.closingOnce.Do(func() { close(r.closing) })
 			break Ingest
@@ -410,30 +401,35 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 		records = append(records, record)
 	}
 
-	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareUserActivityReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{
-			"start_time":   startTime,
-			"lost_records": len(records),
-		}).Error("Failed to prepare user activity report, dropping data.")
+		r.logger.ErrorContext(ctx, "Failed to prepare user activity report, dropping data.",
+			"start_time", startTime,
+			"lost_records", len(records),
+			"error", err,
+		)
 		return
 	}
 
 	for _, report := range reports {
 		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time":   startTime,
-				"lost_records": len(report.Records),
-			}).Error("Failed to persist user activity report, dropping data.")
+			r.logger.ErrorContext(ctx, "Failed to persist user activity report, dropping data.",
+				"start_time", startTime,
+				"lost_records", len(report.Records),
+				"error", err,
+			)
 			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-		r.log.WithFields(logrus.Fields{
-			"report_uuid": reportUUID,
-			"start_time":  startTime,
-			"records":     len(report.Records),
-		}).Debug("Persisted user activity report.")
+		r.logger.DebugContext(ctx, "Persisted user activity report.",
+			"report_uuid", reportUUID,
+			"start_time", startTime,
+			"records", len(report.Records),
+		)
 	}
 }
 
@@ -452,26 +448,22 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		records = append(records, record)
 	}
 
-	reports, err := prepareResourcePresenceReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareResourcePresenceReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{
-			"start_time": startTime,
-		}).Error("Failed to prepare resource presence report, dropping data.")
+		r.logger.ErrorContext(ctx, "Failed to prepare resource presence report, dropping data.", "start_time", startTime, "error", err)
 		return
 	}
 
 	for _, report := range reports {
 		if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time": startTime,
-			}).Error("Failed to persist resource presence report, dropping data.")
+			r.logger.ErrorContext(ctx, "Failed to persist resource presence report, dropping data.", "start_time", startTime, "error", err)
 			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-		r.log.WithFields(logrus.Fields{
-			"report_uuid": reportUUID,
-			"start_time":  startTime,
-		}).Debug("Persisted resource presence report.")
+		r.logger.DebugContext(ctx, "Persisted resource presence report.", "report_uuid", reportUUID, "start_time", startTime)
 	}
 }

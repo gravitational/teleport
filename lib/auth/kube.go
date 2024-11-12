@@ -32,15 +32,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// KubeCSR is a kubernetes CSR request
-type KubeCSR = authclient.KubeCSR
-
-// KubeCSRResponse is a response to kubernetes CSR request
-type KubeCSRResponse = authclient.KubeCSRResponse
-
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
-func (a *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
+// DEPRECATED
+// TODO(tigrato): DELETE IN 18.0
+func (a *Server) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	ctx := context.TODO()
 	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
 		return nil, trace.Wrap(err)
@@ -140,7 +136,7 @@ func (a *Server) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &KubeCSRResponse{
+	return &authclient.KubeCSRResponse{
 		Cert:            tlsCert,
 		CertAuthorities: services.GetTLSCerts(hostCA),
 	}, nil

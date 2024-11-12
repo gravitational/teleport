@@ -25,5 +25,5 @@ sudo tail -f /var/log/teleport-stderr.log
 
 ```
 sudo launchctl unload /Library/LaunchDaemons/com.goteleport.teleport.plist && \
-sudo launchctl load /Library/LaunchDaemons/com.teleport.teleport.plist
+sudo launchctl load /Library/LaunchDaemons/com.goteleport.teleport.plist
 ```

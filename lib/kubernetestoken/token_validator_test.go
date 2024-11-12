@@ -20,8 +20,6 @@ package kubernetestoken
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/json"
 	"testing"
 	"time"
@@ -40,6 +38,7 @@ import (
 	ctest "k8s.io/client-go/testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 var userGroups = []string{"system:serviceaccounts", "system:serviceaccounts:namespace", "system:authenticated"}
@@ -286,10 +285,10 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 }
 
 func testSigner(t *testing.T) ([]byte, jose.Signer) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.RS256, Key: key},
+		jose.SigningKey{Algorithm: jose.ES256, Key: key},
 		(&jose.SignerOptions{}).
 			WithType("JWT").
 			WithHeader("kid", "foo"),
@@ -300,7 +299,7 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 		{
 			Key:       key.Public(),
 			Use:       "sig",
-			Algorithm: string(jose.RS256),
+			Algorithm: string(jose.ES256),
 			KeyID:     "foo",
 		},
 	}}
@@ -315,12 +314,12 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 
 	now := time.Now()
 	clusterName := "example.teleport.sh"
-	validKubeSubclaim := &kubernetesSubClaim{
-		ServiceAccount: &serviceAccountSubClaim{
+	validKubeSubclaim := &KubernetesSubClaim{
+		ServiceAccount: &ServiceAccountSubClaim{
 			Name: "my-service-account",
 			UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
 		},
-		Pod: &podSubClaim{
+		Pod: &PodSubClaim{
 			Name: "my-pod-797959fdf-wptbj",
 			UID:  "413b22ca-4833-48d9-b6db-76219d583173",
 		},
@@ -330,7 +329,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 	tests := []struct {
 		name   string
 		signer jose.Signer
-		claims serviceAccountClaims
+		claims ServiceAccountClaims
 
 		wantResult *ValidationResult
 		wantErr    string
@@ -338,7 +337,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "valid",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -356,7 +355,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "missing bound pod claim",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -364,8 +363,8 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
 				},
-				Kubernetes: &kubernetesSubClaim{
-					ServiceAccount: &serviceAccountSubClaim{
+				Kubernetes: &KubernetesSubClaim{
+					ServiceAccount: &ServiceAccountSubClaim{
 						Name: "my-service-account",
 						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
 					},
@@ -377,7 +376,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "signed by unknown key",
 			signer: wrongSigner,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -392,7 +391,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "wrong audience",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{"wrong.audience"},
@@ -407,7 +406,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "no expiry",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -421,7 +420,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "no issued at",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -435,7 +434,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "too long ttl",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -454,7 +453,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "expired",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -469,7 +468,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "not yet valid",
 			signer: signer,
-			claims: serviceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},

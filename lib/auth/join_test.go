@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -34,7 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -330,13 +332,6 @@ func TestRegister_Bot(t *testing.T) {
 	err = srv.Auth().UpsertToken(ctx, wrongUser)
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
 	for _, test := range []struct {
 		desc      string
 		token     types.ProvisionToken
@@ -370,27 +365,25 @@ func TestRegister_Bot(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			start := srv.Clock().Now()
-			certs, err := Register(ctx, RegisterParams{
+			result, err := join.Register(ctx, join.RegisterParams{
 				Token: test.token.GetName(),
-				ID: IdentityID{
+				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-				PublicTLSKey: tlsPublicKey,
-				PublicSSHKey: publicKey,
+				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
 			})
 			test.assertErr(t, err)
 
 			if err == nil {
-				require.NotEmpty(t, certs.SSH)
-				require.NotEmpty(t, certs.TLS)
+				require.NotEmpty(t, result.Certs.SSH)
+				require.NotEmpty(t, result.Certs.TLS)
 
 				// ensure token was removed
 				_, err = srv.Auth().GetToken(ctx, test.token.GetName())
 				require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 				// ensure cert is renewable
-				x509, err := tlsca.ParseCertificatePEM(certs.TLS)
+				x509, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
 				require.NoError(t, err)
 				id, err := tlsca.FromSubject(x509.Subject, later)
 				require.NoError(t, err)
@@ -423,12 +416,6 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
 
 	validExpires := srv.Clock().Now().Add(time.Hour * 6)
 	tooGreatExpires := srv.Clock().Now().Add(time.Hour * 24 * 365)
@@ -459,8 +446,8 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			botName := t.Name()
-			_, err = machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+			botName := uuid.NewString()
+			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
@@ -470,21 +457,19 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 				},
 			}, srv.Clock().Now(), "")
 			require.NoError(t, err)
-			tok := newBotToken(t, t.Name(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
+			tok := newBotToken(t, uuid.NewString(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))
 
-			certs, err := Register(ctx, RegisterParams{
+			result, err := join.Register(ctx, join.RegisterParams{
 				Token: tok.GetName(),
-				ID: IdentityID{
+				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-				PublicTLSKey: tlsPublicKey,
-				PublicSSHKey: publicKey,
-				Expires:      tt.requestExpires,
+				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				Expires:     tt.requestExpires,
 			})
 			require.NoError(t, err)
-			x509, err := tlsca.ParseCertificatePEM(certs.TLS)
+			x509, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
 			require.NoError(t, err)
 			id, err := tlsca.FromSubject(x509.Subject, x509.NotAfter)
 			require.NoError(t, err)

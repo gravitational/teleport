@@ -72,8 +72,14 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 			participants = strings.Join(session.Participants, ", ")
 			hostname = session.DesktopName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		case *events.DatabaseSessionEnd:
+			id = session.GetSessionID()
+			typ = session.DatabaseProtocol
+			participants = session.GetUser()
+			hostname = session.DatabaseService
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		default:
-			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd or WindowsDesktopSessionEnd: got: %T", event))
+			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd: got: %T", event))
 			continue
 		}
 

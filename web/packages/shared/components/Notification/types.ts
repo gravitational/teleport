@@ -16,20 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Action } from 'design/Alert';
+import { IconProps } from 'design/Icon/Icon';
+import React from 'react';
+
+export type NotificationSeverity =
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'success'
+  | 'neutral';
+
 export interface NotificationItem {
   content: NotificationItemContent;
-  severity: 'info' | 'warn' | 'error';
+  severity: NotificationSeverity;
   id: string;
 }
 
 export type NotificationItemContent = string | NotificationItemObjectContent;
 
 export type NotificationItemObjectContent = {
-  title: string;
+  title?: string;
+  subtitle?: string;
   list?: string[];
   description?: string;
-  link?: {
-    href: string;
-    text: string;
-  };
+  icon?: React.ComponentType<IconProps>;
+  action?: Action;
 };

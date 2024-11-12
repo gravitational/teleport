@@ -106,6 +106,26 @@ export interface Cluster {
      * @generated from protobuf field: string proxy_version = 10;
      */
     proxyVersion: string;
+    /**
+     * show_resources tells if the cluster can show requestable resources on the resources page.
+     * Controlled by the cluster config.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.ShowResources show_resources = 11;
+     */
+    showResources: ShowResources;
+    /**
+     * profile_status_error is set if there was an error when reading the profile.
+     * This allows the app to be usable, when one or more profiles cannot be read.
+     *
+     * @generated from protobuf field: string profile_status_error = 12;
+     */
+    profileStatusError: string;
+    /**
+     * sso_host is the host of the SSO provider used to log in.
+     *
+     * @generated from protobuf field: string sso_host = 13;
+     */
+    ssoHost: string;
 }
 /**
  * LoggedInUser describes a logged-in user
@@ -330,6 +350,25 @@ export interface Features {
      */
     isUsageBasedBilling: boolean;
 }
+/**
+ * ShowResources tells if the cluster can show requestable resources on the resources page.
+ *
+ * @generated from protobuf enum teleport.lib.teleterm.v1.ShowResources
+ */
+export enum ShowResources {
+    /**
+     * @generated from protobuf enum value: SHOW_RESOURCES_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: SHOW_RESOURCES_REQUESTABLE = 1;
+     */
+    REQUESTABLE = 1,
+    /**
+     * @generated from protobuf enum value: SHOW_RESOURCES_ACCESSIBLE_ONLY = 2;
+     */
+    ACCESSIBLE_ONLY = 2
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class Cluster$Type extends MessageType<Cluster> {
     constructor() {
@@ -342,7 +381,10 @@ class Cluster$Type extends MessageType<Cluster> {
             { no: 7, name: "logged_in_user", kind: "message", T: () => LoggedInUser },
             { no: 8, name: "features", kind: "message", T: () => Features },
             { no: 9, name: "auth_cluster_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 10, name: "proxy_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 10, name: "proxy_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 11, name: "show_resources", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ShowResources", ShowResources, "SHOW_RESOURCES_"] },
+            { no: 12, name: "profile_status_error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 13, name: "sso_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Cluster>): Cluster {
@@ -354,6 +396,9 @@ class Cluster$Type extends MessageType<Cluster> {
         message.leaf = false;
         message.authClusterId = "";
         message.proxyVersion = "";
+        message.showResources = 0;
+        message.profileStatusError = "";
+        message.ssoHost = "";
         if (value !== undefined)
             reflectionMergePartial<Cluster>(this, message, value);
         return message;
@@ -389,6 +434,15 @@ class Cluster$Type extends MessageType<Cluster> {
                     break;
                 case /* string proxy_version */ 10:
                     message.proxyVersion = reader.string();
+                    break;
+                case /* teleport.lib.teleterm.v1.ShowResources show_resources */ 11:
+                    message.showResources = reader.int32();
+                    break;
+                case /* string profile_status_error */ 12:
+                    message.profileStatusError = reader.string();
+                    break;
+                case /* string sso_host */ 13:
+                    message.ssoHost = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -429,6 +483,15 @@ class Cluster$Type extends MessageType<Cluster> {
         /* string proxy_version = 10; */
         if (message.proxyVersion !== "")
             writer.tag(10, WireType.LengthDelimited).string(message.proxyVersion);
+        /* teleport.lib.teleterm.v1.ShowResources show_resources = 11; */
+        if (message.showResources !== 0)
+            writer.tag(11, WireType.Varint).int32(message.showResources);
+        /* string profile_status_error = 12; */
+        if (message.profileStatusError !== "")
+            writer.tag(12, WireType.LengthDelimited).string(message.profileStatusError);
+        /* string sso_host = 13; */
+        if (message.ssoHost !== "")
+            writer.tag(13, WireType.LengthDelimited).string(message.ssoHost);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

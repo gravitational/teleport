@@ -44,10 +44,9 @@ var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only 
 // authentication - the connector CRUD operations and Get methods are
 // implemented in auth.Server and provide no connector-specific logic.
 type SAMLService interface {
-	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
-	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error)
+	CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
+	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
@@ -57,6 +56,15 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	// has to pass `nil` for the second argument.
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
+	// not empty (cert is set) but the private key is missing. Such a SAML resource is invalid and not usable.
+	if connector.GetSigningKeyPair().PrivateKey == "" {
+		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	upserted, err := a.Services.UpsertSAMLConnector(ctx, connector)
@@ -94,6 +102,17 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		return nil, trace.Wrap(err)
 	}
 
+	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
+	// not empty (cert is set) but the private key is missing. In this case we want to look up the existing SAML
+	// connector and populate the signing key from it if it's the same certificate. This avoids accidentally clearing
+	// the private key and creating an unusable connector.
+	if connector.GetSigningKeyPair().PrivateKey == "" {
+		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	updated, err := a.Services.UpdateSAMLConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,6 +146,13 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	// has to pass `nil` for the second argument.
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
+	// not empty (cert is set) but the private key is missing. This SAML Connector is invalid, we must reject it
+	// with an actionable message.
+	if connector.GetSigningKeyPair().PrivateKey == "" {
+		return nil, trace.BadParameter("Missing private key for signing connector. " + services.ErrMsgHowToFixMissingPrivateKey)
 	}
 
 	created, err := a.Services.CreateSAMLConnector(ctx, connector)
@@ -187,9 +213,20 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 	return rq, trace.Wrap(err)
 }
 
+// CreateSAMLAuthRequestForMFA delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if a.samlAuthService == nil {
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
+	rq, err := a.samlAuthService.CreateSAMLAuthRequestForMFA(ctx, req)
+	return rq, trace.Wrap(err)
+}
+
 // ValidateSAMLResponse delegates the method call to the samlAuthService if present,
 // or returns a NotImplemented error if not present.
-func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*SAMLAuthResponse, error) {
+func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
 	if a.samlAuthService == nil {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
@@ -197,18 +234,3 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse, connect
 	resp, err := a.samlAuthService.ValidateSAMLResponse(ctx, samlResponse, connectorID, clientIP)
 	return resp, trace.Wrap(err)
 }
-
-// SAMLAuthResponse is returned when auth server validated callback parameters
-// returned from SAML identity provider
-type SAMLAuthResponse = authclient.SAMLAuthResponse
-
-// SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
-type SAMLAuthRequest = authclient.SAMLAuthRequest
-
-// ValidateSAMLResponseReq is the request made by the proxy to validate
-// and activate a login via SAML.
-type ValidateSAMLResponseReq = authclient.ValidateSAMLResponseReq
-
-// SAMLAuthRawResponse is returned when auth server validated callback parameters
-// returned from SAML provider
-type SAMLAuthRawResponse = authclient.SAMLAuthRawResponse

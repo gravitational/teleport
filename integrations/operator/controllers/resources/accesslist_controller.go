@@ -57,11 +57,15 @@ func (r accessListClient) Delete(ctx context.Context, name string) error {
 	return trace.Wrap(r.teleportClient.AccessListClient().DeleteAccessList(ctx, name))
 }
 
-// MutateExisting propagates fields from the existing AccessList resource
+// Mutate propagates fields from the existing AccessList resource
 // to the one the operator will upsert. This allows propagating fields computed
 // server-side such as the NextAuditDate.
-func (r accessListClient) MutateExisting(new, existing *accesslist.AccessList) {
+func (r accessListClient) Mutate(_ context.Context, new, existing *accesslist.AccessList, _ kclient.ObjectKey) error {
+	if existing == nil {
+		return nil
+	}
 	new.Spec.Audit.NextAuditDate = existing.Spec.Audit.NextAuditDate
+	return nil
 }
 
 // NewAccessListReconciler instantiates a new Kubernetes controller reconciling access_list resources

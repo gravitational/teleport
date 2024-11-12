@@ -20,6 +20,12 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import {
+  getCurrentTheme,
+  getNextTheme,
+  updateFavicon,
+} from 'teleport/ThemeProvider';
+
+import {
   BackendUserPreferences,
   convertBackendUserPreferences,
   convertUserPreferences,
@@ -72,3 +78,105 @@ test('should convert the user preferences back to the old format when updating',
     actualUserPreferences.clusterPreferences.pinnedResources.resourceIds
   );
 });
+
+test('getCurrentTheme', () => {
+  mockMatchMediaWindow('dark');
+  let currentTheme = getCurrentTheme(Theme.UNSPECIFIED);
+  expect(currentTheme).toBe(Theme.DARK);
+
+  mockMatchMediaWindow('light');
+  currentTheme = getCurrentTheme(Theme.UNSPECIFIED);
+  expect(currentTheme).toBe(Theme.LIGHT);
+
+  currentTheme = getCurrentTheme(Theme.LIGHT);
+  expect(currentTheme).toBe(Theme.LIGHT);
+
+  currentTheme = getCurrentTheme(Theme.DARK);
+  expect(currentTheme).toBe(Theme.DARK);
+});
+
+describe('updateFavicon', () => {
+  let originalMatchMedia: typeof window.matchMedia;
+
+  beforeAll(() => {
+    originalMatchMedia = window.matchMedia;
+  });
+
+  afterAll(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    const link = document.createElement('link');
+    link.rel = 'icon';
+    link.href = '/initial-favicon.png';
+    document.head.appendChild(link);
+  });
+
+  test('set dark favicon when dark theme is preferred', () => {
+    window.matchMedia = jest.fn().mockImplementation(query => ({
+      matches: query === '(prefers-color-scheme: dark)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+
+    updateFavicon();
+
+    const favicon = document.querySelector(
+      'link[rel="icon"]'
+    ) as HTMLLinkElement;
+    expect(favicon.href).toContain('/app/favicon-dark.png');
+  });
+
+  test('set light favicon when light theme is preferred', () => {
+    window.matchMedia = jest.fn().mockImplementation(query => ({
+      matches: query !== '(prefers-color-scheme: dark)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+
+    updateFavicon();
+
+    const favicon = document.querySelector(
+      'link[rel="icon"]'
+    ) as HTMLLinkElement;
+    expect(favicon.href).toContain('/app/favicon-light.png');
+  });
+});
+
+test('getNextTheme', () => {
+  mockMatchMediaWindow('dark');
+  let nextTheme = getNextTheme(Theme.UNSPECIFIED);
+  expect(nextTheme).toBe(Theme.LIGHT);
+
+  mockMatchMediaWindow('light');
+  nextTheme = getNextTheme(Theme.UNSPECIFIED);
+  expect(nextTheme).toBe(Theme.DARK);
+
+  nextTheme = getNextTheme(Theme.LIGHT);
+  expect(nextTheme).toBe(Theme.DARK);
+
+  nextTheme = getNextTheme(Theme.DARK);
+  expect(nextTheme).toBe(Theme.LIGHT);
+});
+
+function mockMatchMediaWindow(prefers: 'light' | 'dark') {
+  return Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation(query => ({
+      matches: query === `(prefers-color-scheme: ${prefers})`,
+      media: query,
+    })),
+  });
+}

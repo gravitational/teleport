@@ -150,6 +150,10 @@ type User interface {
 	// who were created before this property was introduced and didn't perform any
 	// password-related activity since then. See RFD 0159 for details.
 	SetPasswordState(PasswordState)
+	// SetWeakestDevice sets the MFA state for the user.
+	SetWeakestDevice(MFADeviceKind)
+	// GetWeakestDevice gets the MFA state for the user.
+	GetWeakestDevice() MFADeviceKind
 }
 
 // NewUser creates new empty user
@@ -189,16 +193,6 @@ func (u *UserV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (u *UserV2) SetSubKind(s string) {
 	u.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (u *UserV2) GetResourceID() int64 {
-	return u.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (u *UserV2) SetResourceID(id int64) {
-	u.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -517,11 +511,15 @@ func (u UserV2) GetGCPServiceAccounts() []string {
 
 // GetUserType indicates if the User was created by an SSO Provider or locally.
 func (u UserV2) GetUserType() UserType {
-	if u.GetCreatedBy().Connector == nil {
-		return UserTypeLocal
+	if u.GetCreatedBy().Connector != nil ||
+		len(u.GetOIDCIdentities()) > 0 ||
+		len(u.GetGithubIdentities()) > 0 ||
+		len(u.GetSAMLIdentities()) > 0 {
+
+		return UserTypeSSO
 	}
 
-	return UserTypeSSO
+	return UserTypeLocal
 }
 
 // IsBot returns true if the user is a bot.
@@ -565,6 +563,14 @@ func (u *UserV2) GetPasswordState() PasswordState {
 
 func (u *UserV2) SetPasswordState(state PasswordState) {
 	u.Status.PasswordState = state
+}
+
+func (u *UserV2) SetWeakestDevice(state MFADeviceKind) {
+	u.Status.MfaWeakestDevice = state
+}
+
+func (u *UserV2) GetWeakestDevice() MFADeviceKind {
+	return u.Status.MfaWeakestDevice
 }
 
 // IsEmpty returns true if there's no info about who created this user

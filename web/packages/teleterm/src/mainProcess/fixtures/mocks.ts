@@ -31,9 +31,8 @@ export class MockMainProcessClient implements MainProcessClient {
     this.configService = createConfigService({
       configFile: createMockFileStorage(),
       jsonSchemaFile: createMockFileStorage(),
-      platform: this.getRuntimeSettings().platform,
+      settings: this.getRuntimeSettings(),
     });
-    this.configService.set('feature.vnet', true);
   }
 
   subscribeToNativeThemeUpdate() {
@@ -151,12 +150,14 @@ export const makeRuntimeSettings = (
   certsDir: '',
   kubeConfigsDir: '',
   logsDir: '',
-  defaultShell: '',
+  defaultOsShellId: 'zsh',
+  availableShells: [
+    { id: 'zsh', friendlyName: 'zsh', binPath: '/bin/zsh', binName: 'zsh' },
+  ],
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
     homeDir: '',
-    flags: [],
   },
   sharedProcess: {
     requestedNetworkAddress: '',

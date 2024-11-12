@@ -72,11 +72,8 @@ export function ShareFeedbackFormFields({
       />
       <FieldTextArea
         label="Suggestions"
-        textAreaCss={`
-            font-size: 14px;
-        `}
         rule={requiredField('Suggestions are required')}
-        readOnly={disabled}
+        disabled={disabled}
         value={formValues.feedback}
         onChange={e => updateFormField('feedback', e.target.value)}
         placeholder="Type your suggestions here"

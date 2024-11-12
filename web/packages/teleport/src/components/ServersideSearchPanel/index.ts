@@ -16,6 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import ServersideSearchPanel from './ServersideSearchPanel';
-
-export default ServersideSearchPanel;
+export { ServersideSearchPanelWithPageIndicator } from './ServersideSearchPanelWithPageIndicator';
+export { ServersideSearchPanel } from './ServersideSearchPanel';

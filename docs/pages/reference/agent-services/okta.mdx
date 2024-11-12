@@ -1,0 +1,109 @@
+---
+title: Okta Service Reference Documentation
+description: Configuration and CLI reference documentation for Teleport Okta service.
+---
+
+This guide describes interfaces and options for configuring the Teleport Okta
+Service, including Okta import rules, Okta assignments, and `tctl` commands. It
+also includes troubleshooting instructions.
+
+## Okta Import Rule resources
+
+Full YAML spec of Okta import rule resources managed by `tctl` resource commands:
+
+(!docs/pages/includes/okta-import-rule.mdx!)
+
+You can create a new `okta_import_rule` resource by running the following commands, which
+assume that you have created a YAML file called `okta-import-rule.yaml` with your configuration:
+
+```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
+# Create the resource
+$ tctl create -f okta-import-rule.yaml
+```
+
+## Okta Assignment resources
+
+These objects are internally facing and are not intended to be modified by users. However,
+you can query them for informational or debugging purposes.
+
+Full YAML spec of Okta assignment resources queried by `tctl` resource commands:
+
+```yaml
+kind: okta_assignment
+version: v1
+metadata:
+  name: test-assignment
+spec:
+  # The user that the Okta assignment is granting access for.
+  user: test-user@test.user
+  # The list of targets to grant access to.
+  targets:
+  # An application target.
+  - type: application
+    id: "123456"
+  # A group target.
+  - type: group
+    id: "234567"
+  # The current status of the Okta assignment.
+  status: pending
+```
+
+## CLI
+
+This section shows CLI commands relevant for managing Okta Service behaviors.
+
+### tctl get okta_import_rules
+
+Lists available Okta import rules.
+
+```code
+$ tctl get okta_import_rules
+```
+
+### tctl get okta_import_rules/NAME
+
+Gets an individual Okta import rule.
+
+```code
+$ tctl get okta_import_rules/my-import-rule
+```
+
+### tctl rm okta_import_rules/NAME
+
+Removes an individual Okta import rule.
+
+```code
+$ tctl rm okta_import_rules/my-import-rule
+```
+
+### tctl get okta_assignments
+
+Lists available Okta assignments.
+
+```code
+$ tctl get okta_assignments
+```
+
+### tctl get okta_assignments/NAME
+
+Gets an individual Okta assignment.
+
+```code
+$ tctl get okta_assignments/my-assignment
+```
+
+## Troubleshooting
+
+### No Okta groups or applications seen in the Teleport UI
+
+If the Teleport applications UI isn't displaying any Okta applications, ensure
+that the Okta API token and endpoint are correct in the Okta service.
+
+If they are, double check the user permissions and ensure that the user has
+appropriate resource and label level access to the groups and applications. You
+may need to tweak the `app_labels` and `group_labels` sections of a role in order
+to see these resources.

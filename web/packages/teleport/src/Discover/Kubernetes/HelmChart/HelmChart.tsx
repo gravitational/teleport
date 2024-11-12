@@ -18,11 +18,13 @@
 
 import React, { Suspense, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Link, Text } from 'design';
+import { Box, ButtonSecondary, Link, Text, Mark, H3, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import { P } from 'design/Text/Text';
 
 import { ResourceLabel } from 'teleport/services/agents';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -46,7 +48,6 @@ import {
   ActionButtons,
   Header,
   HeaderSubtitle,
-  Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
@@ -211,10 +212,12 @@ const Heading = () => {
 const StepOne = () => {
   return (
     <StyledBox mb={5}>
-      <Text bold>Step 1</Text>
-      <Text typography="subtitle1" mb={3}>
-        Add teleport-agent chart to your charts repository
-      </Text>
+      <header>
+        <H3>Step 1</H3>
+        <Subtitle3 mb={3}>
+          Add teleport-agent chart to your charts repository
+        </Subtitle3>
+      </header>
       <TextSelectCopyMulti
         lines={[
           {
@@ -254,11 +257,13 @@ const StepTwo = ({
 
   return (
     <StyledBox mb={5}>
-      <Text bold>Step 2</Text>
-      <Text typography="subtitle1" mb={3}>
-        Generate a command to automatically configure and install the
-        teleport-agent namespace
-      </Text>
+      <header>
+        <H3>Step 2</H3>
+        <Subtitle3 mb={3}>
+          Generate a command to automatically configure and install the
+          teleport-agent namespace
+        </Subtitle3>
+      </header>
       <Validation>
         {({ validator }) => (
           <>
@@ -279,7 +284,7 @@ const StepTwo = ({
                 disabled={disabled}
                 rule={requiredField('Kubernetes Cluster Name is required')}
                 label="Kubernetes Cluster Name"
-                labelTip="Name shown to Teleport users connecting to the cluster"
+                helperText="Name shown to Teleport users connecting to the cluster"
                 value={clusterName}
                 placeholder="my-cluster"
                 width="100%"
@@ -360,14 +365,6 @@ export function generateCmd(data: GenerateCmdProps) {
     // AutomaticUpgradesTargetVersion contains a v, eg, v13.4.2.
     // However, helm chart expects no 'v', eg, 13.4.2.
     deployVersion = data.automaticUpgradesTargetVersion.replace(/^v/, '');
-
-    // TODO(marco): remove when stable/cloud moves to v14
-    // For v13 releases of the helm chart, we must remove the App role.
-    // We get the following error otherwise:
-    // Error: INSTALLATION FAILED: execution error at (teleport-kube-agent/templates/statefulset.yaml:26:28): at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README
-    if (deployVersion.startsWith('13.')) {
-      roles = ['Kube'];
-    }
   }
 
   const yamlRoles = roles.join(',').toLowerCase();
@@ -490,12 +487,12 @@ const InstallHelmChart = ({
       <CommandBox
         header={
           <>
-            <Text bold>Step 3</Text>
-            <Text typography="subtitle1" mb={3}>
+            <H3>Step 3</H3>
+            <P mb={3}>
               Run the command below on the server running your Kubernetes
               cluster. It may take up to a minute for the Teleport Service to
               join after running the command.
-            </Text>
+            </P>
           </>
         }
       >

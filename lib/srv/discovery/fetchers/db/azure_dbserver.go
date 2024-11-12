@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -33,12 +32,12 @@ func newAzureMySQLFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
-// newAzureMySQLFetcher creates a fetcher for Azure PostgresSQL.
+// newAzureMySQLFetcher creates a fetcher for Azure PostgreSQL.
 func newAzurePostgresFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
 }
 
-// azureDBServerPlugin implements azureFetcherPlugin for MySQL and PostgresSQL.
+// azureDBServerPlugin implements azureFetcherPlugin for MySQL and PostgreSQL.
 type azureDBServerPlugin struct{}
 
 func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
@@ -73,7 +72,7 @@ func (p *azureDBServerPlugin) NewDatabaseFromServer(server *azure.DBServer, log 
 		return nil
 	}
 
-	database, err := services.NewDatabaseFromAzureServer(server)
+	database, err := common.NewDatabaseFromAzureServer(server)
 	if err != nil {
 		log.Warnf("Could not convert Azure server %q to database resource: %v.",
 			server.Name,

@@ -1,0 +1,27 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "OpenSearchDiscovery",
+            "Effect": "Allow",
+            "Action": [
+                "es:DescribeDomains",
+                "es:ListDomainNames"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "OpenSearchFetchMetadata",
+            "Effect": "Allow",
+            "Action": "es:ListTags",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `OpenSearchDiscovery` | Discover OpenSearch domains. |
+| `OpenSearchFetchMetadata` | Import each discovered domain's AWS tags as Teleport database labels. |

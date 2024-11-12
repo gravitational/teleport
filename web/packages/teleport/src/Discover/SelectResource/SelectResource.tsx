@@ -21,18 +21,19 @@ import { useHistory, useLocation } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Link, Text } from 'design';
+import { Box, Flex, Link, P3, Text } from 'design';
 import { getPlatform, Platform } from 'design/platform';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
+import { NewTab } from 'design/Icon';
+
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl, AuthType, OnboardDiscover } from 'teleport/services/user';
 import {
-  Header,
   HeaderSubtitle,
   PermissionsErrorMessage,
   ResourceKind,
@@ -48,12 +49,15 @@ import cfg from 'teleport/config';
 
 import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
 
+import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
+
 import { getMarketingTermMatches } from './getMarketingTermMatches';
 import { DiscoverIcon } from './icons';
 
 import { PrioritizedResources, SearchResource } from './types';
 import { SAML_APPLICATIONS } from './resourcesE';
 
+import type { ComponentPropsWithoutRef } from 'react';
 import type { ResourceSpec } from './types';
 
 interface SelectResourceProps {
@@ -81,14 +85,12 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
-    const split = s.split(' ').map(s => s.toLowerCase());
-    const foundResources = list.filter(r => {
-      const match = split.every(s => r.keywords.includes(s));
-      if (match) {
-        return r;
-      }
-    });
-    setResources(foundResources);
+    const search = s.split(' ').map(s => s.toLowerCase());
+    const found = list.filter(r =>
+      search.every(s => r.keywords.some(k => k.toLowerCase().includes(s)))
+    );
+
+    setResources(found);
     setSearch(s);
   }
 
@@ -149,14 +151,16 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   }, []);
 
   return (
-    <Box mt={4}>
-      <Header>Select Resource To Add</Header>
+    <Box>
+      <FeatureHeader>
+        <FeatureHeaderTitle>Select Resource To Add</FeatureHeaderTitle>
+      </FeatureHeader>
       <HeaderSubtitle>
-        Teleport can integrate into most, if not all of your infrastructure.
+        Teleport can integrate into most, if not all, of your infrastructure.
         Search for what resource you want to add.
       </HeaderSubtitle>
       <Box height="90px" width="600px">
-        <InputWrapper mb={2}>
+        <InputWrapper>
           <StyledInput
             placeholder="Search for a resource"
             autoFocus
@@ -169,20 +173,28 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
       </Box>
       {resources && resources.length > 0 && (
         <>
-          <Grid>
+          <Grid role="grid">
             {resources.map((r, index) => {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
+              const select = () => {
+                if (!r.hasAccess) {
+                  return;
+                }
 
-              let resourceCardProps;
-              if (r.kind === ResourceKind.Application) {
+                setShowApp(true);
+                onSelect(r);
+              };
+
+              let resourceCardProps: ComponentPropsWithoutRef<
+                'button' | typeof Link
+              >;
+
+              if (r.kind === ResourceKind.Application && r.isDialog) {
                 resourceCardProps = {
-                  onClick: () => {
-                    if (r.hasAccess) {
-                      setShowApp(true);
-                      onSelect(r);
-                    }
-                  },
+                  onClick: select,
+                  onKeyUp: (e: KeyboardEvent) => e.key === 'Enter' && select(),
+                  role: 'button',
                 };
               } else if (r.unguidedLink) {
                 resourceCardProps = {
@@ -190,10 +202,17 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                   href: r.hasAccess ? r.unguidedLink : null,
                   target: '_blank',
                   style: { textDecoration: 'none' },
+                  role: 'link',
                 };
               } else {
                 resourceCardProps = {
                   onClick: () => r.hasAccess && onSelect(r),
+                  onKeyUp: (e: KeyboardEvent) => {
+                    if (e.key === 'Enter' && r.hasAccess) {
+                      onSelect(r);
+                    }
+                  },
+                  role: 'button',
                 };
               }
 
@@ -210,6 +229,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                   data-testid={r.kind}
                   key={`${index}${pretitle}${title}`}
                   hasAccess={r.hasAccess}
+                  aria-label={`${pretitle} ${title}`}
                   {...resourceCardProps}
                 >
                   {!r.unguidedLink && r.hasAccess && (
@@ -220,13 +240,13 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                       children={<PermissionsErrorMessage resource={r} />}
                     />
                   )}
-                  <Flex px={2} alignItems="center">
+                  <Flex px={2} alignItems="center" height="48px">
                     <Flex mr={3} justifyContent="center" width="24px">
                       <DiscoverIcon name={r.icon} />
                     </Flex>
                     <Box>
                       {pretitle && (
-                        <Text fontSize="12px" color="text.slightlyMuted">
+                        <Text typography="body3" color="text.slightlyMuted">
                           {pretitle}
                         </Text>
                       )}
@@ -239,11 +259,15 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                       )}
                     </Box>
                   </Flex>
+
+                  {r.unguidedLink && r.hasAccess ? (
+                    <NewTabInCorner color="text.muted" size={18} />
+                  ) : null}
                 </ResourceCard>
               );
             })}
           </Grid>
-          <Text mt={6} fontSize="12px">
+          <P3 mt={6}>
             Looking for something else?{' '}
             <Link
               href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
@@ -252,7 +276,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
             >
               Request a feature
             </Link>
-          </Text>
+          </P3>
         </>
       )}
       {showApp && <AddApp onClose={() => setShowApp(false)} />}
@@ -271,7 +295,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
         font-size: 12px;
         opacity: 0.7;
 
-        :hover {
+        &:hover {
           cursor: pointer;
           opacity: 1;
         }
@@ -597,23 +621,42 @@ const Grid = styled.div`
   row-gap: 15px;
 `;
 
-const ResourceCard = styled.div`
-  display: flex;
+const NewTabInCorner = styled(NewTab)`
+  position: absolute;
+  top: ${props => props.theme.space[3]}px;
+  right: ${props => props.theme.space[3]}px;
+  transition: color 0.3s;
+`;
+
+const ResourceCard = styled.button<{ hasAccess?: boolean }>`
   position: relative;
-  align-items: center;
+  text-align: left;
   background: ${props => props.theme.colors.spotBackground[0]};
   transition: all 0.3s;
 
+  border: none;
   border-radius: 8px;
-  padding: 12px 12px 12px 12px;
+  padding: 12px;
   color: ${props => props.theme.colors.text.main};
+  line-height: inherit;
+  font-size: inherit;
+  font-family: inherit;
   cursor: pointer;
-  height: 48px;
 
   opacity: ${props => (props.hasAccess ? '1' : '0.45')};
 
-  :hover {
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px ${props => props.theme.colors.brand};
+  }
+
+  &:hover,
+  &:focus-visible {
     background: ${props => props.theme.colors.spotBackground[1]};
+
+    ${NewTabInCorner} {
+      color: ${props => props.theme.colors.text.slightlyMuted};
+    }
   }
 `;
 
@@ -627,15 +670,17 @@ const BadgeGuided = styled.div`
   top: 0px;
   right: 0px;
   font-size: 10px;
+  line-height: 24px;
 `;
 
 const InputWrapper = styled.div`
   border-radius: 200px;
   height: 40px;
   border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+  transition: all 0.1s;
 
   &:hover,
-  &:focus,
+  &:focus-within,
   &:active {
     background: ${props => props.theme.colors.spotBackground[0]};
   }

@@ -19,10 +19,10 @@
 import React from 'react';
 
 import { setupServer } from 'msw/node';
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 import '@testing-library/jest-dom';
 
@@ -45,13 +45,10 @@ function ThemeName() {
 
 describe('user context - success state', () => {
   const server = setupServer(
-    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-      return res(
-        ctx.json({
-          theme: Theme.LIGHT,
-          assist: {},
-        })
-      );
+    http.get(cfg.api.userPreferencesPath, () => {
+      return HttpResponse.json({
+        theme: Theme.LIGHT,
+      });
     })
   );
 
@@ -73,40 +70,12 @@ describe('user context - success state', () => {
 
     expect(theme).toBeInTheDocument();
   });
-
-  it('should migrate the previous theme setting from local storage', async () => {
-    let updateBody: { theme?: Theme } = {};
-
-    server.use(
-      rest.put(cfg.api.userPreferencesPath, async (req, res, ctx) => {
-        updateBody = await req.json();
-
-        return res(ctx.status(200), ctx.json({}));
-      })
-    );
-
-    localStorage.setItem(KeysEnum.THEME, 'dark');
-
-    render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
-    );
-
-    await waitFor(() => expect(updateBody.theme).toEqual(Theme.DARK));
-
-    const theme = await screen.findByText(/theme: dark/i);
-
-    expect(theme).toBeInTheDocument();
-  });
 });
 
 describe('user context - error state', () => {
   const server = setupServer(
-    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-      return res(ctx.status(500));
+    http.get(cfg.api.userPreferencesPath, () => {
+      return HttpResponse.json(null, { status: 500 });
     })
   );
 
@@ -129,28 +98,11 @@ describe('user context - error state', () => {
     expect(theme).toBeInTheDocument();
   });
 
-  it('should render with the theme from the previous local storage setting', async () => {
-    localStorage.setItem(KeysEnum.THEME, 'dark');
-
-    render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
-    );
-
-    const theme = await screen.findByText(/theme: dark/i);
-
-    expect(theme).toBeInTheDocument();
-  });
-
   it('should render with the settings from local storage', async () => {
     localStorage.setItem(
       KeysEnum.USER_PREFERENCES,
       JSON.stringify({
         theme: 'dark',
-        assist: {},
       })
     );
 

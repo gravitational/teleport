@@ -161,13 +161,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 	// Connect stdout and stderr to the channel so the user can interact with the command.
 	e.Cmd.Stderr = channel.Stderr()
-
-	if e.Ctx.recordNonInteractiveSession {
-		e.Ctx.Tracef("Starting local exec and recording non-interactive session")
-		e.Cmd.Stdout = io.MultiWriter(e.Ctx.multiWriter, channel)
-	} else {
-		e.Cmd.Stdout = channel
-	}
+	e.Cmd.Stdout = channel
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()
@@ -268,7 +262,7 @@ func (e *localExec) transformSecureCopy() error {
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.Ctx.GetServerMetadata(),
+			ServerMetadata: e.Ctx.GetServer().TargetMetadata(),
 			Error:          err.Error(),
 		})
 		return trace.Wrap(err)
@@ -373,20 +367,14 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.ctx.GetServerMetadata(),
+			ServerMetadata: e.ctx.GetServer().TargetMetadata(),
 			Error:          err.Error(),
 		})
 		return nil, trace.Wrap(err)
 	}
 
 	// hook up stdout/err the channel so the user can interact with the command
-	if e.ctx.recordNonInteractiveSession {
-		e.ctx.Tracef("Starting remote exec and recording non-interactive session")
-		e.session.Stdout = io.MultiWriter(e.ctx.multiWriter, ch)
-	} else {
-		e.session.Stdout = ch
-	}
-
+	e.session.Stdout = ch
 	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
@@ -445,7 +433,7 @@ func (e *remoteExec) PID() int {
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := ctx.GetServerMetadata()
+	serverMeta := ctx.GetServer().TargetMetadata()
 	sessionMeta := ctx.GetSessionMetadata()
 	userMeta := ctx.Identity.GetUserMetadata()
 

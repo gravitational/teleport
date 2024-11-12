@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os/user"
 	"strconv"
 	"testing"
 	"time"
@@ -97,17 +96,7 @@ func testPingLocalServer(t *testing.T, port int, expectSuccess bool) {
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
-	invalidOSLogin := uuid.NewString()[:12]
-	notFound := false
-	for i := 0; i < 10; i++ {
-		if _, err := user.Lookup(invalidOSLogin); err == nil {
-			invalidOSLogin = uuid.NewString()[:12]
-			continue
-		}
-		notFound = true
-		break
-	}
-	require.True(t, notFound, "unable to locate invalid os user")
+	invalidOSLogin := utils.GenerateLocalUsername(t)
 
 	// Providing our own logins to Teleport so we can verify that a user
 	// that exists within Teleport but does not exist on the local node
@@ -292,7 +281,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cl.Labels = tt.labels
 
 			sshSessionCtx, sshSessionCancel := context.WithCancel(context.Background())
-			go cl.SSH(sshSessionCtx, []string{}, false)
+			go cl.SSH(sshSessionCtx, []string{})
 			defer sshSessionCancel()
 
 			timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)

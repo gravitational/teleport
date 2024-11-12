@@ -35,20 +35,23 @@ export class NotificationService {
 
     return api.get(cfg.getNotificationsUrl(params)).then(json => {
       return {
-        notifications:
-          json.notifications.map(notificationJson => {
-            const { id, title, subKind, created, clicked } = notificationJson;
-            const labels = notificationJson.labels || [];
+        notifications: json.notifications
+          ? json.notifications.map(notificationJson => {
+              const { id, title, subKind, created, clicked, textContent } =
+                notificationJson;
+              const labels = notificationJson.labels || [];
 
-            return {
-              id,
-              title,
-              subKind,
-              createdDate: new Date(created),
-              clicked,
-              labels,
-            };
-          }) || [],
+              return {
+                id,
+                title,
+                subKind,
+                createdDate: new Date(created),
+                clicked,
+                labels,
+                textContent,
+              };
+            })
+          : [],
         nextKey: json.nextKey,
         userLastSeenNotification: json.userLastSeenNotification
           ? new Date(json.userLastSeenNotification)

@@ -1,0 +1,138 @@
+---
+title: Database Access High Availability (HA)
+description: How to configure Teleport database access in a Highly Available (HA) configuration.
+---
+
+You can deploy the Teleport Database Service in a Highly Available (HA)
+configuration using two methods, both of which involve pointing multiple
+Database Service instances to the same database instance:
+
+- Deploying multiple Database Service instances with the same dynamic resource
+  watchers.
+- Deploying multiple Database Service instances configured to proxy the same
+  database instances.
+
+## Dynamic resource watchers
+
+You can configure multiple Database Service replicas to watch for the same
+dynamic `db` resources.
+
+To configure the Database Service to watch for dynamic resources, add a `labels`
+field to its `resources` configuration: 
+
+```yaml
+db_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "region": "us-east-1"
+```
+
+When you create a dynamic `db` resource, all Database Service replicas
+configured to watch that `db` resource's labels will proxy the corresponding
+database instance. For example, the `db_service` configuration above instructs
+the Database Service to proxy any `db` resource with the `region:us-east-1`
+label.
+
+When connecting, Teleport will randomly pick the Database Service instance to
+connect through to provide some load balancing. If the selected instance is down
+(e.g. in case of a data center outage), Teleport will try to connect via other
+instances.
+
+For information on setting up dynamic database resources, see [Dynamic Database
+Registration](./dynamic-registration.mdx).
+
+## Static Database Service configuration
+
+You can explicitly configure Database Service replicas to connect to the same
+database instances using the Database Service's static configuration. This
+approach is useful if you expect the databases you will proxy via Teleport to
+remain stable over time.
+
+There are two approaches to deploying the Database Service in high availability
+using static configuration, which we will describe below:
+
+- **Combined replicas**: Teleport load balances database traffic across Database
+  Service replicas
+- **Separate replicas**: Clients choose which agent to use to connect to a
+  database
+
+### Combined replicas
+
+If you have two Database Services proxying the same database, configuration for
+both agents would be identical:
+
+```yaml
+# Same config for both agents.
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "postgres"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+With this configuration, you will see only a single entry for the database in
+`tsh db ls`:
+
+```code
+$ tsh db ls
+# Name
+# --------
+# postgres
+
+$ tsh db connect postgres
+```
+
+As with dynamic resources, Teleport will randomly pick a Database Service
+instance to connect through to when connecting to a database. 
+
+### Separate replicas
+
+With separate replicas, each Database Service instance proxying the database
+assigns it a different name. This allows you to explicitly pick the agent
+you want to connect to the database over:
+
+```yaml
+# Database service instance #1.
+db_service:
+  enabled: "yes"
+  databases:
+  # Note the name is different than instance #2 but the URI is the same.
+  - name: "postgres-us-east-1a"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+```yaml
+# Database service instance #2.
+db_service:
+  enabled: "yes"
+  databases:
+  # Note the name is different than instance #1 but the URI is the same.
+  - name: "postgres-us-east-1b"
+    protocol: "postgres"
+    uri: "postgres.example.com:5432"
+```
+
+With this configuration, both services will appear as two separate entries in
+`tsh db ls` output and you will have to pick one explicitly when connecting:
+
+```code
+$ tsh db ls
+# Name
+# -------------------
+# postgres-us-east-1a
+# postgres-us-east-1b
+
+$ tsh db connect postgres-us-east-1a
+```
+
+This approach is useful when you want to have control over which replica
+you're using to connect.
+
+## Next steps
+
+- Get started by [connecting](guides.mdx) your database.
+- Review the [architecture](../../../reference/architecture/agents.mdx) of the Teleport Database
+  Service and other services that run on Teleport agents.

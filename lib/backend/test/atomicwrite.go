@@ -21,7 +21,6 @@ package test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -285,8 +284,8 @@ func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
 
 	prefix := MakePrefix()
 
-	keyOf := func(i int) []byte {
-		return prefix(fmt.Sprintf("/key-%d", i))
+	keyOf := func(i int) backend.Key {
+		return prefix("key-" + strconv.Itoa(i))
 	}
 
 	var condacts []backend.ConditionalAction
@@ -468,10 +467,10 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 
 	results := make(chan error, workers)
 
-	commonKey := prefix("/common")
+	commonKey := prefix("common")
 
-	itemKey := func(i int) []byte {
-		return prefix(fmt.Sprintf("/item-%d", i))
+	itemKey := func(i int) backend.Key {
+		return prefix("item-" + strconv.Itoa(i))
 	}
 
 	_, err = bk.Put(ctx, backend.Item{
@@ -531,7 +530,7 @@ func testAtomicWriteOther(t *testing.T, newBackend Constructor) {
 
 	prefix := MakePrefix()
 
-	fooKey, barKey, badKey := prefix("/foo"), prefix("/bar"), prefix("/bad")
+	fooKey, barKey, badKey := prefix("foo"), prefix("bar"), prefix("bad")
 
 	fooVal, barVal := []byte("foo"), []byte("bar")
 

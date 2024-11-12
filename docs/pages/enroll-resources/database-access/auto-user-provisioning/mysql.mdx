@@ -1,0 +1,158 @@
+---
+title: MySQL Automatic User Provisioning
+description: Configure automatic user provisioning for MySQL.
+---
+
+Teleport can automatically create an account in your MySQL database when a
+Teleport user connects to the database, removing the need for creating
+individual user accounts in advance or using the same set of shared database
+accounts for all users. This guide shows you how to set up automatic user
+provisioning for MySQL.
+
+## How it works
+
+Before enrolling a MySQL database with Teleport, you set up an admin user on the
+database with permissions to manage users. You then enroll the database in your
+Teleport cluster with a configuration field that includes the name of the admin
+user. 
+
+When a Teleport user connects to the database with a role that enables automatic
+user provisioning, the Teleport Database Service first connects to the database
+as the admin user, creates a temporary user in the database, then initiates a
+database session for the Teleport user as the temporary database user. 
+
+When the Teleport user closes the session, the Teleport Database Service
+prevents the temporary database user from accessing the database by, depending
+on the configuration, either removing the database user or disabling it and
+stripping its privileges.
+
+## Prerequisites
+
+- Teleport cluster v14.1 or higher with a configured [self-hosted
+  MySQL](../enroll-self-hosted-databases/mysql-self-hosted.mdx) or [RDS MySQL](../enroll-aws-databases/rds.mdx)
+  database.
+- Ability to connect to and create user accounts in the target database.
+- Automatic user provisioning is not compatible with MySQL versions lower than
+  8.0.
+- Automatic user provisioning is not compatible with RDS Aurora reader
+  endpoints.
+
+## Step 1/3. Configure database admin
+
+(!docs/pages/includes/database-access/auto-user-provisioning/configure-admin.mdx!)
+
+Teleport uses the same authentication mechanism when connecting as an admin user
+as for regular user connections: X.509 for self-hosted databases and AWS IAM
+for RDS.
+
+The admin user must have privileges within the database to create users and
+grant them privileges. The admin user must also have privileges to monitor user
+processes and role assignments.
+
+In addition, a schema is required for the admin user to log into by default.
+Stored procedures are also created and executed from this schema.
+
+<Tabs>
+<TabItem label="RDS MySQL">
+The RDS MySQL admin user must use `AWSAuthenticationPlugin` to allow IAM
+authentication:
+```sql
+CREATE USER 'teleport-admin' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+GRANT SELECT ON mysql.role_edges TO 'teleport-admin' ;
+GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
+
+CREATE DATABASE IF NOT EXISTS `teleport`;
+GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
+```
+</TabItem>
+
+<TabItem label="Self-hosted MySQL">
+The self-hosted MySQL admin user must have X.509 authentication configured:
+```sql
+CREATE USER "teleport-admin" REQUIRE SUBJECT "/CN=teleport-admin";
+GRANT SELECT ON mysql.role_edges TO 'teleport-admin' ;
+GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
+
+CREATE DATABASE IF NOT EXISTS `teleport`;
+GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
+```
+</TabItem>
+</Tabs>
+
+Users created by Teleport will be assigned the `teleport-auto-user` role in the
+database, which will be created automatically if it doesn't exist.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/db-definition.mdx protocol="mysql" uri="localhost:3306" !)
+
+## Step 2/3. Configure a Teleport role
+
+(!docs/pages/includes/database-access/auto-user-provisioning/common-teleport-role.mdx!)
+
+Users created within the database will:
+
+- Be assigned the `teleport-auto-user` role.
+- Be assigned all roles from the Teleport user's role set that match the database.
+  The role names must be valid and exist in the database.
+
+(!docs/pages/includes/database-access/auto-user-provisioning/username-hash.mdx database="MySQL" limit="32" !)
+
+<Details title="Tracking the name mapping">
+The original Teleport username will be saved as user attributes within the
+databases.
+
+User can find its own attributes in an auto-provisioned database session by:
+```sql
+SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE CONCAT(USER, '@', HOST) = current_user();
+```
+
+Database admins can search a particular Teleport username by:
+```sql
+SELECT * FROM INFORMATION_SCHEMA.USER_ATTRIBUTES WHERE ATTRIBUTE->"$.user" = "teleport-user-name";
+```
+
+In addition, the "hashed" in-database name will be recorded as `db_user` for
+database queries in the Teleport Audit Logs, when the Teleport username is over
+32 characters.
+</Details>
+
+(!docs/pages/includes/database-access/auto-user-provisioning/username-conflict.mdx!)
+
+## Step 3/3. Connect to the database
+
+(!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MySQL Workbench"!)
+
+## Troubleshooting
+
+### Access denied to database error
+
+By default, the newly created users won't have permissions to access any particular database. These permissions should be
+granted through database-specific roles, such as `reader`.
+
+Otherwise you may see errors like the following:
+
+```code
+$ tsh db connect --db-name <database> example
+ERROR 1105 (HY000): ERROR 1044 (42000): Access denied for user '<your-teleport-username>'@'%' to database '<database>'
+```
+
+### Table is read only error
+
+You may encounter the following error when connecting to an Amazon RDS Aurora
+reader endpoint:
+```code
+$ tsh db connect --db-name <database> example
+ERROR 3501 (HY000): The ACL operation failed due to the following error from SE: errcode 165 - Table is read only
+```
+
+Database auto-user provisioning is not compatible with RDS Aurora reader
+endpoints. Please use auto-user provisioning on the primary endpoints.
+
+### Use your mapped remote username error
+
+(!docs/pages/includes/database-access/auto-user-provisioning/troubleshooting-remote-username.mdx!)
+
+## Next steps
+
+- Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
+- Learn about [role templating](../../../admin-guides/access-controls/guides/role-templates.mdx).
+- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

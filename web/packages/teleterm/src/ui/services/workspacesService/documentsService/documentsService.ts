@@ -43,7 +43,11 @@ import {
   DocumentTshNode,
   DocumentTshNodeWithServerId,
   DocumentClusterQueryParams,
+  DocumentPtySession,
 } from './types';
+
+import type { Shell } from 'teleterm/mainProcess/shell';
+import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 
 export class DocumentsService {
   constructor(
@@ -256,6 +260,8 @@ export class DocumentsService {
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),
+          // Do not inherit the shell of this document when opening a new one, use default.
+          shellId: undefined,
           ...opts,
         };
       } else {
@@ -368,6 +374,45 @@ export class DocumentsService {
     });
   }
 
+  refreshPtyTitle(
+    uri: DocumentUri,
+    {
+      shell,
+      cwd,
+      clusterName,
+      runtimeSettings,
+    }: {
+      shell: Shell;
+      cwd: string;
+      clusterName: string;
+      runtimeSettings: Pick<RuntimeSettings, 'platform' | 'defaultOsShellId'>;
+    }
+  ): void {
+    const doc = this.getDocument(uri);
+    if (!doc) {
+      throw Error(`Document ${uri} does not exist`);
+    }
+    const omitShellName =
+      (runtimeSettings.platform === 'linux' ||
+        runtimeSettings.platform === 'darwin') &&
+      shell.id === runtimeSettings.defaultOsShellId;
+    const shellBinName = !omitShellName && shell.binName;
+    if (doc.kind === 'doc.terminal_shell') {
+      this.update(doc.uri, {
+        cwd,
+        title: [shellBinName, cwd, clusterName].filter(Boolean).join(' · '),
+      });
+      return;
+    }
+
+    if (doc.kind === 'doc.gateway_kube') {
+      const { params } = routing.parseKubeUri(doc.targetUri);
+      this.update(doc.uri, {
+        title: [shellBinName, cwd, params.kubeId].filter(Boolean).join(' · '),
+      });
+    }
+  }
+
   replace(uri: DocumentUri, document: Document): void {
     const documentToCloseIndex = this.getDocuments().findIndex(
       doc => doc.uri === uri
@@ -378,6 +423,15 @@ export class DocumentsService {
     }
     this.add(document, documentToClose ? documentToCloseIndex : undefined);
     this.open(document.uri);
+  }
+
+  reopenPtyInShell<T extends DocumentPtySession | DocumentGatewayKube>(
+    document: T,
+    shell: Shell
+  ): void {
+    // We assign a new URI to render a new document.
+    const newDocument: T = { ...document, shellId: shell.id, uri: unique() };
+    this.replace(document.uri, newDocument);
   }
 
   filter(uri: string) {

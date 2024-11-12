@@ -1,10 +1,10 @@
-The instance's root certificate is required so Teleport can validate the
-certificate presented by the database instance.
+The Cloud SQL instance's root CA certificate is required so that the Teleport
+Database Service can validate the certificate presented by the database instance.
 
-The Database Service can automatically download the instance's root certificate
-if the service is granted the `cloudsql.instances.get` permission.
+The Teleport Database Service can automatically download the instance's root
+CA certificate if it is granted the "cloudsql.instances.get" permission.
 
-Alternatively, you can download `server-ca.pem` file from the Connections tab
-under Security section:
+Alternatively, you can download the instance's CA certificate file from the
+"Connections" tab under the "Security" section:
 
 ![Instance Root Certificate](../../../img/database-access/guides/cloudsql/instance-root-ca@2x.png)

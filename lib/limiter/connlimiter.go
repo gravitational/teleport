@@ -19,19 +19,23 @@
 package limiter
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/oxy/connlimit"
-	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 )
 
-// ConnectionsLimiter is a network connection limiter and tracker
+// ConnectionsLimiter is a network connection limiter.
 type ConnectionsLimiter struct {
-	*connlimit.ConnLimiter
 	maxConnections int64
+	log            *slog.Logger
+
+	next http.Handler
 
 	sync.Mutex
 	connections map[string]int64
@@ -39,28 +43,43 @@ type ConnectionsLimiter struct {
 
 // NewConnectionsLimiter returns new connection limiter, in case if connection
 // limits are not set, they won't be tracked
-func NewConnectionsLimiter(config Config) (*ConnectionsLimiter, error) {
-	limiter := ConnectionsLimiter{
-		maxConnections: config.MaxConnections,
+func NewConnectionsLimiter(maxConnections int64) *ConnectionsLimiter {
+	return &ConnectionsLimiter{
+		maxConnections: maxConnections,
+		log:            slog.With(teleport.ComponentKey, "limiter"),
 		connections:    make(map[string]int64),
 	}
-
-	ipExtractor, err := utils.NewExtractor("client.ip")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	limiter.ConnLimiter, err = connlimit.New(nil, ipExtractor, config.MaxConnections)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &limiter, nil
 }
 
-// WrapHandle adds connection limiter to the handle
-func (l *ConnectionsLimiter) WrapHandle(h http.Handler) {
-	l.ConnLimiter.Wrap(h)
+// Wrap wraps an HTTP handler.
+func (l *ConnectionsLimiter) Wrap(h http.Handler) {
+	l.next = h
+}
+
+func (l *ConnectionsLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if l.next == nil {
+		sc := http.StatusInternalServerError
+		http.Error(w, http.StatusText(sc), sc)
+		return
+	}
+
+	clientIP, err := ratelimit.ExtractClientIP(r)
+	if err != nil {
+		l.log.WarnContext(context.Background(), "failed to extract source IP", "remote_addr", r.RemoteAddr)
+		ratelimit.ServeHTTPError(w, r, err)
+		return
+	}
+
+	if err := l.AcquireConnection(clientIP); err != nil {
+		l.log.InfoContext(context.Background(), "limiting request", "token", clientIP, "error", err)
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(trace.UserMessage(err)))
+		return
+	}
+
+	defer l.ReleaseConnection(clientIP)
+
+	l.next.ServeHTTP(w, r)
 }
 
 // AcquireConnection acquires connection and bumps counter
@@ -97,7 +116,6 @@ func (l *ConnectionsLimiter) ReleaseConnection(token string) {
 
 	numberOfConnections, exists := l.connections[token]
 	if !exists {
-		log.Errorf("Trying to set negative number of connections")
 		return
 	}
 

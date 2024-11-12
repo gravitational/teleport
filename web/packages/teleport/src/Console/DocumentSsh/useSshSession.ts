@@ -91,10 +91,12 @@ export default function useSshSession(doc: DocumentSsh) {
     }
     initTty(
       {
+        kind: 'ssh',
         login,
         serverId,
         clusterId,
         sid,
+        kubeExec: doc.kubeExec,
       },
       mode
     );

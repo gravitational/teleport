@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,7 +38,6 @@ import (
 type HeartbeatI interface {
 	Run() error
 	Close() error
-	ForceSend(timeout time.Duration) error
 }
 
 // KeepAliveState represents state of the heartbeat
@@ -180,7 +179,7 @@ type HeartbeatConfig struct {
 	// Component is a name of component used in logs
 	Component string
 	// Announcer is used to announce presence
-	Announcer auth.Announcer
+	Announcer authclient.Announcer
 	// GetServerInfo returns server information
 	GetServerInfo GetServerInfoFn
 	// ServerTTL is a server TTL used in announcements
@@ -628,21 +627,4 @@ func (h *Heartbeat) fetchAndAnnounce() error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// ForceSend forces send cycle, used in tests, returns
-// nil in case of success, error otherwise
-func (h *Heartbeat) ForceSend(timeout time.Duration) error {
-	timeoutC := time.After(timeout)
-	select {
-	case h.sendC <- struct{}{}:
-	case <-timeoutC:
-		return trace.ConnectionProblem(nil, "timeout waiting for send")
-	}
-	select {
-	case <-h.announceC:
-		return nil
-	case <-timeoutC:
-		return trace.ConnectionProblem(nil, "timeout waiting for announce to be sent")
-	}
 }

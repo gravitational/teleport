@@ -21,6 +21,9 @@ package webauthntypes_test
 import (
 	"testing"
 
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -152,4 +155,66 @@ func TestConversionFromProto_nils(t *testing.T) {
 			require.NotPanics(t, test.fn)
 		})
 	}
+}
+
+func TestCredPropsConversions(t *testing.T) {
+	t.Parallel()
+
+	ccExtensions := protocol.AuthenticationExtensions{
+		wantypes.CredPropsExtension: true,
+	}
+
+	t.Run("CredentialCreation", func(t *testing.T) {
+		t.Parallel()
+
+		// CC -> proto -> CC.
+		cc := wantypes.CredentialCreationFromProto(
+			wantypes.CredentialCreationToProto(
+				&wantypes.CredentialCreation{
+					Response: wantypes.PublicKeyCredentialCreationOptions{
+						Extensions: ccExtensions,
+					},
+				},
+			),
+		)
+		if diff := cmp.Diff(ccExtensions, cc.Response.Extensions); diff != "" {
+			t.Errorf("CredentialCreation.Response.Extensions mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("CredentialCreation from protocol", func(t *testing.T) {
+		t.Parallel()
+
+		// protocol -> CC.
+		cc := wantypes.CredentialCreationFromProtocol(&protocol.CredentialCreation{
+			Response: protocol.PublicKeyCredentialCreationOptions{
+				Extensions: map[string]any{
+					wantypes.CredPropsExtension: true,
+				},
+			},
+		})
+		if diff := cmp.Diff(ccExtensions, cc.Response.Extensions); diff != "" {
+			t.Errorf("CredentialCreation.Response.Extensions mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("CredentialCreationResponse", func(t *testing.T) {
+		t.Parallel()
+
+		// CCR -> proto -> CCR.
+		ccr := wantypes.CredentialCreationResponseFromProto(
+			wantypes.CredentialCreationResponseToProto(
+				&wantypes.CredentialCreationResponse{
+					PublicKeyCredential: wantypes.PublicKeyCredential{
+						Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
+							CredProps: &wantypes.CredentialPropertiesOutput{
+								RK: true,
+							},
+						},
+					},
+				},
+			),
+		)
+		assert.True(t, ccr.Extensions.CredProps.RK, "ccr.Extensions.CredProps.RK mismatch")
+	})
 }

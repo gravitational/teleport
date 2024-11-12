@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { createRef } from 'react';
 import PropTypes from 'prop-types';
-import ReactDOM from 'react-dom';
 
 import Popover from '../Popover';
 
@@ -31,20 +30,12 @@ const POSITION = {
 };
 
 class Menu extends React.Component {
-  getContentAnchorEl = () => {
-    if (this.menuListRef.selectedItemRef) {
-      return ReactDOM.findDOMNode(this.menuListRef.selectedItemRef);
-    }
+  menuListRef = createRef();
 
-    return ReactDOM.findDOMNode(this.menuListRef).firstChild;
-  };
-
-  handleMenuListRef = ref => {
-    this.menuListRef = ref;
-  };
+  getContentAnchorEl = () => this.menuListRef.current?.firstChild;
 
   handleEntering = element => {
-    const menuList = ReactDOM.findDOMNode(this.menuListRef);
+    const menuList = this.menuListRef.current;
 
     // Let's ignore that piece of logic if users are already overriding the width
     // of the menu.
@@ -79,7 +70,7 @@ class Menu extends React.Component {
         <MenuList
           {...menuListProps}
           menuListCss={menuListCss}
-          ref={this.handleMenuListRef}
+          ref={this.menuListRef}
         >
           {children}
         </MenuList>

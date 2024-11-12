@@ -69,14 +69,6 @@ export interface Metadata {
      */
     expires?: Timestamp;
     /**
-     * ID is a record ID
-     * Deprecated: Use revision instead.
-     *
-     * @deprecated
-     * @generated from protobuf field: int64 id = 7 [deprecated = true];
-     */
-    id: bigint;
-    /**
      * revision is an opaque identifier which tracks the versions of a resource
      * over time. Clients should ignore and not alter its value but must return
      * the revision in any updates of a resource.
@@ -94,7 +86,6 @@ class Metadata$Type extends MessageType<Metadata> {
             { no: 3, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "labels", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } },
             { no: 6, name: "expires", kind: "message", T: () => Timestamp },
-            { no: 7, name: "id", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 8, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
@@ -104,7 +95,6 @@ class Metadata$Type extends MessageType<Metadata> {
         message.namespace = "";
         message.description = "";
         message.labels = {};
-        message.id = 0n;
         message.revision = "";
         if (value !== undefined)
             reflectionMergePartial<Metadata>(this, message, value);
@@ -129,9 +119,6 @@ class Metadata$Type extends MessageType<Metadata> {
                     break;
                 case /* google.protobuf.Timestamp expires */ 6:
                     message.expires = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.expires);
-                    break;
-                case /* int64 id = 7 [deprecated = true];*/ 7:
-                    message.id = reader.int64().toBigInt();
                     break;
                 case /* string revision */ 8:
                     message.revision = reader.string();
@@ -179,9 +166,6 @@ class Metadata$Type extends MessageType<Metadata> {
         /* google.protobuf.Timestamp expires = 6; */
         if (message.expires)
             Timestamp.internalBinaryWrite(message.expires, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
-        /* int64 id = 7 [deprecated = true]; */
-        if (message.id !== 0n)
-            writer.tag(7, WireType.Varint).int64(message.id);
         /* string revision = 8; */
         if (message.revision !== "")
             writer.tag(8, WireType.LengthDelimited).string(message.revision);

@@ -31,13 +31,7 @@ import {
 import * as stores from 'teleport/Console/stores';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
-
-import { TerminalAssistContextProvider } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssistContext';
-
-import { useTeleport } from 'teleport';
-
-import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
+import { useMfa } from 'teleport/lib/useMfa';
 
 import Document from '../Document';
 
@@ -54,21 +48,15 @@ export default function DocumentSshWrapper(props: PropTypes) {
 }
 
 function DocumentSsh({ doc, visible }: PropTypes) {
-  const ctx = useTeleport();
-  const consoleCtx = useConsoleContext();
-
-  const assistEnabled =
-    consoleCtx.storeUser.getAssistantAccess().list && ctx.assistEnabled;
-
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
-  const webauthn = useWebAuthn(tty);
+  const mfa = useMfa(tty);
   const {
     getMfaResponseAttempt,
     getDownloader,
     getUploader,
     fileTransferRequests,
-  } = useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
+  } = useFileTransfer(tty, session, doc, mfa.addMfaToScpUrls);
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -82,7 +70,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   useEffect(() => {
     // when switching tabs or closing tabs, focus on visible terminal
     terminalRef.current?.focus();
-  }, [visible, webauthn.requested]);
+  }, [visible, mfa.requested]);
 
   const terminal = (
     <Terminal
@@ -90,7 +78,6 @@ function DocumentSsh({ doc, visible }: PropTypes) {
       tty={tty}
       fontFamily={theme.fonts.mono}
       theme={theme.colors.terminal}
-      assistEnabled={assistEnabled}
     />
   );
 
@@ -102,21 +89,8 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      {webauthn.requested && (
-        <AuthnDialog
-          onContinue={webauthn.authenticate}
-          onCancel={closeDocument}
-          errorText={webauthn.errorText}
-        />
-      )}
-      {status === 'initialized' &&
-        (assistEnabled ? (
-          <TerminalAssistContextProvider>
-            {terminal}
-          </TerminalAssistContextProvider>
-        ) : (
-          terminal
-        ))}
+      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      {status === 'initialized' && terminal}
       <FileTransfer
         FileTransferRequestsComponent={
           <FileTransferRequests

@@ -1,0 +1,48 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RDSAutoEnableIAMAuth",
+            "Effect": "Allow",
+            "Action": [
+                "rds:ModifyDBCluster",
+                "rds:ModifyDBInstance"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "RDSConnect",
+            "Effect": "Allow",
+            "Action": "rds-db:connect",
+            "Resource": "*"
+        },
+        {
+            "Sid": "RDSFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "rds:DescribeDBClusters",
+                "rds:DescribeDBInstances"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`RDSAutoEnableIAMAuth` | Automatically enable IAM auth on RDS instances and Aurora clusters. |
+|`RDSConnect` | Generate an IAM authentication token to connect to a database. |
+|`RDSFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
+
+The Teleport Database Service uses `rds:ModifyDBInstance` and
+`rds:ModifyDBCluster` to automatically enable
+[IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
+on RDS instances and Aurora clusters, respectively.
+You can omit the `RDSAutoEnableIAMAuth` permissions if IAM authentication is
+already enabled on your databases.
+
+(!docs/pages/includes/database-access/reference/rds-action-notes-on-connect.mdx!)
+
+(!docs/pages/includes/database-access/reference/metadata-fetching-permissions-note.mdx sid="RDSFetchMetadata"!)

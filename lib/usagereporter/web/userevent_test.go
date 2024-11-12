@@ -155,6 +155,30 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 				}}
 			},
 		},
+		{
+			name: "decodes ui access graph  crown jewel diff view event",
+			reqFn: func() CreateUserEventRequest {
+				eventData := json.RawMessage(`
+				{
+					"affected_resource_source":"TELEPORT",
+					"affected_resource_type":"ssh"
+				}
+				`)
+				return CreateUserEventRequest{
+					Event:     uiAccessGraphCrownJewelDiffViewEvent,
+					EventData: &eventData,
+				}
+			},
+			errCheck: require.NoError,
+			expected: func() *usageeventsv1.UsageEventOneOf {
+				return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView{
+					UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
+						AffectedResourceSource: "TELEPORT",
+						AffectedResourceType:   "ssh",
+					},
+				}}
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt

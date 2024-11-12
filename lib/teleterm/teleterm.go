@@ -27,17 +27,22 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
+	var hardwareKeyPromptConstructor func(clusterURI uri.ResourceURI) keys.HardwareKeyPrompt
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -47,13 +52,22 @@ func Serve(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	clock := clockwork.NewRealClock()
+
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                cfg.HomeDir,
+		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		AddKeysToAgent:     cfg.AddKeysToAgent,
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+			return hardwareKeyPromptConstructor(rootClusterURI)
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	clusterIDCache := &clusteridcache.Cache{}
 
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:                         storage,
@@ -61,16 +75,24 @@ func Serve(ctx context.Context, cfg Config) error {
 		PrehogAddr:                      cfg.PrehogAddr,
 		KubeconfigsDir:                  cfg.KubeconfigsDir,
 		AgentsDir:                       cfg.AgentsDir,
+		ClusterIDCache:                  clusterIDCache,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
+	// construct the prompt before creating Storage.
+	hardwareKeyPromptConstructor = daemonService.NewHardwareKeyPromptConstructor
 	apiServer, err := apiserver.New(apiserver.Config{
-		HostAddr:        cfg.Addr,
-		Daemon:          daemonService,
-		TshdServerCreds: grpcCredentials.tshd,
-		ListeningC:      cfg.ListeningC,
+		HostAddr:           cfg.Addr,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Daemon:             daemonService,
+		TshdServerCreds:    grpcCredentials.tshd,
+		ListeningC:         cfg.ListeningC,
+		ClusterIDCache:     clusterIDCache,
+		InstallationID:     cfg.InstallationID,
+		Clock:              clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)

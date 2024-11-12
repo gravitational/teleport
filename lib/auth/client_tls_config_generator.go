@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/genmap"
 )
@@ -86,6 +87,14 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// we're going to start the generator, which means that we are potentially
+	// going to read from cfg.TLS at any point after returning, which means that
+	// either the caller must always give us a cloned [tls.Config], or we just
+	// make one here
+	cfg.TLS = cfg.TLS.Clone()
+	// TODO(espadolini): rework the generator so it only deals with
+	// [*x509.CertPool] instead, with an optional
+	// [tls.Config.GetConfigForClient] wrapper factory
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -98,7 +107,6 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	c.clientTLSConfigs, err = genmap.New(genmap.Config[string, *tls.Config]{
 		Generator: c.generator,
 	})
-
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -146,7 +154,7 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 
 	// update client certificate pool based on currently trusted TLS
 	// certificate authorities.
-	pool, totalSubjectsLen, err := DefaultClientCertPool(c.cfg.AccessPoint, clusterName)
+	pool, totalSubjectsLen, err := authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, clusterName)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to retrieve client cert pool for target cluster", "cluster_name", clusterName, "error", err)
 		// this falls back to the default config
@@ -167,7 +175,7 @@ func (c *ClientTLSConfigGenerator) generator(ctx context.Context, clusterName st
 	// client will be rejected.
 	if totalSubjectsLen >= int64(math.MaxUint16) {
 		slog.WarnContext(ctx, "cluster subject name set too large for TLS handshake, falling back to using local cluster CAs only")
-		pool, _, err = DefaultClientCertPool(c.cfg.AccessPoint, c.cfg.ClusterName)
+		pool, _, err = authclient.DefaultClientCertPool(ctx, c.cfg.AccessPoint, c.cfg.ClusterName)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to retrieve client cert pool for current cluster", "cluster_name", c.cfg.ClusterName, "error", err)
 			// this falls back to the default config
@@ -203,10 +211,10 @@ func (c *ClientTLSConfigGenerator) refreshClientTLSConfigs(ctx context.Context) 
 	}
 }
 
-// watchForCAChanges sets up a cert authority watcher and triggers regeneration of client
-// tls configs for a given cluster whenever a CA associated with that cluster is modified.
-// note that this function errs on the side of regenerating more often than might be
-// strictly necessary.
+// watchForCAChanges sets up a cert authority watcher to ensure that we don't serve outdated
+// tls configs. for the local cluster it aggressively triggers regeneration. for other clusters
+// it invalidates extant state, allowing lazy generation on first need. this function errs on the
+// side of caution and triggers regen/invalidation more often than might be strictly necessary.
 func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error {
 	watcher, err := c.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
 		Name: "client-tls-config-generator",
@@ -246,8 +254,14 @@ func (c *ClientTLSConfigGenerator) watchForCAChanges(ctx context.Context) error 
 					// ignore non-local cluster CA events when we aren't configured to support them
 					continue
 				}
-				// trigger regen of client tls configs for the associated cluster.
-				c.clientTLSConfigs.Generate(event.Resource.GetName())
+
+				if event.Resource.GetName() == c.cfg.ClusterName {
+					// actively regenerate on modifications associated with the local cluster
+					c.clientTLSConfigs.Generate(event.Resource.GetName())
+				} else {
+					// clear extant state on modifications associated with non-local clusters
+					c.clientTLSConfigs.Terminate(event.Resource.GetName())
+				}
 			}
 		case <-ctx.Done():
 			return nil

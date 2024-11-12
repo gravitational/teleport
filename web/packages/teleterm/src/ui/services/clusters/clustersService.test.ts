@@ -88,6 +88,9 @@ function getClientMocks(): Partial<TshdClient> {
       .fn()
       .mockReturnValueOnce(new MockedUnaryCall(gatewayMock)),
     removeGateway: jest.fn().mockReturnValueOnce(new MockedUnaryCall({})),
+    startHeadlessWatcher: jest
+      .fn()
+      .mockReturnValueOnce(new MockedUnaryCall({})),
   };
 }
 
@@ -102,6 +105,35 @@ test('add cluster', async () => {
   expect(addCluster).toHaveBeenCalledWith({ name: clusterUri });
   expect(service.state.clusters).toStrictEqual(
     new Map([[clusterUri, clusterMock]])
+  );
+});
+
+test('add cluster does not overwrite the existing cluster', async () => {
+  const { addCluster } = getClientMocks();
+  const service = createService({
+    addCluster,
+  });
+  service.state.clusters.set(clusterUri, {
+    ...clusterMock,
+    features: { advancedAccessWorkflows: true, isUsageBasedBilling: true },
+  });
+
+  await service.addRootCluster(clusterUri);
+
+  expect(addCluster).toHaveBeenCalledWith({ name: clusterUri });
+  expect(service.state.clusters).toStrictEqual(
+    new Map([
+      [
+        clusterUri,
+        {
+          ...clusterMock,
+          features: {
+            advancedAccessWorkflows: true,
+            isUsageBasedBilling: true,
+          },
+        },
+      ],
+    ])
   );
 });
 
@@ -153,13 +185,15 @@ test('remove cluster', async () => {
 });
 
 test('sync root cluster', async () => {
-  const { getCluster, listLeafClusters } = getClientMocks();
+  const { getCluster, listLeafClusters, startHeadlessWatcher } =
+    getClientMocks();
   const service = createService({
     getCluster,
     listLeafClusters,
+    startHeadlessWatcher,
   });
 
-  await service.syncRootClusterAndCatchErrors(clusterUri);
+  await service.syncAndWatchRootClusterWithErrorHandling(clusterUri);
 
   const clusterMockWithRequests = {
     ...clusterMock,
@@ -172,6 +206,9 @@ test('sync root cluster', async () => {
     leafClusterMock
   );
   expect(listLeafClusters).toHaveBeenCalledWith({ clusterUri });
+  expect(startHeadlessWatcher).toHaveBeenCalledWith({
+    rootClusterUri: clusterUri,
+  });
 });
 
 test('login into cluster and sync cluster', async () => {

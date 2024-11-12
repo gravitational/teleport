@@ -33,11 +33,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -95,7 +97,11 @@ func New(cfg Config) (*Service, error) {
 	// That's because Daemon.ResolveClusterURI sets a custom MFAPromptConstructor that
 	// shows an MFA prompt in Connect.
 	// At the level of Storage.ResolveClusterFunc we don't have access to it.
-	service.clientCache = cfg.CreateClientCacheFunc(service.ResolveClusterURI)
+	service.clientCache, err = cfg.CreateClientCacheFunc(service.NewClusterClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return service, nil
 }
 
@@ -128,15 +134,15 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 	return nil
 }
 
-// retryWithRelogin tries the given function. If the function returns an error that appears to be
+// RetryWithRelogin tries the given function. If the function returns an error that appears to be
 // resolvable with relogin, then it requests relogin and tries the function a second time.
 //
-// retryWithRelogin is reserved for cases where the retryable request does not originate from the
+// RetryWithRelogin is reserved for cases where the retryable request does not originate from the
 // Electron app, for example when the request is made a long-running goroutine such as a gateway.
 // When the request originates from the Electron app and daemon.Service is merely an intermediary,
 // the retry flow is handled by clusters.addMetadataToRetryableError and the JavaScript version of
 // client.RetryWithRelogin with the same name.
-func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
+func (s *Service) RetryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -156,14 +162,17 @@ func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginR
 	return trace.Wrap(err)
 }
 
+// ListProfileNames lists profile names from storage. It's a lightweight alternative to
+// ListRootClusters, which also reads all profiles beyond their names and initializes clients.
+func (s *Service) ListProfileNames() ([]string, error) {
+	pfNames, err := s.cfg.Storage.ListProfileNames()
+	return pfNames, trace.Wrap(err)
+}
+
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.cfg.Storage.ReadAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clusters, nil
+	clusters, err := s.cfg.Storage.ListRootClusters()
+	return clusters, trace.Wrap(err)
 }
 
 // ListLeafClusters returns a list of leaf clusters
@@ -221,6 +230,14 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	return nil
 }
 
+// NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
+// s.cfg.CreateClientCacheFunc.
+func (s *Service) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+	uri := uri.NewClusterURI(profileName).AppendLeafCluster(leafClusterName)
+	_, clusterClient, err := s.ResolveClusterURI(uri)
+	return clusterClient, trace.Wrap(err)
+}
+
 // ResolveCluster resolves a cluster by URI by reading data stored on disk in the profile.
 //
 // It doesn't make network requests so the returned clusters.Cluster will not include full
@@ -248,7 +265,9 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 
 	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
 	// Those RPCs assume that the default CLI prompt is in use.
-	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI.String())
+	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI)
+	clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+
 	return cluster, clusterClient, nil
 }
 
@@ -265,7 +284,7 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster())
+	withDetails, err := cluster.GetWithDetails(ctx, proxyClient.CurrentCluster(), s.cfg.ClusterIDCache)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -331,7 +350,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		OnExpiredCert:         s.reissueGatewayCerts,
 		KubeconfigsDir:        s.cfg.KubeconfigsDir,
-		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI.String()),
+		MFAPromptConstructor:  s.NewMFAPromptConstructor(targetURI),
 		ClusterClient:         clusterClient,
 	}
 
@@ -355,7 +374,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 // per-session MFA checks.
 func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
 	reloginReq := &api.ReloginRequest{
-		RootClusterUri: g.TargetURI().GetClusterURI().String(),
+		RootClusterUri: g.TargetURI().GetRootClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
 			GatewayCertExpired: &api.GatewayCertExpired{
 				GatewayUri: g.URI().String(),
@@ -390,8 +409,8 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
-		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
+	if err := s.RetryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
+		notifyErr := s.NotifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
 					GatewayUri: g.URI().String(),
@@ -464,7 +483,7 @@ func (s *Service) ListGateways() []gateway.Gateway {
 }
 
 // GetGatewayCLICommand creates the CLI command used for the provided gateway.
-func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (cmd.Cmds, error) {
+func (s *Service) GetGatewayCLICommand(ctx context.Context, gateway gateway.Gateway) (cmd.Cmds, error) {
 	targetURI := gateway.TargetURI()
 	switch {
 	case targetURI.IsDB():
@@ -473,7 +492,12 @@ func (s *Service) GetGatewayCLICommand(gateway gateway.Gateway) (cmd.Cmds, error
 			return cmd.Cmds{}, trace.Wrap(err)
 		}
 
-		cmds, err := cmd.NewDBCLICommand(cluster, gateway)
+		clusterClient, err := s.GetCachedClient(ctx, cluster.URI)
+		if err != nil {
+			return cmd.Cmds{}, trace.Wrap(err)
+		}
+
+		cmds, err := cmd.NewDBCLICommand(ctx, cluster, gateway, clusterClient.AuthClient)
 		return cmds, trace.Wrap(err)
 
 	case targetURI.IsKube():
@@ -773,24 +797,37 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
-// GetKubes accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
+	cluster, tc, err := s.ResolveClusterURI(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var resources *kubeproto.ListKubernetesResourcesResponse
 
-	response, err := cluster.GetKubes(ctx, proxyClient.CurrentCluster(), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		kubenetesServiceClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	return response, nil
+		resources, err = kubenetesServiceClient.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
+			ResourceType:        req.GetResourceType(),
+			Limit:               req.GetLimit(),
+			StartKey:            req.GetNextKey(),
+			PredicateExpression: req.GetPredicateExpression(),
+			SearchKeywords:      client.ParseSearchKeywords(req.GetSearchKeywords(), ' '),
+			UseSearchAsRoles:    req.GetUseSearchAsRoles(),
+			KubernetesCluster:   req.GetKubernetesCluster(),
+			KubernetesNamespace: req.GetKubernetesNamespace(),
+			TeleportCluster:     cluster.Name,
+		})
+		return trace.Wrap(err)
+	})
+
+	return resources, trace.Wrap(err)
 }
 
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
@@ -857,16 +894,24 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	s.tshdEventsClient = client
 	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
-	// Resume headless watchers for any active login sessions.
-	if err := s.StartHeadlessWatchers(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return nil
 }
 
-// notifyApp sends a notification (usually an error) to the Electron App.
-func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
+// TshdEventsClient returns the client if it was initialized earlied by calling
+// UpdateAndDialTshdEventsServerAddress, otherwise it returns an error.
+//
+// The startup of Connect is orchestrated in a way that makes it safe to call this method from any
+// RPC. Code inside daemon.Service should just use s.tshdEventsClient directly.
+func (s *Service) TshdEventsClient() (api.TshdEventsServiceClient, error) {
+	if s.tshdEventsClient == nil {
+		return nil, trace.NotFound("tshd events client has not been initialized yet")
+	}
+
+	return s.tshdEventsClient, nil
+}
+
+// NotifyApp sends a notification (usually an error) to the Electron App.
+func (s *Service) NotifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
 	defer cancelTshdEventsCtx()
 
@@ -1039,7 +1084,6 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
 		return trace.Wrap(err)
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1118,15 +1162,18 @@ func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gat
 
 // GetCachedClient returns a client from the cache if it exists,
 // otherwise it dials the remote server.
-func (s *Service) GetCachedClient(ctx context.Context, clusterURI uri.ResourceURI) (*client.ClusterClient, error) {
-	clt, err := s.clientCache.Get(ctx, clusterURI)
+func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceURI) (*client.ClusterClient, error) {
+	profileName := resourceURI.GetProfileName()
+	leafClusterName := resourceURI.GetLeafClusterName()
+	clt, err := s.clientCache.Get(ctx, profileName, leafClusterName)
 	return clt, trace.Wrap(err)
 }
 
 // ClearCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters.
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	return trace.Wrap(s.clientCache.ClearForRoot(clusterURI))
+	profileName := clusterURI.GetProfileName()
+	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
 // Service is the daemon service

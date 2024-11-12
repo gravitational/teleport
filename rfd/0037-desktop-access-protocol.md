@@ -222,13 +222,13 @@ This message contains a mouse wheel update. Sent from client to server.
 
 This message indicates an error has occurred.
 
-#### 28 - notification
+#### 28 - alert
 
 ```
 | message type (28) | message_length uint32 | message []byte | severity byte |
 ```
 
-This message sends a notification message with a severity level. Sent from server to client.
+This message sends an alert message along with a severity level. Sent from server to client.
 
 `message_length` denotes the length of the `message` byte array. It doesn't include the `severity` byte.
 
@@ -239,7 +239,7 @@ This message sends a notification message with a severity level. Sent from serve
 - `2` is for an error
 
 An error (`2`) means that some fatal problem was encountered and the TDP connection is ending imminently.
-A notification with `severity == 2` should be preferred to the `error` message above.
+An alert with `severity == 2` should be preferred to the `error` message above.
 
 A warning (`1`) means some non-fatal problem was encountered but the TDP connection can still continue.
 

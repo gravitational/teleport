@@ -106,7 +106,7 @@ export const nodes: Node[] = [
     sshLogins: ['dev', 'root'],
     id: '81',
     clusterId: 'one',
-    hostname: 'zebpecda',
+    hostname: 'Vukuron',
     addr: '172.10.1.1:3022',
     labels: [
       {
@@ -146,7 +146,150 @@ export const nodes: Node[] = [
     sshLogins: ['dev', 'root'],
     id: '81',
     clusterId: 'one',
-    hostname: 'zebpecda',
+    hostname: 'Nerjaeb',
+    addr: '172.10.1.1:3022',
+    labels: [
+      {
+        name: 'cluster',
+        value: 'one',
+      },
+      {
+        name: 'kernel',
+        value: '4.15.0-51-generic',
+      },
+    ],
+  },
+];
+
+export const moreNodes: Node[] = [
+  {
+    kind: 'node',
+    subKind: 'teleport',
+    tunnel: false,
+    sshLogins: ['dev', 'root'],
+    id: '104',
+    clusterId: 'one',
+    hostname: 'Ajetokev',
+    addr: '172.10.1.20:3022',
+    labels: [
+      {
+        name: 'cluster',
+        value: 'one',
+      },
+      {
+        name: 'kernel',
+        value: '4.15.0-51-generic',
+      },
+    ],
+  },
+  {
+    kind: 'node',
+    tunnel: false,
+    subKind: 'teleport',
+    sshLogins: ['dev', 'root'],
+    id: '170',
+    clusterId: 'one',
+    hostname: 'Vahkulhig',
+    addr: '172.10.1.1:3022',
+    labels: [
+      {
+        name: 'cluster',
+        value: 'one',
+      },
+      {
+        name: 'kernel',
+        value: '4.15.0-51-generic',
+      },
+    ],
+  },
+  {
+    kind: 'node',
+    subKind: 'teleport',
+    tunnel: false,
+    sshLogins: ['dev', 'root'],
+    id: '192',
+    clusterId: 'one',
+    hostname: 'Jugafol',
+    addr: '172.10.1.1:3022',
+    labels: [
+      {
+        name: 'cluster',
+        value: 'one',
+      },
+      {
+        name: 'kernel',
+        value: '4.15.0-51-generic',
+      },
+    ],
+  },
+  {
+    kind: 'node',
+    tunnel: false,
+    subKind: 'teleport',
+    sshLogins: ['dev', 'root'],
+    id: '64',
+    clusterId: 'one',
+    hostname: 'Birnelop',
+    addr: '172.10.1.1:3022',
+    labels: [
+      {
+        name: 'cluster',
+        value: 'one',
+      },
+      {
+        name: 'kernel',
+        value: '4.15.0-51-generic',
+      },
+    ],
+  },
+  {
+    kind: 'node',
+    tunnel: false,
+    subKind: 'teleport',
+    sshLogins: ['dev', 'root'],
+    id: '81',
+    clusterId: 'one',
+    hostname: 'Cavzuvha',
+    addr: '172.10.1.1:3022',
+    labels: [
+      {
+        name: 'cluster',
+        value: 'one',
+      },
+      {
+        name: 'kernel',
+        value: '4.15.0-51-generic',
+      },
+    ],
+  },
+  {
+    kind: 'node',
+    subKind: 'teleport',
+    tunnel: true,
+    sshLogins: ['dev', 'root'],
+    id: '81',
+    clusterId: 'one',
+    hostname: 'Soemki',
+    addr: '172.10.1.1:3022',
+    labels: [
+      {
+        name: 'cluster',
+        value: 'one',
+      },
+      {
+        name: 'kernel',
+        value: '4.15.0-51-generic',
+      },
+    ],
+  },
+  {
+    kind: 'node',
+    tunnel: true,
+    subKind: 'teleport',
+    sshLogins: ['dev', 'root'],
+    id: '81',
+    clusterId: 'one',
+    hostname: 'Toaseha',
     addr: '172.10.1.1:3022',
     labels: [
       {

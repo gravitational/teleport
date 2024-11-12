@@ -27,15 +27,17 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type tcpServer struct {
-	newAudit func(ctx context.Context, sessionID string) (common.Audit, error)
-	hostID   string
-	log      *slog.Logger
+	emitter apievents.Emitter
+	hostID  string
+	log     *slog.Logger
 }
 
 // handleConnection handles connection from a TCP application.
@@ -55,14 +57,20 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	audit, err := s.newAudit(ctx, identity.RouteToApp.SessionID)
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter:  s.emitter,
+		Recorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
+		// The connection context may be closed once the connection is closed.
+		ctx := context.Background()
 		if err := audit.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
 			s.log.WarnContext(ctx, "Failed to emit session end event for app.", "app", app.GetName(), "error", err)
 		}

@@ -101,8 +101,8 @@ func (e graphError) Error() string {
 
 // GetErrorCode returns the
 func GetErrorCode(err error) string {
-	var graphErr *graphError
-	ok := errors.As(err, graphErr)
+	var graphErr graphError
+	ok := errors.As(err, &graphErr)
 	if !ok {
 		return ""
 	}

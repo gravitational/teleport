@@ -29,7 +29,6 @@ import (
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -128,7 +127,7 @@ func makeOpenSearchDomain(t *testing.T, tagMap map[string][]*opensearchservice.T
 
 	tagMap[aws.StringValue(domain.ARN)] = tags
 
-	databases, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
+	databases, err := common.NewDatabasesFromOpenSearchDomain(domain, tags)
 	require.NoError(t, err)
 
 	for _, db := range databases {

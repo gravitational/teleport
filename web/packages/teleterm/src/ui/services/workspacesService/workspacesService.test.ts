@@ -16,6 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  DefaultTab,
+  ViewMode,
+  LabelsViewMode,
+  AvailableResourceMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import Logger, { NullService } from 'teleterm/logger';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
@@ -72,13 +79,8 @@ describe('restoring workspace', () => {
       [cluster.uri]: {
         accessRequests: {
           pending: {
-            app: {},
-            db: {},
-            kube_cluster: {},
-            node: {},
-            role: {},
-            windows_desktop: {},
-            user_group: {},
+            kind: 'resource',
+            resources: new Map(),
           },
           isBarCollapsed: false,
         },
@@ -90,7 +92,12 @@ describe('restoring workspace', () => {
           location: testWorkspace.location,
         },
         connectMyComputer: undefined,
-        unifiedResourcePreferences: undefined,
+        unifiedResourcePreferences: {
+          defaultTab: DefaultTab.ALL,
+          viewMode: ViewMode.CARD,
+          labelsViewMode: LabelsViewMode.COLLAPSED,
+          availableResourceMode: AvailableResourceMode.NONE,
+        },
       },
     });
   });
@@ -112,13 +119,8 @@ describe('restoring workspace', () => {
         accessRequests: {
           isBarCollapsed: false,
           pending: {
-            app: {},
-            db: {},
-            kube_cluster: {},
-            node: {},
-            role: {},
-            windows_desktop: {},
-            user_group: {},
+            kind: 'resource',
+            resources: new Map(),
           },
         },
         localClusterUri: cluster.uri,
@@ -126,7 +128,12 @@ describe('restoring workspace', () => {
         location: clusterDocument.uri,
         previous: undefined,
         connectMyComputer: undefined,
-        unifiedResourcePreferences: undefined,
+        unifiedResourcePreferences: {
+          defaultTab: DefaultTab.ALL,
+          viewMode: ViewMode.CARD,
+          labelsViewMode: LabelsViewMode.COLLAPSED,
+          availableResourceMode: AvailableResourceMode.NONE,
+        },
       },
     });
   });
@@ -209,6 +216,31 @@ describe('setActiveWorkspace', () => {
     expect(isAtDesiredWorkspace).toBe(false);
     expect(workspacesService.getRootClusterUri()).toBeUndefined();
   });
+
+  it('does not switch the workspace if the cluster has a profile status error', async () => {
+    const { workspacesService, notificationsService } = getTestSetup({
+      cluster: makeRootCluster({
+        connected: false,
+        loggedInUser: undefined,
+        profileStatusError: 'no YubiKey device connected',
+      }),
+      persistedWorkspaces: {},
+    });
+
+    jest.spyOn(notificationsService, 'notifyError');
+
+    const { isAtDesiredWorkspace } =
+      await workspacesService.setActiveWorkspace('/clusters/foo');
+
+    expect(isAtDesiredWorkspace).toBe(false);
+    expect(notificationsService.notifyError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Could not set cluster as active',
+        description: 'no YubiKey device connected',
+      })
+    );
+    expect(workspacesService.getRootClusterUri()).toBeUndefined();
+  });
 });
 
 function getTestSetup(options: {
@@ -223,6 +255,12 @@ function getTestSetup(options: {
   >;
   const modalsService = new ModalsServiceMock();
 
+  jest.mock('../notifications');
+  const NotificationsServiceMock = NotificationsService as jest.MockedClass<
+    typeof NotificationsService
+  >;
+  const notificationsService = new NotificationsServiceMock();
+
   const statePersistenceService: Partial<StatePersistenceService> = {
     getWorkspacesState: () => ({
       workspaces: options.persistedWorkspaces,
@@ -233,6 +271,7 @@ function getTestSetup(options: {
   const clustersService: Partial<ClustersService> = {
     findCluster: jest.fn(() => cluster),
     getRootClusters: () => [cluster].filter(Boolean),
+    syncRootClustersAndCatchErrors: async () => {},
   };
 
   let clusterDocument: DocumentCluster;
@@ -243,7 +282,7 @@ function getTestSetup(options: {
   const workspacesService = new WorkspacesService(
     modalsService,
     clustersService as ClustersService,
-    new NotificationsService(),
+    notificationsService,
     statePersistenceService as StatePersistenceService
   );
 
@@ -257,5 +296,10 @@ function getTestSetup(options: {
       },
     }) as Partial<DocumentsService> as DocumentsService;
 
-  return { workspacesService, clusterDocument, modalsService };
+  return {
+    workspacesService,
+    clusterDocument,
+    modalsService,
+    notificationsService,
+  };
 }

@@ -35,13 +35,14 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
 
+	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 //go:embed bytecode
@@ -95,7 +96,7 @@ type Service struct {
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
-	argsCache *ttlmap.TTLMap
+	argsCache *utils.FnCache
 
 	// closeContext is used to signal the BPF service is shutting down to all
 	// goroutines.
@@ -117,7 +118,7 @@ type Service struct {
 }
 
 // New creates a BPF service.
-func New(config *servicecfg.BPFConfig) (BPF, error) {
+func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,35 +130,34 @@ func New(config *servicecfg.BPFConfig) (BPF, error) {
 		return &NOP{}, nil
 	}
 
-	// Check if the host can run BPF programs.
-	if err := IsHostCompatible(); err != nil {
-		return nil, trace.Wrap(err)
+	closeContext, closeFunc := context.WithCancel(context.Background())
+
+	s := &Service{
+		BPFConfig:    config,
+		watch:        NewSessionWatch(),
+		closeContext: closeContext,
+		closeFunc:    closeFunc,
 	}
 
 	// Create a cgroup controller to add/remote cgroups.
-	cgroup, err := controlgroup.New(&controlgroup.Config{
+	s.cgroup, err = controlgroup.New(&controlgroup.Config{
 		MountPath: config.CgroupPath,
 		RootPath:  config.RootPath,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer func() {
+		if err != nil {
+			if err := s.cgroup.Close(true); err != nil {
+				log.WithError(err).Warn("Failed to close cgroup")
+			}
+		}
+	}()
 
-	closeContext, closeFunc := context.WithCancel(context.Background())
-
-	s := &Service{
-		BPFConfig: config,
-
-		watch: NewSessionWatch(),
-
-		closeContext: closeContext,
-		closeFunc:    closeFunc,
-
-		cgroup: cgroup,
-	}
-
-	// Create args cache used by the exec BPF program.
-	s.argsCache, err = ttlmap.New(ArgsCacheSize)
+	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: 24 * time.Hour,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -299,6 +299,10 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	return trace.NewAggregate(errs...)
 }
 
+func (s *Service) Enabled() bool {
+	return true
+}
+
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
 func (s *Service) processAccessEvents() {
@@ -359,27 +363,34 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// Args are sent in their own event by execsnoop to save stack space. Store
 	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
-		var buf []string
-		buffer, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
-		if !ok {
-			buf = make([]string, 0)
-		} else {
-			buf = buffer.([]string)
+		key := strconv.FormatUint(event.PID, 10)
+
+		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
+			return make([]string, 0), nil
+		})
+		if err != nil {
+			log.WithError(err).Warn("Unable to retrieve args from FnCahe - this is a bug!")
+			args = []string{}
 		}
 
 		argv := (*C.char)(unsafe.Pointer(&event.Argv))
-		buf = append(buf, C.GoString(argv))
-		s.argsCache.Set(strconv.FormatUint(event.PID, 10), buf, 24*time.Hour)
+		args = append(args, C.GoString(argv))
+
+		s.argsCache.SetWithTTL(key, args, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
-		args, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
-		if !ok {
+		key := strconv.FormatUint(event.PID, 10)
+
+		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
+			return nil, trace.NotFound("args missing")
+		})
+
+		if err != nil {
 			log.Debugf("Got event with missing args: skipping.")
 			lostCommandEvents.Add(float64(1))
 			return
 		}
-		argv := args.([]string)
 
 		// Emit "command" event.
 		sessionCommandEvent := &apievents.SessionCommand{
@@ -388,6 +399,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 				Code: events.SessionCommandCode,
 			},
 			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion:   ossteleport.Version,
 				ServerID:        ctx.ServerID,
 				ServerHostname:  ctx.ServerHostname,
 				ServerNamespace: ctx.Namespace,
@@ -406,15 +418,15 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			PPID:       event.PPID,
 			ReturnCode: event.ReturnCode,
-			Path:       argv[0],
-			Argv:       argv[1:],
+			Path:       args[0],
+			Argv:       args[1:],
 		}
 		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit command event.")
 		}
 
 		// Now that the event has been processed, remove from cache.
-		s.argsCache.Remove(strconv.FormatUint(event.PID, 10))
+		s.argsCache.Remove(key)
 	}
 }
 
@@ -446,6 +458,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 			Code: events.SessionDiskCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
@@ -500,6 +513,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
@@ -556,6 +570,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 			Code: events.SessionNetworkCode,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   ossteleport.Version,
 			ServerID:        ctx.ServerID,
 			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,

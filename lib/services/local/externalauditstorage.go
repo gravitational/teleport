@@ -38,8 +38,8 @@ const (
 )
 
 var (
-	draftExternalAuditStorageBackendKey   = backend.Key(externalAuditStoragePrefix, externalAuditStorageDraftName)
-	clusterExternalAuditStorageBackendKey = backend.Key(externalAuditStoragePrefix, externalAuditStorageClusterName)
+	draftExternalAuditStorageBackendKey   = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageDraftName)
+	clusterExternalAuditStorageBackendKey = backend.NewKey(externalAuditStoragePrefix, externalAuditStorageClusterName)
 )
 
 // ExternalAuditStorageService manages External Audit Storage resources in the Backend.
@@ -253,27 +253,27 @@ func (s *ExternalAuditStorageService) DisableClusterExternalAuditStorage(ctx con
 
 // checkAWSIntegration checks that [integrationName] names an AWS OIDC integration that currently exists, and
 // returns the backend key and revision if the AWS OIDC integration.
-func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, integrationName string) (key []byte, revision string, err error) {
+func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, integrationName string) (backend.Key, string, error) {
 	integrationsSvc, err := NewIntegrationsService(s.backend)
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return backend.Key{}, "", trace.Wrap(err)
 	}
 	integration, err := integrationsSvc.GetIntegration(ctx, integrationName)
 	if err != nil {
-		return nil, "", trace.Wrap(err, "getting integration")
+		return backend.Key{}, "", trace.Wrap(err, "getting integration")
 	}
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, "", trace.BadParameter("%q is not an AWS OIDC integration", integrationName)
+		return backend.Key{}, "", trace.BadParameter("%q is not an AWS OIDC integration", integrationName)
 	}
-	return integrationsSvc.svc.MakeKey(integrationName), integration.GetRevision(), nil
+	return integrationsSvc.svc.MakeKey(backend.NewKey(integrationName)), integration.GetRevision(), nil
 }
 
-func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key []byte) (*externalauditstorage.ExternalAuditStorage, error) {
+func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key backend.Key) (*externalauditstorage.ExternalAuditStorage, error) {
 	item, err := bk.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := services.UnmarshalExternalAuditStorage(item.Value, services.WithRevision(item.Revision), services.WithResourceID(item.ID))
+	out, err := services.UnmarshalExternalAuditStorage(item.Value, services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

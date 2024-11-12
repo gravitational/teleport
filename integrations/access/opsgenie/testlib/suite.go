@@ -33,10 +33,13 @@ import (
 )
 
 const (
-	NotifyScheduleName         = "Teleport Notifications"
+	NotifyScheduleNameOne      = "Teleport Notifications One"
+	NotifyScheduleNameTwo      = "Teleport Notifications Two"
 	NotifyScheduleAnnotation   = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	ApprovalScheduleName       = "Teleport Approval"
 	ApprovalScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
+	NotifyTeamName             = "My Team"
+	NotifyTeamAnnotation       = types.TeleportNamespace + types.ReqAnnotationTeamsLabel
 )
 
 // OpsgenieBaseSuite is the OpsGenie access plugin test suite.
@@ -69,12 +72,13 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 
 	// This service should be notified for every access request.
 	s.ogNotifyResponder = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: NotifyScheduleName,
+		Name: NotifyScheduleNameOne,
 	})
+
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
 		NotifyScheduleAnnotation,
-		[]string{NotifyScheduleName},
+		[]string{NotifyScheduleNameOne, NotifyScheduleNameTwo},
 	)
 
 	// Responder 1 and 2 are on-call and should be automatically approved.
@@ -97,8 +101,8 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 
 // startApp starts the OpsGenie plugin, waits for it to become ready and returns.
 func (s *OpsgenieBaseSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
-	t.Helper()
 
 	app, err := opsgenie.NewOpsgenieApp(context.Background(), &s.appConfig)
 	require.NoError(t, err)
@@ -125,12 +129,43 @@ func (s *OpsgenieSuiteEnterprise) SetupTest() {
 	s.OpsgenieBaseSuite.SetupTest()
 }
 
-// TestAlertCreation validates that an alert is created to the service
-// specified in the role's annotation.
-func (s *OpsgenieSuiteOSS) TestAlertCreation() {
+// TestAlertCreationForSchedules validates that an alert is created to the service
+// specified in the role's annotation using /notify-services annotation
+func (s *OpsgenieSuiteOSS) TestAlertCreationForSchedules() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
+
+	s.startApp()
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// Validate the alert has been created in OpsGenie and its ID is stored in
+	// the plugin_data.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data opsgenie.PluginData) bool {
+		return data.AlertID != ""
+	})
+
+	alert, err := s.fakeOpsgenie.CheckNewAlert(ctx)
+
+	require.NoError(t, err, "no new alerts stored")
+
+	assert.Equal(t, alert.ID, pluginData.AlertID)
+}
+
+// TestAlertCreationForTeams validates that an alert is created to the service
+// specified in the role's annotation using /teams annotation
+func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		NotifyTeamAnnotation,
+		[]string{NotifyTeamName},
+	)
 
 	s.startApp()
 

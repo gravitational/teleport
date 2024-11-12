@@ -31,7 +31,6 @@ import { Label } from 'teleport/types';
 */
 export function notificationContentFactory({
   subKind,
-  labels,
   ...notification
 }: NotificationType): NotificationContent {
   let notificationContent: NotificationContent;
@@ -39,11 +38,10 @@ export function notificationContentFactory({
   switch (subKind) {
     case NotificationSubKind.DefaultInformational:
     case NotificationSubKind.UserCreatedInformational: {
-      const textContent = getLabelValue(labels, 'content');
       notificationContent = {
         kind: 'text',
         title: notification.title,
-        textContent,
+        textContent: notification.textContent,
         type: 'informational',
         icon: Icons.Notification,
       };
@@ -52,16 +50,16 @@ export function notificationContentFactory({
 
     case NotificationSubKind.DefaultWarning:
     case NotificationSubKind.UserCreatedWarning: {
-      const textContent = getLabelValue(labels, 'content');
       notificationContent = {
         kind: 'text',
         title: notification.title,
-        textContent,
+        textContent: notification.textContent,
         type: 'warning',
         icon: Icons.Notification,
       };
       break;
     }
+
     default:
       return null;
   }
@@ -76,6 +74,8 @@ type NotificationContentBase = {
   type: 'success' | 'success-alt' | 'informational' | 'warning' | 'failure';
   /** icon is the icon to render for this notification. This should be an icon from `design/Icon`. */
   icon: React.FC<IconProps>;
+  /** hideDate is whether to not display how old the notification is in the top right corner of the notification. */
+  hideDate?: boolean;
 };
 
 /** For notifications that are clickable and redirect you to a page, and may also optionally include a quick action. */
@@ -83,13 +83,11 @@ type NotificationContentRedirect = NotificationContentBase & {
   kind: 'redirect';
   /** redirectRoute is the route the user should be redirected to when clicking the notification, if any. */
   redirectRoute: string;
-  quickAction?: {
-    /** onClick is what should be run when the user clicks on the quick action button */
-    onClick: () => void;
-    /** buttonText is the text that should be shown on the quick action button */
-    buttonText: string;
-  };
+  /** QuickAction is a custom button which can be used as a quick action. */
+  QuickAction?: (props: QuickActionProps) => JSX.Element;
 };
+
+export type QuickActionProps = { markAsClicked: () => void };
 
 /** For notifications that only contain text and are not interactive in any other way. This is used for user-created notifications. */
 type NotificationContentText = NotificationContentBase & {

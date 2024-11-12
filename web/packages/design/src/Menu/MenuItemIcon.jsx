@@ -19,6 +19,8 @@
 import styled from 'styled-components';
 
 const MenuItemIcon = styled.span`
+  font-size: ${props => props.theme.fontSizes[4]}px;
+  margin-right: ${props => props.theme.space[2]}px;
   &:hover,
   &:focus {
     color: ${props => props.theme.colors.text.main};
@@ -30,9 +32,5 @@ const MenuItemIcon = styled.span`
 `;
 
 MenuItemIcon.displayName = 'MenuItemIcon';
-MenuItemIcon.defaultProps = {
-  fontSize: 4,
-  mr: 2,
-};
 
 export default MenuItemIcon;

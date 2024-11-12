@@ -1019,6 +1019,156 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			desc: "terraform",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTerraformCloud,
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
+							{
+								OrganizationName: "foo",
+								OrganizationID:   "foo-id",
+								ProjectName:      "bar",
+								ProjectID:        "bar-id",
+								WorkspaceName:    "baz",
+								WorkspaceID:      "baz-id",
+								RunPhase:         "apply",
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTerraformCloud,
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
+							{
+								OrganizationName: "foo",
+								OrganizationID:   "foo-id",
+								ProjectName:      "bar",
+								ProjectID:        "bar-id",
+								WorkspaceName:    "baz",
+								WorkspaceID:      "baz-id",
+								RunPhase:         "apply",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "terraform missing organization (id)",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTerraformCloud,
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
+							{
+								WorkspaceName: "foo",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "terraform missing specific resource",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTerraformCloud,
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
+							{
+								OrganizationName: "foo",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "terraform only names",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTerraformCloud,
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
+							{
+								OrganizationName: "foo",
+								ProjectName:      "bar",
+								WorkspaceName:    "baz",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "terraform only ids",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTerraformCloud,
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
+							{
+								OrganizationID: "foo",
+								ProjectID:      "bar",
+								WorkspaceID:    "baz",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "terraform missing rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodTerraformCloud,
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {

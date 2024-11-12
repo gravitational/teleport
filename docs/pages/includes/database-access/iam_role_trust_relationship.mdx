@@ -3,7 +3,8 @@
 To allow IAM Role `{{role1}}` to assume IAM Role `{{role2}}`, the following is
 generally required:
 
-<Details title="1. Configure Trust Relationships on {{role2}}">
+**1. Configure Trust Relationships on {{role2}}**
+
 `{{role1}}` or its AWS account should be set as `Principal` in `{{role2}}`'s trust
 policy.
 <Tabs>
@@ -62,9 +63,9 @@ policy.
 </TabsItem>
 
 </Tabs>
-</Details>
 
-<Details title="2. Configure Permissions Policies on {{role1}}">
+**2. Configure Permissions Policies on {{role1}}**
+
 `{{role1}}` requires `sts:AssumeRole` permissions, for example:
 ```json
 {
@@ -83,11 +84,13 @@ Note that this policy can be omitted when `{{role1}}` and `{{role2}}` are in the
 AWS account and `{{role1}}`'s full ARN is configured as Principal in `{{role2}}`'s
 trust policy.
 
-</Details>
+**3. Configure Permissions Boundary on {{role1}}**
 
-<Details title="3. Configure Permissions Boundary on {{role1}}">
-`{{role1}}` also requires `sts:AssumeRole` permissions in its boundary policy, for
-example:
+If `{{role1}}` does not have an attached
+[Permissions boundary](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html)
+then you can skip this step.
+Otherwise, the boundary policy attached to `{{role1}}` must include
+`sts:AssumeRole` permissions, for example:
 
 ```json
 {
@@ -101,6 +104,3 @@ example:
     ]
 }
 ```
-
-Note that this is only required when a boundary policy is attached to `{{role1}}`.
-</Details>

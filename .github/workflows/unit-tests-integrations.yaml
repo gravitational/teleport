@@ -28,6 +28,8 @@ jobs:
                - 'go.mod'
                - 'go.sum'
                - 'integrations/**'
+               - 'api/proto/**'
+               - 'proto/**'
                - 'api/types/**'
                - 'gen/**'
                - 'lib/tbot/**'
@@ -46,7 +48,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport16
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:

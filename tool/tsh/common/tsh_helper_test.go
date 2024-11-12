@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -40,10 +41,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -87,6 +89,9 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 			},
 			ClusterName:      "root",
 			SessionRecording: "node-sync",
+			Authentication: &config.AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			},
 		},
 	}
 
@@ -107,6 +112,10 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 	cfg.SetToken(staticToken)
+
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	user, err := user.Current()
 	require.NoError(t, err)
@@ -177,6 +186,9 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 			ClusterName:       "leaf1",
 			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
 			SessionRecording:  "node-sync",
+			Authentication: &config.AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			},
 		},
 	}
 
@@ -200,6 +212,9 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 	cfg.SetToken(staticToken)
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
@@ -311,7 +326,7 @@ func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess 
 		//
 		// It is also found that Azure metadata client can throw "Too many
 		// requests" during CI which fails services.NewTeleport.
-		cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+		cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	}
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err, trace.DebugReport(err))
@@ -504,7 +519,7 @@ func setupWebAuthnChallengeSolver(device *mocku2f.Key, success bool) CliOption {
 
 func registerDeviceForUser(t *testing.T, authServer *auth.Server, device *mocku2f.Key, username string, origin string) {
 	ctx := context.Background()
-	token, err := authServer.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -529,4 +544,13 @@ func registerDeviceForUser(t *testing.T, authServer *auth.Server, device *mocku2
 		},
 	})
 	require.NoError(t, err)
+}
+
+func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
+	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
+	fileConfYAML, err := yaml.Marshal(fc)
+	require.NoError(t, err)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
+	require.NoError(t, err)
+	return fileConfPath
 }

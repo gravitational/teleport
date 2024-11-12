@@ -20,6 +20,7 @@ package awsoidc
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -27,7 +28,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 var (
@@ -58,6 +60,8 @@ type ListDatabasesRequest struct {
 	// NextToken is the token to be used to fetch the next page.
 	// If empty, the first page is fetched.
 	NextToken string
+	// VpcId filters databases to only include those deployed in the VPC.
+	VpcId string
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -103,15 +107,41 @@ func NewListDatabasesClient(ctx context.Context, req *AWSClientRequest) (ListDat
 	return newRDSClient(ctx, req)
 }
 
+// listDatabasesPageSize is half the default RDS list input page size (100).
+// We filter by VPC membership after the API call and try to return
+// listDatabasesPageSize items but can return up to listDatabasesPageSize*2 -1
+// items, so we use a smaller page size than the default.
+var listDatabasesPageSize int32 = 50
+
 // ListDatabases calls the following AWS API:
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
 // It returns a list of Databases and an optional NextToken that can be used to fetch the next page
-func ListDatabases(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
+func ListDatabases(ctx context.Context, clt ListDatabasesClient, log *slog.Logger, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	all := &ListDatabasesResponse{}
+	for {
+		res, err := listDatabases(ctx, clt, log, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		all.Databases = append(all.Databases, res.Databases...)
+		// keep fetching databases until we fill at least pageSize or run out of
+		// pages, that way we don't return strange results like 0 databases with
+		// a NextToken to fetch more.
+		if len(all.Databases) >= int(listDatabasesPageSize) || res.NextToken == "" {
+			all.NextToken = res.NextToken
+			return all, nil
+		}
+		// re-use the request but update its NextToken for each API call.
+		req.NextToken = res.NextToken
+	}
+}
+
+func listDatabases(ctx context.Context, clt ListDatabasesClient, log *slog.Logger, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	// Uses https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
 	if req.RDSType == rdsTypeInstance {
 		ret, err := listDBInstances(ctx, clt, req)
@@ -122,7 +152,7 @@ func ListDatabases(ctx context.Context, clt ListDatabasesClient, req ListDatabas
 	}
 
 	// Uses https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
-	ret, err := listDBClusters(ctx, clt, req)
+	ret, err := listDBClusters(ctx, clt, log, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,6 +164,7 @@ func listDBInstances(ctx context.Context, clt ListDatabasesClient, req ListDatab
 		Filters: []rdsTypes.Filter{
 			{Name: &filterEngine, Values: req.Engines},
 		},
+		MaxRecords: &listDatabasesPageSize,
 	}
 	if req.NextToken != "" {
 		describeDBInstanceInput.Marker = &req.NextToken
@@ -152,26 +183,29 @@ func listDBInstances(ctx context.Context, clt ListDatabasesClient, req ListDatab
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBInstances))
 	for _, db := range rdsDBs.DBInstances {
-		if !services.IsRDSInstanceAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
+		if !cloudaws.IsDBClusterAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
+			continue
+		}
+		if req.VpcId != "" && !subnetGroupIsInVPC(db.DBSubnetGroup, req.VpcId) {
 			continue
 		}
 
-		dbServer, err := services.NewDatabaseFromRDSV2Instance(&db)
+		dbServer, err := common.NewDatabaseFromRDSV2Instance(&db)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		ret.Databases = append(ret.Databases, dbServer)
 	}
 
 	return ret, nil
 }
 
-func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
+func listDBClusters(ctx context.Context, clt ListDatabasesClient, log *slog.Logger, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	describeDBClusterInput := &rds.DescribeDBClustersInput{
 		Filters: []rdsTypes.Filter{
 			{Name: &filterEngine, Values: req.Engines},
 		},
+		MaxRecords: &listDatabasesPageSize,
 	}
 	if req.NextToken != "" {
 		describeDBClusterInput.Marker = &req.NextToken
@@ -190,7 +224,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 
 	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBClusters))
 	for _, db := range rdsDBs.DBClusters {
-		if !services.IsRDSClusterAvailable(db.Status, db.DBClusterIdentifier) {
+		if !cloudaws.IsDBClusterAvailable(db.Status, db.DBClusterIdentifier) {
 			continue
 		}
 
@@ -198,12 +232,23 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 		// To get this value, a member of the cluster is fetched and its Network Information is used to
 		// populate the RDS Cluster information.
 		// All the members have the same network information, so picking one at random should not matter.
-		clusterInstance, err := fetchSingleRDSDBInstance(ctx, clt, req, aws.ToString(db.DBClusterIdentifier))
+		instances, err := fetchRDSClusterInstances(ctx, clt, req, aws.ToString(db.DBClusterIdentifier))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if len(instances) == 0 {
+			log.InfoContext(ctx, "Skipping RDS cluster because it has no instances",
+				"cluster", aws.ToString(db.DBClusterIdentifier),
+			)
+			continue
+		}
+		instance := &instances[0]
 
-		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db, clusterInstance)
+		if req.VpcId != "" && !subnetGroupIsInVPC(instance.DBSubnetGroup, req.VpcId) {
+			continue
+		}
+
+		awsDB, err := common.NewDatabaseFromRDSV2Cluster(&db, instance)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -214,7 +259,7 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 	return ret, nil
 }
 
-func fetchSingleRDSDBInstance(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest, clusterID string) (*rdsTypes.DBInstance, error) {
+func fetchRDSClusterInstances(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest, clusterID string) ([]rdsTypes.DBInstance, error) {
 	describeDBInstanceInput := &rds.DescribeDBInstancesInput{
 		Filters: []rdsTypes.Filter{
 			{Name: &filterDBClusterID, Values: []string{clusterID}},
@@ -225,10 +270,11 @@ func fetchSingleRDSDBInstance(ctx context.Context, clt ListDatabasesClient, req 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return rdsDBs.DBInstances, nil
+}
 
-	if len(rdsDBs.DBInstances) == 0 {
-		return nil, trace.BadParameter("database cluster %s has no instance", clusterID)
-	}
-
-	return &rdsDBs.DBInstances[0], nil
+// subnetGroupIsInVPC is a simple helper to check if a db subnet group is in
+// a given VPC.
+func subnetGroupIsInVPC(group *rdsTypes.DBSubnetGroup, vpcID string) bool {
+	return group != nil && aws.ToString(group.VpcId) == vpcID
 }

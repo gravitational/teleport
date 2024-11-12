@@ -1,6 +1,6 @@
 <Admonition type="tip">
 
-To modify an existing user to provide access to the Database Service, see [Database Access Access Controls](../../database-access/rbac.mdx)
+To modify an existing user to provide access to the Database Service, see [Database Access Controls](../../enroll-resources/database-access/rbac.mdx)
 
 </Admonition>
 
@@ -11,8 +11,8 @@ Create a local Teleport user with the built-in `access` role:
 ```code
 $ tctl users add \
   --roles=access \
-  --db-users=\* \
-  --db-names=\* \
+  --db-users="*" \
+  --db-names="*" \
   alice
 ```
 </TabItem>
@@ -22,8 +22,8 @@ Create a local Teleport user with the built-in `access` and `requester` roles:
 ```code
 $ tctl users add \
   --roles=access,requester \
-  --db-users=\* \
-  --db-names=\* \
+  --db-users="*" \
+  --db-names="*" \
   alice
 ```
 </TabItem>
@@ -36,8 +36,8 @@ $ tctl users add \
 | `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
 
 <Admonition type="warning">
-  Database names are only enforced for PostgreSQL and MongoDB databases.
+  Database names are only enforced for PostgreSQL, MongoDB, and Cloud Spanner databases.
 </Admonition>
 
 For more detailed information about database access controls and how to restrict
-access see [RBAC](../../database-access/rbac.mdx) documentation.
+access see [RBAC](../../enroll-resources/database-access/rbac.mdx) documentation.

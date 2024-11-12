@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,17 +34,16 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -59,8 +59,7 @@ import (
 type Config struct {
 	// Teleport configuration version.
 	Version string
-	// DataDir is the directory where teleport stores its permanent state
-	// (in case of auth server backed by BoltDB) or local state, e.g. keys
+	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
 
 	// Hostname is a node host name
@@ -77,7 +76,7 @@ type Config struct {
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
-	Identities []*auth.Identity
+	Identities []*state.Identity
 
 	// AdvertiseIP is used to "publish" an alternative IP address or hostname this node
 	// can be reached on, if running behind NAT
@@ -170,6 +169,9 @@ type Config struct {
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
 
+	// AutoUpdateService is a service that provides auto update configuration and version.
+	AutoUpdateService services.AutoUpdateService
+
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If
 	// omitted, a Teleport selected list of defaults will be used.
 	CipherSuites []uint16
@@ -223,9 +225,11 @@ type Config struct {
 	// Log optionally specifies the logger.
 	// Deprecated: use Logger instead.
 	Log utils.Logger
+
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
+
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
 
@@ -253,7 +257,7 @@ type Config struct {
 	AdditionalReadyEvents []string
 
 	// InstanceMetadataClient specifies the instance metadata client.
-	InstanceMetadataClient cloud.InstanceMetadata
+	InstanceMetadataClient imds.Client
 
 	// Testing is a group of properties that are used in tests.
 	Testing ConfigTesting
@@ -305,14 +309,9 @@ type ConfigTesting struct {
 	// connections there.
 	KubeMultiplexerIgnoreSelfConnections bool
 
-	// OpenAIConfig contains the optional OpenAI client configuration used by
-	// auth and proxy. When it's not set (the default, we don't offer a way to
-	// set it when executing the regular Teleport binary) we use the default
-	// configuration with auth tokens passed from Auth.AssistAPIKey or
-	// Proxy.AssistAPIKey. We set this only when testing to avoid calls to reach
-	// the real OpenAI API.
-	// Note: When set, this overrides Auth and Proxy's AssistAPIKey settings.
-	OpenAIConfig *openai.ClientConfig
+	// HTTPTransport is an optional HTTP round tripper to used in tests
+	// to mock HTTP requests to the third party services like Okta integration
+	HTTPTransport http.RoundTripper
 }
 
 // AccessGraphConfig represents TAG server config
@@ -556,7 +555,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
-	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.Auth.StorageConfig.Params = make(backend.Params)
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
 	cfg.Auth.AuditConfig = types.DefaultClusterAuditConfig()
 	cfg.Auth.NetworkingConfig = types.DefaultClusterNetworkingConfig()
@@ -602,6 +601,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
+
+	// Debug service defaults.
+	cfg.DebugService.Enabled = true
 }
 
 // FileDescriptor is a file descriptor associated
@@ -653,6 +655,15 @@ func ValidateConfig(cfg *Config) error {
 
 	if cfg.DataDir == "" {
 		return trace.BadParameter("config: please supply data directory")
+	}
+
+	if cfg.Auth.Enabled {
+		if cfg.Auth.StorageConfig.Params.GetString(defaults.BackendPath) == "" {
+			if cfg.Auth.StorageConfig.Params == nil {
+				cfg.Auth.StorageConfig.Params = make(backend.Params)
+			}
+			cfg.Auth.StorageConfig.Params[defaults.BackendPath] = filepath.Join(cfg.DataDir, defaults.BackendDir)
+		}
 	}
 
 	for i := range cfg.Auth.Authorities {

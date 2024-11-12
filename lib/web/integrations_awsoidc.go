@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -77,6 +79,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		RdsType:     req.RDSType,
 		Engines:     req.Engines,
 		NextToken:   req.NextToken,
+		VpcId:       req.VPCID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,9 +110,31 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels))
+	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels)+3)
 	for _, label := range req.DatabaseAgentMatcherLabels {
 		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
+	}
+
+	// DELETE in 19.0: delete only the outer if block (checking labels == 0).
+	// The outer block is required since older UI's will not
+	// send these values to the backend, but instead send custom labels (the UI
+	// will require at least one label before proceeding).
+	// Newer UI's will not send any labels, but instead send the required
+	// fields for default labels.
+	if len(req.DatabaseAgentMatcherLabels) == 0 {
+		if req.VPCID == "" {
+			return nil, trace.BadParameter("vpc ID is required")
+		}
+		if req.Region == "" {
+			return nil, trace.BadParameter("AWS region is required")
+		}
+		if req.AccountID == "" {
+			return nil, trace.BadParameter("AWS account ID is required")
+		}
+		// Add default labels.
+		databaseAgentMatcherLabels[types.DiscoveryLabelVPCID] = []string{req.VPCID}
+		databaseAgentMatcherLabels[types.DiscoveryLabelRegion] = []string{req.Region}
+		databaseAgentMatcherLabels[types.DiscoveryLabelAccountID] = []string{req.AccountID}
 	}
 
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
@@ -123,7 +148,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	}
 
 	teleportVersionTag := teleport.Version
-	if automaticUpgrades(h.ClusterFeatures) {
+	if automaticUpgrades(h.GetClusterFeatures()) {
 		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -176,7 +201,7 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 	}
 
 	teleportVersionTag := teleport.Version
-	if automaticUpgrades(h.ClusterFeatures) {
+	if automaticUpgrades(h.GetClusterFeatures()) {
 		cloudStableVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -193,8 +218,9 @@ func (h *Handler) awsOIDCDeployDatabaseServices(w http.ResponseWriter, r *http.R
 			h.PublicProxyAddr(),
 			iamTokenName,
 			types.Labels{
-				types.DiscoveryLabelVPCID:  []string{d.VPCID},
-				types.DiscoveryLabelRegion: []string{req.Region},
+				types.DiscoveryLabelVPCID:     []string{d.VPCID},
+				types.DiscoveryLabelRegion:    []string{req.Region},
+				types.DiscoveryLabelAccountID: []string{req.AccountID},
 			},
 		)
 		if err != nil {
@@ -255,6 +281,11 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("invalid awsRegion")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -274,10 +305,11 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 		fmt.Sprintf("--task-role=%s", shsprintf.EscapeDefaultContext(taskRole)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the database enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the database enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -299,6 +331,11 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 		return nil, trace.BadParameter("invalid awsRegion")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -310,10 +347,11 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 		"integration", "configure", "eice-iam",
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the EC2 enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the EC2 enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -346,7 +384,7 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to use AWS App Access.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use AWS App Access.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -367,6 +405,11 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 
+	integrationName := queryParams.Get("integrationName")
+	if len(integrationName) == 0 {
+		return nil, trace.BadParameter("missing integrationName param")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -375,6 +418,11 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 	region := queryParams.Get("awsRegion")
 	if err := aws.IsValidRegion(region); err != nil {
 		return nil, trace.BadParameter("invalid region %q", region)
+	}
+
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
 	}
 
 	ssmDocumentName := queryParams.Get("ssmDocument")
@@ -388,6 +436,11 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		proxyPublicURL = "https://" + proxyPublicURL
 	}
 
+	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// The script must execute the following command:
 	// teleport integration configure ec2-ssm-iam
 	argsList := []string{
@@ -396,10 +449,13 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(region)),
 		fmt.Sprintf("--ssm-document-name=%s", shsprintf.EscapeDefaultContext(ssmDocumentName)),
 		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyPublicURL)),
+		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
+		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to finish the EC2 auto discover set up.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to finish the EC2 auto discover set up.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -420,6 +476,11 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 		return nil, trace.BadParameter("invalid aws region")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -431,10 +492,11 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 		"integration", "configure", "eks-iam",
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the EKS enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the EKS enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -465,15 +527,9 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("an integration name is required")
 	}
 
-	// todo(anton): get auth server version and use it instead of this proxy teleport.version.
-	agentVersion := teleport.Version
-	if h.ClusterFeatures.GetAutomaticUpgrades() {
-		upgradesVersion, err := h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		agentVersion = strings.TrimPrefix(upgradesVersion, "v")
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), h.cfg.AutomaticUpgradesChannels)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	response, err := clt.IntegrationAWSOIDCClient().EnrollEKSClusters(ctx, &integrationv1.EnrollEKSClustersRequest{
@@ -564,11 +620,6 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := sctx.GetIdentity()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -576,10 +627,11 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 
 	servers := make([]ui.Server, 0, len(listResp.Servers))
 	for _, s := range listResp.Servers {
-		logins, err := calculateSSHLogins(identity, accessChecker, s, nil)
+		logins, err := accessChecker.GetAllowedLoginsForResource(s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		slices.Sort(logins)
 
 		servers = append(servers, ui.MakeServer(h.auth.clusterName, s, logins, false /* requiresRequest */))
 	}
@@ -639,11 +691,25 @@ func (h *Handler) awsOIDCListSecurityGroups(w http.ResponseWriter, r *http.Reque
 func awsOIDCSecurityGroupsRulesConverter(inRules []*integrationv1.SecurityGroupRule) []awsoidc.SecurityGroupRule {
 	out := make([]awsoidc.SecurityGroupRule, 0, len(inRules))
 	for _, r := range inRules {
-		cidrs := make([]awsoidc.CIDR, 0, len(r.Cidrs))
+		var cidrs []awsoidc.CIDR
+		if len(r.Cidrs) > 0 {
+			cidrs = make([]awsoidc.CIDR, 0, len(r.Cidrs))
+		}
 		for _, cidr := range r.Cidrs {
 			cidrs = append(cidrs, awsoidc.CIDR{
 				CIDR:        cidr.Cidr,
 				Description: cidr.Description,
+			})
+		}
+
+		var groupIDs []awsoidc.GroupIDRule
+		if len(r.GroupIds) > 0 {
+			groupIDs = make([]awsoidc.GroupIDRule, 0, len(r.GroupIds))
+		}
+		for _, group := range r.GroupIds {
+			groupIDs = append(groupIDs, awsoidc.GroupIDRule{
+				GroupId:     group.GroupId,
+				Description: group.Description,
 			})
 		}
 		out = append(out, awsoidc.SecurityGroupRule{
@@ -651,6 +717,7 @@ func awsOIDCSecurityGroupsRulesConverter(inRules []*integrationv1.SecurityGroupR
 			FromPort:   int(r.FromPort),
 			ToPort:     int(r.ToPort),
 			CIDRs:      cidrs,
+			Groups:     groupIDs,
 		})
 	}
 	return out
@@ -750,24 +817,9 @@ func awsOIDCListAllDatabases(ctx context.Context, clt authclient.ClientI, integr
 
 func awsOIDCRequiredVPCSHelper(ctx context.Context, clt authclient.ClientI, req ui.AWSOIDCRequiredVPCSRequest, fetchedRDSs []*types.DatabaseV3) (*ui.AWSOIDCRequiredVPCSResponse, error) {
 	// Get all database services with ecs/fargate metadata label.
-	nextToken := ""
-	fetchedDbSvcs := []types.DatabaseService{}
-	for {
-		page, err := client.GetResourcePage[types.DatabaseService](ctx, clt, &proto.ListResourcesRequest{
-			ResourceType: types.KindDatabaseService,
-			Limit:        defaults.MaxIterationLimit,
-			StartKey:     nextToken,
-			Labels:       map[string]string{types.AWSOIDCAgentLabel: types.True},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		fetchedDbSvcs = append(fetchedDbSvcs, page.Resources...)
-		nextToken = page.NextKey
-		if len(nextToken) == 0 {
-			break
-		}
+	fetchedDbSvcs, err := fetchAWSOIDCDatabaseServices(ctx, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Construct map of VPCs and its subnets.
@@ -784,29 +836,10 @@ func awsOIDCRequiredVPCSHelper(ctx context.Context, clt authclient.ClientI, req 
 	}
 
 	for _, svc := range fetchedDbSvcs {
-		if len(svc.GetResourceMatchers()) != 1 || svc.GetResourceMatchers()[0].Labels == nil {
-			continue
+		vpcID := getDBServiceVPC(svc, req.AccountID, req.Region)
+		if vpcID != "" {
+			delete(vpcLookup, vpcID)
 		}
-
-		// Database services deployed by Teleport have known configurations where
-		// we will only define a single resource matcher.
-		labelMatcher := *svc.GetResourceMatchers()[0].Labels
-
-		// We check for length 3, because we are only
-		// wanting/checking for 3 discovery labels.
-		if len(labelMatcher) != 3 {
-			continue
-		}
-		if slices.Compare(labelMatcher[types.DiscoveryLabelAccountID], []string{req.AccountID}) != 0 {
-			continue
-		}
-		if slices.Compare(labelMatcher[types.DiscoveryLabelRegion], []string{req.Region}) != 0 {
-			continue
-		}
-		if len(labelMatcher[types.DiscoveryLabelVPCID]) != 1 {
-			continue
-		}
-		delete(vpcLookup, labelMatcher[types.DiscoveryLabelVPCID][0])
 	}
 
 	return &ui.AWSOIDCRequiredVPCSResponse{
@@ -925,7 +958,7 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 	}, nil
 }
 
-// awsOIDCDeployC2ICE creates an AppServer that uses an AWS OIDC Integration for proxying access.
+// awsOIDCCreateAWSAppAccess creates an AppServer that uses an AWS OIDC Integration for proxying access.
 func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	ctx := r.Context()
 
@@ -947,11 +980,6 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("only aws oidc integrations are supported")
 	}
 
-	identity, err := sctx.GetIdentity()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
 
 	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
@@ -965,14 +993,84 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(appServer.GetApp())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	allowedAWSRolesLookup := map[string][]string{
+		appServer.GetName(): allowedAWSRoles,
+	}
+
 	return ui.MakeApp(appServer.GetApp(), ui.MakeAppsConfig{
-		LocalClusterName:  h.auth.clusterName,
-		LocalProxyDNSName: h.proxyDNSName(),
-		AppClusterName:    site.GetName(),
-		Identity:          identity,
-		UserGroupLookup:   getUserGroupLookup(),
-		Logger:            h.log,
+		LocalClusterName:      h.auth.clusterName,
+		LocalProxyDNSName:     h.proxyDNSName(),
+		AppClusterName:        site.GetName(),
+		AllowedAWSRolesLookup: allowedAWSRolesLookup,
+		UserGroupLookup:       getUserGroupLookup(),
+		Logger:                h.log,
 	}), nil
+}
+
+// awsOIDCDeleteAWSAppAccess deletes the AWS AppServer created that uses the AWS OIDC Integration for proxying requests.
+func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	subkind := p.ByName("name_or_subkind")
+	if subkind != types.IntegrationSubKindAWSOIDC {
+		return nil, trace.BadParameter("only aws oidc integrations are supported")
+	}
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ig.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return nil, trace.BadParameter("only aws oidc integrations are supported")
+	}
+
+	integrationAppServer, err := h.getAppServerByName(ctx, clt, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if integrationAppServer.GetApp().GetIntegration() != integrationName {
+		return nil, trace.NotFound("app %s is not using integration %s", integrationAppServer.GetName(), integrationName)
+	}
+
+	if err := clt.DeleteApplicationServer(ctx, apidefaults.Namespace, integrationAppServer.GetHostID(), integrationName); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+func (h *Handler) getAppServerByName(ctx context.Context, userClient authclient.ClientI, appServerName string) (types.AppServer, error) {
+	appServers, err := userClient.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, s := range appServers {
+		if s.GetName() == appServerName {
+			return s, nil
+		}
+	}
+	return nil, trace.NotFound("app %q not found", appServerName)
 }
 
 // awsOIDCConfigureIdP returns a script that configures AWS OIDC Integration
@@ -1012,6 +1110,13 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 	}
+	policyPreset := queryParams.Get("policyPreset")
+	if err := awsoidc.ValidatePolicyPreset(awsoidc.PolicyPreset(policyPreset)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if policyPreset != "" {
+		argsList = append(argsList, fmt.Sprintf("--policy-preset=%s", shsprintf.EscapeDefaultContext(policyPreset)))
+	}
 
 	// We have two set up modes:
 	// - use the Proxy HTTP endpoint as Identity Provider
@@ -1027,7 +1132,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 
 	switch {
 	case s3Bucket == "" && s3Prefix == "":
-		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+		proxyAddr, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1042,7 +1147,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		}
 		s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
 
-		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
+		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1058,7 +1163,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to use the integration with AWS.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use the integration with AWS.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1079,6 +1184,11 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("invalid awsRegion")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -1090,10 +1200,11 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 		"integration", "configure", "listdatabases-iam",
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the Database enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Database enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1118,11 +1229,16 @@ func (h *Handler) accessGraphCloudSyncOIDC(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 	queryParams := r.URL.Query()
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
+	}
+
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
 	}
 
 	// The script must execute the following command:
@@ -1130,10 +1246,11 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	argsList := []string{
 		"integration", "configure", "access-graph", "aws-iam",
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the Access Graph AWS Sync enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Access Graph AWS Sync enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1143,4 +1260,211 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	_, err = fmt.Fprint(w, script)
 
 	return nil, trace.Wrap(err)
+}
+
+// awsOIDCListSubnets returns a list of VPC subnets using the ListSubnets action of the AWS OIDC Integration.
+func (h *Handler) awsOIDCListSubnets(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListSubnetsRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := clt.IntegrationAWSOIDCClient().ListSubnets(ctx, &integrationv1.ListSubnetsRequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		VpcId:       req.VPCID,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	subnets := make([]awsoidc.Subnet, 0, len(listResp.Subnets))
+	for _, s := range listResp.Subnets {
+		subnets = append(subnets, awsoidc.Subnet{
+			Name:             s.Name,
+			ID:               s.Id,
+			AvailabilityZone: s.AvailabilityZone,
+		})
+	}
+
+	return ui.AWSOIDCListSubnetsResponse{
+		NextToken: listResp.NextToken,
+		Subnets:   subnets,
+	}, nil
+}
+
+// awsOIDCListDatabaseVPCs returns a list of VPCs using the ListVpcs action
+// of the AWS OIDC Integration, and includes a link to the ECS service if
+// a database service has been deployed for each VPC.
+func (h *Handler) awsOIDCListDatabaseVPCs(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListVPCsRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listResp, err := clt.IntegrationAWSOIDCClient().ListVPCs(ctx, &integrationv1.ListVPCsRequest{
+		Integration: integrationName,
+		Region:      req.Region,
+		NextToken:   req.NextToken,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbServices, err := fetchAWSOIDCDatabaseServices(ctx, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceURLByVPC, err := getServiceURLs(dbServices, req.AccountID, req.Region, h.auth.clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vpcs := make([]ui.DatabaseEnrollmentVPC, 0, len(listResp.Vpcs))
+	for _, vpc := range listResp.Vpcs {
+		vpcs = append(vpcs, ui.DatabaseEnrollmentVPC{
+			VPC: awsoidc.VPC{
+				Name: vpc.Name,
+				ID:   vpc.Id,
+			},
+			ECSServiceDashboardURL: serviceURLByVPC[vpc.Id],
+		})
+	}
+
+	return ui.AWSOIDCDatabaseVPCsResponse{
+		NextToken: listResp.NextToken,
+		VPCs:      vpcs,
+	}, nil
+}
+
+func fetchAWSOIDCDatabaseServices(ctx context.Context, clt client.GetResourcesClient) ([]types.DatabaseService, error) {
+	// Get all database services with the AWS OIDC agent metadata label.
+	var nextToken string
+	var fetchedDbSvcs []types.DatabaseService
+	for {
+		page, err := client.GetResourcePage[types.DatabaseService](ctx, clt, &proto.ListResourcesRequest{
+			ResourceType: types.KindDatabaseService,
+			Limit:        defaults.MaxIterationLimit,
+			StartKey:     nextToken,
+			Labels:       map[string]string{types.AWSOIDCAgentLabel: types.True},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fetchedDbSvcs = append(fetchedDbSvcs, page.Resources...)
+		nextToken = page.NextKey
+		if len(nextToken) == 0 {
+			return fetchedDbSvcs, nil
+		}
+	}
+}
+
+// getDBServiceVPC returns the database service's VPC ID selector value if the
+// database service was deployed by the AWS OIDC integration, otherwise it
+// returns an empty string.
+func getDBServiceVPC(svc types.DatabaseService, accountID, region string) string {
+	if len(svc.GetResourceMatchers()) != 1 || svc.GetResourceMatchers()[0].Labels == nil {
+		return ""
+	}
+
+	// Database services deployed by Teleport have known configurations where
+	// we will only define a single resource matcher.
+	labelMatcher := *svc.GetResourceMatchers()[0].Labels
+
+	// We check for length 3, because we are only
+	// wanting/checking for 3 discovery labels.
+	if len(labelMatcher) != 3 {
+		return ""
+	}
+	if slices.Compare(labelMatcher[types.DiscoveryLabelAccountID], []string{accountID}) != 0 {
+		return ""
+	}
+	if slices.Compare(labelMatcher[types.DiscoveryLabelRegion], []string{region}) != 0 {
+		return ""
+	}
+	if len(labelMatcher[types.DiscoveryLabelVPCID]) != 1 {
+		return ""
+	}
+	return labelMatcher[types.DiscoveryLabelVPCID][0]
+}
+
+// getServiceURLs returns a map vpcID -> service URL for ECS services deployed
+// by the OIDC integration in the given account and region.
+func getServiceURLs(dbServices []types.DatabaseService, accountID, region, teleportClusterName string) (map[string]string, error) {
+	serviceURLByVPC := make(map[string]string)
+	for _, svc := range dbServices {
+		vpcID := getDBServiceVPC(svc, accountID, region)
+		if vpcID == "" {
+			continue
+		}
+		svcURL, err := awsoidc.ECSDatabaseServiceDashboardURL(region, teleportClusterName, vpcID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serviceURLByVPC[vpcID] = svcURL
+	}
+	return serviceURLByVPC, nil
+}
+
+// awsOIDCPing performs an health check for the integration.
+// If ARN is present in the request body, that's the ARN that will be used instead of using the one stored in the integration.
+// Returns meta information: account id and assumed the ARN for the IAM Role.
+func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	var req ui.AWSOIDCPingRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{
+		Integration: integrationName,
+		RoleArn:     req.RoleARN,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCPingResponse{
+		AccountID: pingResp.AccountId,
+		ARN:       pingResp.Arn,
+		UserID:    pingResp.UserId,
+	}, nil
 }

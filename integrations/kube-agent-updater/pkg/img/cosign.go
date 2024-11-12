@@ -33,6 +33,7 @@ import (
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // hashAlgo is the Digest algorithm for OCI artfiacts:
@@ -66,8 +67,6 @@ func (v *cosignKeyValidator) Name() string {
 // ValidateAndResolveDigest resolves the image digest and validates it was
 // signed with cosign using a trusted static key.
 func (v *cosignKeyValidator) ValidateAndResolveDigest(ctx context.Context, image reference.NamedTagged) (NamedTaggedDigested, error) {
-	// No RegistryClientOpts for now, this means no private repo support
-	// This might also be useful for local testing (running a test registry)
 	checkOpts := &cosign.CheckOpts{
 		RegistryClientOpts: v.registryOptions,
 		Annotations:        nil,
@@ -75,19 +74,24 @@ func (v *cosignKeyValidator) ValidateAndResolveDigest(ctx context.Context, image
 		SigVerifier:        v.verifier,
 		IgnoreTlog:         true, // TODO: should we keep this?
 	}
+	// Those are debug logs only
+	log := ctrllog.FromContext(ctx).V(1)
+	log.Info("Resolving digest", "image", image.String())
 
-	ref, err := NamedTaggedToDigest(image)
+	ref, err := NamedTaggedToDigest(image, v.registryOptions...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to resolve image digest")
 	}
+	log.Info("Resolved digest", "image", image.String(), "digest", ref.Digest, "reference", ref.String())
 
 	verified, _, err := cosign.VerifyImageSignatures(ctx, ref, checkOpts)
 	if err != nil {
-		return nil, trace.Trust(err, "failed to verify image signature")
+		return nil, trace.Wrap(err, "failed to verify image signature")
 	}
 	if len(verified) == 0 {
 		return nil, trace.Wrap(&trace.TrustError{Message: "cannot validate image: no valid signature found"})
 	}
+	log.Info("Signature validated", "image", image.String(), "digest", ref.Digest, "reference", ref.String())
 
 	// There are legitimate use-cases where the signing reference is not the same
 	// as the img we're pulling from: img promoted to an internal registry,
@@ -125,11 +129,11 @@ func NewCosignSingleKeyValidator(pem []byte, name string, keyChain authn.Keychai
 
 // NamedTaggedToDigest resolves the digest of a reference.NamedTagged image and
 // returns a name.Digest image corresponding to the resolved image.
-func NamedTaggedToDigest(image reference.NamedTagged) (name.Digest, error) {
+func NamedTaggedToDigest(image reference.NamedTagged, opts ...ociremote.Option) (name.Digest, error) {
 	ref, err := name.ParseReference(image.String())
 	if err != nil {
 		return name.Digest{}, trace.Wrap(err)
 	}
-	digested, err := ociremote.ResolveDigest(ref)
+	digested, err := ociremote.ResolveDigest(ref, opts...)
 	return digested, trace.Wrap(err)
 }

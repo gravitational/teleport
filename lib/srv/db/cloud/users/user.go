@@ -20,11 +20,11 @@ package users
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -72,8 +72,8 @@ type baseUser struct {
 	cloudResource cloudResource
 	// clock is used to control time.
 	clock clockwork.Clock
-	// log is the logrus field logger.
-	log logrus.FieldLogger
+	// log is slog logger.
+	log *slog.Logger
 }
 
 // CheckAndSetDefaults validates the Resource and sets any empty fields to
@@ -101,7 +101,7 @@ func (u *baseUser) CheckAndSetDefaults() error {
 		u.clock = clockwork.NewRealClock()
 	}
 	if u.log == nil {
-		u.log = logrus.WithField(teleport.ComponentKey, "clouduser")
+		u.log = slog.With(teleport.ComponentKey, "clouduser")
 	}
 	return nil
 }
@@ -123,7 +123,7 @@ func (u *baseUser) GetDatabaseUsername() string {
 
 // Setup preforms any setup necessary like creating password secret.
 func (u *baseUser) Setup(ctx context.Context) error {
-	u.log.Debugf("Setting up user %v", u)
+	u.log.DebugContext(ctx, "Setting up user.", "user", u)
 
 	newPassword, err := genRandomPassword(u.maxPasswordLength)
 	if err != nil {
@@ -143,7 +143,7 @@ func (u *baseUser) Setup(ctx context.Context) error {
 
 // Teardown performs any teardown necessary like deleting password secret.
 func (u *baseUser) Teardown(ctx context.Context) error {
-	u.log.Debugf("Tearing down user %v", u)
+	u.log.DebugContext(ctx, "Tearing down user.", "user", u)
 
 	err := trace.Wrap(u.secrets.Delete(ctx, u.secretKey))
 	if err != nil {
@@ -207,7 +207,7 @@ func (u *baseUser) RotatePassword(ctx context.Context) error {
 		return nil
 	}
 
-	u.log.Debugf("Updating password for user %v", u)
+	u.log.DebugContext(ctx, "Updating password for user.", "user", u)
 	newPassword, err := genRandomPassword(u.maxPasswordLength)
 	if err != nil {
 		return trace.Wrap(err)

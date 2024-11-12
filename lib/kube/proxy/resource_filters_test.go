@@ -124,6 +124,26 @@ func Test_filterBuffer(t *testing.T) {
 				"default/kubernetes",
 			},
 		},
+		{
+			name: "table response full object compressed with gzip",
+			args: args{
+				dataFile:        "testing/data/partial_table_full_obj.json",
+				contentEncoding: "gzip",
+			},
+			want: []string{
+				"default/kubernetes",
+			},
+		},
+		{
+			name: "table response full object uncompressed",
+			args: args{
+				dataFile:        "testing/data/partial_table_full_obj.json",
+				contentEncoding: "",
+			},
+			want: []string{
+				"default/kubernetes",
+			},
+		},
 	}
 	for _, tt := range tests {
 		for _, r := range types.KubernetesResourcesKinds {

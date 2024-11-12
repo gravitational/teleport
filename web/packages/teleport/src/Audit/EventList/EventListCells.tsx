@@ -19,7 +19,7 @@
 import React from 'react';
 import { Cell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
-import { displayDateTime } from 'shared/services/loc';
+import { displayDateTime } from 'design/datetime';
 
 import { Event } from 'teleport/services/audit';
 

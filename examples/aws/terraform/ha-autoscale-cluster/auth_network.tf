@@ -132,6 +132,8 @@ resource "aws_lb_target_group" "auth" {
   port     = 3025
   vpc_id   = aws_vpc.teleport.id
   protocol = "TCP"
+  // required to allow the use of IP pinning
+  proxy_protocol_v2 = true
 }
 
 // 3025 is the Auth servers API server listener.

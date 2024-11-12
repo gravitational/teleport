@@ -442,62 +442,69 @@ func (c *GlobalNotificationCache) getResourcesAndUpdateCurrent(ctx context.Conte
 	return nil
 }
 
-// processEventAndUpdateCurrent is part of the resourceCollector interface and is used to update the
+// processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
 // primary cache state when modification events occur.
-func (c *UserNotificationCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+func (c *UserNotificationCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
-	switch event.Type {
-	case types.OpPut:
-		// Since the EventsService watcher currently only supports legacy resources, we had to use types.Resource153ToLegacy() when parsing the event
-		// to transform the notification into a legacy resource. We now have to use Unwrap() to get the original RFD153-style notification out and add it to the cache.
-		resource153, ok := event.Resource.(types.Resource153Unwrapper)
-		if !ok {
-			slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", reflect.TypeOf(resource153))
-			return
-		}
-		resource := resource153.Unwrap()
 
-		notification, ok := resource.(*notificationsv1.Notification)
-		if !ok {
-			slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.Notification)", "resource_type", reflect.TypeOf(resource))
-			return
+	for _, event := range events {
+		switch event.Type {
+		case types.OpPut:
+			// Since the EventsService watcher currently only supports legacy resources, we had to use types.Resource153ToLegacy() when parsing the event
+			// to transform the notification into a legacy resource. We now have to use Unwrap() to get the original RFD153-style notification out and add it to the cache.
+			resource153, ok := event.Resource.(types.Resource153Unwrapper)
+			if !ok {
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", reflect.TypeOf(resource153))
+				continue
+			}
+			resource := resource153.Unwrap()
+
+			notification, ok := resource.(*notificationsv1.Notification)
+			if !ok {
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.Notification)", "resource_type", reflect.TypeOf(resource))
+				continue
+			}
+			if evicted := cache.Put(notification); evicted > 1 {
+				slog.WarnContext(ctx, "Processing of put event for notification resulted in multiple cache evictions (this is a bug).", "notification", notification.GetMetadata().GetName())
+			}
+		case types.OpDelete:
+			cache.Delete(notificationID, event.Resource.GetName())
+		default:
+			slog.WarnContext(ctx, "Unexpected event variant", "event", event.Type)
 		}
-		if evicted := cache.Put(notification); evicted > 1 {
-			slog.WarnContext(ctx, "Processing of put event for notification resulted in multiple cache evictions (this is a bug).", "notification", notification.GetMetadata().GetName())
-		}
-	case types.OpDelete:
-		cache.Delete(notificationID, event.Resource.GetName())
-	default:
-		slog.WarnContext(ctx, "Unexpected event variant", "event", event.Type)
 	}
 }
-func (c *GlobalNotificationCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+
+func (c *GlobalNotificationCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.RLock()
 	cache := c.primaryCache
 	c.rw.RUnlock()
-	switch event.Type {
-	case types.OpPut:
-		resource153, ok := event.Resource.(types.Resource153Unwrapper)
-		if !ok {
-			slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", reflect.TypeOf(resource153))
-			return
-		}
-		resource := resource153.Unwrap()
 
-		globalNotification, ok := resource.(*notificationsv1.GlobalNotification)
-		if !ok {
-			slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.GlobalNotification)", "resource_type", reflect.TypeOf(resource))
-			return
+	for _, event := range events {
+		switch event.Type {
+		case types.OpPut:
+			resource153, ok := event.Resource.(types.Resource153Unwrapper)
+			if !ok {
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected types.Resource153Unwrapper)", "resource_type", reflect.TypeOf(resource153))
+				continue
+			}
+			resource := resource153.Unwrap()
+
+			globalNotification, ok := resource.(*notificationsv1.GlobalNotification)
+			if !ok {
+				slog.WarnContext(ctx, "Unexpected resource type in event (expected *notificationsv1.GlobalNotification)", "resource_type", reflect.TypeOf(resource))
+				continue
+			}
+			if evicted := cache.Put(globalNotification); evicted > 1 {
+				slog.WarnContext(ctx, "Processing of put event for notification resulted in multiple cache evictions (this is a bug).", "notification", globalNotification.GetMetadata().GetName())
+			}
+		case types.OpDelete:
+			cache.Delete(notificationID, event.Resource.GetName())
+		default:
+			slog.WarnContext(ctx, "Unexpected event variant", "event", event.Type)
 		}
-		if evicted := cache.Put(globalNotification); evicted > 1 {
-			slog.WarnContext(ctx, "Processing of put event for notification resulted in multiple cache evictions (this is a bug).", "notification", globalNotification.GetMetadata().GetName())
-		}
-	case types.OpDelete:
-		cache.Delete(notificationID, event.Resource.GetName())
-	default:
-		slog.WarnContext(ctx, "Unexpected event variant", "event", event.Type)
 	}
 }
 

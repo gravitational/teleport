@@ -1,0 +1,32 @@
+---
+title: Revoking Access
+description: Learn how to revoke access before Teleport certificates expire
+---
+
+Teleport's approach to using short-lived certificates for all infrastructure
+access means that it can generate large numbers of certificates every day. For
+this reason, Teleport does not support traditional certificate revocation.
+
+There are two options available for revoking access: CA rotations and Teleport locks.
+
+## CA rotations
+
+To generate a new certificate authority and invalidate user certificates issued
+by the current CA, run `tctl auth rotate --type=user`. This process will require
+that the newly generated CA certificate is uploaded to your entire fleet of
+OpenSSH servers. This can be a disruptive change, especially in environments
+that lack automation, so proceed with caution.
+
+See the [CA rotations guide](../operations/ca-rotation.mdx) for more details on
+how to execute the procedure.
+
+## Locks
+
+Teleport locks allow you to permanently or temporarily revoke access to a number
+of different "targets". Supported lock targets include: specific users, roles,
+servers, desktops, or MFA devices. After you create a lock, all existing
+sessions where the lock applies are terminated and new sessions are rejected
+while the lock remains in force.
+
+For more information, read our
+[Session and Identity Locking Guide](../../access-controls/guides/locking.mdx).

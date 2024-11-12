@@ -34,6 +34,10 @@ func newVnetAdminSetupCommand(app *kingpin.Application) vnetNotSupported {
 	return vnetNotSupported{}
 }
 
+func newVnetDaemonCommand(app *kingpin.Application) vnetNotSupported {
+	return vnetNotSupported{}
+}
+
 type vnetNotSupported struct{}
 
 func (vnetNotSupported) FullCommand() string {
@@ -42,3 +46,9 @@ func (vnetNotSupported) FullCommand() string {
 func (vnetNotSupported) run(*CLIConf) error {
 	return trace.Wrap(vnet.ErrVnetNotImplemented)
 }
+
+var (
+	// Satisfy unused linter.
+	_ = (*vnetAppProvider)(nil)
+	_ = newVnetAppProvider
+)

@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 )
@@ -73,7 +74,8 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 			ClusterName: params.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID: params.ServerID,
+			ServerVersion: teleport.Version,
+			ServerID:      params.ServerID,
 			ServerLabels: map[string]string{
 				"kernel": "5.3.0-42-generic",
 				"date":   "Mon Mar 30 08:58:54 PDT 2020",
@@ -105,6 +107,7 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 			Time:  params.Clock.Now().UTC().Add(time.Hour + time.Second + 7*time.Millisecond),
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        params.ServerID,
 			ServerNamespace: "default",
 		},

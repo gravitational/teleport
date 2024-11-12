@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense } from 'react';
-import ThemeProvider from 'design/ThemeProvider';
+import React, { Suspense, useEffect } from 'react';
 
+import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { Route, Router, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
@@ -39,6 +39,7 @@ import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { LoginClose } from './Login/LoginClose';
 import { Login } from './Login';
 import { Welcome } from './Welcome';
+import { SingleLogoutFailed } from './SingleLogoutFailed';
 
 import { ConsoleWithContext as Console } from './Console';
 import { Player } from './Player';
@@ -54,6 +55,30 @@ const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;
   const createPublicRoutes = props.renderPublicRoutes || publicOSSRoutes;
   const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
+  // update the favicon based on the system pref, and listen if it changes
+  // overtime.
+  // TODO(avatus) this can be expanded upon eventually to handle the entire theme
+  // once we have a user settings page that allows users to properly set their theme
+  // to respect the system prefs. We only update the favicon here because the selected theme
+  // of the page doesn't necessarily match the theme of the browser, which is what we
+  // are trying to match.
+  useEffect(() => {
+    updateFavicon();
+
+    const colorSchemeQueryList = window.matchMedia(
+      '(prefers-color-scheme: dark)'
+    );
+
+    const colorSchemeListener = () => {
+      updateFavicon();
+    };
+
+    colorSchemeQueryList.addEventListener('change', colorSchemeListener);
+
+    return () => {
+      colorSchemeQueryList.removeEventListener('change', colorSchemeListener);
+    };
+  }, []);
 
   return (
     <CatchError>
@@ -142,6 +167,12 @@ export function getSharedPublicRoutes() {
       title="Password Reset"
       path={cfg.routes.userReset}
       render={() => <Welcome NewCredentials={NewCredentials} />}
+    />,
+    <Route
+      key="saml-slo-failed"
+      title="SAML Single Logout Failed"
+      path={cfg.routes.samlSloFailed}
+      component={SingleLogoutFailed}
     />,
   ];
 }

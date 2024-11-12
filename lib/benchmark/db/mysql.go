@@ -88,6 +88,7 @@ func (p *MySQLBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportCl
 			return trace.Wrap(err)
 		}
 
+		defer conn.Quit()
 		return trace.Wrap(conn.Ping())
 	}, nil
 }

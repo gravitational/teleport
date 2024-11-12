@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -56,9 +57,10 @@ type fetchAWSEKSClustersOutput struct {
 // fetchAWSSEKSClusters fetches eks instances from all regions.
 func (a *awsFetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClustersOutput, error) {
 	var (
-		output  fetchAWSEKSClustersOutput
-		hostsMu sync.Mutex
-		errs    []error
+		output   fetchAWSEKSClustersOutput
+		hostsMu  sync.Mutex
+		errs     []error
+		existing = a.lastResult
 	)
 	eG, ctx := errgroup.WithContext(ctx)
 	// Set the limit to 5 to avoid too many concurrent requests.
@@ -104,17 +106,40 @@ func (a *awsFetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClust
 				},
 			)
 			if err != nil {
-				collectClusters(nil, nil, nil, trace.Wrap(err))
+				oldEKSClusters := sliceFilter(existing.EKSClusters, func(cluster *accessgraphv1alpha.AWSEKSClusterV1) bool {
+					return cluster.Region == region && cluster.AccountId == a.AccountID
+				})
+				oldAccessEntries := sliceFilter(existing.AccessEntries, func(ae *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) bool {
+					return ae.Cluster.Region == region && ae.AccountId == a.AccountID
+				})
+				oldAssociatedPolicies := sliceFilter(existing.AssociatedAccessPolicies, func(ap *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) bool {
+					return ap.Cluster.Region == region && ap.AccountId == a.AccountID
+				})
+				hostsMu.Lock()
+				output.clusters = append(output.clusters, oldEKSClusters...)
+				output.associatedPolicies = append(output.associatedPolicies, oldAssociatedPolicies...)
+				output.accessEntry = append(output.accessEntry, oldAccessEntries...)
+				hostsMu.Unlock()
+
 			}
 
 			for _, cluster := range eksClusterNames {
+				oldCluster := sliceFilterPickFirst(existing.EKSClusters, func(c *accessgraphv1alpha.AWSEKSClusterV1) bool {
+					return c.Name == cluster && c.AccountId == a.AccountID && c.Region == region
+				})
+				oldAccessEntries := sliceFilter(existing.AccessEntries, func(ae *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) bool {
+					return ae.Cluster.Name == cluster && ae.AccountId == a.AccountID && ae.Cluster.Region == region
+				})
+				oldAssociatedPolicies := sliceFilter(existing.AssociatedAccessPolicies, func(ap *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) bool {
+					return ap.Cluster.Name == cluster && ap.AccountId == a.AccountID && ap.Cluster.Region == region
+				})
 				// DescribeClusterWithContext retrieves the cluster details.
 				cluster, err := eksClient.DescribeClusterWithContext(ctx, &eks.DescribeClusterInput{
 					Name: aws.String(cluster),
 				},
 				)
 				if err != nil {
-					collectClusters(nil, nil, nil, trace.Wrap(err))
+					collectClusters(oldCluster, oldAssociatedPolicies, oldAccessEntries, trace.Wrap(err))
 					return nil
 				}
 				protoCluster := awsEKSClusterToProtoCluster(cluster.Cluster, region, a.AccountID)
@@ -129,7 +154,7 @@ func (a *awsFetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClust
 				// fetchAccessEntries retries the list of configured access entries
 				accessEntries, err := a.fetchAccessEntries(ctx, eksClient, protoCluster)
 				if err != nil {
-					collectClusters(nil, nil, nil, trace.Wrap(err))
+					collectClusters(protoCluster, oldAssociatedPolicies, oldAccessEntries, trace.Wrap(err))
 				}
 
 				accessEntryARNs := make([]string, 0, len(accessEntries))
@@ -142,7 +167,7 @@ func (a *awsFetcher) fetchAWSSEKSClusters(ctx context.Context) (fetchAWSEKSClust
 
 				associatedPolicies, err := a.fetchAssociatedPolicies(ctx, eksClient, protoCluster, accessEntryARNs)
 				if err != nil {
-					collectClusters(nil, nil, nil, trace.Wrap(err))
+					collectClusters(protoCluster, oldAssociatedPolicies, accessEntries, trace.Wrap(err))
 				}
 				collectClusters(protoCluster, associatedPolicies, accessEntries, nil)
 			}
@@ -166,13 +191,14 @@ func awsEKSClusterToProtoCluster(cluster *eks.Cluster, region, accountID string)
 	}
 
 	return &accessgraphv1alpha.AWSEKSClusterV1{
-		Name:      aws.StringValue(cluster.Name),
-		Arn:       aws.StringValue(cluster.Arn),
-		CreatedAt: awsTimeToProtoTime(cluster.CreatedAt),
-		Status:    aws.StringValue(cluster.Status),
-		Region:    region,
-		AccountId: accountID,
-		Tags:      tags,
+		Name:         aws.StringValue(cluster.Name),
+		Arn:          aws.StringValue(cluster.Arn),
+		CreatedAt:    awsTimeToProtoTime(cluster.CreatedAt),
+		Status:       aws.StringValue(cluster.Status),
+		Region:       region,
+		AccountId:    accountID,
+		Tags:         tags,
+		LastSyncTime: timestamppb.Now(),
 	}
 }
 
@@ -244,6 +270,7 @@ func awsAccessEntryToProtoAccessEntry(accessEntry *eks.AccessEntry, cluster *acc
 		Type:             aws.StringValue(accessEntry.Type),
 		Tags:             tags,
 		AccountId:        accountID,
+		LastSyncTime:     timestamppb.Now(),
 	}
 
 	return out
@@ -296,6 +323,7 @@ func awsAssociatedAccessPolicy(policy *eks.AssociatedAccessPolicy, cluster *acce
 		PolicyArn:    aws.StringValue(policy.PolicyArn),
 		Scope:        accessScope,
 		AccountId:    accountID,
+		LastSyncTime: timestamppb.Now(),
 	}
 
 	return out

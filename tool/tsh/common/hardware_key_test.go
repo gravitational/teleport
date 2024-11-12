@@ -21,17 +21,26 @@
 package common
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os/user"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -69,29 +78,28 @@ func TestHardwareKeyLogin(t *testing.T) {
 	// mock SSO login and count the number of login attempts.
 	var lastLoginCount int
 	mockSSOLogin := mockSSOLogin(authServer, alice)
-	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		lastLoginCount++
 
 		// Set MockAttestationData to attest the expected key policy and reset it after login.
 		testModules.MockAttestationData = &keys.AttestationData{
-			PrivateKeyPolicy: priv.GetPrivateKeyPolicy(),
+			PrivateKeyPolicy: keyRing.SSHPrivateKey.GetPrivateKeyPolicy(),
 		}
 		defer func() {
 			testModules.MockAttestationData = nil
 		}()
 
-		return mockSSOLogin(ctx, connectorID, priv, protocol)
+		return mockSSOLogin(ctx, connectorID, keyRing, protocol)
 	}
 	setMockSSOLogin := setMockSSOLoginCustom(mockSSOLoginWithCountAndAttestation, connector.GetName())
 
 	t.Run("cap", func(t *testing.T) {
 		setRequireMFAType := func(t *testing.T, requireMFAType types.RequireMFAType) {
 			// Set require MFA type in the cluster auth preference.
-			_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					RequireMFAType: requireMFAType,
-				},
-			})
+			authPref, err := authServer.GetAuthPreference(ctx)
+			require.NoError(t, err)
+			authPref.SetRequireMFAType(requireMFAType)
+			_, err = authServer.UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 		}
 
@@ -276,4 +284,189 @@ func TestHardwareKeySSH(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestHardwareKeyApp tests Hardware Key App flows.
+func TestHardwareKeyApp(t *testing.T) {
+	ctx := context.Background()
+
+	testModules := &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	}
+	modules.SetTestModules(t, testModules)
+
+	testserver.WithResyncInterval(t, 0)
+
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
+
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
+
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Name})
+	connector := mockConnector(t)
+
+	testServer := testserver.MakeTestServer(t,
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps = servicecfg.AppsConfig{
+				Enabled: true,
+				Apps: []servicecfg.App{{
+					Name: "myapp",
+					URI:  startDummyHTTPServer(t, "myapp"),
+				}},
+			}
+		}),
+	)
+	authServer := testServer.GetAuthServer()
+	proxyAddr, err := testServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Set up user with MFA device since app login requires MFA when
+	// hardware key touch/pin is enabled.
+	origin := "https://127.0.0.1"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	_, err = authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		},
+	})
+	require.NoError(t, err)
+	registerDeviceForUser(t, authServer, device, accessUser.GetName(), origin)
+
+	// Login before adding hardware key requirement and verify we can connect to the app.
+	tmpHomePath := t.TempDir()
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()))
+	require.NoError(t, err)
+
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath))
+	require.NoError(t, err)
+
+	confOut := new(bytes.Buffer)
+	err = Run(ctx, []string{
+		"app",
+		"config",
+		"myapp",
+		"--format", "json",
+	}, setHomePath(tmpHomePath), setOverrideStdout(confOut))
+	require.NoError(t, err)
+
+	var info appConfigInfo
+	require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
+
+	clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
+	require.NoError(t, err)
+
+	resp, err := testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "myapp", resp.Header.Get("Server"))
+	resp.Body.Close()
+
+	// Require hardware key touch for the user. The user's current app certs should fail.
+	accessRole, err := authServer.GetRole(ctx, "access")
+	require.NoError(t, err)
+	accessRole.SetOptions(types.RoleOptions{
+		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+	})
+	_, err = authServer.UpsertRole(ctx, accessRole)
+	require.NoError(t, err)
+
+	testModules.MockAttestationData = nil
+
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	resp.Body.Close()
+
+	// App login fails without an attested hardware key login.
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()))
+	require.Error(t, err)
+
+	// Set MockAttestationData to attest the expected key policy and try again.
+	testModules.MockAttestationData = &keys.AttestationData{
+		PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+	}
+
+	// App Login will still fail without MFA, since the app sessions will
+	// only be attested as "web_session".
+	webauthnLoginOpt := setupWebAuthnChallengeSolver(device, false /* success */)
+
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()), webauthnLoginOpt)
+	require.Error(t, err)
+
+	// App commands will succeed with MFA.
+	webauthnLoginOpt = setupWebAuthnChallengeSolver(device, true /* success */)
+
+	// Test App login success and connect.
+	err = Run(ctx, []string{
+		"app",
+		"login",
+		"myapp",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, accessUser, connector.GetName()), webauthnLoginOpt)
+	require.NoError(t, err)
+
+	confOut = new(bytes.Buffer)
+	err = Run(ctx, []string{
+		"app",
+		"config",
+		"myapp",
+		"--format", "json",
+	}, setHomePath(tmpHomePath), setOverrideStdout(confOut))
+	require.NoError(t, err)
+
+	require.NoError(t, json.Unmarshal(confOut.Bytes(), &info))
+
+	clientCert, err = tls.LoadX509KeyPair(info.Cert, info.Key)
+	require.NoError(t, err)
+
+	resp, err = testDummyAppConn(fmt.Sprintf("https://%v", proxyAddr.Addr), clientCert)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "myapp", resp.Header.Get("Server"))
+	resp.Body.Close()
 }

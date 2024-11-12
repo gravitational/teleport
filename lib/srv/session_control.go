@@ -335,6 +335,7 @@ func (s *SessionController) emitRejection(ctx context.Context, userMetadata apie
 			RemoteAddr: remoteAddr,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        s.cfg.ServerID,
 			ServerNamespace: apidefaults.Namespace,
 		},

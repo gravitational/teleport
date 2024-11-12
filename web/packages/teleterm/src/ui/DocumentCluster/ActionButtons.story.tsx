@@ -28,12 +28,14 @@ import {
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import {
   ConnectAppActionButton,
   ConnectServerActionButton,
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
+  AccessRequestButton,
 } from './ActionButtons';
 
 export default {
@@ -42,14 +44,15 @@ export default {
 
 export function ActionButtons() {
   const appContext = new MockAppContext();
-  appContext.configService.set('feature.vnet', true);
   prepareAppContext(appContext);
 
   return (
     <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Buttons />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Buttons />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 }
@@ -60,9 +63,11 @@ export function WithoutVnet() {
 
   return (
     <MockAppContextProvider appContext={appContext}>
-      <VnetContextProvider>
-        <Buttons />
-      </VnetContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Buttons />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 }
@@ -100,6 +105,20 @@ function Buttons() {
         <Text>Kube</Text>
         <Kube />
       </Box>
+      <Flex gap={3} flexDirection="column">
+        <Box>
+          <Text>Request not started</Text>
+          <RequestNotStarted />
+        </Box>
+        <Box>
+          <Text>Request started</Text>
+          <RequestStarted />
+        </Box>
+        <Box>
+          <Text>Resource added</Text>
+          <ResourceAdded />
+        </Box>
+      </Flex>
     </Flex>
   );
 }
@@ -202,6 +221,36 @@ function Kube() {
       kube={makeKube({
         uri: `${testCluster.uri}/kubes/bar`,
       })}
+    />
+  );
+}
+
+function RequestNotStarted() {
+  return (
+    <AccessRequestButton
+      requestStarted={false}
+      onClick={() => {}}
+      isResourceAdded={false}
+    />
+  );
+}
+
+function RequestStarted() {
+  return (
+    <AccessRequestButton
+      requestStarted={true}
+      onClick={() => {}}
+      isResourceAdded={false}
+    />
+  );
+}
+
+function ResourceAdded() {
+  return (
+    <AccessRequestButton
+      requestStarted={true}
+      onClick={() => {}}
+      isResourceAdded={true}
     />
   );
 }

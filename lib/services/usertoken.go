@@ -55,9 +55,8 @@ func MarshalUserToken(token types.UserToken, opts ...MarshalOption) ([]byte, err
 			return nil, trace.Wrap(err)
 		}
 
-		if !cfg.PreserveResourceID {
+		if !cfg.PreserveRevision {
 			copy := *t
-			copy.SetResourceID(0)
 			copy.SetRevision("")
 			t = &copy
 		}

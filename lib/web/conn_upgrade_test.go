@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gobwas/ws"
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/listener"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -55,52 +58,66 @@ func TestWriteUpgradeResponse(t *testing.T) {
 }
 
 func TestHandlerConnectionUpgrade(t *testing.T) {
-	t.Parallel()
-
 	expectedPayload := "hello@"
 	expectedIP := "1.2.3.4"
-	alpnHandler := func(_ context.Context, conn net.Conn) error {
-		// Handles connection asynchronously to verify web handler waits until
-		// connection is closed.
-		go func() {
-			defer conn.Close()
+	simpleWriteHandler := func(t *testing.T) ConnectionHandler {
+		t.Helper()
+		return func(_ context.Context, conn net.Conn) error {
+			// Handles connection asynchronously to verify web handler waits until
+			// connection is closed.
+			go func() {
+				defer conn.Close()
 
-			clientIP, err := utils.ClientIPFromConn(conn)
-			require.NoError(t, err)
-			require.Equal(t, expectedIP, clientIP)
+				clientIP, err := utils.ClientIPFromConn(conn)
+				require.NoError(t, err)
+				require.Equal(t, expectedIP, clientIP)
 
-			n, err := conn.Write([]byte(expectedPayload))
-			require.NoError(t, err)
-			require.Len(t, expectedPayload, n)
-		}()
-		return nil
+				n, err := conn.Write([]byte(expectedPayload))
+				require.NoError(t, err)
+				require.Len(t, expectedPayload, n)
+			}()
+			return nil
+		}
 	}
 
-	// Cherry picked some attributes to create a Handler to test only the
-	// connection upgrade portion.
-	h := &Handler{
-		cfg: Config{
-			ALPNHandler: alpnHandler,
-		},
-		log:   newPackageLogger(),
-		clock: clockwork.NewRealClock(),
+	nestedUpgradeHandler := func(t *testing.T) ConnectionHandler {
+		t.Helper()
+		return func(ctx context.Context, conn net.Conn) error {
+			connListener := listener.NewSingleUseListener(conn)
+			http.Serve(connListener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer conn.Close()
+				upgrader := websocket.Upgrader{}
+				wsConn, err := upgrader.Upgrade(w, r, nil)
+				require.NoError(t, err)
+
+				op, payload, err := wsConn.ReadMessage()
+				require.NoError(t, err)
+				require.Equal(t, websocket.BinaryMessage, op)
+				require.Equal(t, expectedPayload, string(payload))
+			}))
+			return nil
+		}
 	}
 
 	tests := []struct {
 		name                  string
+		inputALPNHandler      func(*testing.T) ConnectionHandler
 		inputRequest          *http.Request
 		expectUpgradeType     string
 		checkHandlerError     func(error) bool
+		wrapClientConn        func(net.Conn) net.Conn
 		checkClientConnString func(*testing.T, net.Conn, string)
 	}{
 		{
 			name:              "unsupported type",
+			inputALPNHandler:  simpleWriteHandler,
 			inputRequest:      makeConnUpgradeRequest(t, "", "unsupported-protocol", expectedIP),
 			checkHandlerError: trace.IsNotFound,
 		},
 		{
 			// TODO(greedy52) DELETE in 17.0
 			name:                  "upgraded to ALPN (legacy)",
+			inputALPNHandler:      simpleWriteHandler,
 			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPN, expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
 			checkClientConnString: mustReadClientConnString,
@@ -108,38 +125,75 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		{
 			// TODO(greedy52) DELETE in 17.0
 			name:                  "upgraded to ALPN with Ping (legacy)",
+			inputALPNHandler:      simpleWriteHandler,
 			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPNPing, expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPNPing,
-			checkClientConnString: mustReadClientPingConnString,
+			wrapClientConn:        toNetConn(pingconn.New),
+			checkClientConnString: mustReadClientConnString,
+		},
+		{
+			// TODO(greedy52) DELETE in 17.0
+			name:                  "nested ALPN (legacy) upgrade",
+			inputALPNHandler:      nestedUpgradeHandler,
+			inputRequest:          makeConnUpgradeRequest(t, "", constants.WebAPIConnUpgradeTypeALPN, expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
+			checkClientConnString: mustWriteNestedWebSocketConnString,
 		},
 		{
 			name:                  "upgraded to ALPN with Teleport-specific header",
+			inputALPNHandler:      simpleWriteHandler,
 			inputRequest:          makeConnUpgradeRequest(t, constants.WebAPIConnUpgradeTeleportHeader, constants.WebAPIConnUpgradeTypeALPN, expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeALPN,
 			checkClientConnString: mustReadClientConnString,
 		},
 		{
 			name:                  "upgraded to WebSocket",
+			inputALPNHandler:      simpleWriteHandler,
 			inputRequest:          makeConnUpgradeWebSocketRequest(t, constants.WebAPIConnUpgradeTypeALPN, expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
-			checkClientConnString: mustReadClientWebSocketConnString,
+			wrapClientConn:        toNetConn(newWebsocketALPNClientConn),
+			checkClientConnString: mustReadClientConnString,
 		},
 		{
 			name:                  "upgraded to WebSocket with ping",
+			inputALPNHandler:      simpleWriteHandler,
 			inputRequest:          makeConnUpgradeWebSocketRequest(t, constants.WebAPIConnUpgradeTypeALPNPing, expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
-			checkClientConnString: mustReadClientWebSocketConnString,
+			wrapClientConn:        toNetConn(newWebsocketALPNClientConn),
+			checkClientConnString: mustReadClientConnString,
 		},
 		{
 			name:                  "unsupported WebSocket sub-protocol",
+			inputALPNHandler:      simpleWriteHandler,
 			inputRequest:          makeConnUpgradeWebSocketRequest(t, "unsupported-protocol", expectedIP),
 			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
 			checkClientConnString: mustReadClientWebSocketClosed,
 		},
+		{
+			name:                  "nested WebSocket upgrade",
+			inputALPNHandler:      nestedUpgradeHandler,
+			inputRequest:          makeConnUpgradeWebSocketRequest(t, constants.WebAPIConnUpgradeTypeALPN, expectedIP),
+			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
+			wrapClientConn:        toNetConn(newWebsocketALPNClientConn),
+			checkClientConnString: mustWriteNestedWebSocketConnString,
+		},
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Cherry picked some attributes to create a Handler to test only the
+			// connection upgrade portion.
+			h := &Handler{
+				cfg: Config{
+					ALPNHandler: test.inputALPNHandler(t),
+				},
+				logger: slog.Default(),
+				clock:  clockwork.NewRealClock(),
+			}
+
 			serverConn, clientConn := net.Pipe()
 			defer serverConn.Close()
 			defer clientConn.Close()
@@ -169,6 +223,9 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 
 			case <-w.hijackedCtx.Done():
 				mustReadSwitchProtocolsResponse(t, test.inputRequest, clientConn, test.expectUpgradeType)
+				if test.wrapClientConn != nil {
+					clientConn = test.wrapClientConn(clientConn)
+				}
 				test.checkClientConnString(t, clientConn, expectedPayload)
 
 			case <-time.After(5 * time.Second):
@@ -176,6 +233,65 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 			}
 		})
 	}
+}
+
+func toNetConn[ConnType net.Conn](f func(net.Conn) ConnType) func(net.Conn) net.Conn {
+	return func(in net.Conn) net.Conn {
+		return net.Conn(f(in))
+	}
+}
+
+// websocketALPNClientConn wraps the provided net.Conn after WebSocket
+// handshake (101 switch) is performed. This is a simpler version of the client
+// connection wrapper in api/client.
+type websocketALPNClientConn struct {
+	net.Conn
+}
+
+func newWebsocketALPNClientConn(conn net.Conn) *websocketALPNClientConn {
+	return &websocketALPNClientConn{conn}
+}
+
+func (c *websocketALPNClientConn) Read(b []byte) (int, error) {
+	frame, err := ws.ReadFrame(c.Conn)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	switch frame.Header.OpCode {
+	case ws.OpClose:
+		return 0, io.EOF
+	case ws.OpBinary:
+		return copy(b, frame.Payload), nil
+	case ws.OpPing:
+		return c.Read(b)
+	default:
+		return 0, trace.BadParameter("unsupported op %v", frame.Header.OpCode)
+	}
+}
+
+func (c *websocketALPNClientConn) Write(b []byte) (int, error) {
+	// Remember to use a proper mask on client side.
+	frame := ws.MaskFrame(ws.NewFrame(ws.OpBinary, true, b))
+	if err := ws.WriteFrame(c.Conn, frame); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return len(b), nil
+}
+
+func mustWriteNestedWebSocketConnString(t *testing.T, clientConn net.Conn, payload string) {
+	t.Helper()
+
+	dialer := websocket.Dialer{
+		NetDialContext: func(context.Context, string, string) (net.Conn, error) {
+			return clientConn, nil
+		},
+	}
+	nestedConn, response, err := dialer.DialContext(context.Background(), "ws://does-not-matter", nil)
+	if response != nil && response.Body != nil {
+		defer response.Body.Close()
+	}
+	require.NoError(t, err)
+	require.NoError(t, nestedConn.WriteMessage(websocket.BinaryMessage, []byte(payload)))
 }
 
 func makeConnUpgradeRequest(t *testing.T, upgradeHeaderKey, upgradeType, xForwardedFor string) *http.Request {
@@ -235,31 +351,6 @@ func mustReadClientConnString(t *testing.T, clientConn net.Conn, expectedPayload
 	receive, err := bufio.NewReader(clientConn).ReadString(byte('@'))
 	require.NoError(t, err)
 	require.Equal(t, expectedPayload, receive)
-}
-
-func mustReadClientPingConnString(t *testing.T, clientConn net.Conn, expectedPayload string) {
-	t.Helper()
-
-	mustReadClientConnString(t, pingconn.New(clientConn), expectedPayload)
-}
-
-func mustReadClientWebSocketConnString(t *testing.T, clientConn net.Conn, expectedPayload string) {
-	t.Helper()
-
-	for {
-		frame, err := ws.ReadFrame(clientConn)
-		require.NoError(t, err)
-
-		switch frame.Header.OpCode {
-		case ws.OpBinary:
-			require.Equal(t, expectedPayload, string(frame.Payload))
-			return
-		case ws.OpPing:
-			continue
-		default:
-			require.Fail(t, "does not expect WebSocket frame %v", frame)
-		}
-	}
 }
 
 func mustReadClientWebSocketClosed(t *testing.T, clientConn net.Conn, expectedPayload string) {
