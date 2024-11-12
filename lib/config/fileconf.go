@@ -1531,6 +1531,8 @@ type GCPMatcher struct {
 type AccessGraphSync struct {
 	// AWS is the AWS configuration for the AccessGraph Sync service.
 	AWS []AccessGraphAWSSync `yaml:"aws,omitempty"`
+	// PollInterval is the frequency at which to poll for AWS resources
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // AccessGraphAWSSync represents the configuration for the AWS AccessGraph Sync service.
