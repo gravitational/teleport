@@ -2,6 +2,14 @@
   "language": "en",
   "version": "0.2",
   "words": [
+    "aada",
+    "abee",
+    "fffc",
+    "fabfc",
+    "microservices",
+    "configmaps",
+    "genrsa",
+    "displayname",
     "AADUSER",
     "ABCDEFGHIJKL",
     "ADFS",
@@ -1005,9 +1013,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ],
+  "flagWords": ["hte"],
   "ignorePaths": [
     "**/reference/terraform-provider/**",
     "**/reference/operator-resources/**"
