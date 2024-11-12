@@ -444,10 +444,10 @@ type smallFile struct {
 	mode os.FileMode
 }
 
-// forceLinks replaces binary links and service files with files in binDir and svcDir.
-// Existing files are replaced, but existing non-link files where links should be present will result in error.
-// forceLinks will revert any overridden links if it hits an error.
-// If successful, forceLinks may be reverted after the fact by calling revert.
+// forceLinks replaces binary links and service files using files in binDir and svcDir.
+// Existing links and files are replaced, but mismatched links and files will result in error.
+// forceLinks will revert any overridden links or files if it hits an error.
+// If successful, forceLinks may also be reverted after it returns by calling revert.
 // The revert function returns true if reverting succeeds.
 func (li *LocalInstaller) forceLinks(ctx context.Context, binDir, svcDir string) (revert func(context.Context) bool, err error) {
 	// setup revert function
