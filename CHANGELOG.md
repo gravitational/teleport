@@ -2,8 +2,20 @@
 
 ## 17.0.0 (11/xx/2024)
 
-### ** Not yet released **
+### Breaking changes
 
+#### macOS Package Changes
+
+To support a more consistent user experience, the macOS packages have been restructured so that all packages will provide a 
+`tsh` and `tctl` capable of utilizing TouchID.
+
+The standalone `tsh` and `tctl` binaries have been removed from these packages and
+replaced with `tsh.app` and `tctl.app` bundles.
+The standalone `tsh.pkg` that installs a `tsh.app` bundle has also been removed as part of these changes since it is now included 
+by default in all packages.
+
+`/usr/local/bin/tsh` will now be a symbolic link to `/Applications/tsh.app/Contents/MacOS/tsh`
+`/usr/local/bin/tctl` will now be a symbolic link to `/Applications/tsh.app/Contents/MacOS/tctl`
 
 ## 16.4.6 (10/22/2024)
 
