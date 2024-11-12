@@ -396,6 +396,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
       locations: ["*"]
@@ -433,6 +434,7 @@ clusters in project `myproj-prod` running in `us-east2`, but *not* clusters in
 ```yaml
 discovery_service:
   enabled: "yes"
+  discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
       locations: ["us-east1"]
