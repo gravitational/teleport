@@ -49,6 +49,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -2097,6 +2098,60 @@ func TestStreamSessionEvents(t *testing.T) {
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
 	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents ensures that when a user streams a session's events
+// a "session recording access" event is emitted with the correct session type.
+func TestStreamSessionEvents_SessionType(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, []string{}, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	sessionID := "44c6cea8-362f-11ea-83aa-125400432324"
+
+	// Emitting a session end event will cause the listing to correctly locate
+	// the recording (even if there might not be a recording file to stream).
+	require.NoError(t, srv.Auth().EmitAuditEvent(ctx, &apievents.DatabaseSessionEnd{
+		Metadata: apievents.Metadata{
+			Type: events.DatabaseSessionEndEvent,
+			Code: events.DatabaseSessionEndCode,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: sessionID,
+		},
+	}))
+
+	accessedFormat := teleport.PTY
+	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), session.ID(sessionID), 0)
+
+	// Perform the listing an eventually loop to ensure the event is emitted.
+	var searchEvents []apievents.AuditEvent
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var err error
+		searchEvents, _, err = srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       srv.Clock().Now().Add(-time.Hour),
+			To:         srv.Clock().Now().Add(time.Hour),
+			EventTypes: []string{events.SessionRecordingAccessEvent},
+			Limit:      1,
+			Order:      types.EventOrderDescending,
+		})
+		assert.NoError(t, err)
+		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+	}, 5*time.Second, 200*time.Millisecond)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+	require.Equal(t, string(types.DatabaseSessionKind), event.SessionType)
+	require.Equal(t, accessedFormat, event.Format)
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
