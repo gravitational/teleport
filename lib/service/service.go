@@ -137,7 +137,6 @@ import (
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/proxy/clusterdial"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -4715,9 +4714,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		peerAddrString = peerAddr.String()
 
 		peerServer, err = peer.NewServer(peer.ServerConfig{
-			Log:           process.logger,
-			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-			CipherSuites:  cfg.CipherSuites,
+			Log:          process.logger,
+			Dialer:       reversetunnelclient.NewPeerDialer(tsrv),
+			CipherSuites: cfg.CipherSuites,
 			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 				return conn.serverGetCertificate()
 			},
@@ -4750,9 +4749,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if peerQUICTransport != nil {
 			peerQUICServer, err := peer.NewQUICServer(peer.QUICServerConfig{
-				Log:           process.logger,
-				ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-				CipherSuites:  cfg.CipherSuites,
+				Log:          process.logger,
+				Dialer:       reversetunnelclient.NewPeerDialer(tsrv),
+				CipherSuites: cfg.CipherSuites,
 				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 					return conn.serverGetCertificate()
 				},

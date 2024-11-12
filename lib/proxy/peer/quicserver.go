@@ -28,14 +28,15 @@ import (
 	"github.com/quic-go/quic-go"
 
 	"github.com/gravitational/teleport"
+	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 )
 
 // QUICServerConfig holds the parameters for [NewQUICServer].
 type QUICServerConfig struct {
 	Log *slog.Logger
-	// ClusterDialer is the dialer used to open connections to agents on behalf
+	// Dialer is the dialer used to open connections to agents on behalf
 	// of the peer proxies. Required.
-	ClusterDialer ClusterDialer
+	Dialer peerdial.Dialer
 
 	// CipherSuites is the set of TLS ciphersuites to be used by the server.
 	//
@@ -63,8 +64,8 @@ func (c *QUICServerConfig) checkAndSetDefaults() error {
 		teleport.Component(teleport.ComponentProxy, "qpeer"),
 	)
 
-	if c.ClusterDialer == nil {
-		return trace.BadParameter("missing cluster dialer")
+	if c.Dialer == nil {
+		return trace.BadParameter("missing Dialer")
 	}
 
 	if c.GetCertificate == nil {

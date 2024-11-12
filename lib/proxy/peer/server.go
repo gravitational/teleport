@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -49,8 +50,8 @@ const (
 
 // ServerConfig configures a Server instance.
 type ServerConfig struct {
-	Log           *slog.Logger
-	ClusterDialer ClusterDialer
+	Log    *slog.Logger
+	Dialer peerdial.Dialer
 
 	CipherSuites   []uint16
 	GetCertificate func(*tls.ClientHelloInfo) (*tls.Certificate, error)
@@ -71,8 +72,8 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
 
-	if c.ClusterDialer == nil {
-		return trace.BadParameter("missing cluster dialer server")
+	if c.Dialer == nil {
+		return trace.BadParameter("missing Dialer")
 	}
 
 	if c.GetCertificate == nil {
@@ -84,8 +85,8 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 
 	if c.service == nil {
 		c.service = &proxyService{
-			c.ClusterDialer,
-			c.Log,
+			dialer: c.Dialer,
+			log:    c.Log,
 		}
 	}
 
@@ -94,9 +95,9 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 
 // Server is a proxy service server using grpc and tls.
 type Server struct {
-	log           *slog.Logger
-	clusterDialer ClusterDialer
-	server        *grpc.Server
+	log    *slog.Logger
+	dialer peerdial.Dialer
+	server *grpc.Server
 }
 
 // NewServer creates a new proxy server instance.
@@ -158,9 +159,9 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	proto.RegisterProxyServiceServer(server, cfg.service)
 
 	return &Server{
-		log:           cfg.Log,
-		clusterDialer: cfg.ClusterDialer,
-		server:        server,
+		log:    cfg.Log,
+		dialer: cfg.Dialer,
+		server: server,
 	}, nil
 }
 
